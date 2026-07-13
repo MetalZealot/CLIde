@@ -540,10 +540,16 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       throw new Error('Unable to change the active model for this session.');
     }
 
+    // Persist the pick as the per-browser new-session default too, mirroring the
+    // Claude Code CLI where choosing a model also becomes the default for new
+    // sessions. localStorage keeps this per-browser, never machine-global.
+    const resolvedModel = body.data.model || model;
+    setStoredProviderModel(targetProvider, resolvedModel);
+
     return {
       scope: 'session' as const,
       changed: body.data.changed === true,
-      model: body.data.model || model,
+      model: resolvedModel,
     };
   }, [setStoredProviderModel]);
 
