@@ -19,13 +19,14 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'default',
       label: 'Default (recommended)',
-      description: 'Use the Claude Code default model (currently Sonnet 4.6)',
+      description: 'Use the Claude Code default model (currently Sonnet 5)',
       effort: {
         default: 'high',
         values: [
           { value: 'low' },
           { value: 'medium' },
           { value: 'high' },
+          { value: 'xhigh' },
           { value: 'max' },
         ],
       },
@@ -48,13 +49,14 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: "sonnet",
       label: "Sonnet",
-      description: "Sonnet 4.6 · Best for everyday tasks · $3/$15 per Mtok",
+      description: "Sonnet 5 · Best for everyday tasks · $3/$15 per Mtok",
       effort: {
         default: 'high',
         values: [
           { value: 'low' },
           { value: 'medium' },
           { value: 'high' },
+          { value: 'xhigh' },
           { value: 'max' },
         ],
       },
@@ -62,13 +64,14 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'sonnet[1m]',
       label: 'Sonnet (1M context)',
-      description: 'Sonnet 4.6 for long sessions · $3/$15 per Mtok',
+      description: 'Sonnet 5 for long sessions · $3/$15 per Mtok',
       effort: {
         default: 'high',
         values: [
           { value: 'low' },
           { value: 'medium' },
           { value: 'high' },
+          { value: 'xhigh' },
           { value: 'max' },
         ],
       },
