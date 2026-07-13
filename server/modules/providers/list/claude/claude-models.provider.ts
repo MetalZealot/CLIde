@@ -1,4 +1,6 @@
 import { readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
@@ -11,6 +13,7 @@ import type {
 } from '@/shared/types.js';
 import {
   buildDefaultProviderCurrentActiveModel,
+  readProviderSessionActiveModelChange,
   writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
 
@@ -19,7 +22,7 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'default',
       label: 'Default (recommended)',
-      description: 'Use the Claude Code default model (currently Sonnet 5)',
+      description: 'Use the Claude Code default model (set by your Claude settings or plan)',
       effort: {
         default: 'high',
         values: [
@@ -122,6 +125,37 @@ export const findClaudeModelOption = (model: string | undefined | null): Provide
   }
 
   return CLAUDE_FALLBACK_MODELS.OPTIONS.find((option) => option.value === normalizedModel) ?? null;
+};
+
+/**
+ * Maps a full model id from a session transcript (e.g. `claude-fable-5`) back
+ * to the picker alias (`fable`) so the frontend can highlight the matching
+ * catalog option. Unknown ids are returned unchanged so the UI still shows the
+ * real model instead of silently falling back to the default.
+ */
+export const resolveClaudeModelAlias = (
+  model: string,
+  options: ProviderModelOption[],
+): string => {
+  const normalized = model.trim();
+  if (!normalized || options.some((option) => option.value === normalized)) {
+    return normalized;
+  }
+
+  const lowered = normalized.toLowerCase();
+  const wantsLongContext = lowered.includes('[1m]');
+  for (const option of options) {
+    if (option.value === 'default') {
+      continue;
+    }
+
+    const family = option.value.replace(/\[1m\]$/, '');
+    if (lowered.includes(family) && option.value.endsWith('[1m]') === wantsLongContext) {
+      return option.value;
+    }
+  }
+
+  return normalized;
 };
 type ClaudeInitEvent = {
   sessionId?: string;
@@ -232,7 +266,49 @@ const readClaudeSessionModelFromJsonl = async (
   return null;
 };
 
+type ClaudeSessionRow = {
+  provider_session_id?: string | null;
+  jsonl_path?: string | null;
+};
+
+type ClaudeProviderModelsDeps = {
+  getSessionRow?: (sessionId: string) => ClaudeSessionRow | null;
+  activeModelChangesPath?: string;
+  claudeSettingsPath?: string;
+};
+
 export class ClaudeProviderModels implements IProviderModels {
+  constructor(private readonly deps: ClaudeProviderModelsDeps = {}) {}
+
+  private lookupSessionRow(sessionId: string): ClaudeSessionRow | null {
+    return this.deps.getSessionRow
+      ? this.deps.getSessionRow(sessionId)
+      : sessionsDb.getSessionById(sessionId);
+  }
+
+  /**
+   * Resolves what "default" actually runs for this machine, mirroring Claude
+   * Code's own precedence: ANTHROPIC_MODEL env, then the `model` key in
+   * ~/.claude/settings.json. Returns null when neither is set (the plan
+   * default applies and we cannot know it here).
+   */
+  private async readConfiguredDefaultModel(): Promise<string | null> {
+    const envModel = process.env.ANTHROPIC_MODEL?.trim();
+    if (envModel) {
+      return envModel;
+    }
+
+    const settingsPath = this.deps.claudeSettingsPath
+      ?? path.join(os.homedir(), '.claude', 'settings.json');
+    try {
+      const settings = JSON.parse(await readFile(settingsPath, 'utf8')) as { model?: unknown };
+      const model = typeof settings.model === 'string' ? settings.model.trim() : '';
+      return model || null;
+    } catch {
+      return null;
+    }
+  }
+
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
     // claude creates a new jsonl file as a separate session for this request.
     // As a result, it lists the workspace where this is invoked when it shouldn't.
@@ -245,21 +321,51 @@ export class ClaudeProviderModels implements IProviderModels {
     // const supportedModels = await queryInstance.supportedModels();
     // queryInstance.close();
     // return buildClaudeModelsDefinition(supportedModels);
-    return CLAUDE_FALLBACK_MODELS;
+    const configuredDefaultModel = await this.readConfiguredDefaultModel();
+    if (!configuredDefaultModel) {
+      return CLAUDE_FALLBACK_MODELS;
+    }
+
+    return {
+      ...CLAUDE_FALLBACK_MODELS,
+      OPTIONS: CLAUDE_FALLBACK_MODELS.OPTIONS.map((option) =>
+        option.value === 'default'
+          ? {
+              ...option,
+              description: `Use the Claude Code default model (currently ${configuredDefaultModel}, from your Claude settings)`,
+            }
+          : option,
+      ),
+    };
   }
 
   async getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel> {
-    if (!sessionId?.trim()) {
+    const normalizedSessionId = sessionId?.trim();
+    if (!normalizedSessionId) {
       return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());
     }
 
+    // A stored picker selection is authoritative: resolveResumeModel injects
+    // it on every resumed turn, so it is what the session actually runs.
+    const changedModel = await readProviderSessionActiveModelChange('claude', normalizedSessionId, {
+      filePath: this.deps.activeModelChangesPath,
+    });
+    if (changedModel.changed && changedModel.model) {
+      return { model: changedModel.model };
+    }
+
     try {
-      const jsonlPath = sessionsDb.getSessionById(sessionId)?.jsonl_path;
+      const sessionRow = this.lookupSessionRow(normalizedSessionId);
+      const jsonlPath = sessionRow?.jsonl_path;
+      // Transcript events carry the provider-native session id, not the
+      // app-level id the frontend sends with commands.
+      const transcriptSessionId = sessionRow?.provider_session_id || normalizedSessionId;
       const activeModel = jsonlPath
-        ? await readClaudeSessionModelFromJsonl(sessionId, jsonlPath)
+        ? await readClaudeSessionModelFromJsonl(transcriptSessionId, jsonlPath)
         : null;
       if (activeModel?.model) {
-        return activeModel;
+        const supportedModels = await this.getSupportedModels();
+        return { model: resolveClaudeModelAlias(activeModel.model, supportedModels.OPTIONS) };
       }
     } catch {
       // Fall through to the provider default when the session-backed lookup fails.
