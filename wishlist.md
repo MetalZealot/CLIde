@@ -55,7 +55,7 @@ Screenshots for many of these live in `UI Visual References/` (repo root, untrac
 
 ## Done
 
-- [x] Sidebar: condensed the bottom 3 buttons (Report, Join Community, Settings) into one row of icon-only buttons on mobile (`0fa5544`), freeing ~2 rows for the convo list. Labels moved to aria-label/title; desktop footer unchanged. *Not yet verified live — reload the UI (client-only change, no restart needed) and check the sidebar drawer footer.*
+- [x] Sidebar: condensed the bottom 3 buttons (Report, Join Community, Settings) into one row of icon-only buttons on mobile (`0fa5544`), freeing ~2 rows for the convo list. Labels moved to aria-label/title; desktop footer unchanged. Verified in UI 2026-07-14.
 - [x] Figure out how sessions are archived — found it: nested in the "Delete" menu. (Spawned the context-menu item under Mobile UX polish.)
 - [x] Model selector said "Sonnet 4.6 is default" (outdated) — fixed by commits `87b7177` + `7159ef4`; the label now resolves the real configured default dynamically. Verified in UI 2026-07-13 (popup shows "currently claude-fable-5[1m], from your Claude settings").
 - [x] Mid-session model picks in the /models popup now also persist as the per-browser new-session default (`f0fada7`), matching CLI `/model` behavior. *Not yet verified live — needs rebuild + restart from SSH, then: pick in popup → new session's picker shows it.*
