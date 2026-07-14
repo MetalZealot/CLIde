@@ -23,7 +23,6 @@ interface UseSlashCommandsOptions {
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement>;
-  onExecuteCommand: (command: SlashCommand, rawInput?: string) => void | Promise<void>;
 }
 
 type ProviderSkill = {
@@ -63,11 +62,11 @@ const saveCommandHistory = (projectName: string, history: Record<string, number>
   safeLocalStorage.setItem(getCommandHistoryKey(projectName), JSON.stringify(history));
 };
 
-const isPromiseLike = (value: unknown): value is Promise<unknown> =>
-  Boolean(value) && typeof (value as Promise<unknown>).then === 'function';
-
-const isSkillCommand = (command: SlashCommand) =>
-  command.type === 'skill' || command.metadata?.type === 'skill';
+const isTouchEnvironment = () =>
+  typeof window !== 'undefined' &&
+  (navigator.maxTouchPoints > 0 ||
+    'ontouchstart' in window ||
+    window.matchMedia?.('(pointer: coarse)').matches === true);
 
 const dedupeProviderSkills = (skills: ProviderSkill[]): ProviderSkill[] => {
   const seenCommands = new Set<string>();
@@ -141,7 +140,6 @@ export function useSlashCommands({
   input,
   setInput,
   textareaRef,
-  onExecuteCommand,
 }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -310,38 +308,6 @@ export function useSlashCommands({
     [input, resetCommandMenuState, setInput, slashPosition, textareaRef],
   );
 
-  const executeNonSkillCommand = useCallback(
-    (command: SlashCommand) => {
-      const executionResult = onExecuteCommand(command);
-      if (isPromiseLike(executionResult)) {
-        executionResult.then(
-          () => {
-            resetCommandMenuState();
-          },
-          () => {
-            resetCommandMenuState();
-            // Keep behavior silent; execution errors are handled by caller.
-          },
-        );
-      } else {
-        resetCommandMenuState();
-      }
-    },
-    [onExecuteCommand, resetCommandMenuState],
-  );
-
-  const selectCommandFromKeyboard = useCallback(
-    (command: SlashCommand) => {
-      if (isSkillCommand(command)) {
-        insertCommandIntoInput(command);
-        return;
-      }
-
-      executeNonSkillCommand(command);
-    },
-    [executeNonSkillCommand, insertCommandIntoInput],
-  );
-
   const handleCommandSelect = useCallback(
     (command: SlashCommand | null, index: number, isHover: boolean) => {
       if (!command || !selectedProject) {
@@ -354,14 +320,9 @@ export function useSlashCommands({
       }
 
       trackCommandUsage(command);
-      if (isSkillCommand(command)) {
-        insertCommandIntoInput(command);
-        return;
-      }
-
-      executeNonSkillCommand(command);
+      insertCommandIntoInput(command);
     },
-    [selectedProject, trackCommandUsage, insertCommandIntoInput, executeNonSkillCommand],
+    [selectedProject, trackCommandUsage, insertCommandIntoInput],
   );
 
   const handleToggleCommandMenu = useCallback(() => {
@@ -374,7 +335,11 @@ export function useSlashCommands({
       setFilteredCommands(slashCommands);
     }
 
-    textareaRef.current?.focus();
+    // Focusing the textarea enables type-to-filter and arrow-key navigation,
+    // but on touch devices it flips the on-screen keyboard open — skip it there.
+    if (!isTouchEnvironment()) {
+      textareaRef.current?.focus();
+    }
   }, [showCommandMenu, slashCommands, textareaRef]);
 
   const handleCommandInputChange = useCallback(
@@ -452,9 +417,9 @@ export function useSlashCommands({
       if (event.key === 'Tab' || event.key === 'Enter') {
         event.preventDefault();
         if (selectedCommandIndex >= 0) {
-          selectCommandFromKeyboard(filteredCommands[selectedCommandIndex]);
+          insertCommandIntoInput(filteredCommands[selectedCommandIndex]);
         } else if (filteredCommands.length > 0) {
-          selectCommandFromKeyboard(filteredCommands[0]);
+          insertCommandIntoInput(filteredCommands[0]);
         }
         return true;
       }
@@ -467,7 +432,7 @@ export function useSlashCommands({
 
       return false;
     },
-    [showCommandMenu, filteredCommands, resetCommandMenuState, selectCommandFromKeyboard, selectedCommandIndex],
+    [showCommandMenu, filteredCommands, resetCommandMenuState, insertCommandIntoInput, selectedCommandIndex],
   );
 
   useEffect(
@@ -479,7 +444,6 @@ export function useSlashCommands({
 
   return {
     slashCommands,
-    slashCommandsCount: slashCommands.length,
     filteredCommands,
     frequentCommands,
     commandQuery,

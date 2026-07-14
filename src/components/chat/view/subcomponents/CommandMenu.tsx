@@ -250,6 +250,12 @@ export default function CommandMenu({
       className="command-menu border border-border bg-popover/95 text-popover-foreground"
       style={{ ...menuBaseStyle, ...menuPosition, opacity: 1, transform: 'translateY(0)' }}
     >
+      <div className="mb-1 flex items-center justify-between border-b border-border px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span>Available commands</span>
+        <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px]">
+          {commands.length}
+        </span>
+      </div>
       {orderedNamespaces.map((namespace) => (
         <div key={namespace} className="command-group">
           {orderedNamespaces.length > 1 && (
