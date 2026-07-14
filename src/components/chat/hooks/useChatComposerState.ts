@@ -470,6 +470,7 @@ export function useChatComposerState({
     input,
     setInput,
     textareaRef,
+    onExecuteCommand: executeCommand,
   });
 
   const {

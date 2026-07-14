@@ -23,6 +23,7 @@ interface UseSlashCommandsOptions {
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement>;
+  onExecuteCommand: (command: SlashCommand, rawInput?: string) => void | Promise<void>;
 }
 
 type ProviderSkill = {
@@ -67,6 +68,15 @@ const isTouchEnvironment = () =>
   (navigator.maxTouchPoints > 0 ||
     'ontouchstart' in window ||
     window.matchMedia?.('(pointer: coarse)').matches === true);
+
+const isPromiseLike = (value: unknown): value is Promise<unknown> =>
+  Boolean(value) && typeof (value as Promise<unknown>).then === 'function';
+
+// Built-ins (/help, /models, /cost, /memory, /config, /status) take no
+// arguments and only display data or open a panel, so it's safe to run them
+// straight from the menu instead of making the user press Enter again.
+const isBuiltInCommand = (command: SlashCommand) =>
+  command.namespace === 'builtin' || command.type === 'built-in';
 
 const dedupeProviderSkills = (skills: ProviderSkill[]): ProviderSkill[] => {
   const seenCommands = new Set<string>();
@@ -140,6 +150,7 @@ export function useSlashCommands({
   input,
   setInput,
   textareaRef,
+  onExecuteCommand,
 }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -308,6 +319,30 @@ export function useSlashCommands({
     [input, resetCommandMenuState, setInput, slashPosition, textareaRef],
   );
 
+  const executeBuiltInCommand = useCallback(
+    (command: SlashCommand) => {
+      const executionResult = onExecuteCommand(command, command.name);
+      if (isPromiseLike(executionResult)) {
+        executionResult.then(resetCommandMenuState, resetCommandMenuState);
+      } else {
+        resetCommandMenuState();
+      }
+    },
+    [onExecuteCommand, resetCommandMenuState],
+  );
+
+  const selectCommand = useCallback(
+    (command: SlashCommand) => {
+      if (isBuiltInCommand(command)) {
+        executeBuiltInCommand(command);
+        return;
+      }
+
+      insertCommandIntoInput(command);
+    },
+    [executeBuiltInCommand, insertCommandIntoInput],
+  );
+
   const handleCommandSelect = useCallback(
     (command: SlashCommand | null, index: number, isHover: boolean) => {
       if (!command || !selectedProject) {
@@ -320,9 +355,9 @@ export function useSlashCommands({
       }
 
       trackCommandUsage(command);
-      insertCommandIntoInput(command);
+      selectCommand(command);
     },
-    [selectedProject, trackCommandUsage, insertCommandIntoInput],
+    [selectedProject, trackCommandUsage, selectCommand],
   );
 
   const handleToggleCommandMenu = useCallback(() => {
@@ -417,9 +452,9 @@ export function useSlashCommands({
       if (event.key === 'Tab' || event.key === 'Enter') {
         event.preventDefault();
         if (selectedCommandIndex >= 0) {
-          insertCommandIntoInput(filteredCommands[selectedCommandIndex]);
+          selectCommand(filteredCommands[selectedCommandIndex]);
         } else if (filteredCommands.length > 0) {
-          insertCommandIntoInput(filteredCommands[0]);
+          selectCommand(filteredCommands[0]);
         }
         return true;
       }
@@ -432,7 +467,7 @@ export function useSlashCommands({
 
       return false;
     },
-    [showCommandMenu, filteredCommands, resetCommandMenuState, insertCommandIntoInput, selectedCommandIndex],
+    [showCommandMenu, filteredCommands, resetCommandMenuState, selectCommand, selectedCommandIndex],
   );
 
   useEffect(
