@@ -18,6 +18,8 @@ type SidebarSessionItemProps = {
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
+  /** Shown under the session name in flat lists that mix projects. */
+  projectLabel?: string;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
@@ -70,6 +72,7 @@ export default function SidebarSessionItem({
   currentTime,
   editingSession,
   editingSessionName,
+  projectLabel,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
@@ -183,11 +186,14 @@ export default function SidebarSessionItem({
                   <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
                 )}
               </div>
-              <div className="mt-0.5 flex items-center">
+              <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && (
                   <Badge variant="secondary" className="px-1 py-0 text-xs">
                     {sessionView.messageCount}
                   </Badge>
+                )}
+                {projectLabel && (
+                  <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                 )}
               </div>
             </div>
@@ -264,8 +270,11 @@ export default function SidebarSessionItem({
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 flex items-center">
+              <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
+                {projectLabel && (
+                  <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
+                )}
               </div>
             </div>
           </div>

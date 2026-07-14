@@ -10,6 +10,7 @@ import type { ArchivedProjectListItem, ArchivedSessionListItem, SidebarSearchMod
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import { getAllSessions } from '../../utils/utils';
 
+import SidebarAllConversations from './SidebarAllConversations';
 import SidebarFooter from './SidebarFooter';
 import SidebarHeader from './SidebarHeader';
 import SidebarProjectList, { type SidebarProjectListProps } from './SidebarProjectList';
@@ -548,6 +549,11 @@ export default function SidebarContent({
               ))}
             </div>
           )
+        ) : searchMode === 'conversations' ? (
+          <SidebarAllConversations
+            projectListProps={projectListProps}
+            searchFilter={searchFilter}
+          />
         ) : (
           <SidebarProjectList {...projectListProps} />
         )}
