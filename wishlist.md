@@ -17,7 +17,6 @@ Screenshots for many of these live in `UI Visual References/` (repo root, untrac
 
 ## Mobile UX polish
 
-- [ ] Sidebar: condense the bottom 3 buttons (Report, Join Community, Settings) into one row to free space for the convo list. **S**
 - [ ] Sidebar: long-press (or side button) on a convo → popup menu with Rename / Archive / Delete.
   Covers two problems at once: Archive is currently buried inside the "Delete" menu (unintuitive — took real hunting to find), and there's currently *no way at all* to rename a convo on mobile. **M**
 - [ ] Message box: remove the counter showing the number of available commands. Also, tapping that button on mobile shouldn't trigger the keyboard flyout. **S**
@@ -56,6 +55,7 @@ Screenshots for many of these live in `UI Visual References/` (repo root, untrac
 
 ## Done
 
+- [x] Sidebar: condensed the bottom 3 buttons (Report, Join Community, Settings) into one row of icon-only buttons on mobile (`0fa5544`), freeing ~2 rows for the convo list. Labels moved to aria-label/title; desktop footer unchanged. *Not yet verified live — reload the UI (client-only change, no restart needed) and check the sidebar drawer footer.*
 - [x] Figure out how sessions are archived — found it: nested in the "Delete" menu. (Spawned the context-menu item under Mobile UX polish.)
 - [x] Model selector said "Sonnet 4.6 is default" (outdated) — fixed by commits `87b7177` + `7159ef4`; the label now resolves the real configured default dynamically. Verified in UI 2026-07-13 (popup shows "currently claude-fable-5[1m], from your Claude settings").
 - [x] Mid-session model picks in the /models popup now also persist as the per-browser new-session default (`f0fada7`), matching CLI `/model` behavior. *Not yet verified live — needs rebuild + restart from SSH, then: pick in popup → new session's picker shows it.*
