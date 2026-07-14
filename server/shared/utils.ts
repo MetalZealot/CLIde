@@ -663,6 +663,7 @@ export async function readProviderSessionActiveModelChange(
     supported: true,
     changed: true,
     model: cacheEntry.model.trim(),
+    updatedAt: cacheEntry.updatedAt,
   };
 }
 

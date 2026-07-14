@@ -23,14 +23,39 @@ const withTempDir = async (run: (dir: string) => Promise<void>): Promise<void> =
   }
 };
 
-const writeSessionJsonl = async (dir: string, model: string): Promise<string> => {
+const writeSessionJsonl = async (
+  dir: string,
+  model: string,
+  timestamp?: string,
+): Promise<string> => {
   const jsonlPath = path.join(dir, `${PROVIDER_SESSION_ID}.jsonl`);
   const lines = [
     { type: 'user', sessionId: PROVIDER_SESSION_ID, message: { content: 'hello' } },
-    { type: 'assistant', sessionId: PROVIDER_SESSION_ID, message: { model, content: [] } },
+    { type: 'assistant', sessionId: PROVIDER_SESSION_ID, timestamp, message: { model, content: [] } },
   ];
   await writeFile(jsonlPath, `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`, 'utf8');
   return jsonlPath;
+};
+
+// Writes the change cache directly so a test can control `updatedAt`, which the
+// public write helper always stamps with the current time.
+const writeChangeCacheFile = async (
+  changesPath: string,
+  { model, updatedAt }: { model: string; updatedAt: string },
+): Promise<void> => {
+  const entry = {
+    provider: 'claude',
+    sessionId: APP_SESSION_ID,
+    supported: true,
+    changed: true,
+    model,
+    updatedAt,
+  };
+  await writeFile(
+    changesPath,
+    JSON.stringify({ version: 1, entries: { [`claude:${APP_SESSION_ID}`]: entry } }),
+    'utf8',
+  );
 };
 
 test('claude current active model returns a picker-selected session model immediately', async () => {
@@ -66,6 +91,52 @@ test('claude current active model matches transcript events by the provider sess
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
     assert.equal(active.model, 'fable');
+  });
+});
+
+test('claude current active model prefers the transcript when a session turn is newer than a stale popup pick', async () => {
+  await withTempDir(async (dir) => {
+    const changesPath = path.join(dir, 'changes.json');
+    // Popup pick of "default" recorded before the model was later changed (via
+    // fast mode / a Shell /model) to Opus, which the cache never learned about.
+    await writeChangeCacheFile(changesPath, {
+      model: 'default',
+      updatedAt: '2026-07-13T21:51:21.834Z',
+    });
+    const jsonlPath = await writeSessionJsonl(dir, 'claude-opus-4-8', '2026-07-13T23:22:29.721Z');
+
+    const provider = new ClaudeProviderModels({
+      getSessionRow: (sessionId) =>
+        sessionId === APP_SESSION_ID
+          ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
+          : null,
+      activeModelChangesPath: changesPath,
+    });
+
+    const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
+    assert.equal(active.model, 'opus');
+  });
+});
+
+test('claude current active model keeps a popup pick newer than the last transcript turn', async () => {
+  await withTempDir(async (dir) => {
+    const changesPath = path.join(dir, 'changes.json');
+    await writeChangeCacheFile(changesPath, {
+      model: 'sonnet',
+      updatedAt: '2026-07-13T23:59:00.000Z',
+    });
+    const jsonlPath = await writeSessionJsonl(dir, 'claude-fable-5', '2026-07-13T23:00:00.000Z');
+
+    const provider = new ClaudeProviderModels({
+      getSessionRow: (sessionId) =>
+        sessionId === APP_SESSION_ID
+          ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
+          : null,
+      activeModelChangesPath: changesPath,
+    });
+
+    const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
+    assert.equal(active.model, 'sonnet');
   });
 });
 

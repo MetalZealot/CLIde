@@ -159,6 +159,9 @@ export type ProviderSessionActiveModelChange = {
   supported: boolean;
   changed: boolean;
   model: string | null;
+  // When the cached change was recorded. Used to decide whether a stored popup
+  // pick still reflects the session or has been superseded by a later turn.
+  updatedAt?: string;
 };
 
 /**

@@ -157,16 +157,52 @@ export const resolveClaudeModelAlias = (
 
   return normalized;
 };
+/**
+ * Decides whether a stored popup pick still represents the session, given when
+ * the pick was recorded and when the last transcript turn ran. The pick wins
+ * only when it is at least as recent as that turn; a newer turn means the model
+ * has since changed by a path the cache never observed, so the transcript wins.
+ * When either timestamp is missing/unparseable we bias toward whichever signal
+ * we can trust: no turn to compare against -> the pick stands; an undateable
+ * pick -> defer to the transcript.
+ */
+const pickSupersedesTranscript = (
+  pickUpdatedAt?: string,
+  transcriptTimestamp?: string,
+): boolean => {
+  if (!transcriptTimestamp) {
+    return true;
+  }
+  const turnTime = Date.parse(transcriptTimestamp);
+  if (Number.isNaN(turnTime)) {
+    return true;
+  }
+  if (!pickUpdatedAt) {
+    return false;
+  }
+  const pickTime = Date.parse(pickUpdatedAt);
+  if (Number.isNaN(pickTime)) {
+    return false;
+  }
+  return pickTime >= turnTime;
+};
+
 type ClaudeInitEvent = {
   sessionId?: string;
   session_id?: string;
   type?: string;
   subtype?: string;
   model?: string;
+  timestamp?: string;
   message?: {
     content?: unknown;
     model?: string;
   };
+};
+
+type ClaudeSessionTranscriptModel = {
+  model: string;
+  timestamp?: string;
 };
 
 const ANSI_PATTERN = new RegExp(
@@ -244,7 +280,7 @@ const extractClaudeModelFromMessageContent = (content: unknown): string | null =
 const readClaudeSessionModelFromJsonl = async (
   sessionId: string,
   jsonlPath: string,
-): Promise<ProviderCurrentActiveModel | null> => {
+): Promise<ClaudeSessionTranscriptModel | null> => {
   const content = await readFile(jsonlPath, 'utf8');
   const lines = content
     .split(/\r?\n/)
@@ -256,7 +292,10 @@ const readClaudeSessionModelFromJsonl = async (
       const event = JSON.parse(lines[index]) as ClaudeInitEvent;
       const model = extractClaudeEventModel(event, sessionId);
       if (model) {
-        return { model };
+        return {
+          model,
+          timestamp: typeof event.timestamp === 'string' ? event.timestamp : undefined,
+        };
       }
     } catch {
       // Skip malformed JSONL lines that can happen during concurrent writes.
@@ -345,30 +384,36 @@ export class ClaudeProviderModels implements IProviderModels {
       return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());
     }
 
-    // A stored picker selection is authoritative: resolveResumeModel injects
-    // it on every resumed turn, so it is what the session actually runs.
     const changedModel = await readProviderSessionActiveModelChange('claude', normalizedSessionId, {
       filePath: this.deps.activeModelChangesPath,
     });
-    if (changedModel.changed && changedModel.model) {
-      return { model: changedModel.model };
-    }
+    const hasPendingPick = changedModel.changed && Boolean(changedModel.model);
 
+    let transcriptModel: ClaudeSessionTranscriptModel | null = null;
     try {
       const sessionRow = this.lookupSessionRow(normalizedSessionId);
       const jsonlPath = sessionRow?.jsonl_path;
       // Transcript events carry the provider-native session id, not the
       // app-level id the frontend sends with commands.
       const transcriptSessionId = sessionRow?.provider_session_id || normalizedSessionId;
-      const activeModel = jsonlPath
+      transcriptModel = jsonlPath
         ? await readClaudeSessionModelFromJsonl(transcriptSessionId, jsonlPath)
         : null;
-      if (activeModel?.model) {
-        const supportedModels = await this.getSupportedModels();
-        return { model: resolveClaudeModelAlias(activeModel.model, supportedModels.OPTIONS) };
-      }
     } catch {
-      // Fall through to the provider default when the session-backed lookup fails.
+      transcriptModel = null;
+    }
+
+    // A stored popup pick applies on the next turn, so it only reflects the
+    // session while it is at least as recent as the last recorded turn. Once a
+    // newer turn exists, the model may have changed by a path the cache never
+    // saw (fast mode, a Shell /model), and the transcript is the ground truth.
+    if (hasPendingPick && pickSupersedesTranscript(changedModel.updatedAt, transcriptModel?.timestamp)) {
+      return { model: changedModel.model as string };
+    }
+
+    if (transcriptModel?.model) {
+      const supportedModels = await this.getSupportedModels();
+      return { model: resolveClaudeModelAlias(transcriptModel.model, supportedModels.OPTIONS) };
     }
 
     return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());
