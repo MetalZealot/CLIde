@@ -1,6 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
+  future: {
+    // Only emit hover: styles inside @media (hover: hover); touch browsers keep
+    // :hover "stuck" on tapped elements until the next touch, which made stale
+    // hover styling linger on buttons (e.g. sidebar/settings tabs) after a tap.
+    hoverOnlyWhenSupported: true,
+  },
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
