@@ -89,14 +89,25 @@ function Tooltip({
     }
   };
 
-  const handleMouseEnter = () => {
+  // Hover show/hide is gated to real mouse pointers: after a tap, touch
+  // browsers fire compatibility mouseenter with no mouseleave to follow, which
+  // left the tooltip stuck open until the next touch. Compatibility mouse
+  // events have no pointer-event counterparts, so pointerType is reliable
+  // here; touch gets the long-press path below instead.
+  const handlePointerEnter = (event: React.PointerEvent) => {
+    if (event.pointerType !== 'mouse') {
+      return;
+    }
     clearTooltipTimer();
     timeoutRef.current = window.setTimeout(() => {
       setIsVisible(true);
     }, delay);
   };
 
-  const handleMouseLeave = () => {
+  const handlePointerLeave = (event: React.PointerEvent) => {
+    if (event.pointerType !== 'mouse') {
+      return;
+    }
     clearTooltipTimer();
     setIsVisible(false);
   };
@@ -170,8 +181,8 @@ function Tooltip({
     <div
       ref={containerRef}
       className="relative inline-block"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
