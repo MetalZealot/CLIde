@@ -152,10 +152,14 @@ export default function SidebarSessionItem({
         <div
           className={cn(
             'p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
-            isSelected ? 'bg-primary/5 border-primary/20' : '',
-            !isSelected && isProcessing
+            // Single chain: a trailing border fallback would win inside cn()
+            // (tailwind-merge keeps the last conflicting class) and erase the
+            // selected border.
+            isSelected
+              ? 'bg-primary/10 border-primary/50'
+              : isProcessing
               ? 'border-border/60 bg-muted/20'
-              : !isSelected && sessionView.isActive
+              : sessionView.isActive
               ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
               : 'border-border/30',
           )}
@@ -219,7 +223,7 @@ export default function SidebarSessionItem({
           className={cn(
             buttonVariants({ variant: 'ghost' }),
             'h-auto w-full justify-start rounded-md border bg-card p-2 text-left font-normal transition-all duration-150',
-            isSelected ? 'border-primary/20 bg-primary/5' : 'border-border/30',
+            isSelected ? 'border-primary/50 bg-primary/10' : 'border-border/30',
             !isSelected && isProcessing
               ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
               : !isSelected && sessionView.isActive
