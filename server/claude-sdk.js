@@ -667,10 +667,17 @@ async function queryClaudeSDK(command, options = {}, ws) {
         ws.send(msg);
       }
 
-      // Extract and send token budget updates from assistant/result usage payloads
-      const tokenBudgetData = extractTokenBudget(message);
-      if (tokenBudgetData) {
-        ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+      // Drive the composer's context-usage wheel from per-step assistant usage
+      // only. The terminal `result` message reports CUMULATIVE usage for the
+      // whole turn — summing cache reads across every tool step — which can far
+      // exceed the context window and briefly flashes the wheel red before the
+      // next turn corrects it. The wheel wants current context size, which the
+      // last assistant step already carries, so skip the cumulative summary.
+      if (message?.type !== 'result') {
+        const tokenBudgetData = extractTokenBudget(message);
+        if (tokenBudgetData) {
+          ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+        }
       }
     }
 
