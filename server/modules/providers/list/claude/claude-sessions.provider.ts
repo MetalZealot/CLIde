@@ -35,6 +35,51 @@ type ClaudeHistoryMessagesResult =
     limit?: number | null;
   };
 
+function readTokenCount(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/**
+ * Derives the session's last known context usage from raw JSONL records so a
+ * resumed session can show its token footprint before the first (expensive)
+ * turn. Mirrors the live token_budget shape emitted by server/claude-sdk.js;
+ * Codex/OpenCode already return the equivalent from their fetchHistory.
+ */
+function extractHistoryTokenUsage(rawMessages: AnyRecord[]): AnyRecord | undefined {
+  for (let index = rawMessages.length - 1; index >= 0; index--) {
+    const raw = rawMessages[index];
+    if (raw?.isSidechain) {
+      // Subagent transcripts carry their own, smaller context.
+      continue;
+    }
+    const usage = (raw?.message as AnyRecord | undefined)?.usage as AnyRecord | undefined;
+    if (!usage || typeof usage !== 'object') {
+      continue;
+    }
+    const cacheCreationTokens = readTokenCount(usage.cache_creation_input_tokens);
+    const cacheReadTokens = readTokenCount(usage.cache_read_input_tokens);
+    const cacheTokens = cacheCreationTokens + cacheReadTokens;
+    const inputTokens = readTokenCount(usage.input_tokens) + cacheTokens;
+    const outputTokens = readTokenCount(usage.output_tokens);
+    if (inputTokens <= 0) {
+      continue;
+    }
+    const contextWindow = Number.parseInt(process.env.CONTEXT_WINDOW ?? '', 10) || 160000;
+    return {
+      used: inputTokens + outputTokens,
+      total: contextWindow,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheCreationTokens,
+      cacheTokens,
+      breakdown: { input: inputTokens, output: outputTokens },
+    };
+  }
+  return undefined;
+}
+
 async function parseAgentTools(filePath: string): Promise<AnyRecord[]> {
   const tools: AnyRecord[] = [];
 
@@ -656,6 +701,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       hasMore,
       offset: normalizedOffset,
       limit: normalizedLimit,
+      tokenUsage: extractHistoryTokenUsage(rawMessages),
     };
   }
 }
