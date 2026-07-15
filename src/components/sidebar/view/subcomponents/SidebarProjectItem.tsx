@@ -264,8 +264,8 @@ export default function SidebarProjectItem({
         <Button
           variant="ghost"
           className={cn(
-            'hidden md:flex w-full justify-between p-2 h-auto font-normal hover:bg-accent/50',
-            isSelected && 'bg-accent text-accent-foreground',
+            'hidden md:flex w-full justify-between p-2 h-auto font-normal border border-transparent hover:bg-accent/50',
+            isSelected && 'bg-primary/10 border-primary/50',
             isStarred &&
               !isSelected &&
               'bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20',
