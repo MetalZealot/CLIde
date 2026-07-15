@@ -310,7 +310,12 @@ export function useChatRealtimeHandlers({
 
         case 'status': {
           if (msg.text === 'token_budget' && msg.tokenBudget) {
-            setTokenBudget(msg.tokenBudget as Record<string, unknown>);
+            // Only the session on screen may drive the composer's usage wheel.
+            // A background session still streams its own token_budget frames; without
+            // this gate its counts spill into whatever session is currently viewed.
+            if (sid === activeViewSessionId) {
+              setTokenBudget(msg.tokenBudget as Record<string, unknown>);
+            }
           } else if (msg.text && sid) {
             onSessionProcessing?.(sid, {
               statusText: msg.text as string,
