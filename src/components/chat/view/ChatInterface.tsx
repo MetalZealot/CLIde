@@ -15,7 +15,6 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
-import ResumeContextWarning from './subcomponents/ResumeContextWarning';
 import CommandResultModal from './subcomponents/CommandResultModal';
 
 function ChatInterface({
@@ -380,12 +379,6 @@ function ChatInterface({
               </button>
             </div>
           )}
-
-          <ResumeContextWarning
-            tokenBudget={tokenBudget}
-            isProcessing={isProcessing}
-            sessionKey={selectedSession?.id ?? currentSessionId ?? null}
-          />
 
           <ChatComposer
           pendingPermissionRequests={pendingPermissionRequests}
