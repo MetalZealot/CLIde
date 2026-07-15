@@ -247,7 +247,22 @@ function ModelsContent({
   const [pendingSessionModel, setPendingSessionModel] = useState<string | null>(null);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const currentProvider = (data?.current?.provider || 'claude') as LLMProvider;
-  const currentModel = data?.current?.model || 'Unknown';
+  const hasConcreteSessionId = typeof currentSessionId === 'string' && currentSessionId.trim().length > 0;
+  // For a fresh session (no session id yet) the "active" model is whatever the
+  // new-session picker chose, held in localStorage `${provider}-model` — the same
+  // source the empty-state header reads. Falling back to the server-resolved model
+  // here would show "default" while the header (and the first turn) actually use the
+  // picked model, so keep the popup in sync with the header until the session exists.
+  const newSessionModel = useMemo(() => {
+    if (hasConcreteSessionId) return null;
+    try {
+      return localStorage.getItem(`${currentProvider}-model`);
+    } catch {
+      return null;
+    }
+  }, [hasConcreteSessionId, currentProvider]);
+  const currentModel =
+    (!hasConcreteSessionId && newSessionModel) || data?.current?.model || 'Unknown';
   const providerLabel = data?.current?.providerLabel || getProviderLabel(currentProvider);
   const liveDefinition = providerModelCatalog[currentProvider];
   const availableOptions = useMemo<ModelOption[]>(() => {
@@ -274,7 +289,6 @@ function ModelsContent({
     });
   }, [availableOptions, query]);
 
-  const hasConcreteSessionId = typeof currentSessionId === 'string' && currentSessionId.trim().length > 0;
   const showSearch = availableOptions.length > 6;
 
   const handleSelectModel = async (model: string) => {
@@ -389,15 +403,15 @@ function ModelsContent({
       )}
 
       {/* Single quiet line of guidance / feedback */}
-      <p className="shrink-0 text-[11px] leading-4 text-muted-foreground">
-        {selectionNotice ? (
-          <span className="text-foreground">{selectionNotice}</span>
-        ) : hasConcreteSessionId ? (
-          'Your choice applies to this session on the next response.'
-        ) : (
-          'Your choice becomes the default model for new turns.'
-        )}
-      </p>
+      {(selectionNotice || hasConcreteSessionId) && (
+        <p className="shrink-0 text-[11px] leading-4 text-muted-foreground">
+          {selectionNotice ? (
+            <span className="text-foreground">{selectionNotice}</span>
+          ) : (
+            'Your choice applies to this session on the next response.'
+          )}
+        </p>
+      )}
     </div>
   );
 }
