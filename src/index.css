@@ -604,7 +604,14 @@
     contain-intrinsic-size: auto 96px;
   }
 
-  /* Mobile touch optimization and safe areas */
+}
+
+/* Mobile touch optimization and safe areas.
+   Kept OUTSIDE @layer components: Tailwind re-emits layer rules for every
+   scanned candidate (e.g. the string `!user` in JS source matches
+   `.chat-message.user` with the important modifier), and re-emission of
+   rules nested in @media produces invalid CSS (empty selectors, stray
+   declarations) that esbuild warns about during minification. */
   @media (max-width: 768px) {
     * {
       touch-action: manipulation;
@@ -726,7 +733,8 @@
       transform: scale(0.98) !important;
     }
   }
-  
+
+@layer components {
   /* Safe area support for iOS devices */
   .ios-bottom-safe {
     padding-bottom: env(safe-area-inset-bottom);
