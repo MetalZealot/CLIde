@@ -294,14 +294,14 @@ export default function ChatComposer({
       ? t('input.queue.update', { defaultValue: 'Update queued message' })
       : t('input.queue.sendNext', { defaultValue: 'Queue next message' })
     : isLoading
-      ? t('input.stop')
+      ? t('claudeStatus.actions.working', { defaultValue: 'Working' })
       : t('input.send');
 
   return (
     <div className="chat-composer-shell relative flex-shrink-0 px-2 pb-2 pt-0 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
       {pendingPermissionRequests.length === 0 && (
         <div className="mx-auto mb-2 max-w-[54.25rem]" style={{ visibility: activity ? 'visible' : 'hidden' }}>
-          <ActivityIndicator activity={activity} />
+          <ActivityIndicator activity={activity} onAbort={onAbortSession} />
         </div>
       )}
 
@@ -568,21 +568,19 @@ export default function ChatComposer({
                       e.preventDefault();
                       onSubmit(e);
                     }
-                  : isLoading
-                    ? onAbortSession
-                    : isRecording
-                      ? (e: MouseEvent<HTMLButtonElement>) => {
-                          e.preventDefault();
-                          voiceStop({ send: true });
-                        }
-                      : undefined
+                  : isRecording
+                    ? (e: MouseEvent<HTMLButtonElement>) => {
+                        e.preventDefault();
+                        voiceStop({ send: true });
+                      }
+                    : undefined
               }
-              disabled={isLoading ? false : isRecording ? false : isTranscribing ? true : !input.trim()}
+              disabled={isLoading ? !canQueueDraft : isRecording ? false : isTranscribing ? true : !input.trim()}
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
               className="h-10 w-10 sm:h-10 sm:w-10"
             >
-              {isTranscribing ? (
+              {isTranscribing || (isLoading && !canQueueDraft) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : canQueueDraft ? (
                 <ArrowUpIcon className="h-4 w-4" />

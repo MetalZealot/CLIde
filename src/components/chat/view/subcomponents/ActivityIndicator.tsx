@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { SquareIcon } from 'lucide-react';
 
 import { Shimmer } from '../../../../shared/view/ui';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
+  onAbort?: () => void;
 };
 
 const ACTION_KEYS = [
@@ -20,13 +22,15 @@ const DEFAULT_ACTION_WORDS = ['Thinking', 'Processing', 'Analyzing', 'Working', 
 const EXIT_ANIMATION_MS = 220;
 
 /**
- * Response-in-progress indicator: a shimmering activity label and elapsed time.
- * Sits in the message pane's layout gap (above the composer, below the last message),
- * so it consumes real vertical space rather than overlaying. Interrupting is handled
- * by the composer's own stop button. Rendered only while the viewed session has an
- * entry in the processing map; it disappears the instant that entry is removed.
+ * Response-in-progress indicator: a shimmering activity label, elapsed time, and a
+ * Stop button. Sits in the message pane's layout gap (above the composer, below the
+ * last message), so it consumes real vertical space rather than overlaying. The Stop
+ * button lives here (not in the composer) so it stays reachable even while the user
+ * is typing a follow-up — the composer's own button switches to queue mode then. The
+ * button stays mounted (just invisible) when idle so the reserved gap keeps a
+ * constant height between turns.
  */
-export default function ActivityIndicator({ activity }: ActivityIndicatorProps) {
+export default function ActivityIndicator({ activity, onAbort }: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');
   const [renderedActivity, setRenderedActivity] = useState<SessionActivity | null>(activity);
   const [isExiting, setIsExiting] = useState(false);
@@ -80,6 +84,21 @@ export default function ActivityIndicator({ activity }: ActivityIndicatorProps) 
         <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
         <Shimmer className="font-medium">{renderedActivity ? `${label}…` : ''}</Shimmer>
         <span className="tabular-nums text-muted-foreground/60">{renderedActivity ? elapsedLabel : ''}</span>
+        {onAbort && (
+          <button
+            type="button"
+            onClick={onAbort}
+            disabled={!renderedActivity?.canInterrupt}
+            aria-label={t('claudeStatus.stop', { defaultValue: 'Stop' })}
+            title={t('claudeStatus.stop', { defaultValue: 'Stop' })}
+            className={`-my-1 ml-auto flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 font-medium text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground ${
+              renderedActivity?.canInterrupt ? '' : 'invisible'
+            }`}
+          >
+            <SquareIcon className="h-3 w-3 fill-current" />
+            {t('claudeStatus.stop', { defaultValue: 'Stop' })}
+          </button>
+        )}
       </div>
     </div>
   );
