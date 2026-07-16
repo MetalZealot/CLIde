@@ -408,6 +408,21 @@ router.post(
   }),
 );
 
+router.get(
+  '/:provider/sessions/:sessionId/active-model',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const current = await providerModelsService.getCurrentActiveModel(provider, sessionId);
+    res.json(createApiSuccessResponse({
+      provider,
+      sessionId,
+      model: current.model,
+      source: current.source ?? 'default',
+    }));
+  }),
+);
+
 // ----------------- Skills routes -----------------
 router.get(
   '/:provider/skills',

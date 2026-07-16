@@ -166,7 +166,7 @@ export const resolveClaudeModelAlias = (
  * we can trust: no turn to compare against -> the pick stands; an undateable
  * pick -> defer to the transcript.
  */
-const pickSupersedesTranscript = (
+export const pickSupersedesTranscript = (
   pickUpdatedAt?: string,
   transcriptTimestamp?: string,
 ): boolean => {
@@ -408,12 +408,15 @@ export class ClaudeProviderModels implements IProviderModels {
     // newer turn exists, the model may have changed by a path the cache never
     // saw (fast mode, a Shell /model), and the transcript is the ground truth.
     if (hasPendingPick && pickSupersedesTranscript(changedModel.updatedAt, transcriptModel?.timestamp)) {
-      return { model: changedModel.model as string };
+      return { model: changedModel.model as string, source: 'pick' };
     }
 
     if (transcriptModel?.model) {
       const supportedModels = await this.getSupportedModels();
-      return { model: resolveClaudeModelAlias(transcriptModel.model, supportedModels.OPTIONS) };
+      return {
+        model: resolveClaudeModelAlias(transcriptModel.model, supportedModels.OPTIONS),
+        source: 'transcript',
+      };
     }
 
     return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());
@@ -423,5 +426,24 @@ export class ClaudeProviderModels implements IProviderModels {
     input: ProviderChangeActiveModelInput,
   ): Promise<ProviderSessionActiveModelChange> {
     return writeProviderSessionActiveModelChange('claude', input);
+  }
+
+  async getTranscriptTurnTimestamp(sessionId: string): Promise<string | undefined> {
+    const normalizedSessionId = sessionId?.trim();
+    if (!normalizedSessionId) {
+      return undefined;
+    }
+
+    try {
+      const sessionRow = this.lookupSessionRow(normalizedSessionId);
+      const jsonlPath = sessionRow?.jsonl_path;
+      const transcriptSessionId = sessionRow?.provider_session_id || normalizedSessionId;
+      const transcriptModel = jsonlPath
+        ? await readClaudeSessionModelFromJsonl(transcriptSessionId, jsonlPath)
+        : null;
+      return transcriptModel?.timestamp;
+    } catch {
+      return undefined;
+    }
   }
 }

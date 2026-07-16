@@ -494,6 +494,7 @@ export class OpenCodeProviderModels implements IProviderModels {
         if (model) {
           return {
             model,
+            source: 'transcript',
           };
         }
       } finally {

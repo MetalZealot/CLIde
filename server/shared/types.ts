@@ -128,6 +128,13 @@ export type ProviderModelsResult = {
  */
 export type ProviderCurrentActiveModel = {
   model: string;
+  /**
+   * Where the model value came from. `pick` and `transcript` are genuinely
+   * session-scoped; `default` means a global/catalog fallback that must not be
+   * treated as this session's own model. Consumers should treat a missing
+   * source as `default`.
+   */
+  source?: 'pick' | 'transcript' | 'default';
 };
 
 /**

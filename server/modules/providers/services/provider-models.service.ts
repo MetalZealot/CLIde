@@ -14,6 +14,7 @@ import type {
   ProviderSessionActiveModelChange,
 } from '@/shared/types.js';
 import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
+import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const PROVIDER_MODELS_CACHE_VERSION = 2;
@@ -332,10 +333,33 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
 
     const changedModel = await getChangedActiveModel(provider, sessionId);
     if (changedModel.supported && changedModel.changed && changedModel.model?.trim()) {
-      return changedModel.model.trim();
+      const providerModels = resolveProvider(provider).models;
+      const transcriptTimestamp = typeof providerModels.getTranscriptTurnTimestamp === 'function'
+        ? await providerModels.getTranscriptTurnTimestamp(sessionId)
+        : undefined;
+      if (pickSupersedesTranscript(changedModel.updatedAt, transcriptTimestamp)) {
+        return changedModel.model.trim();
+      }
     }
 
-    return normalizedRequestedModel || undefined;
+    if (normalizedRequestedModel) {
+      return normalizedRequestedModel;
+    }
+
+    // The client deliberately sends no model for an existing session it has
+    // not fetched a tracked model for yet (e.g. right after a session switch).
+    // Recover the model from the session itself — a stored pick or its own
+    // transcript — instead of letting a global default take over the session.
+    try {
+      const current = await resolveProvider(provider).models.getCurrentActiveModel(sessionId);
+      if (current.source === 'pick' || current.source === 'transcript') {
+        return current.model;
+      }
+    } catch {
+      // Fall through to the adapter's own default-model handling.
+    }
+
+    return undefined;
   };
 
   const clearCache = (): void => {

@@ -726,6 +726,15 @@ export function useChatSessionState({
     fetchInitialTokenUsage();
   }, [selectedProject, selectedSession?.id]);
 
+  // Fetch the active model for this session on switch.
+  useEffect(() => {
+    if (!selectedProject || !selectedSession?.id) {
+      return;
+    }
+    const provider = selectedSession.__provider ?? 'claude';
+    sessionStore.fetchModel(selectedSession.id, provider);
+  }, [selectedProject, selectedSession?.id, selectedSession?.__provider, sessionStore]);
+
   const visibleMessages = useMemo(() => {
     if (chatMessages.length <= visibleMessageCount) return chatMessages;
     return chatMessages.slice(-visibleMessageCount);

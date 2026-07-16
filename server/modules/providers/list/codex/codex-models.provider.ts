@@ -157,8 +157,11 @@ export class CodexProviderModels implements IProviderModels {
         return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());
       }
 
+      // ~/.codex/config.toml is global Codex configuration, not per-session
+      // state, so it must not be reported as this session's own model.
       return {
         model,
+        source: 'default',
       };
     } catch {
       return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());

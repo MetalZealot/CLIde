@@ -113,6 +113,9 @@ export interface SessionSlot {
   hasMore: boolean;
   offset: number;
   tokenUsage: unknown;
+  model: string | null;
+  modelStatus: 'idle' | 'loading' | 'error';
+  modelFetchedAt: number;
 }
 
 const EMPTY: NormalizedMessage[] = [];
@@ -130,6 +133,9 @@ function createEmptySlot(): SessionSlot {
     hasMore: false,
     offset: 0,
     tokenUsage: null,
+    model: null,
+    modelStatus: 'idle',
+    modelFetchedAt: 0,
     _fetchSeq: 0,
     _appliedFetchSeq: 0,
   };
@@ -142,6 +148,10 @@ function createEmptySlot(): SessionSlot {
  */
 const LOCAL_USER_DEDUPE_WINDOW_MS = 5 * 60 * 1000;
 const LOCAL_USER_DEDUPE_CLOCK_SKEW_MS = 10_000;
+
+// Reading a session's active model can mean parsing its whole transcript
+// server-side, so a fresh-enough cached value is reused on session switches.
+const MODEL_FETCH_TTL_MS = 30_000;
 
 function userTextFingerprint(m: NormalizedMessage): string | null {
   if (m.kind !== 'text' || m.role !== 'user') return null;
@@ -733,6 +743,56 @@ export function useSessionStore() {
   }, [notify]);
 
   /**
+   * Fetch and cache the active model for a session.
+   */
+  const fetchModel = useCallback(async (sessionId: string, provider: LLMProvider) => {
+    const slot = getSlot(sessionId);
+    if (
+      slot.modelStatus === 'loading'
+      || (slot.model && Date.now() - slot.modelFetchedAt < MODEL_FETCH_TTL_MS)
+    ) {
+      return slot;
+    }
+
+    slot.modelStatus = 'loading';
+    notify(sessionId);
+    try {
+      const response = await authenticatedFetch(
+        `/api/providers/${provider}/sessions/${sessionId}/active-model`,
+      );
+      const body = await response.json();
+      if (body.success && body.data?.model) {
+        // Only a genuinely session-scoped model (a stored pick or the session's
+        // own transcript) may become this session's model. A `default` source
+        // is a global/catalog fallback; storing it would feed it back into the
+        // send path and override the user's provider-level model choice.
+        const isSessionScoped = body.data.source === 'pick' || body.data.source === 'transcript';
+        slot.model = isSessionScoped ? body.data.model : null;
+        slot.modelStatus = 'idle';
+        slot.modelFetchedAt = Date.now();
+      } else {
+        slot.modelStatus = 'error';
+      }
+    } catch (error) {
+      console.error(`[SessionStore] fetchModel failed for ${sessionId}:`, error);
+      slot.modelStatus = 'error';
+    }
+    notify(sessionId);
+    return slot;
+  }, [getSlot, notify]);
+
+  /**
+   * Optimistically set the model for a session (e.g., after user picks a new one).
+   */
+  const setModel = useCallback((sessionId: string, model: string) => {
+    const slot = getSlot(sessionId);
+    slot.model = model;
+    slot.modelFetchedAt = Date.now();
+    slot.modelStatus = 'idle';
+    notify(sessionId);
+  }, [getSlot, notify]);
+
+  /**
    * Get merged messages for a session (for rendering).
    */
   const getMessages = useCallback((sessionId: string): NormalizedMessage[] => {
@@ -762,11 +822,13 @@ export function useSessionStore() {
     clearRealtime,
     getMessages,
     getSessionSlot,
+    fetchModel,
+    setModel,
   }), [
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
-    clearRealtime, getMessages, getSessionSlot,
+    clearRealtime, getMessages, getSessionSlot, fetchModel, setModel,
   ]);
 }
 

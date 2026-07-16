@@ -206,6 +206,7 @@ function ChatInterface({
     tokenBudget,
     sendMessage,
     sendByCtrlEnter,
+    sessionStore,
     onSessionProcessing,
     onSessionEstablished: handleSessionEstablished,
     onInputFocusChange,
@@ -234,6 +235,14 @@ function ChatInterface({
       }],
     });
   }, [selectedProject, selectedSession, sendMessage, sessionStore]);
+
+  const handleSelectProviderModel = useCallback(async (targetProvider: typeof provider, model: string, sessionId?: string | null) => {
+    const result = await selectProviderModel(targetProvider, model, sessionId);
+    if (result.scope === 'session' && sessionId) {
+      sessionStore.setModel(sessionId, result.model);
+    }
+    return result;
+  }, [selectProviderModel, sessionStore]);
 
   useChatRealtimeHandlers({
     subscribe,
@@ -454,7 +463,7 @@ function ChatInterface({
         providerModelsRefreshing={providerModelsRefreshing}
         onHardRefreshProviderModels={hardRefreshProviderModels}
         currentSessionId={currentSessionId || selectedSession?.id || null}
-        onSelectProviderModel={selectProviderModel}
+        onSelectProviderModel={handleSelectProviderModel}
       />
     </PermissionContext.Provider>
   );

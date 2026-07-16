@@ -72,6 +72,13 @@ export interface IProviderModels {
   changeActiveModel(
     input: ProviderChangeActiveModelInput,
   ): Promise<ProviderSessionActiveModelChange>;
+
+  /**
+   * Returns the timestamp of the most recent transcript turn for this session,
+   * when the provider has a transcript concept to compare a cached model pick
+   * against. Providers without one should omit this method.
+   */
+  getTranscriptTurnTimestamp?(sessionId: string): Promise<string | undefined>;
 }
 
 // ---------------------------

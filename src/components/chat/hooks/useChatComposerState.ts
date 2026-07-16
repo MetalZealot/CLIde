@@ -29,6 +29,7 @@ import type {
 } from '../types/types';
 import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
+import type { SessionStore } from '../../../stores/useSessionStore';
 
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
@@ -51,6 +52,7 @@ interface UseChatComposerStateArgs {
   tokenBudget: Record<string, unknown> | null;
   sendMessage: (message: unknown) => void;
   sendByCtrlEnter?: boolean;
+  sessionStore: SessionStore;
   onSessionProcessing?: MarkSessionProcessing;
   /**
    * Invoked with the freshly allocated session id when the user sends the
@@ -203,6 +205,7 @@ export function useChatComposerState({
   tokenBudget,
   sendMessage,
   sendByCtrlEnter,
+  sessionStore,
   onSessionProcessing,
   onSessionEstablished,
   onInputFocusChange,
@@ -613,7 +616,7 @@ export function useChatComposerState({
     };
 
     const toolsSettings = getToolsSettings();
-    const model =
+    const globalDefaultModel =
       provider === 'cursor'
         ? cursorModel
         : provider === 'codex'
@@ -621,6 +624,12 @@ export function useChatComposerState({
           : provider === 'opencode'
             ? opencodeModel
             : claudeModel;
+    // The global per-provider model is only a default for brand-new sessions.
+    // An existing session sends its own tracked model, or no model at all so
+    // the server resolves it from the session's pick/transcript — sending the
+    // global value here is what used to leak model choices across sessions.
+    const sessionSlotModel = sessionKey ? sessionStore.getSlot(sessionKey)?.model : null;
+    const model = sessionSlotModel ?? (sessionKey ? undefined : globalDefaultModel);
 
     return {
       model,
@@ -640,6 +649,8 @@ export function useChatComposerState({
     provider,
     resolvePermissionModeForProvider,
     selectedSession,
+    sessionKey,
+    sessionStore,
   ]);
 
   const handleSubmit = useCallback(
