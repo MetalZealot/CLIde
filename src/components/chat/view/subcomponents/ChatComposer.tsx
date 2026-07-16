@@ -11,12 +11,13 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ChevronDown, Check, ArrowUpIcon } from 'lucide-react';
+import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ChevronDown, Check, ArrowUpIcon, Shield, ShieldOff, Zap, FileCheck, ClipboardList } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
-import type { QueuedDraft } from '../../hooks/useChatComposerState';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
+import type { QueuedDraft } from '../../hooks/useChatComposerState';
 import type { PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { ProviderModelOption } from '../../../../types/app';
 import {
@@ -106,12 +107,21 @@ interface ChatComposerProps {
   onTextareaPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onTextareaScrollSync: (target: HTMLTextAreaElement) => void;
   onTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void;
-  isInputFocused?: boolean;
   onInputFocusChange?: (focused: boolean) => void;
   placeholder: string;
   isTextareaExpanded: boolean;
   sendByCtrlEnter?: boolean;
 }
+
+// One icon per permission mode so modes stay distinguishable on mobile,
+// where the text label is hidden and colour alone isn't enough.
+const MODE_ICONS: Record<string, LucideIcon> = {
+  default: Shield,
+  acceptEdits: FileCheck,
+  auto: Zap,
+  bypassPermissions: ShieldOff,
+  plan: ClipboardList,
+};
 
 export default function ChatComposer({
   pendingPermissionRequests,
@@ -163,7 +173,6 @@ export default function ChatComposer({
   onTextareaPaste,
   onTextareaScrollSync,
   onTextareaInput,
-  isInputFocused = false,
   onInputFocusChange,
   placeholder,
   isTextareaExpanded,
@@ -269,9 +278,7 @@ export default function ChatComposer({
     (r) => r.toolName === 'AskUserQuestion'
   );
 
-  // Hide the thinking/status bar while any permission request is pending
-  const hasPendingPermissions = pendingPermissionRequests.length > 0;
-  const hasActivityIndicator = Boolean(activity && !hasPendingPermissions);
+  const ModeIcon = MODE_ICONS[permissionMode] ?? Shield;
 
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim());
@@ -292,9 +299,9 @@ export default function ChatComposer({
 
   return (
     <div className="chat-composer-shell relative flex-shrink-0 px-2 pb-2 pt-0 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
-      {!hasPendingPermissions && (
-        <div className="pointer-events-none absolute bottom-full left-1/2 z-10 w-[calc(100%-1rem)] max-w-[54.25rem] -translate-x-1/2 translate-y-px bg-transparent sm:w-[calc(100%-2rem)]">
-          <ActivityIndicator activity={activity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
+      {pendingPermissionRequests.length === 0 && (
+        <div className="mx-auto mb-2 max-w-[54.25rem]" style={{ visibility: activity ? 'visible' : 'hidden' }}>
+          <ActivityIndicator activity={activity} />
         </div>
       )}
 
@@ -358,10 +365,7 @@ export default function ChatComposer({
         <PromptInput
           onSubmit={onSubmit as (event: FormEvent<HTMLFormElement>) => void}
           status={isLoading ? 'streaming' : 'ready'}
-          className={[
-            isTextareaExpanded ? 'chat-input-expanded' : '',
-            hasActivityIndicator ? 'rounded-t-none' : '',
-          ].filter(Boolean).join(' ')}
+          className={isTextareaExpanded ? 'chat-input-expanded' : ''}
           {...getRootProps()}
         >
           {isDragActive && (
@@ -453,19 +457,7 @@ export default function ChatComposer({
               title={t('input.clickToChangeMode')}
             >
               <div className="flex items-center gap-1.5">
-                <div
-                  className={`h-2.5 w-2.5 rounded-full sm:h-1.5 sm:w-1.5 ${
-                    permissionMode === 'default'
-                      ? 'bg-muted-foreground'
-                      : permissionMode === 'acceptEdits'
-                        ? 'bg-green-500'
-                        : permissionMode === 'auto'
-                          ? 'bg-blue-500'
-                          : permissionMode === 'bypassPermissions'
-                            ? 'bg-orange-500'
-                            : 'bg-primary'
-                  }`}
-                />
+                <ModeIcon className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden />
                 <span className="hidden whitespace-nowrap sm:inline">
                   {permissionMode === 'default' && t('codex.modes.default')}
                   {permissionMode === 'acceptEdits' && t('codex.modes.acceptEdits')}
