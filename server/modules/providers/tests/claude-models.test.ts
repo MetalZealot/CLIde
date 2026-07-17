@@ -140,6 +140,52 @@ test('claude current active model keeps a popup pick newer than the last transcr
   });
 });
 
+test('claude current active model skips synthetic error rows and recovers the real model', async () => {
+  await withTempDir(async (dir) => {
+    // After a 529 the CLI appends assistant rows with model "<synthetic>"
+    // (the API-error notice and "No response requested."); the session's real
+    // model lives in the last genuine turn before them.
+    const jsonlPath = path.join(dir, `${PROVIDER_SESSION_ID}.jsonl`);
+    const lines = [
+      { type: 'user', sessionId: PROVIDER_SESSION_ID, message: { content: 'hello' } },
+      {
+        type: 'assistant',
+        sessionId: PROVIDER_SESSION_ID,
+        message: { model: 'claude-fable-5', content: [] },
+      },
+      {
+        type: 'assistant',
+        sessionId: PROVIDER_SESSION_ID,
+        message: {
+          model: '<synthetic>',
+          content: [{ type: 'text', text: 'API Error: 529 Overloaded.' }],
+        },
+      },
+      {
+        type: 'assistant',
+        sessionId: PROVIDER_SESSION_ID,
+        message: {
+          model: '<synthetic>',
+          content: [{ type: 'text', text: 'No response requested.' }],
+        },
+      },
+    ];
+    await writeFile(jsonlPath, `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`, 'utf8');
+
+    const provider = new ClaudeProviderModels({
+      getSessionRow: (sessionId) =>
+        sessionId === APP_SESSION_ID
+          ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
+          : null,
+      activeModelChangesPath: path.join(dir, 'missing-changes.json'),
+    });
+
+    const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
+    assert.equal(active.model, 'fable');
+    assert.equal(active.source, 'transcript');
+  });
+});
+
 test('claude current active model falls back to the catalog default without session data', async () => {
   await withTempDir(async (dir) => {
     const provider = new ClaudeProviderModels({
