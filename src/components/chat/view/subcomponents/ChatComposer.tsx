@@ -71,6 +71,7 @@ interface ChatComposerProps {
   onSelectEffort: (effort: string) => void;
   tokenBudget: Record<string, unknown> | null;
   onShowTokenUsage: () => void;
+  provider?: string;
   onToggleCommandMenu: () => void;
   hasInput: boolean;
   onClearInput: () => void;
@@ -137,6 +138,7 @@ export default function ChatComposer({
   onSelectEffort,
   tokenBudget,
   onShowTokenUsage,
+  provider,
   onToggleCommandMenu,
   hasInput,
   onClearInput,
@@ -532,7 +534,7 @@ export default function ChatComposer({
               </div>
             )}
 
-            <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
+            <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} provider={provider} />
 
             <PromptInputButton
               tooltip={{ content: t('input.showAllCommands') }}

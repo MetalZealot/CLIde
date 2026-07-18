@@ -3,6 +3,18 @@ import { ActivityIcon } from 'lucide-react';
 type TokenUsageSummaryProps = {
   usage: Record<string, unknown> | null;
   onClick?: () => void;
+  provider?: string;
+};
+
+// A fresh session has no `token_budget` frame yet, so `usage` is null until the
+// first turn. For providers with a known context window we still want the ring
+// to render (empty, at 0%) from the start instead of the legacy activity icon.
+// Providers that never report a window (cursor/opencode) fall through to null
+// and keep the icon fallback. Claude matches the server's CONTEXT_WINDOW default
+// (160k); once the first real frame arrives its `total` takes over.
+const PROVIDER_DEFAULT_CONTEXT_WINDOW: Record<string, number> = {
+  claude: 160_000,
+  codex: 200_000,
 };
 
 const formatTokenCount = (value: number) => {
@@ -74,7 +86,7 @@ function UsageWheel({ fraction }: { fraction: number }) {
   );
 }
 
-export default function TokenUsageSummary({ usage, onClick }: TokenUsageSummaryProps) {
+export default function TokenUsageSummary({ usage, onClick, provider }: TokenUsageSummaryProps) {
   const breakdown =
     usage?.breakdown && typeof usage.breakdown === 'object'
       ? usage.breakdown as Record<string, unknown>
@@ -82,7 +94,11 @@ export default function TokenUsageSummary({ usage, onClick }: TokenUsageSummaryP
   const inputTokens = readUsageNumber(usage?.inputTokens ?? breakdown?.input);
   const outputTokens = readUsageNumber(usage?.outputTokens ?? breakdown?.output);
   const usedTokens = readUsageNumber(usage?.used) || inputTokens + outputTokens;
-  const contextWindow = readUsageNumber(usage?.total);
+  const reportedWindow = readUsageNumber(usage?.total);
+  const contextWindow =
+    reportedWindow > 0
+      ? reportedWindow
+      : (provider ? PROVIDER_DEFAULT_CONTEXT_WINDOW[provider] ?? 0 : 0);
   const fraction = contextWindow > 0 ? usedTokens / contextWindow : null;
 
   const title =
