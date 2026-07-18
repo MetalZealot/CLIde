@@ -15,6 +15,7 @@ import mime from 'mime-types';
 import Database from 'better-sqlite3';
 
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
+import { extractCodexContextTokenUsage } from './shared/codex-token-usage.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
 
@@ -1204,9 +1205,7 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                 throw error;
             }
             const lines = fileContent.trim().split('\n');
-            let inputTokens = 0;
-            let outputTokens = 0;
-            let totalTokens = 0;
+            let tokenUsage = null;
             let contextWindow = 200000; // Default for Codex/OpenAI
 
             // Find the latest token_count event with info (scan from end)
@@ -1217,13 +1216,9 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                     // Codex stores token info in event_msg with type: "token_count"
                     if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
                         const tokenInfo = entry.payload.info;
-                        if (tokenInfo.total_token_usage) {
-                            inputTokens = tokenInfo.total_token_usage.input_tokens || 0;
-                            outputTokens = tokenInfo.total_token_usage.output_tokens || 0;
-                            totalTokens = tokenInfo.total_token_usage.total_tokens || inputTokens + outputTokens;
-                        }
-                        if (tokenInfo.model_context_window) {
-                            contextWindow = tokenInfo.model_context_window;
+                        tokenUsage = extractCodexContextTokenUsage(tokenInfo);
+                        if (tokenUsage) {
+                            contextWindow = tokenUsage.total;
                         }
                         break; // Stop after finding the latest token count
                     }
@@ -1234,14 +1229,11 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
             }
 
             return res.json({
-                used: totalTokens,
+                used: tokenUsage?.used || 0,
                 total: contextWindow,
-                inputTokens,
-                outputTokens,
-                breakdown: {
-                    input: inputTokens,
-                    output: outputTokens
-                }
+                inputTokens: tokenUsage?.inputTokens || 0,
+                outputTokens: tokenUsage?.outputTokens || 0,
+                breakdown: tokenUsage?.breakdown || { input: 0, output: 0 }
             });
         }
 

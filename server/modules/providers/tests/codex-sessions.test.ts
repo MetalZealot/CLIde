@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
+import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -62,6 +63,30 @@ const writeCodexTranscript = async (
   await writeFile(filePath, `${lines.join('\n')}\n`, 'utf8');
   return filePath;
 };
+
+test('Codex context usage prefers the latest request over cumulative rollout usage', () => {
+  const usage = extractCodexContextTokenUsage({
+    total_token_usage: {
+      input_tokens: 406000,
+      output_tokens: 500,
+      total_tokens: 406500,
+    },
+    last_token_usage: {
+      input_tokens: 36100,
+      output_tokens: 59,
+      total_tokens: 36159,
+    },
+    model_context_window: 258400,
+  });
+
+  assert.deepEqual(usage, {
+    used: 36159,
+    total: 258400,
+    inputTokens: 36100,
+    outputTokens: 59,
+    breakdown: { input: 36100, output: 59 },
+  });
+});
 
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
