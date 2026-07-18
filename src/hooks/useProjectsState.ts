@@ -381,7 +381,12 @@ export function useProjectsState({
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
+  // Two independent per-session sidebar signals, both read-aware (cleared on open):
+  // `attentionSessionIds` (amber) = a background session is blocked on you
+  // (pending permission/question); `unreadSessionIds` (green) = a background
+  // session produced output you haven't opened yet, no action required.
   const [attentionSessionIds, setAttentionSessionIds] = useState<Set<string>>(new Set());
+  const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<AppTab>(readPersistedTab);
 
   useEffect(() => {
@@ -454,14 +459,57 @@ export function useProjectsState({
       next.add(targetSessionId);
       return next;
     });
+    // Amber supersedes green: a session that now needs action shouldn't also
+    // read as a plain unread update.
+    setUnreadSessionIds((previous) => {
+      if (!previous.has(targetSessionId)) {
+        return previous;
+      }
+
+      const next = new Set(previous);
+      next.delete(targetSessionId);
+      return next;
+    });
   }, [sessionId]);
 
+  const markSessionUnread = useCallback((targetSessionId?: string | null) => {
+    if (!targetSessionId) {
+      return;
+    }
+
+    const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
+    if (targetSessionId === viewedSessionId) {
+      return;
+    }
+
+    setUnreadSessionIds((previous) => {
+      // Don't downgrade a needs-action session to plain unread.
+      if (previous.has(targetSessionId)) {
+        return previous;
+      }
+
+      const next = new Set(previous);
+      next.add(targetSessionId);
+      return next;
+    });
+  }, [sessionId]);
+
+  // Opening a session (or resolving its prompt) clears both signals.
   const clearSessionAttention = useCallback((targetSessionId?: string | null) => {
     if (!targetSessionId) {
       return;
     }
 
     setAttentionSessionIds((previous) => {
+      if (!previous.has(targetSessionId)) {
+        return previous;
+      }
+
+      const next = new Set(previous);
+      next.delete(targetSessionId);
+      return next;
+    });
+    setUnreadSessionIds((previous) => {
       if (!previous.has(targetSessionId)) {
         return previous;
       }
@@ -670,18 +718,27 @@ export function useProjectsState({
         : null;
       const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
 
-      if (
-        eventSessionId
-        && eventSessionId !== viewedSessionId
-        && event.kind !== 'chat_subscribed'
-        && event.kind !== 'loading_progress'
-        && event.kind !== 'session_upserted'
-        && event.kind !== 'status'
-        && event.kind !== 'stream_end'
-        && event.kind !== 'permission_cancelled'
-        && event.kind !== 'websocket_reconnected'
-      ) {
-        markSessionAttention(eventSessionId);
+      if (eventSessionId && eventSessionId !== viewedSessionId) {
+        if (event.kind === 'permission_request') {
+          // Blocked on the user → amber "needs action".
+          markSessionAttention(eventSessionId);
+        } else if (event.kind === 'permission_cancelled') {
+          // Prompt withdrawn/answered: no longer blocked, but there was
+          // activity here — downgrade amber to green rather than leaving a
+          // stale needs-action highlight.
+          clearSessionAttention(eventSessionId);
+          markSessionUnread(eventSessionId);
+        } else if (
+          event.kind !== 'chat_subscribed'
+          && event.kind !== 'loading_progress'
+          && event.kind !== 'session_upserted'
+          && event.kind !== 'status'
+          && event.kind !== 'stream_end'
+          && event.kind !== 'websocket_reconnected'
+        ) {
+          // Any other unviewed-session output → green "unread".
+          markSessionUnread(eventSessionId);
+        }
       }
 
       if (event.kind !== 'session_upserted') {
@@ -704,7 +761,7 @@ export function useProjectsState({
       ) {
         setExternalMessageUpdate((prev) => prev + 1);
       } else {
-        markSessionAttention(upsert.sessionId);
+        markSessionUnread(upsert.sessionId);
       }
 
       setProjects((previousProjects) => {
@@ -790,7 +847,7 @@ export function useProjectsState({
     };
 
     return subscribe(handleEvent);
-  }, [markSessionAttention, navigate, sessionId, subscribe]);
+  }, [markSessionAttention, markSessionUnread, clearSessionAttention, navigate, sessionId, subscribe]);
 
   useEffect(() => {
     return () => {
@@ -1055,6 +1112,7 @@ export function useProjectsState({
       selectedSession,
       activeSessions,
       attentionSessionIds,
+      unreadSessionIds,
       onProjectSelect: handleProjectSelect,
       onSessionSelect: handleSessionSelect,
       onNewSession: handleNewSession,
@@ -1073,6 +1131,7 @@ export function useProjectsState({
     }),
     [
       attentionSessionIds,
+      unreadSessionIds,
       handleNewSession,
       handleProjectDelete,
       handleProjectSelect,

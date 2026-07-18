@@ -16,6 +16,8 @@ type SidebarSessionItemProps = {
   selectedSession: ProjectSession | null;
   isProcessing: boolean;
   needsAttention: boolean;
+  /** Finished output the user hasn't opened yet (green); no action required. */
+  isUnread: boolean;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
@@ -72,6 +74,7 @@ export default function SidebarSessionItem({
   selectedSession,
   isProcessing,
   needsAttention,
+  isUnread,
   currentTime,
   editingSession,
   editingSessionName,
@@ -96,8 +99,10 @@ export default function SidebarSessionItem({
   const { handlers: longPress, isPressing } = useLongPress((coords) => onLongPressMenu?.(session, coords), {
     disabled: !onLongPressMenu,
   });
-  const showAttentionIndicator = needsAttention && !isSelected;
-  const showRecentIndicator = !showAttentionIndicator && !isProcessing && sessionView.isActive;
+  // Needs-action (amber) is only meaningful when you're not already viewing it.
+  const needsAttentionHighlight = needsAttention && !isSelected;
+  // Unread (green) yields to needs-action and to an in-progress run.
+  const unreadHighlight = isUnread && !isSelected && !needsAttention && !isProcessing;
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
   // would visually hide it. While editing, dismiss only when the user clicks outside
@@ -137,28 +142,6 @@ export default function SidebarSessionItem({
 
   return (
     <div className="group relative">
-      {(showAttentionIndicator || showRecentIndicator) && (
-        <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
-          <Tooltip
-            content={showAttentionIndicator
-              ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
-              : t('tooltips.activeSessionIndicator')}
-            position="right"
-          >
-            <div
-              role="status"
-              aria-label={showAttentionIndicator
-                ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
-                : t('tooltips.activeSessionIndicator')}
-              className={cn(
-                'h-2 w-2 animate-pulse rounded-full',
-                showAttentionIndicator ? 'bg-amber-500' : 'bg-green-500',
-              )}
-            />
-          </Tooltip>
-        </div>
-      )}
-
       <div className="md:hidden">
         {isEditing ? (
           <div
@@ -215,9 +198,11 @@ export default function SidebarSessionItem({
               // selected border.
               isSelected
                 ? 'bg-primary/10 border-primary/50'
+                : needsAttentionHighlight
+                ? 'border-amber-500/40 bg-amber-50/5 dark:bg-amber-900/5'
                 : isProcessing
                 ? 'border-border/60 bg-muted/20'
-                : sessionView.isActive
+                : unreadHighlight
                 ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
                 : 'border-border/30',
             )}
@@ -275,11 +260,13 @@ export default function SidebarSessionItem({
             buttonVariants({ variant: 'ghost' }),
             'h-auto w-full justify-start rounded-md border bg-card p-2 text-left font-normal transition-all duration-150',
             isSelected ? 'border-primary/50 bg-primary/10' : 'border-border/30',
-            !isSelected && isProcessing
-              ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
-              : !isSelected && sessionView.isActive
-                ? 'border-green-500/30 bg-green-50/5 hover:bg-green-50/10 dark:bg-green-900/5 dark:hover:bg-green-900/10'
-                : 'hover:bg-accent/50',
+            needsAttentionHighlight
+              ? 'border-amber-500/40 bg-amber-50/5 hover:bg-amber-50/10 dark:bg-amber-900/5 dark:hover:bg-amber-900/10'
+              : !isSelected && isProcessing
+                ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
+                : unreadHighlight
+                  ? 'border-green-500/30 bg-green-50/5 hover:bg-green-50/10 dark:bg-green-900/5 dark:hover:bg-green-900/10'
+                  : 'hover:bg-accent/50',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
           // native right-click menu use the href to open a new tab/window.

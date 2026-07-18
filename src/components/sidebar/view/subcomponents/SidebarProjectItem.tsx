@@ -47,6 +47,7 @@ type SidebarProjectItemProps = {
   onLoadMoreSessions: (projectId: string) => void;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
+  unreadSessionIds: ReadonlySet<string>;
   onNewSession: (project: Project) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
@@ -91,6 +92,7 @@ export default function SidebarProjectItem({
   onDeleteSession,
   onLoadMoreSessions,
   activeSessions,
+  unreadSessionIds,
   attentionSessionIds,
   onNewSession,
   onEditingSessionNameChange,
@@ -109,6 +111,12 @@ export default function SidebarProjectItem({
   const sessionCountDisplay = getSessionCountDisplay(project, sessions);
   const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
   const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
+  // Surface a collapsed project from its loaded sessions: amber if any child is
+  // blocked on the user, else green if any child has unread finished output.
+  // (Sessions not yet paginated in can't be mapped here; they light up once the
+  // project is expanded and their rows load.)
+  const projectNeedsAttention = sessions.some((session) => attentionSessionIds.has(session.id));
+  const projectHasUnread = sessions.some((session) => unreadSessionIds.has(session.id));
 
   const toggleProject = () => onToggleProject(project.projectId);
   const toggleStarProject = () => onToggleStarProject(project.projectId);
@@ -137,9 +145,13 @@ export default function SidebarProjectItem({
               'long-pressable p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 transition-all duration-150',
               isPressing && 'scale-[0.98]',
               isSelected && 'bg-primary/10 border-primary/50',
-              isStarred &&
+              projectNeedsAttention &&
                 !isSelected &&
-                'bg-yellow-50/50 dark:bg-yellow-900/5 border-yellow-200/30 dark:border-yellow-800/30',
+                'border-amber-500/40 bg-amber-50/5 dark:bg-amber-900/5',
+              projectHasUnread &&
+                !isSelected &&
+                !projectNeedsAttention &&
+                'border-green-500/30 bg-green-50/5 dark:bg-green-900/5',
             )}
             onClick={toggleProject}
             {...longPress}
@@ -236,9 +248,13 @@ export default function SidebarProjectItem({
           className={cn(
             'hidden md:flex w-full justify-between p-2 h-auto font-normal border border-transparent hover:bg-accent/50',
             isSelected && 'bg-primary/10 border-primary/50',
-            isStarred &&
+            projectNeedsAttention &&
               !isSelected &&
-              'bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20',
+              'border-amber-500/40 bg-amber-50/5 hover:bg-amber-100/40 dark:bg-amber-900/10 dark:hover:bg-amber-900/20',
+            projectHasUnread &&
+              !isSelected &&
+              !projectNeedsAttention &&
+              'border-green-500/30 bg-green-50/5 hover:bg-green-100/40 dark:bg-green-900/10 dark:hover:bg-green-900/20',
           )}
           onClick={selectAndToggleProject}
         >
@@ -372,6 +388,7 @@ export default function SidebarProjectItem({
         isLoadingMoreSessions={isLoadingMoreSessions}
         activeSessions={activeSessions}
         attentionSessionIds={attentionSessionIds}
+        unreadSessionIds={unreadSessionIds}
         currentTime={currentTime}
         editingSession={editingSession}
         editingSessionName={editingSessionName}

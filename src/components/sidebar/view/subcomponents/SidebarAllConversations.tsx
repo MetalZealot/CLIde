@@ -36,6 +36,7 @@ export default function SidebarAllConversations({
     selectedSession,
     activeSessions,
     attentionSessionIds,
+    unreadSessionIds,
     currentTime,
     editingSession,
     editingSessionName,
@@ -120,6 +121,7 @@ export default function SidebarAllConversations({
           selectedSession={selectedSession}
           isProcessing={activeSessions.has(session.id)}
           needsAttention={attentionSessionIds.has(session.id)}
+          isUnread={unreadSessionIds.has(session.id)}
           currentTime={currentTime}
           editingSession={editingSession}
           editingSessionName={editingSessionName}
