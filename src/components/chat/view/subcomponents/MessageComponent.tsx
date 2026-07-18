@@ -95,17 +95,20 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               />
             )}
             {userCopyContent.trim().length > 0 || !message.images?.length ? (
-              <div className="group max-w-full rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-white shadow-sm sm:px-4">
-                <div dir="auto" className="whitespace-pre-wrap break-words font-serif text-sm">
-                  {message.content}
+              <>
+                <div className="group max-w-full rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-white shadow-sm sm:px-4">
+                  <div dir="auto" className="whitespace-pre-wrap break-words font-serif text-sm">
+                    {message.content}
+                  </div>
                 </div>
-                <div className="mt-1 flex items-center justify-end gap-1 text-xs text-blue-100">
+                {/* Copy + timestamp sit below the bubble, claude.ai-style */}
+                <div className="-mt-1 flex items-center justify-end gap-1 px-1 text-xs text-gray-400 dark:text-gray-500">
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
                   )}
                   <span>{formattedTime}</span>
                 </div>
-              </div>
+              </>
             ) : (
               /* Image-only turn: no text bubble, but the timestamp still shows */
               <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">

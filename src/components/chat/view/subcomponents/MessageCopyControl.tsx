@@ -160,9 +160,9 @@ const MessageCopyControl = ({
     setIsDropdownOpen(false);
   };
 
-  const toneClass = messageType === 'user'
-    ? 'text-blue-100 hover:text-white'
-    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300';
+  // User copy control now sits below the bubble on the chat background, so it
+  // uses the same muted tone as the assistant control rather than on-blue text.
+  const toneClass = 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300';
   const copyTitle = copied ? t('copyMessage.copied') : t('copyMessage.copy');
   const rootClassName = canSelectCopyFormat
     ? 'relative flex min-w-0 flex-1 items-center gap-0.5 sm:min-w-max sm:flex-none sm:w-auto'
