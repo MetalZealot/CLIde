@@ -28,7 +28,7 @@ export default function AuthScreenLayout({
       </div>
 
       <div className="relative mx-auto flex min-h-full w-full max-w-md items-center justify-center p-4 py-8">
-        <div className="w-full rounded-2xl border border-border/70 bg-card/90 p-8 shadow-[0_24px_60px_-20px_hsl(var(--foreground)/0.18)] ring-1 ring-foreground/5 backdrop-blur-xl sm:p-10">
+        <div className="w-full rounded-2xl border border-border/70 bg-card/90 p-8 shadow-[0_24px_60px_-20px_hsl(var(--foreground)/0.18)] ring-1 ring-foreground/5 sm:p-10">
           <div className="text-center">
             <div className="mb-5 flex justify-center">
               {logo ?? (

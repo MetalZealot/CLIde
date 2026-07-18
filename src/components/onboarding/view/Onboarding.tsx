@@ -159,7 +159,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           <div className="w-full py-6">
           <OnboardingStepProgress currentStep={currentStep} />
 
-          <div className="rounded-2xl border border-border/70 bg-card/90 p-6 shadow-[0_24px_60px_-20px_hsl(var(--foreground)/0.18)] ring-1 ring-foreground/5 backdrop-blur-xl">
+          <div className="rounded-2xl border border-border/70 bg-card/90 p-6 shadow-[0_24px_60px_-20px_hsl(var(--foreground)/0.18)] ring-1 ring-foreground/5">
             {currentStep === 0 ? (
               <GitConfigurationStep
                 gitName={gitName}
