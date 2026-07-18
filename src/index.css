@@ -769,7 +769,6 @@
   .chat-message {
     word-wrap: break-word;
     overflow-wrap: break-word;
-    hyphens: auto;
   }
 
   /* Force wrap long URLs and code */

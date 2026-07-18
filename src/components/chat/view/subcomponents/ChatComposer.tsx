@@ -582,11 +582,11 @@ export default function ChatComposer({
               title={submitAriaLabel}
               className="h-10 w-10 sm:h-10 sm:w-10"
             >
-              {isTranscribing || (isLoading && !canQueueDraft) ? (
+              {isTranscribing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : canQueueDraft ? (
+              ) : (
                 <ArrowUpIcon className="h-4 w-4" />
-              ) : undefined}
+              )}
             </PromptInputSubmit>
           </div>
         </PromptInputFooter>
