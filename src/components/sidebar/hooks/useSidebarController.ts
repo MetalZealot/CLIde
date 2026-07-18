@@ -90,6 +90,8 @@ type UseSidebarControllerArgs = {
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onSessionDelete?: (sessionId: string) => void;
+  // Optimistic in-place patch of a session's starred flag (see useProjectsState).
+  onSessionStarPatch?: (sessionId: string, isStarred: boolean) => void;
   onLoadMoreSessions?: (projectId: string) => Promise<void> | void;
   // `projectId` is the DB-assigned identifier; callbacks use that post-migration.
   onProjectDelete?: (projectId: string) => void;
@@ -110,6 +112,7 @@ export function useSidebarController({
   onProjectSelect,
   onSessionSelect,
   onSessionDelete,
+  onSessionStarPatch,
   onLoadMoreSessions,
   onProjectDelete,
   setCurrentProject,
@@ -752,6 +755,61 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onSessionDelete, sessionDeleteConfirmation, t]);
 
+  // Archive without the confirmation modal — Archive is recoverable from the
+  // Archive tab, so the long-press menu archives directly (mirrors
+  // confirmDeleteSession's soft-delete path with hardDelete=false).
+  const archiveSessionDirect = useCallback(async (sessionId: string) => {
+    try {
+      const response = await api.deleteSession(sessionId, false);
+
+      if (response.ok) {
+        onSessionDelete?.(sessionId);
+        await fetchArchivedSessions();
+      } else {
+        const errorText = await response.text();
+        console.error('[Sidebar] Failed to archive session:', {
+          status: response.status,
+          error: errorText,
+        });
+        alert(t('messages.deleteSessionFailed'));
+      }
+    } catch (error) {
+      console.error('[Sidebar] Error archiving session:', error);
+      alert(t('messages.deleteSessionError'));
+    }
+  }, [fetchArchivedSessions, onSessionDelete, t]);
+
+  // Optimistic session-star toggle: flip the icon immediately, then reconcile
+  // with the server's returned flag; revert on failure. No sequence guard —
+  // unlike project stars there is no client-side re-sort to race against.
+  const toggleStarSession = useCallback(
+    (sessionId: string, currentIsStarred: boolean) => {
+      const optimisticIsStarred = !currentIsStarred;
+      onSessionStarPatch?.(sessionId, optimisticIsStarred);
+
+      const run = async () => {
+        try {
+          const response = await api.toggleSessionStar(sessionId);
+          if (!response.ok) {
+            throw new Error(`Star toggle failed with status ${response.status}`);
+          }
+
+          const payload = (await response.json()) as { data?: { isStarred?: boolean } };
+          const serverIsStarred = payload.data?.isStarred;
+          if (typeof serverIsStarred === 'boolean' && serverIsStarred !== optimisticIsStarred) {
+            onSessionStarPatch?.(sessionId, serverIsStarred);
+          }
+        } catch (error) {
+          console.error('[Sidebar] Failed to toggle session star:', error);
+          onSessionStarPatch?.(sessionId, currentIsStarred);
+        }
+      };
+
+      void run();
+    },
+    [onSessionStarPatch],
+  );
+
   const requestProjectDelete = useCallback(
     (project: Project) => {
       setDeleteConfirmation({
@@ -961,6 +1019,8 @@ export function useSidebarController({
     saveProjectName,
     showDeleteSessionConfirmation,
     confirmDeleteSession,
+    archiveSessionDirect,
+    toggleStarSession,
     requestProjectDelete,
     confirmDeleteProject,
     handleProjectSelect,

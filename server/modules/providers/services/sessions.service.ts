@@ -305,4 +305,22 @@ export const sessionsService = {
     sessionsDb.updateSessionCustomName(sessionId, summary);
     return { sessionId, summary };
   },
+
+  /**
+   * Toggles the starred flag on one session. Provider-agnostic: keyed purely on
+   * the app session id, so it works for every provider adapter.
+   */
+  toggleSessionStarById(sessionId: string): { sessionId: string; isStarred: boolean } {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const nextIsStarred = !session.isStarred;
+    sessionsDb.updateSessionIsStarred(sessionId, nextIsStarred);
+    return { sessionId, isStarred: nextIsStarred };
+  },
 };

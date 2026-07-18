@@ -402,6 +402,19 @@ const addProviderSessionIdMapping = (db: Database): void => {
   `);
 };
 
+/**
+ * Adds the `isStarred` flag used to float favourite conversations to the top of
+ * their project in the sidebar. Runs after the sessions rebuild so it covers
+ * both the rebuilt table (which omits the column) and modern tables alike,
+ * mirroring `addProviderSessionIdMapping`.
+ */
+const addSessionStarColumn = (db: Database): void => {
+  const sessionsTableInfo = getTableInfo(db, 'sessions');
+  const columnNames = sessionsTableInfo.map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'isStarred', 'BOOLEAN DEFAULT 0');
+};
+
 const ensureProjectsForSessionPaths = (db: Database): void => {
   if (!tableExists(db, 'sessions')) {
     return;
@@ -452,12 +465,14 @@ export const runMigrations = (db: Database) => {
     rebuildSessionsTableWithProjectSchema(db);
     migrateLegacySessionNames(db);
     addProviderSessionIdMapping(db);
+    addSessionStarColumn(db);
     ensureProjectsForSessionPaths(db);
 
     db.exec('CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_provider_session_id ON sessions(provider_session_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_project_path ON sessions(project_path)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_is_archived ON sessions(isArchived)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_is_starred ON sessions(isStarred)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_projects_is_starred ON projects(isStarred)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_projects_is_archived ON projects(isArchived)');
 

@@ -5,6 +5,7 @@ import { Button } from '../../../../shared/view/ui';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
+import type { LongPressCoords } from '../../../../hooks/useLongPress';
 
 import SidebarSessionItem from './SidebarSessionItem';
 
@@ -35,6 +36,7 @@ type SidebarProjectSessionsProps = {
   ) => void;
   onLoadMoreSessions: (projectId: string) => void;
   onNewSession: (project: Project) => void;
+  onLongPressSessionMenu?: (session: SessionWithProvider, coords: LongPressCoords) => void;
   t: TFunction;
 };
 
@@ -78,6 +80,7 @@ export default function SidebarProjectSessions({
   onDeleteSession,
   onLoadMoreSessions,
   onNewSession,
+  onLongPressSessionMenu,
   t,
 }: SidebarProjectSessionsProps) {
   if (!isExpanded) {
@@ -137,6 +140,7 @@ export default function SidebarProjectSessions({
               onProjectSelect={onProjectSelect}
               onSessionSelect={onSessionSelect}
               onDeleteSession={onDeleteSession}
+              onLongPressMenu={onLongPressSessionMenu}
               t={t}
             />
           ))}

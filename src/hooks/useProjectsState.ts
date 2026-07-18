@@ -331,6 +331,28 @@ const removeSessionFromProject = (project: Project, sessionIdToDelete: string): 
   return updatedProject;
 };
 
+/**
+ * Patches one session in place inside a project's list without touching order
+ * or counts. Used for optimistic flag flips (e.g. starring) where the row is
+ * already loaded and only a field changes. Returns the same project reference
+ * when the session is absent so React can skip re-rendering untouched projects.
+ */
+const patchSessionInProject = (
+  project: Project,
+  sessionId: string,
+  patch: Partial<ProjectSession>,
+): Project => {
+  const sessions = project.sessions ?? [];
+  const index = sessions.findIndex((session) => String(session.id) === sessionId);
+  if (index < 0) {
+    return project;
+  }
+
+  const nextSessions = sessions.slice();
+  nextSessions[index] = { ...nextSessions[index], ...patch };
+  return { ...project, sessions: nextSessions };
+};
+
 const VALID_TABS: Set<string> = new Set(['chat', 'files', 'shell', 'git', 'tasks', 'browser']);
 
 const isValidTab = (tab: string): tab is AppTab => {
@@ -904,6 +926,15 @@ export function useProjectsState({
     [clearSessionAttention, navigate, selectedSession?.id],
   );
 
+  // Optimistic in-place patch of a session's starred flag. The sidebar controller
+  // calls this before/after the API round-trip; server-side float-to-top only
+  // applies on the next fetch, so we deliberately do not re-sort here.
+  const handleSessionStarPatch = useCallback((sessionIdToPatch: string, isStarred: boolean) => {
+    setProjects((prevProjects) =>
+      prevProjects.map((project) => patchSessionInProject(project, sessionIdToPatch, { isStarred })),
+    );
+  }, []);
+
   const handleSidebarRefresh = useCallback(async () => {
     try {
       const response = await api.projects();
@@ -1027,6 +1058,7 @@ export function useProjectsState({
       onSessionSelect: handleSessionSelect,
       onNewSession: handleNewSession,
       onSessionDelete: handleSessionDelete,
+      onSessionStarPatch: handleSessionStarPatch,
       onLoadMoreSessions: loadMoreProjectSessions,
       onProjectDelete: handleProjectDelete,
       isLoading: isLoadingProjects,
@@ -1044,6 +1076,7 @@ export function useProjectsState({
       handleProjectDelete,
       handleProjectSelect,
       handleSessionDelete,
+      handleSessionStarPatch,
       loadMoreProjectSessions,
       handleSessionSelect,
       handleSidebarRefresh,

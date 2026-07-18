@@ -47,6 +47,8 @@ export type SidebarProps = {
   onSessionSelect: (session: ProjectSession) => void;
   onNewSession: (project: Project) => void;
   onSessionDelete?: (sessionId: string) => void;
+  // Optimistic in-place patch of a session's starred flag (see useProjectsState).
+  onSessionStarPatch?: (sessionId: string, isStarred: boolean) => void;
   onLoadMoreSessions?: (projectId: string) => Promise<void> | void;
   // `projectId` is the DB identifier; the sidebar hands it back to the parent
   // when the delete flow completes.

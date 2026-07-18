@@ -7,6 +7,7 @@ import type { Project, ProjectSession, LLMProvider } from '../../../../types/app
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
 import { getTaskIndicatorStatus } from '../../utils/utils';
+import { useLongPress, type LongPressCoords } from '../../../../hooks/useLongPress';
 
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
@@ -51,6 +52,8 @@ type SidebarProjectItemProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onLongPressProjectMenu?: (project: Project, coords: LongPressCoords) => void;
+  onLongPressSessionMenu?: (session: SessionWithProvider, coords: LongPressCoords) => void;
   t: TFunction;
 };
 
@@ -94,6 +97,8 @@ export default function SidebarProjectItem({
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onLongPressProjectMenu,
+  onLongPressSessionMenu,
   t,
 }: SidebarProjectItemProps) {
   // Project identity is tracked by the DB-assigned `projectId` everywhere
@@ -107,6 +112,9 @@ export default function SidebarProjectItem({
 
   const toggleProject = () => onToggleProject(project.projectId);
   const toggleStarProject = () => onToggleStarProject(project.projectId);
+  const longPress = useLongPress((coords) => onLongPressProjectMenu?.(project, coords), {
+    disabled: !onLongPressProjectMenu,
+  });
 
   const saveProjectName = () => {
     onSaveProjectName(project.projectId);
@@ -126,39 +134,17 @@ export default function SidebarProjectItem({
         <div className="md:hidden">
           <div
             className={cn(
-              'p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 active:scale-[0.98] transition-all duration-150',
+              'long-pressable p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 active:scale-[0.98] transition-all duration-150',
               isSelected && 'bg-primary/10 border-primary/50',
               isStarred &&
                 !isSelected &&
                 'bg-yellow-50/50 dark:bg-yellow-900/5 border-yellow-200/30 dark:border-yellow-800/30',
             )}
             onClick={toggleProject}
+            {...longPress}
           >
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 flex-1 items-center gap-3">
-                <button
-                  className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border',
-                    isStarred
-                      ? 'bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800'
-                      : 'bg-gray-500/10 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800',
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleStarProject();
-                  }}
-                  title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
-                >
-                  <Star
-                    className={cn(
-                      'w-4 h-4 transition-colors',
-                      isStarred
-                        ? 'text-yellow-600 dark:text-yellow-400 fill-current'
-                        : 'text-gray-600 dark:text-gray-400',
-                    )}
-                  />
-                </button>
-
                 <div className="min-w-0 flex-1">
                   {isEditing ? (
                     <input
@@ -188,7 +174,12 @@ export default function SidebarProjectItem({
                   ) : (
                     <>
                       <div className="flex min-w-0 flex-1 items-center justify-between">
-                        <h3 className="truncate text-sm font-normal text-foreground">{project.displayName}</h3>
+                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                          {isStarred && (
+                            <Star className="h-3.5 w-3.5 flex-shrink-0 fill-current text-yellow-500" />
+                          )}
+                          <h3 className="truncate text-sm font-normal text-foreground">{project.displayName}</h3>
+                        </div>
                         {tasksEnabled && (
                           <TaskIndicator
                             status={taskStatus}
@@ -226,35 +217,13 @@ export default function SidebarProjectItem({
                     </button>
                   </>
                 ) : (
-                  <>
-                    <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-500/10 active:scale-90 dark:border-red-800 dark:bg-red-900/30"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDeleteProject(project);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
-                    </button>
-
-                    <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 active:scale-90 dark:border-primary/30 dark:bg-primary/20"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onStartEditingProject(project);
-                      }}
-                    >
-                      <Edit3 className="h-4 w-4 text-primary" />
-                    </button>
-
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/30">
-                      {isExpanded ? (
-                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                      )}
-                    </div>
-                  </>
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/30">
+                    {isExpanded ? (
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -414,6 +383,7 @@ export default function SidebarProjectItem({
         onDeleteSession={onDeleteSession}
         onLoadMoreSessions={onLoadMoreSessions}
         onNewSession={onNewSession}
+        onLongPressSessionMenu={onLongPressSessionMenu}
         t={t}
       />
     </div>

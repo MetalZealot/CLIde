@@ -120,6 +120,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ summary }),
     }),
+  // Toggles the starred flag server-side; response carries the new `{ isStarred }`.
+  toggleSessionStar: (sessionId) =>
+    authenticatedFetch(`/api/providers/sessions/${sessionId}/star`, {
+      method: 'POST',
+    }),
   // `hardDelete` => server `?force=true` (remove DB row + Claude *.jsonl + sessions rows for path).
   deleteProject: (projectId, hardDelete = false) => {
     const params = new URLSearchParams();

@@ -622,7 +622,7 @@
       opacity: 1 !important;
     }
     
-    button, 
+    button,
     [role="button"],
     .clickable,
     a,
@@ -632,7 +632,16 @@
       -webkit-user-select: none;
       touch-action: manipulation;
     }
-    
+
+    /* Long-pressable sidebar rows + the popover menu must not pop the iOS
+       text-selection callout/magnifier while a finger is held down. */
+    .long-pressable,
+    .sidebar-context-menu {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
     /* Better mobile touch targets */
     .mobile-touch-target {
       @apply min-h-[44px] min-w-[44px];

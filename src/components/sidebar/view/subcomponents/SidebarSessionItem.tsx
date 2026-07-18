@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, Loader2, Trash2, X } from 'lucide-react';
+import { Check, Edit2, Loader2, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip, buttonVariants } from '../../../../shared/view/ui';
@@ -7,6 +7,7 @@ import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel } from '../../utils/utils';
+import { useLongPress, type LongPressCoords } from '../../../../hooks/useLongPress';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 
 type SidebarSessionItemProps = {
@@ -32,6 +33,8 @@ type SidebarSessionItemProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
+  /** Opens the mobile long-press action menu anchored at the touch point. */
+  onLongPressMenu?: (session: SessionWithProvider, coords: LongPressCoords) => void;
   t: TFunction;
 };
 
@@ -80,13 +83,19 @@ export default function SidebarSessionItem({
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
+  onLongPressMenu,
   t,
 }: SidebarSessionItemProps) {
   const sessionView = createSessionViewModel(session, currentTime, t);
   const isSelected = selectedSession?.id === session.id;
   const isEditing = editingSession === session.id;
+  const isStarred = Boolean(session.isStarred);
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
+  const mobileEditRef = useRef<HTMLDivElement>(null);
+  const longPress = useLongPress((coords) => onLongPressMenu?.(session, coords), {
+    disabled: !onLongPressMenu,
+  });
   const showAttentionIndicator = needsAttention && !isSelected;
   const showRecentIndicator = !showAttentionIndicator && !isProcessing && sessionView.isActive;
 
@@ -99,8 +108,10 @@ export default function SidebarSessionItem({
     }
 
     const handlePointerDown = (event: MouseEvent) => {
-      const container = editingContainerRef.current;
-      if (container && !container.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const insideDesktop = editingContainerRef.current?.contains(target);
+      const insideMobile = mobileEditRef.current?.contains(target);
+      if (!insideDesktop && !insideMobile) {
         onCancelEditingSession();
       }
     };
@@ -149,72 +160,111 @@ export default function SidebarSessionItem({
       )}
 
       <div className="md:hidden">
-        <div
-          className={cn(
-            'p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
-            // Single chain: a trailing border fallback would win inside cn()
-            // (tailwind-merge keeps the last conflicting class) and erase the
-            // selected border.
-            isSelected
-              ? 'bg-primary/10 border-primary/50'
-              : isProcessing
-              ? 'border-border/60 bg-muted/20'
-              : sessionView.isActive
-              ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
-              : 'border-border/30',
-          )}
-          onClick={selectMobileSession}
-        >
-          <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0',
-                isSelected ? 'bg-primary/10' : 'bg-muted/50',
-              )}
+        {isEditing ? (
+          <div
+            ref={mobileEditRef}
+            className="mx-3 my-0.5 flex items-center gap-1 rounded-md border border-primary/50 bg-card p-2"
+          >
+            <input
+              type="text"
+              value={editingSessionName}
+              onChange={(event) => onEditingSessionNameChange(event.target.value)}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === 'Enter') {
+                  saveEditedSession();
+                } else if (event.key === 'Escape') {
+                  onCancelEditingSession();
+                }
+              }}
+              onClick={(event) => event.stopPropagation()}
+              className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              // 16px keeps iOS Safari from zooming the viewport on focus.
+              style={{ fontSize: '16px', WebkitAppearance: 'none' }}
+              autoFocus
+              autoComplete="off"
+            />
+            <button
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded bg-green-500 active:scale-90 dark:bg-green-600"
+              onClick={(event) => {
+                event.stopPropagation();
+                saveEditedSession();
+              }}
+              title={t('tooltips.save')}
             >
-              <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
-                {isProcessing ? (
-                  <span className="ml-auto flex-shrink-0">
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
-                ) : compactSessionAge && (
-                  <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
-                )}
-              </div>
-              <div className="mt-0.5 flex items-center gap-1.5">
-                {sessionView.messageCount > 0 && (
-                  <Badge variant="secondary" className="px-1 py-0 text-xs">
-                    {sessionView.messageCount}
-                  </Badge>
-                )}
-                {projectLabel && (
-                  <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
-                )}
-              </div>
-            </div>
-
-            {!isProcessing && (
-              <button
-                className="ml-1 flex h-5 w-5 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  requestDeleteSession();
-                }}
-              >
-                <Trash2 className="h-2.5 w-2.5 text-red-600 dark:text-red-400" />
-              </button>
-            )}
+              <Check className="h-4 w-4 text-white" />
+            </button>
+            <button
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded bg-gray-500 active:scale-90 dark:bg-gray-600"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCancelEditingSession();
+              }}
+              title={t('tooltips.cancel')}
+            >
+              <X className="h-4 w-4 text-white" />
+            </button>
           </div>
-        </div>
+        ) : (
+          <div
+            className={cn(
+              'long-pressable p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
+              // Single chain: a trailing border fallback would win inside cn()
+              // (tailwind-merge keeps the last conflicting class) and erase the
+              // selected border.
+              isSelected
+                ? 'bg-primary/10 border-primary/50'
+                : isProcessing
+                ? 'border-border/60 bg-muted/20'
+                : sessionView.isActive
+                ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
+                : 'border-border/30',
+            )}
+            onClick={selectMobileSession}
+            {...longPress}
+          >
+            <div className="flex items-center gap-2">
+              <div
+                className={cn(
+                  'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0',
+                  isSelected ? 'bg-primary/10' : 'bg-muted/50',
+                )}
+              >
+                <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  {isStarred && (
+                    <Star className="h-3 w-3 flex-shrink-0 fill-current text-yellow-500" />
+                  )}
+                  <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
+                  {isProcessing ? (
+                    <span className="ml-auto flex-shrink-0">
+                      <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        </span>
+                      </Tooltip>
+                    </span>
+                  ) : compactSessionAge && (
+                    <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                  )}
+                </div>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  {sessionView.messageCount > 0 && (
+                    <Badge variant="secondary" className="px-1 py-0 text-xs">
+                      {sessionView.messageCount}
+                    </Badge>
+                  )}
+                  {projectLabel && (
+                    <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="hidden md:block">
@@ -248,7 +298,10 @@ export default function SidebarSessionItem({
               <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                {isStarred && (
+                  <Star className="h-3 w-3 flex-shrink-0 fill-current text-yellow-500" />
+                )}
                 <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
                 {isProcessing ? (
                   <span

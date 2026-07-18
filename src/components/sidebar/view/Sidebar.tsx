@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Archive, Pencil, Star, Trash2 } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -9,11 +10,14 @@ import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
-import type { MCPServerStatus, SidebarProps } from '../types/types';
+import type { MCPServerStatus, SidebarProps, SessionWithProvider } from '../types/types';
+import type { LongPressCoords } from '../../../hooks/useLongPress';
+import { getSessionName } from '../utils/utils';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
+import SidebarContextMenu, { type SidebarContextMenuItem } from './subcomponents/SidebarContextMenu';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
 
 type TaskMasterSidebarContext = {
@@ -31,6 +35,7 @@ function Sidebar({
   onSessionSelect,
   onNewSession,
   onSessionDelete,
+  onSessionStarPatch,
   onLoadMoreSessions,
   onProjectDelete,
   isLoading,
@@ -94,6 +99,8 @@ function Sidebar({
     saveProjectName,
     showDeleteSessionConfirmation,
     confirmDeleteSession,
+    archiveSessionDirect,
+    toggleStarSession,
     requestProjectDelete,
     confirmDeleteProject,
     handleProjectSelect,
@@ -124,6 +131,7 @@ function Sidebar({
     onProjectSelect,
     onSessionSelect,
     onSessionDelete,
+    onSessionStarPatch,
     onLoadMoreSessions,
     onProjectDelete,
     setCurrentProject,
@@ -143,6 +151,93 @@ function Sidebar({
   const handleProjectCreated = () => {
     void paletteOps.refreshProjects();
   };
+
+  type SidebarMenuState =
+    | { kind: 'session'; session: SessionWithProvider; x: number; y: number }
+    | { kind: 'project'; project: Project; x: number; y: number };
+  const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
+
+  const handleLongPressSessionMenu = (session: SessionWithProvider, coords: LongPressCoords) => {
+    setContextMenu({ kind: 'session', session, x: coords.x, y: coords.y });
+  };
+  const handleLongPressProjectMenu = (project: Project, coords: LongPressCoords) => {
+    setContextMenu({ kind: 'project', project, x: coords.x, y: coords.y });
+  };
+
+  const contextMenuItems = useMemo<SidebarContextMenuItem[]>(() => {
+    if (!contextMenu) {
+      return [];
+    }
+
+    if (contextMenu.kind === 'session') {
+      const { session } = contextMenu;
+      const isStarred = Boolean(session.isStarred);
+      const sessionName = getSessionName(session, t);
+      return [
+        {
+          key: 'star',
+          label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
+          icon: Star,
+          onSelect: () => toggleStarSession(session.id, isStarred),
+        },
+        {
+          key: 'rename',
+          label: t('actions.rename'),
+          icon: Pencil,
+          onSelect: () => {
+            setEditingSession(session.id);
+            setEditingSessionName(sessionName);
+          },
+        },
+        {
+          key: 'archive',
+          label: t('actions.archive', 'Archive'),
+          icon: Archive,
+          onSelect: () => {
+            void archiveSessionDirect(session.id);
+          },
+        },
+        {
+          key: 'delete',
+          label: t('actions.delete'),
+          icon: Trash2,
+          isDanger: true,
+          onSelect: () =>
+            showDeleteSessionConfirmation(
+              session.__projectId ?? null,
+              session.id,
+              sessionName,
+              session.__provider,
+            ),
+        },
+      ];
+    }
+
+    const { project } = contextMenu;
+    const isStarred = isProjectStarred(project.projectId);
+    return [
+      {
+        key: 'star',
+        label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
+        icon: Star,
+        onSelect: () => toggleStarProject(project.projectId),
+      },
+      {
+        key: 'rename',
+        label: t('actions.rename'),
+        icon: Pencil,
+        onSelect: () => startEditing(project),
+      },
+      {
+        key: 'delete',
+        label: t('actions.delete'),
+        icon: Trash2,
+        isDanger: true,
+        onSelect: () => requestProjectDelete(project),
+      },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextMenu, t]);
 
   const projectListProps: SidebarProjectListProps = {
     projects,
@@ -193,11 +288,22 @@ function Sidebar({
     onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => {
       void updateSessionSummary(projectName, sessionId, summary, provider);
     },
+    onLongPressProjectMenu: handleLongPressProjectMenu,
+    onLongPressSessionMenu: handleLongPressSessionMenu,
     t,
   };
 
   return (
     <>
+        {contextMenu && (
+          <SidebarContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={contextMenuItems}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+
         <SidebarModals
           projects={projects}
         showSettings={showSettings}

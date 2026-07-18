@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
+import type { LongPressCoords } from '../../../../hooks/useLongPress';
 
 import SidebarProjectItem from './SidebarProjectItem';
 import SidebarProjectsState from './SidebarProjectsState';
@@ -52,6 +53,8 @@ export type SidebarProjectListProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onLongPressProjectMenu?: (project: Project, coords: LongPressCoords) => void;
+  onLongPressSessionMenu?: (session: SessionWithProvider, coords: LongPressCoords) => void;
   t: TFunction;
 };
 
@@ -94,6 +97,8 @@ export default function SidebarProjectList({
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onLongPressProjectMenu,
+  onLongPressSessionMenu,
   t,
 }: SidebarProjectListProps) {
   const state = (
@@ -160,6 +165,8 @@ export default function SidebarProjectList({
               onStartEditingSession={onStartEditingSession}
               onCancelEditingSession={onCancelEditingSession}
               onSaveEditingSession={onSaveEditingSession}
+              onLongPressProjectMenu={onLongPressProjectMenu}
+              onLongPressSessionMenu={onLongPressSessionMenu}
               t={t}
             />
           ))}
