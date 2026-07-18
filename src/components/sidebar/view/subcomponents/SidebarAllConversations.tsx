@@ -3,7 +3,7 @@ import { MessageSquare } from 'lucide-react';
 
 import type { Project } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
-import { getSessionDate, getSessionName } from '../../utils/utils';
+import { compareSessionsStarredFirst, getSessionName } from '../../utils/utils';
 
 import SidebarProjectsState from './SidebarProjectsState';
 import SidebarSessionItem from './SidebarSessionItem';
@@ -67,7 +67,7 @@ export default function SidebarAllConversations({
           (project.displayName || project.projectId).toLowerCase().includes(normalizedSearch)
         );
       })
-      .sort((a, b) => getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime());
+      .sort((a, b) => compareSessionsStarredFirst(a.session, b.session));
   }, [getProjectSessions, projects, searchFilter, t]);
 
   if (isLoading || projects.length === 0) {

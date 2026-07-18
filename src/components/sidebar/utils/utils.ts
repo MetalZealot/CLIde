@@ -72,6 +72,25 @@ export const getSessionDate = (session: SessionWithProvider): Date => {
   return new Date(getUpdatedTimestamp(session) || getCreatedTimestamp(session) || 0);
 };
 
+/**
+ * Sort comparator that pins starred sessions to the top, then falls back to
+ * most-recent-activity order. Mirrors the starred-first behaviour of
+ * `sortProjects` so the Projects and Conversations tabs behave consistently.
+ */
+export const compareSessionsStarredFirst = (
+  a: SessionWithProvider,
+  b: SessionWithProvider,
+): number => {
+  const aStarred = Boolean(a.isStarred);
+  const bStarred = Boolean(b.isStarred);
+
+  if (aStarred !== bStarred) {
+    return aStarred ? -1 : 1;
+  }
+
+  return getSessionDate(b).getTime() - getSessionDate(a).getTime();
+};
+
 export const getSessionName = (session: SessionWithProvider, t: TFunction): string => {
   return session.summary || session.name || t('projects.newSession');
 };
@@ -100,9 +119,7 @@ export const getAllSessions = (project: Project): SessionWithProvider[] => {
   return (project.sessions || []).map((session) => ({
     ...session,
     __provider: getSessionProvider(session),
-  })).sort(
-    (a, b) => getSessionDate(b).getTime() - getSessionDate(a).getTime(),
-  );
+  })).sort(compareSessionsStarredFirst);
 };
 
 export const getProjectLastActivity = (project: Project): Date => {

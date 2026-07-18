@@ -927,8 +927,9 @@ export function useProjectsState({
   );
 
   // Optimistic in-place patch of a session's starred flag. The sidebar controller
-  // calls this before/after the API round-trip; server-side float-to-top only
-  // applies on the next fetch, so we deliberately do not re-sort here.
+  // calls this before/after the API round-trip. We only flip the flag here — the
+  // starred-first pinning is applied downstream by `getAllSessions`, which re-sorts
+  // whenever the patched `isStarred` value changes.
   const handleSessionStarPatch = useCallback((sessionIdToPatch: string, isStarred: boolean) => {
     setProjects((prevProjects) =>
       prevProjects.map((project) => patchSessionInProject(project, sessionIdToPatch, { isStarred })),

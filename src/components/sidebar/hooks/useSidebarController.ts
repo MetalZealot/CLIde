@@ -779,9 +779,11 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onSessionDelete, t]);
 
-  // Optimistic session-star toggle: flip the icon immediately, then reconcile
-  // with the server's returned flag; revert on failure. No sequence guard —
-  // unlike project stars there is no client-side re-sort to race against.
+  // Optimistic session-star toggle: flip the icon immediately (which also pins
+  // the session to the top via `getAllSessions`' starred-first sort), then
+  // reconcile with the server's returned flag; revert on failure. No sequence
+  // guard needed — the pin order follows `isStarred` directly rather than a
+  // separate ordering map, so there is nothing to race against.
   const toggleStarSession = useCallback(
     (sessionId: string, currentIsStarred: boolean) => {
       const optimisticIsStarred = !currentIsStarred;
