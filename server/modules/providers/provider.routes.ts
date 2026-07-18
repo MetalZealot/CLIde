@@ -4,6 +4,7 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import { providerUsageService } from '@/modules/providers/services/provider-usage.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
@@ -380,6 +381,16 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const status = await providerAuthService.getProviderAuthStatus(provider);
+    res.json(createApiSuccessResponse(status));
+  }),
+);
+
+router.get(
+  '/:provider/usage',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const refresh = parseOptionalBooleanQuery(req.query.refresh, 'refresh') ?? false;
+    const status = await providerUsageService.getProviderUsage(provider, { bypassCache: refresh });
     res.json(createApiSuccessResponse(status));
   }),
 );

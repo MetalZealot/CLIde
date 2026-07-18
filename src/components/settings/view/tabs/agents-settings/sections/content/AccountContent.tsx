@@ -1,7 +1,9 @@
-import { LogIn } from 'lucide-react';
+import { LogIn, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
+import UsageWindowList from '../../../../../../provider-usage/UsageWindowList';
+import { useProviderUsage } from '../../../../../../provider-usage/hooks/useProviderUsage';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
 
 type AccountContentProps = {
@@ -56,9 +58,31 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   },
 };
 
+const formatUpdatedAgo = (fetchedAt: string): string | null => {
+  const elapsedMs = Date.now() - Date.parse(fetchedAt);
+  if (Number.isNaN(elapsedMs) || elapsedMs < 0) {
+    return null;
+  }
+  const minutes = Math.floor(elapsedMs / 60_000);
+  return minutes < 1 ? 'just now' : `${minutes}m ago`;
+};
+
 export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
+  const usageProvider = agent === 'claude' ? ('claude' as const) : null;
+  const planUsage = useProviderUsage(usageProvider, {
+    enabled: authStatus.authenticated && !authStatus.loading,
+  });
+  const showUsageCard = Boolean(
+    usageProvider
+    && authStatus.authenticated
+    && !authStatus.loading
+    && planUsage.usage?.supported !== false,
+  );
+  const usageUpdatedAgo = planUsage.usage?.fetchedAt
+    ? formatUpdatedAgo(planUsage.usage.fetchedAt)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -144,6 +168,49 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
           )}
         </div>
       </div>
+
+      {showUsageCard && (
+        <div className="rounded-lg border border-border bg-muted/30 p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <div className="font-medium text-foreground">
+                {t('agents.usage.title', { defaultValue: 'Plan Usage' })}
+              </div>
+              {usageUpdatedAgo && (
+                <div className="text-xs text-muted-foreground">
+                  {t('agents.usage.updatedAgo', {
+                    defaultValue: 'Updated {{time}}',
+                    time: usageUpdatedAgo,
+                  })}
+                </div>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={planUsage.refresh}
+              disabled={planUsage.loading}
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={t('agents.usage.refresh', { defaultValue: 'Refresh plan usage' })}
+            >
+              <RefreshCw className={planUsage.loading ? 'mr-2 h-4 w-4 animate-spin' : 'mr-2 h-4 w-4'} />
+              {t('agents.usage.refreshButton', { defaultValue: 'Refresh' })}
+            </Button>
+          </div>
+          <UsageWindowList usage={planUsage.usage} loading={planUsage.loading} error={planUsage.error} />
+        </div>
+      )}
+
+      {usageProvider && authStatus.authenticated && planUsage.usage?.supported === false && (
+        <div className="rounded-lg border border-border bg-muted/30 p-4">
+          <div className="text-sm text-muted-foreground">
+            {t('agents.usage.apiKeyUnavailable', {
+              defaultValue: 'Plan usage is only available for subscription (OAuth) sign-in, not API-key auth.',
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

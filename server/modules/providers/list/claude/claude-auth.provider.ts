@@ -1,13 +1,13 @@
-import { readFile } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-
 import spawn from 'cross-spawn';
 
+import {
+  loadClaudeSettingsEnv,
+  readClaudeOAuthCredentials,
+} from '@/modules/providers/list/claude/claude-credentials.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
-import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+import { readOptionalString } from '@/shared/utils.js';
 
 type ClaudeCredentialsStatus = {
   authenticated: boolean;
@@ -15,10 +15,6 @@ type ClaudeCredentialsStatus = {
   method: string | null;
   error?: string;
 };
-
-const hasErrorCode = (error: unknown, code: string): boolean => (
-  error instanceof Error && 'code' in error && error.code === code
-);
 
 export class ClaudeProviderAuth implements IProviderAuth {
   /**
@@ -64,20 +60,6 @@ export class ClaudeProviderAuth implements IProviderAuth {
   }
 
   /**
-   * Reads Claude settings env values that the CLI can use even when the server process env is empty.
-   */
-  private async loadSettingsEnv(): Promise<Record<string, unknown>> {
-    try {
-      const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
-      const content = await readFile(settingsPath, 'utf8');
-      const settings = readObjectRecord(JSON.parse(content));
-      return readObjectRecord(settings?.env) ?? {};
-    } catch {
-      return {};
-    }
-  }
-
-  /**
    * Checks Claude credentials in the same priority order used by Claude Code.
    */
   private async checkCredentials(): Promise<ClaudeCredentialsStatus> {
@@ -91,7 +73,7 @@ export class ClaudeProviderAuth implements IProviderAuth {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }
 
-    const settingsEnv = await this.loadSettingsEnv();
+    const settingsEnv = await loadClaudeSettingsEnv();
     if (readOptionalString(settingsEnv.ANTHROPIC_API_KEY)) {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }
@@ -100,53 +82,39 @@ export class ClaudeProviderAuth implements IProviderAuth {
       return { authenticated: true, email: 'Configured via settings.json', method: 'api_key' };
     }
 
-    try {
-      const credPath = path.join(os.homedir(), '.claude', '.credentials.json');
-      const content = await readFile(credPath, 'utf8');
-      const creds = readObjectRecord(JSON.parse(content)) ?? {};
-      const oauth = readObjectRecord(creds.claudeAiOauth);
-      const accessToken = readOptionalString(oauth?.accessToken);
+    const oauthCredentials = await readClaudeOAuthCredentials();
 
-      if (accessToken) {
-        const expiresAt = typeof oauth?.expiresAt === 'number' ? oauth.expiresAt : undefined;
-        const email = readOptionalString(creds.email) ?? readOptionalString(creds.user) ?? null;
-        if (!expiresAt || Date.now() < expiresAt) {
-          return {
-            authenticated: true,
-            email,
-            method: 'credentials_file',
-          };
-        }
-
+    switch (oauthCredentials.status) {
+      case 'ok':
+        return {
+          authenticated: true,
+          email: oauthCredentials.email,
+          method: 'credentials_file',
+        };
+      case 'expired':
         return {
           authenticated: false,
           email: null,
           method: null,
           error: 'Claude login has expired. Run claude /login again.',
         };
-      }
-
-      return {
-        authenticated: false,
-        email: null,
-        method: null,
-        error: missingCredentialsError,
-      };
-    } catch (error) {
-      let errorMessage = 'Unable to read Claude credentials. Run claude /login again.';
-
-      if (hasErrorCode(error, 'ENOENT')) {
-        errorMessage = missingCredentialsError;
-      } else if (error instanceof SyntaxError) {
-        errorMessage = 'Claude credentials are unreadable. Run claude /login again.';
-      }
-
-      return {
-        authenticated: false,
-        email: null,
-        method: null,
-        error: errorMessage,
-      };
+      case 'missing':
+        return {
+          authenticated: false,
+          email: null,
+          method: null,
+          error: missingCredentialsError,
+        };
+      case 'unreadable':
+      default:
+        return {
+          authenticated: false,
+          email: null,
+          method: null,
+          error: oauthCredentials.status === 'unreadable' && oauthCredentials.reason === 'parse'
+            ? 'Claude credentials are unreadable. Run claude /login again.'
+            : 'Unable to read Claude credentials. Run claude /login again.',
+        };
     }
   }
 }

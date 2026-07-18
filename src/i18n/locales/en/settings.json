@@ -362,7 +362,14 @@
       "button": "Login",
       "reLoginButton": "Re-login"
     },
-    "error": "Error: {{error}}"
+    "error": "Error: {{error}}",
+    "usage": {
+      "title": "Plan Usage",
+      "updatedAgo": "Updated {{time}}",
+      "refresh": "Refresh plan usage",
+      "refreshButton": "Refresh",
+      "apiKeyUnavailable": "Plan usage is only available for subscription (OAuth) sign-in, not API-key auth."
+    }
   },
   "permissions": {
     "title": "Permission Settings",

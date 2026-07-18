@@ -5,12 +5,14 @@ import { ClaudeMcpProvider } from '@/modules/providers/list/claude/claude-mcp.pr
 import { ClaudeSessionSynchronizer } from '@/modules/providers/list/claude/claude-session-synchronizer.provider.js';
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import { ClaudeSkillsProvider } from '@/modules/providers/list/claude/claude-skills.provider.js';
+import { ClaudeProviderUsage } from '@/modules/providers/list/claude/claude-usage.provider.js';
 import type {
   IProviderAuth,
   IProviderModels,
   IProviderSessionSynchronizer,
   IProviderSkills,
   IProviderSessions,
+  IProviderUsage,
 } from '@/shared/interfaces.js';
 
 export class ClaudeProvider extends AbstractProvider {
@@ -20,6 +22,7 @@ export class ClaudeProvider extends AbstractProvider {
   readonly skills: IProviderSkills = new ClaudeSkillsProvider();
   readonly sessions: IProviderSessions = new ClaudeSessionsProvider();
   readonly sessionSynchronizer: IProviderSessionSynchronizer = new ClaudeSessionSynchronizer();
+  readonly usage: IProviderUsage = new ClaudeProviderUsage();
 
   constructor() {
     super('claude');

@@ -512,6 +512,34 @@ export type ProviderAuthStatus = {
 };
 
 // ---------------------------
+//----------------- PROVIDER USAGE TYPES ------------
+/**
+ * One plan rate-limit window reported by a provider (e.g. Claude's 5-hour and
+ * weekly limits). `utilization` is a 0-100 percentage.
+ */
+export type ProviderUsageWindow = {
+  id: string;
+  utilization: number;
+  resetsAt: string | null;
+};
+
+/**
+ * Plan usage status for one provider.
+ *
+ * `supported: false` means the provider (or its current auth method) has no
+ * plan-usage concept and callers should hide the usage UI entirely.
+ */
+export type ProviderUsageStatus = {
+  provider: LLMProvider;
+  supported: boolean;
+  reason?: 'api_key' | 'not_authenticated';
+  windows?: ProviderUsageWindow[];
+  fetchedAt?: string;
+  stale?: boolean;
+  error?: string;
+};
+
+// ---------------------------
 //----------------- SHARED DATABASE CREDENTIAL TYPES ------------
 /**
  * Safe credential view returned by credential listing APIs.

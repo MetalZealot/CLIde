@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 
 import { Badge, Button, Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
+import UsageWindowList from '../../../provider-usage/UsageWindowList';
+import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage';
 import type { LLMProvider, ProviderModelsCacheInfo, ProviderModelsDefinition } from '../../../../types/app';
 import type {
   CommandModalPayload,
@@ -417,6 +419,8 @@ function ModelsContent({
 }
 
 function CostContent({ data }: { data: CostCommandData }) {
+  const usageProvider = data.provider === 'claude' ? ('claude' as const) : null;
+  const planUsage = useProviderUsage(usageProvider);
   const used = Number(data.tokenUsage?.used ?? 0);
   const total = Number(data.tokenUsage?.total ?? 0);
   const model = data.model || 'Unknown';
@@ -473,6 +477,26 @@ function CostContent({ data }: { data: CostCommandData }) {
           );
         })}
       </div>
+
+      {usageProvider && planUsage.usage?.supported !== false && (
+        <div className="rounded-2xl border border-border/70 bg-background/75 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Plan usage</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={planUsage.refresh}
+              disabled={planUsage.loading}
+              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+              aria-label="Refresh plan usage"
+            >
+              <RefreshCw className={planUsage.loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+            </Button>
+          </div>
+          <UsageWindowList usage={planUsage.usage} loading={planUsage.loading} error={planUsage.error} />
+        </div>
+      )}
 
       <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -557,7 +581,7 @@ export default function CommandResultModal({
     cost: {
       eyebrow: 'Session telemetry',
       title: 'Token Usage',
-      subtitle: 'Input, output, and total token counts for this session.',
+      subtitle: 'Token counts for this session, plus your overall plan usage.',
       icon: Coins,
     },
     status: {

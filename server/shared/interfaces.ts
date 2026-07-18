@@ -14,6 +14,7 @@ import type {
   ProviderSessionActiveModelChange,
   ProviderSkillCreateInput,
   ProviderSkillRemoveInput,
+  ProviderUsageStatus,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
 
@@ -32,6 +33,11 @@ export interface IProvider {
   readonly skills: IProviderSkills;
   readonly sessions: IProviderSessions;
   readonly sessionSynchronizer: IProviderSessionSynchronizer;
+  /**
+   * Optional plan-usage reporter. Providers without a plan-usage concept simply
+   * omit this member and the usage endpoint reports `supported: false`.
+   */
+  readonly usage?: IProviderUsage;
 }
 
 // ---------------------------
@@ -94,6 +100,23 @@ export interface IProviderAuth {
    * Checks whether the provider is installed and has usable credentials.
    */
   getStatus(): Promise<ProviderAuthStatus>;
+}
+
+// ---------------------------
+//----------------- PROVIDER USAGE INTERFACE ------------
+/**
+ * Plan-usage contract for one provider.
+ *
+ * Implementations report plan rate-limit windows (e.g. 5-hour/weekly
+ * utilization) and must not throw for normal "unsupported auth method" or
+ * "not authenticated" states — encode those in the returned status instead.
+ */
+export interface IProviderUsage {
+  /**
+   * Fetches the provider's current plan usage from its upstream source.
+   * Caching is the usage service's responsibility, not the provider's.
+   */
+  getUsage(): Promise<ProviderUsageStatus>;
 }
 
 // ---------------------------

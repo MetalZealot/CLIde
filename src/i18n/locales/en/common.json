@@ -265,5 +265,16 @@
       "updateAvailable": "Update available",
       "closeSidebar": "Close sidebar"
     }
+  },
+  "planUsage": {
+    "fiveHour": "5-hour limit",
+    "weekly": "Weekly limit",
+    "weeklyOpus": "Weekly limit (Opus)",
+    "weeklySonnet": "Weekly limit (Sonnet)",
+    "resetsIn": "Resets in {{time}}",
+    "loading": "Loading plan usage…",
+    "loadError": "Couldn't load plan usage.",
+    "noData": "No plan usage reported.",
+    "stale": "Showing cached data — the last refresh failed."
   }
 }
