@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TouchEvent as ReactTouchEvent } from 'react';
 
 /**
@@ -15,8 +15,15 @@ import type { TouchEvent as ReactTouchEvent } from 'react';
  *
  * After a long-press fires, a suppress ref swallows the synthetic click that
  * follows the touch sequence so the row is not also selected (mirrors the
- * `longPressTriggeredRef` pattern in Tooltip.tsx). Spread the returned handlers
- * onto the pressable element.
+ * `longPressTriggeredRef` pattern in Tooltip.tsx). Spread `handlers` onto the
+ * pressable element and drive the "recessed" press animation off `isPressing`.
+ *
+ * `isPressing` is set synchronously on touchstart and cleared on
+ * touchend/cancel, a movement that cedes the gesture, or a scroll — so it stays
+ * true for the whole hold. It exists because the CSS `:active` pseudo-class is
+ * unreliable on touch: browsers apply it late (after they rule out a scroll) and
+ * often drop it once our long-press timer fires, which made the recess flicker
+ * for only a split second before the menu opened.
  */
 export type LongPressCoords = { x: number; y: number };
 
@@ -33,6 +40,7 @@ export function useLongPress(
   const timerRef = useRef<number | null>(null);
   const startCoordsRef = useRef<LongPressCoords | null>(null);
   const triggeredRef = useRef(false);
+  const [isPressing, setIsPressing] = useState(false);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -41,19 +49,25 @@ export function useLongPress(
     }
   }, []);
 
+  // End the current press: drop the pending timer and release the recess.
+  const cancelPress = useCallback(() => {
+    clearTimer();
+    setIsPressing(false);
+  }, [clearTimer]);
+
   // Cancel a pending press if the list scrolls under the finger. `scroll`
   // doesn't bubble, so listen in the capture phase on the window.
   useEffect(() => {
     if (disabled) {
       return;
     }
-    const handleScroll = () => clearTimer();
+    const handleScroll = () => cancelPress();
     window.addEventListener('scroll', handleScroll, true);
     return () => {
       window.removeEventListener('scroll', handleScroll, true);
-      clearTimer();
+      cancelPress();
     };
-  }, [clearTimer, disabled]);
+  }, [cancelPress, disabled]);
 
   const onTouchStart = useCallback(
     (event: ReactTouchEvent) => {
@@ -67,6 +81,9 @@ export function useLongPress(
       triggeredRef.current = false;
       startCoordsRef.current = { x: touch.clientX, y: touch.clientY };
       clearTimer();
+      // Recess immediately on touch-down for instant feedback, rather than
+      // waiting for the browser to settle `:active`.
+      setIsPressing(true);
       timerRef.current = window.setTimeout(() => {
         triggeredRef.current = true;
         const coords = startCoordsRef.current;
@@ -89,15 +106,15 @@ export function useLongPress(
       const movedX = Math.abs(touch.clientX - start.x);
       const movedY = Math.abs(touch.clientY - start.y);
       if (movedX > moveThreshold || movedY > moveThreshold) {
-        clearTimer();
+        cancelPress();
       }
     },
-    [clearTimer, moveThreshold],
+    [cancelPress, moveThreshold],
   );
 
   const onTouchEnd = useCallback(() => {
-    clearTimer();
-  }, [clearTimer]);
+    cancelPress();
+  }, [cancelPress]);
 
   // Swallow the click that follows a fired long-press so the row isn't selected.
   const onClickCapture = useCallback((event: { preventDefault: () => void; stopPropagation: () => void }) => {
@@ -119,11 +136,14 @@ export function useLongPress(
   );
 
   return {
-    onTouchStart,
-    onTouchMove,
-    onTouchEnd,
-    onTouchCancel: onTouchEnd,
-    onClickCapture,
-    onContextMenu,
+    handlers: {
+      onTouchStart,
+      onTouchMove,
+      onTouchEnd,
+      onTouchCancel: onTouchEnd,
+      onClickCapture,
+      onContextMenu,
+    },
+    isPressing,
   };
 }

@@ -112,7 +112,7 @@ export default function SidebarProjectItem({
 
   const toggleProject = () => onToggleProject(project.projectId);
   const toggleStarProject = () => onToggleStarProject(project.projectId);
-  const longPress = useLongPress((coords) => onLongPressProjectMenu?.(project, coords), {
+  const { handlers: longPress, isPressing } = useLongPress((coords) => onLongPressProjectMenu?.(project, coords), {
     disabled: !onLongPressProjectMenu,
   });
 
@@ -134,7 +134,8 @@ export default function SidebarProjectItem({
         <div className="md:hidden">
           <div
             className={cn(
-              'long-pressable p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 active:scale-[0.98] transition-all duration-150',
+              'long-pressable p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 transition-all duration-150',
+              isPressing && 'scale-[0.98]',
               isSelected && 'bg-primary/10 border-primary/50',
               isStarred &&
                 !isSelected &&

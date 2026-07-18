@@ -93,7 +93,7 @@ export default function SidebarSessionItem({
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const mobileEditRef = useRef<HTMLDivElement>(null);
-  const longPress = useLongPress((coords) => onLongPressMenu?.(session, coords), {
+  const { handlers: longPress, isPressing } = useLongPress((coords) => onLongPressMenu?.(session, coords), {
     disabled: !onLongPressMenu,
   });
   const showAttentionIndicator = needsAttention && !isSelected;
@@ -208,7 +208,8 @@ export default function SidebarSessionItem({
         ) : (
           <div
             className={cn(
-              'long-pressable p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
+              'long-pressable p-2 mx-3 my-0.5 rounded-md bg-card border transition-all duration-150 relative',
+              isPressing && 'scale-[0.98]',
               // Single chain: a trailing border fallback would win inside cn()
               // (tailwind-merge keeps the last conflicting class) and erase the
               // selected border.
