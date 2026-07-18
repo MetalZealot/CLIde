@@ -317,6 +317,15 @@ function extractTokenBudget(sdkMessage) {
     const totalUsed = inputTokens + outputTokens;
     const contextWindow = parseInt(process.env.CONTEXT_WINDOW, 10) || 160000;
 
+    // Claude Code streams locally-fabricated assistant messages (session-limit
+    // notices, API-error placeholders, "No response requested.") with an
+    // all-zero usage object. Emitting that as a token_budget frame would reset
+    // the composer's context ring to empty when a session ends on a usage
+    // limit, so skip rows with no real input and keep the last real reading.
+    if (inputTokens <= 0) {
+      return null;
+    }
+
     return {
       used: totalUsed,
       total: contextWindow,

@@ -1287,10 +1287,21 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         let cacheReadTokens = 0;
         let cacheCreationTokens = 0;
 
-        // Find the latest assistant message with usage data (scan from end)
+        // Find the latest assistant message with real usage data (scan from end).
+        // Mirrors extractHistoryTokenUsage in claude-sessions.provider.ts: Claude
+        // Code appends locally-fabricated assistant rows (session-limit notices,
+        // API-error placeholders, "No response requested.") carrying an all-zero
+        // `usage` object. Breaking on those would report used=0 and blank the
+        // context ring when a session ends on a usage limit, so rows with no real
+        // input (and subagent sidechains, which have their own smaller context)
+        // are skipped to keep walking back to the last genuine turn.
         for (let i = lines.length - 1; i >= 0; i--) {
             try {
                 const entry = JSON.parse(lines[i]);
+
+                if (entry.isSidechain) {
+                    continue;
+                }
 
                 // Only count assistant messages which have usage data
                 if (entry.type === 'assistant' && entry.message?.usage) {
@@ -1298,12 +1309,21 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
 
                     // Use token counts from latest assistant message only
                     const directInputTokens = readUsageNumber(usage.input_tokens ?? usage.inputTokens);
-                    cacheReadTokens = readUsageNumber(usage.cache_read_input_tokens ?? usage.cacheReadInputTokens ?? usage.cacheReadTokens);
-                    cacheCreationTokens = readUsageNumber(usage.cache_creation_input_tokens ?? usage.cacheCreationInputTokens ?? usage.cacheCreationTokens);
-                    inputTokens = directInputTokens + cacheReadTokens + cacheCreationTokens;
+                    const rowCacheReadTokens = readUsageNumber(usage.cache_read_input_tokens ?? usage.cacheReadInputTokens ?? usage.cacheReadTokens);
+                    const rowCacheCreationTokens = readUsageNumber(usage.cache_creation_input_tokens ?? usage.cacheCreationInputTokens ?? usage.cacheCreationTokens);
+                    const rowInputTokens = directInputTokens + rowCacheReadTokens + rowCacheCreationTokens;
+
+                    // Synthetic/placeholder rows report zero input — skip them.
+                    if (rowInputTokens <= 0) {
+                        continue;
+                    }
+
+                    cacheReadTokens = rowCacheReadTokens;
+                    cacheCreationTokens = rowCacheCreationTokens;
+                    inputTokens = rowInputTokens;
                     outputTokens = readUsageNumber(usage.output_tokens ?? usage.outputTokens);
 
-                    break; // Stop after finding the latest assistant message
+                    break; // Stop after finding the latest real assistant message
                 }
             } catch (parseError) {
                 // Skip lines that can't be parsed
