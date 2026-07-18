@@ -131,6 +131,7 @@ export function useSidebarController({
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
+  const [isSearchBarOpen, setIsSearchBarOpen] = useState(false);
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteProjectConfirmation | null>(null);
   const [sessionDeleteConfirmation, setSessionDeleteConfirmation] = useState<SessionDeleteConfirmation | null>(null);
@@ -154,6 +155,21 @@ export function useSidebarController({
   const isSidebarCollapsed = !isMobile && !sidebarVisible;
   const activeSessionIds = useMemo(() => new Set(activeSessions.keys()), [activeSessions]);
   const runningSessionsCount = activeSessionIds.size;
+
+  const closeSearchBar = useCallback(() => {
+    setIsSearchBarOpen(false);
+    setSearchFilter('');
+  }, []);
+
+  const toggleSearchBar = useCallback(() => {
+    setIsSearchBarOpen((prev) => {
+      const next = !prev;
+      if (!next) {
+        setSearchFilter('');
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -448,8 +464,9 @@ export function useSidebarController({
       // Tag the session with its owning projectId so downstream handlers
       // can correlate it with the selectedProject in the app state.
       onSessionSelect({ ...session, __projectId: projectId });
+      closeSearchBar();
     },
-    [onSessionSelect],
+    [onSessionSelect, closeSearchBar],
   );
 
   const resolveProjectStarState = useCallback(
@@ -889,7 +906,8 @@ export function useSidebarController({
     }
 
     onSessionSelect(sessionPayload);
-  }, [archivedProjects, handleProjectSelect, onSessionSelect, projects]);
+    closeSearchBar();
+  }, [archivedProjects, handleProjectSelect, onSessionSelect, projects, closeSearchBar]);
 
   const restoreArchivedProject = useCallback(async (projectId: string) => {
     try {
@@ -999,6 +1017,8 @@ export function useSidebarController({
     editingSession,
     editingSessionName,
     searchFilter,
+    isSearchBarOpen,
+    toggleSearchBar,
     deletingProjects,
     loadingMoreProjects,
     deleteConfirmation,

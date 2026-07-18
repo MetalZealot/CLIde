@@ -125,6 +125,8 @@ type SidebarContentProps = {
   searchFilter: string;
   onSearchFilterChange: (value: string) => void;
   onClearSearchFilter: () => void;
+  isSearchBarOpen: boolean;
+  onToggleSearchBar: () => void;
   searchMode: SidebarSearchMode;
   onSearchModeChange: (mode: SidebarSearchMode) => void;
   conversationResults: ConversationSearchResults | null;
@@ -165,6 +167,8 @@ export default function SidebarContent({
   searchFilter,
   onSearchFilterChange,
   onClearSearchFilter,
+  isSearchBarOpen,
+  onToggleSearchBar,
   searchMode,
   onSearchModeChange,
   conversationResults,
@@ -209,6 +213,8 @@ export default function SidebarContent({
         searchFilter={searchFilter}
         onSearchFilterChange={onSearchFilterChange}
         onClearSearchFilter={onClearSearchFilter}
+        isSearchBarOpen={isSearchBarOpen}
+        onToggleSearchBar={onToggleSearchBar}
         searchMode={searchMode}
         onSearchModeChange={onSearchModeChange}
         onRefresh={onRefresh}

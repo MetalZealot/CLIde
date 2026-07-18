@@ -50,6 +50,7 @@
     "cancel": "Cancel",
     "clearSearch": "Clear search",
     "openCommandPalette": "Open command palette",
+    "toggleSearch": "Search",
     "attentionRequiredIndicator": "Session needs attention"
   },
   "navigation": {
@@ -122,8 +123,8 @@
   },
   "search": {
     "modeProjects": "Projects",
-    "modeConversations": "Conversations",
-    "conversationsPlaceholder": "Search in conversations...",
+    "modeConversations": "Sessions",
+    "conversationsPlaceholder": "Search sessions...",
     "searching": "Searching...",
     "noResults": "No results found",
     "tryDifferentQuery": "Try a different search query",

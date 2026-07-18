@@ -180,7 +180,7 @@ function Tooltip({
   return (
     <div
       ref={containerRef}
-      className="relative inline-block"
+      className="relative inline-flex items-center"
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
       onTouchStart={handleTouchStart}

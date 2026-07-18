@@ -72,6 +72,8 @@ function Sidebar({
     editingSession,
     editingSessionName,
     searchFilter,
+    isSearchBarOpen,
+    toggleSearchBar,
     searchMode,
     setSearchMode,
     conversationResults,
@@ -353,6 +355,8 @@ function Sidebar({
             searchFilter={searchFilter}
             onSearchFilterChange={setSearchFilter}
             onClearSearchFilter={() => setSearchFilter('')}
+            isSearchBarOpen={isSearchBarOpen}
+            onToggleSearchBar={toggleSearchBar}
             searchMode={searchMode}
             onSearchModeChange={(mode) => {
               setSearchMode(mode);

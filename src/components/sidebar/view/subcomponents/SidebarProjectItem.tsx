@@ -142,7 +142,7 @@ export default function SidebarProjectItem({
         <div className="md:hidden">
           <div
             className={cn(
-              'long-pressable p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 transition-all duration-150',
+              'long-pressable p-2 mx-3 my-0.5 rounded-lg bg-card border border-border/50 transition-all duration-150',
               isPressing && 'scale-[0.98]',
               isSelected && 'bg-primary/10 border-primary/50',
               projectNeedsAttention &&
