@@ -90,17 +90,17 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         )}
       >
         {isRunning ? (
-          <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
+          <span className="mt-[3px] h-2.5 w-2.5 flex-shrink-0 self-start animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
         ) : (
           <ChevronRight
             className={cn(
-              'h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70 transition-transform duration-200',
+              'mt-px h-3.5 w-3.5 flex-shrink-0 self-start text-muted-foreground/70 transition-transform duration-200',
               open && 'rotate-90',
               !hasOutput && 'opacity-0',
             )}
           />
         )}
-        <span className="flex-shrink-0 select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
+        <span className="flex-shrink-0 self-start select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
           $
         </span>
         <code
@@ -117,7 +117,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         <button
           onClick={handleCopy}
           onKeyDown={(event) => event.stopPropagation()}
-          className="flex-shrink-0 rounded p-0.5 text-muted-foreground/60 opacity-0 transition-all hover:bg-foreground/10 hover:text-foreground focus:opacity-100 group-hover/cmd:opacity-100"
+          className="touch:opacity-100 flex-shrink-0 rounded p-0.5 text-muted-foreground/60 opacity-0 transition-all hover:bg-foreground/10 hover:text-foreground focus:opacity-100 group-hover/cmd:opacity-100"
           title="Copy command"
           aria-label="Copy command"
         >
