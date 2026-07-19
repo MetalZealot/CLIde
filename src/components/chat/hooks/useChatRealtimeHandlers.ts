@@ -282,6 +282,7 @@ export function useChatRealtimeHandlers({
                 toolName: (msg.toolName as string) || 'UnknownTool',
                 input: msg.input,
                 context: msg.context,
+                toolId: msg.toolId as string | undefined,
                 sessionId: sid || null,
                 receivedAt: new Date(),
               }];

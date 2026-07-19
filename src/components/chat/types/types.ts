@@ -91,6 +91,8 @@ export interface PendingPermissionRequest {
   toolName: string;
   input?: unknown;
   context?: unknown;
+  /** The SDK's tool_use id, if the server supplied one — lets panels (e.g. AskUserQuestion) optimistically patch the matching message. */
+  toolId?: string;
   sessionId?: string | null;
   receivedAt?: Date;
 }

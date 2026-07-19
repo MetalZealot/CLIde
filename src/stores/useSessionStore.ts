@@ -793,6 +793,38 @@ export function useSessionStore() {
   }, [getSlot, notify]);
 
   /**
+   * Optimistically merge a tool_result onto the matching tool_use message.
+   * For interactive tools (e.g. AskUserQuestion) that resolve client-side
+   * the instant the user answers, well before the SDK's own tool_result
+   * round-trips back over the websocket.
+   */
+  const patchToolResult = useCallback((
+    sessionId: string,
+    toolId: string,
+    toolResult: NormalizedMessage['toolResult'],
+  ) => {
+    const slot = storeRef.current.get(sessionId);
+    if (!slot) return;
+
+    const realtimeIdx = slot.realtimeMessages.findIndex(m => m.kind === 'tool_use' && m.toolId === toolId);
+    if (realtimeIdx >= 0) {
+      slot.realtimeMessages = [...slot.realtimeMessages];
+      slot.realtimeMessages[realtimeIdx] = { ...slot.realtimeMessages[realtimeIdx], toolResult };
+    }
+
+    const serverIdx = slot.serverMessages.findIndex(m => m.kind === 'tool_use' && m.toolId === toolId);
+    if (serverIdx >= 0) {
+      slot.serverMessages = [...slot.serverMessages];
+      slot.serverMessages[serverIdx] = { ...slot.serverMessages[serverIdx], toolResult };
+    }
+
+    if (realtimeIdx < 0 && serverIdx < 0) return;
+
+    recomputeMergedIfNeeded(slot);
+    notify(sessionId);
+  }, [notify]);
+
+  /**
    * Get merged messages for a session (for rendering).
    */
   const getMessages = useCallback((sessionId: string): NormalizedMessage[] => {
@@ -824,11 +856,12 @@ export function useSessionStore() {
     getSessionSlot,
     fetchModel,
     setModel,
+    patchToolResult,
   }), [
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
-    clearRealtime, getMessages, getSessionSlot, fetchModel, setModel,
+    clearRealtime, getMessages, getSessionSlot, fetchModel, setModel, patchToolResult,
   ]);
 }
 

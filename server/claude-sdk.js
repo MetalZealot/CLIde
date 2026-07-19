@@ -558,7 +558,10 @@ async function queryClaudeSDK(command, options = {}, ws) {
       }
 
       const requestId = createRequestId();
-      ws.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+      // toolUseID lets the client optimistically patch the matching tool_use
+      // message with the answer as soon as the user submits it, instead of
+      // waiting on the full round trip to the SDK's own tool_result.
+      ws.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, toolId: context?.toolUseID, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
       emitNotification(createNotificationEvent({
         provider: 'claude',
         sessionId: capturedSessionId || sessionId || null,

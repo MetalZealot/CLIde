@@ -5,7 +5,7 @@ export interface PermissionPanelProps {
   request: PendingPermissionRequest;
   onDecision: (
     requestIds: string | string[],
-    decision: { allow?: boolean; message?: string; updatedInput?: unknown },
+    decision: { allow?: boolean; message?: string; updatedInput?: unknown; toolId?: string },
   ) => void;
 }
 

@@ -22,7 +22,7 @@ export interface ToolDisplayConfig {
       icon?: string;
     };
     // Collapsible config
-    title?: string | ((input: any) => string);
+    title?: string | ((input: any, toolResult?: any) => string);
     defaultOpen?: boolean;
     contentType?: 'diff' | 'markdown' | 'file-list' | 'todo-list' | 'text' | 'task' | 'question-answer';
     getContentProps?: (input: any, helpers?: any) => any;
@@ -467,9 +467,14 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   AskUserQuestion: {
     input: {
       type: 'collapsible',
-      title: (input: any) => {
+      // The SDK never writes answers back into the tool_use input — they only
+      // ever land in the paired tool_result's `toolUseResult.answers` (see
+      // claude-sessions.provider.ts). `input.answers` is kept as a fallback for
+      // the live in-flight panel, which optimistically merges answers into input.
+      title: (input: any, toolResult?: any) => {
         const count = input.questions?.length || 0;
-        const hasAnswers = input.answers && Object.keys(input.answers).length > 0;
+        const answers = input.answers || toolResult?.toolUseResult?.answers;
+        const hasAnswers = answers && Object.keys(answers).length > 0;
         if (count === 1) {
           const header = input.questions[0]?.header || 'Question';
           return hasAnswers ? `${header} — answered` : header;
@@ -478,9 +483,9 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       },
       defaultOpen: true,
       contentType: 'question-answer',
-      getContentProps: (input: any) => ({
+      getContentProps: (input: any, helpers?: any) => ({
         questions: input.questions || [],
-        answers: input.answers || {}
+        answers: input.answers || helpers?.toolResult?.toolUseResult?.answers || {}
       }),
     },
     result: {

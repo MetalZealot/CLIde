@@ -81,12 +81,12 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
   }, [questions, selections, otherActive, otherTexts]);
 
   const handleSubmit = useCallback(() => {
-    onDecision(request.requestId, { allow: true, updatedInput: { ...input, answers: buildAnswers() } });
-  }, [onDecision, request.requestId, input, buildAnswers]);
+    onDecision(request.requestId, { allow: true, updatedInput: { ...input, answers: buildAnswers() }, toolId: request.toolId });
+  }, [onDecision, request.requestId, request.toolId, input, buildAnswers]);
 
   const handleSkip = useCallback(() => {
-    onDecision(request.requestId, { allow: true, updatedInput: { ...input, answers: {} } });
-  }, [onDecision, request.requestId, input]);
+    onDecision(request.requestId, { allow: true, updatedInput: { ...input, answers: {} }, toolId: request.toolId });
+  }, [onDecision, request.requestId, request.toolId, input]);
 
   // Keyboard handler for number keys and navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

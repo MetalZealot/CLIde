@@ -1144,7 +1144,7 @@ export function useChatComposerState({
   const handlePermissionDecision = useCallback(
     (
       requestIds: string | string[],
-      decision: { allow?: boolean; message?: string; rememberEntry?: string | null; updatedInput?: unknown },
+      decision: { allow?: boolean; message?: string; rememberEntry?: string | null; updatedInput?: unknown; toolId?: string },
     ) => {
       const ids = Array.isArray(requestIds) ? requestIds : [requestIds];
       const validIds = ids.filter(Boolean);
@@ -1163,11 +1163,25 @@ export function useChatComposerState({
         });
       });
 
+      // Interactive tools (AskUserQuestion) resolve locally the instant the
+      // user answers. Patch the transcript's tool_use message with the
+      // answer right away instead of waiting on the SDK's own tool_result
+      // to round-trip back — that round trip can take a few seconds, during
+      // which the message would otherwise still read "Skipped".
+      if (decision?.allow && decision.toolId && sessionKey) {
+        const updated = decision.updatedInput as { answers?: Record<string, string> } | undefined;
+        sessionStore.patchToolResult(sessionKey, decision.toolId, {
+          content: 'Your questions have been answered.',
+          isError: false,
+          toolUseResult: { answers: updated?.answers || {} },
+        });
+      }
+
       setPendingPermissionRequests((previous) =>
         previous.filter((request) => !validIds.includes(request.requestId)),
       );
     },
-    [sendMessage, setPendingPermissionRequests],
+    [sendMessage, setPendingPermissionRequests, sessionStore, sessionKey],
   );
 
   const [isInputFocused, setIsInputFocused] = useState(false);
