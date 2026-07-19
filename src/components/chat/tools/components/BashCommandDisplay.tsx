@@ -89,13 +89,17 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
           hasOutput && 'cursor-pointer focus-visible:ring-1 focus-visible:ring-ring',
         )}
       >
-        <ChevronRight
-          className={cn(
-            'h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70 transition-transform duration-200',
-            open && 'rotate-90',
-            !hasOutput && 'opacity-0',
-          )}
-        />
+        {isRunning ? (
+          <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
+        ) : (
+          <ChevronRight
+            className={cn(
+              'h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70 transition-transform duration-200',
+              open && 'rotate-90',
+              !hasOutput && 'opacity-0',
+            )}
+          />
+        )}
         <span className="flex-shrink-0 select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
           $
         </span>
@@ -108,9 +112,6 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
           {command}
         </code>
 
-        {isRunning && (
-          <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
-        )}
         {status && status !== 'running' && <ToolStatusBadge status={status} className="flex-shrink-0" />}
 
         <button
