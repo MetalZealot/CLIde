@@ -18,6 +18,12 @@ export default defineConfig(({ mode }) => {
   // TODO: Remove support for legacy PORT variables in all locations in a future major release, leaving only SERVER_PORT.
   const serverPort = env.SERVER_PORT || env.PORT || 3001
 
+  // Extra hostnames the dev server may be reached at (comma-separated), e.g. a
+  // Tailscale/LAN name — Vite only allows localhost by default.
+  const allowedHosts = env.VITE_ALLOWED_HOSTS
+    ? env.VITE_ALLOWED_HOSTS.split(',').map((h) => h.trim()).filter(Boolean)
+    : []
+
   return {
     plugins: [react()],
     resolve: {
@@ -28,6 +34,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host,
       port: parseInt(env.VITE_PORT) || 5173,
+      allowedHosts,
       proxy: {
         '/api': `http://${proxyHost}:${serverPort}`,
         '/ws': {
