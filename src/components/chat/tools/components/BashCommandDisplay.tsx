@@ -112,11 +112,6 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
           <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
         )}
         {status && status !== 'running' && <ToolStatusBadge status={status} className="flex-shrink-0" />}
-        {!open && hasOutput && !isRunning && (
-          <span className="flex-shrink-0 text-[10px] tabular-nums text-muted-foreground/70 transition-opacity group-hover/cmd:opacity-0">
-            {outputLineCount} {outputLineCount === 1 ? 'line' : 'lines'}
-          </span>
-        )}
 
         <button
           onClick={handleCopy}
@@ -129,9 +124,23 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         </button>
       </div>
 
-      {description && !open && (
-        <div className="truncate px-2.5 pb-1.5 pl-[2.4rem] text-[11px] italic text-muted-foreground/70">
-          {description}
+      {!open && (description || (hasOutput && !isRunning)) && (
+        <div className="flex items-center gap-2 px-2.5 pb-1 pl-[2.4rem] leading-none">
+          {description && (
+            <span className="min-w-0 flex-1 truncate text-[11px] italic leading-none text-muted-foreground/70">
+              {description}
+            </span>
+          )}
+          {hasOutput && !isRunning && (
+            <span
+              className={cn(
+                'flex-shrink-0 text-[10px] leading-none tabular-nums text-muted-foreground/70',
+                !description && 'ml-auto',
+              )}
+            >
+              {outputLineCount} {outputLineCount === 1 ? 'line' : 'lines'}
+            </span>
+          )}
         </div>
       )}
 
