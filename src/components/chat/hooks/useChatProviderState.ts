@@ -314,9 +314,15 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       return [];
     }
 
+    // `supportsEffort` is the real gate; a catalog entry's `effort.values` only
+    // refines the list. Some models (e.g. Claude's `haiku`) are in the catalog
+    // but declare no effort values — fall back to the provider's values there,
+    // same as when the model isn't in the catalog at all, so the Effort picker
+    // stays visible instead of silently disappearing for those models.
     const option = getModelOption(targetProvider, model);
-    if (option) {
-      return option.effort?.values ?? [];
+    const optionValues = option?.effort?.values;
+    if (optionValues && optionValues.length > 0) {
+      return optionValues;
     }
 
     return toProviderEffortOptions(FALLBACK_PROVIDER_EFFORT_VALUES[targetProvider] ?? []);
