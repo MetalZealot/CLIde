@@ -1,12 +1,23 @@
-import { AlertCircle, Check, ChevronDown, Download, GitBranch, Plus, RefreshCw, RotateCcw, Search, Upload, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Download, GitBranch, Globe, Plus, RefreshCw, RotateCcw, Search, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ConfirmationRequest, GitRemoteStatus } from '../types/types';
 import NewBranchModal from './modals/NewBranchModal';
 
+// Compact section label for the branch dropdown (Local / Remote groups).
+function DropdownSectionHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="flex items-center justify-between px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <span>{label}</span>
+      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal">{count}</span>
+    </div>
+  );
+}
+
 type GitPanelHeaderProps = {
   isMobile: boolean;
   currentBranch: string;
-  branches: string[];
+  localBranches: string[];
+  remoteBranches: string[];
   remoteStatus: GitRemoteStatus | null;
   isLoading: boolean;
   isCreatingBranch: boolean;
@@ -31,7 +42,8 @@ type GitPanelHeaderProps = {
 export default function GitPanelHeader({
   isMobile,
   currentBranch,
-  branches,
+  localBranches,
+  remoteBranches,
   remoteStatus,
   isLoading,
   isCreatingBranch,
@@ -67,13 +79,16 @@ export default function GitPanelHeader({
     }
   }, [showBranchDropdown]);
 
-  const filteredBranches = useMemo(() => {
-    const query = branchSearchQuery.trim().toLowerCase();
-    if (!query) {
-      return branches;
-    }
-    return branches.filter((branch) => branch.toLowerCase().includes(query));
-  }, [branches, branchSearchQuery]);
+  const normalizedQuery = branchSearchQuery.trim().toLowerCase();
+  const filteredLocalBranches = useMemo(
+    () => (normalizedQuery ? localBranches.filter((branch) => branch.toLowerCase().includes(normalizedQuery)) : localBranches),
+    [localBranches, normalizedQuery],
+  );
+  const filteredRemoteBranches = useMemo(
+    () => (normalizedQuery ? remoteBranches.filter((branch) => branch.toLowerCase().includes(normalizedQuery)) : remoteBranches),
+    [remoteBranches, normalizedQuery],
+  );
+  const hasBranchResults = filteredLocalBranches.length > 0 || filteredRemoteBranches.length > 0;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -132,6 +147,24 @@ export default function GitPanelHeader({
     }
   };
 
+  const renderBranchOption = (branch: string, isRemote: boolean) => (
+    <button
+      key={`${isRemote ? 'remote' : 'local'}:${branch}`}
+      onClick={() => void handleSwitchBranch(branch)}
+      className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors hover:bg-accent ${
+        branch === currentBranch ? 'bg-accent/50 text-foreground' : 'text-muted-foreground'
+      }`}
+    >
+      {isRemote ? (
+        <Globe className="h-3 w-3 shrink-0 text-muted-foreground" />
+      ) : (
+        <GitBranch className="h-3 w-3 shrink-0 text-muted-foreground" />
+      )}
+      <span className={`truncate ${branch === currentBranch ? 'font-medium' : ''}`}>{branch}</span>
+      {branch === currentBranch && <Check className="ml-auto h-3 w-3 shrink-0 text-primary" />}
+    </button>
+  );
+
   return (
     <>
       {/* Branch row + action buttons */}
@@ -189,23 +222,23 @@ export default function GitPanelHeader({
                 )}
               </div>
               <div className="max-h-64 overflow-y-auto py-1">
-                {filteredBranches.length === 0 ? (
+                {!hasBranchResults ? (
                   <div className="px-4 py-3 text-center text-sm text-muted-foreground">No matching branches</div>
                 ) : (
-                  filteredBranches.map((branch) => (
-                    <button
-                      key={branch}
-                      onClick={() => void handleSwitchBranch(branch)}
-                      className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-accent ${
-                        branch === currentBranch ? 'bg-accent/50 text-foreground' : 'text-muted-foreground'
-                      }`}
-                    >
-                      <span className="flex items-center space-x-2">
-                        {branch === currentBranch && <Check className="h-3 w-3 text-primary" />}
-                        <span className={branch === currentBranch ? 'font-medium' : ''}>{branch}</span>
-                      </span>
-                    </button>
-                  ))
+                  <>
+                    {filteredLocalBranches.length > 0 && (
+                      <>
+                        <DropdownSectionHeader label="Local" count={filteredLocalBranches.length} />
+                        {filteredLocalBranches.map((branch) => renderBranchOption(branch, false))}
+                      </>
+                    )}
+                    {filteredRemoteBranches.length > 0 && (
+                      <>
+                        <DropdownSectionHeader label="Remote" count={filteredRemoteBranches.length} />
+                        {filteredRemoteBranches.map((branch) => renderBranchOption(branch, true))}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
               <div className="border-t border-border py-1">

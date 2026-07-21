@@ -22,7 +22,6 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
     gitDiff,
     isLoading,
     currentBranch,
-    branches,
     localBranches,
     remoteBranches,
     recentCommits,
@@ -92,7 +91,8 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
       <GitPanelHeader
         isMobile={isMobile}
         currentBranch={currentBranch}
-        branches={branches}
+        localBranches={localBranches}
+        remoteBranches={remoteBranches}
         remoteStatus={remoteStatus}
         isLoading={isLoading}
         isCreatingBranch={isCreatingBranch}
