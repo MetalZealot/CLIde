@@ -61,6 +61,32 @@
         }
       })();
     </script>
+    <!-- Block native pinch-to-zoom of the page. The viewport meta already sets
+         user-scalable=no, but Samsung Internet and iOS Safari deliberately
+         ignore that for accessibility, so pinch-zoom leaks through there (not in
+         Chrome/Firefox, which honor the meta tag). Suppressing the browser
+         default on multi-touch gestures stops the page from zooming while
+         leaving the app's own touch JS untouched — the terminal reads raw touch
+         positions for its font-size pinch, so its handler still fires. Single
+         touches are never intercepted, so scrolling is unaffected. -->
+    <script>
+      (function () {
+        var opts = { passive: false };
+        document.addEventListener('touchmove', function (e) {
+          if (e.touches && e.touches.length > 1) {
+            e.preventDefault();
+          }
+        }, opts);
+        // WebKit gesture events (iOS Safari) — harmless no-ops elsewhere.
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (name) {
+          document.addEventListener(name, function (e) { e.preventDefault(); }, opts);
+        });
+        // Ctrl+wheel zoom (desktop / hardware keyboards paired with the PWA).
+        document.addEventListener('wheel', function (e) {
+          if (e.ctrlKey) { e.preventDefault(); }
+        }, opts);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
