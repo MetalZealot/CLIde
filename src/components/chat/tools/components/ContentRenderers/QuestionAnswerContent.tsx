@@ -7,6 +7,31 @@ interface QuestionAnswerContentProps {
   className?: string;
 }
 
+// Multi-select answers arrive as one string joined with ", " (the Agent SDK's
+// documented format), but a custom free-text answer can itself contain ", ".
+// Split on the delimiter, then fold consecutive fragments that don't match a
+// known option label back into a single custom answer.
+function parseAnswerLabels(answer: string, optionLabels: Set<string>): string[] {
+  const labels: string[] = [];
+  let custom: string[] = [];
+  const flush = () => {
+    if (custom.length > 0) {
+      labels.push(custom.join(', '));
+      custom = [];
+    }
+  };
+  for (const fragment of answer.split(', ')) {
+    if (optionLabels.has(fragment)) {
+      flush();
+      labels.push(fragment);
+    } else {
+      custom.push(fragment);
+    }
+  }
+  flush();
+  return labels;
+}
+
 // Exception to the stateless ContentRenderer pattern: multi-question navigation requires local state.
 export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
   questions,
@@ -36,15 +61,17 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
         }
         const q = rawQuestion;
         const answer = answers?.[q.question];
-        // `answer` may be a non-string (or absent) in malformed payloads.
-        const answerLabels = typeof answer === 'string' ? answer.split(', ') : [];
-        const skipped = !answer;
-        const isExpanded = expandedIdx === idx;
         // `options` is typed as an array but comes from untrusted runtime data;
         // keep only valid entries so `.some`/`.map` below never throw.
         const options = Array.isArray(q.options)
           ? q.options.filter((opt) => opt && typeof opt === 'object' && typeof opt.label === 'string')
           : [];
+        // `answer` may be a non-string (or absent) in malformed payloads.
+        const answerLabels = typeof answer === 'string'
+          ? parseAnswerLabels(answer, new Set(options.map((o) => o.label)))
+          : [];
+        const skipped = !answer;
+        const isExpanded = expandedIdx === idx;
 
         return (
           <div

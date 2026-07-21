@@ -75,3 +75,42 @@ test('still renders a well-formed question + answer', () => {
   );
   assert.ok(html.includes('Pick one?'));
 });
+
+// Regression coverage for custom "Other" answers containing ", ": the answer
+// string is comma-joined at write time (the Agent SDK's multi-select format),
+// and the renderer must not split the user's free text apart on that delimiter.
+
+test('keeps a comma-containing custom answer as a single chip', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(QuestionAnswerContent, {
+      questions: [{ question: 'Proceed?', options: [{ label: 'Yes' }, { label: 'No' }] }],
+      answers: { 'Proceed?': 'Sure, do it now, please' },
+    }),
+  );
+  assert.ok(html.includes('Sure, do it now, please'));
+  assert.equal(html.split('(custom)').length - 1, 1);
+});
+
+test('separates a selected option from a comma-containing custom answer', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(QuestionAnswerContent, {
+      questions: [{ question: 'Which?', options: [{ label: 'A' }, { label: 'B' }], multiSelect: true }],
+      answers: { 'Which?': 'A, custom part one, part two' },
+    }),
+  );
+  assert.ok(html.includes('custom part one, part two'));
+  // Only the merged custom fragment is tagged (custom); "A" matched an option.
+  assert.equal(html.split('(custom)').length - 1, 1);
+});
+
+test('still splits a plain multi-select answer into option labels', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(QuestionAnswerContent, {
+      questions: [{ question: 'Which?', options: [{ label: 'A' }, { label: 'B' }], multiSelect: true }],
+      answers: { 'Which?': 'A, B' },
+    }),
+  );
+  assert.ok(html.includes('>A<'));
+  assert.ok(html.includes('>B<'));
+  assert.ok(!html.includes('(custom)'));
+});
