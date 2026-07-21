@@ -39,12 +39,23 @@ export default function MobileSidebarOverlay({
   return (
     <div
       ref={containerRef}
+      // In standalone PWA mode the global `.fixed.inset-0` rule (index.css)
+      // pushes every full-screen overlay down by the header/safe-area inset.
+      // For this drawer we want the opposite: it should run edge-to-edge to the
+      // true top of the viewport (like a native side sheet) so its own surface
+      // fills the status-bar strip instead of leaving a mismatched bar there.
+      // The status bar is cleared by padding the sidebar header content, not the
+      // panel, so nothing important hides behind it.
+      style={{ top: 0 }}
       className={`fixed inset-0 z-50 flex transition-all duration-150 ease-out ${
         isOpen ? 'visible opacity-100' : 'invisible opacity-0'
       }`}
     >
       <button
         ref={backdropRef}
+        // Same override as the container: the scrim must reach the true top edge
+        // so the darkening is uniform right up under the status bar.
+        style={{ top: 0 }}
         className="fixed inset-0 bg-black/50 transition-opacity duration-150 ease-out"
         onClick={(event) => {
           event.stopPropagation();

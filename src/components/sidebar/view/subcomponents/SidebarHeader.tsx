@@ -278,7 +278,11 @@ export default function SidebarHeader({
       {/* Mobile header */}
       <div
         className="p-3 pb-2 md:hidden"
-        style={isPWA && isMobile ? { paddingTop: '16px' } : {}}
+        // The mobile drawer runs edge-to-edge to the top of the viewport (see
+        // MobileSidebarOverlay), so in the standalone PWA the header content must
+        // clear the status bar itself — pad by the safe-area inset plus a small
+        // base gap. The panel surface fills behind it, so no bare strip shows.
+        style={isPWA && isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' } : {}}
       >
         <div className="flex items-center justify-between">
           {IS_PLATFORM ? (
