@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ChangeEvent,
   ClipboardEvent,
@@ -1043,6 +1043,18 @@ export function useChatComposerState({
     [handleCommandInputChange, resetCommandMenuState, setCursorPosition],
   );
 
+  // Touch devices (phones/tablets, incl. installed PWA) get a soft keyboard whose
+  // Enter should insert a newline, not send — sending is done via the send button.
+  // Desktop (fine pointer) keeps Enter = send. Gated on the primary pointer being
+  // coarse so it holds in both the browser tab and the standalone PWA.
+  const isTouchPrimary = useMemo(
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches,
+    [],
+  );
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (handleCommandMenuKeyDown(event)) {
@@ -1067,7 +1079,13 @@ export function useChatComposerState({
         if ((event.ctrlKey || event.metaKey) && !event.shiftKey) {
           event.preventDefault();
           handleSubmit(event);
-        } else if (!event.shiftKey && !event.ctrlKey && !event.metaKey && !sendByCtrlEnter) {
+        } else if (
+          !event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !sendByCtrlEnter &&
+          !isTouchPrimary
+        ) {
           event.preventDefault();
           handleSubmit(event);
         }
@@ -1078,6 +1096,7 @@ export function useChatComposerState({
       handleCommandMenuKeyDown,
       handleFileMentionsKeyDown,
       handleSubmit,
+      isTouchPrimary,
       sendByCtrlEnter,
       showCommandMenu,
       showFileDropdown,
