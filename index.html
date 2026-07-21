@@ -27,12 +27,40 @@
     <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
     
-    <!-- Theme Color -->
-    <meta name="theme-color" content="#ffffff" />
+    <!-- Theme Color (static fallback for standalone PWA / pre-hydration;
+         ThemeContext updates this at runtime per light/dark theme) -->
+    <meta name="theme-color" content="#141414" />
     <meta name="msapplication-TileColor" content="#ffffff" />
     
     <!-- Prevent zoom on iOS -->
     <meta name="format-detection" content="telephone=no" />
+
+    <!-- Apply the saved/system theme before first paint so the auth loading
+         screen and PWA status bar don't flash the light theme before React
+         hydrates. Mirrors the logic in ThemeContext (kept in sync there). -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          var isDark = saved
+            ? saved === 'dark'
+            : Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          }
+          var themeColor = document.querySelector('meta[name="theme-color"]');
+          if (themeColor) {
+            themeColor.setAttribute('content', isDark ? '#141414' : '#f6f4ef');
+          }
+          var statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+          if (statusBar) {
+            statusBar.setAttribute('content', isDark ? 'black-translucent' : 'default');
+          }
+        } catch (e) {
+          /* localStorage/matchMedia unavailable — fall back to static meta defaults */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
