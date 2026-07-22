@@ -275,6 +275,12 @@
     "loading": "Loading plan usage…",
     "loadError": "Couldn't load plan usage.",
     "noData": "No plan usage reported.",
-    "stale": "Showing cached data — the last refresh failed."
+    "stale": "Showing cached data — the last refresh failed.",
+    "credits": "Usage credits",
+    "creditsUsed": "{{used}} of {{limit}} used",
+    "creditsLearnMore": "Learn more",
+    "creditsOff": "Credits are off — usage stops at your plan limit.",
+    "onCredits": "On credits",
+    "onCreditsTitle": "Plan limit reached — usage credits are covering this session ({{pct}}% of credit cap used)."
   }
 }

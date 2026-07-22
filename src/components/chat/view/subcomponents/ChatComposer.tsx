@@ -30,6 +30,7 @@ import {
   PromptInputButton,
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
+import OnCreditsBadge from '../../../provider-usage/OnCreditsBadge';
 
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
@@ -533,6 +534,8 @@ export default function ChatComposer({
                 )}
               </div>
             )}
+
+            <OnCreditsBadge provider={provider} />
 
             <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} provider={provider} />
 

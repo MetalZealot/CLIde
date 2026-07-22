@@ -3,7 +3,11 @@ import {
   readClaudeOAuthCredentials,
 } from '@/modules/providers/list/claude/claude-credentials.js';
 import type { IProviderUsage } from '@/shared/interfaces.js';
-import type { ProviderUsageStatus, ProviderUsageWindow } from '@/shared/types.js';
+import type {
+  ProviderUsageCredits,
+  ProviderUsageStatus,
+  ProviderUsageWindow,
+} from '@/shared/types.js';
 import { readObjectRecord } from '@/shared/utils.js';
 
 const CLAUDE_USAGE_ENDPOINT = 'https://api.anthropic.com/api/oauth/usage';
@@ -47,6 +51,100 @@ const parseUsageWindows = (body: Record<string, unknown>): ProviderUsageWindow[]
   }
 
   return windows;
+};
+
+/**
+ * Reads a `{ amount_minor, currency, exponent }` money object (the shape used
+ * inside `spend`) into a major-unit amount, e.g. `{7505, CAD, 2}` -> 75.05.
+ */
+const readMinorMoney = (value: unknown): { amount: number; currency: string } | null => {
+  const record = readObjectRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const amountMinor = record.amount_minor;
+  const currency = record.currency;
+  if (typeof amountMinor !== 'number' || typeof currency !== 'string') {
+    return null;
+  }
+
+  const exponent = typeof record.exponent === 'number' ? record.exponent : 0;
+  return { amount: amountMinor / 10 ** exponent, currency };
+};
+
+/** Pulls the first markdown/inline link URL out of the `spend.disclaimer` text. */
+const extractLearnMoreUrl = (disclaimer: unknown): string | undefined => {
+  if (typeof disclaimer !== 'string') {
+    return undefined;
+  }
+
+  const markdownLink = disclaimer.match(/\]\((https?:\/\/[^)\s]+)\)/);
+  if (markdownLink) {
+    return markdownLink[1];
+  }
+
+  const bareLink = disclaimer.match(/https?:\/\/[^\s)]+/);
+  return bareLink?.[0];
+};
+
+/**
+ * Extracts paid usage-credit state from the OAuth usage response.
+ *
+ * Prefers the richer `spend` object (`used`/`limit`/`cap.money` in minor units,
+ * plus `enabled`/`disclaimer`/`can_purchase_credits`); falls back to the older
+ * `extra_usage` shape (`used_credits`/`monthly_limit` in minor units scaled by
+ * `decimal_places`). Returns undefined when the account reports no credit
+ * concept, so the field stays absent for API-key auth and other providers.
+ */
+const parseUsageCredits = (body: Record<string, unknown>): ProviderUsageCredits | undefined => {
+  const memberDashboardAvailable = body.member_dashboard_available === true;
+
+  const spend = readObjectRecord(body.spend);
+  if (spend) {
+    const used = readMinorMoney(spend.used);
+    const limit = readMinorMoney(spend.limit)
+      ?? readMinorMoney(readObjectRecord(spend.cap)?.money);
+    if (used && limit && limit.amount > 0) {
+      return {
+        enabled: spend.enabled === true,
+        usedAmount: used.amount,
+        limitAmount: limit.amount,
+        currency: limit.currency || used.currency,
+        utilization: clampUtilization((used.amount / limit.amount) * 100),
+        learnMoreUrl: extractLearnMoreUrl(spend.disclaimer),
+        canPurchaseCredits: spend.can_purchase_credits === true,
+        memberDashboardAvailable,
+      };
+    }
+  }
+
+  const extra = readObjectRecord(body.extra_usage);
+  if (extra) {
+    const monthlyLimit = extra.monthly_limit;
+    const usedCredits = extra.used_credits;
+    const currency = extra.currency;
+    const decimals = typeof extra.decimal_places === 'number' ? extra.decimal_places : 2;
+    if (
+      typeof monthlyLimit === 'number'
+      && typeof usedCredits === 'number'
+      && typeof currency === 'string'
+      && monthlyLimit > 0
+    ) {
+      const limitAmount = monthlyLimit / 10 ** decimals;
+      const usedAmount = usedCredits / 10 ** decimals;
+      return {
+        enabled: extra.is_enabled === true,
+        usedAmount,
+        limitAmount,
+        currency,
+        utilization: clampUtilization((usedAmount / limitAmount) * 100),
+        memberDashboardAvailable,
+      };
+    }
+  }
+
+  return undefined;
 };
 
 export class ClaudeProviderUsage implements IProviderUsage {
@@ -104,6 +202,7 @@ export class ClaudeProviderUsage implements IProviderUsage {
         provider: 'claude',
         supported: true,
         windows: parseUsageWindows(body),
+        credits: parseUsageCredits(body),
         fetchedAt: new Date().toISOString(),
       };
     } catch {

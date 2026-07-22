@@ -524,6 +524,24 @@ export type ProviderUsageWindow = {
 };
 
 /**
+ * Paid usage-credits / extra-usage state for one provider — the spend that
+ * covers you once plan windows are exhausted. Money amounts are in major units
+ * (e.g. 75.05) already scaled from the provider's minor units; `currency` is an
+ * ISO 4217 code for client-side `Intl.NumberFormat`. Present only when the
+ * provider reports a credit concept (Claude OAuth `spend`/`extra_usage`).
+ */
+export type ProviderUsageCredits = {
+  enabled: boolean;
+  usedAmount: number;
+  limitAmount: number;
+  currency: string;
+  utilization: number;
+  learnMoreUrl?: string;
+  canPurchaseCredits?: boolean;
+  memberDashboardAvailable?: boolean;
+};
+
+/**
  * Plan usage status for one provider.
  *
  * `supported: false` means the provider (or its current auth method) has no
@@ -534,6 +552,7 @@ export type ProviderUsageStatus = {
   supported: boolean;
   reason?: 'api_key' | 'not_authenticated';
   windows?: ProviderUsageWindow[];
+  credits?: ProviderUsageCredits;
   fetchedAt?: string;
   stale?: boolean;
   error?: string;
