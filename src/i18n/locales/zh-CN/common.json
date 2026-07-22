@@ -123,6 +123,7 @@
     "collapseAll": "全部折叠",
     "context": {
       "rename": "重命名",
+      "moveTo": "移动到…",
       "delete": "删除",
       "copyPath": "复制路径",
       "download": "下载",
@@ -131,6 +132,15 @@
       "refresh": "刷新",
       "menuLabel": "文件上下文菜单",
       "loading": "加载中..."
+    },
+    "move": {
+      "title": "移动到文件夹",
+      "projectRoot": "项目根目录",
+      "currentLocation": "当前位置",
+      "confirm": "移动"
+    },
+    "toast": {
+      "moved": "移动成功"
     }
   },
   "projectWizard": {

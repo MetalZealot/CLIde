@@ -16,6 +16,7 @@ type FileTreeBodyProps = {
   formatFileSize: (bytes?: number) => string;
   formatRelativeTime: (date?: string) => string;
   onRename?: (item: FileTreeNode) => void;
+  onMove?: (item: FileTreeNode) => void;
   onDelete?: (item: FileTreeNode) => void;
   onNewFile?: (path: string) => void;
   onNewFolder?: (path: string) => void;
@@ -43,6 +44,7 @@ export default function FileTreeBody({
   formatFileSize,
   formatRelativeTime,
   onRename,
+  onMove,
   onDelete,
   onNewFile,
   onNewFolder,
@@ -83,6 +85,7 @@ export default function FileTreeBody({
           formatFileSize={formatFileSize}
           formatRelativeTime={formatRelativeTime}
           onRename={onRename}
+          onMove={onMove}
           onDelete={onDelete}
           onNewFile={onNewFile}
           onNewFolder={onNewFolder}

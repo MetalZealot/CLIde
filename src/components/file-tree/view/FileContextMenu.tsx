@@ -1,7 +1,8 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Copy, Download, FileText, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react';
+import { Copy, Download, FileText, FolderInput, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react';
 import { cn } from '../../../lib/utils';
+import { useLongPress, type LongPressCoords } from '../../../hooks/useLongPress';
 
 type FileContextItem = {
   name: string;
@@ -47,6 +48,7 @@ export default function FileContextMenu({
   children,
   item,
   onRename,
+  onMove,
   onDelete,
   onNewFile,
   onNewFolder,
@@ -59,6 +61,7 @@ export default function FileContextMenu({
   children: ReactNode;
   item?: FileContextItem | null;
   onRename?: (item: FileContextItem) => void;
+  onMove?: (item: FileContextItem) => void;
   onDelete?: (item: FileContextItem) => void;
   onNewFile?: (path: string) => void;
   onNewFolder?: (path: string) => void;
@@ -85,6 +88,21 @@ export default function FileContextMenu({
     setIsMenuOpen(true);
   }, []);
 
+  // Touch access: long-press opens the same menu at the finger's position.
+  const openContextMenuAtTouch = useCallback((coords: LongPressCoords) => {
+    setMenuPosition(calculateViewportSafePosition(coords.x, coords.y));
+    setIsMenuOpen(true);
+  }, []);
+
+  const { handlers: longPressHandlers } = useLongPress(openContextMenuAtTouch);
+
+  // Rows nest (a directory's wrapper contains its children's wrappers), so a
+  // child press must not also start the parent's long-press timer.
+  const handleTouchStart = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    longPressHandlers.onTouchStart(event);
+  }, [longPressHandlers]);
+
   const runMenuActionAndClose = useCallback((action?: () => void) => {
     closeContextMenu();
     action?.();
@@ -98,6 +116,12 @@ export default function FileContextMenu({
           icon: Pencil,
           label: t('fileTree.context.rename', 'Rename'),
           onSelect: () => onRename?.(item),
+        },
+        {
+          key: 'moveTo',
+          icon: FolderInput,
+          label: t('fileTree.context.moveTo', 'Move to…'),
+          onSelect: () => onMove?.(item),
         },
         {
           key: 'delete',
@@ -144,6 +168,12 @@ export default function FileContextMenu({
           showDividerBefore: true,
         },
         {
+          key: 'moveTo',
+          icon: FolderInput,
+          label: t('fileTree.context.moveTo', 'Move to…'),
+          onSelect: () => onMove?.(item),
+        },
+        {
           key: 'delete',
           icon: Trash2,
           label: t('fileTree.context.delete', 'Delete'),
@@ -187,14 +217,14 @@ export default function FileContextMenu({
         showDividerBefore: true,
       },
     ];
-  }, [item, onCopyPath, onDelete, onDownload, onNewFile, onNewFolder, onRefresh, onRename, t]);
+  }, [item, onCopyPath, onDelete, onDownload, onMove, onNewFile, onNewFolder, onRefresh, onRename, t]);
 
   useEffect(() => {
     if (!isMenuOpen) {
       return;
     }
 
-    const handleOutsideMouseDown = (event: MouseEvent) => {
+    const handleOutsidePress = (event: MouseEvent | TouchEvent) => {
       const menuElement = menuRef.current;
       if (menuElement && !menuElement.contains(event.target as Node)) {
         closeContextMenu();
@@ -207,11 +237,15 @@ export default function FileContextMenu({
       }
     };
 
-    document.addEventListener('mousedown', handleOutsideMouseDown);
+    document.addEventListener('mousedown', handleOutsidePress);
+    // Touch taps don't reliably produce mousedown (esp. mid-scroll), so listen
+    // for touchstart as well to close the menu on tap-away.
+    document.addEventListener('touchstart', handleOutsidePress);
     document.addEventListener('keydown', handleEscapeKeyDown);
 
     return () => {
-      document.removeEventListener('mousedown', handleOutsideMouseDown);
+      document.removeEventListener('mousedown', handleOutsidePress);
+      document.removeEventListener('touchstart', handleOutsidePress);
       document.removeEventListener('keydown', handleEscapeKeyDown);
     };
   }, [closeContextMenu, isMenuOpen]);
@@ -256,7 +290,12 @@ export default function FileContextMenu({
 
   return (
     <>
-      <div onContextMenu={openContextMenuAtCursor} className={cn('contents', className)}>
+      <div
+        {...longPressHandlers}
+        onTouchStart={handleTouchStart}
+        onContextMenu={openContextMenuAtCursor}
+        className={cn('contents', className)}
+      >
         {children}
       </div>
 

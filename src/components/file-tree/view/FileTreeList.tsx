@@ -11,6 +11,7 @@ type FileTreeListProps = {
   formatFileSize: (bytes?: number) => string;
   formatRelativeTime: (date?: string) => string;
   onRename?: (item: FileTreeNodeType) => void;
+  onMove?: (item: FileTreeNodeType) => void;
   onDelete?: (item: FileTreeNodeType) => void;
   onNewFile?: (path: string) => void;
   onNewFolder?: (path: string) => void;
@@ -36,6 +37,7 @@ export default function FileTreeList({
   formatFileSize,
   formatRelativeTime,
   onRename,
+  onMove,
   onDelete,
   onNewFile,
   onNewFolder,
@@ -64,6 +66,7 @@ export default function FileTreeList({
           formatFileSize={formatFileSize}
           formatRelativeTime={formatRelativeTime}
           onRename={onRename}
+          onMove={onMove}
           onDelete={onDelete}
           onNewFile={onNewFile}
           onNewFolder={onNewFolder}

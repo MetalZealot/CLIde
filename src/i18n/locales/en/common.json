@@ -123,6 +123,7 @@
     "collapseAll": "Collapse All",
     "context": {
       "rename": "Rename",
+      "moveTo": "Move to…",
       "delete": "Delete",
       "copyPath": "Copy Path",
       "download": "Download",
@@ -131,6 +132,15 @@
       "refresh": "Refresh",
       "menuLabel": "File context menu",
       "loading": "Loading..."
+    },
+    "move": {
+      "title": "Move to folder",
+      "projectRoot": "Project root",
+      "currentLocation": "Current",
+      "confirm": "Move"
+    },
+    "toast": {
+      "moved": "Moved successfully"
     }
   },
   "projectWizard": {

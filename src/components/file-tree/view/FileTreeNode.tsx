@@ -15,6 +15,7 @@ type FileTreeNodeProps = {
   formatFileSize: (bytes?: number) => string;
   formatRelativeTime: (date?: string) => string;
   onRename?: (item: FileTreeNodeType) => void;
+  onMove?: (item: FileTreeNodeType) => void;
   onDelete?: (item: FileTreeNodeType) => void;
   onNewFile?: (path: string) => void;
   onNewFolder?: (path: string) => void;
@@ -69,6 +70,7 @@ export default function FileTreeNode({
   formatFileSize,
   formatRelativeTime,
   onRename,
+  onMove,
   onDelete,
   onNewFile,
   onNewFolder,
@@ -178,7 +180,7 @@ export default function FileTreeNode({
   );
 
   // Check if context menu callbacks are provided
-  const hasContextMenu = onRename || onDelete || onNewFile || onNewFolder || onCopyPath || onDownload || onRefresh;
+  const hasContextMenu = onRename || onMove || onDelete || onNewFile || onNewFolder || onCopyPath || onDownload || onRefresh;
 
   return (
     <div className="select-none">
@@ -186,6 +188,7 @@ export default function FileTreeNode({
         <FileContextMenu
           item={item}
           onRename={onRename}
+          onMove={onMove}
           onDelete={onDelete}
           onNewFile={onNewFile}
           onNewFolder={onNewFolder}
@@ -218,6 +221,7 @@ export default function FileTreeNode({
               formatFileSize={formatFileSize}
               formatRelativeTime={formatRelativeTime}
               onRename={onRename}
+              onMove={onMove}
               onDelete={onDelete}
               onNewFile={onNewFile}
               onNewFolder={onNewFolder}

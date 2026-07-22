@@ -40,6 +40,12 @@ export type UseFileTreeOperationsResult = {
   handleCancelDelete: () => void;
   handleConfirmDelete: () => Promise<void>;
 
+  // Move operations
+  movingItem: FileTreeNode | null;
+  handleStartMove: (item: FileTreeNode) => void;
+  handleCancelMove: () => void;
+  handleConfirmMove: (destinationPath: string) => Promise<void>;
+
   // Create operations
   isCreating: boolean;
   newItemParent: string;
@@ -75,6 +81,7 @@ export function useFileTreeOperations({
     isOpen: false,
     item: null,
   });
+  const [movingItem, setMovingItem] = useState<FileTreeNode | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newItemParent, setNewItemParent] = useState('');
   const [newItemType, setNewItemType] = useState<'file' | 'directory'>('file');
@@ -185,6 +192,42 @@ export function useFileTreeOperations({
       setOperationLoading(false);
     }
   }, [deleteConfirmation, selectedProject, showToast, t, onRefresh, handleCancelDelete]);
+
+  // Move operations
+  const handleStartMove = useCallback((item: FileTreeNode) => {
+    setMovingItem(item);
+    setRenamingItem(null);
+    setIsCreating(false);
+  }, []);
+
+  const handleCancelMove = useCallback(() => {
+    setMovingItem(null);
+  }, []);
+
+  const handleConfirmMove = useCallback(async (destinationPath: string) => {
+    if (!movingItem || !selectedProject) return;
+
+    setOperationLoading(true);
+    try {
+      const response = await api.moveFile(selectedProject.projectId, {
+        sourcePath: movingItem.path,
+        destinationPath,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to move');
+      }
+
+      showToast(t('fileTree.toast.moved', 'Moved successfully'), 'success');
+      onRefresh();
+      handleCancelMove();
+    } catch (err) {
+      showToast((err as Error).message, 'error');
+    } finally {
+      setOperationLoading(false);
+    }
+  }, [movingItem, selectedProject, showToast, t, onRefresh, handleCancelMove]);
 
   // Create operations
   const handleStartCreate = useCallback((parentPath: string, type: 'file' | 'directory') => {
@@ -352,6 +395,12 @@ export function useFileTreeOperations({
     handleStartDelete,
     handleCancelDelete,
     handleConfirmDelete,
+
+    // Move operations
+    movingItem,
+    handleStartMove,
+    handleCancelMove,
+    handleConfirmMove,
 
     // Create operations
     isCreating,

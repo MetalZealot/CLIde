@@ -19,6 +19,7 @@ import FileTreeBody from './FileTreeBody';
 import FileTreeDetailedColumns from './FileTreeDetailedColumns';
 import FileTreeHeader from './FileTreeHeader';
 import FileTreeLoadingState from './FileTreeLoadingState';
+import FileTreeMoveDialog from './FileTreeMoveDialog';
 import FileTreeUploadProgress from './FileTreeUploadProgress';
 import ImageViewer from './ImageViewer';
 
@@ -209,6 +210,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
           formatFileSize={formatFileSize}
           formatRelativeTime={formatRelativeTimeLabel}
           onRename={operations.handleStartRename}
+          onMove={operations.handleStartMove}
           onDelete={operations.handleStartDelete}
           onNewFile={(path) => operations.handleStartCreate(path, 'file')}
           onNewFolder={(path) => operations.handleStartCreate(path, 'directory')}
@@ -230,6 +232,18 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
         <ImageViewer
           file={selectedImage}
           onClose={() => setSelectedImage(null)}
+        />
+      )}
+
+      {/* Move to Folder Dialog */}
+      {operations.movingItem && selectedProject && (
+        <FileTreeMoveDialog
+          item={operations.movingItem}
+          files={files}
+          projectPath={selectedProject.fullPath}
+          operationLoading={operationLoading}
+          onConfirm={operations.handleConfirmMove}
+          onCancel={operations.handleCancelMove}
         />
       )}
 
