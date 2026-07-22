@@ -41,3 +41,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0001 — No backdrop-filter blur / glassmorphism](0001-no-backdrop-blur.md)
 - [0002 — PWA icons declare purpose "any" only, never "maskable"](0002-no-maskable-icon-purpose.md)
 - [0003 — Active model is tracked per session; transcript is ground truth](0003-per-session-model-tracking.md)
+- [0004 — TODO.md is tracked in-repo, at the repo root](0004-todo-md-tracked-at-root.md)
