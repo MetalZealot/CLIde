@@ -12,6 +12,7 @@ import type {
 import { useDropzone } from 'react-dropzone';
 
 import { authenticatedFetch } from '../../../utils/api';
+import { isTouchPrimaryDevice } from '../../../utils/pointer';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
 import {
@@ -52,6 +53,7 @@ interface UseChatComposerStateArgs {
   tokenBudget: Record<string, unknown> | null;
   sendMessage: (message: unknown) => void;
   sendByCtrlEnter?: boolean;
+  enterToSend?: boolean;
   sessionStore: SessionStore;
   onSessionProcessing?: MarkSessionProcessing;
   /**
@@ -205,6 +207,7 @@ export function useChatComposerState({
   tokenBudget,
   sendMessage,
   sendByCtrlEnter,
+  enterToSend,
   sessionStore,
   onSessionProcessing,
   onSessionEstablished,
@@ -1044,16 +1047,11 @@ export function useChatComposerState({
   );
 
   // Touch devices (phones/tablets, incl. installed PWA) get a soft keyboard whose
-  // Enter should insert a newline, not send — sending is done via the send button.
-  // Desktop (fine pointer) keeps Enter = send. Gated on the primary pointer being
-  // coarse so it holds in both the browser tab and the standalone PWA.
-  const isTouchPrimary = useMemo(
-    () =>
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(pointer: coarse)').matches,
-    [],
-  );
+  // Enter inserts a newline by default — sending is done via the send button, with
+  // the quick-settings "Enter to send" toggle (enterToSend) as the opt-in for e.g.
+  // tablets with hardware keyboards. Desktop (fine pointer) keeps Enter = send
+  // unless "Send by Ctrl+Enter" (sendByCtrlEnter) is on.
+  const isTouchPrimary = useMemo(() => isTouchPrimaryDevice(), []);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1079,21 +1077,19 @@ export function useChatComposerState({
         if ((event.ctrlKey || event.metaKey) && !event.shiftKey) {
           event.preventDefault();
           handleSubmit(event);
-        } else if (
-          !event.shiftKey &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          !sendByCtrlEnter &&
-          !isTouchPrimary
-        ) {
-          event.preventDefault();
-          handleSubmit(event);
+        } else if (!event.shiftKey && !event.ctrlKey && !event.metaKey) {
+          const plainEnterSends = isTouchPrimary ? Boolean(enterToSend) : !sendByCtrlEnter;
+          if (plainEnterSends) {
+            event.preventDefault();
+            handleSubmit(event);
+          }
         }
       }
     },
     [
       cyclePermissionMode,
       handleCommandMenuKeyDown,
+      enterToSend,
       handleFileMentionsKeyDown,
       handleSubmit,
       isTouchPrimary,

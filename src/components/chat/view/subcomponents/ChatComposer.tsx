@@ -17,6 +17,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
+import { isTouchPrimaryDevice } from '../../../../utils/pointer';
 import type { QueuedDraft } from '../../hooks/useChatComposerState';
 import type { PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { ProviderModelOption } from '../../../../types/app';
@@ -113,6 +114,7 @@ interface ChatComposerProps {
   placeholder: string;
   isTextareaExpanded: boolean;
   sendByCtrlEnter?: boolean;
+  enterToSend?: boolean;
 }
 
 // One icon per permission mode so modes stay distinguishable on mobile,
@@ -180,6 +182,7 @@ export default function ChatComposer({
   placeholder,
   isTextareaExpanded,
   sendByCtrlEnter,
+  enterToSend,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const commandMenuPosition = useMemo(() => {
@@ -285,13 +288,26 @@ export default function ChatComposer({
 
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim());
+  // Mirrors handleKeyDown in useChatComposerState: plain Enter sends on desktop
+  // unless sendByCtrlEnter, and on touch only when enterToSend is opted in.
+  const isTouchPrimary = useMemo(() => isTouchPrimaryDevice(), []);
+  const plainEnterSends = isTouchPrimary ? Boolean(enterToSend) : !sendByCtrlEnter;
   const submitHint = canQueueDraft
-    ? hasQueuedDraft
-      ? t('input.hintText.updateQueued', { defaultValue: 'Enter to update queued message' })
-      : t('input.hintText.queue', { defaultValue: 'Enter to queue your next message' })
-    : sendByCtrlEnter
-      ? t('input.hintText.ctrlEnter')
-      : t('input.hintText.enter');
+    ? plainEnterSends
+      ? hasQueuedDraft
+        ? t('input.hintText.updateQueued', { defaultValue: 'Enter to update queued message' })
+        : t('input.hintText.queue', { defaultValue: 'Enter to queue your next message' })
+      : hasQueuedDraft
+        ? t('input.hintText.updateQueuedButton', { defaultValue: 'Send to update queued message' })
+        : t('input.hintText.queueButton', { defaultValue: 'Send to queue your next message' })
+    : plainEnterSends
+      ? t('input.hintText.enter')
+      : isTouchPrimary
+        ? t('input.hintText.enterNewline', {
+            defaultValue:
+              'Enter for new line • Tab to change modes • / for slash commands',
+          })
+        : t('input.hintText.ctrlEnter');
   const submitAriaLabel = canQueueDraft
     ? hasQueuedDraft
       ? t('input.queue.update', { defaultValue: 'Update queued message' })

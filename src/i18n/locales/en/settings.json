@@ -76,6 +76,8 @@
     "showRawParameters": "Show raw parameters",
     "showThinking": "Show thinking",
     "sendByCtrlEnter": "Send by Ctrl+Enter",
+    "enterToSend": "Enter to send",
+    "enterToSendDescription": "When enabled, pressing Enter sends the message instead of adding a new line. By default on touch devices, Enter adds a new line and the send button sends — like most messaging apps.",
     "voiceEnabled": "Voice (mic + read aloud)",
     "sendByCtrlEnterDescription": "When enabled, pressing Ctrl+Enter will send the message instead of just Enter. This is useful for IME users to avoid accidental sends.",
     "dragHandle": {

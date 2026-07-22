@@ -1,5 +1,6 @@
 import {
   Brain,
+  CornerDownLeft,
   Eye,
   Languages,
   Mic,
@@ -36,10 +37,17 @@ export const TOOL_DISPLAY_TOGGLES: PreferenceToggleItem[] = [
 ];
 
 export const INPUT_SETTING_TOGGLES: PreferenceToggleItem[] = [
+  // Only one of the next two rows shows at a time: sendByCtrlEnter on fine-pointer
+  // devices, enterToSend on touch-primary ones (where plain Enter defaults to newline).
   {
     key: 'sendByCtrlEnter',
     labelKey: 'quickSettings.sendByCtrlEnter',
     icon: Languages,
+  },
+  {
+    key: 'enterToSend',
+    labelKey: 'quickSettings.enterToSend',
+    icon: CornerDownLeft,
   },
   {
     key: 'voiceEnabled',

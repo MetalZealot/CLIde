@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { DarkModeToggle } from '../../../shared/view/ui';
 import LanguageSelector from '../../../shared/view/ui/LanguageSelector';
+import { isTouchPrimaryDevice } from '../../../utils/pointer';
 import {
   INPUT_SETTING_TOGGLES,
   SETTING_ROW_CLASS,
@@ -29,9 +30,13 @@ export default function QuickSettingsContent({
   onPreferenceChange,
 }: QuickSettingsContentProps) {
   const { t } = useTranslation('settings');
-  const inputSettingToggles = preferences.voiceEnabled
-    ? INPUT_SETTING_TOGGLES
-    : INPUT_SETTING_TOGGLES.filter(({ key }) => key !== 'voiceEnabled');
+  const isTouchPrimary = isTouchPrimaryDevice();
+  const inputSettingToggles = INPUT_SETTING_TOGGLES.filter(({ key }) => {
+    if (key === 'voiceEnabled') return preferences.voiceEnabled;
+    if (key === 'sendByCtrlEnter') return !isTouchPrimary;
+    if (key === 'enterToSend') return isTouchPrimary;
+    return true;
+  });
 
   const renderToggleRows = (items: PreferenceToggleItem[]) => (
     items.map(({ key, labelKey, icon }) => (
@@ -69,7 +74,9 @@ export default function QuickSettingsContent({
       <QuickSettingsSection title={t('quickSettings.sections.inputSettings')}>
         {renderToggleRows(inputSettingToggles)}
         <p className="ml-3 text-xs text-muted-foreground">
-          {t('quickSettings.sendByCtrlEnterDescription')}
+          {isTouchPrimary
+            ? t('quickSettings.enterToSendDescription')
+            : t('quickSettings.sendByCtrlEnterDescription')}
         </p>
       </QuickSettingsSection>
     </div>

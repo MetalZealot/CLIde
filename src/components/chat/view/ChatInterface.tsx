@@ -33,6 +33,7 @@ function ChatInterface({
   showRawParameters,
   showThinking,
   sendByCtrlEnter,
+  enterToSend,
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
@@ -206,6 +207,7 @@ function ChatInterface({
     tokenBudget,
     sendMessage,
     sendByCtrlEnter,
+    enterToSend,
     sessionStore,
     onSessionProcessing,
     onSessionEstablished: handleSessionEstablished,
@@ -450,6 +452,7 @@ function ChatInterface({
           })}
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}
+          enterToSend={enterToSend}
         />
         </div>
       </div>

@@ -135,6 +135,7 @@ export interface ChatInterfaceProps {
   showRawParameters?: boolean;
   showThinking?: boolean;
   sendByCtrlEnter?: boolean;
+  enterToSend?: boolean;
   externalMessageUpdate?: number;
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;

@@ -4,6 +4,7 @@ type UiPreferences = {
   showRawParameters: boolean;
   showThinking: boolean;
   sendByCtrlEnter: boolean;
+  enterToSend: boolean;
   sidebarVisible: boolean;
   voiceEnabled: boolean;
 };
@@ -35,6 +36,7 @@ const DEFAULTS: UiPreferences = {
   showRawParameters: false,
   showThinking: true,
   sendByCtrlEnter: false,
+  enterToSend: false,
   sidebarVisible: true,
   voiceEnabled: false,
 };

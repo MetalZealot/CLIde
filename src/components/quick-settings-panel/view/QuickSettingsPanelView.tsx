@@ -27,8 +27,10 @@ export default function QuickSettingsPanelView() {
     showRawParameters: preferences.showRawParameters,
     showThinking: preferences.showThinking,
     sendByCtrlEnter: preferences.sendByCtrlEnter,
+    enterToSend: preferences.enterToSend,
     voiceEnabled: preferences.voiceEnabled,
   }), [
+    preferences.enterToSend,
     preferences.sendByCtrlEnter,
     preferences.showRawParameters,
     preferences.showThinking,

@@ -54,7 +54,7 @@ function MainContent({
   newSessionTrigger,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
-  const { showRawParameters, showThinking, sendByCtrlEnter } = preferences;
+  const { showRawParameters, showThinking, sendByCtrlEnter, enterToSend } = preferences;
 
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
@@ -173,6 +173,7 @@ function MainContent({
                 showRawParameters={showRawParameters}
                 showThinking={showThinking}
                 sendByCtrlEnter={sendByCtrlEnter}
+                enterToSend={enterToSend}
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
                 onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}

@@ -5,6 +5,7 @@ export type PreferenceToggleKey =
   | 'showRawParameters'
   | 'showThinking'
   | 'sendByCtrlEnter'
+  | 'enterToSend'
   | 'voiceEnabled';
 
 export type QuickSettingsPreferences = Record<PreferenceToggleKey, boolean>;
