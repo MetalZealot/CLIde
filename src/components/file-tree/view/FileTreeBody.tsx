@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from 'react';
 import { Folder, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { FileTreeNode, FileTreeViewMode } from '../types/types';
+import type { FileTreeDragMove } from '../hooks/useFileTreeDragMove';
 import FileTreeEmptyState from './FileTreeEmptyState';
 import FileTreeList from './FileTreeList';
 
@@ -23,6 +24,7 @@ type FileTreeBodyProps = {
   onCopyPath?: (item: FileTreeNode) => void;
   onDownload?: (item: FileTreeNode) => void;
   onRefresh?: () => void;
+  dragMove?: FileTreeDragMove;
   // Rename state for inline editing
   renamingItem?: FileTreeNode | null;
   renameValue?: string;
@@ -51,6 +53,7 @@ export default function FileTreeBody({
   onCopyPath,
   onDownload,
   onRefresh,
+  dragMove,
   renamingItem,
   renameValue,
   setRenameValue,
@@ -92,6 +95,7 @@ export default function FileTreeBody({
           onCopyPath={onCopyPath}
           onDownload={onDownload}
           onRefresh={onRefresh}
+          dragMove={dragMove}
           renamingItem={renamingItem}
           renameValue={renameValue}
           setRenameValue={setRenameValue}

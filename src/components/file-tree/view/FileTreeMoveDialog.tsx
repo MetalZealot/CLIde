@@ -4,7 +4,6 @@ import { Check, Folder, FolderInput, Loader2 } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
 import type { FileTreeNode } from '../types/types';
-import { ScrollArea } from '../../../shared/view/ui';
 
 type DirectoryOption = {
   path: string;
@@ -83,7 +82,14 @@ export default function FileTreeMoveDialog({
           </div>
         </div>
 
-        <ScrollArea className="min-h-0 flex-1 rounded-md border border-border">
+        {/* Plain overflow div instead of ScrollArea: the shared component's inner
+            h-full can't resolve inside a flex item sized by max-h, so it never
+            scrolled. Making the flex item itself the scroller avoids the
+            percentage-height chain entirely. */}
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-md border border-border"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+        >
           <div className="p-1">
             {directoryOptions.map((option) => {
               const isSelected = selectedPath === option.path;
@@ -114,7 +120,7 @@ export default function FileTreeMoveDialog({
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="mt-4 flex justify-end gap-2">
           <button

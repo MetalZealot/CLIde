@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from 'react';
 import type { FileTreeNode as FileTreeNodeType, FileTreeViewMode } from '../types/types';
+import type { FileTreeDragMove } from '../hooks/useFileTreeDragMove';
 import FileTreeNode from './FileTreeNode';
 
 type FileTreeListProps = {
@@ -18,6 +19,7 @@ type FileTreeListProps = {
   onCopyPath?: (item: FileTreeNodeType) => void;
   onDownload?: (item: FileTreeNodeType) => void;
   onRefresh?: () => void;
+  dragMove?: FileTreeDragMove;
   // Rename state for inline editing
   renamingItem?: FileTreeNodeType | null;
   renameValue?: string;
@@ -44,6 +46,7 @@ export default function FileTreeList({
   onCopyPath,
   onDownload,
   onRefresh,
+  dragMove,
   renamingItem,
   renameValue,
   setRenameValue,
@@ -73,6 +76,7 @@ export default function FileTreeList({
           onCopyPath={onCopyPath}
           onDownload={onDownload}
           onRefresh={onRefresh}
+          dragMove={dragMove}
           renamingItem={renamingItem}
           renameValue={renameValue}
           setRenameValue={setRenameValue}

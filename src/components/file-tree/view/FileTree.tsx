@@ -10,6 +10,7 @@ import { useFileTreeOperations } from '../hooks/useFileTreeOperations';
 import { useFileTreeSearch } from '../hooks/useFileTreeSearch';
 import { useFileTreeViewMode } from '../hooks/useFileTreeViewMode';
 import { useFileTreeUpload } from '../hooks/useFileTreeUpload';
+import { useFileTreeDragMove, isInternalDragEvent } from '../hooks/useFileTreeDragMove';
 import type { FileTreeImageSelection, FileTreeNode } from '../types/types';
 import { formatFileSize, formatRelativeTime, isImageFile } from '../utils/fileTreeUtils';
 import { Project } from '../../../types/app';
@@ -72,6 +73,13 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
   });
   const operationLoading = operations.operationLoading || upload.operationLoading;
 
+  // Desktop drag-to-move (internal drags; external OS drops stay on the upload path)
+  const dragMove = useFileTreeDragMove({
+    projectPath: selectedProject?.fullPath ?? null,
+    onMoveToFolder: operations.performMove,
+  });
+  const isRootDropTarget = dragMove.dropTargetPath === '' && dragMove.draggedItem !== null;
+
   // Focus input when creating new item
   useEffect(() => {
     if (operations.isCreating && newItemInputRef.current) {
@@ -131,10 +139,12 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
     <div
       ref={upload.treeRef}
       className="relative flex h-full flex-col bg-background"
-      onDragEnter={upload.handleDragEnter}
-      onDragOver={upload.handleDragOver}
-      onDragLeave={upload.handleDragLeave}
-      onDrop={upload.handleDrop}
+      // Internal row drags must not trigger the upload overlay/handlers; they
+      // are handled by dragMove on the rows and the scroll container below.
+      onDragEnter={(e) => { if (!isInternalDragEvent(e)) upload.handleDragEnter(e); }}
+      onDragOver={(e) => { if (!isInternalDragEvent(e)) upload.handleDragOver(e); }}
+      onDragLeave={(e) => { if (!isInternalDragEvent(e)) upload.handleDragLeave(e); }}
+      onDrop={(e) => { if (!isInternalDragEvent(e)) void upload.handleDrop(e); }}
     >
       {/* Drag overlay */}
       {upload.isDragOver && (
@@ -166,7 +176,16 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
 
       {viewMode === 'detailed' && filteredFiles.length > 0 && <FileTreeDetailedColumns />}
 
-      <ScrollArea className="flex-1 px-2 py-1">
+      <ScrollArea
+        className={cn(
+          'flex-1 px-2 py-1',
+          isRootDropTarget && 'bg-accent/30 ring-1 ring-inset ring-primary/50',
+        )}
+        // Tree background acts as a "move to project root" drop target.
+        onDragOver={dragMove.handleRootDragOver}
+        onDragLeave={dragMove.handleRootDragLeave}
+        onDrop={dragMove.handleRootDrop}
+      >
         {/* New item input */}
         {operations.isCreating && (
           <div
@@ -217,6 +236,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
           onCopyPath={operations.handleCopyPath}
           onDownload={operations.handleDownload}
           onRefresh={refreshFiles}
+          dragMove={dragMove}
           // Pass rename state and handlers for inline editing
           renamingItem={operations.renamingItem}
           renameValue={operations.renameValue}

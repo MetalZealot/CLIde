@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from 'react';
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import type { FileTreeNode as FileTreeNodeType, FileTreeViewMode } from '../types/types';
+import type { FileTreeDragMove } from '../hooks/useFileTreeDragMove';
 import { Input } from '../../../shared/view/ui';
 import FileContextMenu from './FileContextMenu';
 
@@ -22,6 +23,7 @@ type FileTreeNodeProps = {
   onCopyPath?: (item: FileTreeNodeType) => void;
   onDownload?: (item: FileTreeNodeType) => void;
   onRefresh?: () => void;
+  dragMove?: FileTreeDragMove;
   // Rename state for inline editing
   renamingItem?: FileTreeNodeType | null;
   renameValue?: string;
@@ -77,6 +79,7 @@ export default function FileTreeNode({
   onCopyPath,
   onDownload,
   onRefresh,
+  dragMove,
   renamingItem,
   renameValue,
   setRenameValue,
@@ -89,6 +92,8 @@ export default function FileTreeNode({
   const isOpen = isDirectory && expandedDirs.has(item.path);
   const hasChildren = Boolean(isDirectory && item.children && item.children.length > 0);
   const isRenaming = renamingItem?.path === item.path;
+  const isDropTarget = dragMove?.dropTargetPath === item.path;
+  const isBeingDragged = dragMove?.draggedItem?.path === item.path;
 
   const nameClassName = cn(
     'text-[13px] leading-tight truncate',
@@ -104,6 +109,8 @@ export default function FileTreeNode({
       : 'group flex items-center gap-1.5 py-[3px] pr-2 cursor-pointer rounded-sm hover:bg-accent/60 transition-colors duration-100',
     isDirectory && isOpen && 'border-l-2 border-primary/30',
     (isDirectory && !isOpen) || !isDirectory ? 'border-l-2 border-transparent' : '',
+    isDropTarget && 'bg-accent ring-1 ring-inset ring-primary/50',
+    isBeingDragged && 'opacity-50',
   );
 
   // Render rename input if this item is being renamed
@@ -142,6 +149,7 @@ export default function FileTreeNode({
       className={rowClassName}
       style={{ paddingLeft: `${level * 16 + 4}px` }}
       onClick={() => onItemClick(item)}
+      {...(dragMove ? dragMove.getItemDragProps(item) : {})}
     >
       {viewMode === 'detailed' ? (
         <>
@@ -228,6 +236,7 @@ export default function FileTreeNode({
               onCopyPath={onCopyPath}
               onDownload={onDownload}
               onRefresh={onRefresh}
+              dragMove={dragMove}
               renamingItem={renamingItem}
               renameValue={renameValue}
               setRenameValue={setRenameValue}

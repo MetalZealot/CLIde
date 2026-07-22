@@ -45,6 +45,7 @@ export type UseFileTreeOperationsResult = {
   handleStartMove: (item: FileTreeNode) => void;
   handleCancelMove: () => void;
   handleConfirmMove: (destinationPath: string) => Promise<void>;
+  performMove: (item: FileTreeNode, destinationPath: string) => Promise<boolean>;
 
   // Create operations
   isCreating: boolean;
@@ -204,13 +205,14 @@ export function useFileTreeOperations({
     setMovingItem(null);
   }, []);
 
-  const handleConfirmMove = useCallback(async (destinationPath: string) => {
-    if (!movingItem || !selectedProject) return;
+  // Shared by the "Move to…" dialog and desktop drag-and-drop.
+  const performMove = useCallback(async (item: FileTreeNode, destinationPath: string): Promise<boolean> => {
+    if (!selectedProject) return false;
 
     setOperationLoading(true);
     try {
       const response = await api.moveFile(selectedProject.projectId, {
-        sourcePath: movingItem.path,
+        sourcePath: item.path,
         destinationPath,
       });
 
@@ -221,13 +223,23 @@ export function useFileTreeOperations({
 
       showToast(t('fileTree.toast.moved', 'Moved successfully'), 'success');
       onRefresh();
-      handleCancelMove();
+      return true;
     } catch (err) {
       showToast((err as Error).message, 'error');
+      return false;
     } finally {
       setOperationLoading(false);
     }
-  }, [movingItem, selectedProject, showToast, t, onRefresh, handleCancelMove]);
+  }, [selectedProject, showToast, t, onRefresh]);
+
+  const handleConfirmMove = useCallback(async (destinationPath: string) => {
+    if (!movingItem) return;
+
+    const moved = await performMove(movingItem, destinationPath);
+    if (moved) {
+      handleCancelMove();
+    }
+  }, [movingItem, performMove, handleCancelMove]);
 
   // Create operations
   const handleStartCreate = useCallback((parentPath: string, type: 'file' | 'directory') => {
@@ -401,6 +413,7 @@ export function useFileTreeOperations({
     handleStartMove,
     handleCancelMove,
     handleConfirmMove,
+    performMove,
 
     // Create operations
     isCreating,
