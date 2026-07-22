@@ -13,7 +13,8 @@ column**, never `position: fixed` floating over content, so no view needs
 compensating bottom padding. Height is kept compact (icon-only) so the composer
 doesn't ride too high; the navbar slides away when the composer is focused
 (keyboard open). Desktop keeps its existing navigation — this is
-mobile-breakpoint only. Design mockup: `CLIde UI.svg` (repo root, untracked).
+mobile-breakpoint only. Design mockup: `UI Visual References/CLIde UI.svg` (untracked, main
+checkout only).
 
 ## Rejected
 
