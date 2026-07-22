@@ -735,6 +735,17 @@
     }
   }
 
+  /* Samsung Internet on a phone reports `hover: hover` / `pointer: fine`, so the
+     touch media block above never matches it and its hover-only controls stay
+     `opacity-0` until a tap applies a sticky `:hover` (that's why the tool-call
+     copy button only appears after you tap it there, not on other phones). The
+     root `.samsung-browser` class (set in index.html) lets us force-reveal the
+     same controls the touch block does. */
+  .samsung-browser .group-hover\:opacity-100,
+  .samsung-browser .touch\:opacity-100 {
+    opacity: 1 !important;
+  }
+
 @layer components {
   /* Safe area support for iOS devices */
   .ios-bottom-safe {

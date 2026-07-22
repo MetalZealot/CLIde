@@ -61,6 +61,24 @@
         }
       })();
     </script>
+    <!-- Tag Samsung Internet on the root element before first paint. On a phone
+         it misreports itself as a hover/fine-pointer device, so the
+         `@media (hover: none) and (pointer: coarse)` rules that force-reveal
+         hover-only controls (tool-call copy button, sidebar row actions, …)
+         never match it. Those controls then stay `opacity-0` until a tap applies
+         a sticky `:hover`. The CSS treats `.samsung-browser` like touch so they
+         start visible. -->
+    <script>
+      (function () {
+        try {
+          if (/SamsungBrowser/i.test(navigator.userAgent)) {
+            document.documentElement.classList.add('samsung-browser');
+          }
+        } catch (e) {
+          /* navigator unavailable — skip the opt-out, no correctness impact elsewhere */
+        }
+      })();
+    </script>
     <!-- Block native pinch-to-zoom of the page. The viewport meta already sets
          user-scalable=no, but Samsung Internet and iOS Safari deliberately
          ignore that for accessibility, so pinch-zoom leaks through there (not in
