@@ -104,17 +104,54 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   Upstream check 2026-07-17: no issue/PR mentions it (searched "synthetic", "selected
   model", "529", "active model"; read #981/#996/#998 bodies; confirmed by reading
   upstream/main's code). **Best first-PR candidate.**
+- [ ] **AskUserQuestion comma-answer split** (`9450562`) — upstream-checked + test-covered
+  (see Done entry 2026-07-20: both files predate the fork, no issue/PR). **Ready.**
+- [ ] **File-tree Move to… + touch context menu + drag-to-move**
+  (`0efea7d`/`ad9efda`/`8747136`) — upstream-checked (see Done entry: #436/#444 merged
+  the context menu but no move op, right-click-only) and verified live 2026-07-22.
+  Server + client + i18n — the largest candidate; PR as one feature branch. **Ready.**
 - [ ] **CSS minifier warnings fix** (`5cc4185`) — inherited from upstream, repros on
   `upstream/main` (~25 `[css-syntax-error]` build warnings from `@layer` re-emission).
-  Self-contained `src/index.css` move. Upstream not yet searched for an existing report —
-  do that before PRing.
+  Self-contained `src/index.css` move. Upstream check 2026-07-22: no issue/PR (searched
+  "css-syntax-error", "css warning", "build warnings", "minify" — only unrelated hits);
+  corroborated in upstream/main code: `@layer components` spans `src/index.css` 566–805
+  and all five `@media` blocks (608/686/702/763/769) still sit inside it. **Ready.**
+- [ ] **Haiku effort-picker gap** (`7af88a7`) — re-verified on upstream/main 2026-07-22
+  (v1.36.3): `claude-models.provider.ts:107` haiku entry still has no `effort` field, and
+  `useChatProviderState.ts:319` returns `option.effort?.values ?? []` for catalogued
+  models (provider fallback only runs for models absent from the catalog) — so Haiku
+  still loses the picker. No issue/PR (searched "effort"; #943 is the merged effort
+  feature that introduced the gap, #998 is model-select display, unrelated). **Ready.**
+- [ ] **Pinch-to-zoom leak on Samsung/iOS** (`6a5e1c1`) — upstream check 2026-07-22:
+  no issue/PR (searched "pinch", "zoom"; hits #954/#986/#923 are all *terminal touch
+  scrolling*, unrelated); corroborated: upstream/main `index.html` still relies on the
+  viewport meta alone (`user-scalable=no`), no gesture-suppression script — the leak
+  repros on engines that ignore the meta. **Ready.**
+- [ ] **Enter sends instead of newline on touch** (`d9c9d2b`) — upstream check
+  2026-07-22: no issue/PR for the touch case (searched "enter key", "newline", "enter
+  send mobile"; adjacent: #58 IME-composing Enter — already guarded via `isComposing`
+  in their `handleKeyDown`; #74 is Shell-side). Upstream's only mitigation is the manual
+  `sendByCtrlEnter` preference (`useUiPreferences.ts`), which also neuters desktop
+  Enter-to-send. Viable PR but **opinionated** — frames the touch carve-out as a better
+  default than their existing opt-in setting; upstream may consider the setting enough.
+- [ ] **Shell toolbar hiding the CLI's last line** (`f8410b4`) — repro confirmed in
+  upstream/main code 2026-07-22: `TerminalShortcutsPanel.tsx` still renders
+  `pointer-events-none fixed inset-x-0 bottom-0 z-20` — a floating overlay the terminal
+  reserves no space for. No issue/PR (searched "terminal last line", "toolbar terminal",
+  "shortcuts toolbar"; PR #411 introduced the panel). **Caveat: the fork commit bundles
+  the personal backdrop-blur removal** — a PR needs to keep upstream's `backdrop-blur-sm`
+  or split the diff.
+- [ ] **Stop-button-becomes-queue trap** (`a236952`) — repro confirmed in upstream/main
+  code 2026-07-22: `ChatComposer.tsx` ~289 shares one button — queued/typed content while
+  loading → "Queue next message", Stop label only when the box is empty, so typing a
+  follow-up removes the ability to stop. No issue/PR reports the trap itself (searched
+  "stop button"; adjacent: #952 activity-row overlap, closed via their own fix; #505 is
+  the queue feature request that created the trap; #836 is an older stop-button fix).
+  **Ready** (double-check the commit doesn't bundle style-pass changes before PRing).
 - [ ] **Per-session model stack** (`85ddd7e`/`5d9da84`/`8771eea`) — already tracked as
   model-picker #11. Blocked on live verification (#8) and on watching open PRs #996/#998,
   which overlap; if they merge, reconcile instead of PRing wholesale.
-- [ ] **Maybe — check upstream repro first:** Shell toolbar hiding the CLI's last line
-  (`f8410b4`) and the Stop-button-becomes-queue trap (`a236952`) both patched
-  upstream-shared components; if they repro on `upstream/main`, they're candidates.
-  The duplicate-session double-send (Bugs section, unfixed) is almost certainly an
+- [ ] The duplicate-session double-send (Bugs section, unfixed) is almost certainly an
   upstream bug too — search upstream when we fix it.
 
 ## Done
