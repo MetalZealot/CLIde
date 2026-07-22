@@ -456,7 +456,7 @@ function CostContent({ data }: { data: CostCommandData }) {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="scrollbar-thin -mr-1 h-full min-h-0 space-y-4 overflow-y-auto pr-1">
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/75">
         {usageRows.map((row) => {
           const Icon = row.icon;
