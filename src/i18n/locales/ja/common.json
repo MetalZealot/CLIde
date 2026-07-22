@@ -137,7 +137,9 @@
       "title": "フォルダへ移動",
       "projectRoot": "プロジェクトルート",
       "currentLocation": "現在の場所",
-      "confirm": "移動"
+      "confirm": "移動",
+      "expand": "展開",
+      "collapse": "折りたたむ"
     },
     "toast": {
       "moved": "移動しました"

@@ -145,11 +145,20 @@ export function useSessionProtection() {
             ? snapshot.startedAt
             : undefined;
 
+        // `startedAt` is client-clock by contract (see SessionActivity). Once this
+        // client has witnessed the start, keep its own base — the server snapshot's
+        // timestamp is the Pi's clock, and any skew between the two makes
+        // `Date.now() - startedAt` in the activity indicator go negative (clamped
+        // to a frozen "0s") or jump ahead. The snapshot only seeds entries this
+        // client never saw start (page refresh, run started on another device),
+        // clamped to `now` so a future-dated start still ticks up from 0.
         updated.set(sessionId, {
           statusText:
             snapshot.statusText !== undefined ? snapshot.statusText : existing?.statusText ?? null,
           canInterrupt: snapshot.canInterrupt ?? existing?.canInterrupt ?? true,
-          startedAt: snapshotStartedAt ?? existing?.startedAt ?? now,
+          startedAt:
+            existing?.startedAt
+            ?? (snapshotStartedAt !== undefined ? Math.min(snapshotStartedAt, now) : now),
         });
       }
 

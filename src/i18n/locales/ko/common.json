@@ -137,7 +137,9 @@
       "title": "폴더로 이동",
       "projectRoot": "프로젝트 루트",
       "currentLocation": "현재 위치",
-      "confirm": "이동"
+      "confirm": "이동",
+      "expand": "펼치기",
+      "collapse": "접기"
     },
     "toast": {
       "moved": "이동했습니다"

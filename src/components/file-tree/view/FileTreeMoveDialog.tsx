@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Folder, FolderInput, Loader2 } from 'lucide-react';
+import { Check, ChevronRight, Folder, FolderInput, Loader2 } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
 import type { FileTreeNode } from '../types/types';
@@ -10,6 +10,8 @@ type DirectoryOption = {
   name: string;
   level: number;
   isDisabled: boolean;
+  /** Has subdirectories, i.e. is expandable (always false for the root row — its children are always shown). */
+  hasChildren: boolean;
 };
 
 type FileTreeMoveDialogProps = {
@@ -31,13 +33,16 @@ export default function FileTreeMoveDialog({
 }: FileTreeMoveDialogProps) {
   const { t } = useTranslation();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  // Collapsed by default: only the root's children are visible until expanded,
+  // so a deep repo doesn't produce an endless list.
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
   // Node paths are absolute, so the item's current parent is its dirname.
   const currentParent = item.path.slice(0, item.path.lastIndexOf('/')) || projectPath;
 
-  // Flatten the already-loaded tree into an indented list of candidate
-  // destinations, skipping the moved item itself and (for a directory) its
-  // whole subtree — a folder can't be moved into itself.
+  // Build the visible, indented list of candidate destinations from the
+  // already-loaded tree, skipping the moved item itself and (for a directory)
+  // its whole subtree — a folder can't be moved into itself.
   const directoryOptions = useMemo<DirectoryOption[]>(() => {
     const options: DirectoryOption[] = [
       {
@@ -45,27 +50,52 @@ export default function FileTreeMoveDialog({
         name: t('fileTree.move.projectRoot', 'Project root'),
         level: 0,
         isDisabled: currentParent === projectPath,
+        hasChildren: false,
       },
     ];
 
+    const subdirectoriesOf = (nodes: FileTreeNode[]) =>
+      nodes.filter((node) => node.type === 'directory' && node.path !== item.path);
+
     const walk = (nodes: FileTreeNode[], level: number) => {
-      for (const node of nodes) {
-        if (node.type !== 'directory') continue;
-        if (node.path === item.path) continue;
+      for (const node of subdirectoriesOf(nodes)) {
         options.push({
           path: node.path,
           name: node.name,
           level,
           isDisabled: node.path === currentParent,
+          hasChildren: subdirectoriesOf(node.children ?? []).length > 0,
         });
-        if (node.children) {
+        if (node.children && expandedPaths.has(node.path)) {
           walk(node.children, level + 1);
         }
       }
     };
     walk(files, 1);
     return options;
-  }, [files, item.path, currentParent, projectPath, t]);
+  }, [files, item.path, currentParent, projectPath, expandedPaths, t]);
+
+  const toggleExpanded = (path: string) => {
+    setExpandedPaths((previous) => {
+      const next = new Set(previous);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  // Tapping a row selects it and drills one level deeper (never collapses —
+  // that would make "select an expanded folder" toggle it shut; the chevron
+  // handles collapsing).
+  const handleSelect = (option: DirectoryOption) => {
+    setSelectedPath(option.path);
+    if (option.hasChildren && !expandedPaths.has(option.path)) {
+      toggleExpanded(option.path);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
@@ -93,30 +123,56 @@ export default function FileTreeMoveDialog({
           <div className="p-1">
             {directoryOptions.map((option) => {
               const isSelected = selectedPath === option.path;
+              const isExpanded = expandedPaths.has(option.path);
               return (
-                <button
+                <div
                   key={option.path}
-                  disabled={option.isDisabled || operationLoading}
-                  onClick={() => setSelectedPath(option.path)}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md py-2 pr-2 text-left text-sm transition-colors',
-                    option.isDisabled
-                      ? 'opacity-50 cursor-not-allowed'
-                      : isSelected
-                      ? 'bg-accent'
-                      : 'hover:bg-accent/60',
-                  )}
-                  style={{ paddingLeft: `${option.level * 16 + 8}px` }}
+                  className="flex items-stretch"
+                  style={{ paddingLeft: `${option.level * 12}px` }}
                 >
-                  <Folder className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                  <span className="min-w-0 flex-1 truncate">{option.name}</span>
-                  {option.isDisabled && (
-                    <span className="flex-shrink-0 text-xs text-muted-foreground">
-                      {t('fileTree.move.currentLocation', 'Current')}
-                    </span>
+                  {option.hasChildren ? (
+                    // Kept enabled on disabled ("Current") rows: their
+                    // subfolders are still legal destinations.
+                    <button
+                      type="button"
+                      disabled={operationLoading}
+                      onClick={() => toggleExpanded(option.path)}
+                      aria-label={t(isExpanded ? 'fileTree.move.collapse' : 'fileTree.move.expand', isExpanded ? 'Collapse' : 'Expand')}
+                      aria-expanded={isExpanded}
+                      className="flex w-8 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/60"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          'h-3.5 w-3.5 text-muted-foreground/70 transition-transform duration-150',
+                          isExpanded && 'rotate-90',
+                        )}
+                      />
+                    </button>
+                  ) : (
+                    <span className="w-8 flex-shrink-0" />
                   )}
-                  {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-primary" />}
-                </button>
+                  <button
+                    disabled={option.isDisabled || operationLoading}
+                    onClick={() => handleSelect(option)}
+                    className={cn(
+                      'flex min-w-0 flex-1 items-center gap-2 rounded-md py-2 pl-1 pr-2 text-left text-sm transition-colors',
+                      option.isDisabled
+                        ? 'opacity-50 cursor-not-allowed'
+                        : isSelected
+                        ? 'bg-accent'
+                        : 'hover:bg-accent/60',
+                    )}
+                  >
+                    <Folder className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                    <span className="min-w-0 flex-1 truncate">{option.name}</span>
+                    {option.isDisabled && (
+                      <span className="flex-shrink-0 text-xs text-muted-foreground">
+                        {t('fileTree.move.currentLocation', 'Current')}
+                      </span>
+                    )}
+                    {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-primary" />}
+                  </button>
+                </div>
               );
             })}
           </div>
