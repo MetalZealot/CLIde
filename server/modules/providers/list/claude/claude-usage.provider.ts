@@ -15,9 +15,13 @@ const clampUtilization = (value: number): number => Math.min(100, Math.max(0, va
  * Extracts rate-limit windows from the OAuth usage response.
  *
  * The response is a flat object whose window entries (five_hour, seven_day,
- * seven_day_opus, ...) each carry `utilization` + `resets_at`; unknown window
- * keys are kept generically so new plan buckets appear without code changes.
- * Sibling objects like `extra_usage`/`spend` lack `resets_at` and are skipped.
+ * seven_day_opus, ...) each carry `utilization` + a `resets_at` key; unknown
+ * window keys are kept generically so new plan buckets appear without code
+ * changes. `resets_at` is null while a window is idle/unstarted (e.g. the
+ * 5-hour window right after a reset) — such windows are still real and must be
+ * kept, so the guard checks for the *presence* of a `resets_at` key rather than
+ * a string value. Sibling objects like `extra_usage`/`spend` have no `resets_at`
+ * key at all and are skipped.
  */
 const parseUsageWindows = (body: Record<string, unknown>): ProviderUsageWindow[] => {
   const windows: ProviderUsageWindow[] = [];
@@ -29,10 +33,11 @@ const parseUsageWindows = (body: Record<string, unknown>): ProviderUsageWindow[]
     }
 
     const utilization = record.utilization;
-    const resetsAt = record.resets_at;
-    if (typeof utilization !== 'number' || typeof resetsAt !== 'string') {
+    if (typeof utilization !== 'number' || !('resets_at' in record)) {
       continue;
     }
+
+    const resetsAt = typeof record.resets_at === 'string' ? record.resets_at : null;
 
     windows.push({
       id: key,
