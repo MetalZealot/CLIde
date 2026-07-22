@@ -127,13 +127,16 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   scrolling*, unrelated); corroborated: upstream/main `index.html` still relies on the
   viewport meta alone (`user-scalable=no`), no gesture-suppression script — the leak
   repros on engines that ignore the meta. **Ready.**
-- [ ] **Enter sends instead of newline on touch** (`d9c9d2b`) — upstream check
-  2026-07-22: no issue/PR for the touch case (searched "enter key", "newline", "enter
-  send mobile"; adjacent: #58 IME-composing Enter — already guarded via `isComposing`
-  in their `handleKeyDown`; #74 is Shell-side). Upstream's only mitigation is the manual
-  `sendByCtrlEnter` preference (`useUiPreferences.ts`), which also neuters desktop
-  Enter-to-send. Viable PR but **opinionated** — frames the touch carve-out as a better
-  default than their existing opt-in setting; upstream may consider the setting enough.
+- [ ] **Enter sends instead of newline on touch** (`d9c9d2b`) — **deferred; Grayson will
+  rework this into a proper PR himself.** Upstream check 2026-07-22: no issue/PR for the
+  touch case (searched "enter key", "newline", "enter send mobile"; adjacent: #58
+  IME-composing Enter — already guarded via `isComposing` in their `handleKeyDown`; #74
+  is Shell-side). Note discovered 2026-07-22: a **"Send by Ctrl+Enter" toggle already
+  exists** on both upstream and this fork — Quick Settings panel
+  (`quick-settings-panel/constants.ts` `INPUT_SETTING_TOGGLES`), i18n'd in all 10
+  locales, framed as an IME-user feature — so "add a settings toggle" is already done;
+  the open PR angles are the touch *default* (the `isTouchPrimary` carve-out) and/or
+  surfacing the toggle in the main Settings modal for discoverability.
 - [ ] **Shell toolbar hiding the CLI's last line** (`f8410b4`) — repro confirmed in
   upstream/main code 2026-07-22: `TerminalShortcutsPanel.tsx` still renders
   `pointer-events-none fixed inset-x-0 bottom-0 z-20` — a floating overlay the terminal
@@ -141,13 +144,17 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   "shortcuts toolbar"; PR #411 introduced the panel). **Caveat: the fork commit bundles
   the personal backdrop-blur removal** — a PR needs to keep upstream's `backdrop-blur-sm`
   or split the diff.
-- [ ] **Stop-button-becomes-queue trap** (`a236952`) — repro confirmed in upstream/main
-  code 2026-07-22: `ChatComposer.tsx` ~289 shares one button — queued/typed content while
-  loading → "Queue next message", Stop label only when the box is empty, so typing a
-  follow-up removes the ability to stop. No issue/PR reports the trap itself (searched
-  "stop button"; adjacent: #952 activity-row overlap, closed via their own fix; #505 is
-  the queue feature request that created the trap; #836 is an older stop-button fix).
-  **Ready** (double-check the commit doesn't bundle style-pass changes before PRing).
+- [x] ~~**Stop-button-becomes-queue trap** (`a236952`)~~ — **NOT an upstream bug;
+  removed from candidates 2026-07-22 after tracing the fork's own history.** Chain:
+  upstream has *two* Stop affordances — the composer submit button (flips to "Queue next
+  message" once text is typed, `ChatComposer.tsx` ~289) AND the ActivityIndicator's
+  floating-tab Stop (`canInterrupt && onAbort`). The fork's `5b9263b` activity-indicator
+  redesign removed the tab's Stop ("stopping is handled by the composer's own stop
+  button") — *that* created the trap, and `a236952` (same day) fixed the fork-made
+  regression by giving Stop a permanent home in the activity row. On upstream/main the
+  tab Stop stays visible while typing — `isInputFocused` only restyles border/shadow,
+  never hides it — so upstream users always have a Stop. Fork-only. (Minor residue
+  upstream: their composer Stop never checks `canInterrupt` — cosmetic, not PR-worthy.)
 - [ ] **Per-session model stack** (`85ddd7e`/`5d9da84`/`8771eea`) — already tracked as
   model-picker #11. Blocked on live verification (#8) and on watching open PRs #996/#998,
   which overlap; if they merge, reconcile instead of PRing wholesale.
