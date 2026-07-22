@@ -22,8 +22,15 @@ so other sessions see the claim.
 
 ## Mobile UX polish
 
-- [ ] Top bar: plugin buttons cramp the conversation title when multiple plugins are present. Options: remove the convo title? move the plugin toolbar underneath? consolidate plugins into a single menu button?
-  Constraint: Shell and Files are too important to hide in a plugin menu next to stats/session-tracker plugins. Maybe: Convo, Files, and Shell in a bottom navbar, single plugin button/dropdown at top? **M — needs a design decision first**
+- [ ] **Mobile bottom navbar — move the top tab strip to a bottom nav (design decided 2026-07-22, see ADR 0005).** Supersedes the old "top bar: plugin buttons cramp the conversation title" item — the answer is: core tabs (Chat / Files / Git / plugins) go in a compact icon-only bottom navbar; the freed top bar keeps sidebar-toggle / title+project / new-chat / kebab (per mockup `CLIde UI.svg`, repo root, untracked). **This intentionally re-adds what upstream removed in `a8dab0e` (PR #632)** — their removal was about the implementation (`fixed bottom-0` + `pb-mobile-nav` compensation padding everywhere + dual nav paradigms), not the pattern. Implementation constraints, settled:
+  - **In normal flow** — last row of the app's flex column, never `position: fixed`; zero compensation padding anywhere (this neutralizes upstream's entire removal rationale).
+  - **Hide when the keyboard opens** (composer focused) — upstream's old `isInputFocused → translate-y-full` slide-away is the right behavior; `env(safe-area-inset-bottom)` under it.
+  - **Mobile breakpoint only** — desktop keeps current nav.
+  - **Plugin/extensible tabs = shared surface**: registry of `{ id, icon, panel, isAvailable(provider) }` so provider-specific tabs (Browser, Taskmaster, community plugins) hide rather than break under Cursor/Codex/OpenCode; cap ~5 visible slots, overflow into a "More" menu (upstream's deleted `MobileNav.tsx` did exactly this — `git show a8dab0e^:src/components/app/MobileNav.tsx` is a free 179-line reference).
+  - Active-state: tint + dot (or label-on-active-only) — the plug icon is the most ambiguous of the four.
+  - Keyboard/safe-area behavior is **only verifiable on the installed PWA against 3001**, not the 5173 tab.
+  - Rebase hazard: permanent divergence near `AppContent.tsx` (upstream's removal site) — expect conflicts there on future rebases.
+  Plan: build on a topic branch in a worktree (`git worktree add ../cloudcli-wt-bottom-nav -b feat/bottom-nav my-edits`) — claim this item with the branch name when work starts. **L**
 - [ ] General condensing/shrinking of UI elements and popup menus on mobile — some assets/text get cut off due to size. **M — grab-bag, itemize as found**
 - [ ] When Claude reads a skill, the skill's entire text is dumped into the convo as a user message, making long convos painful to scroll. Collapse/fold these in the transcript view. **M**
 - [ ] Mobile: in The Agents Page in Settings, the Connection Status panel has a small sliver of rhe bottom cut off
