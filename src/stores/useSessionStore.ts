@@ -61,6 +61,8 @@ export interface NormalizedMessage {
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
+  /** CLI-fabricated notice rows (usage limits, API errors) — see server types. */
+  isSystemNotice?: boolean;
   images?: Array<{ path?: string; data?: string; name?: string }>;
   toolName?: string;
   toolInput?: unknown;

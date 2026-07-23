@@ -62,6 +62,8 @@ export interface ChatMessage {
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
+  /** CLI-fabricated notice rows (usage limits, API errors) — muted banner, not a Claude bubble. */
+  isSystemNotice?: boolean;
   isSubagentContainer?: boolean;
   subagentState?: {
     childTools: SubagentChildTool[];

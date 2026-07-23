@@ -364,7 +364,24 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId('claude');
 
-    if (raw.message?.role === 'user' && raw.message?.content && raw.isMeta !== true) {
+    /**
+     * Harness-injected user rows arrive under different flags depending on the
+     * source: transcript JSONL marks them `isMeta` (and transcript-only rows
+     * `isVisibleInTranscriptOnly`), while the live SDK stream collapses both
+     * into `isSynthetic` (the CLI stamps `isSynthetic: isMeta ||
+     * isVisibleInTranscriptOnly` on outbound user events — verified against
+     * the CLI binary). Without the stream-side check, skill-content
+     * injections leak into chat live as giant "user" messages. Rows that
+     * carry an `origin` (peer/channel messages) stay visible, mirroring the
+     * CLI's own transcript view; genuine tool results carry none of these
+     * flags.
+     */
+    const isHiddenUserRow =
+      raw.isMeta === true ||
+      raw.isVisibleInTranscriptOnly === true ||
+      (raw.isSynthetic === true && !raw.origin);
+
+    if (raw.message?.role === 'user' && raw.message?.content && !isHiddenUserRow) {
       if (Array.isArray(raw.message.content)) {
         // Image attachments sent through the SDK are persisted as base64
         // `image` blocks next to the prompt text. Collect them so the UI can
@@ -577,6 +594,17 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     }
 
     if (raw.message?.role === 'assistant' && raw.message?.content) {
+      /**
+       * Claude fabricates local assistant rows for usage-limit notices, API
+       * errors, and "No response requested." — stamped `model: "<synthetic>"`
+       * (and `isApiErrorMessage` in transcripts). They read as if the model
+       * said them; flag them so the UI renders a muted system banner instead
+       * of a normal assistant bubble (which live duplicates the error frame
+       * the run already emitted).
+       */
+      const isSyntheticNotice =
+        raw.message?.model === '<synthetic>' || raw.isApiErrorMessage === true;
+
       if (Array.isArray(raw.message.content)) {
         let partIndex = 0;
         for (const part of raw.message.content) {
@@ -589,6 +617,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
               kind: 'text',
               role: 'assistant',
               content: part.text,
+              isSystemNotice: isSyntheticNotice || undefined,
             }));
           } else if (part.type === 'tool_use') {
             messages.push(createNormalizedMessage({
@@ -622,6 +651,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
           kind: 'text',
           role: 'assistant',
           content: raw.message.content,
+          isSystemNotice: isSyntheticNotice || undefined,
         }));
       }
       return messages;

@@ -91,6 +91,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       isLocalCommand: msg.isLocalCommand,
       isLocalCommandStdout: msg.isLocalCommandStdout,
       isCompactSummary: msg.isCompactSummary,
+      isSystemNotice: msg.isSystemNotice,
     };
 
     switch (msg.kind) {

@@ -259,6 +259,13 @@ export type NormalizedMessage = {
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
+  /**
+   * CLI-fabricated assistant notices (usage-limit banners, API-error
+   * placeholders, "No response requested." — transcript rows with
+   * `model: "<synthetic>"` / `isApiErrorMessage`). The UI renders these as a
+   * muted system banner instead of attributing them to the model.
+   */
+  isSystemNotice?: boolean;
   images?: unknown;
   toolName?: string;
   toolInput?: unknown;

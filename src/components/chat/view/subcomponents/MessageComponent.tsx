@@ -84,10 +84,13 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     !message.isCompactSummary &&
     getTranscriptMessageUuid(message.id) !== null;
 
+  // Thinking and compact-summary rows render inside a collapsible that carries
+  // its own copy control — a second one under the collapsed row would dangle.
   const shouldShowAssistantCopyControl = message.type === 'assistant' &&
     assistantCopyContent.trim().length > 0 &&
     !isCommandOrFileEditToolResponse &&
-    !message.isThinking;
+    !message.isThinking &&
+    !message.isCompactSummary;
 
 
   const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(undefined, { hour12: true }), [message.timestamp]);
@@ -163,6 +166,17 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
           <div className="flex items-center gap-2 py-0.5">
             <span className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${message.taskStatus === 'completed' ? 'bg-green-400 dark:bg-green-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
             <span className="text-xs text-gray-500 dark:text-gray-400">{message.content}</span>
+          </div>
+        </div>
+      ) : message.isSystemNotice ? (
+        /* CLI-fabricated notices (usage limits, API errors, "No response
+           requested.") — muted system banner, not Claude speech. Live runs
+           already emit a red error frame for the same event; this row stays
+           visually subordinate so the pair doesn't read as a duplicate. */
+        <div className="w-full">
+          <div className="flex items-start gap-2 py-0.5">
+            <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
+            <span className="whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">{formattedMessageContent}</span>
           </div>
         </div>
       ) : (
@@ -346,6 +360,24 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   </div>
                 </div>
               </div>
+            ) : message.isCompactSummary ? (
+              /* Compaction writeups are context bookkeeping, not a reply —
+                 collapsed by default, expandable for review. */
+              <Reasoning defaultOpen={false}>
+                <ReasoningTrigger
+                  getThinkingMessage={() => (
+                    <p>{t('compactSummary.label', { defaultValue: 'Compaction summary' })}</p>
+                  )}
+                />
+                <ReasoningContent>
+                  <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
+                    {formattedMessageContent}
+                  </Markdown>
+                  <div className="mt-3 flex items-center text-[11px]">
+                    <MessageCopyControl content={String(message.content || '')} messageType="assistant" />
+                  </div>
+                </ReasoningContent>
+              </Reasoning>
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern) */
               <Reasoning defaultOpen={false}>

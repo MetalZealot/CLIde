@@ -255,5 +255,8 @@
     "pickerSearch": "Search your messages...",
     "pickerEmpty": "No earlier messages can be rewound to.",
     "pickerHint": "Picking a message loads it into the composer; sending rewinds the conversation to that point."
+  },
+  "compactSummary": {
+    "label": "Compaction summary"
   }
 }
