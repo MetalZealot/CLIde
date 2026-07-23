@@ -1,10 +1,8 @@
-import { memo, useMemo, useRef, useState } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PencilIcon } from 'lucide-react';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
-import { useLongPress } from '../../../../hooks/useLongPress';
-import SidebarContextMenu from '../../../sidebar/view/subcomponents/SidebarContextMenu';
 import type {
   ChatMessage,
   ClaudePermissionSuggestion,
@@ -43,6 +41,8 @@ type MessageComponentProps = {
   onEditMessage?: (message: ChatMessage) => void;
   /** Provider supports rewind and no turn is running. */
   canEditMessage?: boolean;
+  /** This message is the one currently loaded in the rewind-edit composer. */
+  isRewindEditTarget?: boolean;
 };
 
 type InteractiveOption = {
@@ -53,7 +53,7 @@ type InteractiveOption = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -84,14 +84,6 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     !message.isCompactSummary &&
     getTranscriptMessageUuid(message.id) !== null;
 
-  // Touch path: long-press the bubble → anchored context menu with the edit
-  // action. Press visual driven by isPressing (CSS :active is unreliable on
-  // touch — see useLongPress docs).
-  const [editMenuCoords, setEditMenuCoords] = useState<{ x: number; y: number } | null>(null);
-  const { handlers: editLongPressHandlers, isPressing: isEditPressing } = useLongPress(
-    (coords) => setEditMenuCoords(coords),
-    { disabled: !shouldShowUserEditControl },
-  );
   const shouldShowAssistantCopyControl = message.type === 'assistant' &&
     assistantCopyContent.trim().length > 0 &&
     !isCommandOrFileEditToolResponse &&
@@ -123,10 +115,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
             {userCopyContent.trim().length > 0 || !message.images?.length ? (
               <>
+                {/* Amber ring marks the message currently loaded in the rewind-edit composer */}
                 <div
-                  {...editLongPressHandlers}
-                  className={`group max-w-full rounded-2xl bg-blue-600 px-3 py-2 text-white shadow-sm transition-[transform,opacity] duration-150 sm:px-4 ${
-                    isEditPressing ? 'scale-[0.97] opacity-80' : ''
+                  className={`group max-w-full rounded-2xl bg-blue-600 px-3 py-2 text-white shadow-sm sm:px-4 ${
+                    isRewindEditTarget ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
                   }`}
                 >
                   <div dir="auto" className="whitespace-pre-wrap break-words font-serif text-sm">
@@ -151,21 +143,6 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   )}
                   <span>{formattedTime}</span>
                 </div>
-                {editMenuCoords && (
-                  <SidebarContextMenu
-                    x={editMenuCoords.x}
-                    y={editMenuCoords.y}
-                    items={[
-                      {
-                        key: 'edit-rewind',
-                        label: t('rewind.editMessage', { defaultValue: 'Edit & rewind from here' }),
-                        icon: PencilIcon,
-                        onSelect: () => onEditMessage?.(message),
-                      },
-                    ]}
-                    onClose={() => setEditMenuCoords(null)}
-                  />
-                )}
               </>
             ) : (
               /* Image-only turn: no text bubble, but the timestamp still shows */

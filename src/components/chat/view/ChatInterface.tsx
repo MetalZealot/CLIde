@@ -398,6 +398,7 @@ function ChatInterface({
           selectedProject={selectedProject}
           onEditMessage={beginRewindEdit}
           canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing}
+          rewindEditTargetUuid={pendingRewind?.anchorMessageId ?? null}
         />
 
         <div className="relative flex-shrink-0">

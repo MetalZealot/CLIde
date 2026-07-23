@@ -9,7 +9,7 @@ import type {
   LLMProvider,
   ProviderModelsDefinition,
 } from '../../../../types/app';
-import { getIntrinsicMessageKey } from '../../utils/messageKeys';
+import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { groupConsecutiveTools, isToolGroupItem } from '../../utils/toolGrouping';
 
 import MessageComponent from './MessageComponent';
@@ -65,6 +65,8 @@ interface ChatMessagesPaneProps {
   selectedProject: Project;
   onEditMessage?: (message: ChatMessage) => void;
   canEditMessage?: boolean;
+  /** Base transcript uuid of the message loaded in the rewind-edit composer. */
+  rewindEditTargetUuid?: string | null;
 }
 
 function ChatMessagesPane({
@@ -114,6 +116,7 @@ function ChatMessagesPane({
   selectedProject,
   onEditMessage,
   canEditMessage = false,
+  rewindEditTargetUuid = null,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const groupedVisibleMessages = useMemo(
@@ -286,6 +289,11 @@ function ChatMessagesPane({
                   provider={provider}
                   onEditMessage={onEditMessage}
                   canEditMessage={canEditMessage}
+                  isRewindEditTarget={
+                    rewindEditTargetUuid !== null &&
+                    item.type === 'user' &&
+                    getTranscriptMessageUuid(item.id) === rewindEditTargetUuid
+                  }
                 />
               );
             });
