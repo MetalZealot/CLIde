@@ -36,6 +36,12 @@ export interface SubagentChildTool {
 
 export interface ChatMessage {
   type: string;
+  /**
+   * Normalized message id. For Claude this is the transcript uuid (plus an
+   * optional part suffix) — the stable anchor the rewind feature sends back
+   * to the server. Absent on optimistic/legacy messages.
+   */
+  id?: string;
   content?: string;
   displayText?: string;
   timestamp: string | number | Date;

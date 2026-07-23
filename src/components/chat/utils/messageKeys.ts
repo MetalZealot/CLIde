@@ -1,5 +1,21 @@
 import type { ChatMessage } from '../types/types';
 
+const TRANSCRIPT_UUID_PREFIX_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+/**
+ * Normalized ids are the provider transcript uuid plus an optional part
+ * suffix (`_text_0`, `_tr_<toolUseId>`, ...). Returns the bare uuid, or null
+ * for ids that are not transcript-backed (optimistic messages, the server's
+ * `claude_<uuid>` fallbacks) — those cannot anchor a rewind.
+ */
+export const getTranscriptMessageUuid = (messageId: unknown): string | null => {
+  if (typeof messageId !== 'string') {
+    return null;
+  }
+  const match = messageId.match(TRANSCRIPT_UUID_PREFIX_RE);
+  return match ? match[0].toLowerCase() : null;
+};
+
 const toMessageKeyPart = (value: unknown): string | null => {
   if (typeof value !== 'string' && typeof value !== 'number') {
     return null;

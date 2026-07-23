@@ -81,6 +81,9 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
 
   for (const msg of messages) {
     const sharedMetadata = {
+      // Transcript-backed id (Claude: jsonl uuid + part suffix). Doubles as a
+      // stable React key via getIntrinsicMessageKey and as the rewind anchor.
+      id: msg.id,
       displayText: msg.displayText,
       commandName: msg.commandName,
       commandMessage: msg.commandMessage,
@@ -116,6 +119,8 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
                 content: formatUsageLimitText(unescapeWithMathProtection(decodeHtmlEntities(taskNotif.result))),
                 timestamp: msg.timestamp,
                 ...sharedMetadata,
+                // Two ChatMessages from one normalized row — keep ids unique.
+                id: msg.id ? `${msg.id}_result` : undefined,
               });
             }
           } else {
