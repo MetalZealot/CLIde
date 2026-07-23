@@ -187,9 +187,20 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   can seed the description, and #554/#567 give it ready-made repro reports. **Ready
   pending the half-open-WS item's desktop/network-tab check — strongest-impact candidate.**
 
+- [ ] **Claude re-login creating stray sidebar sessions** (`962ef7a`) — upstream runs the
+  same `claude --dangerously-skip-permissions /login` in `ProviderLoginModal.tsx`, so
+  every Claude re-login leaves a junk REPL transcript session there too, and their
+  `isLoginCommand` fresh-PTY detection (`'auth login'`) never matches Claude either.
+  One-file swap to `claude auth login`. Upstream check 2026-07-23: no issue/PR (searched
+  issues "login session", PRs "auth login"; adjacent hits #551 cursor login, #1051 slash
+  command rendering — different bugs); open PR #1035 already uses `claude auth status`,
+  so the `auth` subcommand family is accepted there. Caveat for the PR: needs a CLI new
+  enough to have `claude auth` (2.1.x). **Pending live verification on the fork.**
+
 ## Done
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Auth: Claude re-login no longer creates a stray sidebar session** (2026-07-23, `962ef7a`). `claude /login` boots the interactive REPL, which writes a transcript into `~/.claude/projects/<cwd>/` — landing in the CLIde project itself, since the empty-shell placeholder resolves to the server's cwd — and stranded the user in a REPL afterward. Swapped to the dedicated `claude auth login` subcommand: same browser-link + paste-code UX, exits on completion, no transcript; also finally matches the server's `isLoginCommand` fresh-PTY detection. Upstream candidate (tracked above). **Not yet live-verified** — confirm on the next real re-login (no stray session, flow completes). **S**
 - [x] **Sidebar: "Copy session ID" in the long-press context menu** (2026-07-22, `243e44f`). Fork-only; born from the PWA having no URL bar. Copies the app session id — the server deliberately never exposes provider ids; map to the Claude JSONL via `sqlite3 ~/.cloudcli/auth.db "select provider_session_id from sessions where id='<id>'"`. Verified live on the phone. Follow-up (same action for the *current* session) tracked in Mobile UX. **S**
 - [x] **Quick Settings: opt-in "Enter to send" toggle on touch devices** (2026-07-22, `0551406`). The "Send by Ctrl+Enter" row was a silent no-op on touch after `d9c9d2b`; coarse-pointer devices now get an `enterToSend` pref instead (default off — newline stays the touch default), via shared `isTouchPrimaryDevice()` (`src/utils/pointer.ts`). Verified live. Strengthens the deferred touch-Enter upstream PR. **S**
 - [x] **File browser: desktop drag-to-move + Move-dialog scroll fix + collapsible picker** (2026-07-22, `ad9efda` + `8747136`). Drag is fine-pointer-only (touch keeps the long-press dialog); internal drags carry a custom dataTransfer type so OS-file upload drops still work; the folder picker is a collapsed-by-default tree (chevron expands, tap selects/drills). Verified live. **S/M**
