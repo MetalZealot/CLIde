@@ -39,15 +39,47 @@ async function unlinkJsonlIfExists(filePath: string): Promise<void> {
 }
 
 /**
- * Loads all session rows for the project path and removes each distinct `jsonl_path` file on disk.
+ * Removes a directory only when it is already empty. Non-recursive `rmdir` throws
+ * `ENOTEMPTY` if anything remains (e.g. nested subagent transcripts), so this never
+ * deletes data — it just clears the empty `~/.claude/projects/<slug>/` shell left behind
+ * once every session jsonl is gone.
+ */
+async function rmdirIfEmpty(dirPath: string): Promise<void> {
+  try {
+    await fs.rmdir(dirPath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTEMPTY') {
+      return;
+    }
+    console.warn(`[project-delete] Failed to remove empty dir ${dirPath}:`, (error as Error).message);
+  }
+}
+
+/**
+ * Removes each jsonl file, then prunes any now-empty parent directory (the per-project
+ * `~/.claude/projects/<slug>/` folder). Exported for testing without the DB seam.
+ */
+export async function removeJsonlFilesAndPruneEmptyDirs(paths: string[]): Promise<void> {
+  const parentDirs = new Set<string>();
+  for (const filePath of paths) {
+    await unlinkJsonlIfExists(filePath);
+    parentDirs.add(path.dirname(filePath));
+  }
+
+  for (const dirPath of parentDirs) {
+    await rmdirIfEmpty(dirPath);
+  }
+}
+
+/**
+ * Loads all session rows for the project path and removes each distinct `jsonl_path` file on disk,
+ * then prunes any now-empty parent directory (the per-project `~/.claude/projects/<slug>/` folder).
  */
 export async function deleteSessionJsonlFilesForProjectPath(projectPath: string): Promise<void> {
   const sessions = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath);
   const paths = uniqueJsonlPathsFromSessions(sessions);
-
-  for (const filePath of paths) {
-    await unlinkJsonlIfExists(filePath);
-  }
+  await removeJsonlFilesAndPruneEmptyDirs(paths);
 }
 
 /**
