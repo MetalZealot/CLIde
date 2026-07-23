@@ -226,8 +226,24 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.settingSources = ['project', 'user', 'local'];
 
+  // Snapshot files before edits (file-history-snapshot/-delta rows in the
+  // session jsonl) so a future file-restore rewind has checkpoints to work
+  // with. Conversation-only rewind does not depend on this.
+  if (process.env.CLIDE_DISABLE_CHECKPOINTS !== '1') {
+    sdkOptions.enableFileCheckpointing = true;
+  }
+
   if (sessionId) {
     sdkOptions.resume = sessionId;
+  }
+
+  if (sessionId && options.resumeSessionAt) {
+    // Rewind: resume only up to (and including) this assistant-message uuid.
+    // Verified 2026-07-22 (scripts/verify-rewind-sdk.ts): the SDK keeps the
+    // same session id and APPENDS the new turn with parentUuid set to the
+    // anchor — the transcript becomes a tree and readers must follow the
+    // active parent chain.
+    sdkOptions.resumeSessionAt = options.resumeSessionAt;
   }
 
   return sdkOptions;
