@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Pencil, Star, Trash2 } from 'lucide-react';
+import { Archive, Copy, Pencil, Star, Trash2 } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -13,6 +13,7 @@ import type { Project, LLMProvider } from '../../../types/app';
 import type { MCPServerStatus, SidebarProps, SessionWithProvider } from '../types/types';
 import type { LongPressCoords } from '../../../hooks/useLongPress';
 import { getSessionName } from '../utils/utils';
+import { copyTextToClipboard } from '../../../utils/clipboard';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
@@ -190,6 +191,16 @@ function Sidebar({
           onSelect: () => {
             setEditingSession(session.id);
             setEditingSessionName(sessionName);
+          },
+        },
+        {
+          // PWA has no URL bar, so this is the only way to see/share a session id
+          // (e.g. to point a Claude session at another chat's transcript).
+          key: 'copy-id',
+          label: t('actions.copySessionId', 'Copy session ID'),
+          icon: Copy,
+          onSelect: () => {
+            void copyTextToClipboard(session.id);
           },
         },
         {
