@@ -1,7 +1,10 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { PencilIcon } from 'lucide-react';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+import { useLongPress } from '../../../../hooks/useLongPress';
+import SidebarContextMenu from '../../../sidebar/view/subcomponents/SidebarContextMenu';
 import type {
   ChatMessage,
   ClaudePermissionSuggestion,
@@ -9,6 +12,7 @@ import type {
   Provider,
 } from '../../types/types';
 import { formatUsageLimitText } from '../../utils/chatFormatting';
+import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import type { Project } from '../../../../types/app';
 import { ToolRenderer, shouldHideToolResult } from '../../tools';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../shared/view/ui';
@@ -35,6 +39,10 @@ type MessageComponentProps = {
   showThinking?: boolean;
   selectedProject?: Project | null;
   provider: Provider | string;
+  /** Enters rewind-edit mode for this (user) message. */
+  onEditMessage?: (message: ChatMessage) => void;
+  /** Provider supports rewind and no turn is running. */
+  canEditMessage?: boolean;
 };
 
 type InteractiveOption = {
@@ -45,7 +53,7 @@ type InteractiveOption = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -65,6 +73,25 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     message.isToolUse && COPY_HIDDEN_TOOL_NAMES.has(String(message.toolName || ''))
   );
   const shouldShowUserCopyControl = message.type === 'user' && userCopyContent.trim().length > 0;
+  // Rewind edit needs a transcript-backed uuid: optimistic rows and command
+  // artifacts can't anchor a resume, so they never get the affordance.
+  const shouldShowUserEditControl =
+    canEditMessage &&
+    Boolean(onEditMessage) &&
+    message.type === 'user' &&
+    userCopyContent.trim().length > 0 &&
+    !message.isLocalCommand &&
+    !message.isCompactSummary &&
+    getTranscriptMessageUuid(message.id) !== null;
+
+  // Touch path: long-press the bubble → anchored context menu with the edit
+  // action. Press visual driven by isPressing (CSS :active is unreliable on
+  // touch — see useLongPress docs).
+  const [editMenuCoords, setEditMenuCoords] = useState<{ x: number; y: number } | null>(null);
+  const { handlers: editLongPressHandlers, isPressing: isEditPressing } = useLongPress(
+    (coords) => setEditMenuCoords(coords),
+    { disabled: !shouldShowUserEditControl },
+  );
   const shouldShowAssistantCopyControl = message.type === 'assistant' &&
     assistantCopyContent.trim().length > 0 &&
     !isCommandOrFileEditToolResponse &&
@@ -96,18 +123,49 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             )}
             {userCopyContent.trim().length > 0 || !message.images?.length ? (
               <>
-                <div className="group max-w-full rounded-2xl bg-blue-600 px-3 py-2 text-white shadow-sm sm:px-4">
+                <div
+                  {...editLongPressHandlers}
+                  className={`group max-w-full rounded-2xl bg-blue-600 px-3 py-2 text-white shadow-sm transition-[transform,opacity] duration-150 sm:px-4 ${
+                    isEditPressing ? 'scale-[0.97] opacity-80' : ''
+                  }`}
+                >
                   <div dir="auto" className="whitespace-pre-wrap break-words font-serif text-sm">
                     {message.content}
                   </div>
                 </div>
                 {/* Copy + timestamp sit below the bubble, claude.ai-style */}
                 <div className="-mt-1 flex items-center justify-end gap-1 px-1 text-xs text-gray-400 dark:text-gray-500">
+                  {shouldShowUserEditControl && (
+                    <button
+                      type="button"
+                      onClick={() => onEditMessage?.(message)}
+                      aria-label={t('rewind.editMessage', { defaultValue: 'Edit & rewind from here' })}
+                      title={t('rewind.editMessage', { defaultValue: 'Edit & rewind from here' })}
+                      className="rounded px-1 py-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                    >
+                      <PencilIcon className="h-3 w-3" />
+                    </button>
+                  )}
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
                   )}
                   <span>{formattedTime}</span>
                 </div>
+                {editMenuCoords && (
+                  <SidebarContextMenu
+                    x={editMenuCoords.x}
+                    y={editMenuCoords.y}
+                    items={[
+                      {
+                        key: 'edit-rewind',
+                        label: t('rewind.editMessage', { defaultValue: 'Edit & rewind from here' }),
+                        icon: PencilIcon,
+                        onSelect: () => onEditMessage?.(message),
+                      },
+                    ]}
+                    onClose={() => setEditMenuCoords(null)}
+                  />
+                )}
               </>
             ) : (
               /* Image-only turn: no text bubble, but the timestamp still shows */

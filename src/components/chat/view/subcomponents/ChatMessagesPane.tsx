@@ -63,6 +63,8 @@ interface ChatMessagesPaneProps {
   showRawParameters?: boolean;
   showThinking?: boolean;
   selectedProject: Project;
+  onEditMessage?: (message: ChatMessage) => void;
+  canEditMessage?: boolean;
 }
 
 function ChatMessagesPane({
@@ -110,6 +112,8 @@ function ChatMessagesPane({
   showRawParameters,
   showThinking,
   selectedProject,
+  onEditMessage,
+  canEditMessage = false,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const groupedVisibleMessages = useMemo(
@@ -280,6 +284,8 @@ function ChatMessagesPane({
                   showThinking={showThinking}
                   selectedProject={selectedProject}
                   provider={provider}
+                  onEditMessage={onEditMessage}
+                  canEditMessage={canEditMessage}
                 />
               );
             });

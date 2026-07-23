@@ -96,6 +96,7 @@ function ChatInterface({
     selectProviderModel,
     setStoredProviderEffort,
     resolvePermissionModeForProvider,
+    getSupportsRewindForProvider,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
@@ -186,6 +187,7 @@ function ChatInterface({
     editQueuedDraft,
     deleteQueuedDraft,
     pendingRewind,
+    beginRewindEdit,
     cancelRewindEdit,
     handleVoiceTranscript,
     handleInputChange,
@@ -390,6 +392,8 @@ function ChatInterface({
           showRawParameters={showRawParameters}
           showThinking={showThinking}
           selectedProject={selectedProject}
+          onEditMessage={beginRewindEdit}
+          canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing}
         />
 
         <div className="relative flex-shrink-0">
