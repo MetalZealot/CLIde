@@ -235,6 +235,13 @@ export type NormalizedMessage = {
    * the live events they missed across websocket reconnects.
    */
   seq?: number;
+  /**
+   * Identifier of the run that assigned `seq`. Sequence numbers restart for
+   * every run, so replay progress is only comparable within one runId —
+   * clients echo it in `chat.subscribe` and reset their counter whenever a
+   * frame carries a new one.
+   */
+  runId?: string;
   role?: 'user' | 'assistant';
   content?: string;
   /**

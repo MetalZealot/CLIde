@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
@@ -25,12 +26,18 @@ type ChatRunStatus = 'running' | 'completed';
  * - `lastSeq` / `events`: the per-run event log. Every live event gets a
  *   monotonically increasing `seq` and is buffered so a reconnecting client
  *   can replay exactly the events it missed via `chat.subscribe`.
+ * - `runId`: identifies this run on the wire. `seq` restarts at 1 for every
+ *   run, so a client's replay progress is only meaningful for the run it was
+ *   recorded against — `chat.subscribe` echoes the runId back, and a mismatch
+ *   (older run, or a counter that predates a server restart) means the
+ *   client's `lastSeq` must be ignored and the full buffer replayed.
  */
 type ChatRun = {
   appSessionId: string;
   provider: LLMProvider;
   providerSessionId: string | null;
   status: ChatRunStatus;
+  runId: string;
   lastSeq: number;
   events: NormalizedMessage[];
   writer: ChatSessionWriter;
@@ -140,6 +147,7 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
   const outbound: NormalizedMessage = {
     ...message,
     sessionId: run.appSessionId,
+    runId: run.runId,
     seq: run.lastSeq,
   };
 
@@ -226,6 +234,7 @@ export const chatRunRegistry = {
       provider: input.provider,
       providerSessionId: input.providerSessionId,
       status: 'running',
+      runId: randomUUID(),
       lastSeq: 0,
       events: [],
       writer: null as unknown as ChatSessionWriter,
@@ -292,16 +301,24 @@ export const chatRunRegistry = {
   /**
    * Returns buffered events with `seq` greater than `afterSeq` for replay.
    *
+   * `afterSeq` is only meaningful against the run it was recorded from: `seq`
+   * restarts per run, so when `clientRunId` doesn't match the current run
+   * (client last saw an older run, or its counter predates a server restart)
+   * the whole buffer is replayed instead — the client's transport-level
+   * dedup guard makes over-replay safe, while trusting a stale counter would
+   * silently skip everything the client hasn't seen.
+   *
    * An empty array with `run.lastSeq > afterSeq` not covered by the buffer
    * means the buffer was truncated; the client should refresh over REST.
    */
-  replayEvents(appSessionId: string, afterSeq: number): NormalizedMessage[] {
+  replayEvents(appSessionId: string, afterSeq: number, clientRunId?: string | null): NormalizedMessage[] {
     const run = runs.get(appSessionId);
     if (!run) {
       return [];
     }
 
-    return run.events.filter((event) => typeof event.seq === 'number' && event.seq > afterSeq);
+    const effectiveAfterSeq = clientRunId === run.runId ? afterSeq : 0;
+    return run.events.filter((event) => typeof event.seq === 'number' && event.seq > effectiveAfterSeq);
   },
 
   /**

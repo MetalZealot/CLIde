@@ -39,7 +39,7 @@ function ChatInterface({
   onShowAllTasks,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
-  const { subscribe, isConnected, probeConnection } = useWebSocket();
+  const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
   const { t } = useTranslation('chat');
 
   // "Connection lost" is only meaningful after a first successful connect —
@@ -59,10 +59,9 @@ function ChatInterface({
   // When each session's `chat.subscribe` was last sent; idle acks older than
   // a later local request are discarded as stale.
   const statusCheckSentAtRef = useRef(new Map<string, number>());
-  // Highest live `seq` observed per session. Written by the realtime handler
-  // on every sequenced frame, read whenever a `chat.subscribe` is sent so the
-  // server replays only the events this client actually missed.
-  const lastSeqRef = useRef(new Map<string, number>());
+  // Replay progress (`lastSeq` + `runId`) is tracked at the transport level —
+  // see WebSocketContext's `getReplayProgress` — so it survives this
+  // component unmounting and stays exact under the dedup guard.
 
   const resetStreamingState = useCallback(() => {
     if (streamTimerRef.current) {
@@ -142,7 +141,7 @@ function ChatInterface({
     onSessionIdle,
     resetStreamingState,
     statusCheckSentAtRef,
-    lastSeqRef,
+    getReplayProgress,
     sessionStore,
   });
 
@@ -240,14 +239,16 @@ function ChatInterface({
     if (!selectedProject || !selectedSession) return;
     await sessionStore.refreshFromServer(selectedSession.id);
     statusCheckSentAtRef.current.set(selectedSession.id, Date.now());
+    const progress = getReplayProgress(selectedSession.id);
     sendMessage({
       type: 'chat.subscribe',
       sessions: [{
         sessionId: selectedSession.id,
-        lastSeq: lastSeqRef.current.get(selectedSession.id) ?? 0,
+        lastSeq: progress?.seq ?? 0,
+        runId: progress?.runId ?? null,
       }],
     });
-  }, [selectedProject, selectedSession, sendMessage, sessionStore]);
+  }, [selectedProject, selectedSession, sendMessage, sessionStore, getReplayProgress]);
 
   const handleSelectProviderModel = useCallback(async (targetProvider: typeof provider, model: string, sessionId?: string | null) => {
     const result = await selectProviderModel(targetProvider, model, sessionId);
@@ -267,7 +268,6 @@ function ChatInterface({
     setPendingPermissionRequests,
     streamTimerRef,
     accumulatedStreamRef,
-    lastSeqRef,
     statusCheckSentAtRef,
     onSessionProcessing,
     onSessionIdle,

@@ -64,8 +64,10 @@ test('live events are remapped to the app session id and sequenced', async () =>
     assert.equal(connection.frames.length, 2);
     assert.equal(connection.frames[0]?.sessionId, 'app-run-1');
     assert.equal(connection.frames[0]?.seq, 1);
+    assert.equal(connection.frames[0]?.runId, run.runId);
     assert.equal(connection.frames[1]?.sessionId, 'app-run-1');
     assert.equal(connection.frames[1]?.seq, 2);
+    assert.equal(connection.frames[1]?.runId, run.runId);
   });
 });
 
@@ -199,7 +201,7 @@ test('listRunningRuns returns only currently running app sessions', async () => 
   });
 });
 
-test('replayEvents returns only events after the requested seq', async () => {
+test('replayEvents returns only events after the requested seq for the matching run', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('app-run-4', 'claude', '/workspace/demo');
     const connection = new FakeConnection();
@@ -216,9 +218,67 @@ test('replayEvents returns only events after the requested seq', async () => {
     run.writer.send({ kind: 'stream_delta', provider: 'claude', sessionId: 'x', content: 'b' });
     run.writer.send({ kind: 'stream_delta', provider: 'claude', sessionId: 'x', content: 'c' });
 
-    const replayed = chatRunRegistry.replayEvents('app-run-4', 1);
+    const replayed = chatRunRegistry.replayEvents('app-run-4', 1, run.runId);
     assert.deepEqual(replayed.map((event) => event.content), ['b', 'c']);
     assert.deepEqual(replayed.map((event) => event.seq), [2, 3]);
+  });
+});
+
+test('replayEvents ignores the client seq when its runId is stale or missing', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-10', 'claude', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-10',
+      provider: 'claude',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    run.writer.send({ kind: 'stream_delta', provider: 'claude', sessionId: 'x', content: 'a' });
+    run.writer.send({ kind: 'stream_delta', provider: 'claude', sessionId: 'x', content: 'b' });
+
+    // `seq` restarts per run, so a counter recorded against another run (or
+    // before a server restart) says nothing about this one: a client stuck on
+    // run 1's high-water mark must still receive ALL of run 2's events.
+    const staleRun = chatRunRegistry.replayEvents('app-run-10', 40, 'some-older-run-id');
+    assert.deepEqual(staleRun.map((event) => event.content), ['a', 'b']);
+
+    const noRun = chatRunRegistry.replayEvents('app-run-10', 40, null);
+    assert.deepEqual(noRun.map((event) => event.content), ['a', 'b']);
+
+    const omitted = chatRunRegistry.replayEvents('app-run-10', 40);
+    assert.deepEqual(omitted.map((event) => event.content), ['a', 'b']);
+  });
+});
+
+test('consecutive runs for one session carry distinct runIds', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-11', 'codex', '/workspace/demo');
+    const connection = new FakeConnection();
+
+    const firstRun = chatRunRegistry.startRun({
+      appSessionId: 'app-run-11',
+      provider: 'codex',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(firstRun);
+    assert.ok(firstRun.runId);
+    chatRunRegistry.completeRun('app-run-11', { exitCode: 0 });
+
+    const secondRun = chatRunRegistry.startRun({
+      appSessionId: 'app-run-11',
+      provider: 'codex',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(secondRun);
+    assert.notEqual(secondRun.runId, firstRun.runId);
   });
 });
 

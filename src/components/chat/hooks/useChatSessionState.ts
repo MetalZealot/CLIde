@@ -3,6 +3,7 @@ import type { MutableRefObject } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
 import type { MarkSessionIdle, SessionActivityMap } from '../../../hooks/useSessionProtection';
+import type { ReplayProgress } from '../../../contexts/WebSocketContext';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage } from '../types/types';
@@ -25,8 +26,8 @@ interface UseChatSessionStateArgs {
   resetStreamingState: () => void;
   /** When each session's `chat.subscribe` was last sent; guards stale idle acks. */
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
-  /** Highest live seq observed per session; sent as `lastSeq` on subscribe. */
-  lastSeqRef: MutableRefObject<Map<string, number>>;
+  /** Transport-tracked replay progress; sent as `lastSeq` + `runId` on subscribe. */
+  getReplayProgress: (sessionId: string) => ReplayProgress | null;
   sessionStore: SessionStore;
 }
 
@@ -104,7 +105,7 @@ export function useChatSessionState({
   onSessionIdle,
   resetStreamingState,
   statusCheckSentAtRef,
-  lastSeqRef,
+  getReplayProgress,
   sessionStore,
 }: UseChatSessionStateArgs) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(selectedSession?.id || null);
@@ -504,11 +505,13 @@ export function useChatSessionState({
       }
 
       statusCheckSentAtRef.current.set(selectedSessionId, Date.now());
+      const progress = getReplayProgress(selectedSessionId);
       sendMessage({
         type: 'chat.subscribe',
         sessions: [{
           sessionId: selectedSessionId,
-          lastSeq: lastSeqRef.current.get(selectedSessionId) ?? 0,
+          lastSeq: progress?.seq ?? 0,
+          runId: progress?.runId ?? null,
         }],
       });
     };
@@ -575,7 +578,7 @@ export function useChatSessionState({
     selectedSession?.id,
     sendMessage,
     statusCheckSentAtRef,
-    lastSeqRef,
+    getReplayProgress,
     ws,
     sessionStore,
   ]);

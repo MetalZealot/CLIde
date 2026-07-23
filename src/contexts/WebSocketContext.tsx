@@ -14,10 +14,18 @@ export type ServerEvent = {
   type?: string;
   sessionId?: string;
   seq?: number;
+  runId?: string;
   [key: string]: unknown;
 };
 
 type ServerEventListener = (event: ServerEvent) => void;
+
+/**
+ * How far into a run's sequenced live events this client has processed.
+ * `seq` restarts at 1 for every run, so the counter is only meaningful
+ * together with the `runId` it was recorded against.
+ */
+export type ReplayProgress = { runId: string | null; seq: number };
 
 type WebSocketContextType = {
   ws: WebSocket | null;
@@ -54,6 +62,14 @@ type WebSocketContextType = {
    * detection from the next heartbeat tick (≤40s) to PONG_TIMEOUT_MS.
    */
   probeConnection: () => void;
+  /**
+   * Replay progress for a session's sequenced live events, for `chat.subscribe`
+   * (`lastSeq` + `runId`) so the server replays only what this client missed.
+   * Tracked here — not in chat components — because the dedup guard in
+   * `onmessage` is what keeps it exact, and because it must survive chat-view
+   * remounts (a reset counter would make the server replay the whole buffer).
+   */
+  getReplayProgress: (sessionId: string) => ReplayProgress | null;
 };
 
 /**
@@ -102,6 +118,13 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const watchdogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  /**
+   * Per-session replay progress (see ReplayProgress). Written by the dedup
+   * guard in `onmessage`, read by `chat.subscribe` senders. Bounded by the
+   * sessions viewed this page lifetime; entries are tiny and never stale —
+   * a new run's frames carry a new runId and reset their entry.
+   */
+  const replayProgressRef = useRef(new Map<string, ReplayProgress>());
   /**
    * Self-reference so timer callbacks created inside `connect` (watchdog,
    * wake probe) can trigger a fresh connection without a circular
@@ -220,6 +243,24 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         try {
           const data = JSON.parse(event.data) as ServerEvent;
           if (data.kind === 'chat_pong') return; // liveness echo — not for listeners
+
+          // Exactly-once dispatch for sequenced run frames: `chat.subscribe`
+          // replay can overlap frames that raced in live, and `seq` restarts
+          // per run, so progress only compares within the same runId. A frame
+          // at or below the recorded seq for its run was already dispatched —
+          // drop it here so no listener ever sees a duplicate. Frames without
+          // a runId (server predating it) are never dropped: with no way to
+          // tell "replay overlap" from "new run restarting at 1", dropping
+          // could eat legitimate frames.
+          if (typeof data.seq === 'number' && typeof data.sessionId === 'string' && data.sessionId) {
+            const runId = typeof data.runId === 'string' ? data.runId : null;
+            const known = replayProgressRef.current.get(data.sessionId);
+            if (runId !== null && known && known.runId === runId && data.seq <= known.seq) {
+              return;
+            }
+            replayProgressRef.current.set(data.sessionId, { runId, seq: data.seq });
+          }
+
           dispatch(data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -335,6 +376,10 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     };
   }, []);
 
+  const getReplayProgress = useCallback((sessionId: string): ReplayProgress | null => {
+    return replayProgressRef.current.get(sessionId) ?? null;
+  }, []);
+
   const value: WebSocketContextType = useMemo(() =>
   ({
     ws: wsRef.current,
@@ -342,8 +387,9 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     subscribe,
     latestMessage,
     isConnected,
-    probeConnection
-  }), [sendMessage, subscribe, latestMessage, isConnected, probeConnection]);
+    probeConnection,
+    getReplayProgress
+  }), [sendMessage, subscribe, latestMessage, isConnected, probeConnection, getReplayProgress]);
 
   return value;
 };

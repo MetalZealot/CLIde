@@ -27,13 +27,6 @@ interface UseChatRealtimeHandlersArgs {
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   streamTimerRef: MutableRefObject<number | null>;
   accumulatedStreamRef: MutableRefObject<string>;
-  /**
-   * Highest live `seq` observed per session. Essential for reconnect catch-up:
-   * `chat.subscribe` sends this value as `lastSeq` so the server replays only
-   * the events this client actually missed. Written here on every sequenced
-   * frame; read wherever a `chat.subscribe` is sent (session open, reconnect).
-   */
-  lastSeqRef: MutableRefObject<Map<string, number>>;
   /** When each session's `chat.subscribe` was last sent; guards stale idle acks. */
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
   onSessionProcessing?: MarkSessionProcessing;
@@ -65,7 +58,6 @@ export function useChatRealtimeHandlers({
   setPendingPermissionRequests,
   streamTimerRef,
   accumulatedStreamRef,
-  lastSeqRef,
   statusCheckSentAtRef,
   onSessionProcessing,
   onSessionIdle,
@@ -97,13 +89,10 @@ export function useChatRealtimeHandlers({
       const activeViewSessionId = activeViewSessionIdRef.current;
       const sid = (typeof msg.sessionId === 'string' && msg.sessionId) || activeViewSessionId;
 
-      // Record replay progress for every sequenced live event.
-      if (sid && typeof msg.seq === 'number') {
-        const known = lastSeqRef.current.get(sid) ?? 0;
-        if (msg.seq > known) {
-          lastSeqRef.current.set(sid, msg.seq);
-        }
-      }
+      // Replay progress and duplicate-frame dropping both happen at the
+      // transport level (WebSocketContext): every sequenced frame reaching
+      // this handler is guaranteed first-delivery, and `chat.subscribe`
+      // senders read `getReplayProgress` instead of a local counter.
 
       switch (msg.kind) {
         case 'websocket_reconnected':
@@ -344,7 +333,6 @@ export function useChatRealtimeHandlers({
     setPendingPermissionRequests,
     streamTimerRef,
     accumulatedStreamRef,
-    lastSeqRef,
     statusCheckSentAtRef,
     onSessionProcessing,
     onSessionIdle,

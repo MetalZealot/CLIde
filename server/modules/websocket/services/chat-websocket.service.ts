@@ -256,7 +256,8 @@ async function handleChatAbort(
 /**
  * Handles `chat.subscribe`: for each requested session, reports whether a run
  * is processing, re-attaches the live stream to this socket, replays missed
- * events (seq > lastSeq), and includes pending permission requests.
+ * events (seq > lastSeq when the client's runId matches the current run; the
+ * full buffer otherwise), and includes pending permission requests.
  *
  * This single message replaces the old `check-session-status`,
  * `get-pending-permissions`, and Claude-only writer reconnect flows.
@@ -285,6 +286,12 @@ function handleChatSubscribe(
       ? Math.max(0, Math.floor(lastSeqRaw))
       : 0;
 
+    // Which run the client's `lastSeq` was recorded against — `seq` restarts
+    // per run, so replay only honors the counter when the runs match.
+    const clientRunId = typeof (target as AnyRecord).runId === 'string'
+      ? ((target as AnyRecord).runId as string)
+      : null;
+
     const run = chatRunRegistry.getRun(sessionId);
     const isProcessing = chatRunRegistry.isProcessing(sessionId);
 
@@ -309,6 +316,7 @@ function handleChatSubscribe(
       kind: 'chat_subscribed',
       sessionId,
       isProcessing,
+      runId: run?.runId ?? null,
       lastSeq: run?.lastSeq ?? 0,
       pendingPermissions,
       timestamp: new Date().toISOString(),
@@ -319,7 +327,7 @@ function handleChatSubscribe(
     // replaying them (e.g. after a page reload where the client's lastSeq is
     // 0) would duplicate messages the history fetch already returned.
     if (isProcessing) {
-      for (const event of chatRunRegistry.replayEvents(sessionId, lastSeq)) {
+      for (const event of chatRunRegistry.replayEvents(sessionId, lastSeq, clientRunId)) {
         sendJson(ws, event);
       }
     }
@@ -369,13 +377,13 @@ function handlePermissionResponse(data: AnyRecord, dependencies: ChatWebSocketDe
  * Inbound protocol (client to server):
  * - `chat.send`                { sessionId, content, options? }
  * - `chat.abort`               { sessionId }
- * - `chat.subscribe`           { sessions: [{ sessionId, lastSeq? }] }
+ * - `chat.subscribe`           { sessions: [{ sessionId, lastSeq?, runId? }] }
  * - `chat.permission-response` { requestId, allow, updatedInput?, message?, rememberEntry? }
  * - `chat.ping`                { ts? } — liveness probe; echoed as `chat_pong`
  *
  * Outbound protocol (server to client): every frame is `kind`-based — either
- * a provider `NormalizedMessage` (with `seq`) or a gateway event
- * (`chat_subscribed`, `session_upserted`, `loading_progress`,
+ * a provider `NormalizedMessage` (with `runId` + per-run `seq`) or a gateway
+ * event (`chat_subscribed`, `session_upserted`, `loading_progress`,
  * `protocol_error`, `chat_pong`).
  */
 export function handleChatConnection(
