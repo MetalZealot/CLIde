@@ -139,6 +139,11 @@
       "willSend": "Will send when this finishes",
       "edit": "Edit queued message",
       "delete": "Delete queued message"
+    },
+    "rewind": {
+      "label": "Editing earlier message",
+      "willRewind": "Sending rewinds the conversation to this point",
+      "cancel": "Cancel rewind edit"
     }
   },
   "providerSelection": {
@@ -242,5 +247,13 @@
   },
   "connection": {
     "reconnecting": "Connection lost — reconnecting…"
+  },
+  "rewind": {
+    "editMessage": "Edit & rewind from here",
+    "pickerEyebrow": "Rewind",
+    "pickerTitle": "Rewind to an earlier message",
+    "pickerSearch": "Search your messages...",
+    "pickerEmpty": "No earlier messages can be rewound to.",
+    "pickerHint": "Picking a message loads it into the composer; sending rewinds the conversation to that point."
   }
 }

@@ -7,6 +7,21 @@ import type { LLMProvider, Project } from '../../../types/app';
 
 const COMMAND_QUERY_DEBOUNCE_MS = 150;
 
+/**
+ * Client-implemented command, injected only when the active provider's
+ * capability matrix reports supportsRewind. Deliberately NOT added to the
+ * server's provider-unaware builtIn list so it never leaks to providers
+ * that can't honor it. Execution is intercepted client-side (it opens the
+ * rewind picker) — see executeCommand in useChatComposerState.
+ */
+const REWIND_COMMAND = {
+  name: '/rewind',
+  description: 'Edit an earlier message and rewind the conversation to that point',
+  namespace: 'builtin',
+  metadata: { type: 'builtin' },
+  type: 'built-in',
+} as const;
+
 export interface SlashCommand {
   name: string;
   description?: string;
@@ -24,6 +39,8 @@ interface UseSlashCommandsOptions {
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement>;
   onExecuteCommand: (command: SlashCommand, rawInput?: string) => void | Promise<void>;
+  /** Capability-gated: adds the client-side /rewind command to the menu. */
+  supportsRewind?: boolean;
 }
 
 type ProviderSkill = {
@@ -151,6 +168,7 @@ export function useSlashCommands({
   setInput,
   textareaRef,
   onExecuteCommand,
+  supportsRewind = false,
 }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -217,6 +235,7 @@ export function useSlashCommands({
         const skillCommands = dedupeProviderSkills(skillsData?.data?.skills || [])
           .map(mapSkillToSlashCommand);
         const allCommands: SlashCommand[] = [
+          ...(supportsRewind ? [{ ...REWIND_COMMAND } as SlashCommand] : []),
           ...((data.builtIn || []) as SlashCommand[]).map((command) => ({
             ...command,
             type: 'built-in',
@@ -250,7 +269,7 @@ export function useSlashCommands({
     return () => {
       cancelled = true;
     };
-  }, [selectedProject, provider]);
+  }, [selectedProject, provider, supportsRewind]);
 
   useEffect(() => {
     if (!showCommandMenu) {

@@ -16,6 +16,7 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
 import CommandResultModal from './subcomponents/CommandResultModal';
+import RewindPickerModal from './subcomponents/RewindPickerModal';
 
 function ChatInterface({
   selectedProject,
@@ -189,6 +190,8 @@ function ChatInterface({
     pendingRewind,
     beginRewindEdit,
     cancelRewindEdit,
+    showRewindPicker,
+    closeRewindPicker,
     handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,
@@ -233,6 +236,7 @@ function ChatInterface({
     setIsUserScrolledUp,
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
+    supportsRewind: getSupportsRewindForProvider(provider),
   });
 
   // On WebSocket reconnect, re-fetch the current session's messages from the
@@ -499,6 +503,13 @@ function ChatInterface({
       </div>
 
       <QuickSettingsPanel />
+
+      <RewindPickerModal
+        open={showRewindPicker}
+        onClose={closeRewindPicker}
+        chatMessages={chatMessages}
+        onPickMessage={beginRewindEdit}
+      />
 
       <CommandResultModal
         payload={commandModalPayload}

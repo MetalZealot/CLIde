@@ -73,6 +73,8 @@ interface UseChatComposerStateArgs {
   addMessage: (msg: ChatMessage) => void;
   setIsUserScrolledUp: (isScrolledUp: boolean) => void;
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
+  /** From the provider capability matrix; gates /rewind in the command menu. */
+  supportsRewind?: boolean;
 }
 
 interface MentionableFile {
@@ -231,6 +233,7 @@ export function useChatComposerState({
   addMessage,
   setIsUserScrolledUp,
   setPendingPermissionRequests,
+  supportsRewind = false,
 }: UseChatComposerStateArgs) {
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
@@ -264,6 +267,8 @@ export function useChatComposerState({
   // next send carries the anchor and resumes the session from that point.
   const [pendingRewind, setPendingRewind] = useState<PendingRewind | null>(null);
   const rewindReconcileSessionRef = useRef<string | null>(null);
+  // The /rewind command's prior-message picker.
+  const [showRewindPicker, setShowRewindPicker] = useState(false);
 
   const [queuedDraft, setQueuedDraft] = useState<QueuedDraft | null>(() => {
     if (typeof window === 'undefined' || !sessionKey) {
@@ -377,6 +382,16 @@ export function useChatComposerState({
   const executeCommand = useCallback(
     async (command: SlashCommand, rawInput?: string, options?: { preserveInput?: boolean }) => {
       if (!command || !selectedProject) {
+        return;
+      }
+
+      // /rewind never round-trips: it just opens the prior-message picker.
+      if (command.name === '/rewind') {
+        setShowRewindPicker(true);
+        if (!options?.preserveInput) {
+          setInput('');
+          inputValueRef.current = '';
+        }
         return;
       }
 
@@ -495,6 +510,7 @@ export function useChatComposerState({
     setInput,
     textareaRef,
     onExecuteCommand: executeCommand,
+    supportsRewind,
   });
 
   const {
@@ -1348,6 +1364,8 @@ export function useChatComposerState({
     pendingRewind,
     beginRewindEdit,
     cancelRewindEdit,
+    showRewindPicker,
+    closeRewindPicker: () => setShowRewindPicker(false),
     handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,
