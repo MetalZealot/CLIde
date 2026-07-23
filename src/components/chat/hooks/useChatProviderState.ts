@@ -54,6 +54,7 @@ type ProviderCapabilities = {
   supportsPermissionRequests: boolean;
   supportsTokenUsage: boolean;
   supportsEffort?: boolean;
+  supportsRewind?: boolean;
 };
 
 type ProviderCapabilitiesApiResponse = {
@@ -277,6 +278,13 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       return capabilitySupport;
     }
     return Boolean(FALLBACK_PROVIDER_EFFORT_VALUES[targetProvider]?.length);
+  }, [providerCapabilities]);
+
+  const getSupportsRewindForProvider = useCallback((targetProvider: LLMProvider): boolean => {
+    // No static fallback: rewind UI stays hidden until the backend confirms
+    // the capability, so a failed capabilities fetch can never surface an
+    // affordance the runtime would reject.
+    return providerCapabilities?.[targetProvider]?.supportsRewind === true;
   }, [providerCapabilities]);
 
   const pickStoredOrCurrent = (
@@ -590,5 +598,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     selectProviderModel,
     setStoredProviderEffort,
     resolvePermissionModeForProvider,
+    getSupportsRewindForProvider,
   };
 }

@@ -23,6 +23,11 @@ type ProviderCapabilities = {
   supportsTokenUsage: boolean;
   /** Whether the provider runtime can accept model-level reasoning effort. */
   supportsEffort: boolean;
+  /**
+   * Whether a chat.send may carry `rewindToMessageId` to resume the session
+   * from an earlier message (edit-a-prior-message / "/rewind" in the chat UI).
+   */
+  supportsRewind: boolean;
 };
 
 /**
@@ -41,6 +46,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsEffort: true,
+    supportsRewind: true,
   },
   cursor: {
     provider: 'cursor',
@@ -51,6 +57,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
     supportsEffort: false,
+    supportsRewind: false,
   },
   codex: {
     provider: 'codex',
@@ -61,6 +68,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsEffort: true,
+    supportsRewind: false,
   },
   opencode: {
     provider: 'opencode',
@@ -74,6 +82,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsEffort: true,
+    supportsRewind: false,
   },
 };
 
