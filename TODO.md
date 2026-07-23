@@ -70,8 +70,8 @@ so other sessions see the claim.
 - [ ] `!` shell mode in the conversation window (like the CLI). **M**
 - [ ] Conversation "map" sidebar: a minimap showing where user/Claude messages sit in the convo (like doc editors/IDEs); tapping scrolls there. Depends on fixing the long-convo scroll jitter bug above. **L**
 - [ ] Double-tap Esc to stop a message mid-send and immediately begin editing it. **M**
-- [ ] `/rewind` command — and audit what other Claude Code CLI commands are missing from CloudCLI, integrate them. **L**
-- [ ] Rewind via the transcript: scroll back to a specific message and hit an "edit" button to rewind there. Big QoL — most major tools offer some form of undo/rewind. **L**
+- [ ] `/rewind` command — and audit what other Claude Code CLI commands are missing from CloudCLI, integrate them. **L** *(the `/rewind` half is in progress on feat/rewind — picker command opening the rewind flow; the broader command audit stays open)*
+- [ ] Rewind via the transcript: scroll back to a specific message and hit an "edit" button to rewind there. Big QoL — most major tools offer some form of undo/rewind. **L** — **in progress on feat/rewind** (plan: conversation rewind via SDK `resumeSessionAt`, edit affordance + `/rewind` picker, `supportsRewind` capability gate; file restore = later phase)
 - [ ] Modern IDE-style features: "@"-ing files, highlighting text in the editor to reference it in chat, "following" Claude's edits in realtime. **L**
 - [ ] More IDE-like desktop layout: more split panels (convo, files, and editor open at the same time). **L**
 - [ ] Landing page on entry. Currently just a blank page saying to tap the menu button for the sidebar. A list of recent convos would make sense — last-messaged time, token count, project, model… **M**
