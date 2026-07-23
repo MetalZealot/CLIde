@@ -26,7 +26,12 @@ const getProviderCommand = ({
   }
 
   if (provider === 'claude') {
-    return 'claude --dangerously-skip-permissions /login';
+    // `claude auth login` runs the OAuth flow and exits — unlike `claude /login`,
+    // it never boots the interactive REPL, so no session transcript is written
+    // (the old command left a stray session in the sidebar after every re-login).
+    // It also matches the server's `isLoginCommand` detection ('auth login'),
+    // which `/login` never did.
+    return 'claude auth login';
   }
 
   if (provider === 'cursor') {
@@ -41,7 +46,7 @@ const getProviderCommand = ({
     return 'opencode auth login';
   }
 
-  return 'claude --dangerously-skip-permissions /login';
+  return 'claude auth login';
 };
 
 const getProviderTitle = (provider: LLMProvider) => {
