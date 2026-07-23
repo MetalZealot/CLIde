@@ -92,6 +92,16 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [ ] **Skill-content leak + synthetic-notice/compact-summary rendering** (see Done
+  2026-07-23) — the skill-injection filter directly fixes **open upstream issue
+  siteboon/claudecodeui#1009** ("skill content rendered as user input in web UI",
+  no fix PR as of 2026-07-23 — only a CodeRabbit auto-comment; checked via
+  `gh issue view 1009` + PR search). Upstream's `normalizeMessage` has the identical
+  gap (`isMeta`-only check misses the live stream's `isSynthetic`). The
+  `isSystemNotice` banner + compact-summary collapsible parts are more
+  fork-flavored UI, but the server-side filter is a clean standalone PR.
+  **Strong second-PR candidate.**
+
 - [ ] **`<synthetic>` transcript-placeholder guard** (`422411f`) — upstream has the same
   unguarded `extractClaudeEventModel`; exposure there is display-only (their
   `resolveResumeModel` never reads the transcript), but the popup showing `<synthetic>`
@@ -200,6 +210,7 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
 ## Done
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Chat: three system-ish message quirks — skill wall-of-text as "user", usage-limit serif duplicate, compact writeup dump** (2026-07-23, `9e85c23`). One diagnosis: Claude Code writes harness rows into the stream/transcript under different flags and `normalizeMessage` only knew half of them. (1) Live skill injections leak because the wire stamps `isSynthetic` (= `isMeta || isVisibleInTranscriptOnly`, verified against the CLI binary) while the normalizer only checked `isMeta` — now filtered (origin-bearing peer/channel rows stay visible, mirroring the CLI; upstream issue #1009, tracked above). (2) CLI-fabricated `model: "<synthetic>"`/`isApiErrorMessage` assistant rows (limit notices, "No response requested.") now carry `isSystemNotice` and render as a muted amber-dot banner instead of a serif Claude bubble — kills the duplicate next to the red error frame while keeping the limit marker in reloaded history. (3) `isCompactSummary` messages (flag already flowed end-to-end, unused) render in the `Reasoning` collapsible, collapsed by default. Server + client; 78/78 provider tests. **Not yet live-verified** — needs SSH restart for the server half, then: run a skill, /compact, and next limit-hit. **M**
 - [x] **Auth: Claude re-login no longer creates a stray sidebar session** (2026-07-23, `962ef7a`). `claude /login` boots the interactive REPL, which writes a transcript into `~/.claude/projects/<cwd>/` — landing in the CLIde project itself, since the empty-shell placeholder resolves to the server's cwd — and stranded the user in a REPL afterward. Swapped to the dedicated `claude auth login` subcommand: same browser-link + paste-code UX, exits on completion, no transcript; also finally matches the server's `isLoginCommand` fresh-PTY detection. Upstream candidate (tracked above). **Not yet live-verified** — confirm on the next real re-login (no stray session, flow completes). **S**
 - [x] **Sidebar: "Copy session ID" in the long-press context menu** (2026-07-22, `243e44f`). Fork-only; born from the PWA having no URL bar. Copies the app session id — the server deliberately never exposes provider ids; map to the Claude JSONL via `sqlite3 ~/.cloudcli/auth.db "select provider_session_id from sessions where id='<id>'"`. Verified live on the phone. Follow-up (same action for the *current* session) tracked in Mobile UX. **S**
 - [x] **Quick Settings: opt-in "Enter to send" toggle on touch devices** (2026-07-22, `0551406`). The "Send by Ctrl+Enter" row was a silent no-op on touch after `d9c9d2b`; coarse-pointer devices now get an `enterToSend` pref instead (default off — newline stays the touch default), via shared `isTouchPrimaryDevice()` (`src/utils/pointer.ts`). Verified live. Strengthens the deferred touch-Enter upstream PR. **S**
