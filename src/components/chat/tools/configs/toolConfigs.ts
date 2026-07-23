@@ -41,6 +41,66 @@ export interface ToolDisplayConfig {
   };
 }
 
+/**
+ * Derive the summary count + file list for a Grep/Glob result.
+ *
+ * The structured `toolUseResult` (numFiles/filenames/numLines) is only attached
+ * by the transcript-reload path (claude-sessions.provider.ts); the live
+ * WebSocket stream from claude-sdk.js never sends it. Without this fallback the
+ * summary shows a misleading "Found 0 files" during every live search and only
+ * snaps to the real count once the session is re-fetched. The raw content
+ * string already carries everything we need, so parse it when the structured
+ * data is missing. content-mode Grep additionally reports matching *lines*
+ * (numFiles is always 0), so it must be labelled "matches", not "files".
+ */
+function parseSearchResult(result: any): { count: number; unit: 'file' | 'match'; files: string[] } {
+  const toolData = result?.toolUseResult || {};
+  const content = typeof result?.content === 'string' ? result.content : '';
+  const trimmed = content.trim();
+
+  // content-mode Grep: count is matching lines, and there is no file list.
+  // Post-refresh the structured payload carries mode/numLines; live it doesn't,
+  // so fall through to content-shape detection below.
+  if (toolData.mode === 'content' || typeof toolData.numLines === 'number') {
+    const count = typeof toolData.numLines === 'number'
+      ? toolData.numLines
+      : (trimmed ? trimmed.split('\n').filter(Boolean).length : 0);
+    return { count, unit: 'match', files: [] };
+  }
+
+  // files_with_matches / Glob: prefer structured data when present.
+  const filenames: string[] = Array.isArray(toolData.filenames) ? toolData.filenames : [];
+  if (typeof toolData.numFiles === 'number' && toolData.numFiles > 0) {
+    return { count: toolData.numFiles, unit: 'file', files: filenames };
+  }
+  if (filenames.length > 0) {
+    return { count: filenames.length, unit: 'file', files: filenames };
+  }
+
+  // No structured data (live stream) — parse the raw content string.
+  if (!trimmed || /^no (files|matches)? ?found/i.test(trimmed)) {
+    return { count: 0, unit: 'file', files: [] };
+  }
+  const lines = trimmed.split('\n').filter(Boolean);
+  // files_with_matches prefixes a "Found N files[ limit: M]" header line.
+  const header = /^Found (\d+) files?/i.exec(lines[0]);
+  if (header) {
+    return { count: Number(header[1]), unit: 'file', files: lines.slice(1) };
+  }
+  // content-mode lines look like "path:lineNumber:text" — count them as matches.
+  if (/^.+:\d+:/.test(lines[0])) {
+    return { count: lines.length, unit: 'match', files: [] };
+  }
+  // Glob emits a bare newline-separated path list, no header.
+  return { count: lines.length, unit: 'file', files: lines };
+}
+
+function formatSearchTitle(result: any): string {
+  const { count, unit } = parseSearchResult(result);
+  const noun = count === 1 ? unit : unit === 'match' ? 'matches' : 'files';
+  return `Found ${count} ${noun}`;
+}
+
 export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   // ============================================================================
   // COMMAND TOOLS
@@ -182,18 +242,11 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     result: {
       type: 'collapsible',
       defaultOpen: false,
-      title: (result) => {
-        const toolData = result.toolUseResult || {};
-        const count = toolData.numFiles || toolData.filenames?.length || 0;
-        return `Found ${count} ${count === 1 ? 'file' : 'files'}`;
-      },
+      title: (result) => formatSearchTitle(result),
       contentType: 'file-list',
-      getContentProps: (result) => {
-        const toolData = result.toolUseResult || {};
-        return {
-          files: toolData.filenames || []
-        };
-      }
+      getContentProps: (result) => ({
+        files: parseSearchResult(result).files
+      })
     }
   },
 
@@ -215,18 +268,11 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
     result: {
       type: 'collapsible',
       defaultOpen: false,
-      title: (result) => {
-        const toolData = result.toolUseResult || {};
-        const count = toolData.numFiles || toolData.filenames?.length || 0;
-        return `Found ${count} ${count === 1 ? 'file' : 'files'}`;
-      },
+      title: (result) => formatSearchTitle(result),
       contentType: 'file-list',
-      getContentProps: (result) => {
-        const toolData = result.toolUseResult || {};
-        return {
-          files: toolData.filenames || []
-        };
-      }
+      getContentProps: (result) => ({
+        files: parseSearchResult(result).files
+      })
     }
   },
 
