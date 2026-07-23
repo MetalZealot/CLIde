@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { WebSocket } from 'ws';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { providerCapabilitiesService } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/image-attachments.js';
@@ -168,6 +169,22 @@ async function handleChatSend(
     return;
   }
 
+  // Rewind is gated on the capability matrix, not the provider id: runtimes
+  // that never look at rewindToMessageId must never receive it.
+  const requestedRewindId = (data.options as AnyRecord | undefined)?.rewindToMessageId;
+  if (
+    requestedRewindId !== undefined &&
+    !providerCapabilitiesService.getProviderCapabilities(provider)?.supportsRewind
+  ) {
+    sendProtocolError(
+      ws,
+      'REWIND_UNSUPPORTED',
+      `Provider "${provider}" does not support rewinding to an earlier message.`,
+      sessionId
+    );
+    return;
+  }
+
   const run = chatRunRegistry.startRun({
     appSessionId: sessionId,
     provider,
@@ -202,6 +219,9 @@ async function handleChatSend(
     resume: Boolean(session.provider_session_id),
     cwd: clientOptions.cwd ?? session.project_path ?? undefined,
     projectPath: session.project_path ?? clientOptions.projectPath,
+    // Lets the runtime read the provider transcript (rewind anchor lookup)
+    // without re-deriving the path; runtimes without a use for it ignore it.
+    jsonlPath: session.jsonl_path ?? undefined,
   };
 
   try {

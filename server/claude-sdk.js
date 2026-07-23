@@ -29,6 +29,11 @@ import {
   notifyRunStopped,
   notifyUserIfEnabled
 } from './services/notification-orchestrator.js';
+import {
+  computeResumeAnchor,
+  extractBaseTranscriptUuid,
+  readTranscriptEntries,
+} from './modules/providers/list/claude/claude-rewind.util.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createCompleteMessage, createNormalizedMessage } from './shared/utils.js';
@@ -476,6 +481,47 @@ async function loadMcpConfig(cwd) {
 }
 
 /**
+ * Resolves the transcript jsonl path for a provider session: prefer the path
+ * recorded in the DB row (threaded through as options.jsonlPath), fall back
+ * to Claude's ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl layout.
+ */
+function resolveClaudeTranscriptPath(options, providerSessionId) {
+  if (typeof options.jsonlPath === 'string' && options.jsonlPath) {
+    return options.jsonlPath;
+  }
+  if (!options.cwd || !providerSessionId) {
+    return null;
+  }
+  const encodedCwd = String(options.cwd).replace(/[^a-zA-Z0-9]/g, '-');
+  return path.join(os.homedir(), '.claude', 'projects', encodedCwd, `${providerSessionId}.jsonl`);
+}
+
+/**
+ * Translates a rewind request (the edited USER message's uuid) into what the
+ * SDK actually accepts: `resumeSessionAt` wants the uuid of the preceding
+ * ASSISTANT entry (verified by scripts/verify-rewind-sdk.ts). Returns:
+ * - { resumeSessionAt } — resume up to that assistant turn, then send;
+ * - { freshStart: true } — the first message was edited (no assistant
+ *   ancestor): drop resume entirely and let a new provider session start;
+ * - null — the message could not be located (caller reports the error).
+ */
+function resolveRewindPlan(options, providerSessionId) {
+  const editedUuid = extractBaseTranscriptUuid(options.rewindToMessageId);
+  if (!editedUuid) {
+    return null;
+  }
+  const transcriptPath = resolveClaudeTranscriptPath(options, providerSessionId);
+  if (!transcriptPath) {
+    return null;
+  }
+  const anchor = computeResumeAnchor(readTranscriptEntries(transcriptPath), editedUuid);
+  if (!anchor.found) {
+    return null;
+  }
+  return anchor.anchorUuid ? { resumeSessionAt: anchor.anchorUuid } : { freshStart: true };
+}
+
+/**
  * Executes a Claude query using the SDK
  * @param {string} command - User prompt/command
  * @param {Object} options - Query options
@@ -486,6 +532,28 @@ async function queryClaudeSDK(command, options = {}, ws) {
   const { sessionId, sessionSummary } = options;
   let capturedSessionId = sessionId;
   let sessionCreatedSent = false;
+
+  // Conversation rewind: translate the edited message uuid into the resume
+  // shape before option mapping. A fresh start behaves like a brand-new
+  // session — the writer remaps the announced provider id onto the app
+  // session, so the client never notices the id change.
+  let rewindPlan = null;
+  if (options.rewindToMessageId !== undefined && sessionId) {
+    rewindPlan = resolveRewindPlan(options, sessionId);
+    if (!rewindPlan) {
+      ws.send(createNormalizedMessage({
+        kind: 'error',
+        content: 'Rewind failed: the selected message could not be located in the session transcript.',
+        sessionId: sessionId || null,
+        provider: 'claude'
+      }));
+      ws.send(createCompleteMessage({ provider: 'claude', sessionId: sessionId || null, exitCode: 1 }));
+      return;
+    }
+    if (rewindPlan.freshStart) {
+      capturedSessionId = null;
+    }
+  }
 
   const emitNotification = (event) => {
     notifyUserIfEnabled({
@@ -510,6 +578,10 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
     const sdkOptions = mapCliOptionsToSDK({
       ...options,
+      // Editing the first message has nothing to resume: start fresh and let
+      // the announced id be remapped onto the app session.
+      sessionId: rewindPlan?.freshStart ? null : sessionId,
+      resumeSessionAt: rewindPlan?.resumeSessionAt,
       model: resolvedModel || options.model,
       effortModels,
     });
@@ -677,8 +749,16 @@ async function queryClaudeSDK(command, options = {}, ws) {
           sessionCreatedSent = true;
           ws.send(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
         }
-      } else {
-        // session_id already captured
+      } else if (message.session_id && capturedSessionId && message.session_id !== capturedSessionId) {
+        // Defensive: the SDK announced a different session id on a resumed
+        // query (e.g. a forked resume). Re-key abort tracking and let the
+        // writer remap the provider id onto the stable app session id.
+        removeSession(capturedSessionId);
+        capturedSessionId = message.session_id;
+        addSession(capturedSessionId, queryInstance, ws);
+        if (ws.setSessionId && typeof ws.setSessionId === 'function') {
+          ws.setSessionId(capturedSessionId);
+        }
       }
 
       // Transform and normalize message via adapter
