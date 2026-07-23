@@ -38,8 +38,9 @@ export interface NormalizedMessage {
   kind: MessageKind;
   /**
    * Per-run monotonic sequence number assigned by the backend to live
-   * websocket events. Used to compute `lastSeq` for `chat.subscribe` replay;
-   * REST history messages do not carry it.
+   * websocket events; REST history messages do not carry it. Replay progress
+   * for `chat.subscribe` is tracked at the transport level
+   * (WebSocketContext's `getReplayProgress`), not derived from this store.
    */
   seq?: number;
 
