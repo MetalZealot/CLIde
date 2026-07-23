@@ -6,8 +6,8 @@ import { IS_PLATFORM } from '../constants/config';
  * One frame received from the chat websocket. The server guarantees every
  * frame carries a `kind` (provider message kinds plus gateway kinds such as
  * `chat_subscribed`, `session_upserted`, `loading_progress`,
- * `protocol_error`). The synthetic `websocket_reconnected` kind is injected
- * client-side when the socket re-opens after a drop.
+ * `protocol_error`, `chat_pong`). The synthetic `websocket_reconnected` kind
+ * is injected client-side when the socket re-opens after a drop.
  */
 export type ServerEvent = {
   kind?: string;
@@ -21,7 +21,16 @@ type ServerEventListener = (event: ServerEvent) => void;
 
 type WebSocketContextType = {
   ws: WebSocket | null;
-  sendMessage: (message: unknown) => void;
+  /**
+   * Sends one frame. Returns false when the socket is not open (or the send
+   * throws) so callers with user-visible actions (Stop, permission answers)
+   * can react instead of silently dropping the message.
+   *
+   * Caveat: `true` means "handed to the socket", not "delivered" — a
+   * half-open connection buffers sends until the liveness watchdog notices
+   * and forces a reconnect. Pair with `isConnected` for UI decisions.
+   */
+  sendMessage: (message: unknown) => boolean;
   /**
    * Subscribes to every websocket frame. Returns an unsubscribe function.
    *
@@ -39,7 +48,27 @@ type WebSocketContextType = {
    */
   latestMessage: ServerEvent | null;
   isConnected: boolean;
+  /**
+   * Fires one liveness probe immediately (no-op while disconnected). Callers
+   * with delivery-critical sends (Stop) use this to shrink half-open
+   * detection from the next heartbeat tick (≤40s) to PONG_TIMEOUT_MS.
+   */
+  probeConnection: () => void;
 };
+
+/**
+ * Liveness heartbeat. Server-side WS protocol pings are answered inside the
+ * browser's network stack — page JS never sees them — so a silently dead TCP
+ * path (wifi power-save, PWA screen-lock wake, Tailscale path change) leaves
+ * the socket reporting OPEN forever while every server frame vanishes:
+ * permission prompts never render, Stop no-ops, and the UI looks alive.
+ * The fix is an app-level echo: send `chat.ping` every HEARTBEAT_INTERVAL_MS;
+ * if no frame at all (pong or otherwise) arrives within PONG_TIMEOUT_MS, the
+ * connection is dead — force a reconnect, which triggers the server's
+ * existing `chat.subscribe` replay + pending-permission recovery.
+ */
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const PONG_TIMEOUT_MS = 10_000;
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
@@ -71,6 +100,14 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<ServerEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const watchdogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  /**
+   * Self-reference so timer callbacks created inside `connect` (watchdog,
+   * wake probe) can trigger a fresh connection without a circular
+   * useCallback dependency.
+   */
+  const connectRef = useRef<() => void>(() => {});
   const { token } = useAuth();
 
   const dispatch = useCallback((event: ServerEvent) => {
@@ -84,23 +121,50 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     setLatestMessage(event);
   }, []);
 
-  useEffect(() => {
-    // The cleanup below sets unmountedRef = true. Without this reset, every
-    // re-run of the effect (e.g. on token refresh) would short-circuit connect()
-    // at its unmounted guard and leave the socket permanently disconnected.
-    unmountedRef.current = false;
-    connect();
+  const clearWatchdog = useCallback(() => {
+    if (watchdogTimeoutRef.current) {
+      clearTimeout(watchdogTimeoutRef.current);
+      watchdogTimeoutRef.current = null;
+    }
+  }, []);
 
-    return () => {
-      unmountedRef.current = true;
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [token]); // everytime token changes, we reconnect
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+    clearWatchdog();
+  }, [clearWatchdog]);
+
+  /**
+   * Arms the dead-connection watchdog (idempotent while already armed —
+   * only the oldest unanswered ping counts). Any received frame disarms it;
+   * expiry means the connection is half-open, so force a reconnect. The old
+   * socket cannot be trusted to fire `onclose` (that needs a close handshake
+   * over the very TCP path that is dead), so `connect` tears it down
+   * explicitly and starts fresh.
+   */
+  const armWatchdog = useCallback(() => {
+    if (watchdogTimeoutRef.current) return;
+    watchdogTimeoutRef.current = setTimeout(() => {
+      watchdogTimeoutRef.current = null;
+      if (unmountedRef.current) return;
+      console.warn('[WS] No response to liveness ping — forcing reconnect');
+      setIsConnected(false);
+      connectRef.current();
+    }, PONG_TIMEOUT_MS);
+  }, []);
+
+  /** Sends one liveness probe and starts the watchdog waiting on its echo. */
+  const sendPing = useCallback((socket: WebSocket) => {
+    if (socket.readyState !== WebSocket.OPEN) return;
+    try {
+      socket.send(JSON.stringify({ type: 'chat.ping', ts: Date.now() }));
+      armWatchdog();
+    } catch {
+      // Send can throw during teardown races; the watchdog/onclose path recovers.
+    }
+  }, [armWatchdog]);
 
   const connect = useCallback(() => {
     if (unmountedRef.current) return; // Prevent connection if unmounted
@@ -110,21 +174,52 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
 
+      // Tear down any previous socket (half-open zombie, token change, or a
+      // reconnect racing a wake probe) so two live connections never coexist
+      // — a leaked second socket would double-dispatch every frame.
+      const previous = wsRef.current;
+      if (previous) {
+        previous.onopen = null;
+        previous.onmessage = null;
+        previous.onclose = null;
+        previous.onerror = null;
+        try {
+          previous.close();
+        } catch {
+          // already closing/closed
+        }
+      }
+      stopHeartbeat();
+
       const websocket = new WebSocket(wsUrl);
+      wsRef.current = websocket;
 
       websocket.onopen = () => {
+        if (wsRef.current !== websocket) return; // superseded while connecting
         setIsConnected(true);
-        wsRef.current = websocket;
         if (hasConnectedRef.current) {
           // This is a reconnect — signal so components can catch up on missed messages
           dispatch({ kind: 'websocket_reconnected', timestamp: Date.now() });
         }
         hasConnectedRef.current = true;
+
+        // App-level heartbeat (see HEARTBEAT_INTERVAL_MS doc). Note that
+        // background tabs throttle timers, so the interval may stretch while
+        // hidden — the visibilitychange probe covers the wake-up moment.
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (wsRef.current !== websocket) return;
+          sendPing(websocket);
+        }, HEARTBEAT_INTERVAL_MS);
       };
 
       websocket.onmessage = (event) => {
+        if (wsRef.current !== websocket) return;
+        // Any frame proves the connection is alive, even if the matching
+        // pong was interleaved away.
+        clearWatchdog();
         try {
           const data = JSON.parse(event.data) as ServerEvent;
+          if (data.kind === 'chat_pong') return; // liveness echo — not for listeners
           dispatch(data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -132,8 +227,11 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       };
 
       websocket.onclose = () => {
-        setIsConnected(false);
+        if (wsRef.current !== websocket) return; // stale socket — already replaced
         wsRef.current = null;
+        setIsConnected(false);
+        stopHeartbeat();
+        if (unmountedRef.current) return;
 
         // Attempt to reconnect after 3 seconds
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -149,16 +247,86 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
     }
-  }, [token, dispatch]); // everytime token changes, we reconnect
+  }, [token, dispatch, sendPing, stopHeartbeat, clearWatchdog]); // everytime token changes, we reconnect
 
-  const sendMessage = useCallback((message: unknown) => {
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
+  useEffect(() => {
+    // The cleanup below sets unmountedRef = true. Without this reset, every
+    // re-run of the effect (e.g. on token refresh) would short-circuit connect()
+    // at its unmounted guard and leave the socket permanently disconnected.
+    unmountedRef.current = false;
+    connect();
+
+    return () => {
+      unmountedRef.current = true;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      stopHeartbeat();
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [token]); // everytime token changes, we reconnect
+
+  /**
+   * Immediate liveness re-check when the app comes back to life — PWA wake
+   * from screen lock and network flaps are the two main ways the connection
+   * dies while the page still believes it is OPEN. Don't wait up to a full
+   * heartbeat interval to find out: probe now, and if the socket is already
+   * known-down, reconnect now instead of waiting out a (possibly throttled)
+   * backoff timer.
+   */
+  useEffect(() => {
+    const probe = () => {
+      if (unmountedRef.current) return;
+      const socket = wsRef.current;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        sendPing(socket);
+        return;
+      }
+      if (socket && socket.readyState === WebSocket.CONNECTING) return; // attempt already underway
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      connectRef.current();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') probe();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('online', probe);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('online', probe);
+    };
+  }, [sendPing]);
+
+  const sendMessage = useCallback((message: unknown): boolean => {
     const socket = wsRef.current;
     if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket not connected');
+      try {
+        socket.send(JSON.stringify(message));
+        return true;
+      } catch (error) {
+        console.warn('WebSocket send failed:', error);
+        return false;
+      }
     }
+    console.warn('WebSocket not connected');
+    return false;
   }, []);
+
+  const probeConnection = useCallback(() => {
+    const socket = wsRef.current;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      sendPing(socket);
+    }
+  }, [sendPing]);
 
   const subscribe = useCallback((listener: ServerEventListener) => {
     listenersRef.current.add(listener);
@@ -173,8 +341,9 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     sendMessage,
     subscribe,
     latestMessage,
-    isConnected
-  }), [sendMessage, subscribe, latestMessage, isConnected]);
+    isConnected,
+    probeConnection
+  }), [sendMessage, subscribe, latestMessage, isConnected, probeConnection]);
 
   return value;
 };

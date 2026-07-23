@@ -39,8 +39,19 @@ function ChatInterface({
   onShowAllTasks,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
-  const { subscribe } = useWebSocket();
+  const { subscribe, isConnected, probeConnection } = useWebSocket();
   const { t } = useTranslation('chat');
+
+  // "Connection lost" is only meaningful after a first successful connect —
+  // without this guard the banner would flash on every cold page load while
+  // the initial websocket handshake is still in flight.
+  const hasBeenConnectedRef = useRef(false);
+  useEffect(() => {
+    if (isConnected) {
+      hasBeenConnectedRef.current = true;
+    }
+  }, [isConnected]);
+  const showConnectionLostBanner = hasBeenConnectedRef.current && !isConnected;
 
   const sessionStore = useSessionStore();
   const streamTimerRef = useRef<number | null>(null);
@@ -264,6 +275,16 @@ function ChatInterface({
     sessionStore,
   });
 
+  // Stop must never silently no-op: a half-open socket accepts the
+  // `chat.abort` send without delivering it. Probing right after the send
+  // forces dead-connection detection within the watchdog window, which
+  // reconnects and resyncs the real run state (instead of the button
+  // appearing to "not register" until a manual refresh).
+  const handleAbortSessionWithProbe = useCallback(() => {
+    handleAbortSession();
+    probeConnection();
+  }, [handleAbortSession, probeConnection]);
+
   useEffect(() => {
     if (!canAbortSession) {
       return;
@@ -275,14 +296,14 @@ function ChatInterface({
       }
 
       event.preventDefault();
-      handleAbortSession();
+      handleAbortSessionWithProbe();
     };
 
     document.addEventListener('keydown', handleGlobalEscape, { capture: true });
     return () => {
       document.removeEventListener('keydown', handleGlobalEscape, { capture: true });
     };
-  }, [canAbortSession, handleAbortSession]);
+  }, [canAbortSession, handleAbortSessionWithProbe]);
 
   useEffect(() => {
     return () => {
@@ -370,7 +391,19 @@ function ChatInterface({
         />
 
         <div className="relative flex-shrink-0">
-          {isUserScrolledUp && chatMessages.length > 0 && (
+          {showConnectionLostBanner && (
+            <div className="pointer-events-none absolute -top-11 left-0 right-0 z-30 flex justify-center">
+              <div
+                role="status"
+                className="pointer-events-auto flex items-center gap-2 rounded-full border border-amber-500/50 bg-card px-3 py-1.5 text-xs font-medium text-amber-600 shadow-sm dark:text-amber-400"
+              >
+                <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" aria-hidden />
+                {t('connection.reconnecting', { defaultValue: 'Connection lost — reconnecting…' })}
+              </div>
+            </div>
+          )}
+
+          {!showConnectionLostBanner && isUserScrolledUp && chatMessages.length > 0 && (
             <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
               <button
                 type="button"
@@ -390,7 +423,7 @@ function ChatInterface({
           handleGrantToolPermission={handleGrantToolPermission}
           activity={sessionActivity}
           isLoading={isProcessing}
-          onAbortSession={handleAbortSession}
+          onAbortSession={handleAbortSessionWithProbe}
           permissionMode={permissionMode}
           onModeSwitch={cyclePermissionMode}
           effort={currentProviderEffort}

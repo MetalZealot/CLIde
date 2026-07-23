@@ -36,14 +36,37 @@ export function createWebSocketServer(
     // AWS ALB 60s, nginx 60s, etc.). Without app-level pings these connections
     // are silently torn down even when the UI is active, causing repeated
     // reconnect cycles. ws library heartbeat is opt-in.
+    //
+    // The pings double as dead-socket detection: browsers answer protocol
+    // pings automatically, so a socket that misses a full interval without a
+    // pong (or any other traffic) has a dead TCP path — a client that
+    // vanished without a FIN (wifi drop, screen lock, path change). Those
+    // zombies otherwise stay attached to live run writers for the ~15 min
+    // kernel TCP timeout, swallowing permission prompts and stream frames.
+    // terminate() fires 'close' immediately, detaching them.
     const HEARTBEAT_INTERVAL_MS = 30_000;
+    let isAlive = true;
+    ws.on('pong', () => {
+      isAlive = true;
+    });
+    ws.on('message', () => {
+      // Inbound traffic proves the path is live even if a pong got lost.
+      isAlive = true;
+    });
     const heartbeat = setInterval(() => {
-      if (ws.readyState === ws.OPEN) {
-        try {
-          ws.ping();
-        } catch {
-          // socket may have been closed concurrently — interval will be cleared below
-        }
+      if (ws.readyState !== ws.OPEN) {
+        return;
+      }
+      if (!isAlive) {
+        console.log('[INFO] WebSocket missed heartbeat — terminating dead connection');
+        ws.terminate();
+        return;
+      }
+      isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        // socket may have been closed concurrently — interval will be cleared below
       }
     }, HEARTBEAT_INTERVAL_MS);
     const stopHeartbeat = () => clearInterval(heartbeat);

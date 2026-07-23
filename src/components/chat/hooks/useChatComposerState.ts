@@ -51,7 +51,7 @@ interface UseChatComposerStateArgs {
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
-  sendMessage: (message: unknown) => void;
+  sendMessage: (message: unknown) => boolean;
   sendByCtrlEnter?: boolean;
   enterToSend?: boolean;
   sessionStore: SessionStore;
@@ -1140,11 +1140,21 @@ export function useChatComposerState({
 
     // The backend resolves the provider from the session row, so no provider
     // field is needed here.
-    sendMessage({
+    const delivered = sendMessage({
       type: 'chat.abort',
       sessionId: targetSessionId,
     });
-  }, [canAbortSession, currentSessionId, selectedSession?.id, sendMessage]);
+    if (!delivered) {
+      // Socket is down — the abort never left the browser. Say so instead of
+      // silently no-oping; the reconnect flow will resync the real run state
+      // (and this transient note is replaced by the post-reconnect refetch).
+      addMessage({
+        type: 'error',
+        content: 'Connection lost — Stop was not delivered. Reconnecting…',
+        timestamp: new Date(),
+      });
+    }
+  }, [canAbortSession, currentSessionId, selectedSession?.id, sendMessage, addMessage]);
 
   const handleGrantToolPermission = useCallback(
     (suggestion: { entry: string; toolName: string }) => {

@@ -239,5 +239,8 @@
   },
   "tasks": {
     "nextTaskPrompt": "Start the next task"
+  },
+  "connection": {
+    "reconnecting": "Connection lost — reconnecting…"
   }
 }

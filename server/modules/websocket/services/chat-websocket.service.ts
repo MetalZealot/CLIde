@@ -327,6 +327,25 @@ function handleChatSubscribe(
 }
 
 /**
+ * Handles `chat.ping`: application-level liveness echo for the client-side
+ * half-open-connection watchdog.
+ *
+ * Browsers answer WS protocol pings inside the network stack — page JS never
+ * sees them — so client-side dead-connection detection needs an echo that
+ * travels as a normal data frame. The client sends `chat.ping` periodically;
+ * missing the `chat_pong` (or any other frame) within its watchdog window
+ * makes it force-close and reconnect. `ts` is echoed back untouched so the
+ * client can match responses and estimate round-trip latency.
+ */
+function handleChatPing(ws: WebSocket, data: AnyRecord): void {
+  sendJson(ws, {
+    kind: 'chat_pong',
+    ts: typeof data.ts === 'number' ? data.ts : null,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
  * Handles `chat.permission-response`: forwards a tool-approval decision to the
  * pending approval resolver (Claude is the only provider with interactive
  * approvals today, but the message is intentionally provider-neutral).
@@ -352,11 +371,12 @@ function handlePermissionResponse(data: AnyRecord, dependencies: ChatWebSocketDe
  * - `chat.abort`               { sessionId }
  * - `chat.subscribe`           { sessions: [{ sessionId, lastSeq? }] }
  * - `chat.permission-response` { requestId, allow, updatedInput?, message?, rememberEntry? }
+ * - `chat.ping`                { ts? } — liveness probe; echoed as `chat_pong`
  *
  * Outbound protocol (server to client): every frame is `kind`-based — either
  * a provider `NormalizedMessage` (with `seq`) or a gateway event
  * (`chat_subscribed`, `session_upserted`, `loading_progress`,
- * `protocol_error`).
+ * `protocol_error`, `chat_pong`).
  */
 export function handleChatConnection(
   ws: WebSocket,
@@ -390,6 +410,9 @@ export function handleChatConnection(
           return;
         case 'chat.permission-response':
           handlePermissionResponse(data, dependencies);
+          return;
+        case 'chat.ping':
+          handleChatPing(ws, data);
           return;
         default:
           sendProtocolError(ws, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type "${messageType}".`);
