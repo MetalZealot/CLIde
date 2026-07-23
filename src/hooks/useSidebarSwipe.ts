@@ -59,6 +59,12 @@ export function useSidebarSwipe({
     const backdrop = backdropRef.current;
     if (!container || !panel || !backdrop) return;
 
+    // The app shell div that hosts both the overlay and the main content.
+    // Modals (Settings, wizards, confirm dialogs) portal to document.body,
+    // *outside* this shell and layered above the sidebar — touches starting
+    // in them must never drive the drawer.
+    const appShell = container.parentElement;
+
     let startX = 0;
     let startY = 0;
     let lastX = 0;
@@ -130,6 +136,10 @@ export function useSidebarSwipe({
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) {
         candidate = false;
+        return;
+      }
+      if (appShell && event.target instanceof Node && !appShell.contains(event.target)) {
+        candidate = false; // touch began in a body-level portal (modal etc.)
         return;
       }
       const touch = event.touches[0];
