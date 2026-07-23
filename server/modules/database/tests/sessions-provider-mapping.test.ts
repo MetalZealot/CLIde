@@ -98,6 +98,81 @@ test('assignProviderSessionId merges a watcher-created duplicate into the app ro
   });
 });
 
+test('reassigning a provider id aliases the superseded transcript instead of resurrecting it', async () => {
+  await withIsolatedDatabase(() => {
+    // A rewind of the first message starts a fresh provider session: the app
+    // row moves from the old provider id to a new one, while the old
+    // transcript stays on disk.
+    sessionsDb.createAppSession('app-rewind', 'claude', '/workspace/demo');
+    sessionsDb.assignProviderSessionId('app-rewind', 'provider-old');
+    sessionsDb.assignProviderSessionId('app-rewind', 'provider-new');
+
+    assert.equal(sessionsDb.getSessionById('app-rewind')?.provider_session_id, 'provider-new');
+
+    // The synchronizer later discovers the abandoned transcript. It must be
+    // treated as claimed by the app row — no duplicate, no field updates.
+    const returnedId = sessionsDb.createSession(
+      'provider-old',
+      'claude',
+      '/workspace/demo',
+      'Stale Title',
+      undefined,
+      undefined,
+      '/fake/provider-old.jsonl',
+    );
+
+    assert.equal(returnedId, 'app-rewind');
+    assert.equal(sessionsDb.getAllSessions().length, 1);
+
+    const row = sessionsDb.getSessionById('app-rewind');
+    assert.equal(row?.provider_session_id, 'provider-new');
+    assert.equal(row?.custom_name, null);
+    assert.equal(row?.jsonl_path, null);
+  });
+});
+
+test('a provider id assigned to a new session stops being a tombstone', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-first', 'claude', '/workspace/demo');
+    sessionsDb.assignProviderSessionId('app-first', 'provider-shared');
+    sessionsDb.assignProviderSessionId('app-first', 'provider-moved');
+
+    // The provider reuses the old id for a different app session: the alias
+    // must yield to the live mapping.
+    sessionsDb.createAppSession('app-second', 'claude', '/workspace/demo');
+    sessionsDb.assignProviderSessionId('app-second', 'provider-shared');
+
+    const returnedId = sessionsDb.createSession('provider-shared', 'claude', '/workspace/demo');
+    assert.equal(returnedId, 'app-second');
+  });
+});
+
+test('a discovered transcript never clobbers an app row whose mapping moved elsewhere', async () => {
+  await withIsolatedDatabase(() => {
+    // Pre-aliases-table shape (or an app id colliding with a jsonl name): a
+    // row keyed by the old provider id already points at a newer provider id.
+    sessionsDb.createAppSession('provider-stale', 'claude', '/workspace/demo');
+    sessionsDb.assignProviderSessionId('provider-stale', 'provider-current');
+
+    const returnedId = sessionsDb.createSession(
+      'provider-stale',
+      'claude',
+      '/workspace/demo',
+      'Resurrected Title',
+      undefined,
+      undefined,
+      '/fake/provider-stale.jsonl',
+    );
+
+    assert.equal(returnedId, 'provider-stale');
+    assert.equal(sessionsDb.getAllSessions().length, 1);
+    // The ON CONFLICT(session_id) upsert must not have rewritten the mapping.
+    const row = sessionsDb.getSessionById('provider-stale');
+    assert.equal(row?.provider_session_id, 'provider-current');
+    assert.equal(row?.jsonl_path, null);
+  });
+});
+
 test('legacy provider-keyed rows stay resolvable through both lookups', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createSession('legacy-1', 'opencode', '/workspace/demo');

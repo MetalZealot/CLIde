@@ -120,6 +120,23 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 `;
 
+export const SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_provider_aliases (
+    -- Provider-native ids that used to belong to a session row but were
+    -- superseded when the provider rotated ids mid-lifetime (e.g. a rewind of
+    -- the first message has to start a fresh provider session). The superseded
+    -- transcript stays on disk, so the synchronizer consults this table to
+    -- recognize it as claimed instead of resurrecting it as a duplicate row.
+    -- Deliberately no FK to sessions: tombstones must outlive their owner so a
+    -- deleted session's superseded transcripts stay suppressed.
+    provider_session_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'claude',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (provider_session_id)
+);
+`;
+
 export const LAST_SCANNED_AT_SQL = `
 CREATE TABLE IF NOT EXISTS scan_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -174,6 +191,8 @@ ${SESSIONS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id);
 -- NOTE: This index is created in migrations after sessions is rebuilt to include project_path.
 -- Creating it here can fail on upgraded installs where the legacy sessions table has no project_path.
+
+${SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL}
 
 ${LAST_SCANNED_AT_SQL}
 

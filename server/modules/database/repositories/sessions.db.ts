@@ -86,6 +86,22 @@ export const sessionsDb = {
     // since it's a foreign key in the sessions table.
     projectsDb.createProjectPath(normalizedProjectPath);
 
+    // A transcript whose provider id was superseded (e.g. a rewind that had to
+    // start a fresh provider session moved the app row to a new id) stays on
+    // disk but must not resurface as its own session row. The aliases table
+    // records those abandoned ids; treat the file as already claimed.
+    const alias = db
+      .prepare(
+        `SELECT session_id FROM session_provider_aliases
+         WHERE provider_session_id = ? AND provider = ?
+         LIMIT 1`
+      )
+      .get(providerSessionId, provider) as { session_id: string } | undefined;
+
+    if (alias) {
+      return alias.session_id;
+    }
+
     const existing = db
       .prepare(
         `SELECT session_id FROM sessions
@@ -114,6 +130,22 @@ export const sessionsDb = {
       );
 
       return existing.session_id;
+    }
+
+    // Guard: a row can exist whose session_id equals this provider id while
+    // its provider mapping points at a NEWER id (the id was superseded before
+    // the aliases table recorded it). Inserting would clobber that mapping via
+    // ON CONFLICT(session_id) — treat the transcript as claimed instead.
+    const collision = db
+      .prepare(
+        `SELECT session_id, provider_session_id FROM sessions
+         WHERE session_id = ?
+         LIMIT 1`
+      )
+      .get(providerSessionId) as { session_id: string; provider_session_id: string | null } | undefined;
+
+    if (collision?.provider_session_id && collision.provider_session_id !== providerSessionId) {
+      return collision.session_id;
     }
 
     // Sessions created outside the app (directly via the provider CLI) are
@@ -179,6 +211,26 @@ export const sessionsDb = {
     const db = getConnection();
 
     const merge = db.transaction(() => {
+      // When this call REASSIGNS the row away from an earlier provider id
+      // (a rewind fresh-start, provider id rotation on resume), the old
+      // transcript stays on disk. Alias the old id to this row so the
+      // synchronizer never resurrects it as a duplicate session.
+      const current = db
+        .prepare('SELECT provider, provider_session_id FROM sessions WHERE session_id = ? LIMIT 1')
+        .get(sessionId) as { provider: string; provider_session_id: string | null } | undefined;
+
+      if (current?.provider_session_id && current.provider_session_id !== providerSessionId) {
+        db.prepare(
+          `INSERT OR REPLACE INTO session_provider_aliases (provider_session_id, session_id, provider)
+           VALUES (?, ?, ?)`
+        ).run(current.provider_session_id, sessionId, current.provider);
+      }
+
+      // The new id is a live mapping again — drop any stale tombstone for it.
+      db.prepare('DELETE FROM session_provider_aliases WHERE provider_session_id = ?').run(
+        providerSessionId
+      );
+
       const duplicate = db
         .prepare(
           `SELECT ${SESSION_ROW_COLUMNS} FROM sessions
