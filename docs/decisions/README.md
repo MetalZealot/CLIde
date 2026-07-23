@@ -44,3 +44,5 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0004 — TODO.md is tracked in-repo, at the repo root](0004-todo-md-tracked-at-root.md)
 - [0005 — Mobile bottom navbar, restored as in-flow layout](0005-mobile-bottom-navbar.md)
 - [0006 — WS liveness is client-driven via app-level ping, not protocol ping](0006-app-level-ws-liveness.md)
+- [0007 — Rewind is in-place tree-append; history must be branch-filtered](0007-rewind-in-place-tree-append.md)
+- [0008 — Superseded provider ids are tombstoned, not deleted](0008-superseded-provider-id-tombstones.md)
