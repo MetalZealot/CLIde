@@ -185,6 +185,8 @@ function ChatInterface({
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
+    pendingRewind,
+    cancelRewindEdit,
     handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,
@@ -440,6 +442,8 @@ function ChatInterface({
           queuedDraft={queuedDraft}
           onEditQueuedDraft={editQueuedDraft}
           onDeleteQueuedDraft={deleteQueuedDraft}
+          pendingRewind={pendingRewind}
+          onCancelRewindEdit={cancelRewindEdit}
           attachedImages={attachedImages}
           onRemoveImage={(index) =>
             setAttachedImages((previous) =>

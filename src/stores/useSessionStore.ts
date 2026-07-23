@@ -826,6 +826,28 @@ export function useSessionStore() {
   }, [notify]);
 
   /**
+   * Optimistically drop the edited message and everything after it when a
+   * rewind send starts. The transcript on the server is the ground truth
+   * (its abandoned branch is filtered there); this only keeps the visible
+   * list consistent until the post-turn refetch reconciles.
+   */
+  const truncateFromMessageId = useCallback((sessionId: string, baseMessageUuid: string) => {
+    const slot = storeRef.current.get(sessionId);
+    if (!slot) return;
+
+    const prefix = baseMessageUuid.toLowerCase();
+    const cutFromMatch = (list: NormalizedMessage[]): NormalizedMessage[] => {
+      const idx = list.findIndex(m => typeof m.id === 'string' && m.id.toLowerCase().startsWith(prefix));
+      return idx >= 0 ? list.slice(0, idx) : list;
+    };
+
+    slot.serverMessages = cutFromMatch(slot.serverMessages);
+    slot.realtimeMessages = cutFromMatch(slot.realtimeMessages);
+    recomputeMergedIfNeeded(slot);
+    notify(sessionId);
+  }, [notify]);
+
+  /**
    * Get merged messages for a session (for rendering).
    */
   const getMessages = useCallback((sessionId: string): NormalizedMessage[] => {
@@ -858,11 +880,13 @@ export function useSessionStore() {
     fetchModel,
     setModel,
     patchToolResult,
+    truncateFromMessageId,
   }), [
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
     clearRealtime, getMessages, getSessionSlot, fetchModel, setModel, patchToolResult,
+    truncateFromMessageId,
   ]);
 }
 

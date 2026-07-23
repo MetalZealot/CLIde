@@ -30,8 +30,10 @@ import type {
 } from '../types/types';
 import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
+import { getTranscriptMessageUuid } from '../utils/messageKeys';
 import type { SessionStore } from '../../../stores/useSessionStore';
 
+import { MESSAGES_PER_PAGE } from './useChatSessionState';
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
 
@@ -154,6 +156,17 @@ const createFakeSubmitEvent = () => {
   return { preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>;
 };
 
+export type PendingRewind = {
+  /** Base transcript uuid of the user message being edited — the rewind anchor. */
+  anchorMessageId: string;
+  /** Short preview of the message being edited, for the composer pill. */
+  snippet: string;
+  /** Composer text stashed when entering edit mode, restored on cancel. */
+  priorDraft: string;
+};
+
+const REWIND_SNIPPET_LENGTH = 80;
+
 export type QueuedDraft = {
   content: string;
   images: File[];
@@ -246,6 +259,11 @@ export function useChatComposerState({
   // to currentSessionId for a just-established session that hasn't been
   // handed back to the parent's `selectedSession` prop yet.
   const sessionKey = selectedSession?.id || currentSessionId || null;
+
+  // Rewind edit mode: set when the user picked a prior message to edit; the
+  // next send carries the anchor and resumes the session from that point.
+  const [pendingRewind, setPendingRewind] = useState<PendingRewind | null>(null);
+  const rewindReconcileSessionRef = useRef<string | null>(null);
 
   const [queuedDraft, setQueuedDraft] = useState<QueuedDraft | null>(() => {
     if (typeof window === 'undefined' || !sessionKey) {
@@ -641,6 +659,9 @@ export function useChatComposerState({
       toolsSettings,
       skipPermissions: toolsSettings?.skipPermissions || false,
       sessionSummary: getNotificationSessionSummary(selectedSession, currentInput),
+      // Armed by beginRewindEdit: the server resumes the session from just
+      // before this user message instead of from its tail.
+      ...(pendingRewind ? { rewindToMessageId: pendingRewind.anchorMessageId } : {}),
     };
   }, [
     claudeModel,
@@ -648,6 +669,7 @@ export function useChatComposerState({
     currentProviderEffort,
     cursorModel,
     opencodeModel,
+    pendingRewind,
     permissionMode,
     provider,
     resolvePermissionModeForProvider,
@@ -693,9 +715,11 @@ export function useChatComposerState({
 
       // Intercept slash commands only when "/" is the first input character.
       // Also accept exact "help" as a convenience alias for users who expect CLI-style help.
+      // Never while rewind-editing: an edited prior message that happens to
+      // start with "/" must be re-sent verbatim, not executed as a command.
       const commandInput = currentInput.trimEnd();
       const isHelpAlias = commandInput.trim().toLowerCase() === 'help';
-      if (commandInput.startsWith('/') || isHelpAlias) {
+      if (!pendingRewind && (commandInput.startsWith('/') || isHelpAlias)) {
         const firstSpace = commandInput.indexOf(' ');
         const commandName = isHelpAlias
           ? '/help'
@@ -809,6 +833,15 @@ export function useChatComposerState({
         });
       }
 
+      // A rewind send drops the edited message and its tail from the visible
+      // list before the replacement is appended; the post-turn refetch
+      // reconciles against the server's branch-filtered transcript.
+      if (pendingRewind) {
+        sessionStore.truncateFromMessageId(targetSessionId, pendingRewind.anchorMessageId);
+        rewindReconcileSessionRef.current = targetSessionId;
+        setPendingRewind(null);
+      }
+
       const userMessage: ChatMessage = {
         type: 'user',
         content: currentInput,
@@ -864,12 +897,14 @@ export function useChatComposerState({
       isLoading,
       onSessionProcessing,
       onSessionEstablished,
+      pendingRewind,
       provider,
       resetCommandMenuState,
       scrollToBottom,
       selectedProject,
       sendMessage,
       sessionKey,
+      sessionStore,
       addMessage,
       setIsUserScrolledUp,
       slashCommands,
@@ -924,6 +959,66 @@ export function useChatComposerState({
     }, delay);
     return () => clearTimeout(timer);
   }, [isLoading, queuedDraft, sessionKey, setInput]);
+
+  /**
+   * Enter rewind-edit mode for a prior user message: load its text into the
+   * composer and arm the next send with the message's transcript uuid. The
+   * previous draft is stashed and restored on cancel. Re-invoking while
+   * already editing retargets the anchor but keeps the original stash.
+   */
+  const beginRewindEdit = useCallback((message: ChatMessage) => {
+    if (isLoading || message.type !== 'user' || typeof message.content !== 'string') {
+      return;
+    }
+    const anchorMessageId = getTranscriptMessageUuid(message.id);
+    if (!anchorMessageId) {
+      return;
+    }
+    const content = message.content;
+    const normalizedSnippet = content.replace(/\s+/g, ' ').trim();
+    setPendingRewind(prev => ({
+      anchorMessageId,
+      snippet:
+        normalizedSnippet.length > REWIND_SNIPPET_LENGTH
+          ? `${normalizedSnippet.slice(0, REWIND_SNIPPET_LENGTH - 3)}...`
+          : normalizedSnippet,
+      priorDraft: prev ? prev.priorDraft : inputValueRef.current,
+    }));
+    setInput(content);
+    inputValueRef.current = content;
+    textareaRef.current?.focus();
+  }, [isLoading, setInput]);
+
+  const cancelRewindEdit = useCallback(() => {
+    if (!pendingRewind) {
+      return;
+    }
+    setInput(pendingRewind.priorDraft);
+    inputValueRef.current = pendingRewind.priorDraft;
+    setPendingRewind(null);
+  }, [pendingRewind, setInput]);
+
+  // Rewind edit mode never survives a session switch.
+  useEffect(() => {
+    setPendingRewind(null);
+  }, [sessionKey]);
+
+  // After a rewound turn completes, refetch from the server: the transcript
+  // (with its abandoned branch filtered out) is the ground truth the
+  // optimistic truncation must reconcile against.
+  const rewindWasLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    const wasLoading = rewindWasLoadingRef.current;
+    rewindWasLoadingRef.current = isLoading;
+    if (wasLoading && !isLoading && rewindReconcileSessionRef.current) {
+      const reconcileSessionId = rewindReconcileSessionRef.current;
+      rewindReconcileSessionRef.current = null;
+      void sessionStore.fetchFromServer(reconcileSessionId, {
+        limit: MESSAGES_PER_PAGE,
+        offset: 0,
+      });
+    }
+  }, [isLoading, sessionStore]);
 
   const editQueuedDraft = useCallback(() => {
     if (!queuedDraft) {
@@ -1250,6 +1345,9 @@ export function useChatComposerState({
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
+    pendingRewind,
+    beginRewindEdit,
+    cancelRewindEdit,
     handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,

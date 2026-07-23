@@ -18,7 +18,7 @@ import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import { isTouchPrimaryDevice } from '../../../../utils/pointer';
-import type { QueuedDraft } from '../../hooks/useChatComposerState';
+import type { PendingRewind, QueuedDraft } from '../../hooks/useChatComposerState';
 import type { PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { ProviderModelOption } from '../../../../types/app';
 import {
@@ -40,6 +40,7 @@ import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
+import RewindEditCard from './RewindEditCard';
 
 interface MentionableFile {
   name: string;
@@ -82,6 +83,8 @@ interface ChatComposerProps {
   queuedDraft: QueuedDraft | null;
   onEditQueuedDraft: () => void;
   onDeleteQueuedDraft: () => void;
+  pendingRewind: PendingRewind | null;
+  onCancelRewindEdit: () => void;
   attachedImages: File[];
   onRemoveImage: (index: number) => void;
   uploadingImages: Map<string, number>;
@@ -150,6 +153,8 @@ export default function ChatComposer({
   queuedDraft,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
+  pendingRewind,
+  onCancelRewindEdit,
   attachedImages,
   onRemoveImage,
   uploadingImages,
@@ -341,6 +346,10 @@ export default function ChatComposer({
           onEdit={onEditQueuedDraft}
           onDelete={onDeleteQueuedDraft}
         />
+      )}
+
+      {pendingRewind && (
+        <RewindEditCard snippet={pendingRewind.snippet} onCancel={onCancelRewindEdit} />
       )}
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-[54.25rem]">
