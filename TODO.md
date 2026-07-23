@@ -119,6 +119,16 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   Upstream check 2026-07-17: no issue/PR mentions it (searched "synthetic", "selected
   model", "529", "active model"; read #981/#996/#998 bodies; confirmed by reading
   upstream/main's code). **Best first-PR candidate.**
+  **PR SUBMITTED 2026-07-22: siteboon/claudecodeui#1056** — first upstream PR. Branch
+  `fix/synthetic-model-guard` (off `upstream/main` v1.36.3, pushed to origin), worktree
+  `../cloudcli-wt-synthetic-guard` kept alive for review feedback. The fork's test file
+  couldn't be cherry-picked as-is (it was born with the per-session model-stack DI,
+  `85ddd7e`/`5d9da84`, which isn't upstreamed), so the PR carries a rewritten
+  `claude-models.test.ts` in upstream's own idiom (isolated-DB harness from
+  `opencode-sessions.test.ts`, real `sessionsDb`): control + guard + all-synthetic
+  fallback, 3/3 pass, guard tests confirmed failing on unpatched upstream/main. Run
+  upstream tests with `npx tsx --tsconfig server/tsconfig.json --test <path>` (the root
+  tsconfig maps `@/` to `src/`, not `server/`). Check off when merged.
 - [ ] **AskUserQuestion comma-answer split** (`9450562`) — upstream-checked + test-covered
   (see Done entry 2026-07-20: both files predate the fork, no issue/PR). **Ready.**
 - [ ] **File-tree Move to… + touch context menu + drag-to-move**
