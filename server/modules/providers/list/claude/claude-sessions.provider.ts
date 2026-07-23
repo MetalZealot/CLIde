@@ -7,6 +7,7 @@ import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
+import { filterToActiveBranch, type RewindTranscriptEntry } from './claude-rewind.util.js';
 
 const PROVIDER = 'claude';
 
@@ -189,8 +190,15 @@ async function getSessionMessages(
       }
     }
 
+    // A rewound session's jsonl is a tree: the SDK appends the post-rewind
+    // turn with parentUuid pointing at the anchor and leaves the abandoned
+    // tail in the file. Only the active branch is real conversation history.
+    const activeMessages = filterToActiveBranch(
+      messages as unknown as RewindTranscriptEntry[],
+    ) as unknown as AnyRecord[];
+
     const agentIds = new Set<string>();
-    for (const message of messages) {
+    for (const message of activeMessages) {
       const agentId = message.toolUseResult?.agentId;
       if (agentId) {
         agentIds.add(String(agentId));
@@ -208,7 +216,7 @@ async function getSessionMessages(
       agentToolsCache.set(agentId, tools);
     }
 
-    for (const message of messages) {
+    for (const message of activeMessages) {
       const agentId = message.toolUseResult?.agentId;
       if (!agentId) {
         continue;
@@ -220,7 +228,7 @@ async function getSessionMessages(
       }
     }
 
-    const sortedMessages = messages.sort(
+    const sortedMessages = activeMessages.sort(
       (a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime(),
     );
     const total = sortedMessages.length;
