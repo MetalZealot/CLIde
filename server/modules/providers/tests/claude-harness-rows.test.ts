@@ -76,3 +76,52 @@ test('claude history: synthetic assistant notice is flagged isSystemNotice', () 
   assert.equal(messages[0].role, 'assistant');
   assert.equal(messages[0].isSystemNotice, true);
 });
+
+// A synthetic "No response requested." row (written on a usage-limit cutoff or
+// /compact) carries no information; it is dropped entirely rather than shown as
+// a banner. Covers both the string and array content shapes.
+test('claude: synthetic "No response requested." rows are dropped', () => {
+  const provider = new ClaudeSessionsProvider();
+
+  const stringRow = provider.normalizeMessage(
+    {
+      uuid: 'nr1',
+      timestamp: '2026-07-23T10:00:00.000Z',
+      message: { role: 'assistant', model: '<synthetic>', content: 'No response requested.' },
+    },
+    SESSION_ID,
+  );
+  assert.equal(stringRow.length, 0);
+
+  const arrayRow = provider.normalizeMessage(
+    {
+      uuid: 'nr2',
+      timestamp: '2026-07-23T10:00:00.000Z',
+      message: {
+        role: 'assistant',
+        model: '<synthetic>',
+        content: [{ type: 'text', text: 'No response requested.' }],
+      },
+    },
+    SESSION_ID,
+  );
+  assert.equal(arrayRow.length, 0);
+});
+
+// A genuine model message with the same words must NOT be swallowed — the drop
+// is gated on the synthetic flag, not the text alone.
+test('claude: a real assistant message saying "No response requested." survives', () => {
+  const provider = new ClaudeSessionsProvider();
+  const messages = provider.normalizeMessage(
+    {
+      uuid: 'nr3',
+      timestamp: '2026-07-23T10:00:00.000Z',
+      message: { role: 'assistant', model: 'claude-opus-4-8', content: 'No response requested.' },
+    },
+    SESSION_ID,
+  );
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].content, 'No response requested.');
+  assert.equal(messages[0].isSystemNotice, undefined);
+});

@@ -42,6 +42,20 @@ function readTokenCount(value: unknown): number {
 }
 
 /**
+ * Claude Code writes a content-free "No response requested." synthetic
+ * assistant row (model: "<synthetic>") whenever a turn ends without a real
+ * response — a usage-limit cutoff or /compact. Unlike the usage-limit notice
+ * it carries no information, so it's dropped entirely rather than surfaced as
+ * an isSystemNotice banner. Gated on the synthetic flag so a genuine model
+ * message that happened to say the same words is never swallowed.
+ */
+const NO_RESPONSE_PLACEHOLDER = 'No response requested.';
+
+function isNoResponsePlaceholder(text: unknown): boolean {
+  return typeof text === 'string' && text.trim() === NO_RESPONSE_PLACEHOLDER;
+}
+
+/**
  * Derives the session's last known context usage from raw JSONL records so a
  * resumed session can show its token footprint before the first (expensive)
  * turn. Mirrors the live token_budget shape emitted by server/claude-sdk.js;
@@ -614,16 +628,18 @@ export class ClaudeSessionsProvider implements IProviderSessions {
         let partIndex = 0;
         for (const part of raw.message.content) {
           if (part.type === 'text' && part.text) {
-            messages.push(createNormalizedMessage({
-              id: `${baseId}_${partIndex}`,
-              sessionId,
-              timestamp: ts,
-              provider: PROVIDER,
-              kind: 'text',
-              role: 'assistant',
-              content: part.text,
-              isSystemNotice: isSyntheticNotice || undefined,
-            }));
+            if (!(isSyntheticNotice && isNoResponsePlaceholder(part.text))) {
+              messages.push(createNormalizedMessage({
+                id: `${baseId}_${partIndex}`,
+                sessionId,
+                timestamp: ts,
+                provider: PROVIDER,
+                kind: 'text',
+                role: 'assistant',
+                content: part.text,
+                isSystemNotice: isSyntheticNotice || undefined,
+              }));
+            }
           } else if (part.type === 'tool_use') {
             messages.push(createNormalizedMessage({
               id: `${baseId}_${partIndex}`,
@@ -648,16 +664,18 @@ export class ClaudeSessionsProvider implements IProviderSessions {
           partIndex++;
         }
       } else if (typeof raw.message.content === 'string') {
-        messages.push(createNormalizedMessage({
-          id: baseId,
-          sessionId,
-          timestamp: ts,
-          provider: PROVIDER,
-          kind: 'text',
-          role: 'assistant',
-          content: raw.message.content,
-          isSystemNotice: isSyntheticNotice || undefined,
-        }));
+        if (!(isSyntheticNotice && isNoResponsePlaceholder(raw.message.content))) {
+          messages.push(createNormalizedMessage({
+            id: baseId,
+            sessionId,
+            timestamp: ts,
+            provider: PROVIDER,
+            kind: 'text',
+            role: 'assistant',
+            content: raw.message.content,
+            isSystemNotice: isSyntheticNotice || undefined,
+          }));
+        }
       }
       return messages;
     }
