@@ -376,10 +376,15 @@ export class ClaudeSessionsProvider implements IProviderSessions {
      * CLI's own transcript view; genuine tool results carry none of these
      * flags.
      */
+    // Compact summaries arrive as transcript-only (`isVisibleInTranscriptOnly`)
+    // / synthetic user rows too, but they carry real content that we re-label
+    // as an assistant summary below — exempt them so they aren't dropped as
+    // harness noise.
     const isHiddenUserRow =
-      raw.isMeta === true ||
-      raw.isVisibleInTranscriptOnly === true ||
-      (raw.isSynthetic === true && !raw.origin);
+      raw.isCompactSummary !== true &&
+      (raw.isMeta === true ||
+        raw.isVisibleInTranscriptOnly === true ||
+        (raw.isSynthetic === true && !raw.origin));
 
     if (raw.message?.role === 'user' && raw.message?.content && !isHiddenUserRow) {
       if (Array.isArray(raw.message.content)) {
