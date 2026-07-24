@@ -11,6 +11,29 @@ export const isValidRefreshedToken = (token) =>
   typeof token === 'string' &&
   /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
 
+// Event AuthContext listens for, so its in-memory token (which WebSocketContext
+// builds reconnect URLs from) doesn't go stale when the server hands back a
+// refreshed one on an ordinary request.
+export const AUTH_TOKEN_REFRESHED_EVENT = 'auth-token-refreshed';
+
+/**
+ * Store a server-issued refreshed token and notify the app. No-op if the header
+ * value isn't a well-formed JWT.
+ * @param {unknown} token
+ */
+export const persistRefreshedToken = (token) => {
+  if (!isValidRefreshedToken(token)) {
+    return;
+  }
+
+  if (localStorage.getItem('auth-token') === token) {
+    return;
+  }
+
+  localStorage.setItem('auth-token', token);
+  window.dispatchEvent(new CustomEvent(AUTH_TOKEN_REFRESHED_EVENT, { detail: token }));
+};
+
 // Utility function for authenticated API calls
 export const authenticatedFetch = (url, options = {}) => {
   const token = localStorage.getItem('auth-token');
@@ -33,10 +56,7 @@ export const authenticatedFetch = (url, options = {}) => {
       ...options.headers,
     },
   }).then((response) => {
-    const refreshedToken = response.headers.get('X-Refreshed-Token');
-    if (isValidRefreshedToken(refreshedToken)) {
-      localStorage.setItem('auth-token', refreshedToken);
-    }
+    persistRefreshedToken(response.headers.get('X-Refreshed-Token'));
     return response;
   });
 };
