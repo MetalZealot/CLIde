@@ -4,7 +4,7 @@ import type { TFunction } from 'i18next';
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
-import type { LongPressCoords } from '../../../../hooks/useLongPress';
+import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 
 import SidebarProjectItem from './SidebarProjectItem';
 import SidebarProjectsState from './SidebarProjectsState';
@@ -54,8 +54,10 @@ export type SidebarProjectListProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
-  onLongPressProjectMenu?: (project: Project, coords: LongPressCoords) => void;
-  onLongPressSessionMenu?: (session: SessionWithProvider, coords: LongPressCoords) => void;
+  onLongPressProjectMenu?: (project: Project, anchor: ContextMenuAnchor) => void;
+  onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  /** `project:<projectId>` / `session:<sessionId>` of the row whose menu is open. */
+  activeContextMenuKey?: string | null;
   t: TFunction;
 };
 
@@ -101,6 +103,7 @@ export default function SidebarProjectList({
   onSaveEditingSession,
   onLongPressProjectMenu,
   onLongPressSessionMenu,
+  activeContextMenuKey,
   t,
 }: SidebarProjectListProps) {
   const state = (
@@ -170,6 +173,7 @@ export default function SidebarProjectList({
               onSaveEditingSession={onSaveEditingSession}
               onLongPressProjectMenu={onLongPressProjectMenu}
               onLongPressSessionMenu={onLongPressSessionMenu}
+              activeContextMenuKey={activeContextMenuKey}
               t={t}
             />
           ))}

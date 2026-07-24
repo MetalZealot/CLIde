@@ -48,6 +48,7 @@ export default function SidebarAllConversations({
     onSessionSelect,
     onDeleteSession,
     onLongPressSessionMenu,
+    activeContextMenuKey,
     t,
   } = projectListProps;
 
@@ -134,6 +135,7 @@ export default function SidebarAllConversations({
           onSessionSelect={onSessionSelect}
           onDeleteSession={onDeleteSession}
           onLongPressMenu={onLongPressSessionMenu}
+          activeContextMenuKey={activeContextMenuKey}
           t={t}
         />
       ))}

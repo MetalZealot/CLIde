@@ -1,8 +1,10 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Download, FileText, FolderInput, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react';
+
 import { cn } from '../../../lib/utils';
 import { useLongPress, type LongPressCoords } from '../../../hooks/useLongPress';
+import { ContextMenuOverlay, anchorFromElement, type ContextMenuAnchor } from '../../../shared/view/ui';
 
 type FileContextItem = {
   name: string;
@@ -26,23 +28,12 @@ type ContextMenuAction = {
   showDividerBefore?: boolean;
 };
 
-const CONTEXT_MENU_WIDTH = 200;
-const CONTEXT_MENU_HEIGHT = 300;
-const VIEWPORT_PADDING = 10;
-
-function calculateViewportSafePosition(clientX: number, clientY: number) {
-  // Keep the context menu inside the visible viewport.
-  const safeX =
-    clientX + CONTEXT_MENU_WIDTH > window.innerWidth
-      ? window.innerWidth - CONTEXT_MENU_WIDTH - VIEWPORT_PADDING
-      : clientX;
-  const safeY =
-    clientY + CONTEXT_MENU_HEIGHT > window.innerHeight
-      ? window.innerHeight - CONTEXT_MENU_HEIGHT - VIEWPORT_PADDING
-      : clientY;
-
-  return { x: Math.max(VIEWPORT_PADDING, safeX), y: Math.max(VIEWPORT_PADDING, safeY) };
-}
+// Android fires its own `contextmenu` at roughly the same moment our
+// long-press timer does, so a single hold opened the menu twice — the native
+// one anchored to the finger instead of the row, which read as the menu
+// flashing at the press point before jumping to its anchored spot. Touch
+// belongs to long-press; ignore a contextmenu this soon after a touch.
+const TOUCH_CONTEXT_MENU_GUARD_MS = 1000;
 
 export default function FileContextMenu({
   children,
@@ -58,7 +49,9 @@ export default function FileContextMenu({
   isLoading = false,
   className = '',
 }: {
-  children: ReactNode;
+  // A render function receives `isContextActive` so the row can stay
+  // highlighted for as long as its menu is open.
+  children: ReactNode | ((state: { isContextActive: boolean }) => ReactNode);
   item?: FileContextItem | null;
   onRename?: (item: FileContextItem) => void;
   onMove?: (item: FileContextItem) => void;
@@ -72,35 +65,44 @@ export default function FileContextMenu({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuAnchor, setMenuAnchor] = useState<ContextMenuAnchor | null>(null);
+  const rowWrapperRef = useRef<HTMLDivElement>(null);
+  const lastTouchAtRef = useRef(0);
 
   const closeContextMenu = useCallback(() => {
-    setIsMenuOpen(false);
+    setMenuAnchor(null);
   }, []);
 
   const openContextMenuAtCursor = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
 
-    setMenuPosition(calculateViewportSafePosition(event.clientX, event.clientY));
-    setIsMenuOpen(true);
+    if (Date.now() - lastTouchAtRef.current < TOUCH_CONTEXT_MENU_GUARD_MS) {
+      return;
+    }
+
+    setMenuAnchor({ top: event.clientY, bottom: event.clientY, left: event.clientX });
   }, []);
 
-  // Touch access: long-press opens the same menu at the finger's position.
+  // Touch access: long-press opens the same menu, anchored to the pressed row
+  // (the wrapper is `display: contents`, so the row itself is its first child).
   const openContextMenuAtTouch = useCallback((coords: LongPressCoords) => {
-    setMenuPosition(calculateViewportSafePosition(coords.x, coords.y));
-    setIsMenuOpen(true);
+    setMenuAnchor(anchorFromElement(rowWrapperRef.current?.firstElementChild, coords));
   }, []);
 
-  const { handlers: longPressHandlers } = useLongPress(openContextMenuAtTouch);
+  const { handlers: longPressHandlers, isPressing } = useLongPress(openContextMenuAtTouch);
 
   // Rows nest (a directory's wrapper contains its children's wrappers), so a
   // child press must not also start the parent's long-press timer.
   const handleTouchStart = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
     event.stopPropagation();
+    lastTouchAtRef.current = Date.now();
     longPressHandlers.onTouchStart(event);
+  }, [longPressHandlers]);
+
+  const handleTouchEnd = useCallback(() => {
+    lastTouchAtRef.current = Date.now();
+    longPressHandlers.onTouchEnd();
   }, [longPressHandlers]);
 
   const runMenuActionAndClose = useCallback((action?: () => void) => {
@@ -219,98 +221,29 @@ export default function FileContextMenu({
     ];
   }, [item, onCopyPath, onDelete, onDownload, onMove, onNewFile, onNewFolder, onRefresh, onRename, t]);
 
-  useEffect(() => {
-    if (!isMenuOpen) {
-      return;
-    }
-
-    const handleOutsidePress = (event: MouseEvent | TouchEvent) => {
-      const menuElement = menuRef.current;
-      if (menuElement && !menuElement.contains(event.target as Node)) {
-        closeContextMenu();
-      }
-    };
-
-    const handleEscapeKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeContextMenu();
-      }
-    };
-
-    document.addEventListener('mousedown', handleOutsidePress);
-    // Touch taps don't reliably produce mousedown (esp. mid-scroll), so listen
-    // for touchstart as well to close the menu on tap-away.
-    document.addEventListener('touchstart', handleOutsidePress);
-    document.addEventListener('keydown', handleEscapeKeyDown);
-
-    return () => {
-      document.removeEventListener('mousedown', handleOutsidePress);
-      document.removeEventListener('touchstart', handleOutsidePress);
-      document.removeEventListener('keydown', handleEscapeKeyDown);
-    };
-  }, [closeContextMenu, isMenuOpen]);
-
-  useEffect(() => {
-    if (!isMenuOpen) {
-      return;
-    }
-
-    // Arrow key support keeps the menu accessible without a mouse.
-    const handleKeyboardMenuNavigation = (event: KeyboardEvent) => {
-      const menuItems = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
-      if (!menuItems || menuItems.length === 0) {
-        return;
-      }
-
-      const activeElement = document.activeElement as HTMLElement | null;
-      const currentIndex = Array.from(menuItems).findIndex((menuItem) => menuItem === activeElement);
-
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        const nextIndex = currentIndex < menuItems.length - 1 ? currentIndex + 1 : 0;
-        menuItems[nextIndex]?.focus();
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        const previousIndex = currentIndex > 0 ? currentIndex - 1 : menuItems.length - 1;
-        menuItems[previousIndex]?.focus();
-      } else if (event.key === 'Enter' || event.key === ' ') {
-        if (activeElement?.hasAttribute('role')) {
-          event.preventDefault();
-          activeElement.click();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyboardMenuNavigation);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyboardMenuNavigation);
-    };
-  }, [isMenuOpen]);
-
   return (
     <>
       <div
+        ref={rowWrapperRef}
         {...longPressHandlers}
         onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         onContextMenu={openContextMenuAtCursor}
         className={cn('contents', className)}
       >
-        {children}
+        {typeof children === 'function'
+          ? children({ isContextActive: isPressing || menuAnchor !== null })
+          : children}
       </div>
 
-      {isMenuOpen && (
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label={t('fileTree.context.menuLabel', 'File context menu')}
-          style={{ position: 'fixed', left: menuPosition.x, top: menuPosition.y, zIndex: 9999 }}
-          className={cn(
-            'min-w-[180px] py-1 px-1',
-            'bg-popover border border-border rounded-lg shadow-lg',
-            'animate-in fade-in-0 zoom-in-95',
-            'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
-          )}
+      {menuAnchor && (
+        <ContextMenuOverlay
+          anchor={menuAnchor}
+          onDismiss={closeContextMenu}
+          ariaLabel={t('fileTree.context.menuLabel', 'File context menu')}
+          className="min-w-[180px] px-1 py-1"
+          measureKey={isLoading ? 'loading' : menuActions.length}
         >
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
@@ -344,7 +277,7 @@ export default function FileContextMenu({
               </Fragment>
             ))
           )}
-        </div>
+        </ContextMenuOverlay>
       )}
     </>
   );

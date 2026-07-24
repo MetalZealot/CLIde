@@ -1,9 +1,11 @@
 import type { ReactNode, RefObject } from 'react';
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
+
 import { cn } from '../../../lib/utils';
 import type { FileTreeNode as FileTreeNodeType, FileTreeViewMode } from '../types/types';
 import type { FileTreeDragMove } from '../hooks/useFileTreeDragMove';
 import { Input } from '../../../shared/view/ui';
+
 import FileContextMenu from './FileContextMenu';
 
 type FileTreeNodeProps = {
@@ -144,9 +146,12 @@ export default function FileTreeNode({
     );
   }
 
-  const rowContent = (
+  // `isContextActive` is true while the row is being long-pressed and for as
+  // long as its context menu stays open, so it's clear which file the menu
+  // belongs to.
+  const renderRow = (isContextActive: boolean) => (
     <div
-      className={rowClassName}
+      className={cn(rowClassName, isContextActive && 'bg-accent ring-1 ring-inset ring-primary/50')}
       style={{ paddingLeft: `${level * 16 + 4}px` }}
       onClick={() => onItemClick(item)}
       {...(dragMove ? dragMove.getItemDragProps(item) : {})}
@@ -204,10 +209,10 @@ export default function FileTreeNode({
           onDownload={onDownload}
           onRefresh={onRefresh}
         >
-          {rowContent}
+          {({ isContextActive }) => renderRow(isContextActive)}
         </FileContextMenu>
       ) : (
-        rowContent
+        renderRow(false)
       )}
 
       {isDirectory && isOpen && hasChildren && (

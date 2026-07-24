@@ -6,6 +6,8 @@ export { Button, buttonVariants } from './Button';
 export { Confirmation, ConfirmationTitle, ConfirmationRequest, ConfirmationAccepted, ConfirmationRejected, ConfirmationActions, ConfirmationAction } from './Confirmation';
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, CardAction } from './Card';
 export { Collapsible, CollapsibleTrigger, CollapsibleContent } from './Collapsible';
+export { default as ContextMenuOverlay, anchorFromElement, armTapShield } from './ContextMenuOverlay';
+export type { ContextMenuAnchor } from './ContextMenuOverlay';
 export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator } from './Command';
 export { default as DarkModeToggle } from './DarkModeToggle';
 export { Dialog, DialogTrigger, DialogContent, DialogTitle } from './Dialog';

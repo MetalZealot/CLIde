@@ -1,0 +1,281 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+
+import { cn } from '../../../lib/utils';
+
+const VIEWPORT_PADDING = 10;
+const ANCHOR_GAP = 8;
+// A tap leaves a click behind a few ms after touchend; swallow it so it can't
+// land on the row the menu was covering. Short enough that a fresh tap started
+// right afterwards keeps its own click.
+const CLICK_SWALLOW_MS = 150;
+// Insurance only: a gesture always ends with touchend/touchcancel/mouseup, but
+// a shield that somehow outlived its gesture would freeze the whole app.
+const SHIELD_MAX_MS = 2000;
+
+/**
+ * Where the menu should hang from: the pressed row's box on touch, or a
+ * zero-height box at the cursor on right-click.
+ */
+export type ContextMenuAnchor = { top: number; bottom: number; left: number };
+
+/**
+ * Anchor a menu to the row that was long-pressed rather than to the finger, so
+ * it's obvious which row it belongs to. Falls back to the touch point if the
+ * row can't be measured.
+ */
+export function anchorFromElement(
+  element: Element | null | undefined,
+  fallback: { x: number; y: number },
+): ContextMenuAnchor {
+  const rect = element?.getBoundingClientRect();
+
+  return rect && rect.height > 0
+    ? { top: rect.top, bottom: rect.bottom, left: rect.left }
+    : { top: fallback.y, bottom: fallback.y, left: fallback.x };
+}
+
+function calculateAnchoredPosition(anchor: ContextMenuAnchor, menuWidth: number, menuHeight: number) {
+  // Prefer just below the row; flip to just above it when the row sits low
+  // enough that a downward menu would run off the bottom. Either way the menu
+  // touches the row it belongs to instead of floating off on its own.
+  const spaceBelow = window.innerHeight - VIEWPORT_PADDING - (anchor.bottom + ANCHOR_GAP);
+  const spaceAbove = anchor.top - ANCHOR_GAP - VIEWPORT_PADDING;
+
+  const top =
+    menuHeight <= spaceBelow || spaceBelow >= spaceAbove
+      ? Math.min(anchor.bottom + ANCHOR_GAP, window.innerHeight - menuHeight - VIEWPORT_PADDING)
+      : anchor.top - ANCHOR_GAP - menuHeight;
+
+  const maxLeft = window.innerWidth - menuWidth - VIEWPORT_PADDING;
+
+  return {
+    x: Math.max(VIEWPORT_PADDING, Math.min(anchor.left, maxLeft)),
+    y: Math.max(VIEWPORT_PADDING, top),
+  };
+}
+
+let releaseActiveTapShield: (() => void) | null = null;
+
+/**
+ * Keep the rest of the gesture that dismissed a menu inert: it must not scroll
+ * the list and must not land on whatever the menu was covering.
+ *
+ * Deliberately a plain DOM element rather than React state — the menu's owner
+ * usually unmounts the whole overlay the instant it's dismissed, and the shield
+ * has to outlive that. It's released the moment the finger lifts: holding it
+ * even a little longer ate the start of the *next* swipe, because the browser
+ * fixes an element's `touch-action` when a gesture begins on it and never
+ * revisits that decision mid-gesture.
+ */
+export function armTapShield() {
+  releaseActiveTapShield?.();
+
+  const shield = document.createElement('div');
+  shield.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:9999;touch-action:none;';
+  document.body.appendChild(shield);
+
+  // The finger that's still down already owns a scrolling gesture on the list;
+  // `touch-action` can't retract that, so block the moves outright.
+  const blockScroll = (event: TouchEvent) => event.preventDefault();
+  document.addEventListener('touchmove', blockScroll, { passive: false });
+
+  const expiryTimer = window.setTimeout(() => release(), SHIELD_MAX_MS);
+
+  function release() {
+    document.removeEventListener('touchmove', blockScroll);
+    document.removeEventListener('touchend', release);
+    document.removeEventListener('touchcancel', release);
+    document.removeEventListener('mouseup', release);
+    window.clearTimeout(expiryTimer);
+    shield.remove();
+    releaseActiveTapShield = null;
+    swallowNextClick();
+  }
+
+  document.addEventListener('touchend', release);
+  document.addEventListener('touchcancel', release);
+  document.addEventListener('mouseup', release);
+  releaseActiveTapShield = release;
+}
+
+function swallowNextClick() {
+  let expiryTimer: number | null = null;
+
+  const stopSwallowing = () => {
+    document.removeEventListener('click', swallowClick, true);
+    if (expiryTimer !== null) {
+      window.clearTimeout(expiryTimer);
+    }
+  };
+
+  function swallowClick(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    stopSwallowing();
+  }
+
+  document.addEventListener('click', swallowClick, true);
+  expiryTimer = window.setTimeout(stopSwallowing, CLICK_SWALLOW_MS);
+}
+
+type ContextMenuOverlayProps = {
+  anchor: ContextMenuAnchor;
+  /** Called on outside press, Escape, or a chosen action. */
+  onDismiss: () => void;
+  children: ReactNode;
+  ariaLabel?: string;
+  /** Classes for the menu box itself (the popover), not the overlay. */
+  className?: string;
+  /** Change this when the menu's contents change size, to force a re-measure. */
+  measureKey?: string | number;
+};
+
+/**
+ * Shared long-press / right-click menu surface: a portaled popover anchored to
+ * the row it belongs to, over a transparent catcher that freezes the list
+ * behind it. Used by the file tree and the sidebar so both behave identically.
+ *
+ * No scrim or backdrop blur (app-wide preference); the catcher is invisible.
+ */
+export default function ContextMenuOverlay({
+  anchor,
+  onDismiss,
+  children,
+  ariaLabel,
+  className,
+  measureKey,
+}: ContextMenuOverlayProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+
+  // Position against the menu's real size (its height varies with the action
+  // list), before paint so it never shows at the wrong spot first.
+  useLayoutEffect(() => {
+    const menuElement = menuRef.current;
+    if (!menuElement) {
+      return;
+    }
+
+    // offsetWidth/Height, not getBoundingClientRect: the menu's `zoom-in-95`
+    // enter animation has it scaled to 0.95 at this point, and a rect 5% short
+    // pushed the flipped-above placement down onto the row it belongs to.
+    setPosition(calculateAnchoredPosition(anchor, menuElement.offsetWidth, menuElement.offsetHeight));
+  }, [anchor, measureKey]);
+
+  // An outside press dismisses on touchstart/mousedown rather than click, so
+  // the menu is gone the instant the screen is touched. The shield keeps the
+  // remainder of that one gesture inert and is released as the finger lifts.
+  const dismissOnOutsidePress = useCallback(() => {
+    armTapShield();
+    onDismiss();
+  }, [onDismiss]);
+
+  useEffect(() => {
+    const handleEscapeKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onDismiss();
+      }
+    };
+
+    // The catcher's `touch-action: none` only governs gestures that *start*
+    // after the menu opens; the finger that long-pressed is still down and
+    // already owns a scrolling gesture on the row. Block that one too, so the
+    // list can't slide out from under the menu without lifting first.
+    const blockScrollWhileOpen = (event: TouchEvent) => {
+      const menuElement = menuRef.current;
+      if (menuElement && menuElement.contains(event.target as Node)) {
+        return;
+      }
+      event.preventDefault();
+    };
+
+    document.addEventListener('keydown', handleEscapeKeyDown);
+    document.addEventListener('touchmove', blockScrollWhileOpen, { passive: false });
+
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKeyDown);
+      document.removeEventListener('touchmove', blockScrollWhileOpen);
+    };
+  }, [onDismiss]);
+
+  useEffect(() => {
+    // Arrow key support keeps the menu accessible without a mouse.
+    const handleKeyboardMenuNavigation = (event: KeyboardEvent) => {
+      const menuItems = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
+      if (!menuItems || menuItems.length === 0) {
+        return;
+      }
+
+      const activeElement = document.activeElement as HTMLElement | null;
+      const currentIndex = Array.from(menuItems).findIndex((menuItem) => menuItem === activeElement);
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        const nextIndex = currentIndex < menuItems.length - 1 ? currentIndex + 1 : 0;
+        menuItems[nextIndex]?.focus();
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const previousIndex = currentIndex > 0 ? currentIndex - 1 : menuItems.length - 1;
+        menuItems[previousIndex]?.focus();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        if (activeElement?.hasAttribute('role')) {
+          event.preventDefault();
+          activeElement.click();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyboardMenuNavigation);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyboardMenuNavigation);
+    };
+  }, []);
+
+  return createPortal(
+    /*
+      Inset is set inline, and the `inset-0` class deliberately avoided,
+      because `body.pwa-mode .fixed.inset-0` (index.css) pushes fixed overlays
+      below the header's safe-area padding. This overlay holds menu coordinates
+      that are already viewport-relative, so that offset shifted the whole menu
+      down — visible in the PWA only, as a fat gap below a row and none above one.
+    */
+    <div className="fixed z-[9999]" style={{ top: 0, right: 0, bottom: 0, left: 0, overscrollBehavior: 'contain' }}>
+      {/*
+        Transparent full-screen catcher (no scrim — matches the app-wide
+        no-backdrop-filter preference). It dismisses on press rather than click,
+        and its `touch-action: none` freezes the list underneath: scrolling the
+        list while the menu floated in place made it impossible to tell which
+        row the menu belonged to.
+      */}
+      <div
+        className="absolute inset-0"
+        style={{ touchAction: 'none' }}
+        onTouchStart={dismissOnOutsidePress}
+        onMouseDown={dismissOnOutsidePress}
+        onContextMenu={(event) => event.preventDefault()}
+      />
+      <div
+        ref={menuRef}
+        role="menu"
+        aria-label={ariaLabel}
+        style={{
+          position: 'absolute',
+          left: position?.x ?? 0,
+          top: position?.y ?? 0,
+          // Hidden for the single layout pass that measures it.
+          visibility: position ? 'visible' : 'hidden',
+        }}
+        className={cn(
+          'select-none bg-popover text-popover-foreground border border-border rounded-lg shadow-lg',
+          'animate-in fade-in-0 zoom-in-95',
+          className,
+        )}
+      >
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}

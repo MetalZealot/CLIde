@@ -5,7 +5,7 @@ import { Button } from '../../../../shared/view/ui';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
-import type { LongPressCoords } from '../../../../hooks/useLongPress';
+import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 
 import SidebarSessionItem from './SidebarSessionItem';
 
@@ -37,7 +37,8 @@ type SidebarProjectSessionsProps = {
   ) => void;
   onLoadMoreSessions: (projectId: string) => void;
   onNewSession: (project: Project) => void;
-  onLongPressSessionMenu?: (session: SessionWithProvider, coords: LongPressCoords) => void;
+  onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  activeContextMenuKey?: string | null;
   t: TFunction;
 };
 
@@ -83,6 +84,7 @@ export default function SidebarProjectSessions({
   onLoadMoreSessions,
   onNewSession,
   onLongPressSessionMenu,
+  activeContextMenuKey,
   t,
 }: SidebarProjectSessionsProps) {
   if (!isExpanded) {
@@ -144,6 +146,7 @@ export default function SidebarProjectSessions({
               onSessionSelect={onSessionSelect}
               onDeleteSession={onDeleteSession}
               onLongPressMenu={onLongPressSessionMenu}
+              activeContextMenuKey={activeContextMenuKey}
               t={t}
             />
           ))}

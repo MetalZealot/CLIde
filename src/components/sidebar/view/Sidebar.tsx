@@ -11,7 +11,7 @@ import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
 import type { MCPServerStatus, SidebarProps, SessionWithProvider } from '../types/types';
-import type { LongPressCoords } from '../../../hooks/useLongPress';
+import type { ContextMenuAnchor } from '../../../shared/view/ui';
 import { getSessionName } from '../utils/utils';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 
@@ -157,16 +157,24 @@ function Sidebar({
   };
 
   type SidebarMenuState =
-    | { kind: 'session'; session: SessionWithProvider; x: number; y: number }
-    | { kind: 'project'; project: Project; x: number; y: number };
+    | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor }
+    | { kind: 'project'; project: Project; anchor: ContextMenuAnchor };
   const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
 
-  const handleLongPressSessionMenu = (session: SessionWithProvider, coords: LongPressCoords) => {
-    setContextMenu({ kind: 'session', session, x: coords.x, y: coords.y });
+  const handleLongPressSessionMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
+    setContextMenu({ kind: 'session', session, anchor });
   };
-  const handleLongPressProjectMenu = (project: Project, coords: LongPressCoords) => {
-    setContextMenu({ kind: 'project', project, x: coords.x, y: coords.y });
+  const handleLongPressProjectMenu = (project: Project, anchor: ContextMenuAnchor) => {
+    setContextMenu({ kind: 'project', project, anchor });
   };
+
+  // Lets the row that owns the open menu stay highlighted, so it's clear which
+  // project/session the actions apply to.
+  const activeContextMenuKey = contextMenu
+    ? contextMenu.kind === 'session'
+      ? `session:${contextMenu.session.id}`
+      : `project:${contextMenu.project.projectId}`
+    : null;
 
   const contextMenuItems = useMemo<SidebarContextMenuItem[]>(() => {
     if (!contextMenu) {
@@ -305,6 +313,7 @@ function Sidebar({
     },
     onLongPressProjectMenu: handleLongPressProjectMenu,
     onLongPressSessionMenu: handleLongPressSessionMenu,
+    activeContextMenuKey,
     t,
   };
 
@@ -312,8 +321,7 @@ function Sidebar({
     <>
         {contextMenu && (
           <SidebarContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
+            anchor={contextMenu.anchor}
             items={contextMenuItems}
             onClose={() => setContextMenu(null)}
           />

@@ -1,13 +1,14 @@
+import { useRef } from 'react';
 import { Check, ChevronDown, ChevronRight, Edit3, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button } from '../../../../shared/view/ui';
+import { Button, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
 import { getTaskIndicatorStatus } from '../../utils/utils';
-import { useLongPress, type LongPressCoords } from '../../../../hooks/useLongPress';
+import { useLongPress } from '../../../../hooks/useLongPress';
 
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
@@ -53,8 +54,9 @@ type SidebarProjectItemProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
-  onLongPressProjectMenu?: (project: Project, coords: LongPressCoords) => void;
-  onLongPressSessionMenu?: (session: SessionWithProvider, coords: LongPressCoords) => void;
+  onLongPressProjectMenu?: (project: Project, anchor: ContextMenuAnchor) => void;
+  onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  activeContextMenuKey?: string | null;
   t: TFunction;
 };
 
@@ -101,6 +103,7 @@ export default function SidebarProjectItem({
   onSaveEditingSession,
   onLongPressProjectMenu,
   onLongPressSessionMenu,
+  activeContextMenuKey,
   t,
 }: SidebarProjectItemProps) {
   // Project identity is tracked by the DB-assigned `projectId` everywhere
@@ -120,9 +123,15 @@ export default function SidebarProjectItem({
 
   const toggleProject = () => onToggleProject(project.projectId);
   const toggleStarProject = () => onToggleStarProject(project.projectId);
-  const { handlers: longPress, isPressing } = useLongPress((coords) => onLongPressProjectMenu?.(project, coords), {
-    disabled: !onLongPressProjectMenu,
-  });
+  // Anchor the menu to the row's box, not the finger, so it opens attached to
+  // the project it acts on.
+  const mobileRowRef = useRef<HTMLDivElement>(null);
+  const { handlers: longPress, isPressing } = useLongPress(
+    (coords) => onLongPressProjectMenu?.(project, anchorFromElement(mobileRowRef.current, coords)),
+    { disabled: !onLongPressProjectMenu },
+  );
+  // Stays on for as long as this row's menu is open.
+  const isContextActive = isPressing || activeContextMenuKey === `project:${project.projectId}`;
 
   const saveProjectName = () => {
     onSaveProjectName(project.projectId);
@@ -141,9 +150,10 @@ export default function SidebarProjectItem({
       <div className="md:group group">
         <div className="md:hidden">
           <div
+            ref={mobileRowRef}
             className={cn(
               'long-pressable p-2 mx-3 my-0.5 rounded-lg bg-card border border-border/50 transition-all duration-150',
-              isPressing && 'scale-[0.98]',
+              isContextActive && 'scale-[0.98] ring-1 ring-inset ring-primary/50',
               isSelected && 'bg-primary/10 border-primary/50',
               projectNeedsAttention &&
                 !isSelected &&
@@ -402,6 +412,7 @@ export default function SidebarProjectItem({
         onLoadMoreSessions={onLoadMoreSessions}
         onNewSession={onNewSession}
         onLongPressSessionMenu={onLongPressSessionMenu}
+        activeContextMenuKey={activeContextMenuKey}
         t={t}
       />
     </div>

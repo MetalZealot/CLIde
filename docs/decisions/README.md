@@ -46,3 +46,5 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0006 — WS liveness is client-driven via app-level ping, not protocol ping](0006-app-level-ws-liveness.md)
 - [0007 — Rewind is in-place tree-append; history must be branch-filtered](0007-rewind-in-place-tree-append.md)
 - [0008 — Superseded provider ids are tombstoned, not deleted](0008-superseded-provider-id-tombstones.md)
+- [0009 — Long-press menus: one shared overlay, and touch belongs to `useLongPress`](0009-context-menu-overlay-touch-ownership.md)
+- [0010 — Viewport-positioned overlays set inset inline, never via `inset-0`](0010-pwa-mode-fixed-inset-override.md)

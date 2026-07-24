@@ -2,12 +2,12 @@ import { useEffect, useRef } from 'react';
 import { Check, Edit2, Loader2, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Badge, Tooltip, buttonVariants } from '../../../../shared/view/ui';
+import { Badge, Tooltip, buttonVariants, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel } from '../../utils/utils';
-import { useLongPress, type LongPressCoords } from '../../../../hooks/useLongPress';
+import { useLongPress } from '../../../../hooks/useLongPress';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 
 type SidebarSessionItemProps = {
@@ -35,8 +35,9 @@ type SidebarSessionItemProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
-  /** Opens the mobile long-press action menu anchored at the touch point. */
-  onLongPressMenu?: (session: SessionWithProvider, coords: LongPressCoords) => void;
+  /** Opens the mobile long-press action menu, anchored to this row. */
+  onLongPressMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  activeContextMenuKey?: string | null;
   t: TFunction;
 };
 
@@ -87,6 +88,7 @@ export default function SidebarSessionItem({
   onSessionSelect,
   onDeleteSession,
   onLongPressMenu,
+  activeContextMenuKey,
   t,
 }: SidebarSessionItemProps) {
   const sessionView = createSessionViewModel(session, currentTime, t);
@@ -96,9 +98,15 @@ export default function SidebarSessionItem({
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const mobileEditRef = useRef<HTMLDivElement>(null);
-  const { handlers: longPress, isPressing } = useLongPress((coords) => onLongPressMenu?.(session, coords), {
-    disabled: !onLongPressMenu,
-  });
+  // Anchor the menu to the row's box, not the finger, so it opens attached to
+  // the session it acts on.
+  const mobileRowRef = useRef<HTMLDivElement>(null);
+  const { handlers: longPress, isPressing } = useLongPress(
+    (coords) => onLongPressMenu?.(session, anchorFromElement(mobileRowRef.current, coords)),
+    { disabled: !onLongPressMenu },
+  );
+  // Stays on for as long as this row's menu is open.
+  const isContextActive = isPressing || activeContextMenuKey === `session:${session.id}`;
   // Needs-action (amber) is only meaningful when you're not already viewing it.
   const needsAttentionHighlight = needsAttention && !isSelected;
   // Unread (green) yields to needs-action and to an in-progress run.
@@ -190,9 +198,10 @@ export default function SidebarSessionItem({
           </div>
         ) : (
           <div
+            ref={mobileRowRef}
             className={cn(
               'long-pressable p-2 mx-3 my-0.5 rounded-md bg-card border transition-all duration-150 relative',
-              isPressing && 'scale-[0.98]',
+              isContextActive && 'scale-[0.98] ring-1 ring-inset ring-primary/50',
               // Single chain: a trailing border fallback would win inside cn()
               // (tailwind-merge keeps the last conflicting class) and erase the
               // selected border.
