@@ -69,9 +69,14 @@ export default {
         'mobile-nav': 'var(--mobile-nav-total)',
       },
       keyframes: {
+        // Seamless only in tandem with Shimmer.tsx's `bg-[length:200%_100%]`.
+        // background-position percentages resolve against (elementW - backgroundW),
+        // i.e. -1W here, so 200% -> 0% travels exactly 2W == one gradient tile and
+        // the last frame is pixel-identical to the first. Change the background
+        // size and this endpoint has to change with it (endpoint = size/(size-100%)).
         shimmer: {
           '0%': { backgroundPosition: '200% 0' },
-          '100%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '0% 0' },
         },
         'dialog-overlay-show': {
           from: { opacity: '0' },
