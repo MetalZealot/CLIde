@@ -231,10 +231,19 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.settingSources = ['project', 'user', 'local'];
 
+  // Ephemeral runs (e.g. the Source Control commit-message generator) opt out
+  // of transcript persistence: without this the SDK writes a jsonl into
+  // ~/.claude/projects/ and the session watcher surfaces the one-shot query as
+  // a real session in the project's sidebar.
+  if (options.persistSession === false) {
+    sdkOptions.persistSession = false;
+  }
+
   // Snapshot files before edits (file-history-snapshot/-delta rows in the
   // session jsonl) so a future file-restore rewind has checkpoints to work
-  // with. Conversation-only rewind does not depend on this.
-  if (process.env.CLIDE_DISABLE_CHECKPOINTS !== '1') {
+  // with. Conversation-only rewind does not depend on this. Pointless without
+  // a transcript to write the snapshots into.
+  if (process.env.CLIDE_DISABLE_CHECKPOINTS !== '1' && options.persistSession !== false) {
     sdkOptions.enableFileCheckpointing = true;
   }
 

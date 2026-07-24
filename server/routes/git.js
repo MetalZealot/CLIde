@@ -1080,38 +1080,28 @@ ${diffContext.substring(0, 4000)}
 Generate the commit message:`;
 
   try {
-    // Create a simple writer that collects the response
+    // Collect the agent's answer off the NormalizedMessage stream every
+    // provider adapter emits ({ kind, role, content, ... }) — the pre-adapter
+    // shapes ('claude-response'/'cursor-output') no longer reach the writer,
+    // and reading for them silently yielded '' and the fallback message.
     let responseText = '';
+    let streamedText = '';
     const writer = {
       send: (data) => {
         try {
           const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-          console.log('🔍 Writer received message type:', parsed.type);
+          if (!parsed || typeof parsed !== 'object') {
+            return;
+          }
 
-          // Handle different message formats from Claude SDK and Cursor CLI
-          // Claude SDK sends: {type: 'claude-response', data: {message: {content: [...]}}}
-          if (parsed.type === 'claude-response' && parsed.data) {
-            const message = parsed.data.message || parsed.data;
-            console.log('📦 Claude response message:', JSON.stringify(message, null, 2).substring(0, 500));
-            if (message.content && Array.isArray(message.content)) {
-              // Extract text from content array
-              for (const item of message.content) {
-                if (item.type === 'text' && item.text) {
-                  console.log('✅ Extracted text chunk:', item.text.substring(0, 100));
-                  responseText += item.text;
-                }
-              }
-            }
-          }
-          // Cursor CLI sends: {type: 'cursor-output', output: '...'}
-          else if (parsed.type === 'cursor-output' && parsed.output) {
-            console.log('✅ Cursor output:', parsed.output.substring(0, 100));
-            responseText += parsed.output;
-          }
-          // Also handle direct text messages
-          else if (parsed.type === 'text' && parsed.text) {
-            console.log('✅ Direct text:', parsed.text.substring(0, 100));
-            responseText += parsed.text;
+          if (parsed.kind === 'text' && parsed.role === 'assistant' && typeof parsed.content === 'string') {
+            responseText += parsed.content;
+          } else if (parsed.kind === 'stream_delta' && typeof parsed.content === 'string') {
+            // Only used if no complete assistant message arrives (partial
+            // messages are off here, so this is belt-and-braces).
+            streamedText += parsed.content;
+          } else if (parsed.kind === 'error' && parsed.content) {
+            console.error('Commit message agent error:', parsed.content);
           }
         } catch (e) {
           // Ignore parse errors
@@ -1121,15 +1111,15 @@ Generate the commit message:`;
       setSessionId: () => {}, // No-op for this use case
     };
 
-    console.log('🚀 Calling AI agent with provider:', provider);
-    console.log('📝 Prompt length:', prompt.length);
-
-    // Call the appropriate agent
+    // Call the appropriate agent. This is a one-shot text generation, so it
+    // runs ephemerally: no transcript on disk means no phantom session in the
+    // project's sidebar.
     if (provider === 'claude') {
       await queryClaudeSDK(prompt, {
         cwd: projectPath,
         permissionMode: 'bypassPermissions',
-        model: 'sonnet'
+        model: 'sonnet',
+        persistSession: false
       }, writer);
     } else if (provider === 'cursor') {
       await spawnCursor(prompt, {
@@ -1138,12 +1128,15 @@ Generate the commit message:`;
       }, writer);
     }
 
-    console.log('📊 Total response text collected:', responseText.length, 'characters');
-    console.log('📄 Response preview:', responseText.substring(0, 200));
+    if (!responseText) {
+      responseText = streamedText;
+    }
 
     // Clean up the response
     const cleanedMessage = cleanCommitMessage(responseText);
-    console.log('🧹 Cleaned message:', cleanedMessage.substring(0, 200));
+    if (!cleanedMessage) {
+      console.warn('Commit message generation produced no usable text; using fallback');
+    }
 
     return cleanedMessage || 'chore: update files';
   } catch (error) {
