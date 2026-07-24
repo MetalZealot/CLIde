@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -59,15 +59,21 @@ const MessageCopyControl = ({
 
   // The dropdown is rendered in a portal so it escapes the chat message's
   // `contain: paint` box (which would otherwise clip it). Anchor it to the
-  // trigger, flipping above when there isn't room below.
+  // trigger, flipping above when there isn't room below. Positioned with
+  // `left` (not `right`) and clamped on both edges so it can't run off
+  // either side of a narrow viewport.
   const openDropdown = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
+      const ESTIMATED_MENU_WIDTH = 144; // matches min-w-36
       const ESTIMATED_MENU_HEIGHT = 84;
-      const openUp = rect.bottom + ESTIMATED_MENU_HEIGHT + 8 > window.innerHeight;
+      const EDGE_GAP = 8;
+      const openUp = rect.bottom + ESTIMATED_MENU_HEIGHT + EDGE_GAP > window.innerHeight;
+      const maxLeft = Math.max(EDGE_GAP, window.innerWidth - ESTIMATED_MENU_WIDTH - EDGE_GAP);
+      const left = Math.min(Math.max(EDGE_GAP, rect.right - ESTIMATED_MENU_WIDTH), maxLeft);
       setMenuStyle({
         position: 'fixed',
-        right: Math.max(8, window.innerWidth - rect.right),
+        left,
         zIndex: 1000,
         ...(openUp
           ? { bottom: window.innerHeight - rect.top + 4 }
@@ -76,6 +82,19 @@ const MessageCopyControl = ({
     }
     setIsDropdownOpen(true);
   };
+
+  // Correct for actual menu width once rendered (translations can run wider
+  // than the estimate), re-clamping to the viewport rather than the trigger.
+  useLayoutEffect(() => {
+    if (!isDropdownOpen || !menuRef.current) return;
+    const EDGE_GAP = 8;
+    const menuRect = menuRef.current.getBoundingClientRect();
+    const maxLeft = Math.max(EDGE_GAP, window.innerWidth - menuRect.width - EDGE_GAP);
+    const clampedLeft = Math.min(Math.max(EDGE_GAP, menuRect.left), maxLeft);
+    if (clampedLeft !== menuRect.left) {
+      setMenuStyle((prev) => ({ ...prev, left: clampedLeft }));
+    }
+  }, [isDropdownOpen]);
 
   const copyFormatOptions: CopyFormatOption[] = useMemo(
     () => [
