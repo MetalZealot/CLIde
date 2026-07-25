@@ -15,6 +15,13 @@
 
 import { Codex } from '@openai/codex-sdk';
 
+import {
+  abortCodexAppServerSession,
+  isCodexAppServerChatEnabled,
+  isCodexAppServerSessionActive,
+  queryCodexAppServer,
+  withCodexAppServerStartupFallback,
+} from './modules/providers/list/codex/codex-app-server-chat.transport.js';
 import { buildCodexInputItems, normalizeImageDescriptors } from './shared/image-attachments.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
@@ -203,7 +210,7 @@ function mapPermissionModeToCodexOptions(permissionMode) {
  * @param {object} options - Options including cwd, sessionId, model, permissionMode
  * @param {WebSocket|object} ws - WebSocket connection or response writer
  */
-export async function queryCodex(command, options = {}, ws) {
+export async function queryCodexSdk(command, options = {}, ws) {
   const {
     sessionId,
     sessionSummary,
@@ -414,7 +421,7 @@ export async function queryCodex(command, options = {}, ws) {
  * @param {string} sessionId - Session ID to abort
  * @returns {boolean} - Whether abort was successful
  */
-export function abortCodexSession(sessionId) {
+export function abortCodexSdkSession(sessionId) {
   const session = activeCodexSessions.get(sessionId);
 
   if (!session) {
@@ -437,6 +444,9 @@ export function abortCodexSession(sessionId) {
  * @returns {boolean} - Whether session is active
  */
 export function isCodexSessionActive(sessionId) {
+  if (isCodexAppServerSessionActive(sessionId)) {
+    return true;
+  }
   const session = activeCodexSessions.get(sessionId);
   return session?.status === 'running';
 }
@@ -480,8 +490,9 @@ function sendMessage(ws, data) {
   }
 }
 
-// Clean up old completed sessions periodically
-setInterval(() => {
+// Clean up old completed sessions periodically. Do not keep short-lived CLIde
+// maintenance/test processes alive solely for this housekeeping timer.
+const codexSessionCleanupTimer = setInterval(() => {
   const now = Date.now();
   const maxAge = 30 * 60 * 1000; // 30 minutes
 
@@ -494,3 +505,31 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000); // Every 5 minutes
+codexSessionCleanupTimer.unref?.();
+
+/**
+ * Feature-gated Chat entry point. The SDK remains CLIde's default transport.
+ * App Server falls back only when its process cannot complete initialization;
+ * once a thread/turn request is attempted, errors stay on that path so a user
+ * instruction can never be duplicated by an SDK retry.
+ */
+export async function queryCodex(command, options = {}, ws) {
+  if (!isCodexAppServerChatEnabled()) {
+    return queryCodexSdk(command, options, ws);
+  }
+
+  return withCodexAppServerStartupFallback(
+    () => queryCodexAppServer(command, options, ws),
+    (error) => {
+      console.warn('[Codex] App Server initialization failed; using SDK fallback:', error.message);
+      return queryCodexSdk(command, options, ws);
+    },
+  );
+}
+
+export async function abortCodexSession(sessionId) {
+  if (isCodexAppServerSessionActive(sessionId)) {
+    return abortCodexAppServerSession(sessionId);
+  }
+  return abortCodexSdkSession(sessionId);
+}

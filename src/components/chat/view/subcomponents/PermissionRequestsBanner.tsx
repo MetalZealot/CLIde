@@ -5,7 +5,7 @@ import type { PendingPermissionRequest } from '../../types/types';
 import { buildClaudeToolPermissionEntry, formatToolInputForDisplay } from '../../utils/chatPermissions';
 import { getClaudeSettings } from '../../utils/chatStorage';
 import { getPermissionPanel, registerPermissionPanel } from '../../tools/configs/permissionPanelRegistry';
-import { AskUserQuestionPanel } from '../../tools/components/InteractiveRenderers';
+import { UserInputRequestPanel } from '../../tools/components/InteractiveRenderers';
 import {
   Confirmation,
   ConfirmationTitle,
@@ -14,13 +14,23 @@ import {
   ConfirmationAction,
 } from '../../../../shared/view/ui';
 
-registerPermissionPanel('AskUserQuestion', AskUserQuestionPanel);
+registerPermissionPanel('AskUserQuestion', UserInputRequestPanel);
+registerPermissionPanel('request_user_input', UserInputRequestPanel);
 
 interface PermissionRequestsBannerProps {
   pendingPermissionRequests: PendingPermissionRequest[];
   handlePermissionDecision: (
     requestIds: string | string[],
-    decision: { allow?: boolean; message?: string; rememberEntry?: string | null; updatedInput?: unknown; toolId?: string },
+    decision: {
+      requestType?: PendingPermissionRequest['requestType'];
+      decision?: 'allow_once' | 'allow_session' | 'deny' | 'cancel';
+      answers?: Record<string, string[]>;
+      allow?: boolean;
+      message?: string;
+      rememberEntry?: string | null;
+      updatedInput?: unknown;
+      toolId?: string;
+    },
   ) => void;
   handleGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
 }
@@ -53,13 +63,16 @@ export default function PermissionRequestsBanner({
           );
         }
 
+        const isCodex = request.provider === 'codex';
         const rawInput = formatToolInputForDisplay(request.input);
-        const permissionEntry = buildClaudeToolPermissionEntry(request.toolName, rawInput);
+        const permissionEntry = isCodex
+          ? null
+          : buildClaudeToolPermissionEntry(request.toolName, rawInput);
         const settings = getClaudeSettings();
         const alreadyAllowed = permissionEntry ? settings.allowedTools.includes(permissionEntry) : false;
-        const rememberLabel = alreadyAllowed ? 'Allow (saved)' : 'Allow & remember';
+        const rememberLabel = alreadyAllowed ? 'Allow for session (saved)' : 'Allow for session';
         const matchingRequestIds = permissionEntry
-          ? pendingPermissionRequests
+          ? filteredRequests
               .filter(
                 (item) =>
                   buildClaudeToolPermissionEntry(item.toolName, formatToolInputForDisplay(item.input)) === permissionEntry,
@@ -73,9 +86,18 @@ export default function PermissionRequestsBanner({
               <ShieldAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <ConfirmationRequest>
                 <div>
-                  <span className="font-medium text-foreground">Permission required</span>
+                  <span className="font-medium text-foreground">
+                    {isCodex ? 'Codex needs approval' : 'Claude needs approval'}
+                  </span>
                   <span className="ml-2 text-muted-foreground">
-                    Tool: <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{request.toolName}</code>
+                    {request.requestType === 'command_approval'
+                      ? 'Command'
+                      : request.requestType === 'file_change_approval'
+                        ? 'File changes'
+                        : request.requestType === 'permission_approval'
+                          ? 'Additional permissions'
+                          : 'Tool'}:{' '}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{request.toolName}</code>
                   </span>
                 </div>
                 {permissionEntry && (
@@ -100,7 +122,23 @@ export default function PermissionRequestsBanner({
             <ConfirmationActions>
               <ConfirmationAction
                 variant="outline"
-                onClick={() => handlePermissionDecision(request.requestId, { allow: false, message: 'User denied tool use' })}
+                onClick={() => handlePermissionDecision(request.requestId, {
+                  requestType: request.requestType,
+                  decision: 'cancel',
+                  allow: false,
+                  message: 'User cancelled the request',
+                })}
+              >
+                Cancel
+              </ConfirmationAction>
+              <ConfirmationAction
+                variant="outline"
+                onClick={() => handlePermissionDecision(request.requestId, {
+                  requestType: request.requestType,
+                  decision: 'deny',
+                  allow: false,
+                  message: 'User denied the request',
+                })}
               >
                 Deny
               </ConfirmationAction>
@@ -110,15 +148,23 @@ export default function PermissionRequestsBanner({
                   if (permissionEntry && !alreadyAllowed) {
                     handleGrantToolPermission({ entry: permissionEntry, toolName: request.toolName });
                   }
-                  handlePermissionDecision(matchingRequestIds, { allow: true, rememberEntry: permissionEntry });
+                  handlePermissionDecision(matchingRequestIds, {
+                    requestType: request.requestType,
+                    decision: 'allow_session',
+                    allow: true,
+                    rememberEntry: permissionEntry,
+                  });
                 }}
-                disabled={!permissionEntry}
               >
                 {rememberLabel}
               </ConfirmationAction>
               <ConfirmationAction
                 variant="default"
-                onClick={() => handlePermissionDecision(request.requestId, { allow: true })}
+                onClick={() => handlePermissionDecision(request.requestId, {
+                  requestType: request.requestType,
+                  decision: 'allow_once',
+                  allow: true,
+                })}
               >
                 Allow once
               </ConfirmationAction>

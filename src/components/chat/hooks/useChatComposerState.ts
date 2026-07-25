@@ -72,6 +72,7 @@ interface UseChatComposerStateArgs {
   scrollToBottom: () => void;
   addMessage: (msg: ChatMessage) => void;
   setIsUserScrolledUp: (isScrolledUp: boolean) => void;
+  pendingPermissionRequests: PendingPermissionRequest[];
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   /** From the provider capability matrix; gates /rewind in the command menu. */
   supportsRewind?: boolean;
@@ -232,7 +233,8 @@ export function useChatComposerState({
   scrollToBottom,
   addMessage,
   setIsUserScrolledUp,
-  setPendingPermissionRequests,
+  pendingPermissionRequests,
+  setPendingPermissionRequests: _setPendingPermissionRequests,
   supportsRewind = false,
 }: UseChatComposerStateArgs) {
   const [input, setInput] = useState(() => {
@@ -1280,7 +1282,16 @@ export function useChatComposerState({
   const handlePermissionDecision = useCallback(
     (
       requestIds: string | string[],
-      decision: { allow?: boolean; message?: string; rememberEntry?: string | null; updatedInput?: unknown; toolId?: string },
+      decision: {
+        requestType?: PendingPermissionRequest['requestType'];
+        decision?: 'allow_once' | 'allow_session' | 'deny' | 'cancel';
+        answers?: Record<string, string[]>;
+        allow?: boolean;
+        message?: string;
+        rememberEntry?: string | null;
+        updatedInput?: unknown;
+        toolId?: string;
+      },
     ) => {
       const ids = Array.isArray(requestIds) ? requestIds : [requestIds];
       const validIds = ids.filter(Boolean);
@@ -1292,6 +1303,9 @@ export function useChatComposerState({
         sendMessage({
           type: 'chat.permission-response',
           requestId,
+          requestType: decision?.requestType,
+          decision: decision?.decision,
+          answers: decision?.answers,
           allow: Boolean(decision?.allow),
           updatedInput: decision?.updatedInput,
           message: decision?.message,
@@ -1305,19 +1319,30 @@ export function useChatComposerState({
       // to round-trip back — that round trip can take a few seconds, during
       // which the message would otherwise still read "Skipped".
       if (decision?.allow && decision.toolId && sessionKey) {
-        const updated = decision.updatedInput as { answers?: Record<string, string> } | undefined;
+        const request = pendingPermissionRequests.find((item) => item.toolId === decision.toolId);
+        const secretQuestionIds = new Set(
+          (request?.questions || []).filter((question) => question.isSecret).map((question) => question.id || question.question),
+        );
+        const normalizedAnswers = decision.answers
+          ? Object.fromEntries(Object.entries(decision.answers).map(([questionId, values]) => [
+              questionId,
+              secretQuestionIds.has(questionId) ? ['[redacted]'] : values,
+            ]))
+          : undefined;
+        const updated = decision.updatedInput as { answers?: Record<string, string | string[]> } | undefined;
         sessionStore.patchToolResult(sessionKey, decision.toolId, {
           content: 'Your questions have been answered.',
           isError: false,
-          toolUseResult: { answers: updated?.answers || {} },
+          toolUseResult: { answers: normalizedAnswers || updated?.answers || {} },
         });
       }
 
-      setPendingPermissionRequests((previous) =>
-        previous.filter((request) => !validIds.includes(request.requestId)),
-      );
+      // Keep the request visible until the backend confirms it was accepted
+      // (`permission_cancelled` with reason=resolved, or App Server's
+      // `serverRequest/resolved`). This prevents a dropped/stale response from
+      // looking successful and lets reconnect replay remain authoritative.
     },
-    [sendMessage, setPendingPermissionRequests, sessionStore, sessionKey],
+    [sendMessage, sessionStore, sessionKey, pendingPermissionRequests],
   );
 
   const [isInputFocused, setIsInputFocused] = useState(false);

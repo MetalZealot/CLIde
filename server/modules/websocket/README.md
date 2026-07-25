@@ -132,7 +132,7 @@ flowchart TD
   D -->|chat.send| E[resolve session row -> startRun -> spawnFns provider]
   D -->|chat.abort| F[abortFns provider + synthetic complete]
   D -->|chat.subscribe| G[chat_subscribed ack + attach socket + replay events seq > lastSeq]
-  D -->|chat.permission-response| H[resolveToolApproval]
+  D -->|chat.permission-response| H[resolveInteractiveRequest]
   D -->|other| I[send kind:protocol_error]
 ```
 

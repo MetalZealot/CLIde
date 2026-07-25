@@ -10,6 +10,7 @@ import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/ima
 import type {
   AnyRecord,
   AuthenticatedWebSocketRequest,
+  InteractiveRequestResponse,
   LLMProvider,
 } from '@/shared/types.js';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
@@ -65,17 +66,15 @@ type ChatWebSocketDependencies = {
    * The Claude abort is async; the rest are sync — both shapes are accepted.
    */
   abortFns: Record<LLMProvider, (providerSessionId: string) => boolean | Promise<boolean>>;
-  resolveToolApproval: (
+  resolveInteractiveRequest: (
     requestId: string,
-    payload: {
-      allow: boolean;
-      updatedInput?: unknown;
-      message?: string;
-      rememberEntry?: unknown;
-    }
-  ) => void;
-  /** Claude-only today: pending tool approvals included in `chat_subscribed`. */
-  getPendingApprovalsForSession: (providerSessionId: string) => unknown[];
+    payload: InteractiveRequestResponse,
+  ) => Promise<{
+    status: 'resolved' | 'not_found' | 'invalid';
+    error?: string;
+  }>;
+  /** Provider-neutral pending requests included in `chat_subscribed`. */
+  getPendingInteractiveRequestsForSession: (providerSessionId: string) => unknown[];
 };
 
 /**
@@ -321,10 +320,10 @@ function handleChatSubscribe(
       chatRunRegistry.attachConnection(sessionId, ws);
     }
 
-    // Pending approvals are tracked under the provider-native id inside the
-    // Claude runtime; remap their sessionId so the client only sees app ids.
+    // Pending interactions are tracked under the provider-native id inside
+    // each runtime; remap their sessionId so the client only sees app ids.
     const pendingPermissions = (run?.providerSessionId
-      ? dependencies.getPendingApprovalsForSession(run.providerSessionId)
+      ? dependencies.getPendingInteractiveRequestsForSession(run.providerSessionId)
       : []
     ).map((approval) =>
       approval && typeof approval === 'object'
@@ -375,20 +374,79 @@ function handleChatPing(ws: WebSocket, data: AnyRecord): void {
 
 /**
  * Handles `chat.permission-response`: forwards a tool-approval decision to the
- * pending approval resolver (Claude is the only provider with interactive
- * approvals today, but the message is intentionally provider-neutral).
+ * provider-neutral pending interaction registry.
  */
-function handlePermissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
+async function handlePermissionResponse(
+  ws: WebSocket,
+  data: AnyRecord,
+  dependencies: ChatWebSocketDependencies,
+): Promise<void> {
   if (typeof data.requestId !== 'string' || data.requestId.length === 0) {
+    sendProtocolError(ws, 'REQUEST_ID_REQUIRED', 'chat.permission-response requires a requestId.');
     return;
   }
 
-  dependencies.resolveToolApproval(data.requestId, {
+  const validRequestTypes = new Set([
+    'tool_approval',
+    'user_input',
+    'command_approval',
+    'file_change_approval',
+    'permission_approval',
+  ]);
+  if (data.requestType !== undefined && (
+    typeof data.requestType !== 'string' || !validRequestTypes.has(data.requestType)
+  )) {
+    sendProtocolError(ws, 'INTERACTIVE_RESPONSE_INVALID', 'Unsupported interactive requestType.');
+    return;
+  }
+
+  const validDecisions = new Set(['allow_once', 'allow_session', 'deny', 'cancel']);
+  if (data.decision !== undefined && (
+    typeof data.decision !== 'string' || !validDecisions.has(data.decision)
+  )) {
+    sendProtocolError(ws, 'INTERACTIVE_RESPONSE_INVALID', 'Unsupported interactive decision.');
+    return;
+  }
+
+  if (data.answers !== undefined) {
+    if (!data.answers || typeof data.answers !== 'object' || Array.isArray(data.answers)) {
+      sendProtocolError(ws, 'INTERACTIVE_RESPONSE_INVALID', 'Interactive answers must be keyed arrays.');
+      return;
+    }
+    const malformedAnswer = Object.values(data.answers as AnyRecord).some((answer) =>
+      !Array.isArray(answer) || answer.some((value) => typeof value !== 'string')
+    );
+    if (malformedAnswer) {
+      sendProtocolError(ws, 'INTERACTIVE_RESPONSE_INVALID', 'Each interactive answer must be an array of strings.');
+      return;
+    }
+  }
+
+  const result = await dependencies.resolveInteractiveRequest(data.requestId, {
     allow: Boolean(data.allow),
+    requestType: typeof data.requestType === 'string' ? data.requestType as InteractiveRequestResponse['requestType'] : undefined,
+    decision: typeof data.decision === 'string' ? data.decision as InteractiveRequestResponse['decision'] : undefined,
+    answers: data.answers && typeof data.answers === 'object' && !Array.isArray(data.answers)
+      ? data.answers as Record<string, string[]>
+      : undefined,
     updatedInput: data.updatedInput,
     message: typeof data.message === 'string' ? data.message : undefined,
     rememberEntry: data.rememberEntry,
   });
+
+  if (result.status === 'not_found') {
+    sendProtocolError(
+      ws,
+      'INTERACTIVE_REQUEST_STALE',
+      `Interactive request "${data.requestId}" is no longer pending.`,
+    );
+  } else if (result.status === 'invalid') {
+    sendProtocolError(
+      ws,
+      'INTERACTIVE_RESPONSE_INVALID',
+      result.error || 'Interactive response was rejected.',
+    );
+  }
 }
 
 /**
@@ -437,7 +495,7 @@ export function handleChatConnection(
           handleChatSubscribe(ws, data, dependencies);
           return;
         case 'chat.permission-response':
-          handlePermissionResponse(data, dependencies);
+          await handlePermissionResponse(ws, data, dependencies);
           return;
         case 'chat.ping':
           handleChatPing(ws, data);

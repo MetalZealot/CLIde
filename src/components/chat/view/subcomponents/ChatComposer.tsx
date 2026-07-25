@@ -284,9 +284,11 @@ export default function ChatComposer({
     };
   }, [isEffortDropdownOpen, updateEffortDropdownPosition]);
 
-  // Detect if the AskUserQuestion interactive panel is active
+  // Detect if a provider-neutral structured-question panel is active.
   const hasQuestionPanel = pendingPermissionRequests.some(
-    (r) => r.toolName === 'AskUserQuestion'
+    (r) => r.requestType === 'user_input'
+      || r.toolName === 'AskUserQuestion'
+      || r.toolName === 'request_user_input'
   );
 
   const ModeIcon = MODE_ICONS[permissionMode] ?? Shield;

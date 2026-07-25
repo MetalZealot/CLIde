@@ -25,9 +25,8 @@ import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import {
     queryClaudeSDK,
     abortClaudeSDKSession,
-    resolveToolApproval,
-    getPendingApprovalsForSession,
 } from './claude-sdk.js';
+import { interactiveRequestRegistry } from './modules/providers/services/interactive-request-registry.service.js';
 import {
     spawnCursor,
     abortCursorSession,
@@ -122,8 +121,10 @@ const wss = createWebSocketServer(server, {
             codex: abortCodexSession,
             opencode: abortOpenCodeSession,
         },
-        resolveToolApproval,
-        getPendingApprovalsForSession,
+        resolveInteractiveRequest: (requestId, response) =>
+            interactiveRequestRegistry.resolve(requestId, response),
+        getPendingInteractiveRequestsForSession: (providerSessionId) =>
+            interactiveRequestRegistry.getPendingForSession(providerSessionId),
     },
     shell: {
         resolveProviderSessionId: (sessionId, provider) => {

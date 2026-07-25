@@ -6,6 +6,11 @@ import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
+import {
+  CodexSessionsProvider,
+  normalizeAndRedactCodexQuestionAnswers,
+  normalizePersistedCodexQuestions,
+} from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
@@ -86,6 +91,158 @@ test('Codex context usage prefers the latest request over cumulative rollout usa
     outputTokens: 59,
     breakdown: { input: 36100, output: 59 },
   });
+});
+
+test('Codex persisted question helpers preserve ids and arrays while redacting secrets', () => {
+  const questions = normalizePersistedCodexQuestions([
+    {
+      id: 'choice',
+      header: 'Choice',
+      question: 'Pick one',
+      isOther: true,
+      isSecret: false,
+      options: [{ label: 'A', description: 'First option' }],
+    },
+    {
+      id: 'secret',
+      header: 'Secret',
+      question: 'Token',
+      isOther: false,
+      isSecret: true,
+      options: null,
+    },
+  ]);
+  assert.deepEqual(questions, [
+    {
+      id: 'choice',
+      header: 'Choice',
+      question: 'Pick one',
+      options: [{ label: 'A', description: 'First option' }],
+      allowOther: true,
+      isSecret: false,
+      multiSelect: false,
+    },
+    {
+      id: 'secret',
+      header: 'Secret',
+      question: 'Token',
+      options: [],
+      allowOther: false,
+      isSecret: true,
+      multiSelect: false,
+    },
+  ]);
+  assert.deepEqual(normalizeAndRedactCodexQuestionAnswers(
+    JSON.stringify({
+      answers: {
+        choice: { answers: ['A', 'custom'] },
+        secret: { answers: ['never-deliver-this'] },
+      },
+    }),
+    new Set(['secret']),
+  ), {
+    choice: ['A', 'custom'],
+    secret: ['[redacted]'],
+  });
+});
+
+test('Codex history links request_user_input calls to redacted answer arrays', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-question-history-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const transcriptPath = path.join(tempRoot, 'rollout-question.jsonl');
+  await mkdir(workspacePath, { recursive: true });
+  await writeFile(transcriptPath, [
+    JSON.stringify({
+      timestamp: '2026-07-25T12:00:00.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'function_call',
+        name: 'request_user_input',
+        call_id: 'question-call',
+        arguments: JSON.stringify({
+          questions: [
+            {
+              id: 'choice',
+              header: 'Choice',
+              question: 'Pick one',
+              isOther: true,
+              isSecret: false,
+              options: [{ label: 'A', description: 'First option' }],
+            },
+            {
+              id: 'secret',
+              header: 'Secret',
+              question: 'Token',
+              isOther: false,
+              isSecret: true,
+              options: null,
+            },
+          ],
+        }),
+      },
+    }),
+    JSON.stringify({
+      timestamp: '2026-07-25T12:00:01.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'function_call_output',
+        call_id: 'question-call',
+        output: JSON.stringify({
+          answers: {
+            choice: { answers: ['A', 'custom'] },
+            secret: { answers: ['never-deliver-this'] },
+          },
+        }),
+      },
+    }),
+  ].join('\n') + '\n', 'utf8');
+
+  try {
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(
+        'codex-question-history',
+        'codex',
+        workspacePath,
+        undefined,
+        undefined,
+        undefined,
+        transcriptPath,
+      );
+      const history = await new CodexSessionsProvider().fetchHistory('codex-question-history');
+      const toolUse = history.messages.find((message) =>
+        message.kind === 'tool_use' && message.toolName === 'request_user_input');
+      assert.ok(toolUse);
+      assert.deepEqual((toolUse.toolInput as { questions: unknown }).questions, [
+        {
+          id: 'choice',
+          header: 'Choice',
+          question: 'Pick one',
+          options: [{ label: 'A', description: 'First option' }],
+          allowOther: true,
+          isSecret: false,
+          multiSelect: false,
+        },
+        {
+          id: 'secret',
+          header: 'Secret',
+          question: 'Token',
+          options: [],
+          allowOther: false,
+          isSecret: true,
+          multiSelect: false,
+        },
+      ]);
+      assert.deepEqual(toolUse.toolResult?.toolUseResult, {
+        answers: {
+          choice: ['A', 'custom'],
+          secret: ['[redacted]'],
+        },
+      });
+      assert.ok(!JSON.stringify(history).includes('never-deliver-this'));
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {

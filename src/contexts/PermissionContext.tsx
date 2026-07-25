@@ -6,7 +6,16 @@ export interface PermissionContextValue {
   pendingPermissionRequests: PendingPermissionRequest[];
   handlePermissionDecision: (
     requestIds: string | string[],
-    decision: { allow?: boolean; message?: string; rememberEntry?: string | null; updatedInput?: unknown; toolId?: string },
+    decision: {
+      requestType?: PendingPermissionRequest['requestType'];
+      decision?: 'allow_once' | 'allow_session' | 'deny' | 'cancel';
+      answers?: Record<string, string[]>;
+      allow?: boolean;
+      message?: string;
+      rememberEntry?: string | null;
+      updatedInput?: unknown;
+      toolId?: string;
+    },
   ) => void;
 }
 

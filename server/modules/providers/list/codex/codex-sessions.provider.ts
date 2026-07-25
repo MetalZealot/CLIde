@@ -94,6 +94,104 @@ function extractCodexTextContent(content: unknown): string {
     .join('\n');
 }
 
+type CodexPersistedQuestion = {
+  id: string;
+  header?: string;
+  question: string;
+  options: Array<{ label: string; description?: string }>;
+  allowOther?: boolean;
+  isSecret?: boolean;
+  multiSelect?: boolean;
+};
+
+function parseJsonRecord(value: unknown): AnyRecord | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as AnyRecord;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as AnyRecord
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function normalizePersistedCodexQuestions(value: unknown): CodexPersistedQuestion[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return value.flatMap((rawQuestion) => {
+    const question = readObjectRecord(rawQuestion);
+    const id = typeof question?.id === 'string' ? question.id.trim() : '';
+    const prompt = typeof question?.question === 'string' ? question.question.trim() : '';
+    if (!question || !id || !prompt || seen.has(id)) {
+      return [];
+    }
+    seen.add(id);
+
+    const options = Array.isArray(question.options)
+      ? question.options.flatMap((rawOption: unknown) => {
+          const option = readObjectRecord(rawOption);
+          const label = typeof option?.label === 'string' ? option.label.trim() : '';
+          return label
+            ? [{
+                label,
+                ...(typeof option?.description === 'string'
+                  ? { description: option.description }
+                  : {}),
+              }]
+            : [];
+        })
+      : [];
+
+    return [{
+      id,
+      header: typeof question.header === 'string' ? question.header : undefined,
+      question: prompt,
+      options,
+      allowOther: Boolean(question.isOther ?? question.allowOther),
+      isSecret: Boolean(question.isSecret),
+      // App Server 0.144.6 has no multi-select marker.
+      multiSelect: false,
+    }];
+  });
+}
+
+export function normalizeAndRedactCodexQuestionAnswers(
+  value: unknown,
+  secretQuestionIds: Set<string>,
+): Record<string, string[]> {
+  const record = parseJsonRecord(value);
+  const candidate = readObjectRecord(record?.answers) ?? record;
+  if (!candidate) {
+    return {};
+  }
+
+  const answers: Record<string, string[]> = {};
+  for (const [questionId, rawAnswer] of Object.entries(candidate)) {
+    const nested = readObjectRecord(rawAnswer);
+    const values = Array.isArray(nested?.answers)
+      ? nested.answers
+      : Array.isArray(rawAnswer)
+        ? rawAnswer
+        : typeof rawAnswer === 'string'
+          ? [rawAnswer]
+          : [];
+    const normalized = values.filter((answer): answer is string => typeof answer === 'string');
+    answers[questionId] = secretQuestionIds.has(questionId) && normalized.length > 0
+      ? ['[redacted]']
+      : normalized;
+  }
+  return answers;
+}
+
 async function getCodexSessionMessages(
   sessionId: string,
   limit: number | null = null,
@@ -108,6 +206,10 @@ async function getCodexSessionMessages(
     }
 
     const messages: AnyRecord[] = [];
+    const requestUserInputByCallId = new Map<string, {
+      questions: CodexPersistedQuestion[];
+      secretQuestionIds: Set<string>;
+    }>();
     let tokenUsage: AnyRecord | null = null;
     const fileStream = fsSync.createReadStream(sessionFilePath);
     const rl = readline.createInterface({
@@ -182,7 +284,22 @@ async function getCodexSessionMessages(
           let toolName = entry.payload.name;
           let toolInput = entry.payload.arguments;
 
-          if (toolName === 'shell_command') {
+          if (toolName === 'request_user_input') {
+            const parsedInput = parseJsonRecord(entry.payload.arguments) ?? {};
+            const questions = normalizePersistedCodexQuestions(parsedInput.questions);
+            toolInput = {
+              ...parsedInput,
+              questions,
+            };
+            if (typeof entry.payload.call_id === 'string') {
+              requestUserInputByCallId.set(entry.payload.call_id, {
+                questions,
+                secretQuestionIds: new Set(
+                  questions.filter((question) => question.isSecret).map((question) => question.id),
+                ),
+              });
+            }
+          } else if (toolName === 'shell_command') {
             toolName = 'Bash';
             try {
               const args = JSON.parse(entry.payload.arguments) as AnyRecord;
@@ -202,6 +319,25 @@ async function getCodexSessionMessages(
         }
 
         if (entry.type === 'response_item' && entry.payload?.type === 'function_call_output') {
+          const requestUserInput = typeof entry.payload.call_id === 'string'
+            ? requestUserInputByCallId.get(entry.payload.call_id)
+            : null;
+          if (requestUserInput) {
+            messages.push({
+              type: 'tool_result',
+              timestamp: entry.timestamp,
+              toolCallId: entry.payload.call_id,
+              output: 'Your questions have been answered.',
+              toolUseResult: {
+                answers: normalizeAndRedactCodexQuestionAnswers(
+                  entry.payload.output,
+                  requestUserInput.secretQuestionIds,
+                ),
+              },
+            });
+            continue;
+          }
+
           messages.push({
             type: 'tool_result',
             timestamp: entry.timestamp,
@@ -391,6 +527,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         toolId: raw.toolCallId || '',
         content: raw.output || '',
         isError: Boolean(raw.isError),
+        toolUseResult: raw.toolUseResult,
       })];
     }
 
@@ -582,7 +719,11 @@ export class CodexSessionsProvider implements IProviderSessions {
       if (msg.kind === 'tool_use' && msg.toolId && toolResultMap.has(msg.toolId)) {
         const toolResult = toolResultMap.get(msg.toolId);
         if (toolResult) {
-          msg.toolResult = { content: toolResult.content, isError: toolResult.isError };
+          msg.toolResult = {
+            content: toolResult.content,
+            isError: toolResult.isError,
+            toolUseResult: toolResult.toolUseResult,
+          };
         }
       }
     }
