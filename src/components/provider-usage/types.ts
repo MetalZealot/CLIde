@@ -4,9 +4,13 @@ export type ProviderUsageWindow = {
   id: string;
   utilization: number;
   resetsAt: string | null;
+  label?: string;
+  bucketId?: string;
+  durationMinutes?: number;
 };
 
-export type ProviderUsageCredits = {
+export type ProviderUsageSpendCredits = {
+  kind: 'spend';
   enabled: boolean;
   usedAmount: number;
   limitAmount: number;
@@ -16,6 +20,24 @@ export type ProviderUsageCredits = {
   canPurchaseCredits?: boolean;
   memberDashboardAvailable?: boolean;
 };
+
+export type ProviderUsageBalanceCredits = {
+  kind: 'balance';
+  hasCredits: boolean;
+  unlimited: boolean;
+  balance: string | null;
+  individualLimit?: {
+    limit: string;
+    used: string;
+    remainingPercent: number;
+    resetsAt: string | null;
+  };
+  limitReachedReason?: string;
+};
+
+export type ProviderUsageCredits =
+  | ProviderUsageSpendCredits
+  | ProviderUsageBalanceCredits;
 
 export type ProviderUsageStatus = {
   provider: LLMProvider;

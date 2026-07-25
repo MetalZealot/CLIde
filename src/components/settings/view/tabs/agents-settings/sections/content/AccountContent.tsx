@@ -1,5 +1,6 @@
 import { LogIn, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
 import UsageWindowList from '../../../../../../provider-usage/UsageWindowList';
@@ -70,15 +71,19 @@ const formatUpdatedAgo = (fetchedAt: string): string | null => {
 export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
-  const usageProvider = agent === 'claude' ? ('claude' as const) : null;
+  const usageProvider = agent;
   const planUsage = useProviderUsage(usageProvider, {
     enabled: authStatus.authenticated && !authStatus.loading,
   });
   const showUsageCard = Boolean(
-    usageProvider
-    && authStatus.authenticated
+    authStatus.authenticated
     && !authStatus.loading
     && planUsage.usage?.supported !== false,
+  );
+  const showApiKeyUsageNote = Boolean(
+    authStatus.authenticated
+    && planUsage.usage?.supported === false
+    && planUsage.usage.reason === 'api_key',
   );
   const usageUpdatedAgo = planUsage.usage?.fetchedAt
     ? formatUpdatedAgo(planUsage.usage.fetchedAt)
@@ -202,11 +207,11 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
         </div>
       )}
 
-      {usageProvider && authStatus.authenticated && planUsage.usage?.supported === false && (
+      {showApiKeyUsageNote && (
         <div className="rounded-lg border border-border bg-muted/30 p-4">
           <div className="text-sm text-muted-foreground">
             {t('agents.usage.apiKeyUnavailable', {
-              defaultValue: 'Plan usage is only available for subscription (OAuth) sign-in, not API-key auth.',
+              defaultValue: 'Plan usage is only available for subscription sign-in, not API-key auth.',
             })}
           </div>
         </div>

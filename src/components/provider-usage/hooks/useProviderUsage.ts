@@ -101,5 +101,9 @@ export function useProviderUsage(
     void load(true);
   }, [load]);
 
-  return { ...state, refresh };
+  // A settings/provider switch can reuse the same hook instance. Never expose
+  // the previous provider's cached bars while the new request is starting.
+  const usage = state.usage?.provider === provider ? state.usage : null;
+
+  return { ...state, usage, refresh };
 }
