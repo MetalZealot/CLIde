@@ -86,15 +86,29 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
 };
 
+function withRuntimeCapabilities(capabilities: ProviderCapabilities): ProviderCapabilities {
+  if (
+    capabilities.provider === 'codex'
+    && process.env.CLIDE_CODEX_CHAT_TRANSPORT === 'app-server'
+  ) {
+    return {
+      ...capabilities,
+      permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+      supportsPermissionRequests: true,
+    };
+  }
+  return capabilities;
+}
+
 /**
  * Application service exposing the provider capability matrix.
  */
 export const providerCapabilitiesService = {
   getProviderCapabilities(provider: LLMProvider): ProviderCapabilities {
-    return PROVIDER_CAPABILITIES[provider];
+    return withRuntimeCapabilities(PROVIDER_CAPABILITIES[provider]);
   },
 
   listAllProviderCapabilities(): ProviderCapabilities[] {
-    return Object.values(PROVIDER_CAPABILITIES);
+    return Object.values(PROVIDER_CAPABILITIES).map(withRuntimeCapabilities);
   },
 };

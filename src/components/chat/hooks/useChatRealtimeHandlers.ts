@@ -268,12 +268,17 @@ export function useChatRealtimeHandlers({
             if (!previousPendingPermissionRequests.some((request) => request.requestId === msg.requestId)) {
               const nextPendingPermissionRequests = [...previousPendingPermissionRequests, {
                 requestId: msg.requestId as string,
+                provider: (msg.provider as LLMProvider | undefined) || provider,
+                requestType: msg.requestType as PendingPermissionRequest['requestType'],
                 toolName: (msg.toolName as string) || 'UnknownTool',
                 input: msg.input,
                 context: msg.context,
                 toolId: msg.toolId as string | undefined,
                 sessionId: sid || null,
-                receivedAt: new Date(),
+                receivedAt: typeof msg.receivedAt === 'string' ? msg.receivedAt : new Date(),
+                expiresAt: typeof msg.expiresAt === 'string' ? msg.expiresAt : null,
+                autoResolutionMs: typeof msg.autoResolutionMs === 'number' ? msg.autoResolutionMs : null,
+                questions: Array.isArray(msg.questions) ? msg.questions as PendingPermissionRequest['questions'] : undefined,
               }];
 
               pendingPermissionRequestsRef.current = nextPendingPermissionRequests;

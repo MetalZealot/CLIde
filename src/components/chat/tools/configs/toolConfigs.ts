@@ -600,6 +600,9 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
   }
 };
 
+// Codex persists the same structured interaction under its function name.
+TOOL_CONFIGS.request_user_input = TOOL_CONFIGS.AskUserQuestion;
+
 /**
  * Get configuration for a tool, with fallback to default
  */

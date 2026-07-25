@@ -234,6 +234,7 @@ function ChatInterface({
     scrollToBottom,
     addMessage,
     setIsUserScrolledUp,
+    pendingPermissionRequests,
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
     supportsRewind: getSupportsRewindForProvider(provider),

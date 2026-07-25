@@ -1,1 +1,4 @@
-export { AskUserQuestionPanel } from './AskUserQuestionPanel';
+export {
+  AskUserQuestionPanel,
+  UserInputRequestPanel,
+} from './UserInputRequestPanel';

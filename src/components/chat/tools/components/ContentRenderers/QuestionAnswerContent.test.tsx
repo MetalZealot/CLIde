@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QuestionAnswerContent } from './QuestionAnswerContent';
+import { UserInputRequestPanel } from '../InteractiveRenderers/UserInputRequestPanel';
+import { adaptUserInputAnswers } from '../InteractiveRenderers/user-input-request.adapter';
 
 // Regression coverage for the chat-interface crash where an AskUserQuestion
 // payload loaded from a session transcript arrives with a non-array `questions`
@@ -113,4 +115,95 @@ test('still splits a plain multi-select answer into option labels', () => {
   assert.ok(html.includes('>A<'));
   assert.ok(html.includes('>B<'));
   assert.ok(!html.includes('(custom)'));
+});
+
+test('renders Codex answer arrays by stable id and keeps secret answers redacted', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(QuestionAnswerContent, {
+      questions: [
+        { id: 'choice', question: 'Pick one?', options: [{ label: 'A' }] },
+        { id: 'secret', question: 'Token?', options: [], isSecret: true },
+      ],
+      answers: {
+        choice: ['A', 'custom answer'],
+        secret: ['[redacted]'],
+      },
+    }),
+  );
+  assert.ok(html.includes('>A<'));
+  assert.ok(html.includes('custom answer'));
+  assert.ok(html.includes('[redacted]'));
+});
+
+test('provider-neutral input panel renders Codex wording, descriptions, countdown, Other, and masked input', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(UserInputRequestPanel, {
+      request: {
+        requestId: 'request-1',
+        provider: 'codex',
+        sessionId: 'session-1',
+        requestType: 'user_input',
+        toolName: 'request_user_input',
+        input: {},
+        receivedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 5_000).toISOString(),
+        autoResolutionMs: 5_000,
+        questions: [{
+          id: 'secret',
+          header: 'Secret',
+          question: 'Provide a token',
+          options: [{ label: 'Use saved', description: 'Use the existing token' }],
+          allowOther: true,
+          isSecret: true,
+          multiSelect: false,
+        }],
+      },
+      onDecision: () => {},
+    }),
+  );
+  assert.ok(html.includes('Codex needs your input'));
+  assert.ok(html.includes('Use the existing token'));
+  assert.ok(html.includes('Other'));
+  assert.ok(html.includes('Skips in'));
+});
+
+test('free-text-only secret questions render a password input', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(UserInputRequestPanel, {
+      request: {
+        requestId: 'request-2',
+        provider: 'codex',
+        sessionId: 'session-1',
+        requestType: 'user_input',
+        toolName: 'request_user_input',
+        receivedAt: new Date().toISOString(),
+        questions: [{
+          id: 'secret',
+          question: 'Provide a token',
+          options: [],
+          allowOther: false,
+          isSecret: true,
+        }],
+      },
+      onDecision: () => {},
+    }),
+  );
+  assert.ok(html.includes('type="password"'));
+  assert.ok(html.includes('Enter secret'));
+});
+
+test('provider answer adapter preserves Codex arrays and Claude question-text comma strings', () => {
+  const questions = [
+    { id: 'stable-id', question: 'Which?' },
+    { id: 'other-id', question: 'Why?' },
+  ];
+  const answers = {
+    'stable-id': ['A', 'B'],
+    'other-id': ['Because'],
+  };
+  assert.deepEqual(adaptUserInputAnswers('codex', questions, answers), answers);
+  assert.deepEqual(adaptUserInputAnswers('claude', questions, answers), {
+    'Which?': 'A, B',
+    'Why?': 'Because',
+  });
 });

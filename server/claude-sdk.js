@@ -36,10 +36,10 @@ import {
 } from './modules/providers/list/claude/claude-rewind.util.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
+import { interactiveRequestRegistry } from './modules/providers/services/interactive-request-registry.service.js';
 import { createCompleteMessage, createNormalizedMessage } from './shared/utils.js';
 
 const activeSessions = new Map();
-const pendingToolApprovals = new Map();
 // Sessions cancelled via abort-session. The abort handler already sent the
 // terminal `complete` (aborted: true) to the client, so the run loop must not
 // emit a second one when its generator winds down.
@@ -66,7 +66,7 @@ function createRequestId() {
 }
 
 function waitForToolApproval(requestId, options = {}) {
-  const { timeoutMs = TOOL_APPROVAL_TIMEOUT_MS, signal, onCancel, metadata } = options;
+  const { timeoutMs = TOOL_APPROVAL_TIMEOUT_MS, signal, onCancel, onResolved, metadata } = options;
 
   return new Promise(resolve => {
     let settled = false;
@@ -74,58 +74,54 @@ function waitForToolApproval(requestId, options = {}) {
     const finalize = (decision) => {
       if (settled) return;
       settled = true;
-      cleanup();
       resolve(decision);
     };
 
-    let timeout;
+    const receivedAt = metadata?._receivedAt instanceof Date
+      ? metadata._receivedAt
+      : new Date();
+    const sessionId = metadata?._sessionId || null;
+    const toolName = metadata?._toolName || 'UnknownTool';
 
-    const cleanup = () => {
-      pendingToolApprovals.delete(requestId);
-      if (timeout) clearTimeout(timeout);
-      if (signal && abortHandler) {
-        signal.removeEventListener('abort', abortHandler);
-      }
-    };
-
-    // timeoutMs 0 = wait indefinitely (interactive tools)
-    if (timeoutMs > 0) {
-      timeout = setTimeout(() => {
+    interactiveRequestRegistry.register({
+      requestId,
+      provider: 'claude',
+      sessionId,
+      requestType: toolName === 'AskUserQuestion' ? 'user_input' : 'tool_approval',
+      toolName,
+      toolId: metadata?._toolId,
+      input: metadata?._input,
+      context: metadata?._context,
+      receivedAt: receivedAt.toISOString(),
+      autoResolutionMs: timeoutMs > 0 ? timeoutMs : null,
+      expiresAt: timeoutMs > 0
+        ? new Date(receivedAt.getTime() + timeoutMs).toISOString()
+        : null,
+    }, {
+      timeoutMs,
+      signal,
+      onResponse: (decision) => {
+        finalize(decision);
+      },
+      onTimeout: () => {
         onCancel?.('timeout');
         finalize(null);
-      }, timeoutMs);
-    }
-
-    const abortHandler = () => {
-      onCancel?.('cancelled');
-      finalize({ cancelled: true });
-    };
-
-    if (signal) {
-      if (signal.aborted) {
+      },
+      onCancel: () => {
         onCancel?.('cancelled');
         finalize({ cancelled: true });
-        return;
-      }
-      signal.addEventListener('abort', abortHandler, { once: true });
-    }
-
-    const resolver = (decision) => {
-      finalize(decision);
-    };
-    // Attach metadata for getPendingApprovalsForSession lookup
-    if (metadata) {
-      Object.assign(resolver, metadata);
-    }
-    pendingToolApprovals.set(requestId, resolver);
+      },
+      onSettled: (reason) => {
+        if (reason === 'response') {
+          onResolved?.();
+        }
+      },
+    });
   });
 }
 
-function resolveToolApproval(requestId, decision) {
-  const resolver = pendingToolApprovals.get(requestId);
-  if (resolver) {
-    resolver(decision);
-  }
+async function resolveToolApproval(requestId, decision) {
+  return interactiveRequestRegistry.resolve(requestId, decision);
 }
 
 // Match stored permission entries against a tool + input combo.
@@ -677,10 +673,15 @@ async function queryClaudeSDK(command, options = {}, ws) {
           _sessionId: capturedSessionId || sessionId || null,
           _toolName: toolName,
           _input: input,
+          _context: context,
+          _toolId: context?.toolUseID,
           _receivedAt: new Date(),
         },
         onCancel: (reason) => {
           ws.send(createNormalizedMessage({ kind: 'permission_cancelled', requestId, reason, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+        },
+        onResolved: () => {
+          ws.send(createNormalizedMessage({ kind: 'permission_cancelled', requestId, reason: 'resolved', sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
         }
       });
       if (!decision) {
@@ -914,20 +915,7 @@ function getActiveClaudeSDKSessions() {
  * @returns {Array} Array of pending permission request objects
  */
 function getPendingApprovalsForSession(sessionId) {
-  const pending = [];
-  for (const [requestId, resolver] of pendingToolApprovals.entries()) {
-    if (resolver._sessionId === sessionId) {
-      pending.push({
-        requestId,
-        toolName: resolver._toolName || 'UnknownTool',
-        input: resolver._input,
-        context: resolver._context,
-        sessionId,
-        receivedAt: resolver._receivedAt || new Date(),
-      });
-    }
-  }
-  return pending;
+  return interactiveRequestRegistry.getPendingForSession(sessionId);
 }
 
 /**

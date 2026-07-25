@@ -216,6 +216,72 @@ export type GatewayEventKind =
  */
 export type ServerEventKind = MessageKind | GatewayEventKind;
 
+export type InteractiveRequestType =
+  | 'tool_approval'
+  | 'user_input'
+  | 'command_approval'
+  | 'file_change_approval'
+  | 'permission_approval';
+
+export type InteractiveRequestDecision =
+  | 'allow_once'
+  | 'allow_session'
+  | 'deny'
+  | 'cancel';
+
+export type InteractiveQuestionOption = {
+  label: string;
+  description?: string;
+};
+
+export type InteractiveQuestion = {
+  id: string;
+  header?: string;
+  question: string;
+  options: InteractiveQuestionOption[];
+  allowOther?: boolean;
+  isSecret?: boolean;
+  /**
+   * Claude explicitly supplies this bit. Codex 0.144.6 does not, so Codex
+   * questions normalize to false while response values remain arrays.
+   */
+  multiSelect?: boolean;
+};
+
+/**
+ * Provider-neutral pending request exposed through live frames and reconnect
+ * subscription acks. Provider-native request ids never leave the registry.
+ */
+export type PendingInteractiveRequest = {
+  requestId: string;
+  provider: LLMProvider;
+  sessionId: string | null;
+  requestType: InteractiveRequestType;
+  toolName: string;
+  toolId?: string;
+  input?: unknown;
+  context?: unknown;
+  questions?: InteractiveQuestion[];
+  receivedAt: string;
+  expiresAt?: string | null;
+  autoResolutionMs?: number | null;
+};
+
+export type InteractiveRequestResponse = {
+  requestType?: InteractiveRequestType;
+  decision?: InteractiveRequestDecision;
+  /**
+   * Protocol-native question ids mapped to arrays. The Claude adapter converts
+   * these back to its question-text/comma-string shape at its boundary.
+   */
+  answers?: Record<string, string[]>;
+  // Legacy Claude permission-response fields remain accepted.
+  allow?: boolean;
+  updatedInput?: unknown;
+  message?: string;
+  rememberEntry?: unknown;
+};
+
 /**
  * Provider-neutral message envelope used in REST responses and realtime channels.
  *

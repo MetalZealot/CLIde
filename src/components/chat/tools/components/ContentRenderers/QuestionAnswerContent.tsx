@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
+
 import type { Question } from '../../../types/types';
 
 interface QuestionAnswerContentProps {
   questions: Question[];
-  answers: Record<string, string>;
+  answers: Record<string, string | string[]>;
   className?: string;
 }
 
@@ -30,6 +31,26 @@ function parseAnswerLabels(answer: string, optionLabels: Set<string>): string[] 
   }
   flush();
   return labels;
+}
+
+function normalizeAnswerLabels(
+  answer: string | string[] | undefined,
+  optionLabels: Set<string>,
+  isSecret: boolean,
+): string[] {
+  if (answer === undefined) {
+    return [];
+  }
+  if (isSecret) {
+    const hasAnswer = Array.isArray(answer)
+      ? answer.some((value) => typeof value === 'string' && value.length > 0)
+      : typeof answer === 'string' && answer.length > 0;
+    return hasAnswer ? ['[redacted]'] : [];
+  }
+  if (Array.isArray(answer)) {
+    return answer.filter((value): value is string => typeof value === 'string' && value.length > 0);
+  }
+  return typeof answer === 'string' ? parseAnswerLabels(answer, optionLabels) : [];
 }
 
 // Exception to the stateless ContentRenderer pattern: multi-question navigation requires local state.
@@ -60,17 +81,19 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
           return null;
         }
         const q = rawQuestion;
-        const answer = answers?.[q.question];
+        const answer = answers?.[q.id || q.question] ?? answers?.[q.question];
         // `options` is typed as an array but comes from untrusted runtime data;
         // keep only valid entries so `.some`/`.map` below never throw.
         const options = Array.isArray(q.options)
           ? q.options.filter((opt) => opt && typeof opt === 'object' && typeof opt.label === 'string')
           : [];
         // `answer` may be a non-string (or absent) in malformed payloads.
-        const answerLabels = typeof answer === 'string'
-          ? parseAnswerLabels(answer, new Set(options.map((o) => o.label)))
-          : [];
-        const skipped = !answer;
+        const answerLabels = normalizeAnswerLabels(
+          answer,
+          new Set(options.map((o) => o.label)),
+          Boolean(q.isSecret),
+        );
+        const skipped = answer === undefined || (Array.isArray(answer) ? answer.length === 0 : !answer);
         const isExpanded = expandedIdx === idx;
 
         return (
@@ -117,7 +140,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                 {!isExpanded && answerLabels.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {answerLabels.map((lbl) => {
-                      const isCustom = !options.some(o => o.label === lbl);
+                      const isCustom = !q.isSecret && !options.some(o => o.label === lbl);
                       return (
                         <span
                           key={lbl}
@@ -191,7 +214,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                     );
                   })}
 
-                  {answerLabels.filter(lbl => !options.some(o => o.label === lbl)).map(lbl => (
+                  {answerLabels.filter(lbl => q.isSecret || !options.some(o => o.label === lbl)).map(lbl => (
                     <div
                       key={lbl}
                       className="flex items-start gap-2 rounded-lg border border-blue-200/60 bg-blue-50/80 px-2.5 py-1.5 text-[12px] dark:border-blue-800/40 dark:bg-blue-900/20"
@@ -203,7 +226,9 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
                       </div>
                       <div className="min-w-0 flex-1">
                         <span className="font-medium text-gray-900 dark:text-gray-100">{lbl}</span>
-                        <span className="ml-1 text-[10px] text-blue-500 dark:text-blue-400">(custom)</span>
+                        {!q.isSecret && (
+                          <span className="ml-1 text-[10px] text-blue-500 dark:text-blue-400">(custom)</span>
+                        )}
                       </div>
                     </div>
                   ))}

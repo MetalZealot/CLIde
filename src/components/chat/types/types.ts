@@ -96,13 +96,23 @@ export interface PermissionGrantResult {
 
 export interface PendingPermissionRequest {
   requestId: string;
+  provider?: Provider;
+  requestType?:
+    | 'tool_approval'
+    | 'user_input'
+    | 'command_approval'
+    | 'file_change_approval'
+    | 'permission_approval';
   toolName: string;
   input?: unknown;
   context?: unknown;
   /** The SDK's tool_use id, if the server supplied one — lets panels (e.g. AskUserQuestion) optimistically patch the matching message. */
   toolId?: string;
   sessionId?: string | null;
-  receivedAt?: Date;
+  receivedAt?: Date | string;
+  expiresAt?: Date | string | null;
+  autoResolutionMs?: number | null;
+  questions?: Question[];
 }
 
 export interface QuestionOption {
@@ -111,10 +121,13 @@ export interface QuestionOption {
 }
 
 export interface Question {
+  id?: string;
   question: string;
   header?: string;
   options: QuestionOption[];
   multiSelect?: boolean;
+  allowOther?: boolean;
+  isSecret?: boolean;
 }
 
 export type SessionNavigationOptions = {
