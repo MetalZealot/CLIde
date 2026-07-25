@@ -582,6 +582,37 @@ export type ProviderUsageCredits =
   | ProviderUsageSpendCredits
   | ProviderUsageBalanceCredits;
 
+export type ProviderUsageResetCreditDetail = {
+  id: string;
+  status: string;
+  grantedAt: string | null;
+  expiresAt: string | null;
+  title: string | null;
+  description: string | null;
+};
+
+/**
+ * Read-only summary of provider-issued credits that reset a plan window.
+ * Redeeming one is a separate account mutation and is intentionally not part
+ * of the usage-read contract.
+ */
+export type ProviderUsageResetCredits = {
+  availableCount: number;
+  details?: ProviderUsageResetCreditDetail[];
+};
+
+export type ProviderUsageActivity = {
+  lifetimeTokens?: number;
+  peakDailyTokens?: number;
+  longestRunningTurnSeconds?: number;
+  currentStreakDays?: number;
+  longestStreakDays?: number;
+  daily?: Array<{
+    date: string;
+    tokens: number;
+  }>;
+};
+
 /**
  * Plan usage status for one provider.
  *
@@ -594,6 +625,8 @@ export type ProviderUsageStatus = {
   reason?: 'api_key' | 'not_authenticated';
   windows?: ProviderUsageWindow[];
   credits?: ProviderUsageCredits;
+  resetCredits?: ProviderUsageResetCredits;
+  activity?: ProviderUsageActivity;
   fetchedAt?: string;
   stale?: boolean;
   error?: string;

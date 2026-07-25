@@ -14,9 +14,14 @@ export type CodexAppServerCommand = {
   args: string[];
 };
 
-type ReadCodexRateLimitsOptions = {
+type ReadCodexAccountUsageOptions = {
   command?: CodexAppServerCommand;
   timeoutMs?: number;
+};
+
+export type CodexAccountUsageResponse = {
+  rateLimits: unknown;
+  activity?: unknown;
 };
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -58,19 +63,19 @@ const readRpcError = (value: unknown): CodexAppServerRpcError | null => {
 
 /**
  * Starts a short-lived Codex app-server, completes the initialize handshake,
- * and reads the stable account/rateLimits snapshot.
+ * and reads the stable account usage surfaces.
  *
  * The app-server protocol is newline-delimited JSON. Notifications may arrive
  * between responses, so requests are correlated by id rather than by line
  * position. The child is always terminated after this single read; the shared
  * provider-usage service supplies the longer-lived cache.
  */
-export const readCodexRateLimits = async (
+export const readCodexAccountUsage = async (
   {
     command = resolveBundledCodexAppServerCommand(),
     timeoutMs = DEFAULT_TIMEOUT_MS,
-  }: ReadCodexRateLimitsOptions = {},
-): Promise<unknown> => {
+  }: ReadCodexAccountUsageOptions = {},
+): Promise<CodexAccountUsageResponse> => {
   const child = spawn(command.command, command.args, {
     env: process.env,
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -105,7 +110,7 @@ export const readCodexRateLimits = async (
     rejectPending(error);
   });
 
-  child.once('exit', (code, signal) => {
+  child.once('close', (code, signal) => {
     if (finished || pending.size === 0) {
       return;
     }
@@ -179,12 +184,15 @@ export const readCodexRateLimits = async (
   let timeout: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_resolve, reject) => {
     timeout = setTimeout(() => {
-      reject(new Error(`Codex app-server timed out after ${timeoutMs}ms.`));
+      const stderrDetail = stderr.trim();
+      reject(new Error(
+        `Codex app-server timed out after ${timeoutMs}ms${stderrDetail ? `: ${stderrDetail}` : ''}.`,
+      ));
     }, timeoutMs);
     timeout.unref();
   });
 
-  const operation = (async (): Promise<unknown> => {
+  const operation = (async (): Promise<CodexAccountUsageResponse> => {
     await request('initialize', {
       clientInfo: {
         name: 'clide',
@@ -196,7 +204,22 @@ export const readCodexRateLimits = async (
       },
     });
     writeMessage({ method: 'initialized' });
-    return request('account/rateLimits/read', null);
+
+    const [rateLimitsResult, activityResult] = await Promise.allSettled([
+      request('account/rateLimits/read', null),
+      request('account/usage/read', null),
+    ]);
+
+    if (rateLimitsResult.status === 'rejected') {
+      throw rateLimitsResult.reason;
+    }
+
+    return {
+      rateLimits: rateLimitsResult.value,
+      ...(activityResult.status === 'fulfilled'
+        ? { activity: activityResult.value }
+        : {}),
+    };
   })();
 
   try {

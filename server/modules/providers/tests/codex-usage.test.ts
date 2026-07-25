@@ -4,9 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { readCodexRateLimits } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import { readCodexAccountUsage } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import {
   CodexProviderUsage,
+  normalizeCodexAccountActivity,
   normalizeCodexRateLimits,
 } from '@/modules/providers/list/codex/codex-usage.provider.js';
 
@@ -51,6 +52,17 @@ test('Codex usage normalizes multi-bucket windows without duplicating the fallba
         },
       },
     },
+    rateLimitResetCredits: {
+      availableCount: 2,
+      credits: [{
+        id: 'reset-1',
+        status: 'available',
+        grantedAt: 1_700_300_000,
+        expiresAt: 1_700_400_000,
+        title: 'Rate-limit reset',
+        description: 'Reset an eligible Codex window.',
+      }],
+    },
   });
 
   assert.deepEqual(usage.windows, [
@@ -91,6 +103,17 @@ test('Codex usage normalizes multi-bucket windows without duplicating the fallba
       resetsAt: '2023-11-17T05:46:40.000Z',
     },
   });
+  assert.deepEqual(usage.resetCredits, {
+    availableCount: 2,
+    details: [{
+      id: 'reset-1',
+      status: 'available',
+      grantedAt: '2023-11-18T09:33:20.000Z',
+      expiresAt: '2023-11-19T13:20:00.000Z',
+      title: 'Rate-limit reset',
+      description: 'Reset an eligible Codex window.',
+    }],
+  });
 });
 
 test('Codex usage falls back to the historical single-bucket view', () => {
@@ -119,17 +142,51 @@ test('Codex usage falls back to the historical single-bucket view', () => {
   });
 });
 
+test('Codex usage normalizes account token activity separately from plan limits', () => {
+  assert.deepEqual(normalizeCodexAccountActivity({
+    summary: {
+      lifetimeTokens: 3_160_000,
+      peakDailyTokens: 850_000,
+      longestRunningTurnSec: 181,
+      currentStreakDays: 2,
+      longestStreakDays: 7,
+    },
+    dailyUsageBuckets: [
+      { startDate: '2026-07-23', tokens: 120_000 },
+      { startDate: '2026-07-24', tokens: 850_000 },
+      { startDate: null, tokens: 10 },
+    ],
+  }), {
+    lifetimeTokens: 3_160_000,
+    peakDailyTokens: 850_000,
+    longestRunningTurnSeconds: 181,
+    currentStreakDays: 2,
+    longestStreakDays: 7,
+    daily: [
+      { date: '2026-07-23', tokens: 120_000 },
+      { date: '2026-07-24', tokens: 850_000 },
+    ],
+  });
+
+  assert.equal(normalizeCodexAccountActivity({
+    summary: {
+      lifetimeTokens: null,
+    },
+    dailyUsageBuckets: [],
+  }), undefined);
+});
+
 test('Codex provider usage hides subscription limits for API-key auth', async () => {
-  let rateLimitReads = 0;
+  let accountUsageReads = 0;
   const provider = new CodexProviderUsage({
     readCredentials: async () => ({
       authenticated: true,
       email: 'API Key Auth',
       method: 'api_key',
     }),
-    readRateLimits: async () => {
-      rateLimitReads += 1;
-      return {};
+    readAccountUsage: async () => {
+      accountUsageReads += 1;
+      return { rateLimits: {} };
     },
   });
 
@@ -138,20 +195,20 @@ test('Codex provider usage hides subscription limits for API-key auth', async ()
     supported: false,
     reason: 'api_key',
   });
-  assert.equal(rateLimitReads, 0);
+  assert.equal(accountUsageReads, 0);
 });
 
 test('Codex provider usage reports missing login without starting app-server', async () => {
-  let rateLimitReads = 0;
+  let accountUsageReads = 0;
   const provider = new CodexProviderUsage({
     readCredentials: async () => ({
       authenticated: false,
       email: null,
       method: null,
     }),
-    readRateLimits: async () => {
-      rateLimitReads += 1;
-      return {};
+    readAccountUsage: async () => {
+      accountUsageReads += 1;
+      return { rateLimits: {} };
     },
   });
 
@@ -161,7 +218,7 @@ test('Codex provider usage reports missing login without starting app-server', a
     reason: 'not_authenticated',
     error: 'Codex CLI is not authenticated. Run codex login first.',
   });
-  assert.equal(rateLimitReads, 0);
+  assert.equal(accountUsageReads, 0);
 });
 
 test('Codex provider usage returns normalized account limits', async () => {
@@ -171,8 +228,24 @@ test('Codex provider usage returns normalized account limits', async () => {
       email: 'codex@example.com',
       method: 'credentials_file',
     }),
-    readRateLimits: async () => ({
-      rateLimits: FALLBACK_SNAPSHOT,
+    readAccountUsage: async () => ({
+      rateLimits: {
+        rateLimits: FALLBACK_SNAPSHOT,
+        rateLimitResetCredits: {
+          availableCount: 0,
+          credits: [],
+        },
+      },
+      activity: {
+        summary: {
+          lifetimeTokens: 3_160_000,
+          peakDailyTokens: 850_000,
+          longestRunningTurnSec: 181,
+          currentStreakDays: 2,
+          longestStreakDays: 7,
+        },
+        dailyUsageBuckets: null,
+      },
     }),
   });
 
@@ -181,10 +254,12 @@ test('Codex provider usage returns normalized account limits', async () => {
   assert.equal(usage.supported, true);
   assert.equal(usage.windows?.[0].durationMinutes, 300);
   assert.equal(usage.credits?.kind, 'balance');
+  assert.equal(usage.resetCredits?.availableCount, 0);
+  assert.equal(usage.activity?.lifetimeTokens, 3_160_000);
   assert.match(usage.fetchedAt ?? '', /^\d{4}-\d{2}-\d{2}T/);
 });
 
-test('Codex app-server client initializes before reading account rate limits', async () => {
+test('Codex app-server client initializes before reading account limits and activity', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-usage-app-server-'));
   const fakeServerPath = path.join(tempRoot, 'fake-app-server.mjs');
 
@@ -193,7 +268,9 @@ test('Codex app-server client initializes before reading account rate limits', a
       fakeServerPath,
       `import readline from 'node:readline';
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const keepAlive = setInterval(() => {}, 1_000);
 let initialized = false;
+let accountResponses = 0;
 for await (const line of lines) {
   const message = JSON.parse(line);
   if (message.method === 'initialize') {
@@ -210,13 +287,23 @@ for await (const line of lines) {
       ? { id: message.id, result: { rateLimits: { primary: { usedPercent: 25 } } } }
       : { id: message.id, error: { code: -32000, message: 'not initialized' } }
     ) + '\\n');
+    accountResponses += 1;
+  } else if (message.method === 'account/usage/read') {
+    process.stdout.write(JSON.stringify(initialized
+      ? { id: message.id, result: { summary: { lifetimeTokens: 1234 }, dailyUsageBuckets: null } }
+      : { id: message.id, error: { code: -32000, message: 'not initialized' } }
+    ) + '\\n');
+    accountResponses += 1;
+  }
+  if (accountResponses === 2) {
+    clearInterval(keepAlive);
   }
 }
 `,
       'utf8',
     );
 
-    const result = await readCodexRateLimits({
+    const result = await readCodexAccountUsage({
       command: {
         command: process.execPath,
         args: [fakeServerPath],
@@ -226,9 +313,17 @@ for await (const line of lines) {
 
     assert.deepEqual(result, {
       rateLimits: {
-        primary: {
-          usedPercent: 25,
+        rateLimits: {
+          primary: {
+            usedPercent: 25,
+          },
         },
+      },
+      activity: {
+        summary: {
+          lifetimeTokens: 1234,
+        },
+        dailyUsageBuckets: null,
       },
     });
   } finally {

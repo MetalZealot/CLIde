@@ -2,26 +2,32 @@ import {
   readCodexCredentialsStatus,
   type CodexCredentialsStatus,
 } from '@/modules/providers/list/codex/codex-auth.provider.js';
-import { readCodexRateLimits } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import {
+  readCodexAccountUsage,
+  type CodexAccountUsageResponse,
+} from '@/modules/providers/list/codex/codex-app-server.client.js';
 import type { IProviderUsage } from '@/shared/interfaces.js';
 import type {
+  ProviderUsageActivity,
   ProviderUsageBalanceCredits,
+  ProviderUsageResetCredits,
   ProviderUsageStatus,
   ProviderUsageWindow,
 } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
-type CodexUsageReader = () => Promise<unknown>;
+type CodexUsageReader = () => Promise<CodexAccountUsageResponse>;
 type CodexCredentialsReader = () => Promise<CodexCredentialsStatus>;
 
 type CodexProviderUsageDependencies = {
   readCredentials?: CodexCredentialsReader;
-  readRateLimits?: CodexUsageReader;
+  readAccountUsage?: CodexUsageReader;
 };
 
 type NormalizedCodexUsage = {
   windows: ProviderUsageWindow[];
   credits?: ProviderUsageBalanceCredits;
+  resetCredits?: ProviderUsageResetCredits;
 };
 
 const clampPercentage = (value: number): number => Math.min(100, Math.max(0, value));
@@ -33,6 +39,20 @@ const unixSecondsToIso = (value: unknown): string | null => {
 
   const date = new Date(value * 1000);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
+const readNonNegativeNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'bigint') {
+    return value >= 0n && value <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(value)
+      : undefined;
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return undefined;
+  }
+
+  return Math.floor(value);
 };
 
 const readWindow = (
@@ -109,6 +129,67 @@ const readBalanceCredits = (value: unknown): ProviderUsageBalanceCredits | undef
   };
 };
 
+const readResetCredits = (value: unknown): ProviderUsageResetCredits | undefined => {
+  const summary = readObjectRecord(value);
+  const availableCount = readNonNegativeNumber(summary?.availableCount);
+  if (!summary || availableCount === undefined) {
+    return undefined;
+  }
+
+  const details = Array.isArray(summary.credits)
+    ? summary.credits.flatMap((credit): NonNullable<ProviderUsageResetCredits['details']> => {
+      const record = readObjectRecord(credit);
+      const id = readOptionalString(record?.id);
+      const status = readOptionalString(record?.status);
+      if (!record || !id || !status) {
+        return [];
+      }
+
+      return [{
+        id,
+        status,
+        grantedAt: unixSecondsToIso(record.grantedAt),
+        expiresAt: unixSecondsToIso(record.expiresAt),
+        title: readOptionalString(record.title) ?? null,
+        description: readOptionalString(record.description) ?? null,
+      }];
+    })
+    : undefined;
+
+  return {
+    availableCount,
+    ...(details ? { details } : {}),
+  };
+};
+
+export const normalizeCodexAccountActivity = (
+  value: unknown,
+): ProviderUsageActivity | undefined => {
+  const body = readObjectRecord(value);
+  const summary = readObjectRecord(body?.summary);
+  const daily = Array.isArray(body?.dailyUsageBuckets)
+    ? body.dailyUsageBuckets.flatMap((bucket): NonNullable<ProviderUsageActivity['daily']> => {
+      const record = readObjectRecord(bucket);
+      const date = readOptionalString(record?.startDate);
+      const tokens = readNonNegativeNumber(record?.tokens);
+      return record && date && tokens !== undefined ? [{ date, tokens }] : [];
+    })
+    : undefined;
+
+  const activity: ProviderUsageActivity = {
+    lifetimeTokens: readNonNegativeNumber(summary?.lifetimeTokens),
+    peakDailyTokens: readNonNegativeNumber(summary?.peakDailyTokens),
+    longestRunningTurnSeconds: readNonNegativeNumber(summary?.longestRunningTurnSec),
+    currentStreakDays: readNonNegativeNumber(summary?.currentStreakDays),
+    longestStreakDays: readNonNegativeNumber(summary?.longestStreakDays),
+    ...(daily && daily.length > 0 ? { daily } : {}),
+  };
+
+  return Object.values(activity).some((entry) => entry !== undefined)
+    ? activity
+    : undefined;
+};
+
 /**
  * Normalizes the stable Codex account/rateLimits/read result.
  *
@@ -154,19 +235,20 @@ export const normalizeCodexRateLimits = (value: unknown): NormalizedCodexUsage =
     windows,
     credits: readBalanceCredits(fallbackSnapshot)
       ?? snapshots.map(([, snapshot]) => readBalanceCredits(snapshot)).find(Boolean),
+    resetCredits: readResetCredits(body.rateLimitResetCredits),
   };
 };
 
 export class CodexProviderUsage implements IProviderUsage {
   private readonly readCredentials: CodexCredentialsReader;
-  private readonly readRateLimits: CodexUsageReader;
+  private readonly readAccountUsage: CodexUsageReader;
 
   constructor({
     readCredentials = readCodexCredentialsStatus,
-    readRateLimits = readCodexRateLimits,
+    readAccountUsage = readCodexAccountUsage,
   }: CodexProviderUsageDependencies = {}) {
     this.readCredentials = readCredentials;
-    this.readRateLimits = readRateLimits;
+    this.readAccountUsage = readAccountUsage;
   }
 
   async getUsage(): Promise<ProviderUsageStatus> {
@@ -185,12 +267,16 @@ export class CodexProviderUsage implements IProviderUsage {
     }
 
     try {
-      const usage = normalizeCodexRateLimits(await this.readRateLimits());
+      const response = await this.readAccountUsage();
+      const usage = normalizeCodexRateLimits(response.rateLimits);
+      const activity = normalizeCodexAccountActivity(response.activity);
       return {
         provider: 'codex',
         supported: true,
         windows: usage.windows,
         credits: usage.credits,
+        ...(usage.resetCredits ? { resetCredits: usage.resetCredits } : {}),
+        ...(activity ? { activity } : {}),
         fetchedAt: new Date().toISOString(),
       };
     } catch {

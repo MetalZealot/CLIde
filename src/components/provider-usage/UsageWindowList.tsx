@@ -4,8 +4,10 @@ import { Shimmer } from '../../shared/view/ui';
 import { cn } from '../../lib/utils';
 
 import type {
+  ProviderUsageActivity,
   ProviderUsageBalanceCredits,
   ProviderUsageCredits,
+  ProviderUsageResetCredits,
   ProviderUsageSpendCredits,
   ProviderUsageStatus,
   ProviderUsageWindow,
@@ -90,7 +92,10 @@ function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
           {displayLabel}
         </span>
         <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
-          {Math.round(clamped)}%
+          {t('planUsage.percentUsed', {
+            defaultValue: '{{percent}}% used',
+            percent: Math.round(clamped),
+          })}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -132,7 +137,10 @@ function UsageSpendCreditsRow({ credits }: { credits: ProviderUsageSpendCredits 
           {t('planUsage.credits', { defaultValue: 'Usage credits' })}
         </span>
         <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
-          {Math.round(clamped)}%
+          {t('planUsage.percentUsed', {
+            defaultValue: '{{percent}}% used',
+            percent: Math.round(clamped),
+          })}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -211,7 +219,10 @@ function UsageBalanceCreditsRow({ credits }: { credits: ProviderUsageBalanceCred
               {t('planUsage.individualLimit', { defaultValue: 'Individual limit' })}
             </span>
             <span className="shrink-0 font-mono text-xs font-semibold text-foreground">
-              {Math.round(individualUtilization)}%
+              {t('planUsage.percentUsed', {
+                defaultValue: '{{percent}}% used',
+                percent: Math.round(individualUtilization),
+              })}
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -253,10 +264,142 @@ function UsageCreditsRow({ credits }: { credits: ProviderUsageCredits }) {
     : <UsageBalanceCreditsRow credits={credits} />;
 }
 
+function UsageResetCreditsRow({ resetCredits }: { resetCredits: ProviderUsageResetCredits }) {
+  const { t } = useTranslation('common');
+  const availability = resetCredits.availableCount === 1
+    ? t('planUsage.oneResetAvailable', { defaultValue: '1 available' })
+    : t('planUsage.resetsAvailable', {
+      defaultValue: '{{count}} available',
+      count: resetCredits.availableCount,
+    });
+
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-t border-border/60 pt-4">
+      <span className="text-sm font-medium text-foreground">
+        {t('planUsage.usageLimitResets', { defaultValue: 'Usage limit resets' })}
+      </span>
+      <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
+        {availability}
+      </span>
+    </div>
+  );
+}
+
+const formatTokenCount = (tokens: number): string => (
+  new Intl.NumberFormat(undefined, {
+    notation: 'compact',
+    maximumFractionDigits: 2,
+  }).format(tokens)
+);
+
+const formatTurnDuration = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  if (seconds < 3600) {
+    return `${Math.round(seconds / 60)}m`;
+  }
+
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+};
+
+function UsageActivitySection({ activity }: { activity: ProviderUsageActivity }) {
+  const { t } = useTranslation('common');
+  const stats = [
+    activity.lifetimeTokens === undefined ? null : {
+      label: t('planUsage.lifetimeTokens', { defaultValue: 'Lifetime tokens' }),
+      value: formatTokenCount(activity.lifetimeTokens),
+    },
+    activity.peakDailyTokens === undefined ? null : {
+      label: t('planUsage.peakDailyTokens', { defaultValue: 'Peak day' }),
+      value: formatTokenCount(activity.peakDailyTokens),
+    },
+    activity.longestRunningTurnSeconds === undefined ? null : {
+      label: t('planUsage.longestTurn', { defaultValue: 'Longest turn' }),
+      value: formatTurnDuration(activity.longestRunningTurnSeconds),
+    },
+    activity.currentStreakDays === undefined ? null : {
+      label: t('planUsage.currentStreak', { defaultValue: 'Current streak' }),
+      value: `${activity.currentStreakDays}d`,
+    },
+    activity.longestStreakDays === undefined ? null : {
+      label: t('planUsage.longestStreak', { defaultValue: 'Best streak' }),
+      value: `${activity.longestStreakDays}d`,
+    },
+  ].filter((stat): stat is { label: string; value: string } => stat !== null);
+  const recentDaily = [...(activity.daily ?? [])]
+    .sort((left, right) => left.date.localeCompare(right.date))
+    .slice(-14);
+  const maxDailyTokens = Math.max(1, ...recentDaily.map((bucket) => bucket.tokens));
+
+  return (
+    <div className="space-y-3 border-t border-border/60 pt-4">
+      <div>
+        <p className="text-sm font-medium text-foreground">
+          {t('planUsage.tokenActivity', { defaultValue: 'Token activity' })}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t('planUsage.activityNotAllowance', {
+            defaultValue: 'Account activity — separate from plan limits.',
+          })}
+        </p>
+      </div>
+
+      {stats.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          {stats.map((stat) => (
+            <div key={stat.label}>
+              <dt className="text-xs text-muted-foreground">{stat.label}</dt>
+              <dd className="font-mono text-sm font-semibold text-foreground">{stat.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {recentDaily.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">
+            {t('planUsage.recentDailyActivity', { defaultValue: 'Recent daily activity' })}
+          </p>
+          <div className="flex h-12 items-end gap-1" aria-label={t('planUsage.recentDailyActivity', {
+            defaultValue: 'Recent daily activity',
+          })}>
+            {recentDaily.map((bucket) => {
+              const heightPercent = bucket.tokens === 0
+                ? 4
+                : Math.max(8, (bucket.tokens / maxDailyTokens) * 100);
+              const label = `${bucket.date}: ${formatTokenCount(bucket.tokens)} ${t('planUsage.tokens', {
+                defaultValue: 'tokens',
+              })}`;
+
+              return (
+                <div
+                  key={bucket.date}
+                  className="min-w-0 flex-1 rounded-sm bg-primary/80"
+                  style={{ height: `${heightPercent}%` }}
+                  title={label}
+                  aria-label={label}
+                />
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>{recentDaily[0].date}</span>
+            <span>{recentDaily[recentDaily.length - 1].date}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
- * Renders provider plan rate-limit windows (5-hour/weekly utilization bars).
- * Renders nothing when the provider/auth method has no plan usage; callers
- * decide whether to show an explanatory note instead.
+ * Renders provider usage surfaces: plan windows, credits/reset credits, and
+ * optional account activity. Renders nothing when the provider/auth method has
+ * no usage data; callers decide whether to show an explanatory note instead.
  */
 export default function UsageWindowList({ usage, loading, error }: UsageWindowListProps) {
   const { t } = useTranslation('common');
@@ -291,7 +434,9 @@ export default function UsageWindowList({ usage, loading, error }: UsageWindowLi
 
   const windows = usage.windows ?? [];
   const credits = usage.credits ?? null;
-  if (windows.length === 0 && !credits) {
+  const resetCredits = usage.resetCredits ?? null;
+  const activity = usage.activity ?? null;
+  if (windows.length === 0 && !credits && !resetCredits && !activity) {
     return (
       <p className="text-sm text-muted-foreground">
         {t('planUsage.noData', { defaultValue: 'No plan usage reported.' })}
@@ -305,6 +450,8 @@ export default function UsageWindowList({ usage, loading, error }: UsageWindowLi
         <UsageWindowRow key={window.id} window={window} />
       ))}
       {credits && <UsageCreditsRow credits={credits} />}
+      {resetCredits && <UsageResetCreditsRow resetCredits={resetCredits} />}
+      {activity && <UsageActivitySection activity={activity} />}
       {usage.stale && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
           {t('planUsage.stale', { defaultValue: 'Showing cached data — the last refresh failed.' })}
