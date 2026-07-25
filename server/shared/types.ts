@@ -535,16 +535,20 @@ export type ProviderUsageWindow = {
   id: string;
   utilization: number;
   resetsAt: string | null;
+  /** Provider-supplied bucket label when multiple independently metered limits exist. */
+  label?: string;
+  /** Stable provider-native bucket identifier, separate from this row's display id. */
+  bucketId?: string;
+  /** Window duration used to render known 5-hour/weekly labels without provider assumptions. */
+  durationMinutes?: number;
 };
 
 /**
- * Paid usage-credits / extra-usage state for one provider — the spend that
- * covers you once plan windows are exhausted. Money amounts are in major units
- * (e.g. 75.05) already scaled from the provider's minor units; `currency` is an
- * ISO 4217 code for client-side `Intl.NumberFormat`. Present only when the
- * provider reports a credit concept (Claude OAuth `spend`/`extra_usage`).
+ * Metered paid usage with a currency-denominated spend cap (Claude OAuth
+ * `spend`/`extra_usage`). Money amounts are in major units (e.g. 75.05).
  */
-export type ProviderUsageCredits = {
+export type ProviderUsageSpendCredits = {
+  kind: 'spend';
   enabled: boolean;
   usedAmount: number;
   limitAmount: number;
@@ -553,6 +557,60 @@ export type ProviderUsageCredits = {
   learnMoreUrl?: string;
   canPurchaseCredits?: boolean;
   memberDashboardAvailable?: boolean;
+};
+
+/**
+ * Remaining credit balance and optional individual spend control reported by
+ * providers such as Codex. Balance strings stay provider-formatted because the
+ * protocol does not promise a currency code or numeric representation.
+ */
+export type ProviderUsageBalanceCredits = {
+  kind: 'balance';
+  hasCredits: boolean;
+  unlimited: boolean;
+  balance: string | null;
+  individualLimit?: {
+    limit: string;
+    used: string;
+    remainingPercent: number;
+    resetsAt: string | null;
+  };
+  limitReachedReason?: string;
+};
+
+export type ProviderUsageCredits =
+  | ProviderUsageSpendCredits
+  | ProviderUsageBalanceCredits;
+
+export type ProviderUsageResetCreditDetail = {
+  id: string;
+  status: string;
+  grantedAt: string | null;
+  expiresAt: string | null;
+  title: string | null;
+  description: string | null;
+};
+
+/**
+ * Read-only summary of provider-issued credits that reset a plan window.
+ * Redeeming one is a separate account mutation and is intentionally not part
+ * of the usage-read contract.
+ */
+export type ProviderUsageResetCredits = {
+  availableCount: number;
+  details?: ProviderUsageResetCreditDetail[];
+};
+
+export type ProviderUsageActivity = {
+  lifetimeTokens?: number;
+  peakDailyTokens?: number;
+  longestRunningTurnSeconds?: number;
+  currentStreakDays?: number;
+  longestStreakDays?: number;
+  daily?: Array<{
+    date: string;
+    tokens: number;
+  }>;
 };
 
 /**
@@ -567,6 +625,8 @@ export type ProviderUsageStatus = {
   reason?: 'api_key' | 'not_authenticated';
   windows?: ProviderUsageWindow[];
   credits?: ProviderUsageCredits;
+  resetCredits?: ProviderUsageResetCredits;
+  activity?: ProviderUsageActivity;
   fetchedAt?: string;
   stale?: boolean;
   error?: string;

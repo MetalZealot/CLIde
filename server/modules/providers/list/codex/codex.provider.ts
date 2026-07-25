@@ -5,12 +5,14 @@ import { CodexMcpProvider } from '@/modules/providers/list/codex/codex-mcp.provi
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
 import { CodexSessionsProvider } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import { CodexSkillsProvider } from '@/modules/providers/list/codex/codex-skills.provider.js';
+import { CodexProviderUsage } from '@/modules/providers/list/codex/codex-usage.provider.js';
 import type {
   IProviderAuth,
   IProviderModels,
   IProviderSessionSynchronizer,
   IProviderSkills,
   IProviderSessions,
+  IProviderUsage,
 } from '@/shared/interfaces.js';
 
 export class CodexProvider extends AbstractProvider {
@@ -20,6 +22,7 @@ export class CodexProvider extends AbstractProvider {
   readonly skills: IProviderSkills = new CodexSkillsProvider();
   readonly sessions: IProviderSessions = new CodexSessionsProvider();
   readonly sessionSynchronizer: IProviderSessionSynchronizer = new CodexSessionSynchronizer();
+  readonly usage: IProviderUsage = new CodexProviderUsage();
 
   constructor() {
     super('codex');

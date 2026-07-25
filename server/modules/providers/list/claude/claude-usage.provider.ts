@@ -107,6 +107,7 @@ const parseUsageCredits = (body: Record<string, unknown>): ProviderUsageCredits 
       ?? readMinorMoney(readObjectRecord(spend.cap)?.money);
     if (used && limit && limit.amount > 0) {
       return {
+        kind: 'spend',
         enabled: spend.enabled === true,
         usedAmount: used.amount,
         limitAmount: limit.amount,
@@ -134,6 +135,7 @@ const parseUsageCredits = (body: Record<string, unknown>): ProviderUsageCredits 
       const limitAmount = monthlyLimit / 10 ** decimals;
       const usedAmount = usedCredits / 10 ** decimals;
       return {
+        kind: 'spend',
         enabled: extra.is_enabled === true,
         usedAmount,
         limitAmount,

@@ -419,7 +419,12 @@ function ModelsContent({
 }
 
 function CostContent({ data }: { data: CostCommandData }) {
-  const usageProvider = data.provider === 'claude' ? ('claude' as const) : null;
+  const usageProvider: LLMProvider | null = (
+    data.provider === 'claude'
+    || data.provider === 'cursor'
+    || data.provider === 'codex'
+    || data.provider === 'opencode'
+  ) ? data.provider : null;
   const planUsage = useProviderUsage(usageProvider);
   const used = Number(data.tokenUsage?.used ?? 0);
   const total = Number(data.tokenUsage?.total ?? 0);

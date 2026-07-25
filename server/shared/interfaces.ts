@@ -108,8 +108,9 @@ export interface IProviderAuth {
  * Plan-usage contract for one provider.
  *
  * Implementations report plan rate-limit windows (e.g. 5-hour/weekly
- * utilization) and must not throw for normal "unsupported auth method" or
- * "not authenticated" states — encode those in the returned status instead.
+ * utilization) plus optional provider activity/reset-credit data, and must not
+ * throw for normal "unsupported auth method" or "not authenticated" states —
+ * encode those in the returned status instead.
  */
 export interface IProviderUsage {
   /**
