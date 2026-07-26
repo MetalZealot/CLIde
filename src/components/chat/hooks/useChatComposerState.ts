@@ -274,6 +274,9 @@ export function useChatComposerState({
   const rewindReconcileSessionRef = useRef<string | null>(null);
   // The /rewind command's prior-message picker.
   const [showRewindPicker, setShowRewindPicker] = useState(false);
+  // The /fork command reuses the same transcript-backed message list but
+  // creates a separate child session through the selected completed turn.
+  const [showForkPicker, setShowForkPicker] = useState(false);
 
   const [queuedDraft, setQueuedDraft] = useState<QueuedDraft | null>(() => {
     if (typeof window === 'undefined' || !sessionKey) {
@@ -384,6 +387,72 @@ export function useChatComposerState({
     }, 0);
   }, [addMessage]);
 
+  const forkFromMessage = useCallback(async (message: ChatMessage) => {
+    const sourceSessionId = selectedSession?.id || currentSessionId;
+    const lastTurnId = getTranscriptMessageUuid(message.id);
+    if (!sourceSessionId || !lastTurnId || !selectedProject) {
+      addMessage({
+        type: 'error',
+        content: 'This message cannot be used as a fork point.',
+        timestamp: new Date(),
+      });
+      return;
+    }
+
+    try {
+      const model = provider === 'cursor'
+        ? cursorModel
+        : provider === 'codex'
+          ? codexModel
+          : provider === 'opencode'
+              ? opencodeModel
+              : claudeModel;
+      const response = await authenticatedFetch(
+        `/api/providers/sessions/${encodeURIComponent(sourceSessionId)}/fork`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            model,
+            permissionMode,
+            lastTurnId,
+          }),
+        },
+      );
+      const body = await response.json();
+      if (!response.ok || !body?.data?.sessionId) {
+        throw new Error(
+          body?.message || body?.error || `Failed to fork session (${response.status})`,
+        );
+      }
+
+      onSessionEstablished?.(body.data.sessionId, {
+        provider: body.data.provider || provider,
+        project: selectedProject,
+        summary: body.data.summary || null,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Session fork failed:', error);
+      addMessage({
+        type: 'error',
+        content: `Failed to fork session: ${errorMessage}`,
+        timestamp: new Date(),
+      });
+    }
+  }, [
+    addMessage,
+    claudeModel,
+    codexModel,
+    currentSessionId,
+    cursorModel,
+    onSessionEstablished,
+    opencodeModel,
+    permissionMode,
+    provider,
+    selectedProject,
+    selectedSession?.id,
+  ]);
+
   const executeCommand = useCallback(
     async (command: SlashCommand, rawInput?: string, options?: { preserveInput?: boolean }) => {
       if (!command || !selectedProject) {
@@ -411,48 +480,10 @@ export function useChatComposerState({
           return;
         }
 
-        try {
-          const model = provider === 'cursor'
-            ? cursorModel
-            : provider === 'codex'
-              ? codexModel
-              : provider === 'opencode'
-                  ? opencodeModel
-                  : claudeModel;
-          const response = await authenticatedFetch(
-            `/api/providers/sessions/${encodeURIComponent(sourceSessionId)}/fork`,
-            {
-              method: 'POST',
-              body: JSON.stringify({
-                model,
-                permissionMode,
-              }),
-            },
-          );
-          const body = await response.json();
-          if (!response.ok || !body?.data?.sessionId) {
-            throw new Error(
-              body?.message || body?.error || `Failed to fork session (${response.status})`,
-            );
-          }
-
-          if (!options?.preserveInput) {
-            setInput('');
-            inputValueRef.current = '';
-          }
-          onSessionEstablished?.(body.data.sessionId, {
-            provider: body.data.provider || provider,
-            project: selectedProject,
-            summary: body.data.summary || null,
-          });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          console.error('Session fork failed:', error);
-          addMessage({
-            type: 'error',
-            content: `Failed to fork session: ${message}`,
-            timestamp: new Date(),
-          });
+        setShowForkPicker(true);
+        if (!options?.preserveInput) {
+          setInput('');
+          inputValueRef.current = '';
         }
         return;
       }
@@ -529,15 +560,13 @@ export function useChatComposerState({
       codexModel,
       currentSessionId,
       cursorModel,
-      permissionMode,
-      opencodeModel,
       handleBuiltInCommand,
       handleCustomCommand,
       input,
+      opencodeModel,
       provider,
       selectedProject,
       selectedSession?.id,
-      onSessionEstablished,
       addMessage,
       tokenBudget,
     ],
@@ -1080,9 +1109,11 @@ export function useChatComposerState({
     setPendingRewind(null);
   }, [pendingRewind, setInput]);
 
-  // Rewind edit mode never survives a session switch.
+  // Branch pickers and rewind edit mode never survive a session switch.
   useEffect(() => {
     setPendingRewind(null);
+    setShowRewindPicker(false);
+    setShowForkPicker(false);
   }, [sessionKey]);
 
   // After a rewound turn completes, refetch from the server: the transcript
@@ -1455,6 +1486,9 @@ export function useChatComposerState({
     cancelRewindEdit,
     showRewindPicker,
     closeRewindPicker: () => setShowRewindPicker(false),
+    showForkPicker,
+    closeForkPicker: () => setShowForkPicker(false),
+    forkFromMessage,
     handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,

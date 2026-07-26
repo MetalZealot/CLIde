@@ -296,7 +296,7 @@ for await (const line of lines) {
         id,
         sessionId: 'tree-1',
         forkedFromId: message.params.threadId,
-        path: '/tmp/' + id + '.jsonl',
+        path: '/tmp/' + id + '-' + (message.params.lastTurnId || 'all') + '.jsonl',
         cwd: message.params.cwd,
         turns: sourceTurns
       },
@@ -375,9 +375,13 @@ test('Codex first-message rewind starts a clean thread and explicit fork starts 
     const capture = JSON.parse(String(captureMessage?.content).slice(8));
     assert.equal(capture.thread.method, 'thread/start');
 
-    const child = await transport.forkThread('source-thread', { cwd: fake.root });
+    const child = await transport.forkThread('source-thread', {
+      cwd: fake.root,
+      lastTurnId: 'turn-b',
+    });
     assert.equal(child.id, 'fork-2');
     assert.equal(child.forkedFromId, 'source-thread');
+    assert.equal(child.path, '/tmp/fork-2-turn-b.jsonl');
   } finally {
     await fake.cleanup();
   }

@@ -189,6 +189,8 @@ export interface IProviderSessions {
       projectPath?: string;
       model?: string;
       permissionMode?: string;
+      /** Provider-native completed turn through which history is copied. */
+      lastTurnId?: string;
     },
   ): Promise<{
     providerSessionId: string;

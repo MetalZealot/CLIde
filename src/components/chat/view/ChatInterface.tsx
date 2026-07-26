@@ -16,7 +16,7 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
 import CommandResultModal from './subcomponents/CommandResultModal';
-import RewindPickerModal from './subcomponents/RewindPickerModal';
+import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
 
 function ChatInterface({
   selectedProject,
@@ -193,6 +193,9 @@ function ChatInterface({
     cancelRewindEdit,
     showRewindPicker,
     closeRewindPicker,
+    showForkPicker,
+    closeForkPicker,
+    forkFromMessage,
     handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,
@@ -508,11 +511,20 @@ function ChatInterface({
 
       <QuickSettingsPanel />
 
-      <RewindPickerModal
+      <ConversationBranchPickerModal
         open={showRewindPicker}
         onClose={closeRewindPicker}
         chatMessages={chatMessages}
+        mode="rewind"
         onPickMessage={beginRewindEdit}
+      />
+
+      <ConversationBranchPickerModal
+        open={showForkPicker}
+        onClose={closeForkPicker}
+        chatMessages={chatMessages}
+        mode="fork"
+        onPickMessage={forkFromMessage}
       />
 
       <CommandResultModal

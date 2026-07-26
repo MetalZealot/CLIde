@@ -151,7 +151,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
     if (parentName) {
       return {
         ...parsed,
-        sessionName: normalizeSessionName(`${parentName} (fork)`, 'Untitled Codex Session'),
+        sessionName: normalizeSessionName(`Fork: ${parentName}`, 'Untitled Codex Session'),
       };
     }
 

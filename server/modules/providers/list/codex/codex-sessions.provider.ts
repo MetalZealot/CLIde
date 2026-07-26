@@ -446,6 +446,7 @@ export class CodexSessionsProvider implements IProviderSessions {
       projectPath?: string;
       model?: string;
       permissionMode?: string;
+      lastTurnId?: string;
     } = {},
   ): Promise<{
     providerSessionId: string;
@@ -466,6 +467,7 @@ export class CodexSessionsProvider implements IProviderSessions {
       cwd: options.projectPath,
       model: options.model,
       permissionMode: options.permissionMode,
+      lastTurnId: options.lastTurnId,
     });
 
     return {

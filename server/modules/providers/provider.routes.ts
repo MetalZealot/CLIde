@@ -582,6 +582,7 @@ router.post(
     const result = await sessionsService.forkSessionById(sessionId, {
       model: readOptionalQueryString(body.model),
       permissionMode: readOptionalQueryString(body.permissionMode),
+      lastTurnId: readOptionalQueryString(body.lastTurnId),
     });
     res.status(201).json(createApiSuccessResponse(result));
   }),

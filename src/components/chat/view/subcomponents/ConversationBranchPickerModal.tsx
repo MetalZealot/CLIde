@@ -1,28 +1,37 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { HistoryIcon, SearchIcon } from 'lucide-react';
+import { GitForkIcon, HistoryIcon, SearchIcon } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
 import type { ChatMessage } from '../../types/types';
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 
-type RewindPickerModalProps = {
+type ConversationBranchPickerModalProps = {
   open: boolean;
   onClose: () => void;
   chatMessages: ChatMessage[];
-  /** Enters rewind-edit mode for the picked message (beginRewindEdit). */
-  onPickMessage: (message: ChatMessage) => void;
+  mode: 'rewind' | 'fork';
+  onPickMessage: (message: ChatMessage) => void | Promise<void>;
 };
 
 /**
- * The /rewind command's picker: lists the session's prior user messages
- * (newest first) and hands the picked one to the rewind-edit flow. Only
- * transcript-backed user text messages are offered — anything without a
- * uuid can't anchor a resume.
+ * Shared /rewind and /fork picker. Both operations anchor to provider turn
+ * ids carried by transcript-backed user messages; optimistic/local-only rows
+ * cannot safely identify an App Server history boundary.
  */
-export default function RewindPickerModal({ open, onClose, chatMessages, onPickMessage }: RewindPickerModalProps) {
+export default function ConversationBranchPickerModal({
+  open,
+  onClose,
+  chatMessages,
+  mode,
+  onPickMessage,
+}: ConversationBranchPickerModalProps) {
   const { t } = useTranslation('chat');
   const [query, setQuery] = useState('');
+  const isFork = mode === 'fork';
+  const title = isFork
+    ? t('fork.pickerTitle', { defaultValue: 'Fork from an earlier message' })
+    : t('rewind.pickerTitle', { defaultValue: 'Rewind to an earlier message' });
 
   const candidates = useMemo(() => {
     return chatMessages
@@ -55,19 +64,23 @@ export default function RewindPickerModal({ open, onClose, chatMessages, onPickM
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && handleClose()}>
       <DialogContent className="flex max-h-[min(85dvh,36rem)] w-[calc(100vw-1rem)] max-w-lg flex-col overflow-hidden rounded-3xl border-border/80 bg-popover p-0 shadow-2xl">
         <DialogTitle className="sr-only">
-          {t('rewind.pickerTitle', { defaultValue: 'Rewind to an earlier message' })}
+          {title}
         </DialogTitle>
 
         <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 sm:px-5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted text-foreground">
-            <HistoryIcon className="h-4 w-4" />
+            {isFork
+              ? <GitForkIcon className="h-4 w-4" />
+              : <HistoryIcon className="h-4 w-4" />}
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {t('rewind.pickerEyebrow', { defaultValue: 'Rewind' })}
+              {isFork
+                ? t('fork.pickerEyebrow', { defaultValue: 'Fork' })
+                : t('rewind.pickerEyebrow', { defaultValue: 'Rewind' })}
             </p>
             <p className="mt-0.5 truncate text-base font-semibold tracking-tight text-foreground">
-              {t('rewind.pickerTitle', { defaultValue: 'Rewind to an earlier message' })}
+              {title}
             </p>
           </div>
         </div>
@@ -79,7 +92,7 @@ export default function RewindPickerModal({ open, onClose, chatMessages, onPickM
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('rewind.pickerSearch', { defaultValue: 'Search your messages...' })}
+                placeholder={t(`${mode}.pickerSearch`, { defaultValue: 'Search your messages...' })}
                 className="h-9 pl-8"
               />
             </div>
@@ -89,7 +102,9 @@ export default function RewindPickerModal({ open, onClose, chatMessages, onPickM
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {visible.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-              {t('rewind.pickerEmpty', { defaultValue: 'No earlier messages can be rewound to.' })}
+              {isFork
+                ? t('fork.pickerEmpty', { defaultValue: 'No earlier messages can be forked from.' })
+                : t('rewind.pickerEmpty', { defaultValue: 'No earlier messages can be rewound to.' })}
             </p>
           ) : (
             visible.map((message) => (
@@ -97,7 +112,7 @@ export default function RewindPickerModal({ open, onClose, chatMessages, onPickM
                 key={String(message.id)}
                 type="button"
                 onClick={() => {
-                  onPickMessage(message);
+                  void onPickMessage(message);
                   handleClose();
                 }}
                 className="block w-full rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-accent"
@@ -117,9 +132,13 @@ export default function RewindPickerModal({ open, onClose, chatMessages, onPickM
         </div>
 
         <p className="shrink-0 border-t border-border px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
-          {t('rewind.pickerHint', {
-            defaultValue: 'Picking a message loads it into the composer; sending rewinds the conversation to that point.',
-          })}
+          {isFork
+            ? t('fork.pickerHint', {
+                defaultValue: 'Picking a message creates a separate conversation containing history through that turn.',
+              })
+            : t('rewind.pickerHint', {
+                defaultValue: 'Picking a message loads it into the composer; sending rewinds the conversation to that point.',
+              })}
         </p>
       </DialogContent>
     </Dialog>

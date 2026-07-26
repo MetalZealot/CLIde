@@ -110,6 +110,7 @@ type ForkCodexThreadOptions = {
   cwd?: string;
   model?: string;
   permissionMode?: string;
+  lastTurnId?: string;
 };
 
 type ActiveTurn = {
@@ -749,6 +750,7 @@ export class CodexAppServerChatTransport {
       options.model,
     );
     const permissions = mapCodexAppServerPermissionMode(options.permissionMode);
+    const lastTurnId = readNonEmptyString(options.lastTurnId);
     const response = await client.request<CodexThreadForkResponse>('thread/fork', {
       threadId,
       model: resolvedModel,
@@ -756,6 +758,7 @@ export class CodexAppServerChatTransport {
       approvalPolicy: permissions.approvalPolicy,
       approvalsReviewer: 'user',
       sandbox: permissions.sandboxMode,
+      ...(lastTurnId ? { lastTurnId } : {}),
     });
     const forkedThreadId = readNonEmptyString(response?.thread?.id);
     if (!forkedThreadId) {

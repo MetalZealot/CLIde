@@ -24,7 +24,7 @@ const REWIND_COMMAND = {
 
 const FORK_COMMAND = {
   name: '/fork',
-  description: 'Create a separate conversation from the current point',
+  description: 'Create a separate conversation from a selected earlier message',
   namespace: 'builtin',
   metadata: { type: 'builtin' },
   type: 'built-in',

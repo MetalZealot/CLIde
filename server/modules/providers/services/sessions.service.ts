@@ -155,6 +155,7 @@ export const sessionsService = {
     options: {
       model?: string;
       permissionMode?: string;
+      lastTurnId?: string;
     } = {},
   ): Promise<ForkAppSessionResult> {
     const source = sessionsDb.getSessionById(sourceSessionId);
@@ -191,6 +192,7 @@ export const sessionsService = {
       projectPath: source.project_path ?? undefined,
       model: options.model,
       permissionMode: options.permissionMode,
+      lastTurnId: options.lastTurnId,
     });
     const projectPath = fork.projectPath?.trim() || source.project_path?.trim() || '';
     if (!projectPath) {
@@ -201,7 +203,7 @@ export const sessionsService = {
     }
 
     const sessionId = randomUUID();
-    const summary = `${source.custom_name?.trim() || 'Untitled Codex Session'} (fork)`;
+    const summary = `Fork: ${source.custom_name?.trim() || 'Untitled Codex Session'}`;
     sessionsDb.createAppSession(sessionId, provider, projectPath);
     sessionsDb.assignProviderSessionId(sessionId, fork.providerSessionId);
     sessionsDb.createSession(

@@ -297,6 +297,7 @@ test('Codex explicit fork allocates a separate stable CLIde session and preserve
       sessionsProvider.forkSession = async (providerSessionId, options) => {
         assert.equal(providerSessionId, 'provider-parent');
         assert.equal(options?.projectPath, '/workspace/demo');
+        assert.equal(options?.lastTurnId, 'turn-b');
         return {
           providerSessionId: 'provider-child',
           projectPath: '/workspace/demo',
@@ -307,17 +308,18 @@ test('Codex explicit fork allocates a separate stable CLIde session and preserve
       const result = await sessionsService.forkSessionById('app-parent', {
         model: 'gpt-test',
         permissionMode: 'default',
+        lastTurnId: 'turn-b',
       });
 
       assert.notEqual(result.sessionId, 'app-parent');
-      assert.equal(result.summary, 'Investigate rewind (fork)');
+      assert.equal(result.summary, 'Fork: Investigate rewind');
       assert.equal(
         sessionsDb.getSessionById('app-parent')?.provider_session_id,
         'provider-parent',
       );
       const child = sessionsDb.getSessionById(result.sessionId);
       assert.equal(child?.provider_session_id, 'provider-child');
-      assert.equal(child?.custom_name, 'Investigate rewind (fork)');
+      assert.equal(child?.custom_name, 'Fork: Investigate rewind');
       assert.equal(child?.jsonl_path, '/tmp/provider-child.jsonl');
     });
   } finally {
@@ -444,7 +446,7 @@ test('Codex synchronizer labels top-level fork lineage instead of an unrelated d
 
       assert.equal(
         sessionsDb.getSessionById('codex-child')?.custom_name,
-        'Investigate rewind (fork)',
+        'Fork: Investigate rewind',
       );
     });
   } finally {
