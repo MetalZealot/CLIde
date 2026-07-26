@@ -8,6 +8,13 @@ This is both a Codex reference and an implementation inventory for CLIde. It sep
 the surfaces deliberately: the interactive CLI, `codex exec`, the TypeScript SDK, and
 the App Server do **not** expose the same capabilities.
 
+> **Implementation update (2026-07-25):** The opt-in App Server Chat transport
+> described as future work below has now shipped. Read
+> [Codex Chat transport architecture](2026-07-25-codex-chat-transport-architecture.md)
+> for the implemented slice, current rollout behavior, default-migration checklist,
+> and rules for future Codex features. Keep this document as the broader dated
+> capability inventory.
+
 Status legend:
 
 - **Implemented** — CLIde exposes the underlying Codex behavior in chat or a close UI
