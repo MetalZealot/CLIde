@@ -2,6 +2,13 @@ import {
   resolveBundledCodexAppServerCommand,
   type CodexAppServerCommand,
 } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import {
+  isCodexAppServerChatEnabled,
+  markCodexAppServerReady,
+  markCodexAppServerStarting,
+  markCodexAppServerStopped,
+  markCodexAppServerStartupFallback,
+} from '@/modules/providers/list/codex/codex-chat-transport-state.js';
 import type {
   CodexAdditionalFileSystemPermissions,
   CodexApprovalDecision,
@@ -28,6 +35,10 @@ import type {
 } from '@/modules/providers/list/codex/codex-app-server.protocol.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { interactiveRequestRegistry } from '@/modules/providers/services/interactive-request-registry.service.js';
+import {
+  notifyRunFailed,
+  notifyRunStopped,
+} from '@/modules/notifications/index.js';
 import {
   JsonlRpcClient,
   type JsonlRpcId,
@@ -60,9 +71,27 @@ type AppServerWriter = {
   userId?: string | number | null;
 };
 
+type RunNotificationBase = {
+  userId: string | number | null;
+  provider: string;
+  sessionId: string | null;
+  sessionName: string | null;
+};
+
+type RunFailedNotifier = (options: RunNotificationBase & {
+  error: unknown;
+}) => void;
+
+type RunStoppedNotifier = (options: RunNotificationBase & {
+  stopReason: string;
+}) => void;
+
 type AppServerChatOptions = {
   command?: CodexAppServerCommand;
   requestTimeoutMs?: number;
+  trackRuntimeState?: boolean;
+  notifyRunFailed?: RunFailedNotifier;
+  notifyRunStopped?: RunStoppedNotifier;
 };
 
 type QueryCodexAppServerOptions = AnyRecord & {
@@ -92,11 +121,15 @@ type ActiveTurn = {
   terminal: boolean;
   aborted: boolean;
   fileChanges: Map<string, unknown>;
+  userId: string | number | null;
+  sessionName: string | null;
 };
 
 const STARTUP_TIMEOUT_MS = 10_000;
 const REQUEST_TIMEOUT_MS = 30_000;
 const PROVIDER = 'codex';
+const defaultNotifyRunFailed = notifyRunFailed as RunFailedNotifier;
+const defaultNotifyRunStopped = notifyRunStopped as RunStoppedNotifier;
 
 export class CodexAppServerStartupError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -124,9 +157,7 @@ export async function withCodexAppServerStartupFallback<T>(
   }
 }
 
-export function isCodexAppServerChatEnabled(): boolean {
-  return process.env.CLIDE_CODEX_CHAT_TRANSPORT === 'app-server';
-}
+export { isCodexAppServerChatEnabled };
 
 function toExternalRequestId(id: CodexRequestId): string {
   return `codex:${typeof id === 'number' ? 'n' : 's'}:${String(id)}`;
@@ -599,6 +630,8 @@ export class CodexAppServerChatTransport {
         terminal: false,
         aborted: false,
         fileChanges: new Map(),
+        userId: writer.userId ?? null,
+        sessionName: readNonEmptyString(options.sessionSummary),
       };
       this.activeTurns.set(threadId, active);
 
@@ -657,6 +690,13 @@ export class CodexAppServerChatTransport {
           sessionId: threadId || options.sessionId || null,
           exitCode: 1,
         }));
+        (this.options.notifyRunFailed ?? defaultNotifyRunFailed)({
+          userId: writer.userId ?? null,
+          provider: PROVIDER,
+          sessionId: threadId || options.sessionId || null,
+          sessionName: readNonEmptyString(options.sessionSummary),
+          error,
+        });
       }
     } finally {
       if (active && this.activeTurns.get(threadId) === active) {
@@ -757,11 +797,17 @@ export class CodexAppServerChatTransport {
           if (this.client === client) {
             this.client = null;
           }
+          if (this.options.trackRuntimeState) {
+            markCodexAppServerStopped(error);
+          }
           this.failActiveTurns(error);
         },
       });
 
       try {
+        if (this.options.trackRuntimeState) {
+          markCodexAppServerStarting();
+        }
         client.open();
         await client.request('initialize', {
           clientInfo: {
@@ -775,15 +821,22 @@ export class CodexAppServerChatTransport {
         }, STARTUP_TIMEOUT_MS);
         client.notify('initialized', {});
         this.client = client;
+        if (this.options.trackRuntimeState) {
+          markCodexAppServerReady();
+        }
         return client;
       } catch (error) {
         client.close('Codex App Server initialization failed.');
-        throw new CodexAppServerStartupError(
+        const startupError = new CodexAppServerStartupError(
           `Unable to initialize Codex App Server: ${
             error instanceof Error ? error.message : String(error)
           }`,
           { cause: error },
         );
+        if (this.options.trackRuntimeState) {
+          markCodexAppServerStartupFallback(startupError);
+        }
+        throw startupError;
       } finally {
         this.startup = null;
       }
@@ -1172,6 +1225,23 @@ export class CodexAppServerChatTransport {
         actualSessionId: active.threadId,
         exitCode: failed ? 1 : 0,
       }));
+      if (failed) {
+        (this.options.notifyRunFailed ?? defaultNotifyRunFailed)({
+          userId: active.userId,
+          provider: PROVIDER,
+          sessionId: active.threadId,
+          sessionName: active.sessionName,
+          error: turn.error?.message || 'Codex App Server turn failed.',
+        });
+      } else {
+        (this.options.notifyRunStopped ?? defaultNotifyRunStopped)({
+          userId: active.userId,
+          provider: PROVIDER,
+          sessionId: active.threadId,
+          sessionName: active.sessionName,
+          stopReason: 'completed',
+        });
+      }
     }
     active.resolveDone();
   }
@@ -1206,7 +1276,9 @@ export class CodexAppServerChatTransport {
   }
 }
 
-const sharedTransport = new CodexAppServerChatTransport();
+const sharedTransport = new CodexAppServerChatTransport({
+  trackRuntimeState: true,
+});
 
 export async function queryCodexAppServer(
   command: string,

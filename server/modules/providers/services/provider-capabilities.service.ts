@@ -1,4 +1,9 @@
 import type { LLMProvider } from '@/shared/types.js';
+import {
+  codexAppServerRuntimeCapabilitiesAvailable,
+  getCodexChatTransportDiagnostics,
+  type CodexChatTransportDiagnostics,
+} from '@/modules/providers/list/codex/codex-chat-transport-state.js';
 
 /**
  * Static, backend-owned description of what one provider integration supports.
@@ -30,6 +35,8 @@ type ProviderCapabilities = {
   supportsRewind: boolean;
   /** Whether the provider can create a separate sibling conversation. */
   supportsFork: boolean;
+  /** Runtime diagnostics for integrations with multiple execution surfaces. */
+  chatTransport?: CodexChatTransportDiagnostics;
 };
 
 /**
@@ -95,7 +102,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
 function withRuntimeCapabilities(capabilities: ProviderCapabilities): ProviderCapabilities {
   if (
     capabilities.provider === 'codex'
-    && process.env.CLIDE_CODEX_CHAT_TRANSPORT === 'app-server'
+    && codexAppServerRuntimeCapabilitiesAvailable()
   ) {
     return {
       ...capabilities,
@@ -103,9 +110,15 @@ function withRuntimeCapabilities(capabilities: ProviderCapabilities): ProviderCa
       supportsPermissionRequests: true,
       supportsRewind: true,
       supportsFork: true,
+      chatTransport: getCodexChatTransportDiagnostics(),
     };
   }
-  return capabilities;
+  return capabilities.provider === 'codex'
+    ? {
+        ...capabilities,
+        chatTransport: getCodexChatTransportDiagnostics(),
+      }
+    : capabilities;
 }
 
 /**

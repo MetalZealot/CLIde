@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import readline from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { isCodexAppServerChatEnabled } from '@/modules/providers/list/codex/codex-chat-transport-state.js';
 import { toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
@@ -451,7 +452,7 @@ export class CodexSessionsProvider implements IProviderSessions {
     projectPath?: string;
     jsonlPath?: string | null;
   }> {
-    if (process.env.CLIDE_CODEX_CHAT_TRANSPORT !== 'app-server') {
+    if (!isCodexAppServerChatEnabled()) {
       throw new Error('Codex session forking requires the App Server chat transport.');
     }
 

@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { userDb, apiKeysDb, githubTokensDb, projectsDb } from '../modules/database/index.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';
-import { queryCodex } from '../openai-codex.js';
+import { queryCodexJob } from '../openai-codex.js';
 import { spawnOpenCode } from '../opencode-cli.js';
 import { Octokit } from '@octokit/rest';
 import { providerModelsService } from '../modules/providers/services/provider-models.service.js';
@@ -978,7 +978,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
     } else if (provider === 'codex') {
       console.log('🤖 Starting Codex SDK session');
 
-      await queryCodex(message.trim(), {
+      await queryCodexJob(message.trim(), {
         projectPath: finalProjectPath,
         cwd: finalProjectPath,
         sessionId: sessionId || null,

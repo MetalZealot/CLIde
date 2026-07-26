@@ -7,7 +7,8 @@
  *
  * ## Usage
  *
- * - queryCodex(command, options, ws) - Execute a prompt with streaming via WebSocket
+ * - queryCodexChat(command, options, ws) - Run interactive Chat
+ * - queryCodexJob(command, options, writer) - Run a non-interactive SDK job
  * - abortCodexSession(sessionId) - Cancel an active session
  * - isCodexSessionActive(sessionId) - Check if a session is running
  * - getActiveCodexSessions() - List all active sessions
@@ -508,12 +509,13 @@ const codexSessionCleanupTimer = setInterval(() => {
 codexSessionCleanupTimer.unref?.();
 
 /**
- * Feature-gated Chat entry point. The SDK remains CLIde's default transport.
+ * Interactive Chat entry point. App Server is the default transport and the
+ * SDK remains an explicit escape hatch plus startup-only fallback.
  * App Server falls back only when its process cannot complete initialization;
  * once a thread/turn request is attempted, errors stay on that path so a user
  * instruction can never be duplicated by an SDK retry.
  */
-export async function queryCodex(command, options = {}, ws) {
+export async function queryCodexChat(command, options = {}, ws) {
   if (!isCodexAppServerChatEnabled()) {
     return queryCodexSdk(command, options, ws);
   }
@@ -525,6 +527,14 @@ export async function queryCodex(command, options = {}, ws) {
       return queryCodexSdk(command, options, ws);
     },
   );
+}
+
+/**
+ * Non-interactive jobs deliberately stay on the smaller SDK surface. They do
+ * not need App Server's approval/question channel or shared process lifecycle.
+ */
+export async function queryCodexJob(command, options = {}, writer) {
+  return queryCodexSdk(command, options, writer);
 }
 
 export async function abortCodexSession(sessionId) {

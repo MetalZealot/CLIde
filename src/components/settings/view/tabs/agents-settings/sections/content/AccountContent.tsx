@@ -1,7 +1,9 @@
 import { LogIn, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge, Button } from '../../../../../../../shared/view/ui';
+import { authenticatedFetch } from '../../../../../../../utils/api';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
 import UsageWindowList from '../../../../../../provider-usage/UsageWindowList';
 import { useProviderUsage } from '../../../../../../provider-usage/hooks/useProviderUsage';
@@ -22,6 +24,25 @@ type AgentVisualConfig = {
   buttonClass: string;
   description?: string;
 };
+
+type CodexTransportDiagnostics = {
+  configured: 'app-server' | 'sdk';
+  actual: 'app-server' | 'sdk';
+  health: 'disabled' | 'idle' | 'starting' | 'ready' | 'stopped' | 'fallback';
+  bundledCliVersion: string | null;
+  lastError: string | null;
+  lastStartupFallbackAt: string | null;
+};
+
+type CodexCapabilitiesResponse = {
+  success?: boolean;
+  data?: {
+    chatTransport?: CodexTransportDiagnostics;
+  };
+};
+
+const transportLabel = (transport: 'app-server' | 'sdk'): string =>
+  transport === 'app-server' ? 'App Server' : 'TypeScript SDK';
 
 const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   claude: {
@@ -88,6 +109,30 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
   const usageUpdatedAgo = planUsage.usage?.fetchedAt
     ? formatUpdatedAgo(planUsage.usage.fetchedAt)
     : null;
+  const [codexTransport, setCodexTransport] = useState<CodexTransportDiagnostics | null>(null);
+
+  useEffect(() => {
+    if (agent !== 'codex') {
+      setCodexTransport(null);
+      return;
+    }
+
+    let cancelled = false;
+    void authenticatedFetch('/api/providers/codex/capabilities')
+      .then(async (response) => {
+        const body = (await response.json()) as CodexCapabilitiesResponse;
+        if (!cancelled && body.success && body.data?.chatTransport) {
+          setCodexTransport(body.data.chatTransport);
+        }
+      })
+      .catch((error) => {
+        console.error('Error loading Codex transport diagnostics:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [agent]);
 
   return (
     <div className="space-y-6">
@@ -138,6 +183,43 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
               )}
             </div>
           </div>
+
+          {agent === 'codex' && codexTransport && (
+            <div className="border-t border-border/50 pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className={`font-medium ${config.textClass}`}>
+                    {t('agents.codexTransport.title', { defaultValue: 'Chat transport' })}
+                  </div>
+                  <div className={`text-sm ${config.subtextClass}`}>
+                    {t('agents.codexTransport.detail', {
+                      defaultValue: 'Configured: {{configured}} · Status: {{health}}{{version}}',
+                      configured: transportLabel(codexTransport.configured),
+                      health: codexTransport.health,
+                      version: codexTransport.bundledCliVersion
+                        ? ` · CLI ${codexTransport.bundledCliVersion}`
+                        : '',
+                    })}
+                  </div>
+                  {codexTransport.lastError && (
+                    <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                      {codexTransport.lastError}
+                    </div>
+                  )}
+                </div>
+                <Badge
+                  variant="secondary"
+                  className={
+                    codexTransport.health === 'fallback' || codexTransport.health === 'stopped'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                      : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                  }
+                >
+                  {transportLabel(codexTransport.actual)}
+                </Badge>
+              </div>
+            </div>
+          )}
 
           {authStatus.method !== 'api_key' && (
             <div className="border-t border-border/50 pt-4">

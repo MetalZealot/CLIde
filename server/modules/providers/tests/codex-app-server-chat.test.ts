@@ -9,6 +9,11 @@ import {
   CodexAppServerStartupError,
   withCodexAppServerStartupFallback,
 } from '@/modules/providers/list/codex/codex-app-server-chat.transport.js';
+import {
+  getCodexChatTransportDiagnostics,
+  markCodexAppServerStartupFallback,
+  resetCodexChatTransportStateForTests,
+} from '@/modules/providers/list/codex/codex-chat-transport-state.js';
 import { interactiveRequestRegistry } from '@/modules/providers/services/interactive-request-registry.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
@@ -19,6 +24,7 @@ type Writer = {
   sessionIds: string[];
   send: (message: unknown) => void;
   setSessionId: (sessionId: string) => void;
+  userId?: string;
 };
 
 const transports: CodexAppServerChatTransport[] = [];
@@ -30,9 +36,10 @@ afterEach(() => {
     transport.closeForTests();
   }
   providerModelsService.resolveResumeModel = originalResolveResumeModel;
+  resetCodexChatTransportStateForTests();
 });
 
-function createWriter(): Writer {
+function createWriter(userId?: string): Writer {
   const writer: Writer = {
     messages: [],
     sessionIds: [],
@@ -42,6 +49,7 @@ function createWriter(): Writer {
     setSessionId: (sessionId) => {
       writer.sessionIds.push(sessionId);
     },
+    ...(userId ? { userId } : {}),
   };
   return writer;
 }
@@ -210,6 +218,39 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     assert.equal(resumedCapture.turn.approvalPolicy, 'never');
     assert.equal(resumedCapture.turn.collaborationMode, undefined);
     assert.equal(resumed.messages.filter((message) => message.kind === 'complete').length, 1);
+  } finally {
+    await fake.cleanup();
+  }
+});
+
+test('App Server completion reaches the notification orchestrator with Chat identity', async () => {
+  const fake = await createFakeServer(BASIC_SERVER);
+  const stopped: unknown[] = [];
+  const transport = new CodexAppServerChatTransport({
+    command: fake.command,
+    trackRuntimeState: true,
+    notifyRunStopped: (payload) => {
+      stopped.push(payload);
+    },
+  });
+  transports.push(transport);
+  providerModelsService.resolveResumeModel = async () => 'gpt-test';
+
+  try {
+    await transport.query('Notify me', {
+      cwd: fake.root,
+      sessionSummary: 'Notification parity',
+    }, createWriter('user-42'));
+
+    assert.deepEqual(stopped, [{
+      userId: 'user-42',
+      provider: 'codex',
+      sessionId: 'thread-1',
+      sessionName: 'Notification parity',
+      stopReason: 'completed',
+    }]);
+    assert.equal(getCodexChatTransportDiagnostics().actual, 'app-server');
+    assert.equal(getCodexChatTransportDiagnostics().health, 'ready');
   } finally {
     await fake.cleanup();
   }
@@ -666,22 +707,35 @@ test('Codex SDK fallback is startup-only', async () => {
   assert.equal(sdkCalls, 1);
 });
 
-test('Codex Plan and interactive capabilities are exposed only under the App Server flag', () => {
+test('shared transport state records a real App Server initialization failure', async () => {
+  const fake = await createFakeServer(`
+process.stdin.resume();
+process.stdin.once('data', () => process.exit(17));
+`);
+  const transport = new CodexAppServerChatTransport({
+    command: fake.command,
+    trackRuntimeState: true,
+  });
+  transports.push(transport);
+
+  try {
+    await assert.rejects(
+      transport.query('Do not run', { cwd: fake.root }, createWriter()),
+      CodexAppServerStartupError,
+    );
+    assert.equal(getCodexChatTransportDiagnostics().configured, 'app-server');
+    assert.equal(getCodexChatTransportDiagnostics().actual, 'sdk');
+    assert.equal(getCodexChatTransportDiagnostics().health, 'fallback');
+    assert.match(getCodexChatTransportDiagnostics().lastError || '', /initialize Codex App Server/);
+  } finally {
+    await fake.cleanup();
+  }
+});
+
+test('Codex App Server is the default and sdk is the explicit capability escape hatch', () => {
   const previous = process.env.CLIDE_CODEX_CHAT_TRANSPORT;
   try {
     delete process.env.CLIDE_CODEX_CHAT_TRANSPORT;
-    assert.deepEqual(
-      providerCapabilitiesService.getProviderCapabilities('codex').permissionModes,
-      ['default', 'acceptEdits', 'bypassPermissions'],
-    );
-    assert.equal(
-      providerCapabilitiesService.getProviderCapabilities('codex').supportsPermissionRequests,
-      false,
-    );
-    assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, false);
-    assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, false);
-
-    process.env.CLIDE_CODEX_CHAT_TRANSPORT = 'app-server';
     assert.deepEqual(
       providerCapabilitiesService.getProviderCapabilities('codex').permissionModes,
       ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
@@ -692,6 +746,57 @@ test('Codex Plan and interactive capabilities are exposed only under the App Ser
     );
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, true);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, true);
+    assert.deepEqual(
+      getCodexChatTransportDiagnostics(),
+      {
+        configured: 'app-server',
+        actual: 'app-server',
+        health: 'idle',
+        bundledCliVersion: getCodexChatTransportDiagnostics().bundledCliVersion,
+        lastError: null,
+        lastStartupFallbackAt: null,
+      },
+    );
+
+    process.env.CLIDE_CODEX_CHAT_TRANSPORT = 'sdk';
+    assert.deepEqual(
+      providerCapabilitiesService.getProviderCapabilities('codex').permissionModes,
+      ['default', 'acceptEdits', 'bypassPermissions'],
+    );
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex').supportsPermissionRequests,
+      false,
+    );
+    assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, false);
+    assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, false);
+    assert.equal(getCodexChatTransportDiagnostics().health, 'disabled');
+
+    process.env.CLIDE_CODEX_CHAT_TRANSPORT = 'app-server';
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex').supportsPermissionRequests,
+      true,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.CLIDE_CODEX_CHAT_TRANSPORT;
+    else process.env.CLIDE_CODEX_CHAT_TRANSPORT = previous;
+  }
+});
+
+test('Codex startup fallback is reflected in actual transport and runtime capabilities', () => {
+  const previous = process.env.CLIDE_CODEX_CHAT_TRANSPORT;
+  try {
+    delete process.env.CLIDE_CODEX_CHAT_TRANSPORT;
+    markCodexAppServerStartupFallback(new Error('startup failed'));
+
+    const capabilities = providerCapabilitiesService.getProviderCapabilities('codex');
+    assert.equal(capabilities.supportsPermissionRequests, false);
+    assert.equal(capabilities.supportsRewind, false);
+    assert.equal(capabilities.supportsFork, false);
+    assert.equal(capabilities.chatTransport?.configured, 'app-server');
+    assert.equal(capabilities.chatTransport?.actual, 'sdk');
+    assert.equal(capabilities.chatTransport?.health, 'fallback');
+    assert.equal(capabilities.chatTransport?.lastError, 'startup failed');
+    assert.ok(capabilities.chatTransport?.lastStartupFallbackAt);
   } finally {
     if (previous === undefined) delete process.env.CLIDE_CODEX_CHAT_TRANSPORT;
     else process.env.CLIDE_CODEX_CHAT_TRANSPORT = previous;

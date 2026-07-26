@@ -32,7 +32,7 @@ import {
     abortCursorSession,
 } from './cursor-cli.js';
 import {
-    queryCodex,
+    queryCodexChat,
     abortCodexSession,
 } from './openai-codex.js';
 import {
@@ -112,7 +112,7 @@ const wss = createWebSocketServer(server, {
         spawnFns: {
             claude: queryClaudeSDK,
             cursor: spawnCursor,
-            codex: queryCodex,
+            codex: queryCodexChat,
             opencode: spawnOpenCode,
         },
         abortFns: {
