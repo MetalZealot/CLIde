@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 
 export type CodexChatTransport = 'app-server' | 'sdk';
 export type CodexChatTransportHealth =
@@ -13,6 +15,7 @@ export type CodexChatTransportDiagnostics = {
   configured: CodexChatTransport;
   actual: CodexChatTransport;
   health: CodexChatTransportHealth;
+  sdkVersion: string | null;
   bundledCliVersion: string | null;
   lastError: string | null;
   lastStartupFallbackAt: string | null;
@@ -31,14 +34,29 @@ const runtimeState: RuntimeState = {
   lastStartupFallbackAt: null,
 };
 
-const bundledCliVersion = (() => {
+function readPackageVersion(manifestPath: string): string | null {
   try {
-    const manifest = moduleRequire('@openai/codex/package.json') as {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
       version?: unknown;
     };
     return typeof manifest.version === 'string' ? manifest.version : null;
   } catch {
     return null;
+  }
+}
+
+const bundledVersions = (() => {
+  try {
+    const cliManifestPath = moduleRequire.resolve('@openai/codex/package.json');
+    return {
+      cli: readPackageVersion(cliManifestPath),
+      sdk: readPackageVersion(path.resolve(
+        path.dirname(cliManifestPath),
+        '../codex-sdk/package.json',
+      )),
+    };
+  } catch {
+    return { cli: null, sdk: null };
   }
 })();
 
@@ -83,7 +101,8 @@ export function getCodexChatTransportDiagnostics(): CodexChatTransportDiagnostic
       configured,
       actual: 'sdk',
       health: 'disabled',
-      bundledCliVersion,
+      sdkVersion: bundledVersions.sdk,
+      bundledCliVersion: bundledVersions.cli,
       lastError: null,
       lastStartupFallbackAt: runtimeState.lastStartupFallbackAt,
     };
@@ -93,7 +112,8 @@ export function getCodexChatTransportDiagnostics(): CodexChatTransportDiagnostic
     configured,
     actual: runtimeState.health === 'fallback' ? 'sdk' : 'app-server',
     health: runtimeState.health,
-    bundledCliVersion,
+    sdkVersion: bundledVersions.sdk,
+    bundledCliVersion: bundledVersions.cli,
     lastError: runtimeState.lastError,
     lastStartupFallbackAt: runtimeState.lastStartupFallbackAt,
   };

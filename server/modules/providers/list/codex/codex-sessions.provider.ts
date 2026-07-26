@@ -159,7 +159,7 @@ export function normalizePersistedCodexQuestions(value: unknown): CodexPersisted
       options,
       allowOther: Boolean(question.isOther ?? question.allowOther),
       isSecret: Boolean(question.isSecret),
-      // App Server 0.144.6 has no multi-select marker.
+      // App Server questions have no multi-select marker.
       multiSelect: false,
     }];
   });

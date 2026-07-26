@@ -15,6 +15,14 @@ the App Server do **not** expose the same capabilities.
 > and rules for future Codex features. Keep this document as the broader dated
 > capability inventory.
 
+> **Maintenance update (2026-07-26):** App Server is now CLIde's default
+> interactive Chat transport, with the TypeScript SDK retained as an explicit
+> escape hatch and startup fallback. CLIde now pins SDK and bundled CLI 0.145.0
+> together. The schema bump adds `thread/fork.beforeTurnId` for direct
+> edit-before-turn rewinds and the `cacheWriteInputTokens` usage field. The
+> status tables below remain the original dated survey rather than a live
+> implementation checklist.
+
 Status legend:
 
 - **Implemented** — CLIde exposes the underlying Codex behavior in chat or a close UI

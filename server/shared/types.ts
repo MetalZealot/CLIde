@@ -242,7 +242,7 @@ export type InteractiveQuestion = {
   allowOther?: boolean;
   isSecret?: boolean;
   /**
-   * Claude explicitly supplies this bit. Codex 0.144.6 does not, so Codex
+   * Claude explicitly supplies this bit. Codex does not, so Codex
    * questions normalize to false while response values remain arrays.
    */
   multiSelect?: boolean;

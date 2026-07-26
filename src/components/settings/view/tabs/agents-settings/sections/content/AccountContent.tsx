@@ -29,6 +29,7 @@ type CodexTransportDiagnostics = {
   configured: 'app-server' | 'sdk';
   actual: 'app-server' | 'sdk';
   health: 'disabled' | 'idle' | 'starting' | 'ready' | 'stopped' | 'fallback';
+  sdkVersion: string | null;
   bundledCliVersion: string | null;
   lastError: string | null;
   lastStartupFallbackAt: string | null;
@@ -43,6 +44,14 @@ type CodexCapabilitiesResponse = {
 
 const transportLabel = (transport: 'app-server' | 'sdk'): string =>
   transport === 'app-server' ? 'App Server' : 'TypeScript SDK';
+
+const codexVersionLabel = (diagnostics: CodexTransportDiagnostics): string => {
+  const versions = [
+    diagnostics.sdkVersion ? `SDK ${diagnostics.sdkVersion}` : null,
+    diagnostics.bundledCliVersion ? `CLI ${diagnostics.bundledCliVersion}` : null,
+  ].filter((value): value is string => Boolean(value));
+  return versions.length > 0 ? ` · ${versions.join(' · ')}` : '';
+};
 
 const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   claude: {
@@ -196,9 +205,7 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                       defaultValue: 'Configured: {{configured}} · Status: {{health}}{{version}}',
                       configured: transportLabel(codexTransport.configured),
                       health: codexTransport.health,
-                      version: codexTransport.bundledCliVersion
-                        ? ` · CLI ${codexTransport.bundledCliVersion}`
-                        : '',
+                      version: codexVersionLabel(codexTransport),
                     })}
                   </div>
                   {codexTransport.lastError && (

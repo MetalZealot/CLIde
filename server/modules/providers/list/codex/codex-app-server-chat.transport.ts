@@ -551,45 +551,17 @@ export class CodexAppServerChatTransport {
 
     try {
       let threadResponse: CodexThreadResponse;
-      if (options.sessionId && readNonEmptyString(options.rewindToMessageId)) {
-        const source = await client.request<CodexThreadResponse>('thread/resume', {
+      const rewindToMessageId = readNonEmptyString(options.rewindToMessageId);
+      if (options.sessionId && rewindToMessageId) {
+        threadResponse = await client.request<CodexThreadForkResponse>('thread/fork', {
           threadId: options.sessionId,
+          beforeTurnId: rewindToMessageId,
           model: resolvedModel,
           cwd: workingDirectory,
           approvalPolicy: permissions.approvalPolicy,
           approvalsReviewer: 'user',
           sandbox: permissions.sandboxMode,
         });
-        const turns = Array.isArray(source.thread?.turns) ? source.thread.turns : [];
-        const selectedTurnIndex = turns.findIndex(
-          (turn) => turn.id === options.rewindToMessageId,
-        );
-        if (selectedTurnIndex < 0) {
-          throw new Error(
-            'Rewind failed: the selected Codex turn could not be located in the source thread.',
-          );
-        }
-
-        // App Server 0.144.6 can fork through a turn but cannot fork before
-        // the first turn. A first-message rewind therefore starts a clean
-        // thread; later rewinds fork through the preceding completed turn.
-        threadResponse = selectedTurnIndex === 0
-          ? await client.request<CodexThreadResponse>('thread/start', {
-              model: resolvedModel,
-              cwd: workingDirectory,
-              approvalPolicy: permissions.approvalPolicy,
-              approvalsReviewer: 'user',
-              sandbox: permissions.sandboxMode,
-            })
-          : await client.request<CodexThreadForkResponse>('thread/fork', {
-              threadId: options.sessionId,
-              lastTurnId: turns[selectedTurnIndex - 1]?.id,
-              model: resolvedModel,
-              cwd: workingDirectory,
-              approvalPolicy: permissions.approvalPolicy,
-              approvalsReviewer: 'user',
-              sandbox: permissions.sandboxMode,
-            });
       } else if (options.sessionId) {
         threadResponse = await client.request<CodexThreadResponse>('thread/resume', {
           threadId: options.sessionId,

@@ -8,8 +8,9 @@ import path from 'node:path';
 import test from 'node:test';
 
 const moduleRequire = createRequire(import.meta.url);
+const EXPECTED_CODEX_VERSION = '0.145.0';
 
-test('Codex SDK and bundled CLI stay pinned to 0.144.6', () => {
+test(`Codex SDK and bundled CLI stay pinned to ${EXPECTED_CODEX_VERSION}`, () => {
   const codexBin = moduleRequire.resolve('@openai/codex/bin/codex.js');
   const sdk = JSON.parse(readFileSync(
     path.resolve(codexBin, '../../../codex-sdk/package.json'),
@@ -19,11 +20,11 @@ test('Codex SDK and bundled CLI stay pinned to 0.144.6', () => {
     path.resolve(codexBin, '../../package.json'),
     'utf8',
   )) as { version: string };
-  assert.equal(sdk.version, '0.144.6');
-  assert.equal(cli.version, '0.144.6');
+  assert.equal(sdk.version, EXPECTED_CODEX_VERSION);
+  assert.equal(cli.version, EXPECTED_CODEX_VERSION);
 });
 
-test('generated 0.144.6 protocol retains CLIde Chat methods and fields', async () => {
+test(`generated ${EXPECTED_CODEX_VERSION} protocol retains CLIde Chat methods and fields`, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'clide-codex-protocol-'));
   try {
     execFileSync(process.execPath, [
@@ -38,13 +39,23 @@ test('generated 0.144.6 protocol retains CLIde Chat methods and fields', async (
       env: process.env,
     });
 
-    const [clientRequest, serverRequest, notifications, threadFork, turnStart, question, questionResponse] =
+    const [
+      clientRequest,
+      serverRequest,
+      notifications,
+      threadFork,
+      turnStart,
+      tokenUsage,
+      question,
+      questionResponse,
+    ] =
       await Promise.all([
         readFile(path.join(tempRoot, 'ClientRequest.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'ServerRequest.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'ServerNotification.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'ThreadForkParams.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'TurnStartParams.ts'), 'utf8'),
+        readFile(path.join(tempRoot, 'v2', 'TokenUsageBreakdown.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'ToolRequestUserInputQuestion.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'ToolRequestUserInputResponse.ts'), 'utf8'),
       ]);
@@ -70,9 +81,11 @@ test('generated 0.144.6 protocol retains CLIde Chat methods and fields', async (
     }
 
     assert.match(threadFork, /lastTurnId\?: string \| null/);
+    assert.match(threadFork, /beforeTurnId\?: string \| null/);
     assert.match(turnStart, /collaborationMode\?: CollaborationMode/);
     assert.match(turnStart, /sandboxPolicy\?: SandboxPolicy/);
     assert.match(turnStart, /effort\?: ReasoningEffort/);
+    assert.match(tokenUsage, /cacheWriteInputTokens: number/);
     for (const field of ['id: string', 'isOther: boolean', 'isSecret: boolean', 'options:']) {
       assert.match(question, new RegExp(field));
     }

@@ -49,7 +49,7 @@ function normalizeQuestions(request: PermissionPanelProps['request']): Normalize
       // explicitly and normalizes it to allowOther.
       allowOther: question.allowOther ?? request.provider !== 'codex',
       isSecret: Boolean(question.isSecret),
-      // Codex 0.144.6 has no multi-select marker; default to one selection.
+      // Codex questions have no multi-select marker; default to one selection.
       multiSelect: Boolean(question.multiSelect),
     }];
   });

@@ -2,7 +2,7 @@
  * Curated Codex App Server protocol subset used by CLIde Chat.
  *
  * Source: `codex app-server generate-ts --experimental` from the CLI bundled
- * with @openai/codex-sdk 0.144.6. Keep this intentionally smaller than the
+ * with @openai/codex-sdk 0.145.0. Keep this intentionally smaller than the
  * generated surface; `codex-app-server-protocol-drift.test.ts` regenerates
  * bindings in a temporary directory and verifies every required method/field.
  */
@@ -79,11 +79,10 @@ export type CodexThreadResponse = {
 
 export type CodexThreadForkParams = CodexThreadStartParams & {
   threadId: string;
-  /**
-   * Fork through this completed turn, inclusive. Omit it to fork the full
-   * thread. App Server 0.144.6 does not yet expose `beforeTurnId`.
-   */
+  /** Fork through this completed turn, inclusive. */
   lastTurnId?: string | null;
+  /** Fork before this turn, excluding it and all later turns. */
+  beforeTurnId?: string | null;
   excludeTurns?: boolean;
 };
 
@@ -124,6 +123,7 @@ export type CodexTokenUsageBreakdown = {
   totalTokens: number;
   inputTokens: number;
   cachedInputTokens: number;
+  cacheWriteInputTokens: number;
   outputTokens: number;
   reasoningOutputTokens: number;
 };

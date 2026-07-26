@@ -140,8 +140,8 @@ for await (const line of lines) {
     send({ method: 'thread/tokenUsage/updated', params: {
       threadId: pendingThread.id, turnId,
       tokenUsage: {
-        total: { totalTokens: 99, inputTokens: 80, cachedInputTokens: 10, outputTokens: 19, reasoningOutputTokens: 2 },
-        last: { totalTokens: 23, inputTokens: 20, cachedInputTokens: 4, outputTokens: 3, reasoningOutputTokens: 1 },
+        total: { totalTokens: 99, inputTokens: 80, cachedInputTokens: 10, cacheWriteInputTokens: 2, outputTokens: 19, reasoningOutputTokens: 2 },
+        last: { totalTokens: 23, inputTokens: 20, cachedInputTokens: 4, cacheWriteInputTokens: 1, outputTokens: 3, reasoningOutputTokens: 1 },
         modelContextWindow: 1000
       }
     } });
@@ -296,7 +296,13 @@ for await (const line of lines) {
         id,
         sessionId: 'tree-1',
         forkedFromId: message.params.threadId,
-        path: '/tmp/' + id + '-' + (message.params.lastTurnId || 'all') + '.jsonl',
+        path: '/tmp/' + id + '-' + (
+          message.params.beforeTurnId
+            ? 'before-' + message.params.beforeTurnId
+            : message.params.lastTurnId
+              ? 'through-' + message.params.lastTurnId
+              : 'all'
+        ) + '.jsonl',
         cwd: message.params.cwd,
         turns: sourceTurns
       },
@@ -328,7 +334,7 @@ for await (const line of lines) {
   }
 }`;
 
-test('Codex rewind forks through the preceding turn and remaps the writer to the child', async () => {
+test('Codex rewind forks before the selected turn and remaps the writer to the child', async () => {
   const fake = await createFakeServer(FORK_SERVER);
   const transport = new CodexAppServerChatTransport({ command: fake.command });
   transports.push(transport);
@@ -348,14 +354,15 @@ test('Codex rewind forks through the preceding turn and remaps the writer to the
     const capture = JSON.parse(String(captureMessage?.content).slice(8));
     assert.equal(capture.thread.method, 'thread/fork');
     assert.equal(capture.thread.params.threadId, 'source-thread');
-    assert.equal(capture.thread.params.lastTurnId, 'turn-a');
+    assert.equal(capture.thread.params.beforeTurnId, 'turn-b');
+    assert.equal(capture.thread.params.lastTurnId, undefined);
     assert.equal(capture.turn.threadId, 'fork-1');
   } finally {
     await fake.cleanup();
   }
 });
 
-test('Codex first-message rewind starts a clean thread and explicit fork starts no turn', async () => {
+test('Codex first-message rewind forks before the first turn and explicit fork starts no turn', async () => {
   const fake = await createFakeServer(FORK_SERVER);
   const transport = new CodexAppServerChatTransport({ command: fake.command });
   transports.push(transport);
@@ -369,11 +376,13 @@ test('Codex first-message rewind starts a clean thread and explicit fork starts 
       cwd: fake.root,
     }, writer);
 
-    assert.deepEqual(writer.sessionIds, ['fresh-1']);
+    assert.deepEqual(writer.sessionIds, ['fork-1']);
     const captureMessage = writer.messages.find((message) =>
       message.kind === 'text' && String(message.content).startsWith('CAPTURE:'));
     const capture = JSON.parse(String(captureMessage?.content).slice(8));
-    assert.equal(capture.thread.method, 'thread/start');
+    assert.equal(capture.thread.method, 'thread/fork');
+    assert.equal(capture.thread.params.threadId, 'source-thread');
+    assert.equal(capture.thread.params.beforeTurnId, 'turn-a');
 
     const child = await transport.forkThread('source-thread', {
       cwd: fake.root,
@@ -381,7 +390,7 @@ test('Codex first-message rewind starts a clean thread and explicit fork starts 
     });
     assert.equal(child.id, 'fork-2');
     assert.equal(child.forkedFromId, 'source-thread');
-    assert.equal(child.path, '/tmp/fork-2-turn-b.jsonl');
+    assert.equal(child.path, '/tmp/fork-2-through-turn-b.jsonl');
   } finally {
     await fake.cleanup();
   }
@@ -750,13 +759,16 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     );
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, true);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, true);
+    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, '0.145.0');
+    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, '0.145.0');
     assert.deepEqual(
       getCodexChatTransportDiagnostics(),
       {
         configured: 'app-server',
         actual: 'app-server',
         health: 'idle',
-        bundledCliVersion: getCodexChatTransportDiagnostics().bundledCliVersion,
+        sdkVersion: '0.145.0',
+        bundledCliVersion: '0.145.0',
         lastError: null,
         lastStartupFallbackAt: null,
       },
