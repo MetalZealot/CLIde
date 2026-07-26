@@ -30,6 +30,7 @@ import {
   PromptInputTools,
   PromptInputButton,
   PromptInputSubmit,
+  Tooltip,
 } from '../../../../shared/view/ui';
 import OnCreditsBadge from '../../../provider-usage/OnCreditsBadge';
 
@@ -292,6 +293,16 @@ export default function ChatComposer({
   );
 
   const ModeIcon = MODE_ICONS[permissionMode] ?? Shield;
+  const permissionModeLabel = t(`codex.modes.${permissionMode}`, {
+    defaultValue: permissionMode,
+  });
+  const permissionModeDescription = t(`permissionModeDetails.${provider}.${permissionMode}`, {
+    defaultValue: t(`codex.descriptions.${permissionMode}`, {
+      defaultValue: t('permissionModeDetails.fallback', {
+        defaultValue: 'Controls how the agent asks for approval before using tools.',
+      }),
+    }),
+  });
 
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim());
@@ -470,33 +481,44 @@ export default function ChatComposer({
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
             )}
 
-            <button
-              type="button"
-              onClick={onModeSwitch}
-              className={`inline-flex h-8 items-center rounded-lg border px-2 text-xs font-medium transition-all duration-200 sm:px-2.5 ${
-                permissionMode === 'default'
-                  ? 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted'
-                  : permissionMode === 'acceptEdits'
-                    ? 'border-green-300/60 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-600/40 dark:bg-green-900/15 dark:text-green-300 dark:hover:bg-green-900/25'
-                    : permissionMode === 'auto'
-                      ? 'border-blue-300/60 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-600/40 dark:bg-blue-900/15 dark:text-blue-300 dark:hover:bg-blue-900/25'
-                      : permissionMode === 'bypassPermissions'
-                        ? 'border-orange-300/60 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-600/40 dark:bg-orange-900/15 dark:text-orange-300 dark:hover:bg-orange-900/25'
-                        : 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10'
-              }`}
-              title={t('input.clickToChangeMode')}
+            <Tooltip
+              position="top"
+              align="start"
+              delay={500}
+              className="w-72 max-w-[calc(100vw-2rem)] whitespace-normal p-3 text-left font-normal"
+              content={(
+                <div>
+                  <div className="text-sm font-semibold">{permissionModeLabel}</div>
+                  <div className="mt-1 leading-relaxed text-gray-200 dark:text-gray-700">
+                    {permissionModeDescription}
+                  </div>
+                </div>
+              )}
             >
-              <div className="flex items-center gap-1.5">
-                <ModeIcon className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden />
-                <span className="hidden whitespace-nowrap sm:inline">
-                  {permissionMode === 'default' && t('codex.modes.default')}
-                  {permissionMode === 'acceptEdits' && t('codex.modes.acceptEdits')}
-                  {permissionMode === 'auto' && t('codex.modes.auto')}
-                  {permissionMode === 'bypassPermissions' && t('codex.modes.bypassPermissions')}
-                  {permissionMode === 'plan' && t('codex.modes.plan')}
-                </span>
-              </div>
-            </button>
+              <button
+                type="button"
+                onClick={onModeSwitch}
+                className={`inline-flex h-8 items-center rounded-lg border px-2 text-xs font-medium transition-all duration-200 sm:px-2.5 ${
+                  permissionMode === 'default'
+                    ? 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted'
+                    : permissionMode === 'acceptEdits'
+                      ? 'border-green-300/60 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-600/40 dark:bg-green-900/15 dark:text-green-300 dark:hover:bg-green-900/25'
+                      : permissionMode === 'auto'
+                        ? 'border-blue-300/60 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-600/40 dark:bg-blue-900/15 dark:text-blue-300 dark:hover:bg-blue-900/25'
+                        : permissionMode === 'bypassPermissions'
+                          ? 'border-orange-300/60 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-600/40 dark:bg-orange-900/15 dark:text-orange-300 dark:hover:bg-orange-900/25'
+                          : 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10'
+                }`}
+                aria-label={`${t('codex.permissionMode')}: ${permissionModeLabel}. ${t('input.clickToChangeMode')}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <ModeIcon className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden />
+                  <span className="hidden whitespace-nowrap sm:inline">
+                    {permissionModeLabel}
+                  </span>
+                </div>
+              </button>
+            </Tooltip>
 
             {availableEffortOptions.length > 0 && (
               <div ref={effortDropdownRef} className="relative">

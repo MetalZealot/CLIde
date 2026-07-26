@@ -103,6 +103,34 @@
     },
     "technicalDetails": "Technical details"
   },
+  "permissionModeDetails": {
+    "fallback": "Controls how the agent asks for approval before using tools.",
+    "claude": {
+      "default": "Claude asks before using tools that are not already allowed.",
+      "auto": "A Claude model reviews each permission request and approves or denies it automatically. Some interactive prompts may also be auto-answered.",
+      "acceptEdits": "File edits are approved automatically. Other tools still follow Claude's normal permission rules.",
+      "bypassPermissions": "All permission checks are skipped, so Claude can use tools without asking. Use only in a trusted environment.",
+      "plan": "Claude can research and build a plan, but cannot edit files or run tools that change the workspace."
+    },
+    "cursor": {
+      "default": "Uses Cursor's configured permissions. The separate Skip Permissions setting makes CLIde pass Cursor's Force flag.",
+      "acceptEdits": "Currently behaves like Default because CLIde's Cursor adapter does not apply this picker mode.",
+      "bypassPermissions": "Currently behaves like Default. Only the separate Skip Permissions setting makes CLIde pass Cursor's Force flag.",
+      "plan": "Currently behaves like Default because CLIde's Cursor adapter does not pass Cursor's Plan mode flag."
+    },
+    "codex": {
+      "default": "Runs in the workspace sandbox and asks before commands Codex considers untrusted.",
+      "acceptEdits": "Runs without approval prompts inside the workspace sandbox. Network access and writes outside the workspace stay restricted.",
+      "bypassPermissions": "Runs without approval prompts or sandbox restrictions, with full system and network access. Use only in a trusted environment.",
+      "plan": "Uses Codex's Plan collaboration mode with workspace sandboxing and approval prompts."
+    },
+    "opencode": {
+      "default": "Uses your OpenCode permission configuration. In non-interactive runs, rules that ask are denied.",
+      "acceptEdits": "File edits are allowed automatically. Other tools continue to follow your OpenCode permission configuration.",
+      "bypassPermissions": "Enables OpenCode Auto mode: permissions are approved automatically unless your configuration explicitly denies them.",
+      "plan": "Uses OpenCode's read-only Plan agent to research and propose an approach without making changes."
+    }
+  },
   "voice": {
     "input": "Voice input",
     "stopRecording": "Stop recording",
