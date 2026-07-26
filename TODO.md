@@ -8,6 +8,10 @@ Tracked in-repo since 2026-07-22 so concurrent sessions share one board: when a 
 picks up an item on a topic branch, tag the item `— in progress on <branch>` and commit,
 so other sessions see the claim.
 
+## Provider maintenance
+
+- [ ] **Establish a recurring provider SDK/CLI update process.** Track Claude Agent SDK + its external Claude Code CLI as a tested compatibility pair; update CLIde's pinned Codex SDK and bundled CLI together, including App Server protocol regeneration/drift checks; and periodically test the external Cursor and OpenCode CLIs against their adapters. New models may arrive through dynamic discovery without a CLIde release, but static fallback catalogs, model-specific options, CLI flags, streamed event shapes, transcript/database formats, permissions, usage, and auth behavior can still require adapter changes. Record the runtime versions in diagnostics, prefer deliberate one-provider-at-a-time upgrades, and smoke-test model discovery, new/resumed chat, permissions/questions, tools, attachments, abort, usage, and history before rollout. **M recurring**
+
 ## Bugs
 
 - [ ] **Cursor: the composer's permission-mode picker is mostly cosmetic.** The capability matrix exposes Default / Accept Edits / Bypass / Plan, but `spawnCursor` never reads `permissionMode`; only the separate `toolsSettings.skipPermissions` value adds `-f`. Current Cursor CLI supports `--mode=plan`, and `--force` is the write/auto-approval control, so the adapter needs an explicit mapping (or the capability matrix should stop advertising modes it does not implement). The new long-press mode popup reports the current no-op honestly rather than overstating protection. **S/M**
