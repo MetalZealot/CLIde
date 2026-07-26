@@ -55,6 +55,7 @@ type ProviderCapabilities = {
   supportsTokenUsage: boolean;
   supportsEffort?: boolean;
   supportsRewind?: boolean;
+  supportsFork?: boolean;
 };
 
 type ProviderCapabilitiesApiResponse = {
@@ -285,6 +286,12 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     // the capability, so a failed capabilities fetch can never surface an
     // affordance the runtime would reject.
     return providerCapabilities?.[targetProvider]?.supportsRewind === true;
+  }, [providerCapabilities]);
+
+  const getSupportsForkForProvider = useCallback((targetProvider: LLMProvider): boolean => {
+    // Like rewind, this stays hidden until the backend confirms the active
+    // runtime can honor it.
+    return providerCapabilities?.[targetProvider]?.supportsFork === true;
   }, [providerCapabilities]);
 
   const pickStoredOrCurrent = (
@@ -599,5 +606,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     setStoredProviderEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
+    getSupportsForkForProvider,
   };
 }

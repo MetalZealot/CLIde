@@ -15,6 +15,7 @@ import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 type ParsedSession = {
   sessionId: string;
   projectPath: string;
+  forkedFromId?: string;
   sessionName?: string;
 };
 
@@ -106,6 +107,9 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       const payload = data.payload as Record<string, unknown> | undefined;
       const sessionId = typeof payload?.id === 'string' ? payload.id : undefined;
       const projectPath = typeof payload?.cwd === 'string' ? payload.cwd : undefined;
+      const forkedFromId = typeof payload?.forked_from_id === 'string'
+        ? payload.forked_from_id
+        : undefined;
 
       if (!sessionId || !projectPath) {
         return null;
@@ -114,6 +118,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return {
         sessionId,
         projectPath,
+        forkedFromId,
         isSubagent: payload ? this.isSubagentSessionMeta(payload) : false,
       };
     });
@@ -131,6 +136,22 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return {
         ...parsed,
         sessionName: normalizeSessionName(existingSessionName, 'Untitled Codex Session'),
+      };
+    }
+
+    // Codex writes the same forked_from_id metadata for explicit /fork and
+    // shell prompt-edit backtracking, so disk indexing cannot infer intent.
+    // Preserve the real child conversation and give it an honest lineage
+    // label instead of presenting it as an unrelated duplicate.
+    const parentSession = parsed.forkedFromId
+      ? sessionsDb.getSessionByProviderSessionId(parsed.forkedFromId)
+        ?? sessionsDb.getSessionById(parsed.forkedFromId)
+      : null;
+    const parentName = parentSession?.custom_name?.trim();
+    if (parentName) {
+      return {
+        ...parsed,
+        sessionName: normalizeSessionName(`${parentName} (fork)`, 'Untitled Codex Session'),
       };
     }
 

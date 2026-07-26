@@ -76,6 +76,8 @@ interface UseChatComposerStateArgs {
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   /** From the provider capability matrix; gates /rewind in the command menu. */
   supportsRewind?: boolean;
+  /** From the provider capability matrix; gates /fork in the command menu. */
+  supportsFork?: boolean;
 }
 
 interface MentionableFile {
@@ -236,6 +238,7 @@ export function useChatComposerState({
   pendingPermissionRequests,
   setPendingPermissionRequests: _setPendingPermissionRequests,
   supportsRewind = false,
+  supportsFork = false,
 }: UseChatComposerStateArgs) {
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
@@ -397,6 +400,63 @@ export function useChatComposerState({
         return;
       }
 
+      if (command.name === '/fork') {
+        const sourceSessionId = selectedSession?.id || currentSessionId;
+        if (!sourceSessionId) {
+          addMessage({
+            type: 'error',
+            content: 'Start the conversation before creating a fork.',
+            timestamp: new Date(),
+          });
+          return;
+        }
+
+        try {
+          const model = provider === 'cursor'
+            ? cursorModel
+            : provider === 'codex'
+              ? codexModel
+              : provider === 'opencode'
+                  ? opencodeModel
+                  : claudeModel;
+          const response = await authenticatedFetch(
+            `/api/providers/sessions/${encodeURIComponent(sourceSessionId)}/fork`,
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                model,
+                permissionMode,
+              }),
+            },
+          );
+          const body = await response.json();
+          if (!response.ok || !body?.data?.sessionId) {
+            throw new Error(
+              body?.message || body?.error || `Failed to fork session (${response.status})`,
+            );
+          }
+
+          if (!options?.preserveInput) {
+            setInput('');
+            inputValueRef.current = '';
+          }
+          onSessionEstablished?.(body.data.sessionId, {
+            provider: body.data.provider || provider,
+            project: selectedProject,
+            summary: body.data.summary || null,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          console.error('Session fork failed:', error);
+          addMessage({
+            type: 'error',
+            content: `Failed to fork session: ${message}`,
+            timestamp: new Date(),
+          });
+        }
+        return;
+      }
+
       try {
         const effectiveInput = rawInput ?? input;
         const commandMatch = effectiveInput.match(new RegExp(`${escapeRegExp(command.name)}\\s*(.*)`));
@@ -469,12 +529,15 @@ export function useChatComposerState({
       codexModel,
       currentSessionId,
       cursorModel,
+      permissionMode,
       opencodeModel,
       handleBuiltInCommand,
       handleCustomCommand,
       input,
       provider,
       selectedProject,
+      selectedSession?.id,
+      onSessionEstablished,
       addMessage,
       tokenBudget,
     ],
@@ -513,6 +576,7 @@ export function useChatComposerState({
     textareaRef,
     onExecuteCommand: executeCommand,
     supportsRewind,
+    supportsFork,
   });
 
   const {

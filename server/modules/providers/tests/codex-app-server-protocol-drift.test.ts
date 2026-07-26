@@ -38,17 +38,18 @@ test('generated 0.144.6 protocol retains CLIde Chat methods and fields', async (
       env: process.env,
     });
 
-    const [clientRequest, serverRequest, notifications, turnStart, question, questionResponse] =
+    const [clientRequest, serverRequest, notifications, threadFork, turnStart, question, questionResponse] =
       await Promise.all([
         readFile(path.join(tempRoot, 'ClientRequest.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'ServerRequest.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'ServerNotification.ts'), 'utf8'),
+        readFile(path.join(tempRoot, 'v2', 'ThreadForkParams.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'TurnStartParams.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'ToolRequestUserInputQuestion.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'ToolRequestUserInputResponse.ts'), 'utf8'),
       ]);
 
-    for (const method of ['initialize', 'thread/start', 'thread/resume', 'turn/start', 'turn/interrupt']) {
+    for (const method of ['initialize', 'thread/start', 'thread/resume', 'thread/fork', 'turn/start', 'turn/interrupt']) {
       assert.match(clientRequest, new RegExp(`"method": "${method.replace('/', '\\/')}"`));
     }
     for (const method of [
@@ -68,6 +69,7 @@ test('generated 0.144.6 protocol retains CLIde Chat methods and fields', async (
       assert.match(notifications, new RegExp(method.replace('/', '\\/')));
     }
 
+    assert.match(threadFork, /lastTurnId\?: string \| null/);
     assert.match(turnStart, /collaborationMode\?: CollaborationMode/);
     assert.match(turnStart, /sandboxPolicy\?: SandboxPolicy/);
     assert.match(turnStart, /effort\?: ReasoningEffort/);

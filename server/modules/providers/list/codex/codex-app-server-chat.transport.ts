@@ -16,6 +16,8 @@ import type {
   CodexRequestPermissionProfile,
   CodexSandboxPolicy,
   CodexThreadItem,
+  CodexThread,
+  CodexThreadForkResponse,
   CodexThreadResponse,
   CodexTokenUsage,
   CodexToolRequestUserInputParams,
@@ -48,7 +50,13 @@ import {
 
 type AppServerWriter = {
   send: (message: unknown) => void;
-  setSessionId?: (sessionId: string) => void;
+  setSessionId?: (
+    sessionId: string,
+    metadata?: {
+      jsonlPath?: string | null;
+      projectPath?: string;
+    },
+  ) => void;
   userId?: string | number | null;
 };
 
@@ -65,6 +73,13 @@ type QueryCodexAppServerOptions = AnyRecord & {
   model?: string;
   effort?: string;
   images?: unknown;
+  permissionMode?: string;
+  rewindToMessageId?: string;
+};
+
+type ForkCodexThreadOptions = {
+  cwd?: string;
+  model?: string;
   permissionMode?: string;
 };
 
@@ -503,28 +518,73 @@ export class CodexAppServerChatTransport {
     let active: ActiveTurn | null = null;
 
     try {
-      const threadResponse = options.sessionId
-        ? await client.request<CodexThreadResponse>('thread/resume', {
-            threadId: options.sessionId,
-            model: resolvedModel,
-            cwd: workingDirectory,
-            approvalPolicy: permissions.approvalPolicy,
-            approvalsReviewer: 'user',
-            sandbox: permissions.sandboxMode,
-          })
-        : await client.request<CodexThreadResponse>('thread/start', {
-            model: resolvedModel,
-            cwd: workingDirectory,
-            approvalPolicy: permissions.approvalPolicy,
-            approvalsReviewer: 'user',
-            sandbox: permissions.sandboxMode,
-          });
+      let threadResponse: CodexThreadResponse;
+      if (options.sessionId && readNonEmptyString(options.rewindToMessageId)) {
+        const source = await client.request<CodexThreadResponse>('thread/resume', {
+          threadId: options.sessionId,
+          model: resolvedModel,
+          cwd: workingDirectory,
+          approvalPolicy: permissions.approvalPolicy,
+          approvalsReviewer: 'user',
+          sandbox: permissions.sandboxMode,
+        });
+        const turns = Array.isArray(source.thread?.turns) ? source.thread.turns : [];
+        const selectedTurnIndex = turns.findIndex(
+          (turn) => turn.id === options.rewindToMessageId,
+        );
+        if (selectedTurnIndex < 0) {
+          throw new Error(
+            'Rewind failed: the selected Codex turn could not be located in the source thread.',
+          );
+        }
+
+        // App Server 0.144.6 can fork through a turn but cannot fork before
+        // the first turn. A first-message rewind therefore starts a clean
+        // thread; later rewinds fork through the preceding completed turn.
+        threadResponse = selectedTurnIndex === 0
+          ? await client.request<CodexThreadResponse>('thread/start', {
+              model: resolvedModel,
+              cwd: workingDirectory,
+              approvalPolicy: permissions.approvalPolicy,
+              approvalsReviewer: 'user',
+              sandbox: permissions.sandboxMode,
+            })
+          : await client.request<CodexThreadForkResponse>('thread/fork', {
+              threadId: options.sessionId,
+              lastTurnId: turns[selectedTurnIndex - 1]?.id,
+              model: resolvedModel,
+              cwd: workingDirectory,
+              approvalPolicy: permissions.approvalPolicy,
+              approvalsReviewer: 'user',
+              sandbox: permissions.sandboxMode,
+            });
+      } else if (options.sessionId) {
+        threadResponse = await client.request<CodexThreadResponse>('thread/resume', {
+          threadId: options.sessionId,
+          model: resolvedModel,
+          cwd: workingDirectory,
+          approvalPolicy: permissions.approvalPolicy,
+          approvalsReviewer: 'user',
+          sandbox: permissions.sandboxMode,
+        });
+      } else {
+        threadResponse = await client.request<CodexThreadResponse>('thread/start', {
+          model: resolvedModel,
+          cwd: workingDirectory,
+          approvalPolicy: permissions.approvalPolicy,
+          approvalsReviewer: 'user',
+          sandbox: permissions.sandboxMode,
+        });
+      }
 
       threadId = readNonEmptyString(threadResponse?.thread?.id) || '';
       if (!threadId) {
         throw new Error('Codex App Server returned a thread without an id.');
       }
-      writer.setSessionId?.(threadId);
+      writer.setSessionId?.(threadId, {
+        jsonlPath: threadResponse.thread.path,
+        projectPath: threadResponse.thread.cwd || workingDirectory,
+      });
 
       let resolveDone = () => {};
       const done = new Promise<void>((resolve) => {
@@ -625,6 +685,43 @@ export class CodexAppServerChatTransport {
       console.warn(`[Codex App Server] Failed to interrupt thread ${threadId}:`, error);
       return false;
     }
+  }
+
+  /**
+   * Creates an intentional sibling thread without starting a turn.
+   *
+   * This is distinct from query-time rewind: the caller allocates a new stable
+   * CLIde session for this provider thread while preserving the source row.
+   */
+  async forkThread(
+    threadId: string,
+    options: ForkCodexThreadOptions = {},
+  ): Promise<CodexThread> {
+    if (this.isActive(threadId)) {
+      throw new Error('Cannot fork a Codex thread while its turn is still running.');
+    }
+
+    const client = await this.ensureClient();
+    const workingDirectory = options.cwd || process.cwd();
+    const resolvedModel = await providerModelsService.resolveResumeModel(
+      PROVIDER,
+      threadId,
+      options.model,
+    );
+    const permissions = mapCodexAppServerPermissionMode(options.permissionMode);
+    const response = await client.request<CodexThreadForkResponse>('thread/fork', {
+      threadId,
+      model: resolvedModel,
+      cwd: workingDirectory,
+      approvalPolicy: permissions.approvalPolicy,
+      approvalsReviewer: 'user',
+      sandbox: permissions.sandboxMode,
+    });
+    const forkedThreadId = readNonEmptyString(response?.thread?.id);
+    if (!forkedThreadId) {
+      throw new Error('Codex App Server returned a fork without a thread id.');
+    }
+    return response.thread;
   }
 
   isActive(threadId: string): boolean {
@@ -1125,4 +1222,11 @@ export function abortCodexAppServerSession(threadId: string): Promise<boolean> {
 
 export function isCodexAppServerSessionActive(threadId: string): boolean {
   return sharedTransport.isActive(threadId);
+}
+
+export function forkCodexAppServerThread(
+  threadId: string,
+  options: ForkCodexThreadOptions = {},
+): Promise<CodexThread> {
+  return sharedTransport.forkThread(threadId, options);
 }

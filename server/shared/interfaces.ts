@@ -177,6 +177,24 @@ export interface IProviderMcp {
 export interface IProviderSessions {
   normalizeMessage(raw: unknown, sessionId: string | null): NormalizedMessage[];
   fetchHistory(sessionId: string, options?: FetchHistoryOptions): Promise<FetchHistoryResult>;
+  /**
+   * Creates a provider-native sibling conversation without starting a turn.
+   *
+   * The service layer owns the separate stable CLIde session id; providers
+   * only return the native id and transcript hints needed to index the fork.
+   */
+  forkSession?(
+    providerSessionId: string,
+    options?: {
+      projectPath?: string;
+      model?: string;
+      permissionMode?: string;
+    },
+  ): Promise<{
+    providerSessionId: string;
+    projectPath?: string;
+    jsonlPath?: string | null;
+  }>;
 }
 
 // ---------------------------

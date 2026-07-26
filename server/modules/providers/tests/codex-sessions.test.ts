@@ -11,6 +11,8 @@ import {
   normalizeAndRedactCodexQuestionAnswers,
   normalizePersistedCodexQuestions,
 } from '@/modules/providers/list/codex/codex-sessions.provider.js';
+import { providerRegistry } from '@/modules/providers/provider.registry.js';
+import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
@@ -245,6 +247,84 @@ test('Codex history links request_user_input calls to redacted answer arrays', {
   }
 });
 
+test('Codex history uses the provider turn id as the user-message rewind anchor', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-turn-anchor-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const transcriptPath = path.join(tempRoot, 'rollout-turn-anchor.jsonl');
+  await mkdir(workspacePath, { recursive: true });
+  await writeFile(transcriptPath, [
+    JSON.stringify({
+      timestamp: '2026-07-25T12:00:00.000Z',
+      type: 'turn_context',
+      payload: { turn_id: '019f9c81-1111-7777-8888-999999999999' },
+    }),
+    JSON.stringify({
+      timestamp: '2026-07-25T12:00:01.000Z',
+      type: 'event_msg',
+      payload: { type: 'user_message', message: 'Edit this prompt' },
+    }),
+  ].join('\n') + '\n', 'utf8');
+
+  try {
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(
+        'codex-turn-anchor',
+        'codex',
+        workspacePath,
+        undefined,
+        undefined,
+        undefined,
+        transcriptPath,
+      );
+      const history = await new CodexSessionsProvider().fetchHistory('codex-turn-anchor');
+      const user = history.messages.find((message) => message.role === 'user');
+      assert.equal(user?.id, '019f9c81-1111-7777-8888-999999999999');
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex explicit fork allocates a separate stable CLIde session and preserves its parent', { concurrency: false }, async () => {
+  const sessionsProvider = providerRegistry.resolveProvider('codex').sessions;
+  const originalForkSession = sessionsProvider.forkSession;
+
+  try {
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-parent', 'codex', '/workspace/demo');
+      sessionsDb.assignProviderSessionId('app-parent', 'provider-parent');
+      sessionsDb.updateSessionCustomName('app-parent', 'Investigate rewind');
+      sessionsProvider.forkSession = async (providerSessionId, options) => {
+        assert.equal(providerSessionId, 'provider-parent');
+        assert.equal(options?.projectPath, '/workspace/demo');
+        return {
+          providerSessionId: 'provider-child',
+          projectPath: '/workspace/demo',
+          jsonlPath: '/tmp/provider-child.jsonl',
+        };
+      };
+
+      const result = await sessionsService.forkSessionById('app-parent', {
+        model: 'gpt-test',
+        permissionMode: 'default',
+      });
+
+      assert.notEqual(result.sessionId, 'app-parent');
+      assert.equal(result.summary, 'Investigate rewind (fork)');
+      assert.equal(
+        sessionsDb.getSessionById('app-parent')?.provider_session_id,
+        'provider-parent',
+      );
+      const child = sessionsDb.getSessionById(result.sessionId);
+      assert.equal(child?.provider_session_id, 'provider-child');
+      assert.equal(child?.custom_name, 'Investigate rewind (fork)');
+      assert.equal(child?.jsonl_path, '/tmp/provider-child.jsonl');
+    });
+  } finally {
+    sessionsProvider.forkSession = originalForkSession;
+  }
+});
+
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');
@@ -326,6 +406,46 @@ test('Codex synchronizer leaves indexed sessions untitled when no name is availa
       await synchronizer.synchronize();
 
       assert.equal(sessionsDb.getSessionById('codex-indexed-1')?.custom_name, 'Untitled Codex Session');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex synchronizer labels top-level fork lineage instead of an unrelated duplicate', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-fork-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const sessionsDir = path.join(tempRoot, '.codex', 'sessions', '2026', '07', '07');
+  await mkdir(workspacePath, { recursive: true });
+  await mkdir(sessionsDir, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await writeCodexTranscript(tempRoot, 'codex-parent', workspacePath);
+    await writeFile(
+      path.join(sessionsDir, 'rollout-codex-child.jsonl'),
+      `${JSON.stringify({
+        type: 'session_meta',
+        payload: {
+          id: 'codex-child',
+          cwd: workspacePath,
+          thread_source: 'user',
+          forked_from_id: 'codex-parent',
+        },
+      })}\n`,
+      'utf8',
+    );
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-parent', 'codex', workspacePath, 'Investigate rewind');
+      const synchronizer = new CodexSessionSynchronizer();
+      await synchronizer.synchronize();
+
+      assert.equal(
+        sessionsDb.getSessionById('codex-child')?.custom_name,
+        'Investigate rewind (fork)',
+      );
     });
   } finally {
     restoreHomeDir();

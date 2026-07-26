@@ -215,6 +215,133 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
   }
 });
 
+const FORK_SERVER = `
+import readline from 'node:readline';
+const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+let pendingThread = null;
+let childNumber = 0;
+const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
+const sourceTurns = [
+  { id: 'turn-a', status: 'completed', items: [], error: null },
+  { id: 'turn-b', status: 'completed', items: [], error: null },
+  { id: 'turn-c', status: 'completed', items: [], error: null },
+];
+for await (const line of lines) {
+  const message = JSON.parse(line);
+  if (message.method === 'initialize') {
+    send({ id: message.id, result: { userAgent: 'fake' } });
+  } else if (message.method === 'initialized') {
+    // notification
+  } else if (message.method === 'thread/resume') {
+    pendingThread = { method: message.method, params: message.params, id: message.params.threadId };
+    send({ id: message.id, result: {
+      thread: {
+        id: message.params.threadId,
+        sessionId: 'tree-1',
+        path: '/tmp/source.jsonl',
+        cwd: message.params.cwd,
+        turns: sourceTurns
+      },
+      model: message.params.model || 'default',
+      cwd: message.params.cwd,
+      reasoningEffort: null
+    } });
+  } else if (message.method === 'thread/fork') {
+    childNumber += 1;
+    const id = 'fork-' + childNumber;
+    pendingThread = { method: message.method, params: message.params, id };
+    send({ id: message.id, result: {
+      thread: {
+        id,
+        sessionId: 'tree-1',
+        forkedFromId: message.params.threadId,
+        path: '/tmp/' + id + '.jsonl',
+        cwd: message.params.cwd,
+        turns: sourceTurns
+      },
+      model: message.params.model || 'default',
+      cwd: message.params.cwd,
+      reasoningEffort: null
+    } });
+  } else if (message.method === 'thread/start') {
+    childNumber += 1;
+    const id = 'fresh-' + childNumber;
+    pendingThread = { method: message.method, params: message.params, id };
+    send({ id: message.id, result: {
+      thread: { id, sessionId: id, path: '/tmp/' + id + '.jsonl', cwd: message.params.cwd, turns: [] },
+      model: message.params.model || 'default',
+      cwd: message.params.cwd,
+      reasoningEffort: null
+    } });
+  } else if (message.method === 'turn/start') {
+    const turnId = 'replacement-turn';
+    const capture = { thread: pendingThread, turn: message.params };
+    send({ id: message.id, result: { turn: { id: turnId, status: 'inProgress', error: null } } });
+    send({ method: 'item/completed', params: {
+      threadId: pendingThread.id, turnId, completedAtMs: Date.now(),
+      item: { type: 'agentMessage', id: 'capture', text: 'CAPTURE:' + JSON.stringify(capture) }
+    } });
+    send({ method: 'turn/completed', params: {
+      threadId: pendingThread.id, turn: { id: turnId, status: 'completed', error: null }
+    } });
+  }
+}`;
+
+test('Codex rewind forks through the preceding turn and remaps the writer to the child', async () => {
+  const fake = await createFakeServer(FORK_SERVER);
+  const transport = new CodexAppServerChatTransport({ command: fake.command });
+  transports.push(transport);
+  providerModelsService.resolveResumeModel = async () => 'gpt-test';
+
+  try {
+    const writer = createWriter();
+    await transport.query('Edited second prompt', {
+      sessionId: 'source-thread',
+      rewindToMessageId: 'turn-b',
+      cwd: fake.root,
+    }, writer);
+
+    assert.deepEqual(writer.sessionIds, ['fork-1']);
+    const captureMessage = writer.messages.find((message) =>
+      message.kind === 'text' && String(message.content).startsWith('CAPTURE:'));
+    const capture = JSON.parse(String(captureMessage?.content).slice(8));
+    assert.equal(capture.thread.method, 'thread/fork');
+    assert.equal(capture.thread.params.threadId, 'source-thread');
+    assert.equal(capture.thread.params.lastTurnId, 'turn-a');
+    assert.equal(capture.turn.threadId, 'fork-1');
+  } finally {
+    await fake.cleanup();
+  }
+});
+
+test('Codex first-message rewind starts a clean thread and explicit fork starts no turn', async () => {
+  const fake = await createFakeServer(FORK_SERVER);
+  const transport = new CodexAppServerChatTransport({ command: fake.command });
+  transports.push(transport);
+  providerModelsService.resolveResumeModel = async () => 'gpt-test';
+
+  try {
+    const writer = createWriter();
+    await transport.query('Edited first prompt', {
+      sessionId: 'source-thread',
+      rewindToMessageId: 'turn-a',
+      cwd: fake.root,
+    }, writer);
+
+    assert.deepEqual(writer.sessionIds, ['fresh-1']);
+    const captureMessage = writer.messages.find((message) =>
+      message.kind === 'text' && String(message.content).startsWith('CAPTURE:'));
+    const capture = JSON.parse(String(captureMessage?.content).slice(8));
+    assert.equal(capture.thread.method, 'thread/start');
+
+    const child = await transport.forkThread('source-thread', { cwd: fake.root });
+    assert.equal(child.id, 'fork-2');
+    assert.equal(child.forkedFromId, 'source-thread');
+  } finally {
+    await fake.cleanup();
+  }
+});
+
 const INTERACTIVE_SERVER = `
 import readline from 'node:readline';
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -551,6 +678,8 @@ test('Codex Plan and interactive capabilities are exposed only under the App Ser
       providerCapabilitiesService.getProviderCapabilities('codex').supportsPermissionRequests,
       false,
     );
+    assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, false);
+    assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, false);
 
     process.env.CLIDE_CODEX_CHAT_TRANSPORT = 'app-server';
     assert.deepEqual(
@@ -561,6 +690,8 @@ test('Codex Plan and interactive capabilities are exposed only under the App Ser
       providerCapabilitiesService.getProviderCapabilities('codex').supportsPermissionRequests,
       true,
     );
+    assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, true);
+    assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, true);
   } finally {
     if (previous === undefined) delete process.env.CLIDE_CODEX_CHAT_TRANSPORT;
     else process.env.CLIDE_CODEX_CHAT_TRANSPORT = previous;

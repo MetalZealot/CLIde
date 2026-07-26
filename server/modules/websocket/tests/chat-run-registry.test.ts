@@ -103,6 +103,46 @@ test('session_created is swallowed and persisted as the provider-id mapping', as
   });
 });
 
+test('provider session metadata updates the mapped transcript before history reconciliation', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-rewind', 'codex', '/workspace/demo');
+    sessionsDb.assignProviderSessionId('app-rewind', 'codex-parent');
+    sessionsDb.createSession(
+      'codex-parent',
+      'codex',
+      '/workspace/demo',
+      undefined,
+      undefined,
+      undefined,
+      '/tmp/codex-parent.jsonl',
+    );
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-rewind',
+      provider: 'codex',
+      providerSessionId: 'codex-parent',
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    run.writer.setSessionId('codex-child', {
+      projectPath: '/workspace/demo',
+      jsonlPath: '/tmp/codex-child.jsonl',
+    });
+
+    const row = sessionsDb.getSessionById('app-rewind');
+    assert.equal(row?.provider_session_id, 'codex-child');
+    assert.equal(row?.jsonl_path, '/tmp/codex-child.jsonl');
+    // The old transcript is tombstoned: re-indexing it resolves to the
+    // stable row instead of resurrecting a duplicate.
+    assert.equal(
+      sessionsDb.createSession('codex-parent', 'codex', '/workspace/demo'),
+      'app-rewind',
+    );
+  });
+});
+
 test('complete marks the run finished and duplicate completes are dropped', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('app-run-3', 'codex', '/workspace/demo');

@@ -17,7 +17,10 @@ type ChatSessionWriterOptions = {
    * (either via `setSessionId` or a `session_created` event). The registry
    * persists the app-id-to-provider-id mapping from this callback.
    */
-  onProviderSessionId: (providerSessionId: string) => void;
+  onProviderSessionId: (
+    providerSessionId: string,
+    metadata?: ProviderSessionMetadata,
+  ) => void;
   /**
    * Remaps/sequences/buffers one outbound live event. Implemented by the chat
    * run registry; the writer never forwards a provider event untouched.
@@ -25,6 +28,11 @@ type ChatSessionWriterOptions = {
    * `complete` after an abort already completed the run).
    */
   decorateOutboundEvent: (message: NormalizedMessage) => NormalizedMessage | null;
+};
+
+type ProviderSessionMetadata = {
+  jsonlPath?: string | null;
+  projectPath?: string;
 };
 
 /**
@@ -120,21 +128,27 @@ export class ChatSessionWriter {
     this.ws = newConnection;
   }
 
-  setSessionId(sessionId: string): void {
-    this.captureProviderSessionId(sessionId);
+  setSessionId(sessionId: string, metadata?: ProviderSessionMetadata): void {
+    this.captureProviderSessionId(sessionId, metadata);
   }
 
   getSessionId(): string | null {
     return this.providerSessionId;
   }
 
-  private captureProviderSessionId(providerSessionId: string): void {
-    if (!providerSessionId || this.providerSessionId === providerSessionId) {
+  private captureProviderSessionId(
+    providerSessionId: string,
+    metadata?: ProviderSessionMetadata,
+  ): void {
+    if (!providerSessionId) {
+      return;
+    }
+    if (this.providerSessionId === providerSessionId && metadata === undefined) {
       return;
     }
 
     this.providerSessionId = providerSessionId;
-    this.options.onProviderSessionId(providerSessionId);
+    this.options.onProviderSessionId(providerSessionId, metadata);
   }
 
   private forward(message: NormalizedMessage): void {

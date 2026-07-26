@@ -19,6 +19,10 @@ type CreateAppSessionResult = {
   projectPath: string;
 };
 
+type ForkAppSessionResult = CreateAppSessionResult & {
+  summary: string;
+};
+
 type ArchivedSessionListItem = {
   sessionId: string;
   provider: LLMProvider;
@@ -136,6 +140,85 @@ export const sessionsService = {
       sessionId,
       provider,
       projectPath: normalizedProjectPath,
+    };
+  },
+
+  /**
+   * Forks a provider conversation into a separate stable CLIde session.
+   *
+   * Unlike rewind, this preserves the source mapping. The provider creates
+   * its native child first, then this method establishes a new app-facing row
+   * that the frontend can navigate to immediately.
+   */
+  async forkSessionById(
+    sourceSessionId: string,
+    options: {
+      model?: string;
+      permissionMode?: string;
+    } = {},
+  ): Promise<ForkAppSessionResult> {
+    const source = sessionsDb.getSessionById(sourceSessionId);
+    if (!source) {
+      throw new AppError(`Session "${sourceSessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    if (!source.provider_session_id) {
+      throw new AppError('This session has not started a provider conversation yet.', {
+        code: 'SESSION_NOT_STARTED',
+        statusCode: 409,
+      });
+    }
+    if (chatRunRegistry.isProcessing(sourceSessionId)) {
+      throw new AppError('Wait for the current turn to finish before forking this session.', {
+        code: 'SESSION_FORK_IN_PROGRESS',
+        statusCode: 409,
+      });
+    }
+
+    const provider = source.provider as LLMProvider;
+    const sessionsProvider = providerRegistry.resolveProvider(provider).sessions;
+    if (!sessionsProvider.forkSession) {
+      throw new AppError(`Provider "${provider}" does not support session forks.`, {
+        code: 'SESSION_FORK_UNSUPPORTED',
+        statusCode: 409,
+      });
+    }
+
+    const fork = await sessionsProvider.forkSession(source.provider_session_id, {
+      projectPath: source.project_path ?? undefined,
+      model: options.model,
+      permissionMode: options.permissionMode,
+    });
+    const projectPath = fork.projectPath?.trim() || source.project_path?.trim() || '';
+    if (!projectPath) {
+      throw new AppError('The forked session did not provide a project path.', {
+        code: 'SESSION_PROJECT_PATH_MISSING',
+        statusCode: 500,
+      });
+    }
+
+    const sessionId = randomUUID();
+    const summary = `${source.custom_name?.trim() || 'Untitled Codex Session'} (fork)`;
+    sessionsDb.createAppSession(sessionId, provider, projectPath);
+    sessionsDb.assignProviderSessionId(sessionId, fork.providerSessionId);
+    sessionsDb.createSession(
+      fork.providerSessionId,
+      provider,
+      projectPath,
+      summary,
+      undefined,
+      undefined,
+      fork.jsonlPath,
+    );
+
+    return {
+      sessionId,
+      provider,
+      projectPath,
+      summary,
     };
   },
 

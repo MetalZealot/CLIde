@@ -28,6 +28,8 @@ type ProviderCapabilities = {
    * from an earlier message (edit-a-prior-message / "/rewind" in the chat UI).
    */
   supportsRewind: boolean;
+  /** Whether the provider can create a separate sibling conversation. */
+  supportsFork: boolean;
 };
 
 /**
@@ -47,6 +49,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: true,
     supportsEffort: true,
     supportsRewind: true,
+    supportsFork: false,
   },
   cursor: {
     provider: 'cursor',
@@ -58,6 +61,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: false,
     supportsEffort: false,
     supportsRewind: false,
+    supportsFork: false,
   },
   codex: {
     provider: 'codex',
@@ -69,6 +73,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: true,
     supportsEffort: true,
     supportsRewind: false,
+    supportsFork: false,
   },
   opencode: {
     provider: 'opencode',
@@ -83,6 +88,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsTokenUsage: true,
     supportsEffort: true,
     supportsRewind: false,
+    supportsFork: false,
   },
 };
 
@@ -95,6 +101,8 @@ function withRuntimeCapabilities(capabilities: ProviderCapabilities): ProviderCa
       ...capabilities,
       permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
       supportsPermissionRequests: true,
+      supportsRewind: true,
+      supportsFork: true,
     };
   }
   return capabilities;

@@ -52,8 +52,10 @@ export type CodexUserInput =
 export type CodexThread = {
   id: string;
   sessionId: string;
+  forkedFromId?: string | null;
   path: string | null;
   cwd: string;
+  turns?: CodexTurn[];
 };
 
 export type CodexThreadStartParams = {
@@ -74,6 +76,18 @@ export type CodexThreadResponse = {
   cwd: string;
   reasoningEffort: CodexReasoningEffort | null;
 };
+
+export type CodexThreadForkParams = CodexThreadStartParams & {
+  threadId: string;
+  /**
+   * Fork through this completed turn, inclusive. Omit it to fork the full
+   * thread. App Server 0.144.6 does not yet expose `beforeTurnId`.
+   */
+  lastTurnId?: string | null;
+  excludeTurns?: boolean;
+};
+
+export type CodexThreadForkResponse = CodexThreadResponse;
 
 export type CodexTurnStartParams = {
   threadId: string;

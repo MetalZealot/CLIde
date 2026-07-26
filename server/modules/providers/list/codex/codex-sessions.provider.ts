@@ -211,6 +211,7 @@ async function getCodexSessionMessages(
       secretQuestionIds: Set<string>;
     }>();
     let tokenUsage: AnyRecord | null = null;
+    let pendingTurnId: string | null = null;
     const fileStream = fsSync.createReadStream(sessionFilePath);
     const rl = readline.createInterface({
       input: fileStream,
@@ -225,6 +226,13 @@ async function getCodexSessionMessages(
       try {
         const entry = JSON.parse(line) as AnyRecord;
 
+        if (
+          (entry.type === 'turn_context' || entry.type === 'event_msg')
+          && typeof entry.payload?.turn_id === 'string'
+        ) {
+          pendingTurnId = entry.payload.turn_id;
+        }
+
         if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
           const info = entry.payload.info as AnyRecord;
           tokenUsage = extractCodexContextTokenUsage(info) as AnyRecord | null;
@@ -233,6 +241,7 @@ async function getCodexSessionMessages(
         if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload as AnyRecord)) {
           messages.push({
             type: 'user',
+            uuid: pendingTurnId || undefined,
             timestamp: entry.timestamp,
             message: {
               role: 'user',
@@ -240,6 +249,7 @@ async function getCodexSessionMessages(
             },
             images: extractCodexUserImages(entry.payload as AnyRecord),
           });
+          pendingTurnId = null;
         }
 
         if (
@@ -429,6 +439,41 @@ async function getCodexSessionMessages(
 }
 
 export class CodexSessionsProvider implements IProviderSessions {
+  async forkSession(
+    providerSessionId: string,
+    options: {
+      projectPath?: string;
+      model?: string;
+      permissionMode?: string;
+    } = {},
+  ): Promise<{
+    providerSessionId: string;
+    projectPath?: string;
+    jsonlPath?: string | null;
+  }> {
+    if (process.env.CLIDE_CODEX_CHAT_TRANSPORT !== 'app-server') {
+      throw new Error('Codex session forking requires the App Server chat transport.');
+    }
+
+    // Keep the history/indexing adapter free of an eager transport dependency:
+    // the transport resolves provider model services, which in turn load the
+    // provider registry containing this class.
+    const { forkCodexAppServerThread } = await import(
+      '@/modules/providers/list/codex/codex-app-server-chat.transport.js'
+    );
+    const thread = await forkCodexAppServerThread(providerSessionId, {
+      cwd: options.projectPath,
+      model: options.model,
+      permissionMode: options.permissionMode,
+    });
+
+    return {
+      providerSessionId: thread.id,
+      projectPath: thread.cwd || options.projectPath,
+      jsonlPath: thread.path,
+    };
+  }
+
   /**
    * Normalizes a persisted Codex JSONL entry.
    *

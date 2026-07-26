@@ -22,6 +22,14 @@ const REWIND_COMMAND = {
   type: 'built-in',
 } as const;
 
+const FORK_COMMAND = {
+  name: '/fork',
+  description: 'Create a separate conversation from the current point',
+  namespace: 'builtin',
+  metadata: { type: 'builtin' },
+  type: 'built-in',
+} as const;
+
 export interface SlashCommand {
   name: string;
   description?: string;
@@ -41,6 +49,8 @@ interface UseSlashCommandsOptions {
   onExecuteCommand: (command: SlashCommand, rawInput?: string) => void | Promise<void>;
   /** Capability-gated: adds the client-side /rewind command to the menu. */
   supportsRewind?: boolean;
+  /** Capability-gated: adds the client-side /fork command to the menu. */
+  supportsFork?: boolean;
 }
 
 type ProviderSkill = {
@@ -169,6 +179,7 @@ export function useSlashCommands({
   textareaRef,
   onExecuteCommand,
   supportsRewind = false,
+  supportsFork = false,
 }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -236,6 +247,7 @@ export function useSlashCommands({
           .map(mapSkillToSlashCommand);
         const allCommands: SlashCommand[] = [
           ...(supportsRewind ? [{ ...REWIND_COMMAND } as SlashCommand] : []),
+          ...(supportsFork ? [{ ...FORK_COMMAND } as SlashCommand] : []),
           ...((data.builtIn || []) as SlashCommand[]).map((command) => ({
             ...command,
             type: 'built-in',
@@ -269,7 +281,7 @@ export function useSlashCommands({
     return () => {
       cancelled = true;
     };
-  }, [selectedProject, provider, supportsRewind]);
+  }, [selectedProject, provider, supportsFork, supportsRewind]);
 
   useEffect(() => {
     if (!showCommandMenu) {

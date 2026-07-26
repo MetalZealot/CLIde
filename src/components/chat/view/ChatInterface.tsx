@@ -98,6 +98,7 @@ function ChatInterface({
     setStoredProviderEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
+    getSupportsForkForProvider,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
@@ -238,6 +239,7 @@ function ChatInterface({
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
     supportsRewind: getSupportsRewindForProvider(provider),
+    supportsFork: getSupportsForkForProvider(provider),
   });
 
   // On WebSocket reconnect, re-fetch the current session's messages from the

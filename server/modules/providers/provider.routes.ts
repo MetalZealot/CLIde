@@ -574,6 +574,19 @@ router.get(
   }),
 );
 
+router.post(
+  '/sessions/:sessionId/fork',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const result = await sessionsService.forkSessionById(sessionId, {
+      model: readOptionalQueryString(body.model),
+      permissionMode: readOptionalQueryString(body.permissionMode),
+    });
+    res.status(201).json(createApiSuccessResponse(result));
+  }),
+);
+
 router.get(
   '/sessions/archived',
   asyncHandler(async (_req: Request, res: Response) => {

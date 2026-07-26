@@ -49,3 +49,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0009 — Long-press menus: one shared overlay, and touch belongs to `useLongPress`](0009-context-menu-overlay-touch-ownership.md)
 - [0010 — Viewport-positioned overlays set inset inline, never via `inset-0`](0010-pwa-mode-fixed-inset-override.md)
 - [0011 — Codex App Server is the opt-in interactive Chat transport](0011-codex-app-server-chat-transport.md)
+- [0012 — Codex rewind replaces a stable session; fork creates another](0012-codex-rewind-and-fork-session-identity.md)

@@ -177,15 +177,42 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
  * `setSessionId(...)` or emits its `session_created` event — whichever
  * happens first wins; later calls with the same id are no-ops.
  */
-function recordProviderSessionId(run: ChatRun, providerSessionId: string): void {
-  if (!providerSessionId || run.providerSessionId === providerSessionId) {
+function recordProviderSessionId(
+  run: ChatRun,
+  providerSessionId: string,
+  metadata?: {
+    jsonlPath?: string | null;
+    projectPath?: string;
+  },
+): void {
+  if (!providerSessionId) {
     return;
   }
 
+  const providerSessionChanged = run.providerSessionId !== providerSessionId;
+  const hasTranscriptMetadata =
+    typeof metadata?.jsonlPath === 'string' && metadata.jsonlPath.length > 0;
+  if (!providerSessionChanged && !hasTranscriptMetadata) {
+    return;
+  }
   run.providerSessionId = providerSessionId;
 
   try {
-    sessionsDb.assignProviderSessionId(run.appSessionId, providerSessionId);
+    if (providerSessionChanged) {
+      sessionsDb.assignProviderSessionId(run.appSessionId, providerSessionId);
+    }
+    if (hasTranscriptMetadata) {
+      const current = sessionsDb.getSessionById(run.appSessionId);
+      sessionsDb.createSession(
+        providerSessionId,
+        run.provider,
+        metadata.projectPath || current?.project_path || '',
+        undefined,
+        undefined,
+        undefined,
+        metadata.jsonlPath as string,
+      );
+    }
     void broadcastCanonicalSessionUpsert(run.appSessionId).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[ChatRunRegistry] Failed to broadcast canonical session mapping', {
@@ -247,8 +274,8 @@ export const chatRunRegistry = {
       userId: input.userId,
       provider: input.provider,
       providerSessionId: input.providerSessionId,
-      onProviderSessionId: (providerSessionId) => {
-        recordProviderSessionId(run, providerSessionId);
+      onProviderSessionId: (providerSessionId, metadata) => {
+        recordProviderSessionId(run, providerSessionId, metadata);
       },
       decorateOutboundEvent: (message) => decorateAndRecordEvent(run, message),
     });
