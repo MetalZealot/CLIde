@@ -11,6 +11,7 @@ so other sessions see the claim.
 ## Provider maintenance
 
 - [ ] **Establish a recurring provider SDK/CLI update process.** Track Claude Agent SDK + its external Claude Code CLI as a tested compatibility pair; update CLIde's pinned Codex SDK and bundled CLI together, including App Server protocol regeneration/drift checks; and periodically test the external Cursor and OpenCode CLIs against their adapters. New models may arrive through dynamic discovery without a CLIde release, but static fallback catalogs, model-specific options, CLI flags, streamed event shapes, transcript/database formats, permissions, usage, and auth behavior can still require adapter changes. Record the runtime versions in diagnostics, prefer deliberate one-provider-at-a-time upgrades, and smoke-test model discovery, new/resumed chat, permissions/questions, tools, attachments, abort, usage, and history before rollout. **M recurring**
+- [~] **Migrate the recommended development and release runtime from Node 22 to Node 24 Active LTS.** Keep Node 22 explicitly supported during the transition, align `.nvmrc`, CI, package metadata, hooks, and contributor guidance, then verify the full project under Node 24. [upstreamable] **S — in progress on `chore/node-24`**
 
 ## Bugs
 
