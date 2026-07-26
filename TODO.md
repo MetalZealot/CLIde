@@ -10,6 +10,7 @@ so other sessions see the claim.
 
 ## Provider maintenance
 
+- [~] **Make Codex App Server the default interactive Chat transport** — in progress on `feat/codex-app-server-default`. Follow `docs/superpowers/specs/2026-07-25-codex-chat-transport-architecture.md`: retain an explicit SDK escape hatch and startup-only fallback; split interactive Chat from simple jobs; expose configured versus actual transport and runtime capabilities; audit notification parity; verify protocol drift, recovery, concurrency, and Pi resource use; then complete the installed-PWA rollout matrix before removing the opt-in requirement. **L**
 - [ ] **Establish a recurring provider SDK/CLI update process.** Track Claude Agent SDK + its external Claude Code CLI as a tested compatibility pair; update CLIde's pinned Codex SDK and bundled CLI together, including App Server protocol regeneration/drift checks; and periodically test the external Cursor and OpenCode CLIs against their adapters. New models may arrive through dynamic discovery without a CLIde release, but static fallback catalogs, model-specific options, CLI flags, streamed event shapes, transcript/database formats, permissions, usage, and auth behavior can still require adapter changes. Record the runtime versions in diagnostics, prefer deliberate one-provider-at-a-time upgrades, and smoke-test model discovery, new/resumed chat, permissions/questions, tools, attachments, abort, usage, and history before rollout. **M recurring**
 
 ## Bugs
