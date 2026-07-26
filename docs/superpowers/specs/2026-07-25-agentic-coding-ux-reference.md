@@ -4,7 +4,7 @@
 
 **Survey date:** 2026-07-25
 
-**CLIde baseline:** `my-edits` at `172b0ef`
+**CLIde baseline:** `main` at `172b0ef`
 
 **Audience:** Product, design, and engineering work on CLIde
 

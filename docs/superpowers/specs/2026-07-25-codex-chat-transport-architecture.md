@@ -1,6 +1,6 @@
 # Codex Chat transport architecture
 
-*Recorded 2026-07-25 against CLIde `my-edits`, `@openai/codex-sdk` 0.144.6,
+*Recorded 2026-07-25 against CLIde `main`, `@openai/codex-sdk` 0.144.6,
 the CLI bundled with that SDK, and the accepted App Server rollout in ADR 0011.*
 
 ## Purpose

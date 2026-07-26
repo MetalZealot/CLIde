@@ -2,7 +2,7 @@
 
 *Surveyed 2026-07-24 against the official Codex documentation, installed Codex CLI
 0.145.0, installed `@openai/codex-sdk` 0.144.6, generated 0.145.0 App Server
-TypeScript bindings, and CLIde's `my-edits` branch.*
+TypeScript bindings, and CLIde's `main` branch.*
 
 This is both a Codex reference and an implementation inventory for CLIde. It separates
 the surfaces deliberately: the interactive CLI, `codex exec`, the TypeScript SDK, and

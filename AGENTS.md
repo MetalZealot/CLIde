@@ -68,11 +68,13 @@ Before changing code:
 
 ## Git, backlog, and upstream workflow
 
-- `my-edits` is the long-lived branch and tracks `origin/my-edits` (the user's
-  `MetalZealot/CLIde` fork).  `upstream` is `siteboon/claudecodeui`.
+- `main` is the long-lived CLIde branch and tracks `origin/main` on the user's
+  `MetalZealot/CLIde` fork. `upstream/main` is the clean
+  `siteboon/claudecodeui` line; a separate local upstream mirror is unnecessary.
 - Make self-contained commits only after appropriate verification.  For parallel work,
-  claim the TODO item and use a worktree/topic branch; do not switch the main checkout
-  while its service or dev server is using it.
+  claim the TODO item and create a worktree/topic branch from `main`, then merge it
+  back into `main`; do not switch the main checkout while its service or dev server is
+  using it.
 - Keep `TODO.md` current: use `[ ]`, `[~]`, and `[x]`; move verified work to Done as a
   short record with its commit.  Git history and ADRs are the canonical detail.
 - Categorize fixes as fork-only or upstreamable.  Before describing a defect as

@@ -2,7 +2,7 @@
 
 *Surveyed 2026-07-25 against the official Claude Agent SDK and Codex
 documentation, installed `@anthropic-ai/claude-agent-sdk` 0.3.217, installed
-`@openai/codex-sdk` 0.144.6, CLIde's `my-edits` branch, and the completed
+`@openai/codex-sdk` 0.144.6, CLIde's `main` branch, and the completed
 `feat/codex-app-server-chat` implementation.*
 
 This is a reference for the planned CLIde UI revamp. It maps Claude and Codex
