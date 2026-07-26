@@ -74,7 +74,7 @@
 
 #### npm
 
-启动 CloudCLI UI，只需一行 `npx`（需要 Node.js v22+）：
+启动 CloudCLI UI，只需一行 `npx`（需要 **Node.js** 22 或 24；推荐 **Node.js 24 LTS**）：
 
 ```bash
 npx @cloudcli-ai/cloudcli

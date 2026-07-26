@@ -78,7 +78,7 @@
 
 #### npm
 
-Попробовать CloudCLI UI можно сразу через **npx** (требуется **Node.js** v22+):
+Попробовать CloudCLI UI можно сразу через **npx** (требуется **Node.js** 22 или 24; рекомендуется **Node.js 24 LTS**):
 
 ```bash
 npx @cloudcli-ai/cloudcli

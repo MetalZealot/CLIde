@@ -78,7 +78,7 @@ The fastest way to get started — no local setup required. Get a fully managed,
 
 #### npm
 
-Try CloudCLI UI instantly with **npx** (requires **Node.js** v22+):
+Try CloudCLI UI instantly with **npx** (requires **Node.js** 22 or 24; **Node.js 24 LTS** recommended):
 
 ```
 npx @cloudcli-ai/cloudcli

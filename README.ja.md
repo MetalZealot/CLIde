@@ -74,7 +74,7 @@
 
 #### npm
 
-**npx** で今すぐ CloudCLI UI を試せます（**Node.js** v22+ が必要）：
+**npx** で今すぐ CloudCLI UI を試せます（**Node.js** 22 または 24 が必要、**Node.js 24 LTS** を推奨）：
 
 ```bash
 npx @cloudcli-ai/cloudcli

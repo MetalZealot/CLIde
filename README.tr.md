@@ -78,7 +78,7 @@ Başlamanın en hızlı yolu — yerel kurulum yok. Web, mobil uygulama, API vey
 
 #### npm
 
-CloudCLI UI'yi **npx** ile anında dene (**Node.js** v22+ gerekir):
+CloudCLI UI'yi **npx** ile anında dene (**Node.js** 22 veya 24 gerekir; **Node.js 24 LTS** önerilir):
 
 ```
 npx @cloudcli-ai/cloudcli

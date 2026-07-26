@@ -74,7 +74,7 @@
 
 #### npm
 
-**npx**로 즉시 CloudCLI UI를 실행하세요 (Node.js v22+ 필요):
+**npx**로 즉시 CloudCLI UI를 실행하세요 (**Node.js** 22 또는 24 필요, **Node.js 24 LTS** 권장):
 
 ```bash
 npx @cloudcli-ai/cloudcli

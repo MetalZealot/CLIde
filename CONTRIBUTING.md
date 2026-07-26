@@ -10,7 +10,8 @@ Thanks for your interest in contributing to CloudCLI UI! Before you start, pleas
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 22 or later
+- [Node.js](https://nodejs.org/) 24 LTS (recommended); Node.js 22 LTS remains supported
+- npm 10 or later (included with supported Node.js installations)
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
 
 ## Getting Started
@@ -21,15 +22,25 @@ Thanks for your interest in contributing to CloudCLI UI! Before you start, pleas
    git clone https://github.com/<your-username>/claudecodeui.git
    cd claudecodeui
    ```
-3. Install dependencies:
+3. If you use [nvm](https://github.com/nvm-sh/nvm), install and activate the repository's recommended Node.js version:
+   ```bash
+   nvm install
+   nvm use
+   ```
+4. Confirm that Node.js and npm are available in this shell:
+   ```bash
+   node --version
+   npm --version
+   ```
+5. Install dependencies:
    ```bash
    npm install
    ```
-4. Start the development server:
+6. Start the development server:
    ```bash
    npm run dev
    ```
-5. Create a branch for your changes:
+7. Create a branch for your changes:
    ```bash
    git checkout -b feat/your-feature-name
    ```

@@ -78,7 +78,7 @@ Der schnellste Einstieg – keine lokale Einrichtung erforderlich. Erhalte eine 
 
 #### npm
 
-CloudCLI UI sofort mit **npx** ausprobieren (erfordert **Node.js** v22+):
+CloudCLI UI sofort mit **npx** ausprobieren (erfordert **Node.js** 22 oder 24; **Node.js 24 LTS** empfohlen):
 
 ```bash
 npx @cloudcli-ai/cloudcli
