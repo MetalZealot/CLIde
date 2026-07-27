@@ -166,7 +166,11 @@ export type ContextCommandData = {
   detail?: 'full' | 'headline';
   message?: string;
   model?: string | null;
-  /** Current usage, as the ring knows it — fresher than the reading's own total. */
+  /**
+   * The headline number. With a reading this is its own `totalTokens`, which
+   * the rendered categories sum to exactly; without one it is the ring's count.
+   * Never a mix of the two — they disagree slightly and the view stops adding up.
+   */
   usedTokens?: number;
   /** Usage at the moment the reading was taken. */
   totalTokens?: number;

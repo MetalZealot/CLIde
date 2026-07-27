@@ -444,9 +444,12 @@ const isReservedCategory = (name: string) =>
 function ContextSection({
   title,
   entries,
+  total,
 }: {
   title: string;
   entries: Array<{ key: string; label: string; hint?: string; tokens: number }>;
+  /** Shown as a footer row, so the section's numbers can be checked against it. */
+  total?: number;
 }) {
   if (entries.length === 0) {
     return null;
@@ -472,6 +475,13 @@ function ContextSection({
           </div>
         ))}
       </div>
+
+      {typeof total === 'number' && (
+        <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-border/70 pt-2">
+          <span className="text-sm text-foreground">Total</span>
+          <span className="shrink-0 font-mono text-sm text-foreground">{formatNumber(total)}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -506,9 +516,17 @@ function ContextContent({ data }: { data: ContextCommandData }) {
   const compactsAutomatically = data.isAutoCompactEnabled === true && threshold > 0;
   const breakdown = data.breakdown;
 
+  // The CLI's own arithmetic, verified against a real reading: the non-deferred
+  // categories sum to the whole window, and the non-deferred, non-reserved ones
+  // sum to totalTokens. Deferred tools sit outside both — they are what *would*
+  // load on demand — so listing them alongside the rest made the visible column
+  // add up to more than the headline.
   const categories = (breakdown?.categories ?? []).filter((category) => category.tokens > 0);
-  const spent = categories.filter((category) => !isReservedCategory(category.name));
-  const reserved = categories.filter((category) => isReservedCategory(category.name));
+  const counted = categories.filter((category) => !category.isDeferred);
+  const spent = counted.filter((category) => !isReservedCategory(category.name));
+  const reserved = counted.filter((category) => isReservedCategory(category.name));
+  const deferred = categories.filter((category) => category.isDeferred);
+  const spentTotal = spent.reduce((sum, category) => sum + category.tokens, 0);
 
   const messages = breakdown?.messageBreakdown;
   const messageEntries: Array<{ key: string; label: string; tokens: number }> = messages
@@ -599,14 +617,23 @@ function ContextContent({ data }: { data: ContextCommandData }) {
         entries={spent.map((category) => ({
           key: category.name,
           label: category.name,
-          hint: category.isDeferred ? 'Deferred — loaded on demand' : undefined,
           tokens: category.tokens,
         }))}
+        total={spentTotal}
       />
 
       <ContextSection
         title="Reserved"
         entries={reserved.map((category) => ({
+          key: category.name,
+          label: category.name,
+          tokens: category.tokens,
+        }))}
+      />
+
+      <ContextSection
+        title="Not counted — loaded on demand"
+        entries={deferred.map((category) => ({
           key: category.name,
           label: category.name,
           tokens: category.tokens,

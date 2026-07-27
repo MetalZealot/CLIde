@@ -421,9 +421,10 @@ Custom commands can be created in:
     const providerSessionId = sessionRow?.provider_session_id || context?.sessionId;
     const ceiling = await loadClaudeContextCeiling(providerSessionId);
 
-    // Current usage as the ring already knows it. The reading's own totalTokens
-    // is from whenever it was taken, so the headline prefers this — the
-    // sections below carry fetchedAt and say how old they are.
+    // Usage as the ring knows it, from its own transcript scan. Only used when
+    // there is no reading: the two disagree by a few hundred tokens (different
+    // extractions of the same turn), and a view that shows one number in the
+    // headline and a breakdown of the other adds up to nothing.
     const usedTokens =
       Number(context?.tokenUsage?.used ?? context?.tokenUsage?.totalUsed ?? 0) || 0;
 
@@ -435,7 +436,9 @@ Custom commands can be created in:
           provider,
           detail: "full",
           model: ceiling.model || null,
-          usedTokens: usedTokens || ceiling.totalTokens || 0,
+          // The reading's own total: it is exactly the sum of the non-deferred,
+          // non-reserved categories rendered below.
+          usedTokens: ceiling.totalTokens ?? 0,
           totalTokens: ceiling.totalTokens ?? 0,
           maxTokens: ceiling.maxTokens,
           percentage: ceiling.percentage ?? null,
