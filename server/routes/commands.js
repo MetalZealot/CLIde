@@ -468,7 +468,8 @@ Custom commands can be created in:
         model: model || null,
         usedTokens,
         maxTokens,
-        message: "Send a message to see what is filling the window",
+        // Ends in a full stop: the modal appends " Model: …" after it.
+        message: "Send a message to see what is filling the window.",
       },
     };
   },
