@@ -19,7 +19,30 @@ const SONNET_PAYLOAD = {
   model: 'claude-sonnet-5',
   autoCompactThreshold: 934000,
   isAutoCompactEnabled: true,
-  categories: [{ name: 'System prompt', tokens: 8835, color: 'blue' }],
+  categories: [
+    { name: 'System prompt', tokens: 8835, color: 'blue' },
+    { name: 'System tools (deferred)', tokens: 15380, color: 'cyan', isDeferred: true },
+    { name: 'Autocompact buffer', tokens: 33000, color: 'gray' },
+    { name: 'Free space', tokens: 907122, color: 'gray' },
+  ],
+  memoryFiles: [{ path: '/home/u/.claude/CLAUDE.md', type: 'User', tokens: 2195 }],
+  mcpTools: [{ name: 'search_files', serverName: 'gdrive', tokens: 420, isLoaded: true }],
+  systemTools: [{ name: 'Bash', tokens: 1200 }],
+  systemPromptSections: [{ name: 'Tone and style', tokens: 300 }],
+  agents: [{ agentType: 'Explore', source: 'builtin', tokens: 223 }],
+  skills: { totalSkills: 14, includedSkills: 14, tokens: 1739 },
+  slashCommands: { totalCommands: 20, includedCommands: 20, tokens: 640 },
+  messageBreakdown: {
+    toolCallTokens: 0,
+    toolResultTokens: 0,
+    attachmentTokens: 2198,
+    assistantMessageTokens: 7,
+    userMessageTokens: 18,
+    redirectedContextTokens: 0,
+    unattributedTokens: 820,
+    toolCallsByType: [],
+    attachmentsByType: [{ name: 'skill_listing', tokens: 1403 }],
+  },
 };
 
 test('parses the fields the ring needs off a real payload', () => {
@@ -31,6 +54,70 @@ test('parses the fields the ring needs off a real payload', () => {
   assert.equal(parsed.model, 'claude-sonnet-5');
   assert.equal(parsed.totalTokens, 26_878);
   assert.ok(parsed.fetchedAt > 0);
+});
+
+test('reshapes the /context breakdown', () => {
+  const breakdown = parseClaudeContextUsage(SONNET_PAYLOAD)?.breakdown;
+  assert.ok(breakdown);
+
+  assert.equal(breakdown.categories.length, 4);
+  assert.deepEqual(breakdown.categories[1], {
+    name: 'System tools (deferred)',
+    tokens: 15_380,
+    color: 'cyan',
+    isDeferred: true,
+  });
+  assert.equal(breakdown.memoryFiles[0].path, '/home/u/.claude/CLAUDE.md');
+  assert.equal(breakdown.mcpTools[0].serverName, 'gdrive');
+  assert.deepEqual(breakdown.systemTools, [{ name: 'Bash', tokens: 1200 }]);
+  assert.deepEqual(breakdown.systemPromptSections, [{ name: 'Tone and style', tokens: 300 }]);
+  // agentType is renamed to a plain `name` so the modal renders every section
+  // through one shape.
+  assert.deepEqual(breakdown.agents, [{ name: 'Explore', source: 'builtin', tokens: 223 }]);
+  assert.equal(breakdown.skills?.includedSkills, 14);
+  assert.equal(breakdown.slashCommands?.totalCommands, 20);
+  assert.equal(breakdown.messageBreakdown?.unattributedTokens, 820);
+  assert.deepEqual(breakdown.messageBreakdown?.attachmentsByType, [
+    { name: 'skill_listing', tokens: 1403 },
+  ]);
+});
+
+test('a payload missing every optional section still parses', () => {
+  // An older CLI, or a session with no MCP servers, skills or agents. The
+  // modal has to render something rather than throw on a missing array.
+  const parsed = parseClaudeContextUsage({ maxTokens: 200000, isAutoCompactEnabled: false });
+  assert.equal(parsed?.breakdown?.categories.length, 0);
+  assert.equal(parsed?.breakdown?.memoryFiles.length, 0);
+  assert.equal(parsed?.breakdown?.mcpTools.length, 0);
+  assert.equal(parsed?.breakdown?.agents.length, 0);
+  assert.equal(parsed?.breakdown?.skills, undefined);
+  assert.equal(parsed?.breakdown?.messageBreakdown, undefined);
+  assert.equal(parsed?.percentage, undefined);
+});
+
+test('junk inside a breakdown section is dropped, not rendered', () => {
+  const parsed = parseClaudeContextUsage({
+    maxTokens: 200000,
+    isAutoCompactEnabled: true,
+    categories: [null, 'nope', { name: 'Real', tokens: 10 }, { tokens: 'lots' }],
+    systemTools: 'not-an-array',
+  });
+
+  assert.equal(parsed?.breakdown?.categories.length, 2);
+  assert.deepEqual(parsed?.breakdown?.categories[0], {
+    name: 'Real',
+    tokens: 10,
+    color: undefined,
+    isDeferred: false,
+  });
+  // A nameless, uncountable entry degrades instead of breaking the list.
+  assert.deepEqual(parsed?.breakdown?.categories[1], {
+    name: 'Unknown',
+    tokens: 0,
+    color: undefined,
+    isDeferred: false,
+  });
+  assert.deepEqual(parsed?.breakdown?.systemTools, []);
 });
 
 test('falls back to rawMaxTokens when maxTokens is missing', () => {

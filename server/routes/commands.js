@@ -4,6 +4,8 @@ import path from "path";
 
 import express from "express";
 
+import { sessionsDb } from "../modules/database/index.js";
+import { getClaudeContextCeiling } from "../modules/providers/list/claude/claude-context-usage.js";
 import { providerModelsService } from "../modules/providers/services/provider-models.service.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
 import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
@@ -174,6 +176,12 @@ const builtInCommands = [
   {
     name: "/cost",
     description: "Display token usage information",
+    namespace: "builtin",
+    metadata: { type: "builtin" },
+  },
+  {
+    name: "/context",
+    description: "Show what is filling the context window",
     namespace: "builtin",
     metadata: { type: "builtin" },
   },
@@ -379,6 +387,63 @@ Custom commands can be created in:
           heapUsedMb: Math.round(memoryUsage.heapUsed / 1024 / 1024),
           heapTotalMb: Math.round(memoryUsage.heapTotal / 1024 / 1024),
         },
+      },
+    };
+  },
+
+  "/context": async (args, context) => {
+    const provider = readModelProvider(context?.provider);
+
+    // Only Claude reports a context breakdown. Rather than hide the command per
+    // provider, say so plainly — the same way an unsupported provider usage
+    // response is handled.
+    if (provider !== "claude") {
+      return {
+        type: "builtin",
+        action: "context",
+        data: {
+          provider,
+          unsupported: true,
+          message: `${MODEL_PROVIDER_LABELS[provider] || provider} does not report a context breakdown`,
+        },
+      };
+    }
+
+    // The reading is cached against the id the provider uses on disk, which is
+    // what claude-sdk.js sees during a turn; the client sends the app-facing id.
+    const sessionRow = hasConcreteSessionId(context?.sessionId)
+      ? sessionsDb.getSessionById(context.sessionId.trim())
+      : null;
+    const providerSessionId = sessionRow?.provider_session_id || context?.sessionId;
+    const ceiling = getClaudeContextCeiling(providerSessionId);
+
+    if (!ceiling) {
+      return {
+        type: "builtin",
+        action: "context",
+        data: {
+          provider,
+          unavailable: true,
+          // The SDK only answers mid-turn, so there is nothing to show until
+          // this session has streamed one since the server started.
+          message: "Send a message first — the breakdown is read from the running session",
+        },
+      };
+    }
+
+    return {
+      type: "builtin",
+      action: "context",
+      data: {
+        provider,
+        model: ceiling.model || null,
+        totalTokens: ceiling.totalTokens ?? 0,
+        maxTokens: ceiling.maxTokens,
+        percentage: ceiling.percentage ?? null,
+        autoCompactThreshold: ceiling.autoCompactThreshold ?? null,
+        isAutoCompactEnabled: ceiling.isAutoCompactEnabled,
+        fetchedAt: ceiling.fetchedAt,
+        breakdown: ceiling.breakdown || null,
       },
     };
   },

@@ -22,6 +22,8 @@ import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage
 import type { LLMProvider, ProviderModelsCacheInfo, ProviderModelsDefinition } from '../../../../types/app';
 import type {
   CommandModalPayload,
+  ContextCommandData,
+  ContextNamedTokens,
   CostCommandData,
   HelpCommandData,
   ModelCommandData,
@@ -418,6 +420,239 @@ function ModelsContent({
   );
 }
 
+// The CLI names its own colours for the /context squares. Mapping them onto
+// theme tokens keeps the two views recognisably the same picture without
+// hardcoding hex values that would fight the light/dark themes.
+const CONTEXT_CATEGORY_COLORS: Record<string, string> = {
+  blue: 'bg-sky-500',
+  cyan: 'bg-cyan-500',
+  green: 'bg-emerald-500',
+  yellow: 'bg-amber-400',
+  orange: 'bg-orange-500',
+  red: 'bg-red-500',
+  magenta: 'bg-fuchsia-500',
+  purple: 'bg-violet-500',
+  gray: 'bg-muted-foreground/40',
+  grey: 'bg-muted-foreground/40',
+};
+
+// "Free space" is not consumption, and the auto-compact buffer is reserved
+// rather than spent — both are still worth showing, just not as usage.
+const isReservedCategory = (name: string) =>
+  /free space|autocompact|auto-compact/i.test(name);
+
+function ContextSection({
+  title,
+  entries,
+}: {
+  title: string;
+  entries: Array<{ key: string; label: string; hint?: string; tokens: number }>;
+}) {
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/75 p-4">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {title}
+      </p>
+      <div className="space-y-1.5">
+        {entries.map((entry) => (
+          <div key={entry.key} className="flex items-baseline justify-between gap-4">
+            <div className="min-w-0">
+              <span className="block truncate text-sm text-foreground">{entry.label}</span>
+              {entry.hint && (
+                <span className="block truncate text-xs text-muted-foreground">{entry.hint}</span>
+              )}
+            </div>
+            <span className="shrink-0 font-mono text-sm text-muted-foreground">
+              {formatNumber(entry.tokens)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContextContent({ data }: { data: ContextCommandData }) {
+  const maxTokens = Number(data.maxTokens ?? 0);
+  const totalTokens = Number(data.totalTokens ?? 0);
+  const threshold = Number(data.autoCompactThreshold ?? 0);
+  const compactsAutomatically = data.isAutoCompactEnabled === true && threshold > 0;
+  const breakdown = data.breakdown;
+
+  const categories = (breakdown?.categories ?? []).filter((category) => category.tokens > 0);
+  const spent = categories.filter((category) => !isReservedCategory(category.name));
+  const reserved = categories.filter((category) => isReservedCategory(category.name));
+
+  const messages = breakdown?.messageBreakdown;
+  const messageEntries: Array<{ key: string; label: string; tokens: number }> = messages
+    ? [
+        { key: 'user', label: 'Your messages', tokens: messages.userMessageTokens },
+        { key: 'assistant', label: 'Replies', tokens: messages.assistantMessageTokens },
+        { key: 'toolCalls', label: 'Tool calls', tokens: messages.toolCallTokens },
+        { key: 'toolResults', label: 'Tool results', tokens: messages.toolResultTokens },
+        { key: 'attachments', label: 'Attachments', tokens: messages.attachmentTokens },
+        { key: 'redirected', label: 'Redirected context', tokens: messages.redirectedContextTokens },
+        { key: 'unattributed', label: 'Unattributed', tokens: messages.unattributedTokens },
+      ].filter((entry) => entry.tokens > 0)
+    : [];
+
+  const named = (entries: ContextNamedTokens[] | undefined, prefix: string) =>
+    (entries ?? [])
+      .filter((entry) => entry.tokens > 0)
+      .map((entry) => ({ key: `${prefix}-${entry.name}`, label: entry.name, tokens: entry.tokens }));
+
+  if (data.unsupported || data.unavailable) {
+    return (
+      <div className="flex h-full items-center justify-center px-6 text-center">
+        <div className="max-w-sm space-y-2">
+          <Gauge className="mx-auto h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            {data.message || 'No context breakdown available.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="scrollbar-thin -mr-1 h-full min-h-0 space-y-4 overflow-y-auto pr-1">
+      <div className="rounded-2xl border border-border/70 bg-background/75 p-4">
+        <div className="flex items-baseline justify-between gap-4">
+          <p className="text-sm font-medium text-foreground">
+            {formatNumber(totalTokens)}
+            <span className="text-muted-foreground"> / {formatNumber(maxTokens)} tokens</span>
+          </p>
+          <p className="font-mono text-sm text-muted-foreground">
+            {maxTokens > 0 ? `${Math.round((totalTokens / maxTokens) * 100)}%` : '—'}
+          </p>
+        </div>
+
+        {/* One stacked bar in the CLI's own category colours. */}
+        {spent.length > 0 && maxTokens > 0 && (
+          <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+            {spent.map((category) => (
+              <span
+                key={category.name}
+                className={CONTEXT_CATEGORY_COLORS[category.color ?? ''] || 'bg-primary'}
+                style={{ width: `${(category.tokens / maxTokens) * 100}%` }}
+                title={`${category.name}: ${formatNumber(category.tokens)}`}
+              />
+            ))}
+          </div>
+        )}
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          {compactsAutomatically
+            ? `Auto-compacts at ${formatNumber(threshold)} tokens.`
+            : 'Auto-compact is off for this session.'}
+          {data.model ? ` Model: ${data.model}.` : ''}
+        </p>
+      </div>
+
+      <ContextSection
+        title="What is in the window"
+        entries={spent.map((category) => ({
+          key: category.name,
+          label: category.name,
+          hint: category.isDeferred ? 'Deferred — loaded on demand' : undefined,
+          tokens: category.tokens,
+        }))}
+      />
+
+      <ContextSection
+        title="Reserved"
+        entries={reserved.map((category) => ({
+          key: category.name,
+          label: category.name,
+          tokens: category.tokens,
+        }))}
+      />
+
+      <ContextSection title="Messages" entries={messageEntries} />
+
+      <ContextSection
+        title="Attachments"
+        entries={named(messages?.attachmentsByType, 'attachment')}
+      />
+
+      <ContextSection
+        title="Memory files"
+        entries={(breakdown?.memoryFiles ?? [])
+          .filter((file) => file.tokens > 0)
+          .map((file) => ({
+            key: file.path,
+            label: file.path.split('/').pop() || file.path,
+            hint: file.path,
+            tokens: file.tokens,
+          }))}
+      />
+
+      <ContextSection
+        title="MCP tools"
+        entries={(breakdown?.mcpTools ?? [])
+          .filter((tool) => tool.tokens > 0)
+          .map((tool) => ({
+            key: `${tool.serverName ?? ''}-${tool.name}`,
+            label: tool.name,
+            hint: tool.serverName,
+            tokens: tool.tokens,
+          }))}
+      />
+
+      <ContextSection title="System tools" entries={named(breakdown?.systemTools, 'tool')} />
+
+      <ContextSection
+        title="System prompt"
+        entries={named(breakdown?.systemPromptSections, 'prompt')}
+      />
+
+      <ContextSection
+        title="Agents"
+        entries={(breakdown?.agents ?? [])
+          .filter((agent) => agent.tokens > 0)
+          .map((agent) => ({
+            key: agent.name,
+            label: agent.name,
+            hint: agent.source,
+            tokens: agent.tokens,
+          }))}
+      />
+
+      {(breakdown?.skills || breakdown?.slashCommands) && (
+        <ContextSection
+          title="Loaded on startup"
+          entries={[
+            ...(breakdown.skills
+              ? [{
+                key: 'skills',
+                label: `Skills (${breakdown.skills.includedSkills} of ${breakdown.skills.totalSkills})`,
+                tokens: breakdown.skills.tokens,
+              }]
+              : []),
+            ...(breakdown.slashCommands
+              ? [{
+                key: 'commands',
+                label: `Slash commands (${breakdown.slashCommands.includedCommands} of ${breakdown.slashCommands.totalCommands})`,
+                tokens: breakdown.slashCommands.tokens,
+              }]
+              : []),
+          ].filter((entry) => entry.tokens > 0)}
+        />
+      )}
+
+      {data.fetchedAt && (
+        <p className="px-1 pb-1 text-xs text-muted-foreground">
+          Read from the session at {new Date(data.fetchedAt).toLocaleTimeString()}.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CostContent({ data }: { data: CostCommandData }) {
   const usageProvider: LLMProvider | null = (
     data.provider === 'claude'
@@ -595,6 +830,12 @@ export default function CommandResultModal({
       subtitle: 'Version, provider, runtime, and environment details in one place.',
       icon: Activity,
     },
+    context: {
+      eyebrow: 'Session telemetry',
+      title: 'Context Window',
+      subtitle: 'What is filling this session’s context, as the running session reports it.',
+      icon: Gauge,
+    },
   } as const;
 
   const activeMeta = kind ? modalMeta[kind] : null;
@@ -657,6 +898,7 @@ export default function CommandResultModal({
           )}
           {payload?.kind === 'cost' && <CostContent data={payload.data as CostCommandData} />}
           {payload?.kind === 'status' && <StatusContent data={payload.data as StatusCommandData} />}
+          {payload?.kind === 'context' && <ContextContent data={payload.data as ContextCommandData} />}
         </div>
 
         <div className="flex shrink-0 flex-col gap-3 border-t border-border/70 bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">

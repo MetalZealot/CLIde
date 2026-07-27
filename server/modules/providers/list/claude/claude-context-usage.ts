@@ -33,6 +33,43 @@
 /** Sessions tracked before the oldest entries are evicted. */
 const MAX_TRACKED_SESSIONS = 200;
 
+/** One labelled slice of the context window, as the CLI's `/context` draws it. */
+export type ClaudeContextCategory = {
+  name: string;
+  tokens: number;
+  /** The CLI's own colour for this slice; passed through so both agree. */
+  color?: string;
+  isDeferred?: boolean;
+};
+
+export type ClaudeNamedTokens = { name: string; tokens: number };
+
+/**
+ * Everything behind the headline numbers — what the CLI's `/context` command
+ * shows. Optional throughout: the CLI omits sections that do not apply (no MCP
+ * servers configured, no skills loaded), and older CLIs omit more.
+ */
+export type ClaudeContextBreakdown = {
+  categories: ClaudeContextCategory[];
+  memoryFiles: { path: string; type?: string; tokens: number }[];
+  mcpTools: { name: string; serverName?: string; tokens: number; isLoaded?: boolean }[];
+  systemTools: ClaudeNamedTokens[];
+  systemPromptSections: ClaudeNamedTokens[];
+  agents: { name: string; source?: string; tokens: number }[];
+  skills?: { totalSkills: number; includedSkills: number; tokens: number };
+  slashCommands?: { totalCommands: number; includedCommands: number; tokens: number };
+  messageBreakdown?: {
+    toolCallTokens: number;
+    toolResultTokens: number;
+    attachmentTokens: number;
+    assistantMessageTokens: number;
+    userMessageTokens: number;
+    redirectedContextTokens: number;
+    unattributedTokens: number;
+    attachmentsByType: ClaudeNamedTokens[];
+  };
+};
+
 export type ClaudeContextCeiling = {
   /** `SDKControlGetContextUsageResponse.maxTokens` — the ring's denominator. */
   maxTokens: number;
@@ -44,6 +81,14 @@ export type ClaudeContextCeiling = {
   model?: string;
   /** Usage at the moment of the reading; kept for diagnostics, not for the ring. */
   totalTokens?: number;
+  /** Percentage of the window in use, as the CLI computed it. */
+  percentage?: number;
+  /**
+   * The `/context` detail. Held alongside the ceiling because it arrives in the
+   * same response and there is no way to re-ask once the turn is over — the
+   * `/context` view has to render from whatever the last turn recorded.
+   */
+  breakdown?: ClaudeContextBreakdown;
   fetchedAt: number;
 };
 
@@ -57,6 +102,92 @@ const ceilings = new Map<string, ClaudeContextCeiling>();
 const readPositiveInteger = (value: unknown): number | undefined => {
   const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
+};
+
+const readNonNegativeNumber = (value: unknown): number | undefined => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
+/** Zero is meaningful in a breakdown ("this section costs nothing"), unlike in a ceiling. */
+const readTokenCount = (value: unknown): number => readNonNegativeNumber(value) ?? 0;
+
+const readString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+const readRecords = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value)
+    ? value.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    : [];
+
+const readNamedTokens = (value: unknown): ClaudeNamedTokens[] =>
+  readRecords(value)
+    .map((entry) => ({ name: readString(entry.name) ?? 'Unknown', tokens: readTokenCount(entry.tokens) }));
+
+/**
+ * Reshapes the `/context` detail off a raw payload.
+ *
+ * Everything is defensive: this is a control-request payload from a CLI that
+ * ships independently of the app, so a section going missing or changing shape
+ * has to degrade to "that section is empty", never to a crash in the modal.
+ */
+const parseBreakdown = (raw: Record<string, unknown>): ClaudeContextBreakdown => {
+  const skills = raw.skills as Record<string, unknown> | undefined;
+  const slashCommands = raw.slashCommands as Record<string, unknown> | undefined;
+  const messages = raw.messageBreakdown as Record<string, unknown> | undefined;
+
+  return {
+    categories: readRecords(raw.categories).map((entry) => ({
+      name: readString(entry.name) ?? 'Unknown',
+      tokens: readTokenCount(entry.tokens),
+      color: readString(entry.color),
+      isDeferred: entry.isDeferred === true,
+    })),
+    memoryFiles: readRecords(raw.memoryFiles).map((entry) => ({
+      path: readString(entry.path) ?? 'Unknown',
+      type: readString(entry.type),
+      tokens: readTokenCount(entry.tokens),
+    })),
+    mcpTools: readRecords(raw.mcpTools).map((entry) => ({
+      name: readString(entry.name) ?? 'Unknown',
+      serverName: readString(entry.serverName),
+      tokens: readTokenCount(entry.tokens),
+      isLoaded: entry.isLoaded === true,
+    })),
+    systemTools: readNamedTokens(raw.systemTools),
+    systemPromptSections: readNamedTokens(raw.systemPromptSections),
+    agents: readRecords(raw.agents).map((entry) => ({
+      name: readString(entry.agentType) ?? 'Unknown',
+      source: readString(entry.source),
+      tokens: readTokenCount(entry.tokens),
+    })),
+    skills: skills
+      ? {
+        totalSkills: readTokenCount(skills.totalSkills),
+        includedSkills: readTokenCount(skills.includedSkills),
+        tokens: readTokenCount(skills.tokens),
+      }
+      : undefined,
+    slashCommands: slashCommands
+      ? {
+        totalCommands: readTokenCount(slashCommands.totalCommands),
+        includedCommands: readTokenCount(slashCommands.includedCommands),
+        tokens: readTokenCount(slashCommands.tokens),
+      }
+      : undefined,
+    messageBreakdown: messages
+      ? {
+        toolCallTokens: readTokenCount(messages.toolCallTokens),
+        toolResultTokens: readTokenCount(messages.toolResultTokens),
+        attachmentTokens: readTokenCount(messages.attachmentTokens),
+        assistantMessageTokens: readTokenCount(messages.assistantMessageTokens),
+        userMessageTokens: readTokenCount(messages.userMessageTokens),
+        redirectedContextTokens: readTokenCount(messages.redirectedContextTokens),
+        unattributedTokens: readTokenCount(messages.unattributedTokens),
+        attachmentsByType: readNamedTokens(messages.attachmentsByType),
+      }
+      : undefined,
+  };
 };
 
 /**
@@ -82,6 +213,8 @@ export const parseClaudeContextUsage = (payload: unknown): ClaudeContextCeiling 
     isAutoCompactEnabled: raw.isAutoCompactEnabled === true,
     model: typeof raw.model === 'string' && raw.model.trim() ? raw.model.trim() : undefined,
     totalTokens: readPositiveInteger(raw.totalTokens),
+    percentage: readNonNegativeNumber(raw.percentage),
+    breakdown: parseBreakdown(raw),
     fetchedAt: Date.now(),
   };
 };

@@ -150,11 +150,51 @@ export type HelpCommandData = {
   }>;
 };
 
-export type CommandModalKind = 'help' | 'models' | 'cost' | 'status';
+export type ContextNamedTokens = { name: string; tokens: number };
+
+// Mirrors ClaudeContextBreakdown on the server. Every section is optional: the
+// CLI omits what does not apply, and an older CLI omits more.
+export type ContextCommandData = {
+  provider?: string;
+  /** Set when the provider has no breakdown to report at all. */
+  unsupported?: boolean;
+  /** Set when this session has not streamed a turn yet, so nothing is cached. */
+  unavailable?: boolean;
+  message?: string;
+  model?: string | null;
+  totalTokens?: number;
+  maxTokens?: number;
+  percentage?: number | null;
+  autoCompactThreshold?: number | null;
+  isAutoCompactEnabled?: boolean;
+  fetchedAt?: number;
+  breakdown?: {
+    categories?: Array<{ name: string; tokens: number; color?: string; isDeferred?: boolean }>;
+    memoryFiles?: Array<{ path: string; type?: string; tokens: number }>;
+    mcpTools?: Array<{ name: string; serverName?: string; tokens: number; isLoaded?: boolean }>;
+    systemTools?: ContextNamedTokens[];
+    systemPromptSections?: ContextNamedTokens[];
+    agents?: Array<{ name: string; source?: string; tokens: number }>;
+    skills?: { totalSkills: number; includedSkills: number; tokens: number };
+    slashCommands?: { totalCommands: number; includedCommands: number; tokens: number };
+    messageBreakdown?: {
+      toolCallTokens: number;
+      toolResultTokens: number;
+      attachmentTokens: number;
+      assistantMessageTokens: number;
+      userMessageTokens: number;
+      redirectedContextTokens: number;
+      unattributedTokens: number;
+      attachmentsByType?: ContextNamedTokens[];
+    };
+  } | null;
+};
+
+export type CommandModalKind = 'help' | 'models' | 'cost' | 'status' | 'context';
 
 export type CommandModalPayload = {
   kind: CommandModalKind;
-  data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData;
+  data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData | ContextCommandData;
 };
 
 const createFakeSubmitEvent = () => {
@@ -320,6 +360,14 @@ export function useChatComposerState({
           setCommandModalPayload({
             kind: 'status',
             data: (data || {}) as StatusCommandData,
+          });
+          break;
+        }
+
+        case 'context': {
+          setCommandModalPayload({
+            kind: 'context',
+            data: (data || {}) as ContextCommandData,
           });
           break;
         }
