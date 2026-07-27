@@ -274,9 +274,13 @@ test('claude model aliases resolve from full model ids', () => {
   const options = CLAUDE_FALLBACK_MODELS.OPTIONS;
 
   assert.equal(resolveClaudeModelAlias('claude-fable-5', options), 'fable');
+  assert.equal(resolveClaudeModelAlias('claude-opus-5', options), 'opus');
+  // Older transcripts still name the superseded ids.
   assert.equal(resolveClaudeModelAlias('claude-opus-4-8', options), 'opus');
   assert.equal(resolveClaudeModelAlias('claude-haiku-4-5-20251001', options), 'haiku');
-  assert.equal(resolveClaudeModelAlias('claude-sonnet-5[1m]', options), 'sonnet[1m]');
+  assert.equal(resolveClaudeModelAlias('claude-opus-5[1m]', options), 'opus[1m]');
+  // Sonnet 5 is natively 1M and has no [1m] card, so it maps to plain Sonnet.
+  assert.equal(resolveClaudeModelAlias('claude-sonnet-5', options), 'sonnet');
   // Values that already are picker aliases pass through unchanged.
   assert.equal(resolveClaudeModelAlias('opus', options), 'opus');
   // Unknown ids are surfaced as-is rather than hidden behind the default.

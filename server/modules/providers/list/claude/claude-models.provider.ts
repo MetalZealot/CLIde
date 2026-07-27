@@ -52,22 +52,9 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: "sonnet",
       label: "Sonnet",
+      // Sonnet 5 is natively 1M, and unlike Opus it does not accept the `[1m]`
+      // suffix — so there is deliberately no "Sonnet (1M context)" card here.
       description: "Sonnet 5 · Best for everyday tasks · $3/$15 per Mtok",
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: 'sonnet[1m]',
-      label: 'Sonnet (1M context)',
-      description: 'Sonnet 5 for long sessions · $3/$15 per Mtok',
       effort: {
         default: 'high',
         values: [
@@ -82,7 +69,7 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'opus',
       label: 'Opus',
-      description: 'Opus 4.8 · Best for everyday, complex tasks · ~2× usage vs Sonnet',
+      description: 'Opus 5 · Best for everyday, complex tasks · ~2× usage vs Sonnet',
       effort: {
         default: 'high',
         values: [
@@ -96,8 +83,8 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     },
     {
       value: 'opus[1m]',
-      label: 'Opus 4.8 (1M context)',
-      description: 'Opus 4.8 with 1M context · Most capable for complex work · $5/$25 per Mtok',
+      label: 'Opus (1M context)',
+      description: 'Opus 5 with 1M context · Best for everyday, complex tasks · $5/$25 per Mtok',
       effort: {
         default: 'high',
         values: [
