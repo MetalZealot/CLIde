@@ -50,3 +50,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0010 — Viewport-positioned overlays set inset inline, never via `inset-0`](0010-pwa-mode-fixed-inset-override.md)
 - [0011 — Codex App Server is the opt-in interactive Chat transport](0011-codex-app-server-chat-transport.md)
 - [0012 — Codex rewind replaces a stable session; fork creates another](0012-codex-rewind-and-fork-session-identity.md)
+- [0013 — Abort is signal-first; the provider id is only the graceful tier](0013-abort-is-signal-first-not-provider-id-keyed.md)
