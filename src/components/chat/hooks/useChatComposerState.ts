@@ -158,10 +158,17 @@ export type ContextCommandData = {
   provider?: string;
   /** Set when the provider has no breakdown to report at all. */
   unsupported?: boolean;
-  /** Set when this session has not streamed a turn yet, so nothing is cached. */
-  unavailable?: boolean;
+  /**
+   * How much the server could answer with. `full` carries a real reading from a
+   * turn; `headline` means no reading exists for this session yet, so only the
+   * ceiling and current usage are known.
+   */
+  detail?: 'full' | 'headline';
   message?: string;
   model?: string | null;
+  /** Current usage, as the ring knows it — fresher than the reading's own total. */
+  usedTokens?: number;
+  /** Usage at the moment the reading was taken. */
   totalTokens?: number;
   maxTokens?: number;
   percentage?: number | null;

@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
   captureClaudeContextUsage,
   clearClaudeContextCeilings,
   getClaudeContextCeiling,
+  loadClaudeContextCeiling,
   parseClaudeContextUsage,
   rememberClaudeContextCeiling,
 } from '@/modules/providers/list/claude/claude-context-usage.js';
@@ -230,4 +234,102 @@ test('a malformed live reading leaves the cache alone', async () => {
   assert.equal(captured, null);
   // The previous good reading survives rather than being replaced by junk.
   assert.equal(getClaudeContextCeiling('session-x')?.maxTokens, 967_000);
+});
+
+// --- Persistence -----------------------------------------------------------
+// The store follows DATABASE_PATH, so these point it at a temp directory and
+// leave the real one alone.
+
+const withTempStore = async (run: (storeDir: string) => Promise<void>): Promise<void> => {
+  const previous = process.env.DATABASE_PATH;
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'clide-context-usage-'));
+  process.env.DATABASE_PATH = path.join(root, 'auth.db');
+
+  try {
+    await run(path.join(root, 'context-usage'));
+  } finally {
+    if (previous === undefined) {
+      delete process.env.DATABASE_PATH;
+    } else {
+      process.env.DATABASE_PATH = previous;
+    }
+    await fs.rm(root, { recursive: true, force: true });
+  }
+};
+
+/** Writes are fire-and-forget, so wait for the file rather than assuming it. */
+const waitForFile = async (filePath: string): Promise<boolean> => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+  return false;
+};
+
+test('a reading outlives the process that took it', async () => {
+  await withTempStore(async (storeDir) => {
+    clearClaudeContextCeilings();
+    rememberClaudeContextCeiling('session-persist', parseClaudeContextUsage(SONNET_PAYLOAD)!);
+    assert.ok(await waitForFile(path.join(storeDir, 'session-persist.json')));
+
+    // Stands in for a restart: memory is empty, the file is not.
+    clearClaudeContextCeilings();
+    assert.equal(getClaudeContextCeiling('session-persist'), null);
+
+    const restored = await loadClaudeContextCeiling('session-persist');
+    assert.equal(restored?.maxTokens, 967_000);
+    assert.equal(restored?.autoCompactThreshold, 934_000);
+    assert.equal(restored?.isAutoCompactEnabled, true);
+    assert.equal(restored?.model, 'claude-sonnet-5');
+    // The breakdown is what /context renders, so it has to survive intact.
+    assert.equal(restored?.breakdown?.categories.length, 4);
+    assert.equal(restored?.breakdown?.memoryFiles[0]?.tokens, 2195);
+    assert.equal(restored?.breakdown?.skills?.tokens, 1739);
+
+    // A restored reading warms the map, so the next read stays in memory.
+    assert.equal(getClaudeContextCeiling('session-persist')?.maxTokens, 967_000);
+  });
+});
+
+test('a session with no reading on disk loads as null', async () => {
+  await withTempStore(async () => {
+    clearClaudeContextCeilings();
+    assert.equal(await loadClaudeContextCeiling('session-never-ran'), null);
+  });
+});
+
+test('an unreadable persisted reading degrades to the derived ceiling', async () => {
+  await withTempStore(async (storeDir) => {
+    clearClaudeContextCeilings();
+    await fs.mkdir(storeDir, { recursive: true });
+    await fs.writeFile(path.join(storeDir, 'session-truncated.json'), '{"version":1,"ceil');
+    await fs.writeFile(
+      path.join(storeDir, 'session-no-ceiling.json'),
+      JSON.stringify({ version: 1, ceiling: { maxTokens: 0 } }),
+    );
+
+    // Null, not a throw and not a zero denominator — callers fall back.
+    assert.equal(await loadClaudeContextCeiling('session-truncated'), null);
+    assert.equal(await loadClaudeContextCeiling('session-no-ceiling'), null);
+  });
+});
+
+test('a session id that cannot be a filename stays in memory only', async () => {
+  await withTempStore(async (storeDir) => {
+    clearClaudeContextCeilings();
+    rememberClaudeContextCeiling('../escape', parseClaudeContextUsage(SONNET_PAYLOAD)!);
+
+    // Usable in memory for this process...
+    assert.equal(getClaudeContextCeiling('../escape')?.maxTokens, 967_000);
+
+    // ...but nothing was written anywhere.
+    clearClaudeContextCeilings();
+    assert.equal(await loadClaudeContextCeiling('../escape'), null);
+    const written = await fs.readdir(storeDir).catch(() => []);
+    assert.deepEqual(written, []);
+  });
 });

@@ -476,9 +476,32 @@ function ContextSection({
   );
 }
 
+// The reading is whatever the last turn recorded, so the modal says how old it
+// is rather than implying it is live.
+function formatReadingAge(fetchedAt: number | undefined): string | null {
+  if (!fetchedAt) {
+    return null;
+  }
+
+  const minutes = Math.round((Date.now() - fetchedAt) / 60000);
+  if (minutes < 1) {
+    return 'Measured just now.';
+  }
+  if (minutes < 60) {
+    return `Measured ${minutes} min ago.`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  return hours < 24
+    ? `Measured ${hours} h ago.`
+    : `Measured ${Math.round(hours / 24)} d ago.`;
+}
+
 function ContextContent({ data }: { data: ContextCommandData }) {
   const maxTokens = Number(data.maxTokens ?? 0);
-  const totalTokens = Number(data.totalTokens ?? 0);
+  // The headline follows current usage; the sections describe the reading.
+  const totalTokens = Number(data.usedTokens ?? data.totalTokens ?? 0);
+  const readingAge = formatReadingAge(data.fetchedAt);
   const threshold = Number(data.autoCompactThreshold ?? 0);
   const compactsAutomatically = data.isAutoCompactEnabled === true && threshold > 0;
   const breakdown = data.breakdown;
@@ -505,7 +528,15 @@ function ContextContent({ data }: { data: ContextCommandData }) {
       .filter((entry) => entry.tokens > 0)
       .map((entry) => ({ key: `${prefix}-${entry.name}`, label: entry.name, tokens: entry.tokens }));
 
-  if (data.unsupported || data.unavailable) {
+  // Auto-compact is only known from a reading; without one, say what is missing
+  // and how to get it instead of asserting that compaction is off.
+  const statusLine = data.detail === 'headline'
+    ? (data.message || 'Send a message to see what is filling the window.')
+    : compactsAutomatically
+      ? `Auto-compacts at ${formatNumber(threshold)} tokens.`
+      : 'Auto-compact is off for this session.';
+
+  if (data.unsupported) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-center">
         <div className="max-w-sm space-y-2">
@@ -545,11 +576,21 @@ function ContextContent({ data }: { data: ContextCommandData }) {
           </div>
         )}
 
+        {/* Without a reading there are no slices to colour, but the total is
+            still known — show it as one bar instead of nothing. */}
+        {spent.length === 0 && maxTokens > 0 && totalTokens > 0 && (
+          <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+            <span
+              className="bg-primary"
+              style={{ width: `${Math.min(100, (totalTokens / maxTokens) * 100)}%` }}
+            />
+          </div>
+        )}
+
         <p className="mt-3 text-xs text-muted-foreground">
-          {compactsAutomatically
-            ? `Auto-compacts at ${formatNumber(threshold)} tokens.`
-            : 'Auto-compact is off for this session.'}
+          {statusLine}
           {data.model ? ` Model: ${data.model}.` : ''}
+          {readingAge ? ` ${readingAge}` : ''}
         </p>
       </div>
 
@@ -833,7 +874,7 @@ export default function CommandResultModal({
     context: {
       eyebrow: 'Session telemetry',
       title: 'Context Window',
-      subtitle: 'What is filling this session’s context, as the running session reports it.',
+      subtitle: 'What is filling this session’s context, measured on its last turn.',
       icon: Gauge,
     },
   } as const;

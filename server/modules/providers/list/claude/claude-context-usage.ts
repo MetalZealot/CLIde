@@ -24,14 +24,39 @@
  *     callers fire it once per turn and let it land when it lands.
  *
  * Hence this cache: the live path fills it during a turn, and both the live
- * path and the `/token-usage` endpoint read it afterwards. It is process-local
- * and best-effort — every consumer must still fall back to
- * `resolveClaudeContextCeiling` when there is no entry (a session resumed after
- * a restart, or one whose first turn has not streamed yet).
+ * path and the `/token-usage` endpoint read it afterwards.
+ *
+ * The cache is also written through to disk, one small JSON file per session
+ * under the database's own directory. Holding it only in memory made `/context`
+ * blank for every session after a restart and for every session resumed from
+ * history — which is most of the time anyone opens it. On disk, the last
+ * reading a session ever produced survives, and consumers show it with its
+ * `fetchedAt` timestamp rather than nothing. Still best-effort: a session that
+ * has never streamed a turn has no reading at all, so every consumer must keep
+ * its `resolveClaudeContextCeiling` fallback.
  */
 
-/** Sessions tracked before the oldest entries are evicted. */
+import { promises as fs } from 'fs';
+import os from 'os';
+import path from 'path';
+
+/** Sessions tracked in memory before the oldest entries are evicted. */
 const MAX_TRACKED_SESSIONS = 200;
+
+/** Sessions kept on disk. Each file is a few KB, so this is a housekeeping cap. */
+const MAX_PERSISTED_SESSIONS = 200;
+
+/**
+ * Session ids that are safe to use as a filename verbatim. Claude's ids are
+ * UUIDs, so this rejects nothing in practice — it exists so a future id shape
+ * carrying a separator can never escape the store directory. Ids that fail it
+ * stay memory-only rather than being mangled into a colliding filename.
+ */
+const PERSISTABLE_SESSION_ID = /^[A-Za-z0-9._-]{1,128}$/;
+
+/** Guards against a `..` id, belt-and-braces alongside the pattern above. */
+const isPersistableSessionId = (sessionId: string): boolean =>
+  PERSISTABLE_SESSION_ID.test(sessionId) && sessionId !== '.' && sessionId !== '..';
 
 /** One labelled slice of the context window, as the CLI's `/context` draws it. */
 export type ClaudeContextCategory = {
@@ -219,6 +244,112 @@ export const parseClaudeContextUsage = (payload: unknown): ClaudeContextCeiling 
   };
 };
 
+/**
+ * Where readings are persisted.
+ *
+ * It follows the database rather than the home directory directly, so an
+ * instance pointed at another database (the branch-test harness, a second
+ * install) keeps its own readings instead of writing into the live one's.
+ * Resolved per call because `DATABASE_PATH` is set during startup.
+ */
+const resolveStoreDir = (): string => {
+  const databasePath = process.env.DATABASE_PATH;
+  const baseDir = databasePath
+    ? path.dirname(databasePath)
+    : path.join(os.homedir(), '.cloudcli');
+  return path.join(baseDir, 'context-usage');
+};
+
+const storeFilePath = (sessionId: string): string =>
+  path.join(resolveStoreDir(), `${sessionId}.json`);
+
+/**
+ * Drops the oldest files once the store outgrows its cap.
+ *
+ * Sessions are never explicitly deleted here — a reading outlives the session
+ * row it describes — so without this the directory would grow forever.
+ */
+const pruneStore = async (storeDir: string): Promise<void> => {
+  const names = (await fs.readdir(storeDir)).filter((name) => name.endsWith('.json'));
+  if (names.length <= MAX_PERSISTED_SESSIONS) {
+    return;
+  }
+
+  const stamped = await Promise.all(names.map(async (name) => {
+    try {
+      const stats = await fs.stat(path.join(storeDir, name));
+      return { name, modifiedAt: stats.mtimeMs };
+    } catch {
+      // Vanished under us (a concurrent prune); sorting it first makes the
+      // delete below a no-op rather than a special case.
+      return { name, modifiedAt: 0 };
+    }
+  }));
+
+  stamped.sort((left, right) => left.modifiedAt - right.modifiedAt);
+
+  await Promise.all(
+    stamped
+      .slice(0, stamped.length - MAX_PERSISTED_SESSIONS)
+      .map((entry) => fs.rm(path.join(storeDir, entry.name), { force: true })),
+  );
+};
+
+/**
+ * Writes one reading to disk. Never throws: persistence is an optimisation, and
+ * a full or read-only disk must not take down the turn that triggered it.
+ *
+ * The write is atomic (temp file + rename) so a crash mid-write leaves the
+ * previous reading intact rather than a truncated file that fails to parse.
+ */
+const persistCeiling = async (sessionId: string, ceiling: ClaudeContextCeiling): Promise<void> => {
+  try {
+    const storeDir = resolveStoreDir();
+    await fs.mkdir(storeDir, { recursive: true, mode: 0o700 });
+
+    const target = storeFilePath(sessionId);
+    const temp = `${target}.${process.pid}.tmp`;
+    await fs.writeFile(temp, JSON.stringify({ version: 1, sessionId, ceiling }), { mode: 0o600 });
+    await fs.rename(temp, target);
+
+    await pruneStore(storeDir);
+  } catch {
+    // Memory-only for this session; the next turn will try again.
+  }
+};
+
+/**
+ * Rebuilds a reading from its persisted form.
+ *
+ * The file was written from an already-parsed ceiling, so this validates the
+ * one field everything depends on and passes the rest through. A file that
+ * fails validation is treated as absent, which falls back to the derived
+ * ceiling — the same path as a session that never streamed a turn.
+ */
+const reviveCeiling = (raw: unknown): ClaudeContextCeiling | null => {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+
+  const stored = (raw as Record<string, unknown>).ceiling;
+  if (!stored || typeof stored !== 'object') {
+    return null;
+  }
+
+  const record = stored as Record<string, unknown>;
+  const maxTokens = readPositiveInteger(record.maxTokens);
+  if (maxTokens === undefined) {
+    return null;
+  }
+
+  return {
+    ...(record as unknown as ClaudeContextCeiling),
+    maxTokens,
+    isAutoCompactEnabled: record.isAutoCompactEnabled === true,
+    fetchedAt: readPositiveInteger(record.fetchedAt) ?? 0,
+  };
+};
+
 export const rememberClaudeContextCeiling = (
   sessionId: string | null | undefined,
   ceiling: ClaudeContextCeiling,
@@ -239,13 +370,59 @@ export const rememberClaudeContextCeiling = (
     }
     ceilings.delete(oldest.value);
   }
+
+  if (isPersistableSessionId(sessionId)) {
+    // Deliberately not awaited: this runs inside a streaming turn, and the
+    // caller has nothing to do with the outcome.
+    void persistCeiling(sessionId, ceiling);
+  }
 };
 
+/**
+ * Synchronous, memory-only read — for the streaming path, which resolves a
+ * ceiling per frame and cannot afford to touch the disk.
+ */
 export const getClaudeContextCeiling = (
   sessionId: string | null | undefined,
 ): ClaudeContextCeiling | null => (sessionId ? ceilings.get(sessionId) ?? null : null);
 
-/** Test seam. */
+/**
+ * Full read: memory first, then the persisted reading from a previous turn or a
+ * previous process. Use this anywhere a request can afford one file read —
+ * it is what makes `/context` work on a resumed session.
+ */
+export const loadClaudeContextCeiling = async (
+  sessionId: string | null | undefined,
+): Promise<ClaudeContextCeiling | null> => {
+  if (!sessionId) {
+    return null;
+  }
+
+  const cached = ceilings.get(sessionId);
+  if (cached) {
+    return cached;
+  }
+
+  if (!isPersistableSessionId(sessionId)) {
+    return null;
+  }
+
+  try {
+    const ceiling = reviveCeiling(JSON.parse(await fs.readFile(storeFilePath(sessionId), 'utf8')));
+    if (!ceiling) {
+      return null;
+    }
+
+    // Warm the map so repeat reads (every session switch) stay in memory.
+    ceilings.set(sessionId, ceiling);
+    return ceiling;
+  } catch {
+    // No reading persisted for this session, or it is unreadable.
+    return null;
+  }
+};
+
+/** Test seam. Clears memory only; persisted files belong to the store directory. */
 export const clearClaudeContextCeilings = (): void => {
   ceilings.clear();
 };

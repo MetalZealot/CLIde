@@ -5,7 +5,11 @@ import path from "path";
 import express from "express";
 
 import { sessionsDb } from "../modules/database/index.js";
-import { getClaudeContextCeiling } from "../modules/providers/list/claude/claude-context-usage.js";
+import { loadClaudeContextCeiling } from "../modules/providers/list/claude/claude-context-usage.js";
+import {
+  readClaudeContextWindowOverride,
+  resolveClaudeContextCeiling,
+} from "../modules/providers/list/claude/claude-context-window.js";
 import { providerModelsService } from "../modules/providers/services/provider-models.service.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
 import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
@@ -409,41 +413,62 @@ Custom commands can be created in:
       };
     }
 
-    // The reading is cached against the id the provider uses on disk, which is
+    // The reading is stored against the id the provider uses on disk, which is
     // what claude-sdk.js sees during a turn; the client sends the app-facing id.
     const sessionRow = hasConcreteSessionId(context?.sessionId)
       ? sessionsDb.getSessionById(context.sessionId.trim())
       : null;
     const providerSessionId = sessionRow?.provider_session_id || context?.sessionId;
-    const ceiling = getClaudeContextCeiling(providerSessionId);
+    const ceiling = await loadClaudeContextCeiling(providerSessionId);
 
-    if (!ceiling) {
+    // Current usage as the ring already knows it. The reading's own totalTokens
+    // is from whenever it was taken, so the headline prefers this — the
+    // sections below carry fetchedAt and say how old they are.
+    const usedTokens =
+      Number(context?.tokenUsage?.used ?? context?.tokenUsage?.totalUsed ?? 0) || 0;
+
+    if (ceiling) {
       return {
         type: "builtin",
         action: "context",
         data: {
           provider,
-          unavailable: true,
-          // The SDK only answers mid-turn, so there is nothing to show until
-          // this session has streamed one since the server started.
-          message: "Send a message first — the breakdown is read from the running session",
+          detail: "full",
+          model: ceiling.model || null,
+          usedTokens: usedTokens || ceiling.totalTokens || 0,
+          totalTokens: ceiling.totalTokens ?? 0,
+          maxTokens: ceiling.maxTokens,
+          percentage: ceiling.percentage ?? null,
+          autoCompactThreshold: ceiling.autoCompactThreshold ?? null,
+          isAutoCompactEnabled: ceiling.isAutoCompactEnabled,
+          fetchedAt: ceiling.fetchedAt,
+          breakdown: ceiling.breakdown || null,
         },
       };
     }
+
+    // No reading was ever taken for this session — it has not streamed a turn
+    // since the feature shipped. The per-category breakdown genuinely cannot be
+    // reconstructed without one, but the headline can: the ceiling derives from
+    // the model, and usage comes from the same scan that feeds the ring. Show
+    // that rather than an empty modal.
+    const catalog = (await providerModelsService.getProviderModels(provider)).models;
+    const model = await resolveCommandModel(provider, catalog, context?.sessionId);
+    const ringCeiling = Number(context?.tokenUsage?.total ?? 0) || 0;
+    const maxTokens =
+      readClaudeContextWindowOverride()
+      ?? (ringCeiling || resolveClaudeContextCeiling({ model }));
 
     return {
       type: "builtin",
       action: "context",
       data: {
         provider,
-        model: ceiling.model || null,
-        totalTokens: ceiling.totalTokens ?? 0,
-        maxTokens: ceiling.maxTokens,
-        percentage: ceiling.percentage ?? null,
-        autoCompactThreshold: ceiling.autoCompactThreshold ?? null,
-        isAutoCompactEnabled: ceiling.isAutoCompactEnabled,
-        fetchedAt: ceiling.fetchedAt,
-        breakdown: ceiling.breakdown || null,
+        detail: "headline",
+        model: model || null,
+        usedTokens,
+        maxTokens,
+        message: "Send a message to see what is filling the window",
       },
     };
   },

@@ -21,7 +21,7 @@ import {
     readClaudeContextWindowOverride,
     resolveClaudeContextCeiling,
 } from '@/modules/providers/list/claude/claude-context-window.js';
-import { getClaudeContextCeiling } from '@/modules/providers/list/claude/claude-context-usage.js';
+import { loadClaudeContextCeiling } from '@/modules/providers/list/claude/claude-context-usage.js';
 import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
@@ -1472,12 +1472,13 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
             // No stored pick, or it is unreadable — the transcript model stands.
         }
 
-        // If this session has streamed a turn since the server started, the SDK
-        // has already told us its real ceiling and auto-compact threshold, which
-        // beats deriving them (see claude-context-usage.ts). It is only usable
+        // If this session has ever streamed a turn, the SDK has already told us
+        // its real ceiling and auto-compact threshold, which beats deriving them
+        // (see claude-context-usage.ts — the reading is persisted, so this
+        // survives a restart and a resume). It is only usable
         // while it still describes the model the session is on: switching model
         // changes the window, and the cached reading predates the switch.
-        const cachedCeiling = getClaudeContextCeiling(providerNativeSessionId);
+        const cachedCeiling = await loadClaudeContextCeiling(providerNativeSessionId);
         const cachedModelStillApplies = Boolean(cachedCeiling)
             && (!ceilingModel
                 || normalizeClaudeModelId(cachedCeiling.model).id === normalizeClaudeModelId(ceilingModel).id);
