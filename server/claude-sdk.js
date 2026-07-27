@@ -20,6 +20,7 @@ import path from 'path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
 import { buildClaudeUserContent, normalizeImageDescriptors } from './shared/image-attachments.js';
+import { resolveClaudeContextCeiling } from './modules/providers/list/claude/claude-context-window.js';
 import { CLAUDE_FALLBACK_MODELS } from './modules/providers/list/claude/claude-models.provider.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
@@ -341,7 +342,11 @@ function extractTokenBudget(sdkMessage) {
     const inputTokens = directInputTokens + cacheTokens;
     const outputTokens = readNumber(messageUsage.output_tokens ?? messageUsage.outputTokens);
     const totalUsed = inputTokens + outputTokens;
-    const contextWindow = parseInt(process.env.CONTEXT_WINDOW, 10) || 160000;
+    // Assistant frames name the model that produced this usage, so the ring's
+    // denominator tracks the session's real model instead of a flat constant.
+    const contextWindow = resolveClaudeContextCeiling({
+      model: sdkMessage.message?.model ?? sdkMessage.model,
+    });
 
     // Claude Code streams locally-fabricated assistant messages (session-limit
     // notices, API-error placeholders, "No response requested.") with an
@@ -382,7 +387,14 @@ function extractTokenBudget(sdkMessage) {
   const inputTokens = readNumber(modelData.cumulativeInputTokens ?? modelData.inputTokens);
   const outputTokens = readNumber(modelData.cumulativeOutputTokens ?? modelData.outputTokens);
   const totalUsed = inputTokens + outputTokens;
-  const contextWindow = parseInt(process.env.CONTEXT_WINDOW, 10) || 160000;
+  // SDK `ModelUsage` entries carry the model's own contextWindow and
+  // maxOutputTokens, which outrank the local registry table — a model newer
+  // than that table still resolves correctly here.
+  const contextWindow = resolveClaudeContextCeiling({
+    model: modelData.canonicalModel ?? modelKey,
+    contextWindow: modelData.contextWindow,
+    maxOutputTokens: modelData.maxOutputTokens,
+  });
 
   return {
     used: totalUsed,
