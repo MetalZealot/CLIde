@@ -644,6 +644,19 @@ export function useChatComposerState({
     );
   }, [executeCommand]);
 
+  const showContextModal = useCallback(() => {
+    executeCommand(
+      {
+        name: '/context',
+        description: 'Show what is filling the context window',
+        namespace: 'builtin',
+        metadata: { type: 'builtin' },
+      } as SlashCommand,
+      '/context',
+      { preserveInput: true },
+    );
+  }, [executeCommand]);
+
   const {
     slashCommands,
     filteredCommands,
@@ -1564,5 +1577,6 @@ export function useChatComposerState({
     commandModalPayload,
     closeCommandModal,
     showCostModal,
+    showContextModal,
   };
 }

@@ -15,6 +15,7 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
+import CompactionWarningBanner from './subcomponents/CompactionWarningBanner';
 import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
 
@@ -211,6 +212,7 @@ function ChatInterface({
     commandModalPayload,
     closeCommandModal,
     showCostModal,
+    showContextModal,
   } = useChatComposerState({
     selectedProject,
     selectedSession,
@@ -433,6 +435,12 @@ function ChatInterface({
               </button>
             </div>
           )}
+
+          <CompactionWarningBanner
+            tokenBudget={tokenBudget}
+            sessionId={currentSessionId || selectedSession?.id || null}
+            onShowContext={showContextModal}
+          />
 
           <ChatComposer
           pendingPermissionRequests={pendingPermissionRequests}

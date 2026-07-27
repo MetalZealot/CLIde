@@ -514,6 +514,10 @@ function ContextContent({ data }: { data: ContextCommandData }) {
   const readingAge = formatReadingAge(data.fetchedAt);
   const threshold = Number(data.autoCompactThreshold ?? 0);
   const compactsAutomatically = data.isAutoCompactEnabled === true && threshold > 0;
+  // Same ceiling the composer ring uses: usable space ends where auto-compact
+  // fires. The categories agree — "Free space" is measured to the threshold,
+  // and the leftover is the "Autocompact buffer" listed under Reserved.
+  const ceiling = compactsAutomatically ? threshold : maxTokens;
   const breakdown = data.breakdown;
 
   // The CLI's own arithmetic, verified against a real reading: the non-deferred
@@ -573,21 +577,23 @@ function ContextContent({ data }: { data: ContextCommandData }) {
         <div className="flex items-baseline justify-between gap-4">
           <p className="text-sm font-medium text-foreground">
             {formatNumber(totalTokens)}
-            <span className="text-muted-foreground"> / {formatNumber(maxTokens)} tokens</span>
+            <span className="text-muted-foreground">
+              {' / '}{formatNumber(ceiling)} tokens{compactsAutomatically ? ' before auto-compact' : ''}
+            </span>
           </p>
           <p className="font-mono text-sm text-muted-foreground">
-            {maxTokens > 0 ? `${Math.round((totalTokens / maxTokens) * 100)}%` : '—'}
+            {ceiling > 0 ? `${Math.round((totalTokens / ceiling) * 100)}%` : '—'}
           </p>
         </div>
 
         {/* One stacked bar in the CLI's own category colours. */}
-        {spent.length > 0 && maxTokens > 0 && (
+        {spent.length > 0 && ceiling > 0 && (
           <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
             {spent.map((category) => (
               <span
                 key={category.name}
                 className={CONTEXT_CATEGORY_COLORS[category.color ?? ''] || 'bg-primary'}
-                style={{ width: `${(category.tokens / maxTokens) * 100}%` }}
+                style={{ width: `${(category.tokens / ceiling) * 100}%` }}
                 title={`${category.name}: ${formatNumber(category.tokens)}`}
               />
             ))}
@@ -596,11 +602,11 @@ function ContextContent({ data }: { data: ContextCommandData }) {
 
         {/* Without a reading there are no slices to colour, but the total is
             still known — show it as one bar instead of nothing. */}
-        {spent.length === 0 && maxTokens > 0 && totalTokens > 0 && (
+        {spent.length === 0 && ceiling > 0 && totalTokens > 0 && (
           <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
             <span
               className="bg-primary"
-              style={{ width: `${Math.min(100, (totalTokens / maxTokens) * 100)}%` }}
+              style={{ width: `${Math.min(100, (totalTokens / ceiling) * 100)}%` }}
             />
           </div>
         )}
@@ -690,14 +696,19 @@ function ContextContent({ data }: { data: ContextCommandData }) {
           }))}
       />
 
+      {/* An inventory of what was loaded, not extra consumption: these tokens
+          are already inside the categories above. Skills get their own slice
+          there; slash commands do not, so the hints say where each one landed
+          rather than leaving a number that matches nothing. */}
       {(breakdown?.skills || breakdown?.slashCommands) && (
         <ContextSection
-          title="Loaded on startup"
+          title="Loaded on startup — already counted above"
           entries={[
             ...(breakdown.skills
               ? [{
                 key: 'skills',
                 label: `Skills (${breakdown.skills.includedSkills} of ${breakdown.skills.totalSkills})`,
+                hint: 'Listed above as Skills',
                 tokens: breakdown.skills.tokens,
               }]
               : []),
@@ -705,6 +716,7 @@ function ContextContent({ data }: { data: ContextCommandData }) {
               ? [{
                 key: 'commands',
                 label: `Slash commands (${breakdown.slashCommands.includedCommands} of ${breakdown.slashCommands.totalCommands})`,
+                hint: 'No slice of its own — part of the system prompt',
                 tokens: breakdown.slashCommands.tokens,
               }]
               : []),

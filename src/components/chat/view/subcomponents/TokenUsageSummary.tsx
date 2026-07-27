@@ -43,13 +43,12 @@ const readUsageNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-// The wheel FILLS against the context window (`total`), but it is COLOURED by
-// how close the session is to auto-compact (`autoCompactThreshold`), which is
-// the point where the conversation actually gets summarised out from under the
-// user. The two differ: Claude reports e.g. a 967k window that compacts at
-// 934k, so a wheel coloured by the window alone would still look calm at the
-// moment of the compact. Sessions with no threshold reported (older CLIs, other
-// providers) colour by the window as before.
+// The wheel fills and colours against the same number: the point where the
+// session stops being able to grow. That is `autoCompactThreshold` when
+// auto-compact is on (Claude reports e.g. a 967k window that compacts at 934k —
+// the last 33k is never usable conversation), and the window itself otherwise.
+// Filling against the window instead left the wheel looking calm at the exact
+// moment a compact fired. Green/amber/red is the signal; the count is detail.
 const RING_RADIUS = 7;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
@@ -103,23 +102,29 @@ export default function TokenUsageSummary({ usage, onClick, provider }: TokenUsa
     reportedWindow > 0
       ? reportedWindow
       : (provider ? PROVIDER_DEFAULT_CONTEXT_WINDOW[provider] ?? 0 : 0);
-  const fraction = contextWindow > 0 ? usedTokens / contextWindow : null;
-
   const autoCompactThreshold = readUsageNumber(usage?.autoCompactThreshold);
   const compactsAutomatically = usage?.isAutoCompactEnabled === true && autoCompactThreshold > 0;
-  const toneFraction =
-    compactsAutomatically ? usedTokens / autoCompactThreshold : fraction ?? 0;
+
+  // The ceiling that actually matters is where auto-compact fires, not the raw
+  // window: at that point the conversation is summarised out from under the
+  // user, so the tokens above it were never theirs to spend. Claude Code counts
+  // the same way — its /context "Free space" is measured to the threshold, with
+  // the remainder carved out as an "Autocompact buffer" slice. With auto-compact
+  // off (or a provider that reports no threshold) the window IS the cliff, so it
+  // stands as the ceiling.
+  const effectiveCeiling = compactsAutomatically ? autoCompactThreshold : contextWindow;
+  const fraction = effectiveCeiling > 0 ? usedTokens / effectiveCeiling : null;
 
   const title =
     fraction === null
       ? `${usedTokens.toLocaleString()} tokens used`
-      : `${usedTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${Math.round(
-          Math.min(fraction, 1) * 100,
-        )}% of context window)${
-          compactsAutomatically
-            ? `\nAuto-compacts at ${autoCompactThreshold.toLocaleString()}`
-            : ''
-        }`;
+      : compactsAutomatically
+        ? `${usedTokens.toLocaleString()} / ${autoCompactThreshold.toLocaleString()} tokens before auto-compact (${Math.round(
+            Math.min(fraction, 1) * 100,
+          )}%)\nAuto-compact rewrites the conversation here. Window: ${contextWindow.toLocaleString()}.`
+        : `${usedTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${Math.round(
+            Math.min(fraction, 1) * 100,
+          )}% of context window)`;
 
   return (
     <button
@@ -134,7 +139,7 @@ export default function TokenUsageSummary({ usage, onClick, provider }: TokenUsa
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
       ) : (
-        <UsageWheel fraction={fraction} tone={toneFor(Math.min(Math.max(toneFraction, 0), 1))} />
+        <UsageWheel fraction={fraction} tone={toneFor(Math.min(Math.max(fraction, 0), 1))} />
       )}
       <span className="font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
       <span className="hidden text-muted-foreground/70 sm:inline">tokens</span>
