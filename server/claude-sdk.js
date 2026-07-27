@@ -256,6 +256,17 @@ function mapCliOptionsToSDK(options = {}) {
     sdkOptions.resumeSessionAt = options.resumeSessionAt;
   }
 
+  // Cancellation that works before this run has a session id. `interrupt()`
+  // can only be reached through `abortClaudeSDKSession`, which looks the query
+  // up by its provider-native id — an id that does not exist until the SDK
+  // announces it in the first streamed message. A Stop pressed in that window
+  // found no session and silently did nothing, so the query ran to completion
+  // and wrote a full reply into the transcript. The gateway hands the run's
+  // controller in at spawn time, so the signal is live from the first tick.
+  if (options.abortController) {
+    sdkOptions.abortController = options.abortController;
+  }
+
   return sdkOptions;
 }
 
@@ -538,6 +549,19 @@ async function queryClaudeSDK(command, options = {}, ws) {
   let capturedSessionId = sessionId;
   let sessionCreatedSent = false;
 
+  // An abort can reach this run two ways: `abortClaudeSDKSession` (id-keyed,
+  // records the id in `abortedSessionIds`) or the gateway tripping this
+  // signal (works with no id at all). Either means the terminal `complete`
+  // was already sent by the abort handler, so this run must not send its own.
+  const abortSignal = options.abortController?.signal ?? null;
+  const wasRunAborted = () => {
+    // `delete` both tests and clears the id-keyed marker, so it must run even
+    // when the signal already reports the abort — leaving a stale id behind
+    // would make the session's *next* run suppress its own terminal complete.
+    const interruptClaimed = capturedSessionId ? abortedSessionIds.delete(capturedSessionId) : false;
+    return interruptClaimed || Boolean(abortSignal?.aborted);
+  };
+
   // Conversation rewind: translate the edited message uuid into the resume
   // shape before option mapping. A fresh start behaves like a brand-new
   // session — the writer remaps the announced provider id onto the app
@@ -806,7 +830,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
     // Send the terminal completion event — skipped for aborted runs, whose
     // terminal `complete` (aborted: true) was already sent by abort-session.
-    const wasAborted = capturedSessionId ? abortedSessionIds.delete(capturedSessionId) : false;
+    const wasAborted = wasRunAborted();
     if (!wasAborted) {
       ws.send(createCompleteMessage({ provider: 'claude', sessionId: capturedSessionId || sessionId || null, exitCode: 0 }));
     }
@@ -827,10 +851,11 @@ async function queryClaudeSDK(command, options = {}, ws) {
       removeSession(capturedSessionId);
     }
 
-    const wasAborted = capturedSessionId ? abortedSessionIds.delete(capturedSessionId) : false;
+    const wasAborted = wasRunAborted();
     if (wasAborted) {
       // The abort already produced the terminal complete; a generator throw
-      // caused by interrupt() is expected noise, not a user-facing error.
+      // caused by interrupt() or an aborted signal is expected noise, not a
+      // user-facing error.
       return;
     }
 

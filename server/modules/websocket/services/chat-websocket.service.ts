@@ -221,6 +221,14 @@ async function handleChatSend(
     // Lets the runtime read the provider transcript (rewind anchor lookup)
     // without re-deriving the path; runtimes without a use for it ignore it.
     jsonlPath: session.jsonl_path ?? undefined,
+    // Cancellation that does not depend on the provider session id existing.
+    // `chat.abort` can only address a runtime by its provider-native id, which
+    // is unknown until the runtime announces it mid-stream (and is `null` for
+    // the entire first leg of a brand-new session) — so an early Stop had
+    // nothing to interrupt and the run completed anyway. Runtimes that honor
+    // this signal cancel correctly no matter when the abort lands; ones that
+    // ignore it keep the previous id-keyed behavior.
+    abortController: run.abortController,
   };
 
   try {
@@ -254,20 +262,49 @@ async function handleChatAbort(
     return;
   }
 
-  const run = chatRunRegistry.getRun(sessionId);
-  if (!run || run.status !== 'running') {
-    sendProtocolError(ws, 'NO_ACTIVE_RUN', `Session "${sessionId}" has no active run.`, sessionId);
+  // `beginAbort` (not `getRun`) is the guard: it atomically claims the abort
+  // and flips `abortInFlight` in one synchronous step. A run only flips to
+  // `completed` after the awaited provider interrupt below resolves, so a
+  // second `chat.abort` for the same run — e.g. a mashed Stop button, or two
+  // listeners each firing once for the same Escape press — can arrive while
+  // `status` is still `running`. Without this claim, both calls would race
+  // their own concurrent interrupt request against the same underlying CLI
+  // process, which has been observed to corrupt its response stream instead
+  // of cleanly stopping it (a garbled result with `stop_reason: null`).
+  const run = chatRunRegistry.beginAbort(sessionId);
+  if (!run) {
+    // Distinguish "nothing to abort" from "already being aborted": the
+    // client renders every protocol_error as a visible chat message, and a
+    // duplicate Stop click is not an error — the first abort's own
+    // completion will resolve this run momentarily.
+    const existing = chatRunRegistry.getRun(sessionId);
+    if (!existing || existing.status !== 'running') {
+      sendProtocolError(ws, 'NO_ACTIVE_RUN', `Session "${sessionId}" has no active run.`, sessionId);
+    }
     return;
   }
 
+  // Two-tier cancellation. `beginAbort` has already tripped the run's
+  // AbortController, which the runtime was handed at spawn time — that is the
+  // tier that always applies, including the window this handler used to miss
+  // entirely (no provider id yet, so nothing addressable to interrupt).
+  //
+  // The id-keyed `abortFn` remains the preferred tier when the id *is* known:
+  // it is the provider's own graceful interrupt, which unwinds the CLI/SDK
+  // cleanly and lets it flush partial output, whereas the signal is a blunter
+  // cancel. Its absence is no longer a failure — it just means the signal is
+  // doing the work — so a missing provider id must not be reported as a failed
+  // abort. Exit code 0 is "we cancelled this run", which is now true in both
+  // tiers; only a provider interrupt that was attempted and refused is a
+  // genuine failure.
   const abortFn = dependencies.abortFns[run.provider];
-  let success = false;
+  let interruptFailed = false;
   if (abortFn && run.providerSessionId) {
-    success = Boolean(await abortFn(run.providerSessionId));
+    interruptFailed = !(await abortFn(run.providerSessionId));
   }
 
   chatRunRegistry.completeRun(sessionId, {
-    exitCode: success ? 0 : 1,
+    exitCode: interruptFailed ? 1 : 0,
     aborted: true,
   });
 }

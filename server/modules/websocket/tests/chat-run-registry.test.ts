@@ -171,6 +171,121 @@ test('complete marks the run finished and duplicate completes are dropped', asyn
   });
 });
 
+test('dangling non-complete events after abort are dropped, not just duplicate completes', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-3b', 'claude', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-3b',
+      provider: 'claude',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    // Abort completes the run early (before the runtime's async generator
+    // has actually stopped yielding).
+    run.writer.sendComplete({ exitCode: 1, aborted: true });
+    // The runtime's generator was still mid-flight when interrupt() resolved
+    // and goes on producing a few more buffered messages.
+    run.writer.send({ kind: 'stream_delta', provider: 'claude', sessionId: 'native-3b', content: 'dangling' });
+    run.writer.send({ kind: 'complete', provider: 'claude', sessionId: 'native-3b', exitCode: 0 });
+
+    assert.equal(connection.frames.length, 1);
+    assert.equal(connection.frames[0]?.kind, 'complete');
+  });
+});
+
+test('beginAbort claims a running run once and rejects concurrent duplicates', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-abort', 'claude', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-abort',
+      provider: 'claude',
+      providerSessionId: 'native-abort',
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    // First Stop click claims the abort.
+    const claimed = chatRunRegistry.beginAbort('app-run-abort');
+    assert.equal(claimed, run);
+
+    // A mashed second click (or a duplicate key handler) while the first
+    // abort's provider interrupt call is still in flight must not get its
+    // own claim — that would fire a second concurrent interrupt against the
+    // same provider runtime.
+    assert.equal(chatRunRegistry.beginAbort('app-run-abort'), null);
+
+    // No active run at all still reports null, same as before this guard.
+    assert.equal(chatRunRegistry.beginAbort('no-such-session'), null);
+  });
+});
+
+test('abort before the runtime announces a provider session id still cancels the run', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-early-abort', 'claude', '/workspace/demo');
+    const connection = new FakeConnection();
+    // A brand-new session's first message: there is no provider-native id yet,
+    // and there will not be one until the runtime announces it mid-stream.
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-early-abort',
+      provider: 'claude',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+    assert.equal(run.abortController.signal.aborted, false);
+
+    // Stop pressed immediately after send, while the runtime is still
+    // spawning. The id-keyed provider interrupt has nothing to address here —
+    // this is precisely the window in which abort used to be a silent no-op
+    // and the run went on to produce a full reply.
+    const claimed = chatRunRegistry.beginAbort('app-run-early-abort');
+    assert.equal(claimed, run);
+    assert.equal(run.providerSessionId, null);
+
+    // The signal handed to the runtime at spawn time carries the cancellation
+    // instead, and is already aborted by the time the runtime reads it.
+    assert.equal(run.abortController.signal.aborted, true);
+  });
+});
+
+test('each run gets its own abort controller', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-abort-scope', 'claude', '/workspace/demo');
+    const connection = new FakeConnection();
+
+    const firstRun = chatRunRegistry.startRun({
+      appSessionId: 'app-run-abort-scope',
+      provider: 'claude',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(firstRun);
+    chatRunRegistry.beginAbort('app-run-abort-scope');
+    chatRunRegistry.completeRun('app-run-abort-scope', { exitCode: 0, aborted: true });
+
+    // The next message in the same session must not inherit the aborted
+    // signal — a per-session controller would cancel every later run instantly.
+    const secondRun = chatRunRegistry.startRun({
+      appSessionId: 'app-run-abort-scope',
+      provider: 'claude',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(secondRun);
+    assert.equal(secondRun.abortController.signal.aborted, false);
+    assert.notEqual(secondRun.abortController, firstRun.abortController);
+  });
+});
+
 test('a finished run\'s safety net cannot complete the session\'s next run', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('app-run-9', 'codex', '/workspace/demo');
