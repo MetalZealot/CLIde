@@ -17,6 +17,11 @@ import {
   writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
 
+// Labels carry the version number ("Opus 5", not "Opus") because the
+// new-session picker renders the label alone — it never shows `description`
+// (ProviderSelectionEmptyState.tsx), so a bare family name leaves no way to
+// tell which generation you are picking. The `value` stays the floating alias,
+// so these labels need bumping by hand whenever Claude ships a new generation.
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
@@ -36,8 +41,8 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     },
     {
       value: 'fable',
-      label: 'Fable',
-      description: 'Fable 5 · Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
+      label: 'Fable 5',
+      description: 'Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
       effort: {
         default: 'high',
         values: [
@@ -51,10 +56,10 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     },
     {
       value: "sonnet",
-      label: "Sonnet",
+      label: "Sonnet 5",
       // Sonnet 5 is natively 1M, and unlike Opus it does not accept the `[1m]`
       // suffix — so there is deliberately no "Sonnet (1M context)" card here.
-      description: "Sonnet 5 · Best for everyday tasks · $3/$15 per Mtok",
+      description: "Best for everyday tasks · $3/$15 per Mtok",
       effort: {
         default: 'high',
         values: [
@@ -68,8 +73,8 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     },
     {
       value: 'opus',
-      label: 'Opus',
-      description: 'Opus 5 · Best for everyday, complex tasks · ~2× usage vs Sonnet',
+      label: 'Opus 5',
+      description: 'Best for everyday, complex tasks · ~2× usage vs Sonnet',
       effort: {
         default: 'high',
         values: [
@@ -83,8 +88,8 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     },
     {
       value: 'opus[1m]',
-      label: 'Opus (1M context)',
-      description: 'Opus 5 with 1M context · Best for everyday, complex tasks · $5/$25 per Mtok',
+      label: 'Opus 5 (1M context)',
+      description: 'Best for everyday, complex tasks · $5/$25 per Mtok',
       effort: {
         default: 'high',
         values: [
@@ -98,8 +103,8 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     },
     {
       value: 'haiku',
-      label: 'Haiku',
-      description: 'Haiku 4.5 · Fastest for quick answers · $1/$5 per Mtok',
+      label: 'Haiku 4.5',
+      description: 'Fastest for quick answers · $1/$5 per Mtok',
     },
   ],
   DEFAULT: 'default',
