@@ -32,6 +32,11 @@ interface UseChatRealtimeHandlersArgs {
   onSessionProcessing?: MarkSessionProcessing;
   onSessionIdle?: MarkSessionIdle;
   onWebSocketReconnect?: () => void;
+  /**
+   * A run was cancelled before the provider received it; its retracted text is
+   * offered back so the composer can restore it as a draft.
+   */
+  onUndeliveredTurnRetracted?: (sessionId: string, content: string) => void;
   sessionStore: SessionStore;
 }
 
@@ -62,6 +67,7 @@ export function useChatRealtimeHandlers({
   onSessionProcessing,
   onSessionIdle,
   onWebSocketReconnect,
+  onUndeliveredTurnRetracted,
   sessionStore,
 }: UseChatRealtimeHandlersArgs) {
   // Session switches can send `chat.subscribe` before this effect has a chance
@@ -232,8 +238,17 @@ export function useChatRealtimeHandlers({
           }
 
           if (msg.aborted) {
-            // Abort was requested — the complete event confirms it. No
-            // further UI action is needed beyond clearing the entry above.
+            // Abort was requested — the complete event confirms it. When the
+            // Stop landed before the provider emitted anything, the turn never
+            // reached it and never made the transcript, so the optimistic user
+            // bubble is retracted and its text handed back to the composer
+            // rather than left as a row that vanishes on the next reload.
+            if (sid && msg.deliveredToProvider === false) {
+              const retracted = sessionStore.retractUndeliveredUserTurn(sid);
+              if (retracted) {
+                onUndeliveredTurnRetracted?.(sid, retracted);
+              }
+            }
             break;
           }
 
@@ -342,6 +357,7 @@ export function useChatRealtimeHandlers({
     onSessionProcessing,
     onSessionIdle,
     onWebSocketReconnect,
+    onUndeliveredTurnRetracted,
     sessionStore,
   ]);
 }

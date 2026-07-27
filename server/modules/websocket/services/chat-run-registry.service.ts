@@ -415,7 +415,15 @@ export const chatRunRegistry = {
       return;
     }
 
-    run.writer.sendComplete(opts);
+    // Read `lastSeq` before `sendComplete`, which assigns the terminal event
+    // its own seq: a run cancelled with the counter still at zero never
+    // emitted anything, so the provider never took the turn and the client's
+    // optimistic user row has nothing behind it. Only meaningful for aborts —
+    // a run that ends normally always delivered.
+    run.writer.sendComplete({
+      ...opts,
+      ...(opts.aborted ? { deliveredToProvider: run.lastSeq > 0 } : {}),
+    });
   },
 
   /**

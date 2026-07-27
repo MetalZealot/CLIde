@@ -63,6 +63,12 @@ export interface NormalizedMessage {
   isCompactSummary?: boolean;
   /** CLI-fabricated notice rows (usage limits, API errors) — see server types. */
   isSystemNotice?: boolean;
+  /**
+   * On an aborted `complete`: false when the run was cancelled before the
+   * provider emitted anything, meaning the user's turn never reached it and
+   * was never written to the transcript. See server types.
+   */
+  deliveredToProvider?: boolean;
   images?: Array<{ path?: string; data?: string; name?: string }>;
   toolName?: string;
   toolInput?: unknown;
@@ -850,6 +856,36 @@ export function useSessionStore() {
   }, [notify]);
 
   /**
+   * Retracts the optimistic user row for a run that was cancelled before the
+   * provider ever received it, returning its text so the caller can put it
+   * back in the composer.
+   *
+   * Only `realtimeMessages` is touched, and only when the trailing row is a
+   * user turn: an undelivered run emitted nothing, so that row is the last
+   * thing appended and the server transcript has no counterpart. Leaving it
+   * would keep a bubble that survives until the next reload and then silently
+   * disappears — it can't be edited or rewound either, because it has no
+   * transcript uuid to anchor a resume.
+   */
+  const retractUndeliveredUserTurn = useCallback((sessionId: string): string | null => {
+    const slot = storeRef.current.get(sessionId);
+    if (!slot || slot.realtimeMessages.length === 0) return null;
+
+    // Must be the local echo (`local_` id from chatMessageToNormalized), not a
+    // transcript-backed row that merely happens to be last — retracting one of
+    // those would delete real history the server still has.
+    const last = slot.realtimeMessages[slot.realtimeMessages.length - 1];
+    const isLocalUserEcho =
+      last?.role === 'user' && typeof last.id === 'string' && last.id.startsWith('local_');
+    if (!isLocalUserEcho) return null;
+
+    slot.realtimeMessages = slot.realtimeMessages.slice(0, -1);
+    recomputeMergedIfNeeded(slot);
+    notify(sessionId);
+    return typeof last.content === 'string' ? last.content : null;
+  }, [notify]);
+
+  /**
    * Get merged messages for a session (for rendering).
    */
   const getMessages = useCallback((sessionId: string): NormalizedMessage[] => {
@@ -883,12 +919,13 @@ export function useSessionStore() {
     setModel,
     patchToolResult,
     truncateFromMessageId,
+    retractUndeliveredUserTurn,
   }), [
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
     clearRealtime, getMessages, getSessionSlot, fetchModel, setModel, patchToolResult,
-    truncateFromMessageId,
+    truncateFromMessageId, retractUndeliveredUserTurn,
   ]);
 }
 

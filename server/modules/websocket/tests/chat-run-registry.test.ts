@@ -255,6 +255,78 @@ test('abort before the runtime announces a provider session id still cancels the
   });
 });
 
+test('an aborted complete reports whether the run reached the provider', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-undelivered', 'claude', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-undelivered',
+      provider: 'claude',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    // Stop before the runtime emitted anything at all: the provider never took
+    // the turn, so the client's optimistic user row has nothing behind it.
+    chatRunRegistry.beginAbort('app-run-undelivered');
+    chatRunRegistry.completeRun('app-run-undelivered', { exitCode: 0, aborted: true });
+
+    const complete = connection.frames.find((frame) => frame.kind === 'complete');
+    assert.equal(complete?.aborted, true);
+    assert.equal(complete?.deliveredToProvider, false);
+  });
+});
+
+test('an abort after the run produced output is reported as delivered', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-delivered', 'claude', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-delivered',
+      provider: 'claude',
+      providerSessionId: 'native-delivered',
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    // The runtime got going and streamed before the user hit Stop, so the turn
+    // is real, is in the transcript, and its bubble must stay put.
+    run.writer.send({ kind: 'stream_delta', provider: 'claude', sessionId: 'native-delivered', content: 'thinking' });
+    chatRunRegistry.beginAbort('app-run-delivered');
+    chatRunRegistry.completeRun('app-run-delivered', { exitCode: 0, aborted: true });
+
+    const complete = connection.frames.find((frame) => frame.kind === 'complete');
+    assert.equal(complete?.aborted, true);
+    assert.equal(complete?.deliveredToProvider, true);
+  });
+});
+
+test('a normally finished run carries no delivery flag', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-normal', 'codex', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-normal',
+      provider: 'codex',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    // The flag only disambiguates aborts; a run that ends on its own always
+    // delivered, and must not trip the client's retraction path.
+    chatRunRegistry.completeRun('app-run-normal', { exitCode: 0 });
+
+    const complete = connection.frames.find((frame) => frame.kind === 'complete');
+    assert.equal(complete?.aborted, false);
+    assert.equal(complete?.deliveredToProvider, undefined);
+  });
+});
+
 test('each run gets its own abort controller', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('app-run-abort-scope', 'claude', '/workspace/demo');
