@@ -16,7 +16,12 @@ import Database from 'better-sqlite3';
 
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
 import { extractCodexContextTokenUsage } from './shared/codex-token-usage.js';
-import { resolveClaudeContextCeiling } from '@/modules/providers/list/claude/claude-context-window.js';
+import {
+    normalizeClaudeModelId,
+    readClaudeContextWindowOverride,
+    resolveClaudeContextCeiling,
+} from '@/modules/providers/list/claude/claude-context-window.js';
+import { getClaudeContextCeiling } from '@/modules/providers/list/claude/claude-context-usage.js';
 import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
@@ -1466,7 +1471,21 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         } catch (error) {
             // No stored pick, or it is unreadable — the transcript model stands.
         }
-        const contextWindow = resolveClaudeContextCeiling({ model: ceilingModel });
+
+        // If this session has streamed a turn since the server started, the SDK
+        // has already told us its real ceiling and auto-compact threshold, which
+        // beats deriving them (see claude-context-usage.ts). It is only usable
+        // while it still describes the model the session is on: switching model
+        // changes the window, and the cached reading predates the switch.
+        const cachedCeiling = getClaudeContextCeiling(providerNativeSessionId);
+        const cachedModelStillApplies = Boolean(cachedCeiling)
+            && (!ceilingModel
+                || normalizeClaudeModelId(cachedCeiling.model).id === normalizeClaudeModelId(ceilingModel).id);
+        const sdkCeiling = cachedModelStillApplies ? cachedCeiling : null;
+
+        const contextWindow = readClaudeContextWindowOverride()
+            ?? sdkCeiling?.maxTokens
+            ?? resolveClaudeContextCeiling({ model: ceilingModel });
 
         res.json({
             used: totalUsed,
@@ -1476,6 +1495,8 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
             cacheReadTokens,
             cacheCreationTokens,
             cacheTokens,
+            autoCompactThreshold: sdkCeiling?.autoCompactThreshold,
+            isAutoCompactEnabled: sdkCeiling?.isAutoCompactEnabled,
             breakdown: {
                 input: inputTokens,
                 output: outputTokens

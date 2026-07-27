@@ -10,10 +10,11 @@ type TokenUsageSummaryProps = {
 // first turn. For providers with a known context window we still want the ring
 // to render (empty, at 0%) from the start instead of the legacy activity icon.
 // Providers that never report a window (cursor/opencode) fall through to null
-// and keep the icon fallback. Claude matches the server's CONTEXT_WINDOW default
-// (160k); once the first real frame arrives its `total` takes over.
+// and keep the icon fallback. Claude's placeholder matches what the server
+// derives for an unknown model; once the first real frame arrives its `total`
+// takes over, and that value now comes from the SDK itself.
 const PROVIDER_DEFAULT_CONTEXT_WINDOW: Record<string, number> = {
-  claude: 160_000,
+  claude: 200_000,
   codex: 200_000,
 };
 
@@ -42,10 +43,13 @@ const readUsageNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-// Denominator is the context window (`total`), which for Claude defaults to
-// 160k — the effective budget before Claude Code auto-compacts, so a full wheel
-// lines up with roughly when a compact fires. Green/amber/red is the signal;
-// the raw count is just detail.
+// The wheel FILLS against the context window (`total`), but it is COLOURED by
+// how close the session is to auto-compact (`autoCompactThreshold`), which is
+// the point where the conversation actually gets summarised out from under the
+// user. The two differ: Claude reports e.g. a 967k window that compacts at
+// 934k, so a wheel coloured by the window alone would still look calm at the
+// moment of the compact. Sessions with no threshold reported (older CLIs, other
+// providers) colour by the window as before.
 const RING_RADIUS = 7;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
@@ -55,12 +59,12 @@ const toneFor = (fraction: number) => {
   return 'text-emerald-500';
 };
 
-function UsageWheel({ fraction }: { fraction: number }) {
+function UsageWheel({ fraction, tone }: { fraction: number; tone: string }) {
   const clamped = Math.min(Math.max(fraction, 0), 1);
   const dashOffset = RING_CIRCUMFERENCE * (1 - clamped);
 
   return (
-    <span className={`grid h-5 w-5 place-items-center ${toneFor(clamped)}`}>
+    <span className={`grid h-5 w-5 place-items-center ${tone}`}>
       <svg viewBox="0 0 20 20" className="h-5 w-5 -rotate-90" aria-hidden>
         <circle
           cx="10"
@@ -101,12 +105,21 @@ export default function TokenUsageSummary({ usage, onClick, provider }: TokenUsa
       : (provider ? PROVIDER_DEFAULT_CONTEXT_WINDOW[provider] ?? 0 : 0);
   const fraction = contextWindow > 0 ? usedTokens / contextWindow : null;
 
+  const autoCompactThreshold = readUsageNumber(usage?.autoCompactThreshold);
+  const compactsAutomatically = usage?.isAutoCompactEnabled === true && autoCompactThreshold > 0;
+  const toneFraction =
+    compactsAutomatically ? usedTokens / autoCompactThreshold : fraction ?? 0;
+
   const title =
     fraction === null
       ? `${usedTokens.toLocaleString()} tokens used`
       : `${usedTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${Math.round(
           Math.min(fraction, 1) * 100,
-        )}% of context window)`;
+        )}% of context window)${
+          compactsAutomatically
+            ? `\nAuto-compacts at ${autoCompactThreshold.toLocaleString()}`
+            : ''
+        }`;
 
   return (
     <button
@@ -121,7 +134,7 @@ export default function TokenUsageSummary({ usage, onClick, provider }: TokenUsa
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
       ) : (
-        <UsageWheel fraction={fraction} />
+        <UsageWheel fraction={fraction} tone={toneFor(Math.min(Math.max(toneFraction, 0), 1))} />
       )}
       <span className="font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
       <span className="hidden text-muted-foreground/70 sm:inline">tokens</span>

@@ -23,7 +23,14 @@ import path from 'node:path';
  *              → a 200,000 "model-default" clamp, applied ONLY when the
  *                model's own window is < 1,000,000, so a 1M model falls
  *                through at its full window
- *   usable = window − min(maxOutputTokens, 20000)
+ *   usable = window, less a 33,000 reserve on the 1M models (see
+ *            LONG_CONTEXT_RESERVE — this part is measured, not decoded)
+ *
+ * This whole module is the FALLBACK. Where a live query is available the SDK
+ * reports its own ceiling and auto-compact threshold, which is both
+ * authoritative and free of the mirroring problem below — see
+ * `claude-context-usage.ts`. This path exists for history reads, resumed
+ * sessions, and anything else with no query to ask.
  *
  * The model facts below are copied verbatim from the registry embedded in
  * `@anthropic-ai/claude-agent-sdk` 0.3.220 (`sdk.mjs`) — `context.window`,
@@ -32,8 +39,21 @@ import path from 'node:path';
  * when the SDK is bumped.
  */
 
-/** Claude Code reserves room for the reply, but never more than this. */
-const OUTPUT_RESERVE_CAP = 20_000;
+/**
+ * Held back from the 1M models' window, and nothing else.
+ *
+ * Measured, not decoded: `scripts/verify-context-usage-sdk.ts` (2026-07-27)
+ * asked the SDK for its own ceiling and got `maxTokens` 200000 for
+ * claude-haiku-4-5 (its full registry window, no reserve at all) and 967000 for
+ * claude-sonnet-5 (registry window 1e6, verified in sdk.mjs, less 33000). The
+ * same 33000 appears as sonnet's "Autocompact buffer" category and as the gap
+ * between `maxTokens` and `autoCompactThreshold` on both models.
+ *
+ * Only those two model classes were sampled, so this reproduces an observation
+ * rather than a rule recovered from the binary. It is deliberately not applied
+ * below 1M, because that is what was measured.
+ */
+const LONG_CONTEXT_RESERVE = 33_000;
 
 /** The "model-default" auto-compact clamp, skipped for 1M-window models. */
 const MODEL_DEFAULT_WINDOW_CLAMP = 200_000;
@@ -186,13 +206,21 @@ export const resetClaudeContextWindowCache = (): void => {
   settingsWindowCache = null;
 };
 
+/**
+ * The `CONTEXT_WINDOW` operator override, when set.
+ *
+ * Exported so callers that have a *better* source than this module's derivation
+ * — the SDK's own `maxTokens`, via `claude-context-usage.ts` — can still let the
+ * override win. It is the escape hatch; nothing outranks it.
+ */
+export const readClaudeContextWindowOverride = (): number | undefined =>
+  readPositiveInteger(process.env.CONTEXT_WINDOW);
+
 export type ClaudeContextCeilingInput = {
   /** Model that produced the usage reading (transcript row, stream frame, or pick). */
   model?: string | null;
   /** Authoritative window, when the SDK supplied one (`ModelUsage.contextWindow`). */
   contextWindow?: number | null;
-  /** Authoritative reply budget, when the SDK supplied one (`ModelUsage.maxOutputTokens`). */
-  maxOutputTokens?: number | null;
   /** Test seam for the settings.json lookup. */
   settingsPath?: string;
 };
@@ -203,9 +231,8 @@ export type ClaudeContextCeilingInput = {
  *
  * `CONTEXT_WINDOW` still wins when set, as the operator escape hatch it always
  * was; it is taken as the final ceiling, not as a raw window to subtract from.
- * SDK-supplied `contextWindow`/`maxOutputTokens` outrank the local table, so a
- * model shipped after this table was written still gets a correct ring on the
- * live path.
+ * A SDK-supplied `contextWindow` outranks the local table, so a model shipped
+ * after this table was written still resolves sanely.
  */
 export const resolveClaudeContextCeiling = (
   input: ClaudeContextCeilingInput = {},
@@ -235,9 +262,7 @@ export const resolveClaudeContextCeiling = (
     window = Math.min(window, MODEL_DEFAULT_WINDOW_CLAMP);
   }
 
-  const maxOutputTokens = readPositiveInteger(input.maxOutputTokens)
-    ?? spec?.maxOutputTokens
-    ?? OUTPUT_RESERVE_CAP;
-
-  return Math.max(0, window - Math.min(maxOutputTokens, OUTPUT_RESERVE_CAP));
+  return window >= LONG_CONTEXT_WINDOW
+    ? Math.max(0, window - LONG_CONTEXT_RESERVE)
+    : window;
 };

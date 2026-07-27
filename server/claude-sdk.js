@@ -20,7 +20,8 @@ import path from 'path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
 import { buildClaudeUserContent, normalizeImageDescriptors } from './shared/image-attachments.js';
-import { resolveClaudeContextCeiling } from './modules/providers/list/claude/claude-context-window.js';
+import { readClaudeContextWindowOverride, resolveClaudeContextCeiling } from './modules/providers/list/claude/claude-context-window.js';
+import { captureClaudeContextUsage, getClaudeContextCeiling } from './modules/providers/list/claude/claude-context-usage.js';
 import { CLAUDE_FALLBACK_MODELS } from './modules/providers/list/claude/claude-models.provider.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
@@ -322,13 +323,33 @@ function readNumber(value) {
 }
 
 /**
+ * Picks the ring's denominator for one frame.
+ *
+ * Order is deliberate: the `CONTEXT_WINDOW` env override is the operator escape
+ * hatch and outranks everything; then the SDK's own `maxTokens`, which the
+ * session reported about itself; then the derived fallback, used until the
+ * mid-turn control request lands (~1s into the first turn) and forever on CLIs
+ * that do not answer it.
+ *
+ * @param {Object|null} ceiling - Cached `getContextUsage()` reading, if any
+ * @param {Object} derivedInput - Fallback input for resolveClaudeContextCeiling
+ * @returns {number} Usable context tokens
+ */
+function pickContextWindow(ceiling, derivedInput) {
+  return readClaudeContextWindowOverride()
+    ?? ceiling?.maxTokens
+    ?? resolveClaudeContextCeiling(derivedInput);
+}
+
+/**
  * Extracts token usage from SDK messages.
  * Prefers per-step `message.usage` (Claude message payload), then falls back
  * to result-level usage/modelUsage for compatibility across SDK versions.
  * @param {Object} sdkMessage - SDK stream message
+ * @param {Object|null} ceiling - Cached SDK context reading for this session
  * @returns {Object|null} Token budget object or null
  */
-function extractTokenBudget(sdkMessage) {
+function extractTokenBudget(sdkMessage, ceiling = null) {
   if (!sdkMessage || typeof sdkMessage !== 'object') {
     return null;
   }
@@ -342,9 +363,10 @@ function extractTokenBudget(sdkMessage) {
     const inputTokens = directInputTokens + cacheTokens;
     const outputTokens = readNumber(messageUsage.output_tokens ?? messageUsage.outputTokens);
     const totalUsed = inputTokens + outputTokens;
-    // Assistant frames name the model that produced this usage, so the ring's
-    // denominator tracks the session's real model instead of a flat constant.
-    const contextWindow = resolveClaudeContextCeiling({
+    // Assistant frames name the model that produced this usage, so the derived
+    // fallback still tracks the session's real model when the SDK reading has
+    // not landed yet.
+    const contextWindow = pickContextWindow(ceiling, {
       model: sdkMessage.message?.model ?? sdkMessage.model,
     });
 
@@ -365,6 +387,10 @@ function extractTokenBudget(sdkMessage) {
       cacheReadTokens,
       cacheCreationTokens,
       cacheTokens,
+      // Undefined until the SDK reading lands; the client treats a missing
+      // threshold as "no auto-compact marker", not as zero.
+      autoCompactThreshold: ceiling?.autoCompactThreshold,
+      isAutoCompactEnabled: ceiling?.isAutoCompactEnabled,
       breakdown: {
         input: inputTokens,
         output: outputTokens,
@@ -387,13 +413,12 @@ function extractTokenBudget(sdkMessage) {
   const inputTokens = readNumber(modelData.cumulativeInputTokens ?? modelData.inputTokens);
   const outputTokens = readNumber(modelData.cumulativeOutputTokens ?? modelData.outputTokens);
   const totalUsed = inputTokens + outputTokens;
-  // SDK `ModelUsage` entries carry the model's own contextWindow and
-  // maxOutputTokens, which outrank the local registry table — a model newer
-  // than that table still resolves correctly here.
-  const contextWindow = resolveClaudeContextCeiling({
+  // SDK `ModelUsage` entries carry the model's own contextWindow, which
+  // outranks the local registry table — a model newer than that table still
+  // resolves correctly here.
+  const contextWindow = pickContextWindow(ceiling, {
     model: modelData.canonicalModel ?? modelKey,
     contextWindow: modelData.contextWindow,
-    maxOutputTokens: modelData.maxOutputTokens,
   });
 
   return {
@@ -401,6 +426,8 @@ function extractTokenBudget(sdkMessage) {
     total: contextWindow,
     inputTokens,
     outputTokens,
+    autoCompactThreshold: ceiling?.autoCompactThreshold,
+    isAutoCompactEnabled: ceiling?.isAutoCompactEnabled,
     breakdown: {
       input: inputTokens,
       output: outputTokens,
@@ -754,6 +781,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
+    let contextUsageRequested = false;
     for await (const message of queryInstance) {
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
@@ -783,6 +811,18 @@ async function queryClaudeSDK(command, options = {}, ws) {
         }
       }
 
+      // Ask the SDK what this session's real context ceiling and auto-compact
+      // threshold are. It only answers while a turn is streaming — at the
+      // terminal `result` the transport is already closing — and the round trip
+      // costs ~1s, so fire it once per turn and never await it here: blocking
+      // the loop would stall every frame behind it. Frames that stream before
+      // it lands use the derived fallback, and the answer is cached for the
+      // rest of this turn, for later turns, and for /token-usage.
+      if (!contextUsageRequested && capturedSessionId) {
+        contextUsageRequested = true;
+        void captureClaudeContextUsage(capturedSessionId, queryInstance);
+      }
+
       // Transform and normalize message via adapter
       const transformedMessage = transformMessage(message);
       const sid = capturedSessionId || sessionId || null;
@@ -804,7 +844,10 @@ async function queryClaudeSDK(command, options = {}, ws) {
       // next turn corrects it. The wheel wants current context size, which the
       // last assistant step already carries, so skip the cumulative summary.
       if (message?.type !== 'result') {
-        const tokenBudgetData = extractTokenBudget(message);
+        const tokenBudgetData = extractTokenBudget(
+          message,
+          getClaudeContextCeiling(capturedSessionId || sessionId),
+        );
         if (tokenBudgetData) {
           ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
         }
