@@ -49,6 +49,9 @@ const abortedSessionIds = new Set();
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
 
+const CLAUDE_CONTEXT_USAGE_REFRESH_MS =
+  parseInt(process.env.CLAUDE_CONTEXT_USAGE_REFRESH_MS, 10) || 60000;
+
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
 function resolveClaudeEffort(model, effort, modelsDefinition = CLAUDE_FALLBACK_MODELS) {
@@ -805,7 +808,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
-    let contextUsageRequested = false;
+    let lastContextUsageAt = 0;
     for await (const message of queryInstance) {
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
@@ -838,12 +841,16 @@ async function queryClaudeSDK(command, options = {}, ws) {
       // Ask the SDK what this session's real context ceiling and auto-compact
       // threshold are. It only answers while a turn is streaming — at the
       // terminal `result` the transport is already closing — and the round trip
-      // costs ~1s, so fire it once per turn and never await it here: blocking
-      // the loop would stall every frame behind it. Frames that stream before
-      // it lands use the derived fallback, and the answer is cached for the
-      // rest of this turn, for later turns, and for /token-usage.
-      if (!contextUsageRequested && capturedSessionId) {
-        contextUsageRequested = true;
+      // costs ~1s, so it is never awaited here: blocking the loop would stall
+      // every frame behind it. It used to fire once per turn, freezing the
+      // reading (and the /context modal breakdown built from it) at whatever
+      // was true a second into a long turn. It now re-fires on an interval so
+      // a multi-minute turn's reading keeps tracking the run instead of going
+      // stale. Frames that stream before a capture lands use the derived
+      // fallback, and each answer is cached for the rest of this turn, for
+      // later turns, and for /token-usage.
+      if (capturedSessionId && Date.now() - lastContextUsageAt >= CLAUDE_CONTEXT_USAGE_REFRESH_MS) {
+        lastContextUsageAt = Date.now(); // set before firing — prevents stacking
         void captureClaudeContextUsage(capturedSessionId, queryInstance);
       }
 
