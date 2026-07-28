@@ -18,11 +18,30 @@ type ChatRunStatus = 'running' | 'completed';
  *
  * State notes — why each mutable field is essential:
  * - `providerSessionId`: the provider-native id captured mid-run. The abort
- *   handler needs it to address the provider runtime, and the DB mapping is
- *   written from it so history/resume work after the run.
+ *   handler uses it for the graceful provider-level interrupt, and the DB
+ *   mapping is written from it so history/resume work after the run.
+ * - `abortController`: the abort path that always works. It exists from the
+ *   moment the run is created, whereas `providerSessionId` is only known once
+ *   the runtime announces it mid-stream — for a brand-new session that is
+ *   `null` for the whole first leg of the run. An abort arriving in that
+ *   window has no provider id to address, so the id-keyed interrupt is a
+ *   silent no-op while the runtime keeps going and completes normally. This
+ *   controller is handed to the runtime at spawn time and tripped
+ *   synchronously by `beginAbort`, so cancellation lands whether or not the
+ *   provider id ever arrived.
  * - `status`: drives `chat_subscribed.isProcessing`, prevents double sends
  *   into the same session, and guards the synthetic-complete fallback in the
  *   chat handler (only emitted when a runtime died without completing).
+ * - `abortInFlight`: set the instant an abort begins, before the (awaited,
+ *   round-trip) provider interrupt call resolves. `status` alone cannot guard
+ *   re-entrancy here because it only flips to `completed` *after* that await
+ *   returns — a user mashing Stop (or a double-fired key handler) sends
+ *   several `chat.abort`s within milliseconds, all landing while `status` is
+ *   still `running`. Without this flag, each one calls the provider's
+ *   interrupt independently; overlapping concurrent interrupt calls against
+ *   the same underlying CLI process have been observed to corrupt its
+ *   response stream (a garbled result with `stop_reason: null`) instead of
+ *   cleanly stopping it.
  * - `lastSeq` / `events`: the per-run event log. Every live event gets a
  *   monotonically increasing `seq` and is buffered so a reconnecting client
  *   can replay exactly the events it missed via `chat.subscribe`.
@@ -43,6 +62,8 @@ type ChatRun = {
   writer: ChatSessionWriter;
   startedAt: number;
   completedAt: number | null;
+  abortInFlight: boolean;
+  abortController: AbortController;
 };
 
 /**
@@ -135,10 +156,15 @@ function evictRunLater(appSessionId: string): void {
  */
 function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): NormalizedMessage | null {
   // Exactly-one-complete contract: when a run is aborted the chat handler
-  // emits the terminal `complete` immediately, but the killed runtime may
-  // still emit its own `complete` from its exit handler moments later.
-  // Whichever arrives first wins; the duplicate is dropped here.
-  if (message.kind === 'complete' && run.status === 'completed') {
+  // emits the terminal `complete` immediately, but the killed runtime's
+  // async generator can still be mid-flight — `interrupt()` resolving
+  // doesn't guarantee no more buffered messages are yielded — and may go on
+  // to emit dangling content events and/or its own `complete` from its exit
+  // handler moments later. Once the terminal event has passed through,
+  // EVERYTHING after it is dropped, not just a duplicate `complete`:
+  // otherwise those dangling events reach the client after the Stop button
+  // already disappeared, looking like the reply kept going after abort.
+  if (run.status === 'completed') {
     return null;
   }
 
@@ -267,6 +293,8 @@ export const chatRunRegistry = {
       writer: null as unknown as ChatSessionWriter,
       startedAt: Date.now(),
       completedAt: null,
+      abortInFlight: false,
+      abortController: new AbortController(),
     };
 
     run.writer = new ChatSessionWriter({
@@ -286,6 +314,34 @@ export const chatRunRegistry = {
 
   getRun(appSessionId: string): ChatRun | undefined {
     return runs.get(appSessionId);
+  },
+
+  /**
+   * Atomically claims the right to abort the session's current run: returns
+   * the run only the first time this is called while it is running, flipping
+   * `abortInFlight` and tripping the run's `AbortController` in the same
+   * synchronous step. A second `chat.abort` for the same run — arriving while
+   * the first is still awaiting the provider's interrupt round-trip — gets
+   * `null` instead of racing its own concurrent interrupt call against the
+   * same provider runtime.
+   *
+   * The controller is signalled here rather than in the caller so that
+   * cancellation is committed before any `await` can yield: the runtime is
+   * spawned concurrently with this handler, so an abort that only took effect
+   * after an await could be observed by a runtime that had already passed its
+   * last cancellation checkpoint. Tripping it synchronously also means an
+   * abort that lands *before* the runtime is spawned is still seen — the
+   * signal is already aborted by the time the runtime reads it.
+   */
+  beginAbort(appSessionId: string): ChatRun | null {
+    const run = runs.get(appSessionId);
+    if (!run || run.status !== 'running' || run.abortInFlight) {
+      return null;
+    }
+
+    run.abortInFlight = true;
+    run.abortController.abort();
+    return run;
   },
 
   isProcessing(appSessionId: string): boolean {
@@ -359,7 +415,15 @@ export const chatRunRegistry = {
       return;
     }
 
-    run.writer.sendComplete(opts);
+    // Read `lastSeq` before `sendComplete`, which assigns the terminal event
+    // its own seq: a run cancelled with the counter still at zero never
+    // emitted anything, so the provider never took the turn and the client's
+    // optimistic user row has nothing behind it. Only meaningful for aborts —
+    // a run that ends normally always delivered.
+    run.writer.sendComplete({
+      ...opts,
+      ...(opts.aborted ? { deliveredToProvider: run.lastSeq > 0 } : {}),
+    });
   },
 
   /**

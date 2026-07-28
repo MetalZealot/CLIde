@@ -368,6 +368,7 @@ export function createCompleteMessage(opts: {
   actualSessionId?: string | null;
   exitCode?: number | null;
   aborted?: boolean;
+  deliveredToProvider?: boolean;
 }): NormalizedMessage {
   const exitCode = typeof opts.exitCode === 'number' ? opts.exitCode : 1;
   const aborted = Boolean(opts.aborted);
@@ -380,6 +381,9 @@ export function createCompleteMessage(opts: {
     exitCode,
     success: exitCode === 0 && !aborted,
     aborted,
+    ...(opts.deliveredToProvider === undefined
+      ? {}
+      : { deliveredToProvider: opts.deliveredToProvider }),
   });
 }
 

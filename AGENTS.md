@@ -75,7 +75,7 @@ Before changing code:
   claim the TODO item and create a worktree/topic branch from `main`, then merge it
   back into `main`; do not switch the main checkout while its service or dev server is
   using it.
-- Keep `TODO.md` current: use `[ ]`, `[~]`, and `[x]`; move verified work to Done as a
+- Keep `TODO.md` current: use `[ ]`, `[~]`, and `[x]`; move verified work to `docs/todo-done.md` as a
   short record with its commit.  Git history and ADRs are the canonical detail.
 - Categorize fixes as fork-only or upstreamable.  Before describing a defect as
   upstream-wide, inspect upstream code as well as searching issues/PRs.  Never open,

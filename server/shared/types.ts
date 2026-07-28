@@ -332,6 +332,17 @@ export type NormalizedMessage = {
    * muted system banner instead of attributing them to the model.
    */
   isSystemNotice?: boolean;
+  /**
+   * On an aborted terminal `complete`: whether this run ever produced anything
+   * before it was cancelled. False means the Stop landed before the provider
+   * emitted a single event, so the user's turn never reached it and was never
+   * written to the transcript — the client's optimistic user row is a ghost
+   * that would silently disappear on the next reload, and is retracted instead.
+   *
+   * Derived from the run's `seq` counter, so it holds for every provider
+   * rather than depending on a provider-specific notion of delivery.
+   */
+  deliveredToProvider?: boolean;
   images?: unknown;
   toolName?: string;
   toolInput?: unknown;

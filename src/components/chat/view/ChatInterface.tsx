@@ -274,6 +274,29 @@ function ChatInterface({
     return result;
   }, [selectProviderModel, sessionStore]);
 
+  // Latest composer text, read from a ref so the realtime listener does not
+  // rebind on every keystroke.
+  const inputSnapshotRef = useRef(input);
+  inputSnapshotRef.current = input;
+
+  /**
+   * A send was cancelled before the provider ever saw it, so its bubble was
+   * retracted; put the text back in the composer to re-send or edit.
+   */
+  const handleUndeliveredTurnRetracted = useCallback((sessionId: string, content: string) => {
+    // Scoped to the visible session: a background session's cancelled turn
+    // must not drop its text into the composer being used for another one.
+    if (sessionId !== (selectedSession?.id || currentSessionId)) {
+      return;
+    }
+    // Anything typed since pressing Stop is newer than the retracted turn and
+    // wins — restoring over it would destroy work.
+    if (inputSnapshotRef.current.trim().length > 0) {
+      return;
+    }
+    setInput(content);
+  }, [selectedSession?.id, currentSessionId, setInput]);
+
   useChatRealtimeHandlers({
     subscribe,
     provider,
@@ -288,6 +311,7 @@ function ChatInterface({
     onSessionProcessing,
     onSessionIdle,
     onWebSocketReconnect: handleWebSocketReconnect,
+    onUndeliveredTurnRetracted: handleUndeliveredTurnRetracted,
     sessionStore,
   });
 
