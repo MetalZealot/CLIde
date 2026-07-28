@@ -1,14 +1,44 @@
 # Git source-control and workspace UX for CLIde
 
-- Date: 2026-07-26
+- Date: 2026-07-26; merged with the 2026-07-27 UX reference on 2026-07-27
 - Status: Design reference; implementation not started
-- Scope: Git mental model, source-control information architecture, branch and
-  remote operations, worktree lifecycle, branch integration, identity, and
-  authentication
+- Scope: Git mental model, CLIde's project/repository/checkout identity model,
+  source-control information architecture, branch and remote operations,
+  worktree lifecycle, branch integration, agent thread targeting, labels and
+  iconography, identity, and authentication
 - Related backlog: `TODO.md` — Source Control worktrees and branch integration;
-  Git branch remote labels; Git branch-switcher safety
+  Git branch remote labels; Git branch-switcher safety; silent commit failures
+- Decision record: ADR 0016 — projects group checkouts by repository; a project
+  is not a directory (`docs/decisions/0016-repository-grouped-checkouts.md`)
 - Related reference:
   `docs/superpowers/specs/2026-07-25-agentic-coding-ux-reference.md`
+- Absorbed: an external reference, *CLIde Source Control, Git Workspaces &
+  Agent Workflow UX* (prepared 2026-07-27, deleted after merging). Its
+  object-model discipline, iconography and colour rules, integration-naming
+  rule, safe-removal copy, per-turn change review, and accessibility rule live
+  here now, with its CLIde-specific factual errors corrected — see "Corrections
+  applied from the 2026-07-27 reference" below. This document is the only
+  surviving copy of that material.
+
+## Corrections applied from the 2026-07-27 reference
+
+The absorbed reference was written without visibility into CLIde's code. Three
+of its claims do not hold here, and the corrections change what gets built:
+
+1. **CLIde has no execution-environment axis.** The reference asserts CLIde
+   already shows environment chips (`[ Default Cloud Environment ] [ CLIde ]
+   [ main ]`) and models `Environment` as a first-class entity. There is no
+   SSH-host, container, or cloud-execution concept anywhere in the schema or
+   the provider adapters; the `projects` table stores a local absolute path and
+   nothing else. **Environment is out of scope.** Its underlying advice — never
+   label the main checkout "Local" — is kept, but the cure is to name the
+   checkout honestly, not to add a chip that renders a constant.
+2. **"Pin each thread to its checkout" is already satisfied.** `sessions.project_path`
+   *is* the checkout identity. No `checkoutId` field is required.
+3. **"Group threads under the project, not under branch names" is not a
+   labelling change.** In CLIde a project *is* a checkout, so a new worktree
+   currently produces a new top-level project. Honouring this requires the
+   repository-grouping layer specified in the next section.
 
 ## Purpose
 
@@ -229,6 +259,119 @@ rename the Linux account, change the GitHub login, alter SSH authorization, or
 rewrite old commits. GitHub primarily associates command-line commits with an
 account through the commit email.
 
+## Projects, repositories, and checkouts in CLIde
+
+This is the load-bearing section for the UI revamp. Everything else in this
+document depends on getting these three objects apart.
+
+### The distinction, stated plainly
+
+- A **repository** is the history: commits, branches, tags, remotes,
+  configuration. It lives once, in the `.git` object database.
+- A **checkout** (working tree) is a *directory of files on disk* produced by
+  pointing that history at one commit. The files you edit are a checkout. The
+  repository is not a folder of files; the checkout is.
+- One repository can have **many checkouts at once**. The original directory is
+  the *main checkout*. Each additional one created with `git worktree add` is a
+  *linked worktree*. They share commits, branches, and remotes, but each has its
+  own directory, its own `HEAD`, its own staging index, its own uncommitted
+  changes, and its own in-progress merge/rebase state.
+- A **branch** is a movable name pointing at a commit. It is not a folder and it
+  does not hold uncommitted changes. Checking a branch out changes which commit
+  a *checkout* is showing.
+
+The one-sentence version: **the repository is the history, a checkout is a
+folder showing one point in that history, and a branch is a label on a commit.**
+
+Git enforces one rule that makes this visible: the same branch normally cannot
+be checked out in two linked worktrees simultaneously, because two directories
+cannot both be the working state of one branch. CLIde must detect and explain
+that state rather than surfacing a generic checkout failure:
+
+```text
+Branch 'clide/source-control' is already checked out in:
+/home/gnuthall/Projects/cloudcli-wt-source-control
+
+Open that checkout, choose another branch, or create a new branch here.
+```
+
+### What CLIde does today
+
+CLIde's project *is* a checkout. `projects.project_path` is `NOT NULL UNIQUE`
+and is the identity for everything downstream:
+
+- `sessions.project_path` is a foreign key to it, so a session belongs to a
+  directory;
+- the provider's own on-disk transcript storage is keyed by encoded path
+  (`~/.claude/projects/<slug>`), independently of CLIde's database.
+
+Two consequences follow directly, and neither is a labelling choice:
+
+1. **Threads are already pinned to checkouts.** This is correct behaviour and
+   comes for free.
+2. **A linked worktree becomes a separate top-level project.** Running
+   `git worktree add ../cloudcli-wt-topic -b feat/topic main` and starting a
+   session there yields a second sidebar project with its own session list,
+   unrelated in the UI to the project it was branched from. There is no object
+   in CLIde today that says these two directories are the same repository.
+
+That second consequence is the gap between CLIde's current source control and
+what a modern agentic IDE is expected to do.
+
+### Target model
+
+The product goal is: **one project, containing every checkout of its
+repository, with each checkout's branch, remote state, dirty state, and agent
+occupancy visible in one place** — so concurrent agents working in parallel
+worktrees are observable together rather than scattered across unrelated
+sidebar entries.
+
+That requires one new object, not a rewrite:
+
+```text
+Project  (organisational container, what the user names and opens)
+  └─ Repository  (identified by `git rev-parse --git-common-dir`)
+       ├─ Checkout: main            /home/gnuthall/Projects/cloudcli
+       │    branch main → origin/main · clean · serving CLIde
+       ├─ Checkout: worktree        /home/gnuthall/Projects/cloudcli-wt-topic
+       │    branch feat/topic · unpublished · 8 changes · 2 agents active
+       └─ Checkout: worktree        /home/gnuthall/Projects/cloudcli-wt-exp
+            detached at a4c29e1 · clean
+```
+
+Design rules:
+
+- **`git rev-parse --git-common-dir` is the repository identity.** Every
+  checkout of one repository resolves to the same common dir; that is the join
+  key, and it is derivable from data CLIde already has (a path per project). No
+  user input, no migration of session data.
+- **Keep `project_path` as the checkout identity.** Sessions stay bound to a
+  directory. Repository grouping is a layer added *above* the existing rows, not
+  a replacement for them. This deliberately keeps the change additive.
+- **Checkout identity remains path-derived**, which means moving or renaming a
+  worktree directory breaks continuity with its sessions and its provider
+  transcripts. Recorded as an accepted deviation from the ideal (stable opaque
+  IDs), because both CLIde's schema and the provider's on-disk layout are
+  path-keyed and neither is ours alone to change.
+- **A checkout can hold several threads.** When it does, say so, because those
+  agents share one working tree and their edits can collide. This is the
+  concurrency hazard the current one-project-per-directory view hides.
+- **Non-Git projects stay ordinary projects.** Repository grouping is an
+  enrichment for Git roots, not a precondition for using CLIde.
+
+### What this costs
+
+Grouping projects by repository changes the sidebar's data shape, so it must be
+decided *before* the sidebar revamp lands, not retrofitted after. Open questions
+to settle at implementation time:
+
+- Does adding a worktree create a project row automatically, or is a worktree a
+  child of an existing project that never appears as a top-level entry?
+- Does an existing project silently become a child when a sibling worktree is
+  discovered, and how is that presented to a user who did not ask for it?
+- Do starring, archiving, and custom names apply to the project, the repository,
+  or the individual checkout?
+
 ## CLIde's fork workflow as a concrete example
 
 The intended long-lived layout is:
@@ -397,6 +540,25 @@ fetch/prune controls.
 
 Branch integration should be a guided operation, not a generic “Merge” button.
 
+#### 0. Name the actual operation
+
+Applying a patch, cherry-picking commits, merging a branch, and replacing a
+destination checkout produce different history and different conflict
+behaviour. CLIde must never offer an unqualified **Apply**. When work finishes
+in a linked worktree, the user chooses between named outcomes:
+
+```text
+Bring changes from Worktree: source-control into Main checkout
+
+( ) Apply as uncommitted changes    working tree only, no commits, no history
+(*) Merge branch                    moves main; keeps feat branch history
+( ) Cherry-pick commits             copies selected commits as new commits
+```
+
+“Apply as uncommitted changes” must also state its mechanism — patch
+application, temporary commit, stash, or file copy. The mechanism is not
+allowed to be invisible.
+
 #### 1. Select direction
 
 ```text
@@ -496,6 +658,60 @@ After creation, CLIde should be able to:
 - show readiness and failures;
 - preserve the original workspace unchanged.
 
+A new worktree is a fresh checkout: ignored files, installed dependencies, and
+generated assets do not appear automatically, so "Git created it" is not the
+same as "it is usable". The setup policy needs three rules:
+
+- a project-defined bootstrap command (install dependencies, link a shared
+  `node_modules`, build) that is visible and re-runnable;
+- an explicit per-project allowlist for copying selected ignored files, such as
+  local environment configuration — **never copy secrets by default**;
+- **setup failures reported separately from Git failures.** "Worktree created,
+  bootstrap failed" is a different state from "worktree not created", and
+  collapsing them leaves the user with a directory they think does not exist.
+
+## Agent threads, checkouts, and per-turn change review
+
+### Thread targeting and handoff
+
+A thread's target is the checkout it edits. It should be recorded on the thread
+rather than inferred from whatever project is selected later — which CLIde
+already does, since sessions carry `project_path`.
+
+What is missing is making changes to that target *legible*:
+
+- a branch switch or checkout change performed by an agent should appear as an
+  explicit timeline event in the conversation, not as silent state drift;
+- moving a conversation to another checkout is a deliberate handoff with a
+  reported result, not a dropdown side effect;
+- when several threads share one checkout, every one of them should say so.
+
+```text
+Switched branch main → clide/source-control
+Checkout unchanged: Worktree source-control
+```
+
+### Per-turn diffs are a provider capability, not a Git feature
+
+A useful agent result card summarises the changes attributable to *that turn*:
+
+```text
+Changed 8 files   +243 / −61
+4 modified · 2 added · 1 deleted · 1 renamed
+```
+
+Repository status alone cannot reconstruct turn attribution — that needs
+snapshot boundaries. **Before building a new Git-snapshot subsystem, check what
+CLIde's existing rewind support already records** (`claude-rewind.util.ts`,
+`RewindEditCard`, `provider-capabilities.service.ts`). Claude Code exposes a
+native rewind concept with checkpoint-like boundaries; a parallel snapshot
+system would duplicate it.
+
+Rewind is Claude-specific. Per the multi-provider rule, turn-scoped diffs must
+be gated on a declared provider capability and degrade to hidden for Cursor,
+Codex, and OpenCode rather than hardcoding Claude-shaped checkpoints into
+shared surface.
+
 ### Worktree removal flow
 
 Default refusal conditions:
@@ -515,7 +731,80 @@ The confirmation should explicitly say:
 - whether ignored files exist that Git cannot assess.
 
 The default action removes only the worktree. Branch deletion is a subsequent,
-separate action.
+separate action, and the dialog must offer them as distinct choices rather than
+one destructive default:
+
+```text
+Remove worktree 'source-control'?
+
+/home/gnuthall/Projects/cloudcli-wt-source-control contains:
+  - 8 uncommitted file changes
+  - 2 commits not merged into main
+  - branch clide/source-control (pushed to origin)
+  - 3 sessions bound to this directory
+
+[Cancel]  [Keep branch, remove checkout]  [Delete everything…]
+```
+
+Ignored files (dependencies, local environment configuration, build output) are
+invisible to Git's own assessment, so a worktree Git considers clean may still
+hold unreproducible state. Say so rather than reporting "clean".
+
+## Labels, iconography, and colour
+
+Labels carry the meaning. Icons reinforce the label; they never replace it.
+
+| Concept | Icon language | Rule |
+| --- | --- | --- |
+| Project | Folder or project grid | Organisational container; may hold several checkouts |
+| Repository | Repository / Git-root mark | The shared history and object database |
+| Branch | Branch/fork glyph | A named reference only — never used for a checkout |
+| Checkout / worktree | Stacked folder or folder with checkout marker | A physical directory; must not reuse the branch icon |
+| Main checkout | Folder with home marker | The repository's original working directory |
+| Detached HEAD | Commit node plus text | Always the word "Detached" and a short SHA |
+| Remote | Network / remote-repository mark | `origin`, `upstream` — a Git endpoint |
+| Pull request | Standard PR glyph | Remote review state, not intrinsic Git state |
+| Modified / untracked / conflict | `M` / `?` / warning | Conventional SCM status letters |
+| Ahead / behind | Up/down arrows with counts | Always paired with the comparison ref |
+| Clean | Checkmark or plain text | A neutral state, not a success celebration |
+
+Naming rules that follow from the identity model:
+
+- **Never label the main checkout "Local".** It is the main checkout; it may sit
+  on any machine. CLIde has no execution-environment axis to contrast it with.
+- **Never display a bare branch name where a checkout is meant**, and never the
+  reverse. "Worktree: source-control" and "Branch: clide/source-control" are
+  different facts and are frequently different strings.
+- **Never invent a branch label for a detached `HEAD`.**
+
+### Colour semantics
+
+| Role | Meaning |
+| --- | --- |
+| Neutral | Clean state, current context, ordinary status |
+| Amber | Uncommitted changes, no tracking branch, attention needed |
+| Red | Conflicts, failed operations, destructive actions |
+| Green | Successful completion feedback |
+| Accent | Selected context, remote sync, active controls |
+
+**Colour is supplemental.** Every state needs a label, count, symbol, or
+tooltip that survives monochrome rendering and colour-vision deficiency. No
+status may be encoded by colour alone.
+
+### Mobile representation
+
+The compact context collapses to two lines and stays readable:
+
+```text
+CLIde / clide/source-control
+Worktree: source-control · 8 changes · ↑2
+```
+
+Tapping it opens **one unified sheet** — project, repository, checkout path and
+kind, branch or detached commit, tracking branch, working-tree status, agent
+occupancy, and PR state — rather than several small unrelated popovers. This
+lines up with the bottom-nav direction in ADR 0005; the status line is passive
+information and tapping it must never perform a switch.
 
 ## Current CLIde implementation
 
@@ -547,6 +836,43 @@ deduplicates by basename. The client consequently cannot distinguish
 remotes, or safely create a tracking branch from the selected remote ref.
 
 The API should return structured refs rather than parallel string arrays.
+
+#### The status contract cannot express conflicts, operations, or detached HEAD
+
+Verified 2026-07-27. `GET /api/git/status` returns
+`{ branch, hasCommits, modified, added, deleted, untracked, staged }`, and:
+
+- **Conflicts are deliberately folded into `modified`.**
+  `parseGitStatusOutput` (`server/routes/git.js`, the `isConflict` branch)
+  detects `U`/`AA`/`DD` entries and then pushes them onto `modified` so they can
+  never appear staged. The intent is sound, but the consequence is that conflict
+  state is not representable in the API at all — a conflict count cannot be
+  displayed because the data never leaves the server.
+- **No in-progress operation detection exists.** There are no references to
+  `MERGE_HEAD`, `REBASE_HEAD`, or `CHERRY_PICK_HEAD` anywhere in the codebase.
+  The operation banner is entirely greenfield.
+- **Detached `HEAD` renders as a branch named `HEAD`.**
+  `getCurrentBranchName` (`server/routes/git.js`) tries
+  `git symbolic-ref --short HEAD` and falls back to
+  `git rev-parse --abbrev-ref HEAD`, which returns the literal string `HEAD`
+  when detached. The UI then displays it as though it were a branch.
+- Ahead/behind lives in a separate `/remote-status` call and covers only the
+  current branch.
+
+Phase 1 is therefore a status-contract change on the server, not a UI addition.
+
+#### Consequential failures are discarded silently
+
+`commitChanges` (`useGitPanelController.ts`) logs to the console and returns
+`false` for both non-2xx responses and thrown fetches, and `handleCommit`
+(`CommitComposer.tsx`) only clears the message box on success — so a commit
+rejected by a `commit-msg` hook is indistinguishable from a dead button, no
+matter how many times it is pressed (observed 2026-07-27; see `TODO.md`).
+
+This is a prerequisite for everything else in this document. A panel that
+silently swallows errors cannot host guarded destructive operations: every
+refusal, preflight failure, and conflict report specified here depends on the
+UI being able to show a server-side error at all.
 
 #### Checkout lacks workspace preflight
 
@@ -656,6 +982,26 @@ Important design rules:
 Use Git's porcelain formats intended for machines where available, including
 `git worktree list --porcelain` and `git status --porcelain`.
 
+### Mapping onto CLIde's existing tables
+
+The grouping layer is additive. Nothing about session binding changes:
+
+| Concept | CLIde storage | Change required |
+| --- | --- | --- |
+| Checkout | `projects.project_path` (`NOT NULL UNIQUE`) | none — already the identity |
+| Thread target | `sessions.project_path` FK | none — already pinned |
+| Repository | *does not exist* | new: `git rev-parse --git-common-dir`, cached per project |
+| Checkout kind | *does not exist* | new: main vs linked, from `git worktree list --porcelain` |
+| Occupancy | *does not exist* | new: application state — serving runtime, dev server on 5173, branch-test on 3002, active sessions |
+
+Occupancy is knowable rather than guessable: CLIde runs from a known checkout,
+and the `cloudcli-dev` and `cloudcli-branch-test` services have fixed, queryable
+workspaces. It must never be inferred from branch names.
+
+The reference's `Environment` entity is intentionally omitted (see
+"Corrections applied"). If remote execution is ever added, an environment is a
+property of the *server host*, not of each thread, and should be shown once.
+
 ## Identity and authentication UX
 
 Settings should separate two cards.
@@ -726,6 +1072,18 @@ does not cover runtime disruption.
 
 ## Recommended implementation sequence
 
+### Phase 0: make what already exists truthful and safe
+
+The existing panel already performs consequential operations. These items make
+current behaviour honest before any new power is added; each is small and
+independently shippable, and several are upstreamable.
+
+1. Surface commit and operation errors in the UI instead of the console.
+2. Split conflicts out of `modified` in the status contract.
+3. Detect and report in-progress merge/rebase/cherry-pick state.
+4. Render detached `HEAD` as `Detached at <sha>`, never as a branch.
+5. Report unborn-branch state distinctly from detached `HEAD`.
+
 ### Phase 1: truthful state and identity
 
 1. Replace branch string arrays with structured local and remote refs.
@@ -742,11 +1100,17 @@ power.
 ### Phase 2: workspace inventory and creation
 
 1. Add structured worktree discovery.
-2. Present repository → worktree hierarchy and occupancy.
-3. Create a linked worktree from a selected base and new branch.
-4. Open/select the resulting workspace.
-5. Support repository-configured bootstrap guidance.
-6. Add safe worktree removal while retaining the branch by default.
+2. Derive repository identity from `--git-common-dir` and group projects by it.
+3. Present project → repository → checkout hierarchy and occupancy in the
+   sidebar. **Decide this before the sidebar revamp lands** — it changes the
+   sidebar's data shape and cannot be retrofitted cheaply.
+4. Show shared-checkout thread counts so concurrent agents are visible.
+5. Create a linked worktree from a selected base and new branch.
+6. Open/select the resulting workspace.
+7. Support repository-configured bootstrap guidance, including the ignored-file
+   allowlist and separate reporting of bootstrap versus Git failures.
+8. Add safe worktree removal while retaining the branch by default.
+9. Add per-turn change review where the provider supports it.
 
 ### Phase 3: branch integration
 
@@ -790,6 +1154,35 @@ UI without knowing Git's command syntax:
 No branch, remote, or worktree action should rely on a stripped display name as
 its canonical identity. No destructive cleanup should be the hidden side effect
 of a friendly “finish” action.
+
+### Product contract
+
+> Without opening a terminal, a user can determine: which directory this thread
+> is editing, which repository that directory belongs to, which branch or commit
+> it has checked out, what uncommitted changes it holds, who else is working in
+> it, and exactly which operation brings the result into the normal working copy.
+
+### Implementation checklist
+
+- [ ] Project, repository, checkout, branch, and thread are distinct objects.
+- [ ] Every checkout of one repository is visible in one place.
+- [ ] Threads remain bound to their checkout unless an explicit handoff occurs.
+- [ ] Shared-checkout occupancy is visible when several threads share a directory.
+- [ ] Staged, unstaged, untracked, and conflicted states are separately inspectable.
+- [ ] In-progress merge/rebase/cherry-pick states are prominent, never hidden
+      behind a generic dirty indicator.
+- [ ] Detached `HEAD` is displayed truthfully, with a short SHA.
+- [ ] Branches and checkouts have separate lists, separate icons, and separate actions.
+- [ ] Ahead/behind always names its comparison ref.
+- [ ] Remote-tracking refs keep their remote namespace end to end.
+- [ ] Integration actions state whether they patch, cherry-pick, or merge.
+- [ ] Worktree removal protects uncommitted work, unmerged commits, and ignored files.
+- [ ] Branch deletion is never implied by checkout removal.
+- [ ] Operations that rewrite the checkout serving CLIde are blocked or elevated.
+- [ ] Server-side failures are visible in the UI.
+- [ ] Mobile context is inspectable in one sheet, without icon-only chips.
+- [ ] Colour is supplemental; every state is labelled.
+- [ ] Per-turn diffs are gated on provider capability, not assumed.
 
 ## Official references
 
