@@ -11,6 +11,18 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [ ] **Claude account reported "logged out" after an idle access token** (see
+  `todo-done.md`, 2026-07-28) — verbatim upstream bug, but the diff needs re-siting: upstream
+  still has the expiry check inline in `claude-auth.provider.ts` (`if (!expiresAt || Date.now() <
+  expiresAt)` … else "login has expired"), since the `claude-credentials.ts` extraction is
+  ours. The logic gap is identical — the `refreshToken`/`refreshTokenExpiresAt` sitting in the
+  same file are never consulted — and it fires for every OAuth user who leaves the app idle
+  more than ~8 hours. Upstream check 2026-07-28: no issue or PR for it — searched issues for
+  "login expired" (two hits, both different: **#556** is auth status not refreshing *after* the
+  OAuth flow completes, **#754** is the JWT/web-login layer already tracked above) and
+  "credentials expired token refresh" (zero hits); PR search for "credentials expiresAt refresh
+  token" returned only fuzzy title matches. Self-contained, testable, no UI change —
+  **good standalone PR candidate.**
 - [ ] **Grep/Glob live result counts** (see `todo-done.md`, 2026-07-23, `931fc81`) — client-only
   `toolConfigs.ts` fix; affects every provider that surfaces Grep/Glob, nothing
   fork-specific. No upstream issue/PR search done yet — check `gh` before PRing.
