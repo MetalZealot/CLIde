@@ -11,11 +11,11 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
-- [ ] **Grep/Glob live result counts** (see `TODO.md` Done, 2026-07-23, `931fc81`) — client-only
+- [ ] **Grep/Glob live result counts** (see `todo-done.md`, 2026-07-23, `931fc81`) — client-only
   `toolConfigs.ts` fix; affects every provider that surfaces Grep/Glob, nothing
   fork-specific. No upstream issue/PR search done yet — check `gh` before PRing.
 - [ ] **Spurious logouts: transient-failure token wipe + no idle token refresh** (see
-  `TODO.md` Done, 2026-07-23) — all client-side, auth is provider-agnostic. Upstream overlap: the
+  `todo-done.md`, 2026-07-23) — all client-side, auth is provider-agnostic. Upstream overlap: the
   keep-alive + in-memory-token-sync halves are the same two gaps as **open PR
   siteboon/claudecodeui#980** ("refresh auth token for idle WS/SSE clients", closes #754,
   unmerged as of 2026-07-23 — checked via `gh pr view 980`); our fix is narrower (no WS
@@ -24,7 +24,7 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   and looks like a clean standalone PR. Decide: PR the standalone half, or wait and see if
   #980 lands and rebase onto it.
 - [ ] **Skill-content leak + synthetic-notice/compact-summary rendering** (see
-  `TODO.md` Done, 2026-07-23) — the skill-injection filter directly fixes **open upstream issue
+  `todo-done.md`, 2026-07-23) — the skill-injection filter directly fixes **open upstream issue
   siteboon/claudecodeui#1009** ("skill content rendered as user input in web UI",
   no fix PR as of 2026-07-23 — only a CodeRabbit auto-comment; checked via
   `gh issue view 1009` + PR search). Upstream's `normalizeMessage` has the identical
@@ -32,7 +32,7 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   `isSystemNotice` banner + compact-summary collapsible parts are more
   fork-flavored UI, but the server-side filter is a clean standalone PR.
   **Strong second-PR candidate.**
-- [ ] **Shimmer loop discontinuity** (see `TODO.md` Done, 2026-07-23) — verbatim upstream bug:
+- [ ] **Shimmer loop discontinuity** (see `todo-done.md`, 2026-07-23) — verbatim upstream bug:
   `git show upstream/main:{tailwind.config.js,src/shared/view/ui/Shimmer.tsx}` at v1.36.3
   is byte-identical to our pre-fix state, and upstream has four call sites (`Reasoning`,
   `PlanDisplay` ×2, `ActivityIndicator`), so it's visible on every provider. Upstream check
@@ -59,9 +59,9 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   upstream tests with `npx tsx --tsconfig server/tsconfig.json --test <path>` (the root
   tsconfig maps `@/` to `src/`, not `server/`). Check off when merged.
 - [ ] **AskUserQuestion comma-answer split** (`9450562`) — upstream-checked + test-covered
-  (see `TODO.md` Done entry 2026-07-20: both files predate the fork, no issue/PR). **Ready.**
+  (see `todo-done.md`, 2026-07-20: both files predate the fork, no issue/PR). **Ready.**
 - [ ] **File-tree Move to… + touch context menu + drag-to-move**
-  (`0efea7d`/`ad9efda`/`8747136`) — upstream-checked (see `TODO.md` Done entry: #436/#444 merged
+  (`0efea7d`/`ad9efda`/`8747136`) — upstream-checked (see `todo-done.md`: #436/#444 merged
   the context menu but no move op, right-click-only) and verified live 2026-07-22.
   Server + client + i18n — the largest candidate; PR as one feature branch. **Ready.**
 - [ ] **CSS minifier warnings fix** (`5cc4185`) — inherited from upstream, repros on
