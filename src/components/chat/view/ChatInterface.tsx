@@ -15,6 +15,7 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
+import CompactionWarningBanner from './subcomponents/CompactionWarningBanner';
 import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
 
@@ -210,7 +211,8 @@ function ChatInterface({
     handleInputFocusChange,
     commandModalPayload,
     closeCommandModal,
-    showCostModal,
+    showUsageModal,
+    showContextModal,
   } = useChatComposerState({
     selectedProject,
     selectedSession,
@@ -458,6 +460,12 @@ function ChatInterface({
             </div>
           )}
 
+          <CompactionWarningBanner
+            tokenBudget={tokenBudget}
+            sessionId={currentSessionId || selectedSession?.id || null}
+            onShowContext={showContextModal}
+          />
+
           <ChatComposer
           pendingPermissionRequests={pendingPermissionRequests}
           handlePermissionDecision={handlePermissionDecision}
@@ -471,7 +479,7 @@ function ChatInterface({
           availableEffortOptions={currentProviderEffortOptions}
           onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
           tokenBudget={tokenBudget}
-          onShowTokenUsage={showCostModal}
+          onShowContext={showContextModal}
           provider={provider}
           onToggleCommandMenu={handleToggleCommandMenu}
           hasInput={Boolean(input.trim())}
@@ -559,6 +567,7 @@ function ChatInterface({
         providerModelsRefreshing={providerModelsRefreshing}
         onHardRefreshProviderModels={hardRefreshProviderModels}
         currentSessionId={currentSessionId || selectedSession?.id || null}
+        onShowUsage={showUsageModal}
         onSelectProviderModel={handleSelectProviderModel}
       />
     </PermissionContext.Provider>

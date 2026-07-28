@@ -111,7 +111,7 @@ export type ModelCommandData = {
   cache?: ProviderModelsCacheInfo;
 };
 
-export type CostCommandData = {
+export type UsageCommandData = {
   tokenUsage?: {
     used?: number;
     total?: number;
@@ -150,11 +150,62 @@ export type HelpCommandData = {
   }>;
 };
 
-export type CommandModalKind = 'help' | 'models' | 'cost' | 'status';
+export type ContextNamedTokens = { name: string; tokens: number };
+
+// Mirrors ClaudeContextBreakdown on the server. Every section is optional: the
+// CLI omits what does not apply, and an older CLI omits more.
+export type ContextCommandData = {
+  provider?: string;
+  /** Set when the provider has no breakdown to report at all. */
+  unsupported?: boolean;
+  /**
+   * How much the server could answer with. `full` carries a real reading from a
+   * turn; `headline` means no reading exists for this session yet, so only the
+   * ceiling and current usage are known.
+   */
+  detail?: 'full' | 'headline';
+  message?: string;
+  model?: string | null;
+  /**
+   * The headline number. With a reading this is its own `totalTokens`, which
+   * the rendered categories sum to exactly; without one it is the ring's count.
+   * Never a mix of the two — they disagree slightly and the view stops adding up.
+   */
+  usedTokens?: number;
+  /** Usage at the moment the reading was taken. */
+  totalTokens?: number;
+  maxTokens?: number;
+  percentage?: number | null;
+  autoCompactThreshold?: number | null;
+  isAutoCompactEnabled?: boolean;
+  fetchedAt?: number;
+  breakdown?: {
+    categories?: Array<{ name: string; tokens: number; color?: string; isDeferred?: boolean }>;
+    memoryFiles?: Array<{ path: string; type?: string; tokens: number }>;
+    mcpTools?: Array<{ name: string; serverName?: string; tokens: number; isLoaded?: boolean }>;
+    systemTools?: ContextNamedTokens[];
+    systemPromptSections?: ContextNamedTokens[];
+    agents?: Array<{ name: string; source?: string; tokens: number }>;
+    skills?: { totalSkills: number; includedSkills: number; tokens: number };
+    slashCommands?: { totalCommands: number; includedCommands: number; tokens: number };
+    messageBreakdown?: {
+      toolCallTokens: number;
+      toolResultTokens: number;
+      attachmentTokens: number;
+      assistantMessageTokens: number;
+      userMessageTokens: number;
+      redirectedContextTokens: number;
+      unattributedTokens: number;
+      attachmentsByType?: ContextNamedTokens[];
+    };
+  } | null;
+};
+
+export type CommandModalKind = 'help' | 'models' | 'usage' | 'status' | 'context';
 
 export type CommandModalPayload = {
   kind: CommandModalKind;
-  data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData;
+  data: HelpCommandData | ModelCommandData | UsageCommandData | StatusCommandData | ContextCommandData;
 };
 
 const createFakeSubmitEvent = () => {
@@ -308,10 +359,13 @@ export function useChatComposerState({
           });
           break;
 
-        case 'cost': {
+        // `cost` is the pre-rename action name: a browser tab left open across
+        // the deploy still asks for it, and `/cost` survives as a command alias.
+        case 'cost':
+        case 'usage': {
           setCommandModalPayload({
-            kind: 'cost',
-            data: (data || {}) as CostCommandData,
+            kind: 'usage',
+            data: (data || {}) as UsageCommandData,
           });
           break;
         }
@@ -320,6 +374,14 @@ export function useChatComposerState({
           setCommandModalPayload({
             kind: 'status',
             data: (data || {}) as StatusCommandData,
+          });
+          break;
+        }
+
+        case 'context': {
+          setCommandModalPayload({
+            kind: 'context',
+            data: (data || {}) as ContextCommandData,
           });
           break;
         }
@@ -572,15 +634,28 @@ export function useChatComposerState({
     ],
   );
 
-  const showCostModal = useCallback(() => {
+  const showUsageModal = useCallback(() => {
     executeCommand(
       {
-        name: '/cost',
-        description: 'Display token usage information',
+        name: '/usage',
+        description: 'Show plan limits and session token usage',
         namespace: 'builtin',
         metadata: { type: 'builtin' },
       } as SlashCommand,
-      '/cost',
+      '/usage',
+      { preserveInput: true },
+    );
+  }, [executeCommand]);
+
+  const showContextModal = useCallback(() => {
+    executeCommand(
+      {
+        name: '/context',
+        description: 'Show what is filling the context window',
+        namespace: 'builtin',
+        metadata: { type: 'builtin' },
+      } as SlashCommand,
+      '/context',
       { preserveInput: true },
     );
   }, [executeCommand]);
@@ -1504,6 +1579,7 @@ export function useChatComposerState({
     isInputFocused,
     commandModalPayload,
     closeCommandModal,
-    showCostModal,
+    showUsageModal,
+    showContextModal,
   };
 }

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import {
   Activity,
   BadgeCheck,
+  ChevronDown,
+  ChevronRight,
   CircleHelp,
   Coins,
   Cpu,
@@ -22,7 +24,9 @@ import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage
 import type { LLMProvider, ProviderModelsCacheInfo, ProviderModelsDefinition } from '../../../../types/app';
 import type {
   CommandModalPayload,
-  CostCommandData,
+  ContextCommandData,
+  ContextNamedTokens,
+  UsageCommandData,
   HelpCommandData,
   ModelCommandData,
   StatusCommandData,
@@ -36,6 +40,8 @@ type CommandResultModalProps = {
   providerModelsRefreshing: boolean;
   onHardRefreshProviderModels: () => void;
   currentSessionId: string | null;
+  /** Re-opens this modal on the `/usage` view — the context panel links to it. */
+  onShowUsage?: () => void;
   onSelectProviderModel: (
     provider: LLMProvider,
     model: string,
@@ -68,7 +74,8 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 const FALLBACK_COMMANDS: CommandEntry[] = [
   { name: '/models', description: 'Browse available models for the active provider.' },
-  { name: '/cost', description: 'Review token usage for the active session.' },
+  { name: '/usage', description: 'Review your plan limits and this session’s token usage.' },
+  { name: '/context', description: 'See what is filling the context window.' },
   { name: '/status', description: 'Inspect runtime, version, provider, and environment status.' },
   { name: '/memory', description: 'Open the project CLAUDE.md memory file.' },
   { name: '/config', description: 'Open settings and configuration.' },
@@ -89,6 +96,83 @@ const formatNumber = (value: number) => {
   }
   return value.toLocaleString();
 };
+
+// Plan usage is fetched per provider, and only the four known providers have an
+// endpoint at all. Anything else (an unknown provider string on an old payload)
+// disables the fetch rather than requesting a 404.
+const toUsageProvider = (provider: string | undefined): LLMProvider | null => (
+  provider === 'claude' || provider === 'cursor' || provider === 'codex' || provider === 'opencode'
+    ? provider
+    : null
+);
+
+/**
+ * The plan's rate-limit windows (5-hour, weekly) with a refresh control.
+ *
+ * Shown in two places, deliberately: `/usage` renders the whole account picture
+ * (windows, credits, activity), while the context panel appends `windowsOnly`
+ * limits under the context breakdown — the pairing Claude Code shows when you
+ * expand its status line. Renders nothing when the provider or auth method
+ * reports no plan usage, so the embedding surfaces need no provider gating.
+ */
+function PlanUsagePanel({
+  provider,
+  title,
+  windowsOnly = false,
+  onViewAll,
+}: {
+  provider: LLMProvider | null;
+  title: string;
+  windowsOnly?: boolean;
+  /** Swaps this modal over to the full `/usage` view. */
+  onViewAll?: () => void;
+}) {
+  const planUsage = useProviderUsage(provider);
+
+  if (!provider || planUsage.usage?.supported === false) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/75 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {title}
+        </p>
+        <div className="flex shrink-0 items-center gap-1">
+          {onViewAll && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onViewAll}
+              className="h-7 rounded-lg px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              Full usage
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={planUsage.refresh}
+            disabled={planUsage.loading}
+            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+            aria-label="Refresh plan usage"
+          >
+            <RefreshCw className={planUsage.loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+          </Button>
+        </div>
+      </div>
+      <UsageWindowList
+        usage={planUsage.usage}
+        loading={planUsage.loading}
+        error={planUsage.error}
+        windowsOnly={windowsOnly}
+      />
+    </div>
+  );
+}
 
 function MetricCard({
   label,
@@ -418,14 +502,422 @@ function ModelsContent({
   );
 }
 
-function CostContent({ data }: { data: CostCommandData }) {
-  const usageProvider: LLMProvider | null = (
-    data.provider === 'claude'
-    || data.provider === 'cursor'
-    || data.provider === 'codex'
-    || data.provider === 'opencode'
-  ) ? data.provider : null;
-  const planUsage = useProviderUsage(usageProvider);
+// The CLI names its own colours for the /context squares. Mapping them onto
+// theme tokens keeps the two views recognisably the same picture without
+// hardcoding hex values that would fight the light/dark themes.
+const CONTEXT_CATEGORY_COLORS: Record<string, string> = {
+  blue: 'bg-sky-500',
+  cyan: 'bg-cyan-500',
+  green: 'bg-emerald-500',
+  yellow: 'bg-amber-400',
+  orange: 'bg-orange-500',
+  red: 'bg-red-500',
+  magenta: 'bg-fuchsia-500',
+  purple: 'bg-violet-500',
+  gray: 'bg-muted-foreground/40',
+  grey: 'bg-muted-foreground/40',
+};
+
+// "Free space" is not consumption, and the auto-compact buffer is reserved
+// rather than spent — both are still worth showing, just not as usage.
+const isReservedCategory = (name: string) =>
+  /free space|autocompact|auto-compact/i.test(name);
+
+const isAutoCompactBuffer = (name: string) => /autocompact|auto-compact/i.test(name);
+
+function ContextSection({
+  title,
+  entries,
+  total,
+  totalLabel = 'Total',
+}: {
+  title: string;
+  entries: Array<{ key: string; label: string; hint?: string; tokens: number }>;
+  /** Shown as a footer row, so the section's numbers can be checked against it. */
+  total?: number;
+  /** What the footer row is the total *of*, when it is not the entries above. */
+  totalLabel?: string;
+}) {
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background/75 p-4">
+      {/* Every figure in these sections is a token count, but the rows read
+          like inventories ("Your messages  8"), so the column needs a unit or
+          it gets read as "8 messages". One caption per section beats
+          repeating a suffix on every row. */}
+      <div className="mb-3 flex items-baseline justify-between gap-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {title}
+        </p>
+        <span className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
+          tokens
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {entries.map((entry) => (
+          <div key={entry.key} className="flex items-baseline justify-between gap-4">
+            <div className="min-w-0">
+              <span className="block truncate text-sm text-foreground">{entry.label}</span>
+              {entry.hint && (
+                <span className="block truncate text-xs text-muted-foreground" title={entry.hint}>
+                  {entry.hint}
+                </span>
+              )}
+            </div>
+            <span className="shrink-0 font-mono text-sm text-muted-foreground">
+              {formatNumber(entry.tokens)}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {typeof total === 'number' && (
+        <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-border/70 pt-2">
+          <span className="text-sm text-foreground">{totalLabel}</span>
+          <span className="shrink-0 font-mono text-sm text-foreground">{formatNumber(total)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Memory files are all called CLAUDE.md, so the basename alone gives two
+// identical rows. The distinguishing part of the path is its tail, which is
+// exactly what truncation eats on a phone — keep the last couple of segments
+// and let the full path live in the tooltip.
+const shortenPath = (value: string) => {
+  const segments = value.split('/').filter(Boolean);
+  return segments.length <= 3 ? value : `…/${segments.slice(-3).join('/')}`;
+};
+
+// The reading is whatever the last turn recorded, so the modal says how old it
+// is rather than implying it is live.
+function formatReadingAge(fetchedAt: number | undefined): string | null {
+  if (!fetchedAt) {
+    return null;
+  }
+
+  const minutes = Math.round((Date.now() - fetchedAt) / 60000);
+  if (minutes < 1) {
+    return 'Measured just now.';
+  }
+  if (minutes < 60) {
+    return `Measured ${minutes} min ago.`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  return hours < 24
+    ? `Measured ${hours} h ago.`
+    : `Measured ${Math.round(hours / 24)} d ago.`;
+}
+
+function ContextContent({
+  data,
+  onShowUsage,
+}: {
+  data: ContextCommandData;
+  /** Opens the full `/usage` view from the plan-limits footer. */
+  onShowUsage?: () => void;
+}) {
+  const maxTokens = Number(data.maxTokens ?? 0);
+  // The headline follows current usage; the sections describe the reading.
+  const totalTokens = Number(data.usedTokens ?? data.totalTokens ?? 0);
+  const readingAge = formatReadingAge(data.fetchedAt);
+  const threshold = Number(data.autoCompactThreshold ?? 0);
+  const compactsAutomatically = data.isAutoCompactEnabled === true && threshold > 0;
+  // Same ceiling the composer ring uses: usable space ends where auto-compact
+  // fires. The categories agree — "Free space" is measured to the threshold,
+  // and the leftover is the "Autocompact buffer" listed under Reserved.
+  const ceiling = compactsAutomatically ? threshold : maxTokens;
+  const breakdown = data.breakdown;
+  // Twelve itemised sections is a lot of phone scrolling to reach the plan
+  // limits underneath. The headline and the limits are what the panel is
+  // opened for; the itemisation is what you go looking for.
+  const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
+
+  // The CLI's own arithmetic, verified against a real reading: the non-deferred
+  // categories sum to the whole window, and the non-deferred, non-reserved ones
+  // sum to totalTokens. Deferred tools sit outside both — they are what *would*
+  // load on demand — so listing them alongside the rest made the visible column
+  // add up to more than the headline.
+  const categories = (breakdown?.categories ?? []).filter((category) => category.tokens > 0);
+  const counted = categories.filter((category) => !category.isDeferred);
+  const spent = counted.filter((category) => !isReservedCategory(category.name));
+  const reserved = counted.filter((category) => isReservedCategory(category.name));
+  const deferred = categories.filter((category) => category.isDeferred);
+  const spentTotal = spent.reduce((sum, category) => sum + category.tokens, 0);
+  // "Free space" is measured to the auto-compact threshold, while the buffer is
+  // the slice above it, so the two only reconcile against the whole window —
+  // a number the headline never shows (it shows the threshold). Without it the
+  // column reads as used + buffer + free ≠ the header.
+  const reservedTotal = reserved.reduce((sum, category) => sum + category.tokens, 0);
+  const windowTotal = spentTotal + reservedTotal;
+
+  const messages = breakdown?.messageBreakdown;
+  const messageEntries: Array<{ key: string; label: string; tokens: number }> = messages
+    ? [
+        { key: 'user', label: 'Your messages', tokens: messages.userMessageTokens },
+        { key: 'assistant', label: 'Replies', tokens: messages.assistantMessageTokens },
+        { key: 'toolCalls', label: 'Tool calls', tokens: messages.toolCallTokens },
+        { key: 'toolResults', label: 'Tool results', tokens: messages.toolResultTokens },
+        { key: 'attachments', label: 'Attachments', tokens: messages.attachmentTokens },
+        { key: 'redirected', label: 'Redirected context', tokens: messages.redirectedContextTokens },
+        { key: 'unattributed', label: 'Unattributed', tokens: messages.unattributedTokens },
+      ].filter((entry) => entry.tokens > 0)
+    : [];
+
+  const named = (entries: ContextNamedTokens[] | undefined, prefix: string) =>
+    (entries ?? [])
+      .filter((entry) => entry.tokens > 0)
+      .map((entry) => ({ key: `${prefix}-${entry.name}`, label: entry.name, tokens: entry.tokens }));
+
+  // Auto-compact is only known from a reading; without one, say what is missing
+  // and how to get it instead of asserting that compaction is off.
+  const statusLine = data.detail === 'headline'
+    ? (data.message || 'Send a message to see what is filling the window.')
+    : compactsAutomatically
+      ? maxTokens > threshold
+        ? `Auto-compacts at ${formatNumber(threshold)} of the ${formatNumber(maxTokens)}-token window.`
+        : `Auto-compacts at ${formatNumber(threshold)} tokens.`
+      : 'Auto-compact is off for this session.';
+
+  // Only Claude reports a breakdown, but the other providers still have plan
+  // limits — and this panel is what the composer ring opens for all of them, so
+  // "no breakdown" must not mean an empty modal.
+  if (data.unsupported) {
+    return (
+      <div className="scrollbar-thin -mr-1 h-full min-h-0 space-y-4 overflow-y-auto pr-1">
+        <div className="rounded-2xl border border-border/70 bg-background/75 p-6 text-center">
+          <Gauge className="mx-auto h-8 w-8 text-muted-foreground" />
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+            {data.message || 'No context breakdown available.'}
+          </p>
+        </div>
+
+        <PlanUsagePanel
+          provider={toUsageProvider(data.provider)}
+          title="Plan usage limits"
+          windowsOnly
+          onViewAll={onShowUsage}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="scrollbar-thin -mr-1 h-full min-h-0 space-y-4 overflow-y-auto pr-1">
+      <div className="rounded-2xl border border-border/70 bg-background/75 p-4">
+        <div className="flex items-baseline justify-between gap-4">
+          <p className="text-sm font-medium text-foreground">
+            {formatNumber(totalTokens)}
+            <span className="text-muted-foreground">
+              {' / '}{formatNumber(ceiling)} tokens{compactsAutomatically ? ' before auto-compact' : ''}
+            </span>
+          </p>
+          <p className="font-mono text-sm text-muted-foreground">
+            {ceiling > 0 ? `${Math.round((totalTokens / ceiling) * 100)}%` : '—'}
+          </p>
+        </div>
+
+        {/* One stacked bar in the CLI's own category colours. */}
+        {spent.length > 0 && ceiling > 0 && (
+          <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+            {spent.map((category) => (
+              <span
+                key={category.name}
+                className={CONTEXT_CATEGORY_COLORS[category.color ?? ''] || 'bg-primary'}
+                style={{ width: `${(category.tokens / ceiling) * 100}%` }}
+                title={`${category.name}: ${formatNumber(category.tokens)}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Without a reading there are no slices to colour, but the total is
+            still known — show it as one bar instead of nothing. */}
+        {spent.length === 0 && ceiling > 0 && totalTokens > 0 && (
+          <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+            <span
+              className="bg-primary"
+              style={{ width: `${Math.min(100, (totalTokens / ceiling) * 100)}%` }}
+            />
+          </div>
+        )}
+
+        <p className="mt-3 text-xs text-muted-foreground">
+          {statusLine}
+          {data.model ? ` Model: ${data.model}.` : ''}
+          {readingAge ? ` ${readingAge}` : ''}
+        </p>
+      </div>
+
+      {breakdown && (
+        <button
+          type="button"
+          onClick={() => setIsBreakdownOpen((previous) => !previous)}
+          aria-expanded={isBreakdownOpen}
+          className="flex w-full items-center justify-between gap-4 rounded-2xl border border-border/70 bg-background/75 p-4 text-left transition-colors hover:bg-muted/40"
+        >
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Full breakdown
+          </span>
+          {isBreakdownOpen ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          )}
+        </button>
+      )}
+
+      {breakdown && isBreakdownOpen && (
+        <>
+          <ContextSection
+            title="What is in the window"
+            entries={spent.map((category) => ({
+              key: category.name,
+              label: category.name,
+              tokens: category.tokens,
+            }))}
+            total={spentTotal}
+          />
+
+          <ContextSection
+            title="Reserved"
+            entries={[
+              { key: 'in-use', label: 'In use (listed above)', tokens: spentTotal },
+              ...reserved.map((category) => ({
+                key: category.name,
+                label: category.name,
+                hint: !compactsAutomatically
+                  ? undefined
+                  : isAutoCompactBuffer(category.name)
+                    ? `Never usable — sits above the ${formatNumber(threshold)} threshold`
+                    : 'Room left before auto-compact fires',
+                tokens: category.tokens,
+              })),
+            ]}
+            total={maxTokens > 0 && windowTotal === maxTokens ? maxTokens : undefined}
+            totalLabel="Context window"
+          />
+
+          <ContextSection
+            title="Not counted — loaded on demand"
+            entries={deferred.map((category) => ({
+              key: category.name,
+              label: category.name,
+              tokens: category.tokens,
+            }))}
+          />
+
+          <ContextSection title="Messages" entries={messageEntries} />
+
+          <ContextSection
+            title="Attachments"
+            entries={named(messages?.attachmentsByType, 'attachment')}
+          />
+
+          <ContextSection
+            title="Memory files"
+            entries={(breakdown?.memoryFiles ?? [])
+              .filter((file) => file.tokens > 0)
+              .map((file) => {
+                const name = file.path.split('/').pop() || file.path;
+                return {
+                  key: file.path,
+                  // The scope the CLI resolved it at (User / Project / Local) is
+                  // what actually tells two CLAUDE.md rows apart.
+                  label: file.type ? `${name} — ${file.type}` : name,
+                  hint: shortenPath(file.path),
+                  tokens: file.tokens,
+                };
+              })}
+          />
+
+          <ContextSection
+            title="MCP tools"
+            entries={(breakdown?.mcpTools ?? [])
+              .filter((tool) => tool.tokens > 0)
+              .map((tool) => ({
+                key: `${tool.serverName ?? ''}-${tool.name}`,
+                label: tool.name,
+                hint: tool.serverName,
+                tokens: tool.tokens,
+              }))}
+          />
+
+          <ContextSection title="System tools" entries={named(breakdown?.systemTools, 'tool')} />
+
+          <ContextSection
+            title="System prompt"
+            entries={named(breakdown?.systemPromptSections, 'prompt')}
+          />
+
+          <ContextSection
+            title="Agents"
+            entries={(breakdown?.agents ?? [])
+              .filter((agent) => agent.tokens > 0)
+              .map((agent) => ({
+                key: agent.name,
+                label: agent.name,
+                hint: agent.source,
+                tokens: agent.tokens,
+              }))}
+          />
+
+          {/* An inventory of what was loaded, not extra consumption: these tokens
+              are already inside the categories above. Skills get their own slice
+              there; slash commands do not, so the hints say where each one landed
+              rather than leaving a number that matches nothing. */}
+          {(breakdown.skills || breakdown.slashCommands) && (
+            <ContextSection
+              title="Loaded on startup — already counted above"
+              entries={[
+                ...(breakdown.skills
+                  ? [{
+                    key: 'skills',
+                    label: `Skills (${breakdown.skills.includedSkills} of ${breakdown.skills.totalSkills})`,
+                    hint: 'Listed above as Skills',
+                    tokens: breakdown.skills.tokens,
+                  }]
+                  : []),
+                ...(breakdown.slashCommands
+                  ? [{
+                    key: 'commands',
+                    label: `Slash commands (${breakdown.slashCommands.includedCommands} of ${breakdown.slashCommands.totalCommands})`,
+                    hint: 'No slice of its own — part of the system prompt',
+                    tokens: breakdown.slashCommands.tokens,
+                  }]
+                  : []),
+              ].filter((entry) => entry.tokens > 0)}
+            />
+          )}
+
+          {data.fetchedAt && (
+            <p className="px-1 text-xs text-muted-foreground">
+              Read from the session at {new Date(data.fetchedAt).toLocaleTimeString()}.
+            </p>
+          )}
+        </>
+      )}
+
+      {/* The context window is one of two ceilings a turn can hit; the plan's
+          own windows are the other, and they are what stops the next message
+          entirely. Claude Code pairs them for the same reason. */}
+      <PlanUsagePanel
+        provider={toUsageProvider(data.provider)}
+        title="Plan usage limits"
+        windowsOnly
+        onViewAll={onShowUsage}
+      />
+    </div>
+  );
+}
+
+function UsageContent({ data }: { data: UsageCommandData }) {
+  const usageProvider = toUsageProvider(data.provider);
   const used = Number(data.tokenUsage?.used ?? 0);
   const total = Number(data.tokenUsage?.total ?? 0);
   const model = data.model || 'Unknown';
@@ -462,7 +954,17 @@ function CostContent({ data }: { data: CostCommandData }) {
 
   return (
     <div className="scrollbar-thin -mr-1 h-full min-h-0 space-y-4 overflow-y-auto pr-1">
+      {/* Plan limits lead: they are what the command is now named for, and they
+          are the number that decides whether the next message can be sent at
+          all. Session token counts are the detail underneath. */}
+      <PlanUsagePanel provider={usageProvider} title="Plan usage" />
+
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/75">
+        <div className="border-b border-border/60 px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            This session
+          </p>
+        </div>
         {usageRows.map((row) => {
           const Icon = row.icon;
 
@@ -482,26 +984,6 @@ function CostContent({ data }: { data: CostCommandData }) {
           );
         })}
       </div>
-
-      {usageProvider && planUsage.usage?.supported !== false && (
-        <div className="rounded-2xl border border-border/70 bg-background/75 p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Plan usage</p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={planUsage.refresh}
-              disabled={planUsage.loading}
-              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
-              aria-label="Refresh plan usage"
-            >
-              <RefreshCw className={planUsage.loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-            </Button>
-          </div>
-          <UsageWindowList usage={planUsage.usage} loading={planUsage.loading} error={planUsage.error} />
-        </div>
-      )}
 
       <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -564,6 +1046,7 @@ export default function CommandResultModal({
   providerModelsRefreshing,
   onHardRefreshProviderModels,
   currentSessionId,
+  onShowUsage,
   onSelectProviderModel,
 }: CommandResultModalProps) {
   const isOpen = Boolean(payload);
@@ -583,10 +1066,10 @@ export default function CommandResultModal({
       subtitle: 'Pick the model this provider should use.',
       icon: Cpu,
     },
-    cost: {
-      eyebrow: 'Session telemetry',
-      title: 'Token Usage',
-      subtitle: 'Token counts for this session, plus your overall plan usage.',
+    usage: {
+      eyebrow: 'Plan & session',
+      title: 'Usage',
+      subtitle: 'Your plan limits and credits, plus token counts for this session.',
       icon: Coins,
     },
     status: {
@@ -594,6 +1077,12 @@ export default function CommandResultModal({
       title: 'System Status',
       subtitle: 'Version, provider, runtime, and environment details in one place.',
       icon: Activity,
+    },
+    context: {
+      eyebrow: 'Session telemetry',
+      title: 'Context Window',
+      subtitle: 'What is filling this session’s context, measured on its last turn, with your plan limits below.',
+      icon: Gauge,
     },
   } as const;
 
@@ -655,8 +1144,11 @@ export default function CommandResultModal({
               onSelectProviderModel={onSelectProviderModel}
             />
           )}
-          {payload?.kind === 'cost' && <CostContent data={payload.data as CostCommandData} />}
+          {payload?.kind === 'usage' && <UsageContent data={payload.data as UsageCommandData} />}
           {payload?.kind === 'status' && <StatusContent data={payload.data as StatusCommandData} />}
+          {payload?.kind === 'context' && (
+            <ContextContent data={payload.data as ContextCommandData} onShowUsage={onShowUsage} />
+          )}
         </div>
 
         <div className="flex shrink-0 flex-col gap-3 border-t border-border/70 bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">

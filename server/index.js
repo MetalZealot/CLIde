@@ -16,6 +16,14 @@ import Database from 'better-sqlite3';
 
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
 import { extractCodexContextTokenUsage } from './shared/codex-token-usage.js';
+import {
+    normalizeClaudeModelId,
+    readClaudeContextWindowOverride,
+    resolveClaudeContextCeiling,
+} from '@/modules/providers/list/claude/claude-context-window.js';
+import { loadClaudeContextCeiling } from '@/modules/providers/list/claude/claude-context-usage.js';
+import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
+import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
 
@@ -1390,12 +1398,12 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         }
         const lines = fileContent.trim().split('\n');
 
-        const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
-        const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160000;
         let inputTokens = 0;
         let outputTokens = 0;
         let cacheReadTokens = 0;
         let cacheCreationTokens = 0;
+        let usageModel = null;
+        let usageTimestamp;
 
         // Find the latest assistant message with real usage data (scan from end).
         // Mirrors extractHistoryTokenUsage in claude-sessions.provider.ts: Claude
@@ -1432,6 +1440,8 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                     cacheCreationTokens = rowCacheCreationTokens;
                     inputTokens = rowInputTokens;
                     outputTokens = readUsageNumber(usage.output_tokens ?? usage.outputTokens);
+                    usageModel = typeof entry.message.model === 'string' ? entry.message.model : null;
+                    usageTimestamp = typeof entry.timestamp === 'string' ? entry.timestamp : undefined;
 
                     break; // Stop after finding the latest real assistant message
                 }
@@ -1444,6 +1454,40 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         const totalUsed = inputTokens + outputTokens;
         const cacheTokens = cacheReadTokens + cacheCreationTokens;
 
+        // The ceiling follows the session's active model. The last real turn
+        // names the model that produced the reading above; a popup pick made
+        // since that turn is what the next turn will actually run, so it wins
+        // on the same recency rule resolveResumeModel uses. Reusing the row we
+        // already scanned keeps this free — no second pass over the transcript.
+        let ceilingModel = usageModel;
+        try {
+            const changedModel = await providerModelsService.getChangedActiveModel('claude', safeSessionId);
+            if (changedModel.supported
+                && changedModel.changed
+                && changedModel.model?.trim()
+                && pickSupersedesTranscript(changedModel.updatedAt, usageTimestamp)) {
+                ceilingModel = changedModel.model.trim();
+            }
+        } catch (error) {
+            // No stored pick, or it is unreadable — the transcript model stands.
+        }
+
+        // If this session has ever streamed a turn, the SDK has already told us
+        // its real ceiling and auto-compact threshold, which beats deriving them
+        // (see claude-context-usage.ts — the reading is persisted, so this
+        // survives a restart and a resume). It is only usable
+        // while it still describes the model the session is on: switching model
+        // changes the window, and the cached reading predates the switch.
+        const cachedCeiling = await loadClaudeContextCeiling(providerNativeSessionId);
+        const cachedModelStillApplies = Boolean(cachedCeiling)
+            && (!ceilingModel
+                || normalizeClaudeModelId(cachedCeiling.model).id === normalizeClaudeModelId(ceilingModel).id);
+        const sdkCeiling = cachedModelStillApplies ? cachedCeiling : null;
+
+        const contextWindow = readClaudeContextWindowOverride()
+            ?? sdkCeiling?.maxTokens
+            ?? resolveClaudeContextCeiling({ model: ceilingModel });
+
         res.json({
             used: totalUsed,
             total: contextWindow,
@@ -1452,6 +1496,8 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
             cacheReadTokens,
             cacheCreationTokens,
             cacheTokens,
+            autoCompactThreshold: sdkCeiling?.autoCompactThreshold,
+            isAutoCompactEnabled: sdkCeiling?.isAutoCompactEnabled,
             breakdown: {
                 input: inputTokens,
                 output: outputTokens

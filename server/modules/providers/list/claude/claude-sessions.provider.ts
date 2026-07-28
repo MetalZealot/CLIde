@@ -7,6 +7,7 @@ import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
+import { resolveClaudeContextCeiling } from './claude-context-window.js';
 import { filterToActiveBranch, type RewindTranscriptEntry } from './claude-rewind.util.js';
 
 const PROVIDER = 'claude';
@@ -68,7 +69,8 @@ function extractHistoryTokenUsage(rawMessages: AnyRecord[]): AnyRecord | undefin
       // Subagent transcripts carry their own, smaller context.
       continue;
     }
-    const usage = (raw?.message as AnyRecord | undefined)?.usage as AnyRecord | undefined;
+    const message = raw?.message as AnyRecord | undefined;
+    const usage = message?.usage as AnyRecord | undefined;
     if (!usage || typeof usage !== 'object') {
       continue;
     }
@@ -80,7 +82,11 @@ function extractHistoryTokenUsage(rawMessages: AnyRecord[]): AnyRecord | undefin
     if (inputTokens <= 0) {
       continue;
     }
-    const contextWindow = Number.parseInt(process.env.CONTEXT_WINDOW ?? '', 10) || 160000;
+    // The ceiling belongs to the model that produced this reading, so it comes
+    // off the same row rather than a global constant.
+    const contextWindow = resolveClaudeContextCeiling({
+      model: typeof message?.model === 'string' ? message.model : undefined,
+    });
     return {
       used: inputTokens + outputTokens,
       total: contextWindow,

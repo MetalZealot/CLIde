@@ -4,6 +4,12 @@ import path from "path";
 
 import express from "express";
 
+import { sessionsDb } from "../modules/database/index.js";
+import { loadClaudeContextCeiling } from "../modules/providers/list/claude/claude-context-usage.js";
+import {
+  readClaudeContextWindowOverride,
+  resolveClaudeContextCeiling,
+} from "../modules/providers/list/claude/claude-context-window.js";
 import { providerModelsService } from "../modules/providers/services/provider-models.service.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
 import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
@@ -92,6 +98,94 @@ export const executeModelsCommand = async (args, context) => {
  * @param {string} namespace - Namespace for commands (e.g., 'project', 'user')
  * @returns {Promise<Array>} Array of command objects
  */
+/**
+ * Backs both `/usage` and its `/cost` alias: the plan's rate-limit windows are
+ * fetched client-side per provider, so this half reports what the *session*
+ * spent. The token numbers arrive from the client's own ring state, which is
+ * why so many shapes are accepted — each provider adapter names them
+ * differently, and history reads carry cumulative variants.
+ */
+const executeUsageCommand = async (args, context) => {
+  const tokenUsage = context?.tokenUsage || {};
+  const provider = readModelProvider(context?.provider);
+  const catalog = (await providerModelsService.getProviderModels(provider)).models;
+  const model = await resolveCommandModel(provider, catalog, context?.sessionId);
+
+  const reportedUsed =
+    Number(
+      tokenUsage.used ?? tokenUsage.totalUsed ?? tokenUsage.total_tokens ?? 0,
+    ) || 0;
+  const total =
+    Number(
+      tokenUsage.total ??
+        tokenUsage.contextWindow ??
+        0,
+    ) || 0;
+  const normalizedInputValue =
+    tokenUsage.inputTokens ??
+    tokenUsage.input ??
+    tokenUsage.cumulativeInputTokens ??
+    tokenUsage.breakdown?.input ??
+    tokenUsage.promptTokens;
+  const directInputTokens =
+    Number(
+      normalizedInputValue ??
+        tokenUsage.input_tokens ??
+        0
+    ) || 0;
+  const cacheReadTokens =
+    Number(
+      tokenUsage.cacheReadTokens ??
+        tokenUsage.cache_read_input_tokens ??
+        tokenUsage.cacheReadInputTokens ??
+        0,
+    ) || 0;
+  const cacheCreationTokens =
+    Number(
+      tokenUsage.cacheCreationTokens ??
+        tokenUsage.cache_creation_input_tokens ??
+        tokenUsage.cacheCreationInputTokens ??
+        0,
+    ) || 0;
+  const inputTokens = normalizedInputValue == null
+    ? directInputTokens + cacheReadTokens + cacheCreationTokens
+    : directInputTokens;
+  const outputTokens =
+    Number(
+      tokenUsage.outputTokens ??
+        tokenUsage.output ??
+        tokenUsage.output_tokens ??
+        tokenUsage.cumulativeOutputTokens ??
+        tokenUsage.breakdown?.output ??
+        tokenUsage.completionTokens ??
+        0,
+    ) || 0;
+  const computedUsed = inputTokens + outputTokens;
+  const hasTokenBreakdown = computedUsed > 0;
+  const used = Math.max(reportedUsed, computedUsed);
+
+  return {
+    type: "builtin",
+    action: "usage",
+    data: {
+      tokenUsage: {
+        used,
+        total,
+      },
+      ...(hasTokenBreakdown
+        ? {
+            tokenBreakdown: {
+              input: inputTokens,
+              output: outputTokens,
+            },
+          }
+        : {}),
+      provider,
+      model,
+    },
+  };
+};
+
 async function scanCommandsDirectory(dir, baseDir, namespace) {
   const commands = [];
 
@@ -172,8 +266,14 @@ const builtInCommands = [
     metadata: { type: "builtin" },
   },
   {
-    name: "/cost",
-    description: "Display token usage information",
+    name: "/usage",
+    description: "Show plan limits and this session's token usage",
+    namespace: "builtin",
+    metadata: { type: "builtin" },
+  },
+  {
+    name: "/context",
+    description: "Show what is filling the context window",
     namespace: "builtin",
     metadata: { type: "builtin" },
   },
@@ -201,7 +301,7 @@ const builtInCommands = [
  * Built-in command handlers
  * Each handler returns { type: 'builtin', action: string, data: any }
  */
-const builtInHandlers = {
+export const builtInHandlers = {
   "/help": async (args, context) => {
     const helpText = `# Claude Code Commands
 
@@ -251,86 +351,11 @@ Custom commands can be created in:
 
   "/models": executeModelsCommand,
 
-  "/cost": async (args, context) => {
-    const tokenUsage = context?.tokenUsage || {};
-    const provider = readModelProvider(context?.provider);
-    const catalog = (await providerModelsService.getProviderModels(provider)).models;
-    const model = await resolveCommandModel(provider, catalog, context?.sessionId);
-
-    const reportedUsed =
-      Number(
-        tokenUsage.used ?? tokenUsage.totalUsed ?? tokenUsage.total_tokens ?? 0,
-      ) || 0;
-    const total =
-      Number(
-        tokenUsage.total ??
-          tokenUsage.contextWindow ??
-          0,
-      ) || 0;
-    const normalizedInputValue =
-      tokenUsage.inputTokens ??
-      tokenUsage.input ??
-      tokenUsage.cumulativeInputTokens ??
-      tokenUsage.breakdown?.input ??
-      tokenUsage.promptTokens;
-    const directInputTokens =
-      Number(
-        normalizedInputValue ??
-          tokenUsage.input_tokens ??
-          0
-      ) || 0;
-    const cacheReadTokens =
-      Number(
-        tokenUsage.cacheReadTokens ??
-          tokenUsage.cache_read_input_tokens ??
-          tokenUsage.cacheReadInputTokens ??
-          0,
-      ) || 0;
-    const cacheCreationTokens =
-      Number(
-        tokenUsage.cacheCreationTokens ??
-          tokenUsage.cache_creation_input_tokens ??
-          tokenUsage.cacheCreationInputTokens ??
-          0,
-      ) || 0;
-    const inputTokens = normalizedInputValue == null
-      ? directInputTokens + cacheReadTokens + cacheCreationTokens
-      : directInputTokens;
-    const outputTokens =
-      Number(
-        tokenUsage.outputTokens ??
-          tokenUsage.output ??
-          tokenUsage.output_tokens ??
-          tokenUsage.cumulativeOutputTokens ??
-          tokenUsage.breakdown?.output ??
-          tokenUsage.completionTokens ??
-          0,
-      ) || 0;
-    const computedUsed = inputTokens + outputTokens;
-    const hasTokenBreakdown = computedUsed > 0;
-    const used = Math.max(reportedUsed, computedUsed);
-
-    return {
-      type: "builtin",
-      action: "cost",
-      data: {
-        tokenUsage: {
-          used,
-          total,
-        },
-        ...(hasTokenBreakdown
-          ? {
-              tokenBreakdown: {
-                input: inputTokens,
-                output: outputTokens,
-              },
-            }
-          : {}),
-        provider,
-        model,
-      },
-    };
-  },
+  "/usage": executeUsageCommand,
+  // Claude Code retired /cost in favour of /usage; keep the old name working
+  // for muscle memory (and for a browser tab left open across the deploy).
+  // Deliberately absent from `builtInCommands`, so the menu offers one name.
+  "/cost": executeUsageCommand,
 
   "/status": async (args, context) => {
     // Read version from package.json
@@ -379,6 +404,88 @@ Custom commands can be created in:
           heapUsedMb: Math.round(memoryUsage.heapUsed / 1024 / 1024),
           heapTotalMb: Math.round(memoryUsage.heapTotal / 1024 / 1024),
         },
+      },
+    };
+  },
+
+  "/context": async (args, context) => {
+    const provider = readModelProvider(context?.provider);
+
+    // Only Claude reports a context breakdown. Rather than hide the command per
+    // provider, say so plainly — the same way an unsupported provider usage
+    // response is handled.
+    if (provider !== "claude") {
+      return {
+        type: "builtin",
+        action: "context",
+        data: {
+          provider,
+          unsupported: true,
+          message: `${MODEL_PROVIDER_LABELS[provider] || provider} does not report a context breakdown`,
+        },
+      };
+    }
+
+    // The reading is stored against the id the provider uses on disk, which is
+    // what claude-sdk.js sees during a turn; the client sends the app-facing id.
+    const sessionRow = hasConcreteSessionId(context?.sessionId)
+      ? sessionsDb.getSessionById(context.sessionId.trim())
+      : null;
+    const providerSessionId = sessionRow?.provider_session_id || context?.sessionId;
+    const ceiling = await loadClaudeContextCeiling(providerSessionId);
+
+    // Usage as the ring knows it, from its own transcript scan. Only used when
+    // there is no reading: the two disagree by a few hundred tokens (different
+    // extractions of the same turn), and a view that shows one number in the
+    // headline and a breakdown of the other adds up to nothing.
+    const usedTokens =
+      Number(context?.tokenUsage?.used ?? context?.tokenUsage?.totalUsed ?? 0) || 0;
+
+    if (ceiling) {
+      return {
+        type: "builtin",
+        action: "context",
+        data: {
+          provider,
+          detail: "full",
+          model: ceiling.model || null,
+          // The reading's own total: it is exactly the sum of the non-deferred,
+          // non-reserved categories rendered below.
+          usedTokens: ceiling.totalTokens ?? 0,
+          totalTokens: ceiling.totalTokens ?? 0,
+          maxTokens: ceiling.maxTokens,
+          percentage: ceiling.percentage ?? null,
+          autoCompactThreshold: ceiling.autoCompactThreshold ?? null,
+          isAutoCompactEnabled: ceiling.isAutoCompactEnabled,
+          fetchedAt: ceiling.fetchedAt,
+          breakdown: ceiling.breakdown || null,
+        },
+      };
+    }
+
+    // No reading was ever taken for this session — it has not streamed a turn
+    // since the feature shipped. The per-category breakdown genuinely cannot be
+    // reconstructed without one, but the headline can: the ceiling derives from
+    // the model, and usage comes from the same scan that feeds the ring. Show
+    // that rather than an empty modal.
+    const catalog = (await providerModelsService.getProviderModels(provider)).models;
+    const model = await resolveCommandModel(provider, catalog, context?.sessionId);
+    const ringCeiling = Number(context?.tokenUsage?.total ?? 0) || 0;
+    const maxTokens =
+      readClaudeContextWindowOverride()
+      ?? (ringCeiling || resolveClaudeContextCeiling({ model }));
+
+    return {
+      type: "builtin",
+      action: "context",
+      data: {
+        provider,
+        detail: "headline",
+        model: model || null,
+        usedTokens,
+        maxTokens,
+        // Ends in a full stop: the modal appends " Model: …" after it.
+        message: "Send a message to see what is filling the window.",
       },
     };
   },
