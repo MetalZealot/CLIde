@@ -162,6 +162,17 @@ export class ClaudeProviderUsage implements IProviderUsage {
     }
 
     const credentials = await readClaudeOAuthCredentials();
+    if (credentials.status === 'stale') {
+      // The login is intact, but this access token would 401 against the usage
+      // endpoint until Claude Code renews it. Reported as a plain error rather
+      // than `not_authenticated` so the panel keeps showing cached windows.
+      return {
+        provider: 'claude',
+        supported: true,
+        error: 'Claude\'s access token expired while idle. Send a message to refresh it.',
+      };
+    }
+
     if (credentials.status !== 'ok') {
       return {
         provider: 'claude',

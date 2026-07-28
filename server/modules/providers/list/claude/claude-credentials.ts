@@ -6,6 +6,7 @@ import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
 export type ClaudeOAuthCredentials =
   | { status: 'ok'; accessToken: string; email: string | null }
+  | { status: 'stale'; accessToken: string; email: string | null }
   | { status: 'expired' }
   | { status: 'missing' }
   | { status: 'unreadable'; reason: 'parse' | 'io' };
@@ -49,6 +50,12 @@ export const hasClaudeApiKeyAuth = async (): Promise<boolean> => {
  *
  * The token never leaves the server process; callers use it for status checks
  * and first-party API calls only.
+ *
+ * Access tokens last ~8 hours, but Claude Code silently renews them from the
+ * refresh token (valid for weeks) on the next turn. An expired access token
+ * with a live refresh token is therefore `stale`, not a logged-out account:
+ * first-party API calls will 401 until something refreshes it, yet the login
+ * itself is intact. Only a missing/expired refresh token means `expired`.
  */
 export const readClaudeOAuthCredentials = async (): Promise<ClaudeOAuthCredentials> => {
   try {
@@ -62,12 +69,19 @@ export const readClaudeOAuthCredentials = async (): Promise<ClaudeOAuthCredentia
       return { status: 'missing' };
     }
 
+    const email = readOptionalString(creds.email) ?? readOptionalString(creds.user) ?? null;
+
     const expiresAt = typeof oauth?.expiresAt === 'number' ? oauth.expiresAt : undefined;
     if (expiresAt && Date.now() >= expiresAt) {
-      return { status: 'expired' };
+      const refreshTokenExpiresAt = typeof oauth?.refreshTokenExpiresAt === 'number'
+        ? oauth.refreshTokenExpiresAt
+        : undefined;
+      const refreshable = Boolean(readOptionalString(oauth?.refreshToken))
+        && (refreshTokenExpiresAt === undefined || Date.now() < refreshTokenExpiresAt);
+
+      return refreshable ? { status: 'stale', accessToken, email } : { status: 'expired' };
     }
 
-    const email = readOptionalString(creds.email) ?? readOptionalString(creds.user) ?? null;
     return { status: 'ok', accessToken, email };
   } catch (error) {
     if (hasErrorCode(error, 'ENOENT')) {

@@ -85,7 +85,11 @@ export class ClaudeProviderAuth implements IProviderAuth {
     const oauthCredentials = await readClaudeOAuthCredentials();
 
     switch (oauthCredentials.status) {
+      // `stale` = the 8-hour access token lapsed while idle, but the refresh
+      // token is live and Claude Code renews it on the next turn. Reporting
+      // that as logged out sent users to a /login they didn't need.
       case 'ok':
+      case 'stale':
         return {
           authenticated: true,
           email: oauthCredentials.email,
