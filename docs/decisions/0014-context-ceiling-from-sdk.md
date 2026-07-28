@@ -1,4 +1,4 @@
-# 0013 — The context ring's ceiling is read from the SDK, not derived
+# 0014 — The context ring's ceiling is read from the SDK, not derived
 
 - Date: 2026-07-27
 - Status: Accepted

@@ -1,4 +1,4 @@
-# 0014 — The composer ring opens `/context`; `/cost` became `/usage`
+# 0015 — The composer ring opens `/context`; `/cost` became `/usage`
 
 - Date: 2026-07-27
 - Status: Accepted
@@ -36,7 +36,7 @@ an oversight from the outside:
 ## Why
 
 **The ring is a context gauge, so it should open the thing it measures.** Its
-number is tokens-in-window over the auto-compact threshold (ADR 0013) — nothing
+number is tokens-in-window over the auto-compact threshold (ADR 0014) — nothing
 about spend. Pointing it at `/cost` was a historical accident: the ring predated
 `/context`, so it opened the only panel that existed.
 
