@@ -131,7 +131,9 @@
       "newFolder": "New Folder",
       "refresh": "Refresh",
       "menuLabel": "File context menu",
-      "loading": "Loading..."
+      "loading": "Loading...",
+      "select": "Select",
+      "moveCount": "Move {{total}} items…"
     },
     "move": {
       "title": "Move to folder",
@@ -139,10 +141,25 @@
       "currentLocation": "Current",
       "confirm": "Move",
       "expand": "Expand",
-      "collapse": "Collapse"
+      "collapse": "Collapse",
+      "titleCount": "Move {{total}} items",
+      "andMore": "{{names}} and {{total}} more",
+      "foldersIncludeContents": "Selected folders move with everything inside them."
     },
     "toast": {
-      "moved": "Moved successfully"
+      "moved": "Moved successfully",
+      "movedCount": "Moved {{total}} items",
+      "moveFailed": "Failed to move",
+      "movedSomeSkipped": "{{message}} ({{skipped}} already there)"
+    },
+    "treeLabel": "Project files",
+    "selection": {
+      "start": "Select items",
+      "exit": "Cancel selection",
+      "count": "{{total}} selected",
+      "move": "Move selected items",
+      "selectAll": "All",
+      "selectAllVisible": "Select all visible items"
     }
   },
   "projectWizard": {

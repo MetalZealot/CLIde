@@ -199,10 +199,12 @@ export const api = {
       body: JSON.stringify({ oldPath, newName }),
     }),
 
-  moveFile: (projectId, { sourcePath, destinationPath }) =>
+  // Always sends the batch shape; the server still accepts the older singular
+  // `sourcePath` body, but there is no reason for new client code to use it.
+  moveFiles: (projectId, { sourcePaths, destinationPath }) =>
     authenticatedFetch(`/api/projects/${projectId}/files/move`, {
       method: 'PUT',
-      body: JSON.stringify({ sourcePath, destinationPath }),
+      body: JSON.stringify({ sourcePaths, destinationPath }),
     }),
 
   deleteFile: (projectId, { path, type }) =>

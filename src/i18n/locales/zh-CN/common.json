@@ -131,7 +131,9 @@
       "newFolder": "新建文件夹",
       "refresh": "刷新",
       "menuLabel": "文件上下文菜单",
-      "loading": "加载中..."
+      "loading": "加载中...",
+      "select": "选择",
+      "moveCount": "移动 {{total}} 项…"
     },
     "move": {
       "title": "移动到文件夹",
@@ -139,10 +141,25 @@
       "currentLocation": "当前位置",
       "confirm": "移动",
       "expand": "展开",
-      "collapse": "折叠"
+      "collapse": "折叠",
+      "titleCount": "移动 {{total}} 项",
+      "andMore": "{{names}} 等 {{total}} 项",
+      "foldersIncludeContents": "所选文件夹将连同其全部内容一起移动。"
     },
     "toast": {
-      "moved": "移动成功"
+      "moved": "移动成功",
+      "movedCount": "已移动 {{total}} 项",
+      "moveFailed": "移动失败",
+      "movedSomeSkipped": "{{message}}（{{skipped}} 项已在该位置）"
+    },
+    "treeLabel": "项目文件",
+    "selection": {
+      "start": "选择项目",
+      "exit": "取消选择",
+      "count": "已选 {{total}} 项",
+      "move": "移动所选项",
+      "selectAll": "全选",
+      "selectAllVisible": "选中所有可见项"
     }
   },
   "projectWizard": {

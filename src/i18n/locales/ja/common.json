@@ -131,7 +131,9 @@
       "newFolder": "新しいフォルダ",
       "refresh": "更新",
       "menuLabel": "ファイルのコンテキストメニュー",
-      "loading": "読み込み中..."
+      "loading": "読み込み中...",
+      "select": "選択",
+      "moveCount": "{{total}} 件を移動…"
     },
     "move": {
       "title": "フォルダへ移動",
@@ -139,10 +141,25 @@
       "currentLocation": "現在の場所",
       "confirm": "移動",
       "expand": "展開",
-      "collapse": "折りたたむ"
+      "collapse": "折りたたむ",
+      "titleCount": "{{total}} 件を移動",
+      "andMore": "{{names}} 他 {{total}} 件",
+      "foldersIncludeContents": "選択したフォルダーは中身ごと移動します。"
     },
     "toast": {
-      "moved": "移動しました"
+      "moved": "移動しました",
+      "movedCount": "{{total}} 件を移動しました",
+      "moveFailed": "移動に失敗しました",
+      "movedSomeSkipped": "{{message}}（{{skipped}} 件は移動済み）"
+    },
+    "treeLabel": "プロジェクトファイル",
+    "selection": {
+      "start": "項目を選択",
+      "exit": "選択をキャンセル",
+      "count": "{{total}} 件選択中",
+      "move": "選択した項目を移動",
+      "selectAll": "すべて",
+      "selectAllVisible": "表示中の項目をすべて選択"
     }
   },
   "projectWizard": {

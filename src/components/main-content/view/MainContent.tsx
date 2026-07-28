@@ -70,6 +70,7 @@ function MainContent({
     hasManualWidth,
     resizeHandleRef,
     handleFileOpen,
+    handleFilePathsChanged,
     handleCloseEditor,
     handleToggleEditorExpand,
     handleResizeStart,
@@ -183,7 +184,13 @@ function MainContent({
 
           {activeTab === 'files' && (
             <div className="h-full overflow-hidden">
-              <FileTree selectedProject={selectedProject} onFileOpen={handleFileOpen} />
+              <FileTree
+                selectedProject={selectedProject}
+                onFileOpen={handleFileOpen}
+                // Keeps the open editor bound to a file the Files tab just
+                // moved or renamed, instead of saving back to the old path.
+                onFilePathsChange={handleFilePathsChanged}
+              />
             </div>
           )}
 

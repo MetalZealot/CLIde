@@ -131,7 +131,9 @@
       "newFolder": "새 폴더",
       "refresh": "새로 고침",
       "menuLabel": "파일 컨텍스트 메뉴",
-      "loading": "로딩 중..."
+      "loading": "로딩 중...",
+      "select": "선택",
+      "moveCount": "{{total}}개 항목 이동…"
     },
     "move": {
       "title": "폴더로 이동",
@@ -139,10 +141,25 @@
       "currentLocation": "현재 위치",
       "confirm": "이동",
       "expand": "펼치기",
-      "collapse": "접기"
+      "collapse": "접기",
+      "titleCount": "{{total}}개 항목 이동",
+      "andMore": "{{names}} 외 {{total}}개",
+      "foldersIncludeContents": "선택한 폴더는 내부 항목과 함께 이동됩니다."
     },
     "toast": {
-      "moved": "이동했습니다"
+      "moved": "이동했습니다",
+      "movedCount": "{{total}}개 항목을 이동했습니다",
+      "moveFailed": "이동하지 못했습니다",
+      "movedSomeSkipped": "{{message}} ({{skipped}}개는 이미 있음)"
+    },
+    "treeLabel": "프로젝트 파일",
+    "selection": {
+      "start": "항목 선택",
+      "exit": "선택 취소",
+      "count": "{{total}}개 선택됨",
+      "move": "선택한 항목 이동",
+      "selectAll": "전체",
+      "selectAllVisible": "보이는 항목 모두 선택"
     }
   },
   "projectWizard": {

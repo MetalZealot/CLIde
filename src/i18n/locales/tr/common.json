@@ -130,7 +130,28 @@
       "newFolder": "Yeni Klasör",
       "refresh": "Yenile",
       "menuLabel": "Dosya bağlam menüsü",
-      "loading": "Yükleniyor..."
+      "loading": "Yükleniyor...",
+      "select": "Seç",
+      "moveCount": "{{total}} öğeyi taşı…"
+    },
+    "treeLabel": "Proje dosyaları",
+    "selection": {
+      "start": "Öğeleri seç",
+      "exit": "Seçimi iptal et",
+      "count": "{{total}} seçildi",
+      "move": "Seçili öğeleri taşı",
+      "selectAll": "Tümü",
+      "selectAllVisible": "Görünen tüm öğeleri seç"
+    },
+    "move": {
+      "titleCount": "{{total}} öğeyi taşı",
+      "andMore": "{{names}} ve {{total}} tane daha",
+      "foldersIncludeContents": "Seçilen klasörler içindeki her şeyle birlikte taşınır."
+    },
+    "toast": {
+      "movedCount": "{{total}} öğe taşındı",
+      "moveFailed": "Taşıma başarısız",
+      "movedSomeSkipped": "{{message}} ({{skipped}} tanesi zaten orada)"
     }
   },
   "projectWizard": {

@@ -1,90 +1,33 @@
-import type { ReactNode, RefObject } from 'react';
-import type { FileTreeNode as FileTreeNodeType, FileTreeViewMode } from '../types/types';
-import type { FileTreeDragMove } from '../hooks/useFileTreeDragMove';
-import FileTreeNode from './FileTreeNode';
+import type { KeyboardEvent } from 'react';
+import type { FileTreeNode as FileTreeNodeType } from '../types/types';
+import FileTreeNode, { type FileTreeSharedRowProps } from './FileTreeNode';
 
 type FileTreeListProps = {
   items: FileTreeNodeType[];
-  viewMode: FileTreeViewMode;
-  expandedDirs: Set<string>;
-  onItemClick: (item: FileTreeNodeType) => void;
-  renderFileIcon: (filename: string) => ReactNode;
-  formatFileSize: (bytes?: number) => string;
-  formatRelativeTime: (date?: string) => string;
-  onRename?: (item: FileTreeNodeType) => void;
-  onMove?: (item: FileTreeNodeType) => void;
-  onDelete?: (item: FileTreeNodeType) => void;
-  onNewFile?: (path: string) => void;
-  onNewFolder?: (path: string) => void;
-  onCopyPath?: (item: FileTreeNodeType) => void;
-  onDownload?: (item: FileTreeNodeType) => void;
-  onRefresh?: () => void;
-  dragMove?: FileTreeDragMove;
-  // Rename state for inline editing
-  renamingItem?: FileTreeNodeType | null;
-  renameValue?: string;
-  setRenameValue?: (value: string) => void;
-  handleConfirmRename?: () => void;
-  handleCancelRename?: () => void;
-  renameInputRef?: RefObject<HTMLInputElement>;
-  operationLoading?: boolean;
+  rowProps: FileTreeSharedRowProps;
+  treeLabel: string;
+  isMultiSelectable: boolean;
+  onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
 };
 
 export default function FileTreeList({
   items,
-  viewMode,
-  expandedDirs,
-  onItemClick,
-  renderFileIcon,
-  formatFileSize,
-  formatRelativeTime,
-  onRename,
-  onMove,
-  onDelete,
-  onNewFile,
-  onNewFolder,
-  onCopyPath,
-  onDownload,
-  onRefresh,
-  dragMove,
-  renamingItem,
-  renameValue,
-  setRenameValue,
-  handleConfirmRename,
-  handleCancelRename,
-  renameInputRef,
-  operationLoading,
+  rowProps,
+  treeLabel,
+  isMultiSelectable,
+  onKeyDown,
 }: FileTreeListProps) {
   return (
-    <div>
+    // Keyboard is handled once for the whole tree rather than per row: arrow
+    // navigation needs the flattened visible order, which only `FileTree` has.
+    <div
+      role="tree"
+      aria-label={treeLabel}
+      aria-multiselectable={isMultiSelectable}
+      onKeyDown={onKeyDown}
+    >
       {items.map((item) => (
-        <FileTreeNode
-          key={item.path}
-          item={item}
-          level={0}
-          viewMode={viewMode}
-          expandedDirs={expandedDirs}
-          onItemClick={onItemClick}
-          renderFileIcon={renderFileIcon}
-          formatFileSize={formatFileSize}
-          formatRelativeTime={formatRelativeTime}
-          onRename={onRename}
-          onMove={onMove}
-          onDelete={onDelete}
-          onNewFile={onNewFile}
-          onNewFolder={onNewFolder}
-          onCopyPath={onCopyPath}
-          onDownload={onDownload}
-          onRefresh={onRefresh}
-          dragMove={dragMove}
-          renamingItem={renamingItem}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          handleConfirmRename={handleConfirmRename}
-          handleCancelRename={handleCancelRename}
-          renameInputRef={renameInputRef}
-          operationLoading={operationLoading}
-        />
+        <FileTreeNode key={item.path} item={item} level={0} {...rowProps} />
       ))}
     </div>
   );
