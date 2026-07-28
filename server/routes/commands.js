@@ -98,6 +98,94 @@ export const executeModelsCommand = async (args, context) => {
  * @param {string} namespace - Namespace for commands (e.g., 'project', 'user')
  * @returns {Promise<Array>} Array of command objects
  */
+/**
+ * Backs both `/usage` and its `/cost` alias: the plan's rate-limit windows are
+ * fetched client-side per provider, so this half reports what the *session*
+ * spent. The token numbers arrive from the client's own ring state, which is
+ * why so many shapes are accepted — each provider adapter names them
+ * differently, and history reads carry cumulative variants.
+ */
+const executeUsageCommand = async (args, context) => {
+  const tokenUsage = context?.tokenUsage || {};
+  const provider = readModelProvider(context?.provider);
+  const catalog = (await providerModelsService.getProviderModels(provider)).models;
+  const model = await resolveCommandModel(provider, catalog, context?.sessionId);
+
+  const reportedUsed =
+    Number(
+      tokenUsage.used ?? tokenUsage.totalUsed ?? tokenUsage.total_tokens ?? 0,
+    ) || 0;
+  const total =
+    Number(
+      tokenUsage.total ??
+        tokenUsage.contextWindow ??
+        0,
+    ) || 0;
+  const normalizedInputValue =
+    tokenUsage.inputTokens ??
+    tokenUsage.input ??
+    tokenUsage.cumulativeInputTokens ??
+    tokenUsage.breakdown?.input ??
+    tokenUsage.promptTokens;
+  const directInputTokens =
+    Number(
+      normalizedInputValue ??
+        tokenUsage.input_tokens ??
+        0
+    ) || 0;
+  const cacheReadTokens =
+    Number(
+      tokenUsage.cacheReadTokens ??
+        tokenUsage.cache_read_input_tokens ??
+        tokenUsage.cacheReadInputTokens ??
+        0,
+    ) || 0;
+  const cacheCreationTokens =
+    Number(
+      tokenUsage.cacheCreationTokens ??
+        tokenUsage.cache_creation_input_tokens ??
+        tokenUsage.cacheCreationInputTokens ??
+        0,
+    ) || 0;
+  const inputTokens = normalizedInputValue == null
+    ? directInputTokens + cacheReadTokens + cacheCreationTokens
+    : directInputTokens;
+  const outputTokens =
+    Number(
+      tokenUsage.outputTokens ??
+        tokenUsage.output ??
+        tokenUsage.output_tokens ??
+        tokenUsage.cumulativeOutputTokens ??
+        tokenUsage.breakdown?.output ??
+        tokenUsage.completionTokens ??
+        0,
+    ) || 0;
+  const computedUsed = inputTokens + outputTokens;
+  const hasTokenBreakdown = computedUsed > 0;
+  const used = Math.max(reportedUsed, computedUsed);
+
+  return {
+    type: "builtin",
+    action: "usage",
+    data: {
+      tokenUsage: {
+        used,
+        total,
+      },
+      ...(hasTokenBreakdown
+        ? {
+            tokenBreakdown: {
+              input: inputTokens,
+              output: outputTokens,
+            },
+          }
+        : {}),
+      provider,
+      model,
+    },
+  };
+};
+
 async function scanCommandsDirectory(dir, baseDir, namespace) {
   const commands = [];
 
@@ -178,8 +266,8 @@ const builtInCommands = [
     metadata: { type: "builtin" },
   },
   {
-    name: "/cost",
-    description: "Display token usage information",
+    name: "/usage",
+    description: "Show plan limits and this session's token usage",
     namespace: "builtin",
     metadata: { type: "builtin" },
   },
@@ -213,7 +301,7 @@ const builtInCommands = [
  * Built-in command handlers
  * Each handler returns { type: 'builtin', action: string, data: any }
  */
-const builtInHandlers = {
+export const builtInHandlers = {
   "/help": async (args, context) => {
     const helpText = `# Claude Code Commands
 
@@ -263,86 +351,11 @@ Custom commands can be created in:
 
   "/models": executeModelsCommand,
 
-  "/cost": async (args, context) => {
-    const tokenUsage = context?.tokenUsage || {};
-    const provider = readModelProvider(context?.provider);
-    const catalog = (await providerModelsService.getProviderModels(provider)).models;
-    const model = await resolveCommandModel(provider, catalog, context?.sessionId);
-
-    const reportedUsed =
-      Number(
-        tokenUsage.used ?? tokenUsage.totalUsed ?? tokenUsage.total_tokens ?? 0,
-      ) || 0;
-    const total =
-      Number(
-        tokenUsage.total ??
-          tokenUsage.contextWindow ??
-          0,
-      ) || 0;
-    const normalizedInputValue =
-      tokenUsage.inputTokens ??
-      tokenUsage.input ??
-      tokenUsage.cumulativeInputTokens ??
-      tokenUsage.breakdown?.input ??
-      tokenUsage.promptTokens;
-    const directInputTokens =
-      Number(
-        normalizedInputValue ??
-          tokenUsage.input_tokens ??
-          0
-      ) || 0;
-    const cacheReadTokens =
-      Number(
-        tokenUsage.cacheReadTokens ??
-          tokenUsage.cache_read_input_tokens ??
-          tokenUsage.cacheReadInputTokens ??
-          0,
-      ) || 0;
-    const cacheCreationTokens =
-      Number(
-        tokenUsage.cacheCreationTokens ??
-          tokenUsage.cache_creation_input_tokens ??
-          tokenUsage.cacheCreationInputTokens ??
-          0,
-      ) || 0;
-    const inputTokens = normalizedInputValue == null
-      ? directInputTokens + cacheReadTokens + cacheCreationTokens
-      : directInputTokens;
-    const outputTokens =
-      Number(
-        tokenUsage.outputTokens ??
-          tokenUsage.output ??
-          tokenUsage.output_tokens ??
-          tokenUsage.cumulativeOutputTokens ??
-          tokenUsage.breakdown?.output ??
-          tokenUsage.completionTokens ??
-          0,
-      ) || 0;
-    const computedUsed = inputTokens + outputTokens;
-    const hasTokenBreakdown = computedUsed > 0;
-    const used = Math.max(reportedUsed, computedUsed);
-
-    return {
-      type: "builtin",
-      action: "cost",
-      data: {
-        tokenUsage: {
-          used,
-          total,
-        },
-        ...(hasTokenBreakdown
-          ? {
-              tokenBreakdown: {
-                input: inputTokens,
-                output: outputTokens,
-              },
-            }
-          : {}),
-        provider,
-        model,
-      },
-    };
-  },
+  "/usage": executeUsageCommand,
+  // Claude Code retired /cost in favour of /usage; keep the old name working
+  // for muscle memory (and for a browser tab left open across the deploy).
+  // Deliberately absent from `builtInCommands`, so the menu offers one name.
+  "/cost": executeUsageCommand,
 
   "/status": async (args, context) => {
     // Read version from package.json

@@ -74,7 +74,8 @@ interface ChatComposerProps {
   availableEffortOptions: NonNullable<ProviderModelOption['effort']>['values'];
   onSelectEffort: (effort: string) => void;
   tokenBudget: Record<string, unknown> | null;
-  onShowTokenUsage: () => void;
+  /** Opens the context-window panel — what the ring is a gauge of. */
+  onShowContext: () => void;
   provider?: string;
   onToggleCommandMenu: () => void;
   hasInput: boolean;
@@ -144,7 +145,7 @@ export default function ChatComposer({
   availableEffortOptions,
   onSelectEffort,
   tokenBudget,
-  onShowTokenUsage,
+  onShowContext,
   provider,
   onToggleCommandMenu,
   hasInput,
@@ -586,7 +587,7 @@ export default function ChatComposer({
 
             <OnCreditsBadge provider={provider} />
 
-            <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} provider={provider} />
+            <TokenUsageSummary usage={tokenBudget} onClick={onShowContext} provider={provider} />
 
             <PromptInputButton
               tooltip={{ content: t('input.showAllCommands') }}

@@ -17,6 +17,14 @@ type UsageWindowListProps = {
   usage: ProviderUsageStatus | null;
   loading: boolean;
   error: string | null;
+  /**
+   * Render only the rate-limit windows (the 5-hour/weekly bars), dropping
+   * credits, reset credits, and account activity. The context panel embeds the
+   * limits as a footer under the context breakdown, where the rest of the
+   * account picture would bury what the panel is actually about; the full view
+   * still lives in `/usage` and Settings.
+   */
+  windowsOnly?: boolean;
 };
 
 const KNOWN_WINDOW_LABELS: Record<string, { key: string; defaultValue: string }> = {
@@ -401,7 +409,12 @@ function UsageActivitySection({ activity }: { activity: ProviderUsageActivity })
  * optional account activity. Renders nothing when the provider/auth method has
  * no usage data; callers decide whether to show an explanatory note instead.
  */
-export default function UsageWindowList({ usage, loading, error }: UsageWindowListProps) {
+export default function UsageWindowList({
+  usage,
+  loading,
+  error,
+  windowsOnly = false,
+}: UsageWindowListProps) {
   const { t } = useTranslation('common');
 
   if (loading && !usage) {
@@ -433,9 +446,9 @@ export default function UsageWindowList({ usage, loading, error }: UsageWindowLi
   }
 
   const windows = usage.windows ?? [];
-  const credits = usage.credits ?? null;
-  const resetCredits = usage.resetCredits ?? null;
-  const activity = usage.activity ?? null;
+  const credits = windowsOnly ? null : usage.credits ?? null;
+  const resetCredits = windowsOnly ? null : usage.resetCredits ?? null;
+  const activity = windowsOnly ? null : usage.activity ?? null;
   if (windows.length === 0 && !credits && !resetCredits && !activity) {
     return (
       <p className="text-sm text-muted-foreground">

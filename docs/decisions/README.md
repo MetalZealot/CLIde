@@ -51,3 +51,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0011 — Codex App Server is the opt-in interactive Chat transport](0011-codex-app-server-chat-transport.md)
 - [0012 — Codex rewind replaces a stable session; fork creates another](0012-codex-rewind-and-fork-session-identity.md)
 - [0013 — The context ring's ceiling is read from the SDK, not derived](0013-context-ceiling-from-sdk.md)
+- [0014 — The composer ring opens `/context`; `/cost` became `/usage`](0014-ring-opens-context-and-usage-rename.md)

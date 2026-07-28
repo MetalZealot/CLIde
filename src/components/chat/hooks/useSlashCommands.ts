@@ -99,7 +99,7 @@ const isTouchEnvironment = () =>
 const isPromiseLike = (value: unknown): value is Promise<unknown> =>
   Boolean(value) && typeof (value as Promise<unknown>).then === 'function';
 
-// Built-ins (/help, /models, /cost, /memory, /config, /status) take no
+// Built-ins (/help, /models, /usage, /memory, /config, /status) take no
 // arguments and only display data or open a panel, so it's safe to run them
 // straight from the menu instead of making the user press Enter again.
 const isBuiltInCommand = (command: SlashCommand) =>

@@ -111,7 +111,7 @@ export type ModelCommandData = {
   cache?: ProviderModelsCacheInfo;
 };
 
-export type CostCommandData = {
+export type UsageCommandData = {
   tokenUsage?: {
     used?: number;
     total?: number;
@@ -201,11 +201,11 @@ export type ContextCommandData = {
   } | null;
 };
 
-export type CommandModalKind = 'help' | 'models' | 'cost' | 'status' | 'context';
+export type CommandModalKind = 'help' | 'models' | 'usage' | 'status' | 'context';
 
 export type CommandModalPayload = {
   kind: CommandModalKind;
-  data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData | ContextCommandData;
+  data: HelpCommandData | ModelCommandData | UsageCommandData | StatusCommandData | ContextCommandData;
 };
 
 const createFakeSubmitEvent = () => {
@@ -359,10 +359,13 @@ export function useChatComposerState({
           });
           break;
 
-        case 'cost': {
+        // `cost` is the pre-rename action name: a browser tab left open across
+        // the deploy still asks for it, and `/cost` survives as a command alias.
+        case 'cost':
+        case 'usage': {
           setCommandModalPayload({
-            kind: 'cost',
-            data: (data || {}) as CostCommandData,
+            kind: 'usage',
+            data: (data || {}) as UsageCommandData,
           });
           break;
         }
@@ -631,15 +634,15 @@ export function useChatComposerState({
     ],
   );
 
-  const showCostModal = useCallback(() => {
+  const showUsageModal = useCallback(() => {
     executeCommand(
       {
-        name: '/cost',
-        description: 'Display token usage information',
+        name: '/usage',
+        description: 'Show plan limits and session token usage',
         namespace: 'builtin',
         metadata: { type: 'builtin' },
       } as SlashCommand,
-      '/cost',
+      '/usage',
       { preserveInput: true },
     );
   }, [executeCommand]);
@@ -1576,7 +1579,7 @@ export function useChatComposerState({
     isInputFocused,
     commandModalPayload,
     closeCommandModal,
-    showCostModal,
+    showUsageModal,
     showContextModal,
   };
 }

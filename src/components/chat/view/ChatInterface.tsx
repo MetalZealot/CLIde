@@ -211,7 +211,7 @@ function ChatInterface({
     handleInputFocusChange,
     commandModalPayload,
     closeCommandModal,
-    showCostModal,
+    showUsageModal,
     showContextModal,
   } = useChatComposerState({
     selectedProject,
@@ -455,7 +455,7 @@ function ChatInterface({
           availableEffortOptions={currentProviderEffortOptions}
           onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
           tokenBudget={tokenBudget}
-          onShowTokenUsage={showCostModal}
+          onShowContext={showContextModal}
           provider={provider}
           onToggleCommandMenu={handleToggleCommandMenu}
           hasInput={Boolean(input.trim())}
@@ -543,6 +543,7 @@ function ChatInterface({
         providerModelsRefreshing={providerModelsRefreshing}
         onHardRefreshProviderModels={hardRefreshProviderModels}
         currentSessionId={currentSessionId || selectedSession?.id || null}
+        onShowUsage={showUsageModal}
         onSelectProviderModel={handleSelectProviderModel}
       />
     </PermissionContext.Provider>
