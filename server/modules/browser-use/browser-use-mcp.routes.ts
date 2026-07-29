@@ -39,8 +39,10 @@ router.post('/tools/:toolName', async (req, res) => {
         result = await browserUseService.listAgentSessions();
         break;
       case 'browser_snapshot':
-      case 'browser_take_screenshot':
         result = await browserUseService.agentSnapshot(sessionId);
+        break;
+      case 'browser_take_screenshot':
+        result = await browserUseService.agentScreenshot(sessionId);
         break;
       case 'browser_navigate':
         result = await browserUseService.agentNavigate(sessionId, String(input.url || ''));
