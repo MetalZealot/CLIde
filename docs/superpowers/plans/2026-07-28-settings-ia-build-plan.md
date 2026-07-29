@@ -59,7 +59,7 @@ is one module deep.
 | P1 | `ThemeContext` → light/dark/system | — | S | ✅ done |
 | P2 | Registry + shell + primitives + Appearance | P0 | L | ✅ done |
 | P3a | Chat + Notifications screens | P2 | M | ✅ done |
-| P5 | QuickSettings removal | P3a | S | ☐ |
+| P5 | QuickSettings removal | P3a | S | ✅ done |
 | P3b | Projects & Git + Credentials screens | P2 | M | ☐ |
 | P3c | Extensions (Plugins / Browser / Tasks) + About | P2 | M | ☐ |
 | P4 | Agents restructure + PWA verification | P2 | L | ☐ |
@@ -200,12 +200,30 @@ and the `cloudcli-browser` MCP tool: desktop rail selection, the Chat →
 Backend nav row appearing only when voice is enabled, and all three ported
 screens rendering correctly light-mode.
 
-### P5 — QuickSettings removal
+### P5 — QuickSettings removal ✅
 
-Only after Chat exists. Delete `src/components/quick-settings-panel/` entirely,
-remove the handle's mount point from `ChatInterface.tsx` and any layout
-compensation, leave the inert `quickSettingsHandlePosition` localStorage key
-alone. Write the ADR for removing the panel as a second settings surface.
+`src/components/quick-settings-panel/` deleted entirely (ten files), along
+with its import and `<QuickSettingsPanel />` mount in `ChatInterface.tsx`.
+No layout compensation to unwind — the panel was `fixed`-positioned, so it
+never occupied flow space in the chat view. The inert `quickSettingsHandlePosition`
+localStorage key was left alone, as directed.
+
+One cleanup beyond the literal file list: `LanguageSelector`'s `compact` prop
+existed only for this panel's chrome (confirmed via grep — no other caller);
+removed along with the branch that used it, rather than leaving a dead prop
+on a shared component. The `quickSettings.*` i18n keys were **not** touched —
+`ChatScreen.tsx` (P3a) still uses them, and rule 5's dead-key sweep is P6's
+job, not this one's.
+
+Verification was code-level only: `npm run typecheck` and `npm run lint`
+clean (0 errors, same pre-existing warning baseline), plus a grep sweep
+confirming zero remaining references to the panel, its export, or its
+storage key. A live click-through was attempted via `cloudcli-branch-test`
+on this worktree, but the chat view sits behind login and no test
+credentials were available in this session — noted as a gap rather than
+skipped silently. The change is a pure deletion of a self-contained
+`fixed`-positioned component, which is what makes code-level verification
+adequate here. See [ADR 0019](../../decisions/0019-quicksettings-removal.md).
 
 ### P3b — Projects & Git + Credentials
 
