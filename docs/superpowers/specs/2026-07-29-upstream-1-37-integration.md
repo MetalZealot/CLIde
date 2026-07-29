@@ -42,16 +42,33 @@ settings-adjacent components. Integrating it while Settings IA has uncommitted
 changes would make it impossible to tell an upstream conflict from unfinished
 local restructuring.
 
+**Gate reaffirmed 2026-07-29, with a corrected rationale.** Grayson chose to
+honour this gate. Measurement shows its value is working-tree hygiene, *not*
+conflict reduction: `git merge-tree feat/settings-ia upstream/main` produces the
+**identical** 39-path conflict list as `git merge-tree main upstream/main`, and
+only four paths are touched by both efforts (`ChatInterface.tsx`,
+`QuickSettingsPanelView.tsx`, `useProjectsState.ts`,
+`src/i18n/locales/en/settings.json`). Do not restate the gate as though
+integrating first would cost extra conflicts. See
+[Claim verification](#claim-verification-2026-07-29).
+
 When implementation begins:
 
 1. re-read `AGENTS.md`, the relevant `TODO.md` items, the decisions and
    specifications linked above, and the ignored local `CLAUDE.md`;
 2. run `git status --short`, `git worktree list --porcelain`, and
    `git fetch upstream --tags --prune`;
-3. verify that `refs/tags/v1.37.0` resolves to the reviewed commit; treat any
-   later `upstream/main` commits as a separate integration target;
+3. verify that `refs/tags/v1.37.0` resolves to the reviewed commit — it is an
+   **annotated** tag, so compare `git rev-parse 'refs/tags/v1.37.0^{commit}'`,
+   not the bare ref, which yields the tag object; treat any later
+   `upstream/main` commits as a separate integration target;
 4. claim the integration in `TODO.md`;
-5. create a fresh topic worktree from the then-current `main`, suggested as:
+5. create a fresh topic worktree from the then-current `main`. The suggestion
+   below was superseded in practice on 2026-07-29 by branch
+   `chore/upstream-1.37`, worktree `~/Projects/cloudcli-wt-upstream-1.37`,
+   ports **3003/5175** (verified to be `main` + one doc commit, with no
+   `feat/settings-ia` ancestry). Reuse those rather than creating a second
+   worktree:
    - branch: `integrate/upstream-1.37`
    - worktree: `../cloudcli-wt-upstream-1-37`;
 6. do not reuse, replace, or reconfigure an occupied branch-test service;
@@ -119,14 +136,107 @@ while also changing its semantics:
 - image attachments become general file attachments;
 - application JWT refresh, WebSocket authentication, and token propagation
   change together;
-- QuickSettings is retained and repositioned upstream while CLIde's Settings
-  IA removes it;
-- the AI commit-message generator is removed upstream while CLIde retains and
-  extends it; and
+- QuickSettings is retained upstream while CLIde's Settings IA removes it
+  (**corrected 2026-07-29**: upstream's only change to the entire
+  `quick-settings-panel/` directory is two z-index lines — `z-40`→`z-[9999]`,
+  `z-30`→`z-[9998]`. There is no repositioning, and the conflict is trivial);
+- the AI commit-message generator loses its UI wiring upstream while CLIde
+  retains and extends it (**corrected 2026-07-29**: the server route and client
+  hook both survive upstream — see [Claim
+  verification](#claim-verification-2026-07-29)); and
 - token-usage extraction is centralized using rules that do not preserve
   CLIde's Claude synthetic-row and context-ceiling invariants.
 
 The correct unit of review is therefore behavior, not filename.
+
+## Claim verification (2026-07-29)
+
+Every quantitative claim above was re-checked against the repository on
+2026-07-29 with `main` at `87d8fef`. The numbers are exact. Four behavioral
+claims were overstated and are corrected here; the corrections change how much
+work Phase 1, Phase 4, and Phase 6 actually require.
+
+### Confirmed exactly
+
+- `refs/tags/v1.37.0^{commit}` = `264e0946`, with nothing on `upstream/main`
+  beyond it. `06e7ee9` and `75ff8a5` are the squash and OAuth commits named
+  above. `27eaf014` is `chore(release): v1.36.3` and the true merge base.
+- 257 files, +19,204/−9,284; 74 overlapping paths; 39 conflicts — 1 add/add,
+  34 content, 4 modify/delete.
+- `server/index.js` and `server/cli.js` are deleted; `server/index.ts` is added.
+- `sessions.model` exists, and `schema.ts:112` documents it as "Model this
+  session runs with" — literally the ambiguity Phase 3 objects to.
+- The 160,000 fallback is real:
+  `provider-token-usage.service.ts:167`, `claude-runtime.provider.js:320,352`.
+- The worktree defaults are as described, and worse than "not safe by default":
+  `MergeWorktreeModal` initialises `squash` **and** `removeAfterMerge` to
+  `true`, `RemoveWorktreeModal` initialises `deleteBranch` to `true`, and
+  `worktree-remove.service.ts:61` runs `git branch -D` inside a `try {} catch {}`
+  that discards the failure. All four worktree/branch modals use
+  `backdrop-blur-sm`.
+- Export hardcodes "Claude" (`chatExport.ts:56,103`) and its "PDF" path is
+  `win.print()`. The Claude Usage plugin recommendation is at
+  `PluginSettingsTab.tsx:37`.
+- New dependencies are exactly `ignore@^7.0.6`, `remark-breaks@^4.0.0`,
+  `@types/cors@^2.8.19`. Upstream moves to `@openai/codex-sdk@^0.144.0` against
+  CLIde's exact `0.146.0`, and adds an `npm test` script CLIde does not have.
+- `X-Auth-Error` + `POST /refresh`, `~/.codex/skills`, the Shell stale-socket
+  test, and app-session-keyed `provider-runtime.service.ts` are all present.
+
+### Corrections
+
+1. **The AI commit-message generator is not removed upstream.** Upstream
+   v1.37.0 keeps `POST /generate-commit-message` (`git.routes.ts:946`,
+   `generateCommitMessageWithAI` at `:1019`) and keeps `generateCommitMessage`
+   in `useGitPanelController.ts:631` and `types/types.ts:119`. Only the UI
+   wiring is gone — no view consumes it, and upstream's `CommitComposer.tsx`
+   has no generate affordance. Better still, `server/routes/git.js` →
+   `server/modules/git/git.routes.ts` is a 91%-similarity rename that
+   **auto-merges with no conflict**, so CLIde's Git server work carries over for
+   free. The remaining task is re-wiring `ChangesView`/`CommitComposer`;
+   `GitPanel.tsx`'s conflict is two lines on CLIde's side.
+2. **QuickSettings is not repositioned upstream** — see the corrected bullet
+   above. Nothing needs rejecting beyond discarding two z-index lines.
+3. **Rename detection removes most of Phase 1's apparent porting work.** Git
+   pairs the moved files, so CLIde's changes land in the destination module
+   paths automatically: `claude-sdk.js`→`claude-runtime.provider.js` (88%),
+   `openai-codex.js`→`codex-runtime.provider.js` (83%),
+   `cursor-cli.js` (79%), `opencode-cli.js` (82%),
+   `routes/commands.js`→`commands.routes.ts` (88%),
+   `middleware/auth.js`→`auth.middleware.ts` (71%),
+   `routes/git.js`→`git.routes.ts` (91%, clean), plus
+   `provider-image-history.test.ts`→`provider-attachment-history.test.ts` and
+   `chat-image-filter.test.ts`→`chat-attachment-filter.test.ts`. Only three
+   paths have no rename pair and need genuine hand-porting:
+   `server/index.js` (−1651 upstream, CLIde +180/−31),
+   `server/routes/agent.js` (−1257, CLIde **3 lines**), and
+   `server/routes/tests/commands.test.js` (−82, CLIde +48). Phase 1's rule
+   ("port CLIde behavior into the destination module") still stands — but as
+   review of an auto-merged result, not a from-scratch rewrite.
+4. **`engines` does not drift.** Both sides declare
+   `"node": "^22.0.0 || ^24.0.0"`. The only Node pin difference is `.nvmrc`
+   (CLIde v24, upstream v22), and upstream has not touched `.nvmrc` since
+   v1.36.3, so CLIde's v24 survives with no conflict. Phase 7's concern is
+   real only for the Codex SDK pin.
+
+### Where the conflict work actually sits
+
+Churn on both sides of the 39 conflicted paths, to budget against:
+
+- **Heavy on both sides:** `useChatComposerState.ts` (ours +423, theirs
+  +207/−117), `server/shared/types.ts` (+208 / +658/−21),
+  `provider-models.service.test.ts` (+140/−35 / +450/−349),
+  `codex-sessions.provider.ts` (+195 / +331), `WebSocketContext.tsx` (+243 /
+  +28), `CommandResultModal.tsx` (+593 / +4/−5), `chat-websocket.service.ts`
+  (+176/−30 / +73/−61), `claude-models.provider.ts` (+217/−38 / +1/−12), and
+  `claude-runtime.provider.js` (rename plus 855 new upstream lines).
+- **Trivial despite conflicting:** `GitPanel.tsx`, `ConfirmActionModal.tsx`,
+  `ImageAttachment.tsx`, `useFileTreeUpload.ts`, `QuickSettingsPanelView.tsx`,
+  `server/routes/agent.js`, `websocket/README.md`, `projects/index.ts`.
+- Upstream's heartbeat helper is `attachWebSocketHeartbeat`, exported from
+  `websocket-server.service.ts`. CLIde's application-level ping
+  (`chat-ping.test.ts`) is a different layer, so the two coexist rather than
+  compete — consistent with Phase 2's instruction to keep both.
 
 ## Goals
 
@@ -226,9 +336,13 @@ Apply these rules in order:
 ### Retain CLIde or reject the upstream change
 
 - Retain the Source Control commit-message generator and its visible commit
-  error path; reject upstream's removal.
-- Retain Settings IA's removal of QuickSettings; reject upstream's repositioned
-  panel.
+  error path. Corrected 2026-07-29: there is no upstream removal to reject —
+  upstream keeps the route and the hook and drops only the UI wiring, so this
+  reduces to re-wiring `ChangesView`/`CommitComposer` after `git.routes.ts`
+  auto-merges.
+- Retain Settings IA's removal of QuickSettings. Corrected 2026-07-29: upstream
+  did not reposition the panel; discard its two z-index lines and let the
+  Settings IA deletion win.
 - Retain transcript/provider evidence as the effective-model truth; reject a
   database picker value being presented as proof of what ran.
 - Retain SDK-derived context ceilings and synthetic/sidechain usage guards;
@@ -290,6 +404,16 @@ upstream's module boundaries without losing CLIde capabilities.
 The new `server/index.ts` must be composition-only. Logic recovered from
 `server/index.js` belongs in the relevant module, not in a translated
 TypeScript monolith.
+
+**Mechanics, verified 2026-07-29.** Git detects every row of this table except
+the first two as a rename, so the merge carries CLIde's changes into the
+destination path and marks only the genuinely overlapping hunks. Review those
+auto-merged results rather than re-porting them by hand. `routes/git.js` →
+`modules/git/git.routes.ts` auto-merges cleanly and is not among the 39
+conflicts at all. The real hand-ports are `server/index.js` and
+`server/routes/agent.js` (plus `routes/tests/commands.test.js`), which have no
+rename pair — see [Claim verification](#claim-verification-2026-07-29) for the
+similarity scores and line counts.
 
 Upstream's backend-module skill may be used as a directory-shape reference,
 but it must not replace CLIde's `AGENTS.md`. Resolve its inconsistencies during
@@ -623,8 +747,11 @@ Add `onDropRejected` or an equivalent explicit rejection path. Maximum size,
 count, and type failures must never look like a no-op.
 
 Do not assume upstream's increase to 10 MB is automatically correct for every
-provider. Define a client maximum that matches the backend and surface
-provider-specific limits before sending when known.
+provider. Verified 2026-07-29: upstream's client and backend maxima already
+agree (`useChatComposerState.ts:157` `MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024`,
+`assets.routes.ts:47` `fileSize: 10 * 1024 * 1024`), so the open question is
+provider-specific limits, not a client/backend mismatch. Surface those limits
+before sending when known.
 
 Add a composer submission mutex/ref so a brand-new chat cannot create duplicate
 sessions through rapid repeated submission. Upstream's image-only
@@ -750,9 +877,13 @@ Expected additions may include:
 CLIde must retain:
 
 - exact `@openai/codex-sdk` and bundled Codex version `0.146.0` or a separately
-  approved newer exact version;
+  approved newer exact version — upstream moves to `^0.144.0`, so this is the
+  one dependency where the merge genuinely tries to drift backward;
 - Node 24 development/runtime pinning with Node 22 compatibility where already
-  required;
+  required — verified 2026-07-29: `engines` is identical on both sides
+  (`^22.0.0 || ^24.0.0`), and the only difference is `.nvmrc` (CLIde v24,
+  upstream v22), which upstream has not touched since v1.36.3, so CLIde's pin
+  survives without a conflict;
 - Husky and project-local hook portability;
 - lint and TypeScript cache behavior;
 - clean server emit behavior;
