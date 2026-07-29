@@ -1,7 +1,9 @@
 # Context-usage staleness: live re-capture during long turns
 
 **Date:** 2026-07-28
-**Status:** Planned — Phase 1 approved, Phase 2 gated on user approval
+**Status:** Done — Phase 1 (`c59de63`) and Phase 2 (`af82aad`) both shipped. Needs an
+SSH restart + live check on a real long turn before this is fully closed out (see
+Verification below).
 **Scope:** Claude only (exempt from the multi-provider rule — see CLAUDE.md "Multi-provider
 compatibility goal"; `claude-sdk.js` internals and `claude-context-usage.ts` are
 Claude-specific by design). Do **not** wire Codex/Cursor/OpenCode into this.
