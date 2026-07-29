@@ -46,7 +46,11 @@ interface UseSlashCommandsOptions {
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement>;
-  onExecuteCommand: (command: SlashCommand, rawInput?: string) => void | Promise<void>;
+  onExecuteCommand: (
+    command: SlashCommand,
+    rawInput?: string,
+    options?: { preserveInput?: boolean },
+  ) => void | Promise<void>;
   /** Capability-gated: adds the client-side /rewind command to the menu. */
   supportsRewind?: boolean;
   /** Capability-gated: adds the client-side /fork command to the menu. */
@@ -352,14 +356,30 @@ export function useSlashCommands({
 
   const executeBuiltInCommand = useCallback(
     (command: SlashCommand) => {
-      const executionResult = onExecuteCommand(command, command.name);
+      // The menu can be opened two ways: typing `/query` inline (slashPosition
+      // >= 0), or the composer's command button (slashPosition stays -1, no
+      // trigger text exists). Only the former has trigger text to strip —
+      // everything else the user had typed is unrelated to the command and
+      // must survive execution, so builtins always run with preserveInput.
+      if (slashPosition >= 0) {
+        const textBeforeCommand = input.slice(0, slashPosition);
+        const textAfterCommandStart = input.slice(slashPosition);
+        const spaceIndex = textAfterCommandStart.indexOf(' ');
+        const textAfterCommand = spaceIndex !== -1
+          ? textAfterCommandStart.slice(spaceIndex).trimStart()
+          : '';
+        const separator = textBeforeCommand && textAfterCommand && !/\s$/.test(textBeforeCommand) ? ' ' : '';
+        setInput(`${textBeforeCommand}${separator}${textAfterCommand}`);
+      }
+
+      const executionResult = onExecuteCommand(command, command.name, { preserveInput: true });
       if (isPromiseLike(executionResult)) {
         executionResult.then(resetCommandMenuState, resetCommandMenuState);
       } else {
         resetCommandMenuState();
       }
     },
-    [onExecuteCommand, resetCommandMenuState],
+    [input, onExecuteCommand, resetCommandMenuState, setInput, slashPosition],
   );
 
   const selectCommand = useCallback(
