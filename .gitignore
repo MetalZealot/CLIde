@@ -62,6 +62,10 @@ jspm_packages/
 # Optional eslint cache
 .eslintcache
 
+# TypeScript incremental build info (both live under node_modules/.cache, which is
+# already untracked, but kept explicit in case that ever changes)
+*.tsbuildinfo
+
 # Optional REPL history
 .node_repl_history
 

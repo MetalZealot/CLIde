@@ -16,6 +16,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsbuildinfo/client.tsbuildinfo",
     "jsx": "react-jsx",
     "strict": true,
     "forceConsistentCasingInFileNames": true,
