@@ -20,10 +20,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import { usePlugins } from '../../../contexts/PluginsContext';
-import type { Plugin } from '../../../contexts/PluginsContext';
-
-import PluginIcon from './PluginIcon';
+import { usePlugins } from '../../../../contexts/PluginsContext';
+import type { Plugin } from '../../../../contexts/PluginsContext';
+import PluginIcon from '../../../plugins/view/PluginIcon';
+import { SettingsScreen, SettingsToggle } from '../primitives';
 
 const STARTER_PLUGIN_URL = 'https://github.com/cloudcli-ai/cloudcli-plugin-starter';
 const TERMINAL_PLUGIN_URL = 'https://github.com/cloudcli-ai/cloudcli-plugin-terminal';
@@ -137,42 +137,17 @@ function pluginMatchesRecommendation(plugin: Plugin, recommendation: PluginRecom
   );
 }
 
-/* ─── Toggle Switch ─────────────────────────────────────────────────────── */
-function ToggleSwitch({ checked, onChange, ariaLabel }: { checked: boolean; onChange: (v: boolean) => void; ariaLabel: string }) {
-  return (
-    <label className="relative inline-flex cursor-pointer select-none items-center">
-      <input
-        type="checkbox"
-        className="peer sr-only"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        aria-label={ariaLabel}
-      />
-      <div
-        className={`
-          relative h-5 w-9 rounded-full bg-muted transition-colors
-          duration-200 after:absolute
-          after:left-[2px] after:top-[2px] after:h-4 after:w-4
-          after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200
-          after:content-[''] peer-checked:bg-emerald-500
-          peer-checked:after:translate-x-4
-        `}
-      />
-    </label>
-  );
-}
-
 /* ─── Server Dot ────────────────────────────────────────────────────────── */
-function ServerDot({ running, t }: { running: boolean; t: any }) {
+function ServerDot({ running, label }: { running: boolean; label: string }) {
   if (!running) return null;
   return (
     <span className="relative flex items-center gap-1.5">
       <span className="relative flex h-1.5 w-1.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
       </span>
-      <span className="font-mono text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-        {t('pluginSettings.runningStatus')}
+      <span className="font-mono text-[10px] uppercase tracking-wide text-primary">
+        {label}
       </span>
     </span>
   );
@@ -203,9 +178,7 @@ function PluginCard({
   updateError,
 }: PluginCardProps) {
   const { t } = useTranslation('settings');
-  const accentColor = plugin.enabled
-    ? 'bg-emerald-500'
-    : 'bg-muted-foreground/20';
+  const accentColor = plugin.enabled ? 'bg-primary' : 'bg-muted-foreground/20';
 
   return (
     <div
@@ -240,7 +213,7 @@ function PluginCard({
                 <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                   {plugin.slot}
                 </span>
-                <ServerDot running={!!plugin.serverRunning} t={t} />
+                <ServerDot running={!!plugin.serverRunning} label={t('pluginSettings.runningStatus')} />
               </div>
               {plugin.description && (
                 <p className="mt-1 text-sm leading-snug text-muted-foreground">
@@ -291,21 +264,25 @@ function PluginCard({
               title={confirmingUninstall ? t('pluginSettings.confirmUninstall') : t('pluginSettings.uninstallPlugin')}
               aria-label={t('pluginSettings.uninstallPlugin')}
               className={`rounded p-1.5 transition-colors ${confirmingUninstall
-                ? 'bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30'
-                : 'text-muted-foreground hover:bg-muted hover:text-red-500'
+                ? 'bg-destructive/10 text-destructive hover:bg-destructive/20'
+                : 'text-muted-foreground hover:bg-muted hover:text-destructive'
                 }`}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
 
-            <ToggleSwitch checked={plugin.enabled} onChange={onToggle} ariaLabel={`${plugin.enabled ? t('pluginSettings.disable') : t('pluginSettings.enable')} ${plugin.displayName}`} />
+            <SettingsToggle
+              checked={plugin.enabled}
+              onChange={onToggle}
+              ariaLabel={`${plugin.enabled ? t('pluginSettings.disable') : t('pluginSettings.enable')} ${plugin.displayName}`}
+            />
           </div>
         </div>
 
         {/* Confirm uninstall banner */}
         {confirmingUninstall && (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800/50 dark:bg-red-950/30">
-            <span className="text-sm text-red-600 dark:text-red-400">
+          <div className="mt-3 flex items-center justify-between gap-3 rounded border border-destructive/40 bg-destructive/10 px-3 py-2">
+            <span className="text-sm text-destructive">
               {t('pluginSettings.confirmUninstallMessage', { name: plugin.displayName })}
             </span>
             <div className="flex gap-1.5">
@@ -317,7 +294,7 @@ function PluginCard({
               </button>
               <button
                 onClick={onUninstall}
-                className="rounded border border-red-300 px-2.5 py-1 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
+                className="rounded border border-destructive/50 px-2.5 py-1 text-sm font-medium text-destructive transition-colors hover:bg-destructive/20"
               >
                 {t('pluginSettings.remove')}
               </button>
@@ -327,7 +304,7 @@ function PluginCard({
 
         {/* Update error */}
         {updateError && (
-          <div className="mt-2 flex items-center gap-1.5 text-sm text-red-500">
+          <div className="mt-2 flex items-center gap-1.5 text-sm text-destructive">
             <ServerCrash className="h-3.5 w-3.5 flex-shrink-0" />
             <span>{updateError}</span>
           </div>
@@ -337,7 +314,13 @@ function PluginCard({
   );
 }
 
-/* ─── Recommendation Section ────────────────────────────────────────────── */
+/**
+ * Section header for a list of plugin cards.
+ *
+ * Deliberately *not* `SettingsGroup`: each plugin card carries its own border,
+ * and nesting them inside the group's card would double the chrome. The heading
+ * matches `SettingsGroup`'s so the screen still reads as one system.
+ */
 function RecommendationSection({
   title,
   description,
@@ -348,12 +331,12 @@ function RecommendationSection({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-2">
+    <section className="space-y-3">
       <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
-        </h4>
-        <p className="mt-0.5 text-xs text-muted-foreground/70">
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           {description}
         </p>
       </div>
@@ -379,9 +362,11 @@ function PluginRecommendationCard({
   const { t } = useTranslation('settings');
   const Icon = recommendation.icon;
   const isOfficial = recommendation.source === 'official';
-  const accentClass = isOfficial ? 'bg-blue-500/30' : 'bg-amber-500/40';
-  const hoverClass = isOfficial ? 'hover:border-blue-400 dark:hover:border-blue-500' : 'hover:border-amber-400 dark:hover:border-amber-500';
-  const iconClass = isOfficial ? 'text-blue-500' : 'text-amber-500';
+  // Official reads as first-party (primary); unofficial as "proceed with care"
+  // (warning) — the same token pair the rest of Settings uses.
+  const accentClass = isOfficial ? 'bg-primary/40' : 'bg-warning/50';
+  const hoverClass = isOfficial ? 'hover:border-primary/60' : 'hover:border-warning/60';
+  const iconClass = isOfficial ? 'text-primary' : 'text-warning';
 
   return (
     <div className={`relative flex overflow-hidden rounded-lg border border-dashed border-border bg-card transition-all duration-200 ${hoverClass}`}>
@@ -433,8 +418,17 @@ function PluginRecommendationCard({
   );
 }
 
-/* ─── Main Component ────────────────────────────────────────────────────── */
-export default function PluginSettingsTab() {
+/* ─── Screen ────────────────────────────────────────────────────────────── */
+/**
+ * Installed plugins, recommendations, and install-from-git.
+ *
+ * **Note on the one-scroll-container rule.** The `h-full w-full overflow-auto`
+ * that hosts third-party plugin code lives in `PluginTabContent.tsx`, which
+ * mounts in `MainContent`'s plugin tab — not in Settings. Nothing on this
+ * screen opens a scroller, so the exception the build plan reserved for
+ * Plugins turned out not to be needed here; see the P3c notes in the plan.
+ */
+export default function ExtensionsPluginsScreen() {
   const { t } = useTranslation('settings');
   const { plugins, loading, installPlugin, uninstallPlugin, updatePlugin, togglePlugin } =
     usePlugins();
@@ -544,59 +538,51 @@ export default function PluginSettingsTab() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h3 className="mb-1 text-base font-semibold text-foreground">
-          {t('pluginSettings.title')}
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {t('pluginSettings.description')}
-        </p>
-      </div>
-
+    <SettingsScreen description={t('pluginSettings.description')}>
       {/* Install from Git — compact */}
-      <div className="flex items-center gap-0 overflow-hidden rounded-lg border border-border bg-card">
-        <span className="flex-shrink-0 pl-3 pr-1 text-muted-foreground/40">
-          <GitBranch className="h-3.5 w-3.5" />
-        </span>
-        <input
-          type="text"
-          value={gitUrl}
-          onChange={(e) => {
-            setGitUrl(e.target.value);
-            setInstallError(null);
-          }}
-          placeholder={t('pluginSettings.installPlaceholder')}
-          aria-label={t('pluginSettings.installAriaLabel')}
-          className="flex-1 bg-transparent px-2 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void handleInstall();
-          }}
-        />
-        <button
-          onClick={handleInstall}
-          disabled={installing || !gitUrl.trim()}
-          className="flex-shrink-0 border-l border-border bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-30"
-        >
-          {installing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            t('pluginSettings.installButton')
-          )}
-        </button>
-      </div>
+      <section className="space-y-2">
+        <div className="flex items-center gap-0 overflow-hidden rounded-lg border border-border bg-card">
+          <span className="flex-shrink-0 pl-3 pr-1 text-muted-foreground/40">
+            <GitBranch className="h-3.5 w-3.5" />
+          </span>
+          <input
+            type="text"
+            value={gitUrl}
+            onChange={(e) => {
+              setGitUrl(e.target.value);
+              setInstallError(null);
+            }}
+            placeholder={t('pluginSettings.installPlaceholder')}
+            aria-label={t('pluginSettings.installAriaLabel')}
+            className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleInstall();
+            }}
+          />
+          <button
+            onClick={handleInstall}
+            disabled={installing || !gitUrl.trim()}
+            className="flex-shrink-0 border-l border-border bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-30"
+          >
+            {installing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              t('pluginSettings.installButton')
+            )}
+          </button>
+        </div>
 
-      {installError && (
-        <p className="-mt-4 text-sm text-red-500">{installError}</p>
-      )}
+        {installError && (
+          <p className="text-sm text-destructive">{installError}</p>
+        )}
 
-      <p className="-mt-4 flex items-start gap-1.5 text-xs leading-snug text-muted-foreground/50">
-        <ShieldAlert className="mt-px h-3 w-3 flex-shrink-0" />
-        <span>
-          {t('pluginSettings.securityWarning')}
-        </span>
-      </p>
+        <p className="flex items-start gap-1.5 text-xs leading-snug text-muted-foreground/70">
+          <ShieldAlert className="mt-px h-3 w-3 flex-shrink-0" />
+          <span>
+            {t('pluginSettings.securityWarning')}
+          </span>
+        </p>
+      </section>
 
       {/* Plugin sections */}
       {loading ? (
@@ -605,7 +591,7 @@ export default function PluginSettingsTab() {
           {t('pluginSettings.scanningPlugins')}
         </div>
       ) : (
-        <div className="space-y-4">
+        <>
           {hasOfficialSection && (
             <RecommendationSection
               title={t('pluginSettings.sections.officialTitle')}
@@ -641,11 +627,11 @@ export default function PluginSettingsTab() {
               ))}
             </RecommendationSection>
           )}
-        </div>
+        </>
       )}
 
       {/* Starter plugin */}
-      <div className="flex items-center justify-center gap-3 border-t border-border/50 pt-2">
+      <div className="flex flex-wrap items-center justify-center gap-3 border-t border-border/50 pt-4">
         <BookOpen className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/40" />
         <span className="text-xs text-muted-foreground/60">
           {t('pluginSettings.starterPluginLabel')}
@@ -669,6 +655,6 @@ export default function PluginSettingsTab() {
           {t('pluginSettings.docs')} <ExternalLink className="h-2.5 w-2.5" />
         </a>
       </div>
-    </div>
+    </SettingsScreen>
   );
 }

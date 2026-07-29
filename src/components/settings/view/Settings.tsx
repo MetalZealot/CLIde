@@ -4,21 +4,21 @@ import { useTranslation } from 'react-i18next';
 import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
-import BrowserUseSettingsTab from '../view/tabs/browser-use-settings/BrowserUseSettingsTab';
-import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
-import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
-import AboutTab from '../view/tabs/AboutTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
 import { getScreen } from '../registry/registry';
 import { useWebPush } from '../../../hooks/useWebPush';
 import type { SettingsProps } from '../types/types';
 
+import AboutScreen from './screens/AboutScreen';
 import AppearanceEditorScreen from './screens/AppearanceEditorScreen';
 import AppearanceScreen from './screens/AppearanceScreen';
 import ChatScreen from './screens/ChatScreen';
 import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
 import CredentialsScreen from './screens/CredentialsScreen';
+import ExtensionsBrowserScreen from './screens/ExtensionsBrowserScreen';
+import ExtensionsPluginsScreen from './screens/ExtensionsPluginsScreen';
+import ExtensionsTasksScreen from './screens/ExtensionsTasksScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ProjectsGitScreen from './screens/ProjectsGitScreen';
 import { SettingsScreen } from './primitives';
@@ -156,11 +156,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
   const parentScreen = getScreen(nav.parentId);
 
   /**
-   * Screens not yet ported to the primitives render their existing tab
-   * component inside a `SettingsScreen`, so that every destination stays
-   * reachable while the ports land packet by packet. Each one drops off this
-   * list as its packet completes; Agents keeps its own nested scroller — and
-   * therefore its known scrolling bugs — until P4 restructures it.
+   * Agents is the last screen not yet ported to the primitives: it renders its
+   * existing tab component inside a `SettingsScreen` so the destination stays
+   * reachable, and keeps its own nested scroller — and therefore its known
+   * scrolling bugs — until P4 restructures it.
    */
   const renderScreen = () => {
     switch (nav.screenId) {
@@ -231,19 +230,19 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
         );
 
       case 'plugins':
-        return <SettingsScreen><PluginSettingsTab /></SettingsScreen>;
+        return <ExtensionsPluginsScreen />;
 
       case 'browser':
-        return <SettingsScreen><BrowserUseSettingsTab /></SettingsScreen>;
+        return <ExtensionsBrowserScreen />;
 
       case 'tasks':
-        return <SettingsScreen><TasksSettingsTab /></SettingsScreen>;
+        return <ExtensionsTasksScreen />;
 
       case 'credentials':
         return <CredentialsScreen />;
 
       case 'about':
-        return <SettingsScreen><AboutTab /></SettingsScreen>;
+        return <AboutScreen />;
 
       default:
         return null;

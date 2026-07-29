@@ -21,8 +21,8 @@ is one module deep.
 
 1. **One scroll container per screen**, owned by the screen component. Nothing
    inside a screen opens its own `overflow-y-auto`. This is the rule that fixes
-   the Agents bugs; it is load-bearing, not stylistic. One known exception,
-   granted in P3c — see the decisions log.
+   the Agents bugs; it is load-bearing, not stylistic. ~~One known exception,
+   granted in P3c~~ — no exception was needed; see decision 4.
 2. **No raw `<input type="checkbox">` in Settings.** Booleans are `SettingsToggle`.
 3. **No hardcoded colour classes in Settings.** No `bg-blue-600`, `bg-red-100`,
    `border-orange-200`. Use the card `tone` prop → theme tokens.
@@ -47,7 +47,7 @@ is one module deep.
 | 1 | **i18n: `en`-only additions**, other locales fall back. | Assumed; confirm |
 | 2 | **Desktop rail may scroll** when providers are expanded; no group-collapse behaviour. Resolves spec open question 2. | Assumed; confirm |
 | 3 | **Provider status copy**: status dot + "Signed in" / "Signed out". Spec open question 1 hedged on the Claude Layer-2 logout ambiguity; that was resolved in `1e13431`, so the constraint is gone. | Decide in P4 |
-| 4 | **Plugins gets an explicit carve-out** from rule 1: `PluginTabContent.tsx:143` mounts third-party plugin code into `h-full w-full overflow-auto` and needs a bounded height by design. Document the exception rather than reworking plugin mounting. | Decide in P3c |
+| 4 | ~~**Plugins gets an explicit carve-out** from rule 1~~ — **no carve-out needed.** The premise was wrong: `PluginTabContent.tsx`'s `h-full w-full overflow-auto` mounts in `MainContent`'s plugin tab, not in Settings. The Settings Plugins screen never rendered it, and the ported screen opens no scroller of its own (asserted in the browser: exactly one scroller on all four P3c screens, desktop and mobile). Rule 1 stands unqualified. | Decided in P3c |
 | 5 | **No component-test infrastructure** (Vitest/jsdom). jsdom has no layout engine, so it would catch none of the scroll/safe-area/gesture bugs that motivated this work. Pure-logic modules get `node:test` tests instead — same runner as `server/`'s 40 test files. Playwright-based layout testing revisited separately, after this lands. | Decided |
 | 6 | **This restructure is fork-only** and not an upstream candidate; it is a large, deliberate divergence in an upstream-heavy subtree. Note it in `docs/upstream-candidates.md` so future rebases have context. | Do in P6 |
 
@@ -61,7 +61,7 @@ is one module deep.
 | P3a | Chat + Notifications screens | P2 | M | ✅ done |
 | P5 | QuickSettings removal | P3a | S | ✅ done |
 | P3b | Projects & Git + Credentials screens | P2 | M | ✅ done |
-| P3c | Extensions (Plugins / Browser / Tasks) + About | P2 | M | ☐ |
+| P3c | Extensions (Plugins / Browser / Tasks) + About | P2 | M | ✅ done |
 | P4 | Agents restructure + PWA verification | P2 | L | ☐ |
 | P6 | Search + cleanup sweep | P2, all screens | M | ☐ |
 
@@ -282,13 +282,58 @@ disclosure form correctly. `npm run typecheck` and `npm run lint` are clean
 (0 errors; same pre-existing warning baseline, none in touched files), and
 all 28 registry `node:test` cases still pass.
 
-### P3c — Extensions + About
+### P3c — Extensions + About ✅
 
-Plugins, Browser, Tasks, About wrapped in `SettingsScreen` with bespoke cards
-re-expressed through the primitives. Tasks' not-installed guidance becomes
-`tone="warning"`. About keeps upstream's Pro placeholders behind the existing
-`!IS_PLATFORM` guard, to limit rebase surface. Settle decision 4 here and
-document the plugin carve-out inline where the exception lives.
+Four new screens — `ExtensionsPluginsScreen`, `ExtensionsBrowserScreen`,
+`ExtensionsTasksScreen`, `AboutScreen` — replacing `PluginSettingsTab`,
+`BrowserUseSettingsTab`, `TasksSettingsTab` and `AboutTab`, all four of which
+are deleted. Registry untouched: `plugins` / `browser` / `tasks` / `about`
+were already the spec's final ids in the right groups, so P3c is a pure view
+port. All fetch/install/toggle logic moved verbatim; only the chrome changed.
+`Settings.tsx` no longer wraps anything in a bare `<SettingsScreen>` except
+Agents, which is P4's.
+
+**Decision 4 is settled the other way: there is no plugin carve-out.** The
+`h-full w-full overflow-auto` the brief pointed at lives in
+`PluginTabContent.tsx`, which `MainContent` mounts for a plugin's *tab* — it
+was never part of the Settings Plugins screen, so rule 1 was never in tension
+with it. The note now lives as a docstring on `ExtensionsPluginsScreen` so the
+next reader who greps `overflow-auto` in the plugins tree does not re-open it.
+
+Two judgement calls worth knowing about:
+
+- **`RecommendationSection` is deliberately not a `SettingsGroup`.** Each
+  plugin card carries its own border, and nesting them inside a group's card
+  doubles the chrome. It keeps a plain `<section>` and only its heading was
+  changed, to `SettingsGroup`'s exact type scale, so the screen still reads as
+  one system. Same reasoning would apply to any future card-list screen.
+- **Green/blue/amber semantics mapped onto existing tokens** rather than a new
+  one. Enabled plugin, running-server dot and official recommendations →
+  `primary` (following P3a, which took `text-green-600` → `text-primary`);
+  unofficial recommendations → `warning`; every red → `destructive`. No
+  `--success` token was added; if a later packet finds `primary` genuinely
+  ambiguous for "healthy", that is the moment to add one, not now.
+
+The remaining screen-level headings were dropped where the shell already shows
+them: Tasks' `mainTabs.tasks` section title and Plugins' `pluginSettings.title`
+h3 both duplicated the header/rail label. Plugins' description moved to
+`SettingsScreen`'s `description` slot.
+
+**Not done, deliberately:** Browser and About still hold hardcoded English
+strings (they always did — neither had i18n). Adding `en` keys is allowed by
+rule 5 but is not a port, so it is left for P6's sweep, which is already
+touching the i18n files. Likewise `AppearanceSettingsTab.tsx` is now the only
+remaining consumer of `SettingsSection`/`SettingsCard` and is itself imported
+nowhere — dead since P2, and P6's to delete along with those two primitives.
+
+Verified with the throwaway harness described below, extended with a
+`window.fetch` stub so the screens render *populated*: an enabled plugin with a
+running server plus a disabled one, Task Master both installed and missing, and
+a Browser runtime with Chromium absent. Screenshotted light and dark at desktop
+and 390px, and the Playwright pass asserted **exactly one scroll container per
+screen** on all eight combinations, with no console or page errors.
+`npm run typecheck` and `npm run lint` clean (0 errors, unchanged warning
+baseline), 28 registry `node:test` cases still pass.
 
 ### P4 — Agents restructure
 
@@ -343,6 +388,14 @@ Vite serves any root-level HTML, so no config change is needed. The API calls
 401 harmlessly. Recreate it when a packet needs browser verification and delete
 it before committing; it is ~30 lines and rots faster than it would earn its
 keep in-tree.
+
+P3c added ~40 lines to it worth repeating: a `window.fetch` stub that answers a
+small fixture table by path and 401s everything else. `authenticatedFetch`
+(`src/utils/api.js`) goes through global `fetch`, so stubbing it is enough to
+render *populated* states — an installed-and-running plugin, a missing Task
+Master, a half-installed browser runtime — instead of only the empty/error
+branches a bare 401 gives you. P4 needs the same trick for provider auth
+states.
 
 Playwright is worth using for behaviour that is awkward to eyeball: P1 asserted
 theme resolution across seven load cases, and P2 asserted the whole history
