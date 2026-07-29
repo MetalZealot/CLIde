@@ -34,6 +34,11 @@ export interface SubagentChildTool {
   timestamp: Date;
 }
 
+export interface MemoryCitation {
+  source: string;
+  note?: string;
+}
+
 export interface ChatMessage {
   type: string;
   /**
@@ -64,6 +69,8 @@ export interface ChatMessage {
   isCompactSummary?: boolean;
   /** CLI-fabricated notice rows (usage limits, API errors) — muted banner, not a Claude bubble. */
   isSystemNotice?: boolean;
+  /** Parsed from Codex's trailing provenance envelope; rendered as compact sources. */
+  memoryCitations?: MemoryCitation[];
   isSubagentContainer?: boolean;
   subagentState?: {
     childTools: SubagentChildTool[];

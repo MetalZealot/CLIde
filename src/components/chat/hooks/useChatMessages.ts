@@ -9,7 +9,7 @@ import {
   decodeHtmlEntities,
   unescapeWithMathProtection,
   formatUsageLimitText,
-  stripInternalMemoryCitation,
+  extractInternalMemoryCitation,
 } from '../utils/chatFormatting';
 
 function formatToolResultContent(content: unknown): string {
@@ -24,8 +24,8 @@ type ParsedTaskNotification = {
   result: string;
 };
 
-function formatAssistantText(content: string): string {
-  return stripInternalMemoryCitation(
+function formatAssistantText(content: string) {
+  return extractInternalMemoryCitation(
     formatUsageLimitText(unescapeWithMathProtection(decodeHtmlEntities(content))),
   );
 }
@@ -126,13 +126,14 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             // Render the agent's result as a normal assistant message so its
             // markdown displays correctly instead of leaking raw XML.
             if (taskNotif.result) {
-              const result = formatAssistantText(taskNotif.result);
-              if (!result.trim()) {
+              const { text: result, citations: memoryCitations } = formatAssistantText(taskNotif.result);
+              if (!result.trim() && memoryCitations.length === 0) {
                 continue;
               }
               converted.push({
                 type: 'assistant',
                 content: result,
+                memoryCitations,
                 timestamp: msg.timestamp,
                 ...sharedMetadata,
                 // Two ChatMessages from one normalized row — keep ids unique.
@@ -149,11 +150,12 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             });
           }
         } else {
-          const text = formatAssistantText(content);
-          if (!text.trim()) continue;
+          const { text, citations: memoryCitations } = formatAssistantText(content);
+          if (!text.trim() && memoryCitations.length === 0) continue;
           converted.push({
             type: 'assistant',
             content: text,
+            memoryCitations,
             timestamp: msg.timestamp,
             ...sharedMetadata,
           });
@@ -253,11 +255,12 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
 
       case 'stream_delta':
         if (msg.content) {
-          const content = formatAssistantText(msg.content);
-          if (!content.trim()) break;
+          const { text: content, citations: memoryCitations } = formatAssistantText(msg.content);
+          if (!content.trim() && memoryCitations.length === 0) break;
           converted.push({
             type: 'assistant',
             content,
+            memoryCitations,
             timestamp: msg.timestamp,
             isStreaming: true,
             ...sharedMetadata,

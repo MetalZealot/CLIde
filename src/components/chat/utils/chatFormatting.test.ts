@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
 
-import { stripInternalMemoryCitation } from './chatFormatting';
+import { extractInternalMemoryCitation, formatMemoryCitationSource } from './chatFormatting';
 
 const citation = `<oai-mem-citation>
 <citation_entries>
@@ -14,31 +14,41 @@ MEMORY.md:48-69|note=[used provider guidance]
 </rollout_ids>
 </oai-mem-citation>`;
 
-test('strips a complete internal memory citation from the end of an assistant reply', () => {
-  assert.equal(
-    stripInternalMemoryCitation(`The requested change is complete.\n\n${citation}\n`),
-    'The requested change is complete.',
+test('extracts a complete internal memory citation from the end of an assistant reply', () => {
+  assert.deepEqual(
+    extractInternalMemoryCitation(`The requested change is complete.\n\n${citation}\n`),
+    {
+      text: 'The requested change is complete.',
+      citations: [{ source: 'MEMORY.md:48-69', note: 'used provider guidance' }],
+    },
   );
 });
 
-test('strips an internal-only memory citation so no empty bubble content remains', () => {
-  assert.equal(stripInternalMemoryCitation(citation), '');
+test('extracts an internal-only memory citation without retaining the XML envelope', () => {
+  assert.deepEqual(extractInternalMemoryCitation(citation), {
+    text: '',
+    citations: [{ source: 'MEMORY.md:48-69', note: 'used provider guidance' }],
+  });
+});
+
+test('formats a cited line range compactly for display', () => {
+  assert.equal(formatMemoryCitationSource('MEMORY.md:48-69'), 'MEMORY.md:48–69');
 });
 
 test('preserves reserved citation markup when it is not the final block', () => {
   const content = `${citation}\n\nThis paragraph follows the example.`;
-  assert.equal(stripInternalMemoryCitation(content), content);
+  assert.deepEqual(extractInternalMemoryCitation(content), { text: content, citations: [] });
 });
 
 test('preserves incomplete or similarly named XML-like content', () => {
   const incomplete = 'Example:\n<oai-mem-citation><citation_entries>unfinished';
   const ordinary = '<memory-citation>keep this</memory-citation>';
 
-  assert.equal(stripInternalMemoryCitation(incomplete), incomplete);
-  assert.equal(stripInternalMemoryCitation(ordinary), ordinary);
+  assert.deepEqual(extractInternalMemoryCitation(incomplete), { text: incomplete, citations: [] });
+  assert.deepEqual(extractInternalMemoryCitation(ordinary), { text: ordinary, citations: [] });
 });
 
-test('assistant normalization hides the citation while user text remains untouched', () => {
+test('assistant normalization exposes compact citations while user text remains untouched', () => {
   const messages = normalizedToChatMessages([
     {
       id: 'assistant-1',
@@ -61,5 +71,9 @@ test('assistant normalization hides the citation while user text remains untouch
   ]);
 
   assert.equal(messages[0]?.content, 'Visible answer.');
+  assert.deepEqual(messages[0]?.memoryCitations, [
+    { source: 'MEMORY.md:48-69', note: 'used provider guidance' },
+  ]);
   assert.equal(messages[1]?.content, citation);
+  assert.equal(messages[1]?.memoryCitations, undefined);
 });
