@@ -60,7 +60,7 @@ is one module deep.
 | P2 | Registry + shell + primitives + Appearance | P0 | L | ✅ done |
 | P3a | Chat + Notifications screens | P2 | M | ✅ done |
 | P5 | QuickSettings removal | P3a | S | ✅ done |
-| P3b | Projects & Git + Credentials screens | P2 | M | ☐ |
+| P3b | Projects & Git + Credentials screens | P2 | M | ✅ done |
 | P3c | Extensions (Plugins / Browser / Tasks) + About | P2 | M | ☐ |
 | P4 | Agents restructure + PWA verification | P2 | L | ☐ |
 | P6 | Search + cleanup sweep | P2, all screens | M | ☐ |
@@ -225,15 +225,62 @@ skipped silently. The change is a pure deletion of a self-contained
 `fixed`-positioned component, which is what makes code-level verification
 adequate here. See [ADR 0019](../../decisions/0019-quicksettings-removal.md).
 
-### P3b — Projects & Git + Credentials
+### P3b — Projects & Git + Credentials ✅
 
-Projects & Git: project sort order plus git identity. **Removes the Git Save
-button** in favour of save-on-blur (debounced, inline per-row confirmation) and
-removes the global header "Saved" indicator. Git writes hit real git config, so
-save-on-blur with validation before write — never per-keystroke.
+New `ProjectsGitScreen.tsx`: the project sort-order select (moved off
+Appearance, which now shows only Theme/Language/Code Editor) plus a git
+identity group (name, email). **Removes the Git Save button** in favour of
+save-on-blur: each field's `onBlur` schedules a 300ms-debounced write so
+tabbing Name→Email coalesces into a single request rather than firing twice,
+and a local inline success/error line replaces the old button-adjacent text.
+Git writes hit real `git config --global`, so this is blur-triggered, never
+per-keystroke. The registry's interim `git` screen is gone; `projects-git`
+takes its slot and `LEGACY_SCREEN_IDS.git` maps to it so old deep links still
+resolve.
 
-Credentials: API keys and GitHub credentials, existing flows and the
-newly-created-key disclosure alert preserved.
+**Correction to this packet's brief: the global header "Saved" indicator was
+not removed.** The brief's literal text conflated two different things — the
+header indicator (`SettingsHeader.tsx`, driven by `useSettingsController`'s
+`saveStatus` for provider login and the Permissions/Notifications autosave)
+and Git's own old inline "Saved successfully" text next to its Save button
+in `GitSettingsTab.tsx`, which lived locally in that tab, not the header. The
+save-on-blur confirmation added to `ProjectsGitScreen.tsx` is that same kind
+of local, per-screen feedback — it does not touch `SettingsHeader.tsx` or
+`useSettingsController.ts` at all. Per P2 decision 3 and P3a's identical
+correction, the header indicator stays until P4 gives Agents/Permissions
+local confirmation too.
+
+New `CredentialsScreen.tsx` composes the existing `ApiKeysSection`,
+`GithubCredentialsSection` and `NewApiKeyAlert` — all three ported to the
+primitives rather than rewritten, so the create/delete/toggle/copy flows and
+the newly-created-key disclosure are unchanged. `CredentialsSettingsTab.tsx`
+and `GitSettingsTab.tsx` are deleted (confirmed via grep: no other
+consumers).
+
+Two primitive additions this packet needed, now available to later packets:
+- `SettingsGroup` gained an `action` prop — a trailing header control (e.g.
+  "New API Key" next to a group title), used by both Credentials sections
+  instead of a hand-rolled title-row-with-button.
+- `SettingsTextField` gained `type="email"`, `disabled`, and `onBlur`, needed
+  for the git identity fields.
+
+`NewApiKeyAlert`'s hardcoded `border-yellow-500/20 bg-yellow-500/10` /
+`text-yellow-500` became `<SettingsGroup tone="warning">` + `text-warning`,
+per rule 3.
+
+Verified via a throwaway Playwright script driving the harness on
+`localhost:5174` directly to a screenshot file, rather than through the
+`cloudcli-browser` MCP tool — that tool's `browser_navigate`/`browser_snapshot`
+return the full base64 screenshot inline in the tool result, which overloaded
+context mid-session. See the environment-traps note in "Verification
+reference" below. Confirmed: Appearance shows only Theme/Language/Code
+Editor (project sorting gone), Projects & Git renders both groups with
+working save-on-blur (a deliberately-broken write showed the inline error
+line, as expected with no auth token in the harness), and Credentials renders
+both sections with their new `action` buttons and opens the "New API Key"
+disclosure form correctly. `npm run typecheck` and `npm run lint` are clean
+(0 errors; same pre-existing warning baseline, none in touched files), and
+all 28 registry `node:test` cases still pass.
 
 ### P3c — Extensions + About
 
@@ -319,3 +366,20 @@ The Chromium binary itself lives in `~/.cache/ms-playwright` and survives;
 `npx playwright install chromium` restores it if it does not. Real-browser tests
 still cannot reach the installed-PWA acceptance criteria in P4 — those need the
 phone.
+
+**Third trap, hit in P3b: don't drive verification through the `cloudcli-browser`
+MCP tool.** `browser_navigate` and `browser_snapshot` return the full base64
+screenshot data URL inline in the tool result — no save-to-file option — and it
+overloaded context mid-session. Use a small Playwright script instead (the
+project's own `~/Projects/cloudcli/node_modules/playwright` works — run the
+script from inside a checkout that has `node_modules`, since ESM module
+resolution walks up from the script's own path, not `cwd`) that navigates and
+calls `page.screenshot({ path })` directly to a file, then `Read` the file.
+Also: starting a second Vite instance on 5174 for the harness is fine, but do
+**not** symlink another `node_modules` into the worktree root to work around
+missing `playwright` there — this worktree already has its own real
+`node_modules`, and a stray extra symlink at the worktree root gets picked up
+by Vite's own file watcher on top of the real one, doubling every watch and
+hitting the OS file-descriptor limit (`ENOSPC`), which crashes the dev
+server. If `node_modules/playwright` really is missing, use the scratch-prefix
+approach above instead of a top-level symlink.
