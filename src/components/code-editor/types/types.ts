@@ -11,6 +11,12 @@ export type CodeEditorFile = {
   // URLs for reading and saving content.
   projectId?: string;
   diffInfo?: CodeEditorDiffInfo | null;
+  // Identity of the *document*, minted once when a file is opened and kept
+  // across moves and renames. The editor reloads from disk when this changes,
+  // so rewriting the path alone rebinds where saves go without discarding an
+  // unsaved buffer. Optional: callers that don't mint one fall back to the
+  // path, which is the pre-rebind behavior.
+  documentId?: string;
   [key: string]: unknown;
 };
 

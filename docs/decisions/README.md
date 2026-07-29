@@ -54,3 +54,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0014 — The context ring's ceiling is read from the SDK, not derived](0014-context-ceiling-from-sdk.md)
 - [0015 — The composer ring opens `/context`; `/cost` became `/usage`](0015-ring-opens-context-and-usage-rename.md)
 - [0016 — Projects group checkouts by repository; a project is not a directory](0016-repository-grouped-checkouts.md)
+- [0017 — A batch move preflights everything, then rolls back in reverse](0017-batch-move-preflight-then-rollback.md)

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type TouchEvent as ReactTouchEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Copy, Download, FileText, FolderInput, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react';
+import { CheckSquare, Copy, Download, FileText, FolderInput, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
 import { useLongPress, type LongPressCoords } from '../../../hooks/useLongPress';
@@ -46,6 +46,11 @@ export default function FileContextMenu({
   onRefresh,
   onCopyPath,
   onDownload,
+  onSelectItem,
+  onMoveSelection,
+  isSelectionMode = false,
+  isItemSelected = false,
+  selectedCount = 0,
   isLoading = false,
   className = '',
 }: {
@@ -61,6 +66,13 @@ export default function FileContextMenu({
   onRefresh?: () => void;
   onCopyPath?: (item: FileContextItem) => void;
   onDownload?: (item: FileContextItem) => void;
+  /** Enters selection mode with this row selected. */
+  onSelectItem?: (item: FileContextItem) => void;
+  /** Moves the whole current selection. */
+  onMoveSelection?: () => void;
+  isSelectionMode?: boolean;
+  isItemSelected?: boolean;
+  selectedCount?: number;
   isLoading?: boolean;
   className?: string;
 }) {
@@ -86,9 +98,16 @@ export default function FileContextMenu({
 
   // Touch access: long-press opens the same menu, anchored to the pressed row
   // (the wrapper is `display: contents`, so the row itself is its first child).
+  //
+  // Suppressed once touch selection mode is active: the contextual toolbar is
+  // the action surface there, and a row menu on top of it would leave it
+  // ambiguous whether an action applies to that row or to the selection.
   const openContextMenuAtTouch = useCallback((coords: LongPressCoords) => {
+    if (isSelectionMode) {
+      return;
+    }
     setMenuAnchor(anchorFromElement(rowWrapperRef.current?.firstElementChild, coords));
-  }, []);
+  }, [isSelectionMode]);
 
   const { handlers: longPressHandlers, isPressing } = useLongPress(openContextMenuAtTouch);
 
@@ -111,10 +130,57 @@ export default function FileContextMenu({
   }, [closeContextMenu]);
 
   const menuActions = useMemo<ContextMenuAction[]>(() => {
+    // Right-clicking a row that belongs to the current selection acts on the
+    // whole selection, not on the row under the cursor.
+    if (item && isItemSelected && selectedCount > 0) {
+      const actions: ContextMenuAction[] = [
+        {
+          key: 'moveSelection',
+          icon: FolderInput,
+          label:
+            selectedCount === 1
+              ? t('fileTree.context.moveTo', 'Move to…')
+              : t('fileTree.context.moveCount', 'Move {{total}} items…', { total: selectedCount }),
+          onSelect: () => onMoveSelection?.(),
+        },
+      ];
+
+      // Single-item actions have no meaning for a set; they come back only
+      // when the selection happens to be exactly this row.
+      if (selectedCount === 1) {
+        actions.push(
+          {
+            key: 'rename',
+            icon: Pencil,
+            label: t('fileTree.context.rename', 'Rename'),
+            onSelect: () => onRename?.(item),
+            showDividerBefore: true,
+          },
+          {
+            key: 'copyPath',
+            icon: Copy,
+            label: t('fileTree.context.copyPath', 'Copy Path'),
+            onSelect: () => onCopyPath?.(item),
+          },
+        );
+      }
+
+      return actions;
+    }
+
+    const selectAction: ContextMenuAction = {
+      key: 'select',
+      icon: CheckSquare,
+      label: t('fileTree.context.select', 'Select'),
+      onSelect: () => item && onSelectItem?.(item),
+    };
+
     if (item?.type === 'file') {
       return [
+        selectAction,
         {
           key: 'rename',
+          showDividerBefore: true,
           icon: Pencil,
           label: t('fileTree.context.rename', 'Rename'),
           onSelect: () => onRename?.(item),
@@ -150,11 +216,13 @@ export default function FileContextMenu({
 
     if (item?.type === 'directory') {
       return [
+        selectAction,
         {
           key: 'newFile',
           icon: FileText,
           label: t('fileTree.context.newFile', 'New File'),
           onSelect: () => onNewFile?.(item.path),
+          showDividerBefore: true,
         },
         {
           key: 'newFolder',
@@ -219,7 +287,7 @@ export default function FileContextMenu({
         showDividerBefore: true,
       },
     ];
-  }, [item, onCopyPath, onDelete, onDownload, onMove, onNewFile, onNewFolder, onRefresh, onRename, t]);
+  }, [item, isItemSelected, selectedCount, onCopyPath, onDelete, onDownload, onMove, onMoveSelection, onNewFile, onNewFolder, onRefresh, onRename, onSelectItem, t]);
 
   return (
     <>

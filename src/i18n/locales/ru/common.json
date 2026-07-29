@@ -130,7 +130,28 @@
       "newFolder": "Новая папка",
       "refresh": "Обновить",
       "menuLabel": "Контекстное меню файла",
-      "loading": "Загрузка..."
+      "loading": "Загрузка...",
+      "select": "Выбрать",
+      "moveCount": "Переместить элементов: {{total}}…"
+    },
+    "treeLabel": "Файлы проекта",
+    "selection": {
+      "start": "Выбрать элементы",
+      "exit": "Отменить выбор",
+      "count": "Выбрано: {{total}}",
+      "move": "Переместить выбранное",
+      "selectAll": "Все",
+      "selectAllVisible": "Выбрать все видимые элементы"
+    },
+    "move": {
+      "titleCount": "Переместить элементов: {{total}}",
+      "andMore": "{{names}} и ещё {{total}}",
+      "foldersIncludeContents": "Выбранные папки перемещаются со всем содержимым."
+    },
+    "toast": {
+      "movedCount": "Перемещено элементов: {{total}}",
+      "moveFailed": "Не удалось переместить",
+      "movedSomeSkipped": "{{message}} (уже на месте: {{skipped}})"
     }
   },
   "projectWizard": {

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { ChangeEvent } from 'react';
-import { ChevronDown, Eye, FileText, FolderPlus, List, Loader2, RefreshCw, Search, TableProperties, Upload, X } from 'lucide-react';
+import { CheckSquare, ChevronDown, Eye, FileText, FolderInput, FolderPlus, List, Loader2, RefreshCw, Search, TableProperties, Upload, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '../../../shared/view/ui';
@@ -19,6 +19,14 @@ type FileTreeHeaderProps = {
   onUploadFiles?: (files: FileList) => void;
   onRefresh?: () => void;
   onCollapseAll?: () => void;
+  // Selection
+  isSelectionMode?: boolean;
+  selectedCount?: number;
+  onStartSelection?: () => void;
+  onExitSelection?: () => void;
+  onMoveSelection?: () => void;
+  onSelectAllVisible?: () => void;
+  areAllVisibleSelected?: boolean;
   // Loading state
   loading?: boolean;
   operationLoading?: boolean;
@@ -36,6 +44,13 @@ export default function FileTreeHeader({
   onUploadFiles,
   onRefresh,
   onCollapseAll,
+  isSelectionMode = false,
+  selectedCount = 0,
+  onStartSelection,
+  onExitSelection,
+  onMoveSelection,
+  onSelectAllVisible,
+  areAllVisibleSelected = false,
   loading,
   operationLoading,
   isUploading,
@@ -52,6 +67,63 @@ export default function FileTreeHeader({
     event.target.value = '';
   };
 
+  // Selection mode replaces the title/action row with a contextual action bar.
+  // Search stays below it, so a selection can be assembled across searches.
+  if (isSelectionMode) {
+    return (
+      <div className="space-y-2 border-b border-border px-3 pb-2 pt-3">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 flex-shrink-0 p-0"
+            onClick={onExitSelection}
+            title={t('fileTree.selection.exit', 'Cancel selection')}
+            aria-label={t('fileTree.selection.exit', 'Cancel selection')}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" aria-live="polite">
+            {t('fileTree.selection.count', '{{total}} selected', { total: selectedCount })}
+          </span>
+          {onSelectAllVisible && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 flex-shrink-0 px-2 text-xs"
+              onClick={onSelectAllVisible}
+              disabled={areAllVisibleSelected || operationLoading}
+              // Scope is deliberately explicit: search-filtered and collapsed
+              // rows are not included.
+              title={t('fileTree.selection.selectAllVisible', 'Select all visible')}
+              aria-label={t('fileTree.selection.selectAllVisible', 'Select all visible')}
+            >
+              {t('fileTree.selection.selectAll', 'All')}
+            </Button>
+          )}
+          <Button
+            variant="default"
+            size="sm"
+            className="h-7 flex-shrink-0 gap-1.5 px-2 text-xs"
+            onClick={onMoveSelection}
+            disabled={selectedCount === 0 || operationLoading}
+            title={t('fileTree.selection.move', 'Move selected items')}
+            aria-label={t('fileTree.selection.move', 'Move selected items')}
+          >
+            {operationLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FolderInput className="h-3.5 w-3.5" />
+            )}
+            {t('fileTree.move.confirm', 'Move')}
+          </Button>
+        </div>
+
+        <SearchBar searchQuery={searchQuery} onSearchQueryChange={onSearchQueryChange} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2 border-b border-border px-3 pb-2 pt-3">
       {/* Title and Toolbar */}
@@ -59,6 +131,19 @@ export default function FileTreeHeader({
         <h3 className="text-sm font-medium text-foreground">{t('fileTree.files')}</h3>
         <div className="flex items-center gap-0.5">
           {/* Action buttons */}
+          {onStartSelection && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={onStartSelection}
+              title={t('fileTree.selection.start', 'Select items')}
+              aria-label={t('fileTree.selection.start', 'Select items')}
+              disabled={operationLoading}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+            </Button>
+          )}
           {onUploadFiles && (
             <>
               <input
@@ -190,29 +275,43 @@ export default function FileTreeHeader({
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="text"
-          placeholder={t('fileTree.searchPlaceholder')}
-          value={searchQuery}
-          onChange={(event) => onSearchQueryChange(event.target.value)}
-          className="h-8 pl-8 pr-8 text-sm"
-        />
-        {searchQuery && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-0.5 top-1/2 h-5 w-5 -translate-y-1/2 p-0 hover:bg-accent"
-            onClick={() => onSearchQueryChange('')}
-            title={t('fileTree.clearSearch')}
-            aria-label={t('fileTree.clearSearch')}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        )}
-      </div>
+      <SearchBar searchQuery={searchQuery} onSearchQueryChange={onSearchQueryChange} />
+    </div>
+  );
+}
+
+/** Shared by both header modes — search stays available while selecting. */
+function SearchBar({
+  searchQuery,
+  onSearchQueryChange,
+}: {
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="relative">
+      <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        type="text"
+        placeholder={t('fileTree.searchPlaceholder')}
+        value={searchQuery}
+        onChange={(event) => onSearchQueryChange(event.target.value)}
+        className="h-8 pl-8 pr-8 text-sm"
+      />
+      {searchQuery && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute right-0.5 top-1/2 h-5 w-5 -translate-y-1/2 p-0 hover:bg-accent"
+          onClick={() => onSearchQueryChange('')}
+          title={t('fileTree.clearSearch')}
+          aria-label={t('fileTree.clearSearch')}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      )}
     </div>
   );
 }

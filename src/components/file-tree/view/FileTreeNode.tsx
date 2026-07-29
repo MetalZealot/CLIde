@@ -1,5 +1,5 @@
-import type { ReactNode, RefObject } from 'react';
-import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import type { MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react';
+import { Check, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
 import type { FileTreeNode as FileTreeNodeType, FileTreeViewMode } from '../types/types';
@@ -8,12 +8,28 @@ import { Input } from '../../../shared/view/ui';
 
 import FileContextMenu from './FileContextMenu';
 
+/**
+ * What a row needs to know about selection. Deliberately just data and
+ * callbacks: selection state lives in `FileTree`, so the recursive row
+ * component stays a renderer and cannot drift between levels.
+ */
+export type FileTreeNodeSelection = {
+  isSelectionMode: boolean;
+  selectedPaths: Set<string>;
+  /** Toggles expansion without touching selection (the chevron target). */
+  onToggleExpand: (item: FileTreeNodeType) => void;
+};
+
 type FileTreeNodeProps = {
   item: FileTreeNodeType;
   level: number;
   viewMode: FileTreeViewMode;
   expandedDirs: Set<string>;
-  onItemClick: (item: FileTreeNodeType) => void;
+  /**
+   * Receives the original event so `FileTree` can read Ctrl/Cmd and Shift.
+   * Modifier meaning is decided in one place, never inferred per row.
+   */
+  onItemClick: (item: FileTreeNodeType, event: ReactMouseEvent<HTMLElement>) => void;
   renderFileIcon: (filename: string) => ReactNode;
   formatFileSize: (bytes?: number) => string;
   formatRelativeTime: (date?: string) => string;
@@ -25,7 +41,13 @@ type FileTreeNodeProps = {
   onCopyPath?: (item: FileTreeNodeType) => void;
   onDownload?: (item: FileTreeNodeType) => void;
   onRefresh?: () => void;
+  onSelectItem?: (item: FileTreeNodeType) => void;
+  onMoveSelection?: () => void;
   dragMove?: FileTreeDragMove;
+  selection?: FileTreeNodeSelection;
+  focusedPath?: string | null;
+  onFocusRow?: (item: FileTreeNodeType) => void;
+  rowRefs?: RefObject<Map<string, HTMLDivElement>>;
   // Rename state for inline editing
   renamingItem?: FileTreeNodeType | null;
   renameValue?: string;
@@ -36,22 +58,58 @@ type FileTreeNodeProps = {
   operationLoading?: boolean;
 };
 
+/**
+ * Everything a row needs that is identical for every row in the tree. Bundled
+ * so `FileTreeBody`/`FileTreeList` forward one object instead of re-listing
+ * two dozen props at each level.
+ */
+export type FileTreeSharedRowProps = Omit<FileTreeNodeProps, 'item' | 'level'>;
+
 type TreeItemIconProps = {
   item: FileTreeNodeType;
   isOpen: boolean;
+  isSelectionMode: boolean;
   renderFileIcon: (filename: string) => ReactNode;
+  onToggleExpand?: () => void;
 };
 
-function TreeItemIcon({ item, isOpen, renderFileIcon }: TreeItemIconProps) {
+function TreeItemIcon({
+  item,
+  isOpen,
+  isSelectionMode,
+  renderFileIcon,
+  onToggleExpand,
+}: TreeItemIconProps) {
   if (item.type === 'directory') {
     return (
       <span className="flex flex-shrink-0 items-center gap-0.5">
-        <ChevronRight
+        {/* In selection mode the row itself toggles selection, so expansion
+            needs its own target. `aria-hidden` because the treeitem's
+            `aria-expanded` (with Left/Right arrows) already carries this for
+            assistive tech — a nested button here would be invalid inside a
+            treeitem. */}
+        <span
+          aria-hidden="true"
+          onClick={
+            isSelectionMode && onToggleExpand
+              ? (event) => {
+                  event.stopPropagation();
+                  onToggleExpand();
+                }
+              : undefined
+          }
           className={cn(
-            'w-3.5 h-3.5 text-muted-foreground/70 transition-transform duration-150',
-            isOpen && 'rotate-90',
+            'flex items-center justify-center',
+            isSelectionMode && '-ml-0.5 w-5 rounded hover:bg-accent',
           )}
-        />
+        >
+          <ChevronRight
+            className={cn(
+              'w-3.5 h-3.5 text-muted-foreground/70 transition-transform duration-150',
+              isOpen && 'rotate-90',
+            )}
+          />
+        </span>
         {isOpen ? (
           <FolderOpen className="h-4 w-4 flex-shrink-0 text-blue-500" />
         ) : (
@@ -62,6 +120,23 @@ function TreeItemIcon({ item, isOpen, renderFileIcon }: TreeItemIconProps) {
   }
 
   return <span className="ml-[18px] flex flex-shrink-0 items-center">{renderFileIcon(item.name)}</span>;
+}
+
+/** The check affordance shown on every row while selection mode is active. */
+function SelectionIndicator({ isSelected }: { isSelected: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors',
+        isSelected
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-muted-foreground/40',
+      )}
+    >
+      {isSelected && <Check className="h-3 w-3" strokeWidth={3} />}
+    </span>
+  );
 }
 
 export default function FileTreeNode({
@@ -81,7 +156,13 @@ export default function FileTreeNode({
   onCopyPath,
   onDownload,
   onRefresh,
+  onSelectItem,
+  onMoveSelection,
   dragMove,
+  selection,
+  focusedPath,
+  onFocusRow,
+  rowRefs,
   renamingItem,
   renameValue,
   setRenameValue,
@@ -95,7 +176,10 @@ export default function FileTreeNode({
   const hasChildren = Boolean(isDirectory && item.children && item.children.length > 0);
   const isRenaming = renamingItem?.path === item.path;
   const isDropTarget = dragMove?.dropTargetPath === item.path;
-  const isBeingDragged = dragMove?.draggedItem?.path === item.path;
+  const isBeingDragged = Boolean(dragMove?.draggedPaths.has(item.path));
+  const isSelectionMode = Boolean(selection?.isSelectionMode);
+  const isSelected = Boolean(selection?.selectedPaths.has(item.path));
+  const isFocused = focusedPath === item.path;
 
   const nameClassName = cn(
     'text-[13px] leading-tight truncate',
@@ -113,6 +197,7 @@ export default function FileTreeNode({
     (isDirectory && !isOpen) || !isDirectory ? 'border-l-2 border-transparent' : '',
     isDropTarget && 'bg-accent ring-1 ring-inset ring-primary/50',
     isBeingDragged && 'opacity-50',
+    isSelected && 'bg-primary/15',
   );
 
   // Render rename input if this item is being renamed
@@ -123,7 +208,12 @@ export default function FileTreeNode({
         style={{ paddingLeft: `${level * 16 + 4}px` }}
         onClick={(e) => e.stopPropagation()}
       >
-        <TreeItemIcon item={item} isOpen={isOpen} renderFileIcon={renderFileIcon} />
+        <TreeItemIcon
+          item={item}
+          isOpen={isOpen}
+          isSelectionMode={false}
+          renderFileIcon={renderFileIcon}
+        />
         <Input
           ref={renameInputRef}
           type="text"
@@ -146,6 +236,16 @@ export default function FileTreeNode({
     );
   }
 
+  const treeItemIcon = (
+    <TreeItemIcon
+      item={item}
+      isOpen={isOpen}
+      isSelectionMode={isSelectionMode}
+      renderFileIcon={renderFileIcon}
+      onToggleExpand={selection ? () => selection.onToggleExpand(item) : undefined}
+    />
+  );
+
   // `isContextActive` is true while the row is being long-pressed and for as
   // long as its context menu stays open, so it's clear which file the menu
   // belongs to.
@@ -153,13 +253,14 @@ export default function FileTreeNode({
     <div
       className={cn(rowClassName, isContextActive && 'bg-accent ring-1 ring-inset ring-primary/50')}
       style={{ paddingLeft: `${level * 16 + 4}px` }}
-      onClick={() => onItemClick(item)}
+      onClick={(event) => onItemClick(item, event)}
       {...(dragMove ? dragMove.getItemDragProps(item) : {})}
     >
       {viewMode === 'detailed' ? (
         <>
           <div className="col-span-5 flex min-w-0 items-center gap-1.5">
-            <TreeItemIcon item={item} isOpen={isOpen} renderFileIcon={renderFileIcon} />
+            {isSelectionMode && <SelectionIndicator isSelected={isSelected} />}
+            {treeItemIcon}
             <span className={nameClassName}>{item.name}</span>
           </div>
           <div className="col-span-2 text-sm tabular-nums text-muted-foreground">
@@ -171,7 +272,8 @@ export default function FileTreeNode({
       ) : viewMode === 'compact' ? (
         <>
           <div className="flex min-w-0 items-center gap-1.5">
-            <TreeItemIcon item={item} isOpen={isOpen} renderFileIcon={renderFileIcon} />
+            {isSelectionMode && <SelectionIndicator isSelected={isSelected} />}
+            {treeItemIcon}
             <span className={nameClassName}>{item.name}</span>
           </div>
           <div className="ml-2 flex flex-shrink-0 items-center gap-3 text-sm text-muted-foreground">
@@ -185,7 +287,8 @@ export default function FileTreeNode({
         </>
       ) : (
         <>
-          <TreeItemIcon item={item} isOpen={isOpen} renderFileIcon={renderFileIcon} />
+          {isSelectionMode && <SelectionIndicator isSelected={isSelected} />}
+          {treeItemIcon}
           <span className={nameClassName}>{item.name}</span>
         </>
       )}
@@ -196,7 +299,37 @@ export default function FileTreeNode({
   const hasContextMenu = onRename || onMove || onDelete || onNewFile || onNewFolder || onCopyPath || onDownload || onRefresh;
 
   return (
-    <div className="select-none">
+    <div
+      // The treeitem owns its child group so `aria-expanded` describes the
+      // right subtree; `aria-label` keeps the accessible name to this row's
+      // own name rather than everything nested beneath it.
+      role="treeitem"
+      aria-label={item.name}
+      aria-level={level + 1}
+      aria-selected={isSelectionMode ? isSelected : undefined}
+      aria-expanded={isDirectory && hasChildren ? isOpen : undefined}
+      // Roving tabstop: exactly one row is tabbable at a time.
+      tabIndex={isFocused ? 0 : -1}
+      ref={(element) => {
+        if (!rowRefs?.current) return;
+        if (element) {
+          rowRefs.current.set(item.path, element);
+        } else {
+          rowRefs.current.delete(item.path);
+        }
+      }}
+      onFocus={(event) => {
+        if (event.target === event.currentTarget) {
+          onFocusRow?.(item);
+        }
+      }}
+      className={cn(
+        'select-none outline-none',
+        // A focus ring distinct from the selected fill, so "where am I" and
+        // "what is chosen" never read as the same thing.
+        isFocused && 'rounded-sm ring-1 ring-primary/70',
+      )}
+    >
       {hasContextMenu ? (
         <FileContextMenu
           item={item}
@@ -208,6 +341,11 @@ export default function FileTreeNode({
           onCopyPath={onCopyPath}
           onDownload={onDownload}
           onRefresh={onRefresh}
+          onSelectItem={onSelectItem}
+          onMoveSelection={onMoveSelection}
+          isSelectionMode={isSelectionMode}
+          isItemSelected={isSelected}
+          selectedCount={selection?.selectedPaths.size ?? 0}
         >
           {({ isContextActive }) => renderRow(isContextActive)}
         </FileContextMenu>
@@ -216,7 +354,7 @@ export default function FileTreeNode({
       )}
 
       {isDirectory && isOpen && hasChildren && (
-        <div className="relative">
+        <div className="relative" role="group">
           <span
             className="absolute bottom-0 top-0 border-l border-border/40"
             style={{ left: `${level * 16 + 14}px` }}
@@ -241,7 +379,13 @@ export default function FileTreeNode({
               onCopyPath={onCopyPath}
               onDownload={onDownload}
               onRefresh={onRefresh}
+              onSelectItem={onSelectItem}
+              onMoveSelection={onMoveSelection}
               dragMove={dragMove}
+              selection={selection}
+              focusedPath={focusedPath}
+              onFocusRow={onFocusRow}
+              rowRefs={rowRefs}
               renamingItem={renamingItem}
               renameValue={renameValue}
               setRenameValue={setRenameValue}

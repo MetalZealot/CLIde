@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent, HTMLAttributes } from 'react';
 
 import type { FileTreeNode } from '../types/types';
@@ -10,16 +10,19 @@ import type { FileTreeNode } from '../types/types';
  * handlers must ignore events carrying this type, and these handlers ignore
  * everything else (external drags fall through to the upload path).
  *
- * Enabled only for fine pointers — on touch devices, `draggable` rows would
- * collide with the long-press context menu (iOS Safari starts a native HTML5
- * drag on long-press), and the "Move to…" dialog covers that surface anyway.
+ * Drag moves the *set*: starting a drag on a selected row moves the whole
+ * canonical selection, while starting on an unselected row replaces the
+ * selection with that row and moves only it — the standard file-explorer rule.
+ *
+ * `draggable` rows are enabled only for mouse input: on touch they collide
+ * with the long-press context menu (iOS Safari starts a native HTML5 drag on
+ * long-press), and the "Move to…" dialog is the touch move surface anyway.
  *
  * Drop semantics (standard file-explorer): directory rows accept drops,
  * file rows are dead zones (they swallow the event so a miss doesn't fall
  * through and become a move-to-root), tree background = project root
- * (`''` — the server resolves it to the root). Invalid targets (current
- * parent, the dragged folder's own subtree) never get preventDefault, so the
- * browser shows the not-allowed cursor.
+ * (`''` — the server resolves it to the root). Invalid targets never get
+ * preventDefault, so the browser shows the not-allowed cursor.
  */
 
 export const INTERNAL_DRAG_TYPE = 'application/x-cloudcli-file-tree-move';
@@ -34,7 +37,8 @@ type DragMoveItemProps = Pick<
 
 export type FileTreeDragMove = {
   enabled: boolean;
-  draggedItem: FileTreeNode | null;
+  /** Every source participating in the current drag; empty when none. */
+  draggedPaths: Set<string>;
   /** Absolute path of the hovered drop directory; `''` = project root; null = none. */
   dropTargetPath: string | null;
   getItemDragProps: (item: FileTreeNode) => DragMoveItemProps;
@@ -45,46 +49,108 @@ export type FileTreeDragMove = {
 
 type UseFileTreeDragMoveOptions = {
   projectPath: string | null;
-  onMoveToFolder: (item: FileTreeNode, destinationPath: string) => Promise<boolean>;
+  /** Moves the canonical set; the caller issues one batch request for it. */
+  onMoveToFolder: (sources: FileTreeNode[], destinationPath: string) => Promise<unknown>;
+  /**
+   * Resolves the sources a drag starting on `item` should move: the canonical
+   * selection when `item` belongs to it, otherwise just `item` (having made it
+   * the selection).
+   */
+  resolveDragSources: (item: FileTreeNode) => FileTreeNode[];
+  /** Blocks new drags while a file operation is in flight. */
+  isLocked?: boolean;
 };
 
 const parentDirOf = (absolutePath: string) => absolutePath.slice(0, absolutePath.lastIndexOf('/'));
 
+/**
+ * A small pill showing the count, used as the drag image for a multi-source
+ * drag. Positioned off-screen because `setDragImage` needs a laid-out element.
+ */
+function createDragCountImage(count: number): HTMLElement {
+  const badge = document.createElement('div');
+  badge.textContent = String(count);
+  badge.setAttribute('aria-hidden', 'true');
+  badge.style.cssText = [
+    'position:fixed',
+    'top:-1000px',
+    'left:-1000px',
+    'padding:4px 10px',
+    'border-radius:9999px',
+    'font:500 12px system-ui,sans-serif',
+    'background:#2563eb',
+    'color:#fff',
+  ].join(';');
+  document.body.appendChild(badge);
+  return badge;
+}
+
 export function useFileTreeDragMove({
   projectPath,
   onMoveToFolder,
+  resolveDragSources,
+  isLocked = false,
 }: UseFileTreeDragMoveOptions): FileTreeDragMove {
-  // Fine-pointer check is a mount-time decision; a mid-session input swap
-  // (tablet + mouse) just needs a reload.
-  const [enabled] = useState(
+  // Seeded from the pointer media query so a desktop's very first gesture can
+  // drag, then corrected by the actual input events — hybrid devices and
+  // browsers that misreport pointer capabilities settle on whatever the user
+  // is really using rather than on a mount-time guess.
+  const [isFinePointer, setIsFinePointer] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches,
   );
-  const [draggedItem, setDraggedItem] = useState<FileTreeNode | null>(null);
+  const [draggedPaths, setDraggedPaths] = useState<Set<string>>(() => new Set());
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   // Ref mirror: dragover can't read dataTransfer payloads (browser security),
-  // so target validation reads the source from here instead.
-  const draggedItemRef = useRef<FileTreeNode | null>(null);
+  // so target validation reads the sources from here instead.
+  const draggedSourcesRef = useRef<FileTreeNode[]>([]);
+  const dragImageRef = useRef<HTMLElement | null>(null);
 
-  const clearDragState = useCallback(() => {
-    draggedItemRef.current = null;
-    setDraggedItem(null);
-    setDropTargetPath(null);
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      setIsFinePointer((current) => {
+        const isMouse = event.pointerType === 'mouse';
+        return current === isMouse ? current : isMouse;
+      });
+    };
+    window.addEventListener('pointerdown', handlePointerDown, true);
+    return () => window.removeEventListener('pointerdown', handlePointerDown, true);
   }, []);
 
+  const enabled = isFinePointer && !isLocked;
+
+  const clearDragState = useCallback(() => {
+    draggedSourcesRef.current = [];
+    setDraggedPaths(new Set());
+    setDropTargetPath(null);
+    dragImageRef.current?.remove();
+    dragImageRef.current = null;
+  }, []);
+
+  /**
+   * A destination is valid when at least one source would actually move there.
+   * Sources already sitting in the destination are legal no-ops (the server
+   * skips them), but a destination where *every* source already lives has
+   * nothing to do, so it shows not-allowed instead.
+   */
   const isValidDropTarget = useCallback(
-    (source: FileTreeNode, destinationPath: string) => {
-      const sourceParent = parentDirOf(source.path);
-      if (destinationPath === '') {
-        // Root drop is a no-op for items already at the top level.
-        return projectPath !== null && sourceParent !== projectPath;
+    (sources: FileTreeNode[], destinationPath: string) => {
+      if (sources.length === 0) return false;
+
+      const resolvedDestination = destinationPath === '' ? projectPath : destinationPath;
+      if (resolvedDestination === null) return false;
+
+      for (const source of sources) {
+        // A folder can't be moved into itself or its own subtree.
+        if (
+          source.type === 'directory' &&
+          (resolvedDestination === source.path ||
+            resolvedDestination.startsWith(source.path + '/'))
+        ) {
+          return false;
+        }
       }
-      if (destinationPath === sourceParent) return false;
-      // A folder can't be moved into itself or its own subtree.
-      if (source.type === 'directory' &&
-          (destinationPath === source.path || destinationPath.startsWith(source.path + '/'))) {
-        return false;
-      }
-      return true;
+
+      return sources.some((source) => parentDirOf(source.path) !== resolvedDestination);
     },
     [projectPath],
   );
@@ -97,10 +163,26 @@ export function useFileTreeDragMove({
         draggable: true,
         onDragStart: (event) => {
           event.stopPropagation();
-          event.dataTransfer.setData(INTERNAL_DRAG_TYPE, item.path);
+          const sources = resolveDragSources(item);
+          if (sources.length === 0) {
+            event.preventDefault();
+            return;
+          }
+
+          event.dataTransfer.setData(
+            INTERNAL_DRAG_TYPE,
+            sources.map((source) => source.path).join('\n'),
+          );
           event.dataTransfer.effectAllowed = 'move';
-          draggedItemRef.current = item;
-          setDraggedItem(item);
+
+          if (sources.length > 1) {
+            const badge = createDragCountImage(sources.length);
+            dragImageRef.current = badge;
+            event.dataTransfer.setDragImage(badge, 12, 12);
+          }
+
+          draggedSourcesRef.current = sources;
+          setDraggedPaths(new Set(sources.map((source) => source.path)));
         },
         onDragEnd: clearDragState,
       };
@@ -109,8 +191,7 @@ export function useFileTreeDragMove({
         props.onDragOver = (event) => {
           if (!isInternalDragEvent(event)) return; // external drag → upload path
           event.stopPropagation();
-          const source = draggedItemRef.current;
-          if (!source || !isValidDropTarget(source, item.path)) {
+          if (!isValidDropTarget(draggedSourcesRef.current, item.path)) {
             setDropTargetPath((current) => (current === item.path ? null : current));
             return;
           }
@@ -127,10 +208,11 @@ export function useFileTreeDragMove({
           if (!isInternalDragEvent(event)) return;
           event.preventDefault();
           event.stopPropagation();
-          const source = draggedItemRef.current;
+          const sources = draggedSourcesRef.current;
+          const isValid = isValidDropTarget(sources, item.path);
           clearDragState();
-          if (source && isValidDropTarget(source, item.path)) {
-            void onMoveToFolder(source, item.path);
+          if (isValid) {
+            void onMoveToFolder(sources, item.path);
           }
         };
       } else {
@@ -152,15 +234,14 @@ export function useFileTreeDragMove({
 
       return props;
     },
-    [enabled, clearDragState, isValidDropTarget, onMoveToFolder],
+    [enabled, clearDragState, isValidDropTarget, onMoveToFolder, resolveDragSources],
   );
 
   // Root handlers go on the tree's scroll container: background = project root.
   const handleRootDragOver = useCallback(
     (event: DragEvent) => {
       if (!enabled || !isInternalDragEvent(event)) return;
-      const source = draggedItemRef.current;
-      if (!source || !isValidDropTarget(source, '')) {
+      if (!isValidDropTarget(draggedSourcesRef.current, '')) {
         setDropTargetPath((current) => (current === '' ? null : current));
         return;
       }
@@ -182,10 +263,11 @@ export function useFileTreeDragMove({
       if (!enabled || !isInternalDragEvent(event)) return;
       event.preventDefault();
       event.stopPropagation();
-      const source = draggedItemRef.current;
+      const sources = draggedSourcesRef.current;
+      const isValid = isValidDropTarget(sources, '');
       clearDragState();
-      if (source && isValidDropTarget(source, '')) {
-        void onMoveToFolder(source, '');
+      if (isValid) {
+        void onMoveToFolder(sources, '');
       }
     },
     [enabled, clearDragState, isValidDropTarget, onMoveToFolder],
@@ -193,7 +275,7 @@ export function useFileTreeDragMove({
 
   return {
     enabled,
-    draggedItem,
+    draggedPaths,
     dropTargetPath,
     getItemDragProps,
     handleRootDragOver,

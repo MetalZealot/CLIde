@@ -1,4 +1,5 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Check, X, Loader2, Folder, Upload } from 'lucide-react';
 
@@ -8,12 +9,14 @@ import { useExpandedDirectories } from '../hooks/useExpandedDirectories';
 import { useFileTreeData } from '../hooks/useFileTreeData';
 import { useFileTreeOperations } from '../hooks/useFileTreeOperations';
 import { useFileTreeSearch } from '../hooks/useFileTreeSearch';
+import { useFileTreeSelection, isMultiSelectModifier } from '../hooks/useFileTreeSelection';
 import { useFileTreeViewMode } from '../hooks/useFileTreeViewMode';
 import { useFileTreeUpload } from '../hooks/useFileTreeUpload';
 import { useFileTreeDragMove, isInternalDragEvent } from '../hooks/useFileTreeDragMove';
 import type { FileTreeImageSelection, FileTreeNode } from '../types/types';
 import { formatFileSize, formatRelativeTime, isImageFile } from '../utils/fileTreeUtils';
-import { Project } from '../../../types/app';
+import type { FilePathChange, Project } from '../../../types/app';
+import { remapChangedPath } from '../../../utils/filePathChange';
 import { ScrollArea, Input } from '../../../shared/view/ui';
 
 import FileTreeBody from './FileTreeBody';
@@ -21,6 +24,7 @@ import FileTreeDetailedColumns from './FileTreeDetailedColumns';
 import FileTreeHeader from './FileTreeHeader';
 import FileTreeLoadingState from './FileTreeLoadingState';
 import FileTreeMoveDialog from './FileTreeMoveDialog';
+import type { FileTreeSharedRowProps } from './FileTreeNode';
 import FileTreeUploadProgress from './FileTreeUploadProgress';
 import ImageViewer from './ImageViewer';
 
@@ -28,14 +32,21 @@ import ImageViewer from './ImageViewer';
 type FileTreeProps = {
   selectedProject: Project | null;
   onFileOpen?: (filePath: string) => void;
+  /** Reports moves and renames so an open editor can rebind to the new path. */
+  onFilePathsChange?: (changes: FilePathChange[]) => void;
 };
 
-export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps) {
+const parentDirOf = (absolutePath: string) => absolutePath.slice(0, absolutePath.lastIndexOf('/'));
+
+export default function FileTree({ selectedProject, onFileOpen, onFilePathsChange }: FileTreeProps) {
   const { t } = useTranslation();
   const [selectedImage, setSelectedImage] = useState<FileTreeImageSelection | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const newItemInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  // path -> row element, so keyboard navigation can move real DOM focus.
+  const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
   // Show toast notification
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -58,11 +69,34 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
     expandDirectories,
   });
 
+  const selection = useFileTreeSelection({
+    files,
+    filteredFiles,
+    expandedDirs,
+    projectId: selectedProject?.projectId,
+  });
+
+  // An open image preview points at a URL built from a path; a move would
+  // leave it pointing at nothing, so it is remapped alongside the editor.
+  const handleFilePathsChange = useCallback(
+    (changes: FilePathChange[]) => {
+      setSelectedImage((current) => {
+        if (!current) return current;
+        const newPath = remapChangedPath(current.path, changes);
+        if (newPath === null) return current;
+        return { ...current, path: newPath, name: newPath.slice(newPath.lastIndexOf('/') + 1) };
+      });
+      onFilePathsChange?.(changes);
+    },
+    [onFilePathsChange],
+  );
+
   // File operations
   const operations = useFileTreeOperations({
     selectedProject,
     onRefresh: refreshFiles,
     showToast,
+    onFilePathsChange: handleFilePathsChange,
   });
 
   // File upload (drag and drop)
@@ -73,12 +107,42 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
   });
   const operationLoading = operations.operationLoading || upload.operationLoading;
 
+  /**
+   * Dragging a selected row moves the whole canonical selection; dragging an
+   * unselected row replaces the selection with that row and moves only it.
+   */
+  const resolveDragSources = useCallback(
+    (item: FileTreeNode): FileTreeNode[] => {
+      if (selection.selectedPaths.has(item.path)) {
+        return selection.canonicalSources;
+      }
+      selection.clearSelection();
+      return [item];
+    },
+    [selection],
+  );
+
+  const performBatchMove = useCallback(
+    async (sources: FileTreeNode[], destinationPath: string) => {
+      const outcome = await operations.performMove(sources, destinationPath);
+      // Keep the selection on failure so another destination can be tried;
+      // clear it only once the batch actually landed.
+      if (outcome) {
+        selection.exitSelectionMode();
+      }
+      return outcome;
+    },
+    [operations, selection],
+  );
+
   // Desktop drag-to-move (internal drags; external OS drops stay on the upload path)
   const dragMove = useFileTreeDragMove({
     projectPath: selectedProject?.fullPath ?? null,
-    onMoveToFolder: operations.performMove,
+    onMoveToFolder: performBatchMove,
+    resolveDragSources,
+    isLocked: operationLoading,
   });
-  const isRootDropTarget = dragMove.dropTargetPath === '' && dragMove.draggedItem !== null;
+  const isRootDropTarget = dragMove.dropTargetPath === '' && dragMove.draggedPaths.size > 0;
 
   // Focus input when creating new item
   useEffect(() => {
@@ -101,8 +165,8 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
     return <Icon className={cn(ICON_SIZE_CLASS, color)} />;
   }, []);
 
-  // Centralized click behavior keeps file actions identical across all presentation modes.
-  const handleItemClick = useCallback(
+  // Centralized activation keeps file actions identical across all presentation modes.
+  const activateItem = useCallback(
     (item: FileTreeNode) => {
       if (item.type === 'directory') {
         toggleDirectory(item.path);
@@ -126,10 +190,200 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
     [onFileOpen, selectedProject, toggleDirectory],
   );
 
+  /**
+   * The one place modifier meaning is decided. Plain clicks keep opening files
+   * in normal mode; a modifier-click enters selection mode without the user
+   * having to find the Select control first.
+   */
+  const handleItemClick = useCallback(
+    (item: FileTreeNode, event: ReactMouseEvent<HTMLElement>) => {
+      if (event.shiftKey) {
+        selection.selectRangeTo(item.path);
+        return;
+      }
+      if (isMultiSelectModifier(event) || selection.isSelectionMode) {
+        selection.togglePath(item.path);
+        return;
+      }
+      activateItem(item);
+    },
+    [activateItem, selection],
+  );
+
+  const handleStartSelectionFromRow = useCallback(
+    (item: FileTreeNode) => {
+      selection.enterSelectionMode(item.path);
+    },
+    [selection],
+  );
+
+  const handleMoveSelection = useCallback(() => {
+    if (selection.canonicalSources.length === 0) return;
+    operations.handleStartMove(selection.canonicalSources);
+  }, [operations, selection]);
+
+  const focusRowAt = useCallback((path: string | undefined) => {
+    if (!path) return;
+    setFocusedPath(path);
+    rowRefs.current.get(path)?.focus();
+  }, []);
+
+  /**
+   * Tree keyboard contract (WAI-ARIA treeview): one tab stop, roving focus,
+   * and selection kept independent of focus.
+   */
+  const handleTreeKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const { visiblePaths } = selection;
+      if (visiblePaths.length === 0) return;
+
+      const currentIndex = focusedPath === null ? -1 : visiblePaths.indexOf(focusedPath);
+      const currentPath = currentIndex === -1 ? undefined : visiblePaths[currentIndex];
+      const currentNode = currentPath ? selection.nodeAtPath(currentPath) : undefined;
+
+      switch (event.key) {
+        case 'ArrowDown': {
+          event.preventDefault();
+          const nextPath = visiblePaths[Math.min(currentIndex + 1, visiblePaths.length - 1)];
+          if (event.shiftKey && currentPath) {
+            selection.selectRangeTo(nextPath);
+          }
+          focusRowAt(nextPath);
+          return;
+        }
+        case 'ArrowUp': {
+          event.preventDefault();
+          const nextPath = visiblePaths[Math.max(currentIndex - 1, 0)];
+          if (event.shiftKey && currentPath) {
+            selection.selectRangeTo(nextPath);
+          }
+          focusRowAt(nextPath);
+          return;
+        }
+        case 'ArrowRight': {
+          if (!currentNode) return;
+          event.preventDefault();
+          if (currentNode.type === 'directory' && !expandedDirs.has(currentNode.path)) {
+            toggleDirectory(currentNode.path);
+          } else if (currentNode.type === 'directory') {
+            focusRowAt(visiblePaths[currentIndex + 1]);
+          }
+          return;
+        }
+        case 'ArrowLeft': {
+          if (!currentNode) return;
+          event.preventDefault();
+          if (currentNode.type === 'directory' && expandedDirs.has(currentNode.path)) {
+            toggleDirectory(currentNode.path);
+          } else {
+            const parentPath = parentDirOf(currentNode.path);
+            if (visiblePaths.includes(parentPath)) {
+              focusRowAt(parentPath);
+            }
+          }
+          return;
+        }
+        case ' ': {
+          if (!currentPath) return;
+          // Space always selects and never opens — that separation is the
+          // whole point of having both Space and Enter.
+          event.preventDefault();
+          if (event.shiftKey) {
+            selection.selectRangeTo(currentPath);
+          } else {
+            selection.togglePath(currentPath);
+          }
+          return;
+        }
+        case 'Enter': {
+          if (!currentNode) return;
+          event.preventDefault();
+          if (selection.isSelectionMode) {
+            selection.togglePath(currentNode.path);
+          } else {
+            activateItem(currentNode);
+          }
+          return;
+        }
+        case 'Escape': {
+          if (!selection.isSelectionMode) return;
+          event.preventDefault();
+          selection.exitSelectionMode();
+          return;
+        }
+        case 'a':
+        case 'A': {
+          if (!isMultiSelectModifier(event)) return;
+          // Visible rows only — never the whole unfiltered project.
+          event.preventDefault();
+          selection.selectAllVisible();
+          return;
+        }
+        default:
+      }
+    },
+    [selection, focusedPath, focusRowAt, expandedDirs, toggleDirectory, activateItem],
+  );
+
+  // Keep exactly one row tabbable: if focus was never set (or its row is gone),
+  // the first visible row becomes the entry point.
+  useEffect(() => {
+    if (selection.visiblePaths.length === 0) {
+      setFocusedPath((current) => (current === null ? current : null));
+      return;
+    }
+    setFocusedPath((current) =>
+      current !== null && selection.visiblePaths.includes(current)
+        ? current
+        : selection.visiblePaths[0],
+    );
+  }, [selection.visiblePaths]);
+
   const formatRelativeTimeLabel = useCallback(
     (date?: string) => formatRelativeTime(date, t),
     [t],
   );
+
+  const rowSelection = useMemo(
+    () => ({
+      isSelectionMode: selection.isSelectionMode,
+      selectedPaths: selection.selectedPaths,
+      onToggleExpand: (item: FileTreeNode) => toggleDirectory(item.path),
+    }),
+    [selection.isSelectionMode, selection.selectedPaths, toggleDirectory],
+  );
+
+  const rowProps: FileTreeSharedRowProps = {
+    viewMode,
+    expandedDirs,
+    onItemClick: handleItemClick,
+    renderFileIcon,
+    formatFileSize,
+    formatRelativeTime: formatRelativeTimeLabel,
+    onRename: operations.handleStartRename,
+    onMove: (item) => operations.handleStartMove(item),
+    onDelete: operations.handleStartDelete,
+    onNewFile: (path) => operations.handleStartCreate(path, 'file'),
+    onNewFolder: (path) => operations.handleStartCreate(path, 'directory'),
+    onCopyPath: operations.handleCopyPath,
+    onDownload: operations.handleDownload,
+    onRefresh: refreshFiles,
+    onSelectItem: handleStartSelectionFromRow,
+    onMoveSelection: handleMoveSelection,
+    dragMove,
+    selection: rowSelection,
+    focusedPath,
+    onFocusRow: (item) => setFocusedPath(item.path),
+    rowRefs,
+    // Rename state and handlers for inline editing
+    renamingItem: operations.renamingItem,
+    renameValue: operations.renameValue,
+    setRenameValue: operations.setRenameValue,
+    handleConfirmRename: operations.handleConfirmRename,
+    handleCancelRename: operations.handleCancelRename,
+    renameInputRef,
+    operationLoading,
+  };
 
   if (loading) {
     return <FileTreeLoadingState />;
@@ -166,6 +420,13 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
         onNewFolder={() => operations.handleStartCreate('', 'directory')}
         onRefresh={refreshFiles}
         onCollapseAll={collapseAll}
+        isSelectionMode={selection.isSelectionMode}
+        selectedCount={selection.selectedCount}
+        onStartSelection={() => selection.enterSelectionMode()}
+        onExitSelection={selection.exitSelectionMode}
+        onMoveSelection={handleMoveSelection}
+        onSelectAllVisible={selection.selectAllVisible}
+        areAllVisibleSelected={selection.areAllVisibleSelected}
         loading={loading}
         operationLoading={operationLoading}
         isUploading={upload.uploadProgress?.status === 'uploading'}
@@ -222,29 +483,9 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
           files={files}
           filteredFiles={filteredFiles}
           searchQuery={searchQuery}
-          viewMode={viewMode}
-          expandedDirs={expandedDirs}
-          onItemClick={handleItemClick}
-          renderFileIcon={renderFileIcon}
-          formatFileSize={formatFileSize}
-          formatRelativeTime={formatRelativeTimeLabel}
-          onRename={operations.handleStartRename}
-          onMove={operations.handleStartMove}
-          onDelete={operations.handleStartDelete}
-          onNewFile={(path) => operations.handleStartCreate(path, 'file')}
-          onNewFolder={(path) => operations.handleStartCreate(path, 'directory')}
-          onCopyPath={operations.handleCopyPath}
-          onDownload={operations.handleDownload}
-          onRefresh={refreshFiles}
-          dragMove={dragMove}
-          // Pass rename state and handlers for inline editing
-          renamingItem={operations.renamingItem}
-          renameValue={operations.renameValue}
-          setRenameValue={operations.setRenameValue}
-          handleConfirmRename={operations.handleConfirmRename}
-          handleCancelRename={operations.handleCancelRename}
-          renameInputRef={renameInputRef}
-          operationLoading={operationLoading}
+          rowProps={rowProps}
+          isMultiSelectable
+          onKeyDown={handleTreeKeyDown}
         />
       </ScrollArea>
 
@@ -256,13 +497,20 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
       )}
 
       {/* Move to Folder Dialog */}
-      {operations.movingItem && selectedProject && (
+      {operations.movingItems && selectedProject && (
         <FileTreeMoveDialog
-          item={operations.movingItem}
+          sources={operations.movingItems}
           files={files}
           projectPath={selectedProject.fullPath}
           operationLoading={operationLoading}
-          onConfirm={operations.handleConfirmMove}
+          failure={operations.moveFailure}
+          onConfirm={(destinationPath) => {
+            void operations.handleConfirmMove(destinationPath).then((moved) => {
+              if (moved) {
+                selection.exitSelectionMode();
+              }
+            });
+          }}
           onCancel={operations.handleCancelMove}
         />
       )}

@@ -130,7 +130,28 @@
       "newFolder": "新增資料夾",
       "refresh": "重新整理",
       "menuLabel": "檔案右鍵選單",
-      "loading": "載入中..."
+      "loading": "載入中...",
+      "select": "選取",
+      "moveCount": "移動 {{total}} 項…"
+    },
+    "treeLabel": "專案檔案",
+    "selection": {
+      "start": "選取項目",
+      "exit": "取消選取",
+      "count": "已選 {{total}} 項",
+      "move": "移動所選項目",
+      "selectAll": "全選",
+      "selectAllVisible": "選取所有可見項目"
+    },
+    "move": {
+      "titleCount": "移動 {{total}} 項",
+      "andMore": "{{names}} 等 {{total}} 項",
+      "foldersIncludeContents": "所選資料夾會連同其全部內容一起移動。"
+    },
+    "toast": {
+      "movedCount": "已移動 {{total}} 項",
+      "moveFailed": "移動失敗",
+      "movedSomeSkipped": "{{message}}（{{skipped}} 項已在該位置）"
     }
   },
   "projectWizard": {

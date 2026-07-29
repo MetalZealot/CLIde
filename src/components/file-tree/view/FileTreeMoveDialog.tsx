@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronRight, Folder, FolderInput, Loader2 } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, Folder, FolderInput, Loader2 } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
+import type { MoveFailure } from '../hooks/useFileTreeOperations';
 import type { FileTreeNode } from '../types/types';
 
 type DirectoryOption = {
@@ -15,19 +16,24 @@ type DirectoryOption = {
 };
 
 type FileTreeMoveDialogProps = {
-  item: FileTreeNode;
+  /** The canonical source set: already deduplicated, with covered descendants dropped. */
+  sources: FileTreeNode[];
   files: FileTreeNode[];
   projectPath: string;
   operationLoading: boolean;
+  failure: MoveFailure | null;
   onConfirm: (destinationPath: string) => void;
   onCancel: () => void;
 };
 
+const parentDirOf = (absolutePath: string) => absolutePath.slice(0, absolutePath.lastIndexOf('/'));
+
 export default function FileTreeMoveDialog({
-  item,
+  sources,
   files,
   projectPath,
   operationLoading,
+  failure,
   onConfirm,
   onCancel,
 }: FileTreeMoveDialogProps) {
@@ -37,25 +43,45 @@ export default function FileTreeMoveDialog({
   // so a deep repo doesn't produce an endless list.
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
-  // Node paths are absolute, so the item's current parent is its dirname.
-  const currentParent = item.path.slice(0, item.path.lastIndexOf('/')) || projectPath;
+  const sourcePaths = useMemo(() => new Set(sources.map((source) => source.path)), [sources]);
+  const selectedDirectoryPaths = useMemo(
+    () => sources.filter((source) => source.type === 'directory').map((source) => source.path),
+    [sources],
+  );
+  const includesDirectory = selectedDirectoryPaths.length > 0;
+
+  /**
+   * A destination is disabled only when the *whole* operation would be
+   * pointless or illegal there: every source already sitting in it, or the
+   * folder being one of the selected folders / inside one. A destination that
+   * merely *some* sources already occupy stays enabled — those become no-ops
+   * and the rest still move.
+   */
+  const isDisabledDestination = useCallback(
+    (destinationPath: string) => {
+      if (sourcePaths.has(destinationPath)) return true;
+      if (selectedDirectoryPaths.some((dir) => destinationPath.startsWith(dir + '/'))) return true;
+      return sources.every((source) => parentDirOf(source.path) === destinationPath);
+    },
+    [sources, sourcePaths, selectedDirectoryPaths],
+  );
 
   // Build the visible, indented list of candidate destinations from the
-  // already-loaded tree, skipping the moved item itself and (for a directory)
-  // its whole subtree — a folder can't be moved into itself.
+  // already-loaded tree, skipping every selected directory and its whole
+  // subtree — a folder can't be moved into itself.
   const directoryOptions = useMemo<DirectoryOption[]>(() => {
     const options: DirectoryOption[] = [
       {
         path: projectPath,
         name: t('fileTree.move.projectRoot', 'Project root'),
         level: 0,
-        isDisabled: currentParent === projectPath,
+        isDisabled: isDisabledDestination(projectPath),
         hasChildren: false,
       },
     ];
 
     const subdirectoriesOf = (nodes: FileTreeNode[]) =>
-      nodes.filter((node) => node.type === 'directory' && node.path !== item.path);
+      nodes.filter((node) => node.type === 'directory' && !sourcePaths.has(node.path));
 
     const walk = (nodes: FileTreeNode[], level: number) => {
       for (const node of subdirectoriesOf(nodes)) {
@@ -63,7 +89,7 @@ export default function FileTreeMoveDialog({
           path: node.path,
           name: node.name,
           level,
-          isDisabled: node.path === currentParent,
+          isDisabled: isDisabledDestination(node.path),
           hasChildren: subdirectoriesOf(node.children ?? []).length > 0,
         });
         if (node.children && expandedPaths.has(node.path)) {
@@ -73,7 +99,7 @@ export default function FileTreeMoveDialog({
     };
     walk(files, 1);
     return options;
-  }, [files, item.path, currentParent, projectPath, expandedPaths, t]);
+  }, [files, sourcePaths, isDisabledDestination, projectPath, expandedPaths, t]);
 
   const toggleExpanded = (path: string) => {
     setExpandedPaths((previous) => {
@@ -97,6 +123,16 @@ export default function FileTreeMoveDialog({
     }
   };
 
+  // Names are previewed, not listed: an unbounded list of source paths would
+  // push the picker off a phone screen.
+  const sourceSummary =
+    sources.length <= 2
+      ? sources.map((source) => source.name).join(', ')
+      : t('fileTree.move.andMore', '{{names}} and {{total}} more', {
+          names: `${sources[0].name}, ${sources[1].name}`,
+          total: sources.length - 2,
+        });
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
       <div className="mx-4 flex max-h-[70vh] w-full max-w-sm flex-col rounded-lg border border-border bg-background p-4 shadow-lg">
@@ -106,11 +142,22 @@ export default function FileTreeMoveDialog({
           </div>
           <div className="min-w-0">
             <h3 className="font-medium text-foreground">
-              {t('fileTree.move.title', 'Move to folder')}
+              {sources.length === 1
+                ? t('fileTree.move.title', 'Move to folder')
+                : t('fileTree.move.titleCount', 'Move {{total}} items', { total: sources.length })}
             </h3>
-            <p className="truncate text-sm text-muted-foreground">{item.name}</p>
+            <p className="truncate text-sm text-muted-foreground">{sourceSummary}</p>
           </div>
         </div>
+
+        {includesDirectory && (
+          <p className="mb-2 text-xs text-muted-foreground">
+            {t(
+              'fileTree.move.foldersIncludeContents',
+              'Selected folders move with everything inside them.',
+            )}
+          </p>
+        )}
 
         {/* Plain overflow div instead of ScrollArea: the shared component's inner
             h-full can't resolve inside a flex item sized by max-h, so it never
@@ -177,6 +224,26 @@ export default function FileTreeMoveDialog({
             })}
           </div>
         </div>
+
+        {/* A rejected move keeps the dialog open with its reason, so another
+            destination can be picked without rebuilding the selection. */}
+        {failure && (
+          <div className="mt-3 flex gap-2 rounded-md border border-red-500/40 bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <div className="min-w-0">
+              <p>{failure.message}</p>
+              {failure.conflicts && failure.conflicts.length > 0 && (
+                <ul className="mt-1 space-y-0.5">
+                  {failure.conflicts.map((conflict) => (
+                    <li key={conflict.sourcePath} className="truncate font-mono">
+                      {conflict.sourcePath.slice(conflict.sourcePath.lastIndexOf('/') + 1)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 flex justify-end gap-2">
           <button

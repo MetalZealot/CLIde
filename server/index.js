@@ -25,6 +25,7 @@ import { loadClaudeContextCeiling } from '@/modules/providers/list/claude/claude
 import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
+import { moveFilesIntoDirectory, normalizeSourcePathsInput } from '@/modules/projects/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
@@ -839,16 +840,16 @@ app.put('/api/projects/:projectId/files/rename', authenticateToken, async (req, 
     }
 });
 
-// PUT /api/projects/:projectId/files/move - Move file or directory into another directory
+// PUT /api/projects/:projectId/files/move - Move one or more files/directories
+// into another directory. Accepts `sourcePaths: string[]`; the original
+// singular `sourcePath` still works so an older client keeps functioning.
+// All validation, ordering, and rollback live in the move service so they can
+// be tested against a temp directory instead of a live project.
 app.put('/api/projects/:projectId/files/move', authenticateToken, async (req, res) => {
     try {
         const { projectId } = req.params;
-        const { sourcePath, destinationPath } = req.body;
-
-        // Validate input (destinationPath may be the project root itself)
-        if (!sourcePath || destinationPath === undefined || destinationPath === null) {
-            return res.status(400).json({ error: 'sourcePath and destinationPath are required' });
-        }
+        const { destinationPath } = req.body;
+        const sourcePaths = normalizeSourcePathsInput(req.body ?? {});
 
         // Resolve the project directory through the DB using the new projectId.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
@@ -856,85 +857,33 @@ app.put('/api/projects/:projectId/files/move', authenticateToken, async (req, re
             return res.status(404).json({ error: 'Project not found' });
         }
 
-        // Validate source path
-        const sourceValidation = validatePathInProject(projectRoot, sourcePath);
-        if (!sourceValidation.valid) {
-            return res.status(403).json({ error: sourceValidation.error });
-        }
-
-        const resolvedSourcePath = sourceValidation.resolved;
-
-        // Check if source exists
-        try {
-            await fsPromises.access(resolvedSourcePath);
-        } catch {
-            return res.status(404).json({ error: 'File or directory not found' });
-        }
-
-        // Validate destination directory. The project root itself is a legal
-        // destination but validatePathInProject only accepts paths *under* the
-        // root, so it gets an explicit allowance.
-        const projectRootResolved = path.resolve(projectRoot);
-        const destCandidate = destinationPath === '' || path.isAbsolute(destinationPath)
-            ? path.resolve(projectRootResolved, destinationPath)
-            : path.resolve(projectRoot, destinationPath);
-        let resolvedDestPath;
-        if (destCandidate === projectRootResolved) {
-            resolvedDestPath = projectRootResolved;
-        } else {
-            const destValidation = validatePathInProject(projectRoot, destinationPath);
-            if (!destValidation.valid) {
-                return res.status(403).json({ error: destValidation.error });
-            }
-            resolvedDestPath = destValidation.resolved;
-        }
-
-        // Destination must be an existing directory
-        let destStats;
-        try {
-            destStats = await fsPromises.stat(resolvedDestPath);
-        } catch {
-            return res.status(404).json({ error: 'Destination directory not found' });
-        }
-        if (!destStats.isDirectory()) {
-            return res.status(400).json({ error: 'Destination is not a directory' });
-        }
-
-        // Refuse to move a directory into itself or one of its descendants
-        if (resolvedDestPath === resolvedSourcePath ||
-            resolvedDestPath.startsWith(resolvedSourcePath + path.sep)) {
-            return res.status(400).json({ error: 'Cannot move a directory into itself' });
-        }
-
-        // Build and validate new path
-        const resolvedNewPath = path.join(resolvedDestPath, path.basename(resolvedSourcePath));
-        const newValidation = validatePathInProject(projectRoot, resolvedNewPath);
-        if (!newValidation.valid) {
-            return res.status(403).json({ error: newValidation.error });
-        }
-
-        if (resolvedNewPath === resolvedSourcePath) {
-            return res.status(400).json({ error: 'Source is already in this folder' });
-        }
-
-        // Check if new path already exists
-        try {
-            await fsPromises.access(resolvedNewPath);
-            return res.status(409).json({ error: 'A file or directory with this name already exists in the destination' });
-        } catch {
-            // Doesn't exist, which is what we want
-        }
-
-        // Move
-        await fsPromises.rename(resolvedSourcePath, resolvedNewPath);
+        const { moved, skipped } = await moveFilesIntoDirectory({
+            projectRoot,
+            sourcePaths,
+            destinationPath,
+        });
 
         res.json({
             success: true,
-            oldPath: resolvedSourcePath,
-            newPath: resolvedNewPath,
+            moved,
+            skipped,
+            // Retained so any caller still reading the single-item shape keeps
+            // working against a one-source request.
+            oldPath: moved[0]?.oldPath,
+            newPath: moved[0]?.newPath,
             message: 'Moved successfully'
         });
     } catch (error) {
+        if (error instanceof AppError) {
+            // Flat `error`/`code` plus any structured detail (e.g. `conflicts`),
+            // matching the other file-operation routes the client already reads.
+            return res.status(error.statusCode).json({
+                error: error.message,
+                code: error.code,
+                ...(error.details && typeof error.details === 'object' ? error.details : {}),
+            });
+        }
+
         console.error('Error moving file/directory:', error);
         if (error.code === 'EACCES') {
             res.status(403).json({ error: 'Permission denied' });

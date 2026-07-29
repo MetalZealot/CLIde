@@ -130,7 +130,28 @@
       "newFolder": "Neuer Ordner",
       "refresh": "Aktualisieren",
       "menuLabel": "Datei-Kontextmenü",
-      "loading": "Lädt..."
+      "loading": "Lädt...",
+      "select": "Auswählen",
+      "moveCount": "{{total}} Elemente verschieben…"
+    },
+    "treeLabel": "Projektdateien",
+    "selection": {
+      "start": "Elemente auswählen",
+      "exit": "Auswahl abbrechen",
+      "count": "{{total}} ausgewählt",
+      "move": "Ausgewählte Elemente verschieben",
+      "selectAll": "Alle",
+      "selectAllVisible": "Alle sichtbaren Elemente auswählen"
+    },
+    "move": {
+      "titleCount": "{{total}} Elemente verschieben",
+      "andMore": "{{names}} und {{total}} weitere",
+      "foldersIncludeContents": "Ausgewählte Ordner werden mit ihrem gesamten Inhalt verschoben."
+    },
+    "toast": {
+      "movedCount": "{{total}} Elemente verschoben",
+      "moveFailed": "Verschieben fehlgeschlagen",
+      "movedSomeSkipped": "{{message}} ({{skipped}} bereits vorhanden)"
     }
   },
   "projectWizard": {

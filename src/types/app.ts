@@ -83,3 +83,16 @@ export interface LoadingProgress {
   currentProject?: string;
   [key: string]: unknown;
 }
+
+/**
+ * One entry moved or renamed on disk. Emitted by the Files tab so other
+ * surfaces holding a path — an open editor, a media preview — can rebind to
+ * the new location instead of silently writing back to the old one.
+ *
+ * A `directory` change implies every path beneath `oldPath` moved with it.
+ */
+export interface FilePathChange {
+  oldPath: string;
+  newPath: string;
+  type: 'file' | 'directory';
+}

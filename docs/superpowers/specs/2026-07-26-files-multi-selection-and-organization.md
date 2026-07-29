@@ -1,7 +1,10 @@
 # Files multi-selection and organization
 
 - Date: 2026-07-26
-- Status: Design reference; implementation not started
+- Status: Design reference; phases 1–3 implemented 2026-07-28 on
+  `feat/files-multi-select` (`b37cb8c` server, `51af9ba` client). Live
+  verification — the desktop drag matrix and the installed-PWA touch pass in
+  the verification plan below — is still outstanding.
 - Scope: Files-tab selection, multi-item move, desktop drag behavior, mobile
   selection mode, context menus, accessibility, batch filesystem safety, and
   open-editor path handoff

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import JSZip from 'jszip';
 import { api } from '../../../utils/api';
 import type { FileTreeNode } from '../types/types';
-import type { Project } from '../../../types/app';
+import type { FilePathChange, Project } from '../../../types/app';
 
 // Invalid filename characters
 const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1f]/;
@@ -19,10 +19,33 @@ export type DeleteConfirmation = {
   item: FileTreeNode | null;
 };
 
+/** One `sourcePath` -> `targetPath` pair the server refused to overwrite. */
+export type MoveConflict = {
+  sourcePath: string;
+  targetPath: string;
+};
+
+/**
+ * A failed move, kept so the dialog can stay open and explain itself rather
+ * than closing and dropping the user back to an unchanged tree.
+ */
+export type MoveFailure = {
+  message: string;
+  code?: string;
+  conflicts?: MoveConflict[];
+};
+
+export type MoveOutcome = {
+  moved: FilePathChange[];
+  skippedCount: number;
+};
+
 export type UseFileTreeOperationsOptions = {
   selectedProject: Project | null;
   onRefresh: () => void;
   showToast: (message: string, type: 'success' | 'error') => void;
+  /** Lets surfaces holding a path (the open editor, a preview) rebind after a move or rename. */
+  onFilePathsChange?: (changes: FilePathChange[]) => void;
 };
 
 export type UseFileTreeOperationsResult = {
@@ -40,12 +63,13 @@ export type UseFileTreeOperationsResult = {
   handleCancelDelete: () => void;
   handleConfirmDelete: () => Promise<void>;
 
-  // Move operations
-  movingItem: FileTreeNode | null;
-  handleStartMove: (item: FileTreeNode) => void;
+  // Move operations — every path takes a source set, single-item included
+  movingItems: FileTreeNode[] | null;
+  moveFailure: MoveFailure | null;
+  handleStartMove: (items: FileTreeNode | FileTreeNode[]) => void;
   handleCancelMove: () => void;
-  handleConfirmMove: (destinationPath: string) => Promise<void>;
-  performMove: (item: FileTreeNode, destinationPath: string) => Promise<boolean>;
+  handleConfirmMove: (destinationPath: string) => Promise<boolean>;
+  performMove: (sources: FileTreeNode[], destinationPath: string) => Promise<MoveOutcome | null>;
 
   // Create operations
   isCreating: boolean;
@@ -72,6 +96,7 @@ export function useFileTreeOperations({
   selectedProject,
   onRefresh,
   showToast,
+  onFilePathsChange,
 }: UseFileTreeOperationsOptions): UseFileTreeOperationsResult {
   const { t } = useTranslation();
 
@@ -82,7 +107,8 @@ export function useFileTreeOperations({
     isOpen: false,
     item: null,
   });
-  const [movingItem, setMovingItem] = useState<FileTreeNode | null>(null);
+  const [movingItems, setMovingItems] = useState<FileTreeNode[] | null>(null);
+  const [moveFailure, setMoveFailure] = useState<MoveFailure | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newItemParent, setNewItemParent] = useState('');
   const [newItemType, setNewItemType] = useState<'file' | 'directory'>('file');
@@ -144,6 +170,15 @@ export function useFileTreeOperations({
         throw new Error(data.error || 'Failed to rename');
       }
 
+      const data = await response.json();
+      // A rename changes a path just as much as a move does; the open editor
+      // has to follow it or its next save recreates the old name.
+      if (data.oldPath && data.newPath) {
+        onFilePathsChange?.([
+          { oldPath: data.oldPath, newPath: data.newPath, type: renamingItem.type },
+        ]);
+      }
+
       showToast(t('fileTree.toast.renamed', 'Renamed successfully'), 'success');
       onRefresh();
       handleCancelRename();
@@ -152,7 +187,7 @@ export function useFileTreeOperations({
     } finally {
       setOperationLoading(false);
     }
-  }, [renamingItem, renameValue, selectedProject, validateFilename, showToast, t, onRefresh, handleCancelRename]);
+  }, [renamingItem, renameValue, selectedProject, validateFilename, showToast, t, onRefresh, handleCancelRename, onFilePathsChange]);
 
   // Delete operations
   const handleStartDelete = useCallback((item: FileTreeNode) => {
@@ -195,51 +230,111 @@ export function useFileTreeOperations({
   }, [deleteConfirmation, selectedProject, showToast, t, onRefresh, handleCancelDelete]);
 
   // Move operations
-  const handleStartMove = useCallback((item: FileTreeNode) => {
-    setMovingItem(item);
+  const handleStartMove = useCallback((items: FileTreeNode | FileTreeNode[]) => {
+    const sources = Array.isArray(items) ? items : [items];
+    if (sources.length === 0) return;
+
+    setMovingItems(sources);
+    setMoveFailure(null);
     setRenamingItem(null);
     setIsCreating(false);
   }, []);
 
   const handleCancelMove = useCallback(() => {
-    setMovingItem(null);
+    setMovingItems(null);
+    setMoveFailure(null);
   }, []);
 
-  // Shared by the "Move to…" dialog and desktop drag-and-drop.
-  const performMove = useCallback(async (item: FileTreeNode, destinationPath: string): Promise<boolean> => {
-    if (!selectedProject) return false;
+  /**
+   * Shared by the "Move to…" dialog and desktop drag-and-drop. One request for
+   * the whole set: the server preflights every source before renaming any of
+   * them, so a conflict cannot leave the selection half-moved.
+   *
+   * Returns null on failure (and records `moveFailure`) so callers can keep the
+   * selection and dialog open for a retry.
+   */
+  const performMove = useCallback(async (
+    sources: FileTreeNode[],
+    destinationPath: string,
+  ): Promise<MoveOutcome | null> => {
+    if (!selectedProject || sources.length === 0) return null;
 
     setOperationLoading(true);
+    setMoveFailure(null);
     try {
-      const response = await api.moveFile(selectedProject.projectId, {
-        sourcePath: item.path,
+      const response = await api.moveFiles(selectedProject.projectId, {
+        sourcePaths: sources.map((source) => source.path),
         destinationPath,
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to move');
+        setMoveFailure({
+          message: data.error || 'Failed to move',
+          code: data.code,
+          conflicts: data.conflicts,
+        });
+        showToast(data.error || t('fileTree.toast.moveFailed', 'Failed to move'), 'error');
+        return null;
       }
 
-      showToast(t('fileTree.toast.moved', 'Moved successfully'), 'success');
+      const moved: FilePathChange[] = Array.isArray(data.moved) ? data.moved : [];
+      const skippedCount = Array.isArray(data.skipped) ? data.skipped.length : 0;
+
+      // Rebind before refreshing so the editor never observes a tree that no
+      // longer contains the path it is still holding.
+      if (moved.length > 0) {
+        onFilePathsChange?.(moved);
+      }
+
+      // `total`/`skipped` rather than i18next's `count`: that option triggers
+      // plural-category lookup, which differs per locale (Russian needs four
+      // forms). These strings only render for two or more items, so a single
+      // form is correct everywhere.
+      const movedMessage =
+        moved.length === 1
+          ? t('fileTree.toast.moved', 'Moved successfully')
+          : t('fileTree.toast.movedCount', 'Moved {{total}} items', { total: moved.length });
+
+      showToast(
+        skippedCount === 0
+          ? movedMessage
+          // Sources that started in the destination did nothing; say so rather
+          // than letting the count silently disagree with the selection.
+          : t('fileTree.toast.movedSomeSkipped', '{{message}} ({{skipped}} already there)', {
+              message: movedMessage,
+              skipped: skippedCount,
+            }),
+        'success',
+      );
+      // One refresh for the whole batch, not one per item.
       onRefresh();
-      return true;
+      return { moved, skippedCount };
     } catch (err) {
-      showToast((err as Error).message, 'error');
-      return false;
+      const message = (err as Error).message;
+      setMoveFailure({ message });
+      showToast(message, 'error');
+      return null;
     } finally {
       setOperationLoading(false);
     }
-  }, [selectedProject, showToast, t, onRefresh]);
+  }, [selectedProject, showToast, t, onRefresh, onFilePathsChange]);
 
-  const handleConfirmMove = useCallback(async (destinationPath: string) => {
-    if (!movingItem) return;
+  const handleConfirmMove = useCallback(async (destinationPath: string): Promise<boolean> => {
+    if (!movingItems) return false;
 
-    const moved = await performMove(movingItem, destinationPath);
-    if (moved) {
-      handleCancelMove();
+    const outcome = await performMove(movingItems, destinationPath);
+    if (!outcome) {
+      // Leave the dialog open on failure so the conflict stays readable and
+      // another destination can be picked without rebuilding the selection.
+      return false;
     }
-  }, [movingItem, performMove, handleCancelMove]);
+
+    setMovingItems(null);
+    setMoveFailure(null);
+    return true;
+  }, [movingItems, performMove]);
 
   // Create operations
   const handleStartCreate = useCallback((parentPath: string, type: 'file' | 'directory') => {
@@ -409,7 +504,8 @@ export function useFileTreeOperations({
     handleConfirmDelete,
 
     // Move operations
-    movingItem,
+    movingItems,
+    moveFailure,
     handleStartMove,
     handleCancelMove,
     handleConfirmMove,

@@ -130,7 +130,28 @@
       "newFolder": "Nouveau dossier",
       "refresh": "Actualiser",
       "menuLabel": "Menu contextuel du fichier",
-      "loading": "Chargement..."
+      "loading": "Chargement...",
+      "select": "Sélectionner",
+      "moveCount": "Déplacer {{total}} éléments…"
+    },
+    "treeLabel": "Fichiers du projet",
+    "selection": {
+      "start": "Sélectionner des éléments",
+      "exit": "Annuler la sélection",
+      "count": "{{total}} sélectionnés",
+      "move": "Déplacer les éléments sélectionnés",
+      "selectAll": "Tout",
+      "selectAllVisible": "Sélectionner tous les éléments visibles"
+    },
+    "move": {
+      "titleCount": "Déplacer {{total}} éléments",
+      "andMore": "{{names}} et {{total}} de plus",
+      "foldersIncludeContents": "Les dossiers sélectionnés sont déplacés avec tout leur contenu."
+    },
+    "toast": {
+      "movedCount": "{{total}} éléments déplacés",
+      "moveFailed": "Échec du déplacement",
+      "movedSomeSkipped": "{{message}} ({{skipped}} déjà sur place)"
     }
   },
   "projectWizard": {

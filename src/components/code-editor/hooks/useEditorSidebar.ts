@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import type { Project } from '../../../types/app';
+import type { FilePathChange, Project } from '../../../types/app';
+import { fileNameFromPath, remapChangedPath } from '../../../utils/filePathChange';
 import type { CodeEditorDiffInfo, CodeEditorFile } from '../types/types';
+
+// Monotonic per-tab counter; only ever compared for equality, never persisted.
+let nextDocumentId = 0;
+const mintDocumentId = () => `doc-${(nextDocumentId += 1)}`;
 
 type UseEditorSidebarOptions = {
   selectedProject: Project | null;
@@ -23,20 +28,48 @@ export const useEditorSidebar = ({
 
   const handleFileOpen = useCallback(
     (filePath: string, diffInfo: CodeEditorDiffInfo | null = null) => {
-      const normalizedPath = filePath.replace(/\\/g, '/');
-      const fileName = normalizedPath.split('/').pop() || filePath;
-
       setEditingFile({
-        name: fileName,
+        name: fileNameFromPath(filePath),
         path: filePath,
         // DB projectId is forwarded to the editor so it can read/save files
         // via `/api/projects/:projectId/file` endpoints.
         projectId: selectedProject?.projectId,
         diffInfo,
+        // A fresh id every open: this is a different document, so the editor
+        // should load it. Moves and renames reuse the id (see below).
+        documentId: mintDocumentId(),
       });
     },
     [selectedProject?.projectId],
   );
+
+  /**
+   * Rebinds the open file after the Files tab moved or renamed something.
+   *
+   * The `documentId` is deliberately preserved: the buffer in the editor is
+   * still the same document, so it must not reload from disk (that would
+   * discard unsaved edits). Only the path and displayed name change, which is
+   * what makes the next save write to the new location instead of recreating
+   * the file where it used to be.
+   */
+  const handleFilePathsChanged = useCallback((changes: readonly FilePathChange[]) => {
+    if (changes.length === 0) {
+      return;
+    }
+
+    setEditingFile((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const newPath = remapChangedPath(current.path, changes);
+      if (newPath === null) {
+        return current;
+      }
+
+      return { ...current, path: newPath, name: fileNameFromPath(newPath) };
+    });
+  }, []);
 
   const handleCloseEditor = useCallback(() => {
     setEditingFile(null);
@@ -112,6 +145,7 @@ export const useEditorSidebar = ({
     hasManualWidth,
     resizeHandleRef,
     handleFileOpen,
+    handleFilePathsChanged,
     handleCloseEditor,
     handleToggleEditorExpand,
     handleResizeStart,
