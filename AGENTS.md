@@ -49,7 +49,10 @@ Before changing code:
 - Use the real device for touch behaviour.  In particular, CSS `:active` is not a
   reliable long-press visual state; use the explicit `isPressing` state from
   `useLongPress`.
-
+- Make the smallest coherent change that fully solves the request. Follow existing
+  patterns; do not broaden scope, add speculative abstractions, or compromise working
+  behaviour merely to reach completion.
+  
 ## Project invariants
 
 - Do not introduce `backdrop-filter`/glassmorphism.  Use a solid dim scrim such as

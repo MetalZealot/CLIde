@@ -68,10 +68,7 @@
     "save": "Kaydet",
     "delete": "Sil",
     "archive": "Arşivle",
-    "rename": "Yeniden Adlandır",
-    "joinCommunity": "Topluluğa Katıl",
-    "reportIssue": "Sorun Bildir",
-    "starOnGithub": "GitHub'da Yıldızla"
+    "rename": "Yeniden Adlandır"
   },
   "branding": {
     "openSource": "Açık Kaynak"

@@ -67,10 +67,7 @@
     "save": "保存",
     "delete": "削除",
     "archive": "アーカイブ",
-    "rename": "名前の変更",
-    "joinCommunity": "コミュニティに参加",
-    "reportIssue": "問題を報告",
-    "starOnGithub": "GitHubでスター"
+    "rename": "名前の変更"
   },
   "branding": {
     "openSource": "オープンソース"

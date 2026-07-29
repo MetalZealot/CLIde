@@ -68,10 +68,7 @@
     "save": "Speichern",
     "delete": "Löschen",
     "archive": "Archivieren",
-    "rename": "Umbenennen",
-    "joinCommunity": "Community beitreten",
-    "reportIssue": "Problem melden",
-    "starOnGithub": "Stern auf GitHub"
+    "rename": "Umbenennen"
   },
   "branding": {
     "openSource": "Open Source"
