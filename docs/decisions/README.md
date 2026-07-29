@@ -56,3 +56,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0016 — Projects group checkouts by repository; a project is not a directory](0016-repository-grouped-checkouts.md)
 - [0017 — A batch move preflights everything, then rolls back in reverse](0017-batch-move-preflight-then-rollback.md)
 - [0018 — Settings navigates by a history-backed drill-down stack, and each screen owns exactly one scroll container](0018-settings-drill-down-one-scroll-container.md)
+- [0019 — QuickSettings panel removed; no second settings surface](0019-quicksettings-removal.md)
