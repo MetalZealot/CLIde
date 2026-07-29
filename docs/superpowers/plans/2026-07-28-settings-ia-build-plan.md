@@ -22,7 +22,7 @@ is one module deep.
 1. **One scroll container per screen**, owned by the screen component. Nothing
    inside a screen opens its own `overflow-y-auto`. This is the rule that fixes
    the Agents bugs; it is load-bearing, not stylistic. ~~One known exception,
-   granted in P3c~~ — no exception was needed; see decision 4.
+   granted in P3c~~ — no exception was needed; see decision 4 and [ADR 0020](../../decisions/0020-no-plugin-exception-to-one-scroll-container.md).
 2. **No raw `<input type="checkbox">` in Settings.** Booleans are `SettingsToggle`.
 3. **No hardcoded colour classes in Settings.** No `bg-blue-600`, `bg-red-100`,
    `border-orange-200`. Use the card `tone` prop → theme tokens.
@@ -47,7 +47,7 @@ is one module deep.
 | 1 | **i18n: `en`-only additions**, other locales fall back. | Assumed; confirm |
 | 2 | **Desktop rail may scroll** when providers are expanded; no group-collapse behaviour. Resolves spec open question 2. | Assumed; confirm |
 | 3 | **Provider status copy**: status dot + "Signed in" / "Signed out". Spec open question 1 hedged on the Claude Layer-2 logout ambiguity; that was resolved in `1e13431`, so the constraint is gone. | Decide in P4 |
-| 4 | ~~**Plugins gets an explicit carve-out** from rule 1~~ — **no carve-out needed.** The premise was wrong: `PluginTabContent.tsx`'s `h-full w-full overflow-auto` mounts in `MainContent`'s plugin tab, not in Settings. The Settings Plugins screen never rendered it, and the ported screen opens no scroller of its own (asserted in the browser: exactly one scroller on all four P3c screens, desktop and mobile). Rule 1 stands unqualified. | Decided in P3c |
+| 4 | ~~**Plugins gets an explicit carve-out** from rule 1~~ — **no carve-out needed.** The premise was wrong: `PluginTabContent.tsx`'s `h-full w-full overflow-auto` mounts in `MainContent`'s plugin tab, not in Settings. The Settings Plugins screen never rendered it, and the ported screen opens no scroller of its own (asserted in the browser: exactly one scroller on all four P3c screens, desktop and mobile). Rule 1 stands unqualified — [ADR 0020](../../decisions/0020-no-plugin-exception-to-one-scroll-container.md). | Decided in P3c |
 | 5 | **No component-test infrastructure** (Vitest/jsdom). jsdom has no layout engine, so it would catch none of the scroll/safe-area/gesture bugs that motivated this work. Pure-logic modules get `node:test` tests instead — same runner as `server/`'s 40 test files. Playwright-based layout testing revisited separately, after this lands. | Decided |
 | 6 | **This restructure is fork-only** and not an upstream candidate; it is a large, deliberate divergence in an upstream-heavy subtree. Note it in `docs/upstream-candidates.md` so future rebases have context. | Do in P6 |
 
@@ -298,7 +298,9 @@ Agents, which is P4's.
 `PluginTabContent.tsx`, which `MainContent` mounts for a plugin's *tab* — it
 was never part of the Settings Plugins screen, so rule 1 was never in tension
 with it. The note now lives as a docstring on `ExtensionsPluginsScreen` so the
-next reader who greps `overflow-auto` in the plugins tree does not re-open it.
+next reader who greps `overflow-auto` in the plugins tree does not re-open it,
+and as [ADR 0020](../../decisions/0020-no-plugin-exception-to-one-scroll-container.md)
+for anyone who meets decision 4 first.
 
 Two judgement calls worth knowing about:
 
