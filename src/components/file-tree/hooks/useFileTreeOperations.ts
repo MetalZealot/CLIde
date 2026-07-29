@@ -388,15 +388,20 @@ export function useFileTreeOperations({
     }
   }, [selectedProject, newItemParent, newItemType, newItemName, validateFilename, showToast, t, onRefresh, handleCancelCreate]);
 
-  // Copy path to clipboard
+  // Copy path to clipboard, relative to the project root (matches "@" mention paths)
   const handleCopyPath = useCallback((item: FileTreeNode) => {
-    navigator.clipboard.writeText(item.path).catch(() => {
+    const projectRoot = selectedProject?.fullPath || selectedProject?.path || '';
+    const relativePath =
+      projectRoot && item.path.startsWith(`${projectRoot}/`)
+        ? item.path.slice(projectRoot.length + 1)
+        : item.path;
+    navigator.clipboard.writeText(relativePath).catch(() => {
       // Clipboard API may fail in some contexts (e.g., non-HTTPS)
       showToast(t('fileTree.toast.copyFailed', 'Failed to copy path'), 'error');
       return;
     });
     showToast(t('fileTree.toast.pathCopied', 'Path copied to clipboard'), 'success');
-  }, [showToast, t]);
+  }, [selectedProject, showToast, t]);
 
   const triggerBrowserDownload = useCallback((blob: Blob, fileName: string) => {
     const url = URL.createObjectURL(blob);
