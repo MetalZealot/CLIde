@@ -1,7 +1,9 @@
-import { ExternalLink, Key, Plus, Trash2 } from 'lucide-react';
+import { ExternalLink, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
 import { Button, Input } from '../../../../../../shared/view/ui';
 import type { ApiKeyItem } from '../types';
+import { SettingsGroup } from '../../../primitives';
 
 type ApiKeysSectionProps = {
   apiKeys: ApiKeyItem[];
@@ -29,20 +31,17 @@ export default function ApiKeysSection({
   const { t } = useTranslation('settings');
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Key className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">{t('apiKeys.title')}</h3>
-        </div>
+    <SettingsGroup
+      title={t('apiKeys.title')}
+      description={t('apiKeys.description')}
+      action={(
         <Button size="sm" onClick={() => onShowNewKeyFormChange(!showNewKeyForm)}>
           <Plus className="mr-1 h-4 w-4" />
           {t('apiKeys.newButton')}
         </Button>
-      </div>
-
-      <div className="mb-4">
-        <p className="mb-2 text-sm text-muted-foreground">{t('apiKeys.description')}</p>
+      )}
+    >
+      <div className="space-y-4 p-4">
         <a
           href="/api-docs.html"
           target="_blank"
@@ -52,57 +51,57 @@ export default function ApiKeysSection({
           {t('apiKeys.apiDocsLink')}
           <ExternalLink className="h-3 w-3" />
         </a>
-      </div>
 
-      {showNewKeyForm && (
-        <div className="mb-4 rounded-lg border bg-card p-4">
-          <Input
-            placeholder={t('apiKeys.form.placeholder')}
-            value={newKeyName}
-            onChange={(event) => onNewKeyNameChange(event.target.value)}
-            className="mb-2"
-          />
-          <div className="flex gap-2">
-            <Button onClick={onCreateApiKey}>{t('apiKeys.form.createButton')}</Button>
-            <Button variant="outline" onClick={onCancelCreateApiKey}>
-              {t('apiKeys.form.cancelButton')}
-            </Button>
+        {showNewKeyForm && (
+          <div className="rounded-lg border border-border bg-background/50 p-4">
+            <Input
+              placeholder={t('apiKeys.form.placeholder')}
+              value={newKeyName}
+              onChange={(event) => onNewKeyNameChange(event.target.value)}
+              className="mb-2"
+            />
+            <div className="flex gap-2">
+              <Button onClick={onCreateApiKey}>{t('apiKeys.form.createButton')}</Button>
+              <Button variant="outline" onClick={onCancelCreateApiKey}>
+                {t('apiKeys.form.cancelButton')}
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="space-y-2">
-        {apiKeys.length === 0 ? (
-          <p className="text-sm italic text-muted-foreground">{t('apiKeys.empty')}</p>
-        ) : (
-          apiKeys.map((key) => (
-            <div key={key.id} className="flex items-center justify-between rounded-lg border p-3">
-              <div className="flex-1">
-                <div className="font-medium">{key.key_name}</div>
-                <code className="text-xs text-muted-foreground">{key.api_key}</code>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {t('apiKeys.list.created')} {new Date(key.created_at).toLocaleDateString()}
-                  {key.last_used
-                    ? ` - ${t('apiKeys.list.lastUsed')} ${new Date(key.last_used).toLocaleDateString()}`
-                    : ''}
+        <div className="space-y-2">
+          {apiKeys.length === 0 ? (
+            <p className="text-sm italic text-muted-foreground">{t('apiKeys.empty')}</p>
+          ) : (
+            apiKeys.map((key) => (
+              <div key={key.id} className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div className="flex-1">
+                  <div className="font-medium">{key.key_name}</div>
+                  <code className="text-xs text-muted-foreground">{key.api_key}</code>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {t('apiKeys.list.created')} {new Date(key.created_at).toLocaleDateString()}
+                    {key.last_used
+                      ? ` - ${t('apiKeys.list.lastUsed')} ${new Date(key.last_used).toLocaleDateString()}`
+                      : ''}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={key.is_active ? 'outline' : 'secondary'}
+                    onClick={() => onToggleApiKey(key.id, key.is_active)}
+                  >
+                    {key.is_active ? t('apiKeys.status.active') : t('apiKeys.status.inactive')}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => onDeleteApiKey(key.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant={key.is_active ? 'outline' : 'secondary'}
-                  onClick={() => onToggleApiKey(key.id, key.is_active)}
-                >
-                  {key.is_active ? t('apiKeys.status.active') : t('apiKeys.status.inactive')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => onDeleteApiKey(key.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
-    </div>
+    </SettingsGroup>
   );
 }

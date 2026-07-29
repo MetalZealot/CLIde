@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { authenticatedFetch } from '../../../utils/api';
 
 type GitConfigResponse = {
@@ -9,21 +10,31 @@ type GitConfigResponse = {
 
 type SaveStatus = 'success' | 'error' | null;
 
+const BLUR_SAVE_DEBOUNCE_MS = 300;
+const SAVE_STATUS_CLEAR_MS = 2000;
+
+/**
+ * Save-on-blur, debounced: git config writes are real `git config --global`
+ * calls, so nothing here fires per keystroke. Blurring either field schedules
+ * a save; blurring straight from name into email coalesces into one write
+ * instead of firing twice, since both fields go in a single request.
+ */
 export function useGitSettings() {
   const [gitName, setGitName] = useState('');
   const [gitEmail, setGitEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
-  const clearStatusTimerRef = useRef<number | null>(null);
 
-  const clearSaveStatus = useCallback(() => {
-    if (clearStatusTimerRef.current !== null) {
-      window.clearTimeout(clearStatusTimerRef.current);
-      clearStatusTimerRef.current = null;
-    }
-    setSaveStatus(null);
-  }, []);
+  const lastSavedRef = useRef({ gitName: '', gitEmail: '' });
+  const blurTimerRef = useRef<number | null>(null);
+  const statusTimerRef = useRef<number | null>(null);
+  // Mirror the latest field values: the debounced callback is scheduled from
+  // onBlur and would otherwise close over the state at blur time, not whatever
+  // the other field settles on before the timer fires.
+  const gitNameRef = useRef(gitName);
+  const gitEmailRef = useRef(gitEmail);
+  gitNameRef.current = gitName;
+  gitEmailRef.current = gitEmail;
 
   const loadGitConfig = useCallback(async () => {
     try {
@@ -34,8 +45,11 @@ export function useGitSettings() {
       }
 
       const data = await response.json() as GitConfigResponse;
-      setGitName(data.gitName || '');
-      setGitEmail(data.gitEmail || '');
+      const name = data.gitName || '';
+      const email = data.gitEmail || '';
+      setGitName(name);
+      setGitEmail(email);
+      lastSavedRef.current = { gitName: name, gitEmail: email };
     } catch (error) {
       console.error('Error loading git config:', error);
     } finally {
@@ -43,42 +57,67 @@ export function useGitSettings() {
     }
   }, []);
 
-  const saveGitConfig = useCallback(async () => {
+  const flushSave = useCallback(async () => {
+    const name = gitNameRef.current.trim();
+    const email = gitEmailRef.current.trim();
+
+    // Validation before write: never send a half-filled identity to git config.
+    if (!name || !email) {
+      return;
+    }
+    if (name === lastSavedRef.current.gitName && email === lastSavedRef.current.gitEmail) {
+      return;
+    }
+
     try {
-      setIsSaving(true);
       const response = await authenticatedFetch('/api/user/git-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gitName, gitEmail }),
+        body: JSON.stringify({ gitName: name, gitEmail: email }),
       });
 
       if (response.ok) {
+        lastSavedRef.current = { gitName: name, gitEmail: email };
         setSaveStatus('success');
-        clearStatusTimerRef.current = window.setTimeout(() => {
-          setSaveStatus(null);
-          clearStatusTimerRef.current = null;
-        }, 3000);
-        return;
+      } else {
+        const data = await response.json() as GitConfigResponse;
+        console.error('Failed to save git config:', data.error);
+        setSaveStatus('error');
       }
-
-      const data = await response.json() as GitConfigResponse;
-      console.error('Failed to save git config:', data.error);
-      setSaveStatus('error');
     } catch (error) {
       console.error('Error saving git config:', error);
       setSaveStatus('error');
-    } finally {
-      setIsSaving(false);
     }
-  }, [gitEmail, gitName]);
+
+    if (statusTimerRef.current !== null) {
+      window.clearTimeout(statusTimerRef.current);
+    }
+    statusTimerRef.current = window.setTimeout(() => {
+      setSaveStatus(null);
+      statusTimerRef.current = null;
+    }, SAVE_STATUS_CLEAR_MS);
+  }, []);
+
+  const handleFieldBlur = useCallback(() => {
+    if (blurTimerRef.current !== null) {
+      window.clearTimeout(blurTimerRef.current);
+    }
+    blurTimerRef.current = window.setTimeout(() => {
+      blurTimerRef.current = null;
+      void flushSave();
+    }, BLUR_SAVE_DEBOUNCE_MS);
+  }, [flushSave]);
 
   useEffect(() => {
     void loadGitConfig();
   }, [loadGitConfig]);
 
   useEffect(() => () => {
-    if (clearStatusTimerRef.current !== null) {
-      window.clearTimeout(clearStatusTimerRef.current);
+    if (blurTimerRef.current !== null) {
+      window.clearTimeout(blurTimerRef.current);
+    }
+    if (statusTimerRef.current !== null) {
+      window.clearTimeout(statusTimerRef.current);
     }
   }, []);
 
@@ -88,9 +127,7 @@ export function useGitSettings() {
     gitEmail,
     setGitEmail,
     isLoading,
-    isSaving,
     saveStatus,
-    clearSaveStatus,
-    saveGitConfig,
+    handleFieldBlur,
   };
 }

@@ -18,6 +18,8 @@ type SettingsGroupProps = {
    */
   tone?: SettingsTone;
   className?: string;
+  /** Trailing header control, e.g. a "New" button next to a list's title. */
+  action?: ReactNode;
 };
 
 const TONE_CLASSES: Record<SettingsTone, string> = {
@@ -33,17 +35,21 @@ export default function SettingsGroup({
   divided,
   tone = 'default',
   className,
+  action,
 }: SettingsGroupProps) {
   return (
     <section className={cn('space-y-3', className)}>
-      {(title || description) && (
-        <div>
-          {title && (
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {title}
-            </h3>
-          )}
-          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      {(title || description || action) && (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {title && (
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {title}
+              </h3>
+            )}
+            {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+          </div>
+          {action && <div className="flex-shrink-0">{action}</div>}
         </div>
       )}
 

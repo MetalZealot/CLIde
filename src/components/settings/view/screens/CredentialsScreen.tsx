@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import { useCredentialsSettings } from '../../../hooks/useCredentialsSettings';
-import ApiKeysSection from './sections/ApiKeysSection';
-import GithubCredentialsSection from './sections/GithubCredentialsSection';
-import NewApiKeyAlert from './sections/NewApiKeyAlert';
 
-export default function CredentialsSettingsTab() {
+import { useCredentialsSettings } from '../../hooks/useCredentialsSettings';
+import ApiKeysSection from '../tabs/api-settings/sections/ApiKeysSection';
+import GithubCredentialsSection from '../tabs/api-settings/sections/GithubCredentialsSection';
+import NewApiKeyAlert from '../tabs/api-settings/sections/NewApiKeyAlert';
+import { SettingsScreen } from '../primitives';
+
+export default function CredentialsScreen() {
   const { t } = useTranslation('settings');
   const {
     apiKeys,
@@ -42,11 +44,15 @@ export default function CredentialsSettingsTab() {
   });
 
   if (loading) {
-    return <div className="text-muted-foreground">{t('apiKeys.loading')}</div>;
+    return (
+      <SettingsScreen>
+        <p className="text-sm text-muted-foreground">{t('apiKeys.loading')}</p>
+      </SettingsScreen>
+    );
   }
 
   return (
-    <div className="space-y-8">
+    <SettingsScreen>
       {newlyCreatedKey && (
         <NewApiKeyAlert
           apiKey={newlyCreatedKey}
@@ -85,7 +91,6 @@ export default function CredentialsSettingsTab() {
         onToggleGithubCredential={toggleGithubCredential}
         onDeleteGithubCredential={deleteGithubCredential}
       />
-
-    </div>
+    </SettingsScreen>
   );
 }

@@ -55,13 +55,12 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
 ];
 
 /**
- * Two screens here are **interim** and are absorbed by later phases of the
- * build plan, which is why the list is not yet identical to the IA spec's root:
+ * One screen here is **interim** and is absorbed by a later phase of the build
+ * plan, which is why the list is not yet identical to the IA spec's root:
  *
  * - `agents` becomes four provider screens (`agent.claude`, …) in P4.
- * - `git` merges with project sorting into `projects-git` in P3b.
  *
- * They are listed now so that every destination that exists today stays
+ * It is listed now so that every destination that exists today stays
  * reachable; the shape of the registry, not the final destination list, is what
  * this phase proves.
  */
@@ -80,7 +79,7 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
     labelKey: 'mainTabs.appearance',
     icon: 'appearance',
     group: 'app',
-    keywords: 'appearance theme dark light system language project sorting',
+    keywords: 'appearance theme dark light system language',
   },
   {
     kind: 'screen',
@@ -118,11 +117,11 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
   },
   {
     kind: 'screen',
-    id: 'git',
-    labelKey: 'mainTabs.git',
+    id: 'projects-git',
+    labelKey: 'mainTabs.projectsGit',
     icon: 'git',
     group: 'app',
-    keywords: 'git identity name email commits',
+    keywords: 'projects git identity name email commits sorting sort order',
   },
   {
     kind: 'screen',
@@ -178,12 +177,15 @@ export const MAX_SETTINGS_DEPTH = 2;
  * needs no entry until P4 splits it. `voice` was its own top-level tab; its
  * enable toggle now lives on the `chat` screen itself, but the deep link goes
  * straight to the backend sub-screen since that was the old tab's substance.
+ * `git` was its own top-level tab; P3b merged it with project sorting into
+ * `projects-git`.
  */
 export const LEGACY_SCREEN_IDS: Record<string, string> = {
   tools: 'agents',
   api: 'credentials',
   'api-tokens': 'credentials',
   voice: 'chat.voice',
+  git: 'projects-git',
 };
 
 const SCREENS_BY_ID = new Map(SETTINGS_SCREENS.map((screen) => [screen.id, screen]));

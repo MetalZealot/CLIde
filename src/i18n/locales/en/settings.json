@@ -116,6 +116,7 @@
     "agents": "Agents",
     "appearance": "Appearance",
     "git": "Git",
+    "projectsGit": "Projects & Git",
     "apiTokens": "API & Tokens",
     "chat": "Chat",
     "voice": "Voice",

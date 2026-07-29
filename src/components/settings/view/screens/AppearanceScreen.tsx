@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
 import { getScreen } from '../../registry/registry';
-import type { ProjectSortOrder } from '../../types/types';
 import {
   SETTINGS_ICONS,
   SettingsGroup,
@@ -11,7 +10,6 @@ import {
   SettingsRow,
   SettingsScreen,
   SettingsSegmentedControl,
-  SettingsSelect,
 } from '../primitives';
 
 type ThemePreference = 'light' | 'dark' | 'system';
@@ -22,8 +20,6 @@ type ThemeContextValue = {
 };
 
 type AppearanceScreenProps = {
-  projectSortOrder: ProjectSortOrder;
-  onProjectSortOrderChange: (value: ProjectSortOrder) => void;
   onOpenScreen: (screenId: string) => void;
 };
 
@@ -32,13 +28,9 @@ type AppearanceScreenProps = {
  * `SettingsScreen` wrapper, `SettingsGroup` sections, rows built from the
  * shared primitives, no bespoke divs and no colour classes.
  *
- * Project sorting still lives here rather than in Projects & Git, where the IA
- * spec puts it; P3b moves it when that screen is created, so that it is never
- * unreachable in between.
+ * Project sorting moved to Projects & Git in P3b, per the IA spec.
  */
 export default function AppearanceScreen({
-  projectSortOrder,
-  onProjectSortOrderChange,
   onOpenScreen,
 }: AppearanceScreenProps) {
   const { t } = useTranslation('settings');
@@ -70,24 +62,6 @@ export default function AppearanceScreen({
 
       <SettingsGroup title={t('appearanceSettings.language.title')}>
         <LanguageSelector />
-      </SettingsGroup>
-
-      <SettingsGroup title={t('appearanceSettings.projectSorting.label')}>
-        <SettingsRow
-          label={t('appearanceSettings.projectSorting.label')}
-          description={t('appearanceSettings.projectSorting.description')}
-        >
-          <SettingsSelect<ProjectSortOrder>
-            value={projectSortOrder}
-            ariaLabel={t('appearanceSettings.projectSorting.label')}
-            onChange={onProjectSortOrderChange}
-            className="sm:w-36"
-            options={[
-              { value: 'name', label: t('appearanceSettings.projectSorting.alphabetical') },
-              { value: 'date', label: t('appearanceSettings.projectSorting.recentActivity') },
-            ]}
-          />
-        </SettingsRow>
       </SettingsGroup>
 
       {editorScreen && (

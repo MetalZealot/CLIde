@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next';
 import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
-import CredentialsSettingsTab from '../view/tabs/api-settings/CredentialsSettingsTab';
-import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
 import BrowserUseSettingsTab from '../view/tabs/browser-use-settings/BrowserUseSettingsTab';
 import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
@@ -20,7 +18,9 @@ import AppearanceEditorScreen from './screens/AppearanceEditorScreen';
 import AppearanceScreen from './screens/AppearanceScreen';
 import ChatScreen from './screens/ChatScreen';
 import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
+import CredentialsScreen from './screens/CredentialsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
+import ProjectsGitScreen from './screens/ProjectsGitScreen';
 import { SettingsScreen } from './primitives';
 import SettingsHeader from './shell/SettingsHeader';
 import SettingsRail from './shell/SettingsRail';
@@ -167,8 +167,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
       case 'appearance':
         return (
           <AppearanceScreen
-            projectSortOrder={projectSortOrder}
-            onProjectSortOrderChange={setProjectSortOrder}
             onOpenScreen={isMobile ? nav.push : nav.select}
           />
         );
@@ -224,8 +222,13 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
           />
         );
 
-      case 'git':
-        return <SettingsScreen><GitSettingsTab /></SettingsScreen>;
+      case 'projects-git':
+        return (
+          <ProjectsGitScreen
+            projectSortOrder={projectSortOrder}
+            onProjectSortOrderChange={setProjectSortOrder}
+          />
+        );
 
       case 'plugins':
         return <SettingsScreen><PluginSettingsTab /></SettingsScreen>;
@@ -237,7 +240,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
         return <SettingsScreen><TasksSettingsTab /></SettingsScreen>;
 
       case 'credentials':
-        return <SettingsScreen><CredentialsSettingsTab /></SettingsScreen>;
+        return <CredentialsScreen />;
 
       case 'about':
         return <SettingsScreen><AboutTab /></SettingsScreen>;

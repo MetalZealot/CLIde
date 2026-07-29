@@ -1,7 +1,9 @@
-import { Eye, EyeOff, Github, Plus, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
 import { Button, Input } from '../../../../../../shared/view/ui';
 import type { GithubCredentialItem } from '../types';
+import { SettingsGroup } from '../../../primitives';
 
 type GithubCredentialsSectionProps = {
   githubCredentials: GithubCredentialItem[];
@@ -41,101 +43,99 @@ export default function GithubCredentialsSection({
   const { t } = useTranslation('settings');
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Github className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">{t('apiKeys.github.title')}</h3>
-        </div>
+    <SettingsGroup
+      title={t('apiKeys.github.title')}
+      description={t('apiKeys.github.descriptionAlt')}
+      action={(
         <Button size="sm" onClick={() => onShowNewGithubFormChange(!showNewGithubForm)}>
           <Plus className="mr-1 h-4 w-4" />
           {t('apiKeys.github.addButton')}
         </Button>
-      </div>
-
-      <p className="mb-4 text-sm text-muted-foreground">{t('apiKeys.github.descriptionAlt')}</p>
-
-      {showNewGithubForm && (
-        <div className="mb-4 space-y-3 rounded-lg border bg-card p-4">
-          <Input
-            placeholder={t('apiKeys.github.form.namePlaceholder')}
-            value={newGithubName}
-            onChange={(event) => onNewGithubNameChange(event.target.value)}
-          />
-
-          <div className="relative">
-            <Input
-              type={showNewTokenPlainText ? 'text' : 'password'}
-              placeholder={t('apiKeys.github.form.tokenPlaceholder')}
-              value={newGithubToken}
-              onChange={(event) => onNewGithubTokenChange(event.target.value)}
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={onToggleNewTokenVisibility}
-              aria-label={showNewTokenPlainText ? 'Hide token' : 'Show token'}
-              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
-            >
-              {showNewTokenPlainText ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-
-          <Input
-            placeholder={t('apiKeys.github.form.descriptionPlaceholder')}
-            value={newGithubDescription}
-            onChange={(event) => onNewGithubDescriptionChange(event.target.value)}
-          />
-
-          <div className="flex gap-2">
-            <Button onClick={onCreateGithubCredential}>{t('apiKeys.github.form.addButton')}</Button>
-            <Button variant="outline" onClick={onCancelCreateGithubCredential}>
-              {t('apiKeys.github.form.cancelButton')}
-            </Button>
-          </div>
-
-          <a
-            href="https://github.com/settings/tokens"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block text-xs text-primary hover:underline"
-          >
-            {t('apiKeys.github.form.howToCreate')}
-          </a>
-        </div>
       )}
+    >
+      <div className="space-y-4 p-4">
+        {showNewGithubForm && (
+          <div className="space-y-3 rounded-lg border border-border bg-background/50 p-4">
+            <Input
+              placeholder={t('apiKeys.github.form.namePlaceholder')}
+              value={newGithubName}
+              onChange={(event) => onNewGithubNameChange(event.target.value)}
+            />
 
-      <div className="space-y-2">
-        {githubCredentials.length === 0 ? (
-          <p className="text-sm italic text-muted-foreground">{t('apiKeys.github.empty')}</p>
-        ) : (
-          githubCredentials.map((credential) => (
-            <div key={credential.id} className="flex items-center justify-between rounded-lg border p-3">
-              <div className="flex-1">
-                <div className="font-medium">{credential.credential_name}</div>
-                {credential.description && (
-                  <div className="text-xs text-muted-foreground">{credential.description}</div>
-                )}
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {t('apiKeys.github.added')} {new Date(credential.created_at).toLocaleDateString()}
+            <div className="relative">
+              <Input
+                type={showNewTokenPlainText ? 'text' : 'password'}
+                placeholder={t('apiKeys.github.form.tokenPlaceholder')}
+                value={newGithubToken}
+                onChange={(event) => onNewGithubTokenChange(event.target.value)}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={onToggleNewTokenVisibility}
+                aria-label={showNewTokenPlainText ? 'Hide token' : 'Show token'}
+                className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+              >
+                {showNewTokenPlainText ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <Input
+              placeholder={t('apiKeys.github.form.descriptionPlaceholder')}
+              value={newGithubDescription}
+              onChange={(event) => onNewGithubDescriptionChange(event.target.value)}
+            />
+
+            <div className="flex gap-2">
+              <Button onClick={onCreateGithubCredential}>{t('apiKeys.github.form.addButton')}</Button>
+              <Button variant="outline" onClick={onCancelCreateGithubCredential}>
+                {t('apiKeys.github.form.cancelButton')}
+              </Button>
+            </div>
+
+            <a
+              href="https://github.com/settings/tokens"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-xs text-primary hover:underline"
+            >
+              {t('apiKeys.github.form.howToCreate')}
+            </a>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {githubCredentials.length === 0 ? (
+            <p className="text-sm italic text-muted-foreground">{t('apiKeys.github.empty')}</p>
+          ) : (
+            githubCredentials.map((credential) => (
+              <div key={credential.id} className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div className="flex-1">
+                  <div className="font-medium">{credential.credential_name}</div>
+                  {credential.description && (
+                    <div className="text-xs text-muted-foreground">{credential.description}</div>
+                  )}
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {t('apiKeys.github.added')} {new Date(credential.created_at).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={credential.is_active ? 'outline' : 'secondary'}
+                    onClick={() => onToggleGithubCredential(credential.id, credential.is_active)}
+                  >
+                    {credential.is_active ? t('apiKeys.status.active') : t('apiKeys.status.inactive')}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => onDeleteGithubCredential(credential.id)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant={credential.is_active ? 'outline' : 'secondary'}
-                  onClick={() => onToggleGithubCredential(credential.id, credential.is_active)}
-                >
-                  {credential.is_active ? t('apiKeys.status.active') : t('apiKeys.status.inactive')}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => onDeleteGithubCredential(credential.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
-    </div>
+    </SettingsGroup>
   );
 }
