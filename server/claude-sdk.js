@@ -1020,6 +1020,23 @@ function reconnectSessionWriter(sessionId, newRawWs) {
   return true;
 }
 
+/**
+ * Manual counterpart to the interval re-capture above, for the /context
+ * modal's refresh button. Same mid-turn-only constraint: it looks the
+ * session up in the active-sessions map and asks its live query instance,
+ * so it returns null whenever there is no turn currently streaming (the
+ * turn already ended, or the session was never active in this process).
+ * @param {string} providerSessionId - Claude's own session id
+ * @returns {Promise<Object|null>} Fresh ceiling, or null if no live query
+ */
+async function refreshClaudeContextUsage(providerSessionId) {
+  const session = getSession(providerSessionId);
+  if (!session?.instance) {
+    return null;
+  }
+  return captureClaudeContextUsage(providerSessionId, session.instance);
+}
+
 // Export public API
 export {
   queryClaudeSDK,
@@ -1028,5 +1045,6 @@ export {
   getActiveClaudeSDKSessions,
   resolveToolApproval,
   getPendingApprovalsForSession,
-  reconnectSessionWriter
+  reconnectSessionWriter,
+  refreshClaudeContextUsage
 };

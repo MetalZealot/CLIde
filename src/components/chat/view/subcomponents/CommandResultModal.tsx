@@ -42,6 +42,11 @@ type CommandResultModalProps = {
   currentSessionId: string | null;
   /** Re-opens this modal on the `/usage` view — the context panel links to it. */
   onShowUsage?: () => void;
+  /** Re-fires the SDK context reading and re-opens the modal with it. Claude only — see the context spec. */
+  onRefreshContext?: () => void;
+  isRefreshingContext?: boolean;
+  /** The reading can only change while a turn is streaming; gates the refresh button. */
+  isSessionProcessing?: boolean;
   onSelectProviderModel: (
     provider: LLMProvider,
     model: string,
@@ -617,10 +622,18 @@ function formatReadingAge(fetchedAt: number | undefined): string | null {
 function ContextContent({
   data,
   onShowUsage,
+  onRefresh,
+  isRefreshing = false,
+  canRefresh = false,
 }: {
   data: ContextCommandData;
   /** Opens the full `/usage` view from the plan-limits footer. */
   onShowUsage?: () => void;
+  /** Re-fires the SDK reading. Omitted entirely hides the button (e.g. no session yet). */
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+  /** The reading can only change while a turn is streaming. */
+  canRefresh?: boolean;
 }) {
   const maxTokens = Number(data.maxTokens ?? 0);
   // The headline follows current usage; the sections describe the reading.
@@ -717,9 +730,25 @@ function ContextContent({
               {' / '}{formatNumber(ceiling)} tokens{compactsAutomatically ? ' before auto-compact' : ''}
             </span>
           </p>
-          <p className="font-mono text-sm text-muted-foreground">
-            {ceiling > 0 ? `${Math.round((totalTokens / ceiling) * 100)}%` : '—'}
-          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <p className="font-mono text-sm text-muted-foreground">
+              {ceiling > 0 ? `${Math.round((totalTokens / ceiling) * 100)}%` : '—'}
+            </p>
+            {onRefresh && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onRefresh}
+                disabled={isRefreshing || !canRefresh}
+                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                aria-label="Refresh context reading"
+                title={canRefresh ? 'Refresh context reading' : 'The reading only updates while a turn is streaming'}
+              >
+                <RefreshCw className={isRefreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* One stacked bar in the CLI's own category colours. */}
@@ -1047,6 +1076,9 @@ export default function CommandResultModal({
   onHardRefreshProviderModels,
   currentSessionId,
   onShowUsage,
+  onRefreshContext,
+  isRefreshingContext,
+  isSessionProcessing,
   onSelectProviderModel,
 }: CommandResultModalProps) {
   const isOpen = Boolean(payload);
@@ -1147,7 +1179,13 @@ export default function CommandResultModal({
           {payload?.kind === 'usage' && <UsageContent data={payload.data as UsageCommandData} />}
           {payload?.kind === 'status' && <StatusContent data={payload.data as StatusCommandData} />}
           {payload?.kind === 'context' && (
-            <ContextContent data={payload.data as ContextCommandData} onShowUsage={onShowUsage} />
+            <ContextContent
+              data={payload.data as ContextCommandData}
+              onShowUsage={onShowUsage}
+              onRefresh={onRefreshContext}
+              isRefreshing={Boolean(isRefreshingContext)}
+              canRefresh={Boolean(isSessionProcessing)}
+            />
           )}
         </div>
 

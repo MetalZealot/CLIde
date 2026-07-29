@@ -213,6 +213,8 @@ function ChatInterface({
     closeCommandModal,
     showUsageModal,
     showContextModal,
+    refreshContextModal,
+    isRefreshingContext,
   } = useChatComposerState({
     selectedProject,
     selectedSession,
@@ -568,6 +570,9 @@ function ChatInterface({
         onHardRefreshProviderModels={hardRefreshProviderModels}
         currentSessionId={currentSessionId || selectedSession?.id || null}
         onShowUsage={showUsageModal}
+        onRefreshContext={refreshContextModal}
+        isRefreshingContext={isRefreshingContext}
+        isSessionProcessing={isProcessing}
         onSelectProviderModel={handleSelectProviderModel}
       />
     </PermissionContext.Provider>

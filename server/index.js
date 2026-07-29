@@ -33,6 +33,7 @@ import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import {
     queryClaudeSDK,
     abortClaudeSDKSession,
+    refreshClaudeContextUsage,
 } from './claude-sdk.js';
 import { interactiveRequestRegistry } from './modules/providers/services/interactive-request-registry.service.js';
 import {
@@ -1506,6 +1507,37 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
     } catch (error) {
         console.error('Error reading session token usage:', error);
         res.status(500).json({ error: 'Failed to read session token usage' });
+    }
+});
+
+// Manual re-capture for the /context modal's refresh button. Only Claude
+// tracks a context reading at all (see loadClaudeContextCeiling above), and
+// the SDK control request behind it only answers while a turn is actually
+// streaming — so this either lands a fresh reading or reports that there is
+// no live turn to ask, never an error for that case.
+app.post('/api/projects/:projectId/sessions/:sessionId/context-usage/refresh', authenticateToken, async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const safeSessionId = String(sessionId).replace(/[^a-zA-Z0-9._-]/g, '');
+        if (!safeSessionId || safeSessionId !== String(sessionId)) {
+            return res.status(400).json({ error: 'Invalid sessionId' });
+        }
+
+        // Same id mapping as the /context command handler in commands.js:
+        // the caller sends the app-facing id, but the live session (and its
+        // cached reading) is keyed by the provider-native id.
+        const sessionRow = sessionsDb.getSessionById(safeSessionId);
+        const providerSessionId = sessionRow?.provider_session_id || safeSessionId;
+
+        const ceiling = await refreshClaudeContextUsage(providerSessionId);
+        if (!ceiling) {
+            return res.json({ refreshed: false, reason: 'no-live-turn' });
+        }
+
+        res.json({ refreshed: true, ceiling });
+    } catch (error) {
+        console.error('Error refreshing session context usage:', error);
+        res.status(500).json({ error: 'Failed to refresh context usage' });
     }
 });
 

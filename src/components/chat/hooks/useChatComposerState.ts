@@ -304,6 +304,10 @@ export function useChatComposerState({
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
+  // Drives the /context modal's refresh button. Its own flag, separate from
+  // `isLoading` (the turn's send/stream state) — a refresh is a single POST,
+  // not a new turn.
+  const [isRefreshingContext, setIsRefreshingContext] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHighlightRef = useRef<HTMLDivElement>(null);
@@ -659,6 +663,31 @@ export function useChatComposerState({
       { preserveInput: true },
     );
   }, [executeCommand]);
+
+  // Manually re-fires the SDK's context reading (only possible mid-turn — see
+  // docs/superpowers/specs/2026-07-28-context-usage-live-refresh.md) and then
+  // re-opens the modal so it renders whatever the refresh produced. A
+  // "no live turn" response changes nothing server-side, so re-running is
+  // still correct there — the modal just re-renders the same cached reading.
+  const refreshContextModal = useCallback(async () => {
+    if (!selectedProject || !sessionKey) {
+      return;
+    }
+
+    setIsRefreshingContext(true);
+    try {
+      await authenticatedFetch(
+        `/api/projects/${selectedProject.projectId}/sessions/${sessionKey}/context-usage/refresh`,
+        { method: 'POST' },
+      );
+    } catch (error) {
+      console.error('Error refreshing context usage:', error);
+    } finally {
+      setIsRefreshingContext(false);
+    }
+
+    showContextModal();
+  }, [selectedProject, sessionKey, showContextModal]);
 
   const {
     slashCommands,
@@ -1581,5 +1610,7 @@ export function useChatComposerState({
     closeCommandModal,
     showUsageModal,
     showContextModal,
+    refreshContextModal,
+    isRefreshingContext,
   };
 }
