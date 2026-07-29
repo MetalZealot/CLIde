@@ -42,7 +42,7 @@
       (function () {
         try {
           var saved = localStorage.getItem('theme');
-          var isDark = saved
+          var isDark = saved === 'dark' || saved === 'light'
             ? saved === 'dark'
             : Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (isDark) {
