@@ -5,7 +5,12 @@
 
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage, SubagentChildTool } from '../types/types';
-import { decodeHtmlEntities, unescapeWithMathProtection, formatUsageLimitText } from '../utils/chatFormatting';
+import {
+  decodeHtmlEntities,
+  unescapeWithMathProtection,
+  formatUsageLimitText,
+  stripInternalMemoryCitation,
+} from '../utils/chatFormatting';
 
 function formatToolResultContent(content: unknown): string {
   const text = typeof content === 'string' ? content : JSON.stringify(content);
@@ -18,6 +23,12 @@ type ParsedTaskNotification = {
   summary: string;
   result: string;
 };
+
+function formatAssistantText(content: string): string {
+  return stripInternalMemoryCitation(
+    formatUsageLimitText(unescapeWithMathProtection(decodeHtmlEntities(content))),
+  );
+}
 
 /**
  * Parses a background-agent `<task-notification>` block.
@@ -115,9 +126,13 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             // Render the agent's result as a normal assistant message so its
             // markdown displays correctly instead of leaking raw XML.
             if (taskNotif.result) {
+              const result = formatAssistantText(taskNotif.result);
+              if (!result.trim()) {
+                continue;
+              }
               converted.push({
                 type: 'assistant',
-                content: formatUsageLimitText(unescapeWithMathProtection(decodeHtmlEntities(taskNotif.result))),
+                content: result,
                 timestamp: msg.timestamp,
                 ...sharedMetadata,
                 // Two ChatMessages from one normalized row — keep ids unique.
@@ -134,9 +149,8 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             });
           }
         } else {
-          let text = decodeHtmlEntities(content);
-          text = unescapeWithMathProtection(text);
-          text = formatUsageLimitText(text);
+          const text = formatAssistantText(content);
+          if (!text.trim()) continue;
           converted.push({
             type: 'assistant',
             content: text,
@@ -239,9 +253,11 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
 
       case 'stream_delta':
         if (msg.content) {
+          const content = formatAssistantText(msg.content);
+          if (!content.trim()) break;
           converted.push({
             type: 'assistant',
-            content: msg.content,
+            content,
             timestamp: msg.timestamp,
             isStreaming: true,
             ...sharedMetadata,

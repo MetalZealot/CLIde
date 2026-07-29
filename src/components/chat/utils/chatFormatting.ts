@@ -17,6 +17,35 @@ export function normalizeInlineCodeFences(text: string) {
   }
 }
 
+/**
+ * Removes Codex's reserved memory provenance envelope from displayed replies.
+ *
+ * The harness persists this metadata inside the assistant's final output text.
+ * Keep the raw transcript intact, but do not expose the envelope through the
+ * chat renderer or copy/speech controls. Requiring the complete structure at
+ * the very end avoids treating ordinary XML-like prose as internal metadata.
+ */
+export function stripInternalMemoryCitation(text: string) {
+  if (!text || typeof text !== 'string') return text;
+
+  const closingTag = '</oai-mem-citation>';
+  const trimmed = text.trimEnd();
+  if (!trimmed.endsWith(closingTag)) return text;
+
+  const openingTag = '<oai-mem-citation>';
+  const openingIndex = trimmed.lastIndexOf(openingTag);
+  if (openingIndex < 0) return text;
+
+  const candidate = trimmed.slice(openingIndex);
+  const isCompleteEnvelope =
+    /^<oai-mem-citation>\s*<citation_entries>[\s\S]*<\/citation_entries>\s*<rollout_ids>[\s\S]*<\/rollout_ids>\s*<\/oai-mem-citation>$/.test(
+      candidate,
+    );
+  if (!isCompleteEnvelope) return text;
+
+  return trimmed.slice(0, openingIndex).trimEnd();
+}
+
 export function unescapeWithMathProtection(text: string) {
   if (!text || typeof text !== 'string') return text;
 
