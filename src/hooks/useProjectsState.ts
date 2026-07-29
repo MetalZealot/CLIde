@@ -665,7 +665,7 @@ export function useProjectsState({
     }
   }, []);
 
-  const openSettings = useCallback((tab = 'tools') => {
+  const openSettings = useCallback((tab = 'agents') => {
     setSettingsInitialTab(tab);
     setShowSettings(true);
   }, []);
