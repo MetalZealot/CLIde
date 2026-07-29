@@ -759,16 +759,16 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     );
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, true);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, true);
-    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, '0.145.0');
-    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, '0.145.0');
+    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, '0.146.0');
+    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, '0.146.0');
     assert.deepEqual(
       getCodexChatTransportDiagnostics(),
       {
         configured: 'app-server',
         actual: 'app-server',
         health: 'idle',
-        sdkVersion: '0.145.0',
-        bundledCliVersion: '0.145.0',
+        sdkVersion: '0.146.0',
+        bundledCliVersion: '0.146.0',
         lastError: null,
         lastStartupFallbackAt: null,
       },

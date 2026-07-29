@@ -8,7 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const moduleRequire = createRequire(import.meta.url);
-const EXPECTED_CODEX_VERSION = '0.145.0';
+const EXPECTED_CODEX_VERSION = '0.146.0';
 
 test(`Codex SDK and bundled CLI stay pinned to ${EXPECTED_CODEX_VERSION}`, () => {
   const codexBin = moduleRequire.resolve('@openai/codex/bin/codex.js');
