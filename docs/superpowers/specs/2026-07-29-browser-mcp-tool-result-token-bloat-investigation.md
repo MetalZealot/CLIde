@@ -5,9 +5,19 @@
 
 ## Status
 
-**Investigation handoff. Confirm independently before implementing a fix.**
+**CONFIRMED 2026-07-29 (Claude, `main` @ `5f31bf7`). Stages 1 and 2 complete;
+Stage 3 not run and not needed. Cleared for implementation.**
 
-This document is written for a future Claude session. Its first job is to test
+See [Confirmation record](#confirmation-record-2026-07-29) at the end of this
+document for the reproduced measurements, three corrections to the sections
+below, and the [Implementation session brief](#implementation-session-brief).
+The original handoff text is preserved unchanged below for provenance — where it
+disagrees with the confirmation record, the record wins.
+
+Original status: *Investigation handoff. Confirm independently before
+implementing a fix.*
+
+This document was written for a future Claude session. Its first job was to test
 the report without trusting the conclusions recorded here. Do not begin by
 editing the Browser implementation, restarting the production service, or
 calling Browser MCP tools from the investigating Claude conversation.
@@ -771,3 +781,268 @@ The defect appears suitable for an upstream contribution because it originates
 in shared Browser MCP behavior rather than CLIde-specific product policy.
 Prepare an upstreamable commit separately, but do not open, push, or update an
 upstream pull request without the user's explicit approval.
+
+---
+
+# Confirmation record (2026-07-29)
+
+*Confirmed by a Claude session against `main` @ `5f31bf7`, clean working tree.
+Stages 1 and 2 were run in full. Stage 3 was deliberately skipped: Stage 1 read
+the exact serializer that runs in production, so a wire probe would only
+re-verify what the source already proves. No Browser MCP tool was called from
+the confirming conversation, no provider tokens were spent, and nothing in
+production or user data was modified.*
+
+## Verdict: confirmed
+
+Every quantitative baseline in the handoff reproduced **exactly** — not
+approximately. The source path is unchanged from the one hypothesized.
+
+| Item | Result |
+|---|---|
+| CLIde branch / commit | `main` @ `5f31bf7`, tree clean |
+| Local `upstream/main` | `264e094`, 2026-07-29 19:11 UTC (`chore(release): v1.37.0`) — fresh, not stale |
+| Historical session | Claude Code `2.1.220`, model `claude-sonnet-5` |
+| Browser tool calls | **23** — 6 click, 5 type, 4 navigate, 3 snapshot, 2 wait, 2 press_key, 1 create_session |
+| Direct result #1 (`browser_create_session`) | 11,731 chars; screenshot 11,295 = **96.3%** |
+| Direct result #2 (`browser_navigate`) | 31,407 chars; screenshot 30,831 = **98.2%** |
+| Offloaded raw files | `files=20 total_bytes=1195757 min=50841 max=64024 avg=59787.8` |
+| Input-footprint delta #1 | 195,391 → 207,059 = **+11,668**, entirely `cache_creation_input_tokens` |
+| Input-footprint delta #2 | 254,180 → 284,347 = **+30,167**, entirely `cache_creation_input_tokens` |
+| Route hypothesis | Confirmed intact, end to end |
+| Upstream-shared | Yes — upstream's copy is behaviourally identical |
+| Provider-neutral | Yes — registered to every provider in the live registry |
+| Prior upstream report | None found (issues open+closed, PRs) |
+
+Message IDs for the two deltas, for anyone re-deriving them: `msg_011CdWkrAkYgKwHNnuFye2Uj`
+→ `msg_011CdWkrbkwrHKag974BHWKV` (direct result at transcript line 318), and
+`msg_011CdWmSPTyCcjD9RA73LMNx` → `msg_011CdWmT43hM8VFRJJoexZrp` (line 487).
+Assistant records are duplicated per content block, so deduplicating by
+`message.id` is mandatory — the handoff was right to warn about this.
+
+## Two findings the handoff did not claim
+
+**The offload replacement is now positively confirmed, not assumed.** Section 2.4
+correctly refused to assert this. Requests following an offloaded result show
+`cache_creation_input_tokens` of only ~200–2,300 (transcript line 333: 865; line
+364: 212; line 396: 2,001) — consistent with a ~1,380-char notice plus a small
+tool call, and nowhere near the 50–64 KB raw files. Claude Code did substitute
+them before the next model request. The 1.19 MB of `tool-results/` bytes were
+**not** billed as model input.
+
+**41,835 tokens is a floor, not the session cost.** Once a screenshot enters the
+cached prefix it is re-read on every subsequent request for the rest of the
+session. 93 distinct requests followed the first direct result and 40 followed
+the second, so those two screenshots account for roughly
+`11,668 × 93 + 30,167 × 40 ≈ 2.3M` cache-read tokens carried forward. This is an
+arithmetic projection from prefix structure, not a direct measurement, and cache
+reads are much cheaper than cache writes — but it means the per-call figure
+materially understates session impact. Two screenshots also permanently occupied
+~42K of a 200K-class context window.
+
+## Three corrections to the handoff text above
+
+1. **Path divergence from upstream (affects Stage 1.5 and the v1.37.0 work).**
+   This fork keeps the MCP entry at **`server/browser-use-mcp.ts`**; upstream
+   v1.37.0 has it at **`server/modules/browser-use/browser-use-mcp.ts`**, moved
+   in `06e7ee9` (`feat: numerous bugfixes and features (#1037)`). The handoff's
+   `git show upstream/main:server/modules/browser-use/browser-use-mcp.ts`
+   silently returned nothing when run against the fork's path assumption.
+   Re-checked at the correct path, upstream's `jsonResponse` /
+   `browser_take_screenshot` handling is identical. Coordinate with
+   `2026-07-29-upstream-v1.37.0-integration` — the fix will land on a file
+   upstream has relocated.
+2. **`browser_snapshot` and `browser_take_screenshot` are literally the same
+   call.** Both route to `browserUseService.agentSnapshot(sessionId)`
+   (`browser-use-mcp.routes.ts`, the shared `case` pair), which returns
+   `{ session: publicSession(session), text: text.slice(0, 30_000) }`. So the
+   dedicated screenshot tool *also* drags up to 30 KB of body text, and the
+   snapshot tool *also* drags the screenshot. The repair section's separate
+   "explicit screenshot contract" and "snapshot contract" therefore require
+   **splitting one service method into two**, not just changing two serializers.
+3. **`gh search issues --state all` is rejected** by the installed `gh`; only
+   `open` or `closed`. Run each query twice. The multi-word queries in Stage 1.5
+   return zero results not because search is broken but because no such report
+   exists.
+
+## Confirmed call-site inventory
+
+Line numbers are as of `5f31bf7` — **grep the symbol, don't trust the number.**
+
+`captureSession()` is invoked before returning on **every** agent operation:
+`createAgentSession` (~573), `agentNavigate` (~622), `agentSnapshot` (~632),
+`agentClick` (~660), `agentType` (~684), `agentFillForm` (~703),
+`agentPressKey` (~715), `agentSelectOption` (~730), `agentWaitFor` (~749),
+`agentTabs` (~782). `publicSession()` strips only `ownerId` (~352), so
+`screenshotDataUrl` (type field, ~33) survives all of them.
+`stopSession` returns `publicSession(session)` (~805) still carrying the last
+screenshot. `listAgentSessions` (~583) maps every session through the same
+projection, so a list multiplies the screenshot by session count —
+`MAX_SESSIONS_PER_OWNER` defaults to **3**, so a list can return ~3 screenshots
+in one text block. `SESSION_TTL_MS` is 30 min.
+
+---
+
+# Implementation session brief
+
+Everything below is preparation for the dedicated implementation session. The
+[Repair direction](#repair-direction-after-confirmation) section above still
+governs *what* to build; this section records *where it plugs in* and *what has
+already been settled*, so the next session does not re-derive it.
+
+## Session start checklist
+
+```bash
+cd /home/gnuthall/Projects/cloudcli
+git status --short && git branch --show-current && git worktree list
+free -h
+```
+
+Then, per the repo's concurrent-session rule, isolate in a worktree — this is a
+**server** change, so it cannot be verified on 3001 without a production
+restart:
+
+```bash
+git worktree add ../cloudcli-wt-browser-dto -b fix/browser-mcp-dto main
+scripts/setup-worktree.sh /home/gnuthall/Projects/cloudcli-wt-browser-dto
+```
+
+`setup-worktree.sh` must be run from the **main checkout** and handles the
+gitignored files plus a free port pair. Critically, it must not leave
+`node_modules/.cache/tsbuildinfo/*.tsbuildinfo` symlinked to the main
+checkout's — a shared tsbuildinfo makes `tsc` emit **no `dist-server/` at all**
+while reporting success, and the branch-test server then crash-loops on
+`Cannot find module .../dist-server/server/index.js`. Verify those are real
+files in the worktree before the first build.
+
+Claim the work in `TODO.md` (`— in progress on fix/browser-mcp-dto`) and commit
+that claim first, so a concurrent session sees it.
+
+## The seam: two projections, one capture
+
+The human Browser panel and the agent MCP path currently share
+`publicSession()`. They must not.
+
+- **Human path — keep exactly as is.** `GET /api/browser-use/sessions`
+  (`browser-use.routes.ts`) → `listSessions()` → `publicSession()`. The panel
+  renders `selectedSession.screenshotDataUrl` directly
+  (`BrowserUsePanel.tsx`, the `<img src>` and the fullscreen-button `disabled`
+  guard). Changing this projection breaks live monitoring. Do not touch
+  `captureSession()` either — the capture is a legitimate UI requirement.
+- **Agent path — new projection.** Add an `agentSession()` (or
+  `agentSessionSummary()`) function next to `publicSession()` returning the
+  `AgentBrowserSessionSummary` shape from the repair section, and route every
+  `agent*` service method through it instead. Export it so it can be unit-tested
+  without a live browser.
+
+Note that `listSessions()` and `listAgentSessions()` are already near-duplicates
+differing only in the `enabled` check — after the split they diverge
+meaningfully, which is the point.
+
+## Splitting snapshot from screenshot
+
+`agentSnapshot()` currently serves both tools. Split into:
+
+- `agentSnapshot(sessionId)` → compact metadata + bounded page text, **no**
+  screenshot. Reassess the 30,000-char text ceiling with a documented budget.
+- `agentScreenshot(sessionId)` → returns the raw base64 **and** its mime type,
+  so the MCP layer can emit a real image block.
+
+Update the `case 'browser_snapshot': case 'browser_take_screenshot':` pair in
+`browser-use-mcp.routes.ts` to route to the two different methods, and the
+`browser_take_screenshot` case in `browser-use-mcp.ts` to build
+`{ type: 'image', data, mimeType }` rather than `jsonResponse(...)`. Also fix the
+now-inaccurate `browser_snapshot` tool **description**, which currently promises
+"screenshot data URL" — the description is part of the model's prompt, so a stale
+one keeps inviting the old usage.
+
+Mechanical detail: the service stores only the assembled data URL
+(`data:image/jpeg;base64,${...}`). An MCP image block needs the bare base64
+without the prefix, so either strip the prefix at the boundary or keep the raw
+base64 alongside the data URL on the session. Prefer the latter only if it does
+not double memory per session.
+
+MCP capability is not a blocker: the server already advertises
+`protocolVersion: '2024-11-05'` in its `initialize` response, which supports
+image content. Per the repair section, still verify each provider client
+actually accepts it before claiming parity.
+
+## Settled vs. open
+
+**Settled by the confirmation** — no need to revisit:
+
+- The defect is real, current, upstream-shared, and provider-neutral.
+- The screenshot, not the metadata or body text, is what dominates the payload.
+- Claude Code's offload is a size cliff, not a safeguard.
+- The human panel genuinely needs `screenshotDataUrl`; the agent boundary does
+  not.
+
+**Open decisions for Grayson** — ask before implementing, don't assume:
+
+1. Should `browser_take_screenshot` return an MCP image block at all, or should
+   it return a compact reference (a session id + a note to view the Browser
+   panel)? An image block is correct MCP typing but still costs vision tokens on
+   every call. The handoff recommends the image block; the cheaper option is
+   worth one question.
+2. What is the byte/char budget for an ordinary agent action result? The tests
+   below need a concrete number to assert against.
+3. New `browser_snapshot` text ceiling — keep 30,000 or lower it?
+
+## Test strategy
+
+`server/modules/browser-use/tests/browser-use.service.test.ts` is currently
+**one 332-byte test** asserting `listSessions()` starts empty. There is no
+Playwright harness, and the `agent*` methods all require a live `handles` entry —
+so do not plan on driving a real browser in unit tests.
+
+The tractable approach: export the projection function and test it directly
+against a hand-built session object containing a fake `screenshotDataUrl`. That
+covers the highest-value assertions from the repair section's test list —
+"ordinary MCP results never contain `data:image`", the size budget, and "list
+does not multiply screenshots by session count" — without any browser at all.
+Reserve live-browser verification for the manual pass on 3002.
+
+Run tests with the repo-standard invocation (a directory arg fails; the `@/`
+alias needs the tsconfig):
+
+```bash
+npx tsx --tsconfig server/tsconfig.json --test 'server/modules/browser-use/tests/*.test.ts'
+npm run typecheck
+npm run lint
+```
+
+## Verification plan
+
+This is a server change, so `build:client` + refresh does **not** deploy it, and
+production must not be restarted for testing. Merge to `main` only after
+verification.
+
+```bash
+cloudcli-branch-test start /home/gnuthall/Projects/cloudcli-wt-browser-dto
+```
+
+Grayson verifies on **`http://nuthallpi.tailb083b8.ts.net:3002`** — never 3001,
+which serves the main checkout's build. Check both halves: the Browser panel
+still shows a live screenshot, and an agent Browser call in a 3002 session
+returns a small result. Provider homes are shared with production, so use an
+obvious test-session name and clean up any stray transcript file (filesystem
+before database rows).
+
+Remember the branch-test snapshot carries the existing login — Grayson clicks
+through; the implementing session hands over the URL and says what to look for.
+
+## Disposition
+
+- **ADR**: likely unnecessary if this stays a DTO-boundary correction using
+  standard MCP image content. Prompt "worth an ADR?" if the work ends up
+  establishing a general rule for binary MCP result budgets or provider
+  capability negotiation.
+- **Upstream**: confirmed upstream-shared with no existing issue or PR, so it is
+  a genuine upstream candidate. Record it in `docs/upstream-candidates.md` when
+  the fix lands. Note the upstream file has moved to
+  `server/modules/browser-use/browser-use-mcp.ts`, so the patch will need
+  rebasing onto that path. Do not open or push an upstream PR without explicit
+  approval.
+- **Non-goals** in the section above still hold — in particular, do not "fix"
+  this by lowering JPEG quality or by hiding the base64 in CLIde's transcript
+  renderer while still sending it to the provider.
