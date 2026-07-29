@@ -176,6 +176,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     const firstCaptureMessage = first.messages.find((message) =>
       message.kind === 'text' && String(message.content).startsWith('CAPTURE:'));
     assert.ok(firstCaptureMessage);
+    assert.equal(firstCaptureMessage.id, 'capture-turn-1');
     const firstCapture = JSON.parse(String(firstCaptureMessage.content).slice(8));
     assert.equal(firstCapture.thread.method, 'thread/start');
     assert.equal(firstCapture.thread.params.model, 'gpt-test');
@@ -759,16 +760,16 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     );
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, true);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, true);
-    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, '0.145.0');
-    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, '0.145.0');
+    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, '0.146.0');
+    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, '0.146.0');
     assert.deepEqual(
       getCodexChatTransportDiagnostics(),
       {
         configured: 'app-server',
         actual: 'app-server',
         health: 'idle',
-        sdkVersion: '0.145.0',
-        bundledCliVersion: '0.145.0',
+        sdkVersion: '0.146.0',
+        bundledCliVersion: '0.146.0',
         lastError: null,
         lastStartupFallbackAt: null,
       },

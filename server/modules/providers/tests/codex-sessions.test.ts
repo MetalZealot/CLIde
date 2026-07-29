@@ -285,6 +285,60 @@ test('Codex history uses the provider turn id as the user-message rewind anchor'
   }
 });
 
+test('Codex history preserves response-item ids used by live App Server messages', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-response-item-id-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const transcriptPath = path.join(tempRoot, 'rollout-response-item-id.jsonl');
+  await mkdir(workspacePath, { recursive: true });
+  await writeFile(transcriptPath, [
+    JSON.stringify({
+      timestamp: '2026-07-25T12:00:00.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'reasoning',
+        id: 'reasoning-item-1',
+        summary: [{ type: 'summary_text', text: 'Checked the event path.' }],
+      },
+    }),
+    JSON.stringify({
+      timestamp: '2026-07-25T12:00:01.000Z',
+      type: 'response_item',
+      payload: {
+        type: 'message',
+        id: 'assistant-item-1',
+        role: 'assistant',
+        content: [{ type: 'output_text', text: 'One persisted final response.' }],
+      },
+    }),
+  ].join('\n') + '\n', 'utf8');
+
+  try {
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(
+        'codex-response-item-id',
+        'codex',
+        workspacePath,
+        undefined,
+        undefined,
+        undefined,
+        transcriptPath,
+      );
+      const history = await new CodexSessionsProvider().fetchHistory('codex-response-item-id');
+
+      assert.equal(
+        history.messages.find((message) => message.kind === 'thinking')?.id,
+        'reasoning-item-1',
+      );
+      assert.equal(
+        history.messages.find((message) => message.role === 'assistant')?.id,
+        'assistant-item-1',
+      );
+    });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex explicit fork allocates a separate stable CLIde session and preserves its parent', { concurrency: false }, async () => {
   const sessionsProvider = providerRegistry.resolveProvider('codex').sessions;
   const originalForkSession = sessionsProvider.forkSession;

@@ -655,19 +655,20 @@ export function useGitPanelController({
 
         const data = await readJson<GitOperationResponse>(response);
         if (data.success) {
+          clearOperationError();
           void fetchGitStatus();
           void fetchRemoteStatus();
           return true;
         }
 
-        console.error('Commit failed:', data.error);
+        setOperationError(data.error ?? 'Commit failed');
         return false;
       } catch (error) {
-        console.error('Error committing changes:', error);
+        setOperationError(error instanceof Error ? error.message : 'Commit failed');
         return false;
       }
     },
-    [fetchGitStatus, fetchRemoteStatus, selectedProject],
+    [clearOperationError, fetchGitStatus, fetchRemoteStatus, selectedProject],
   );
 
   const createInitialCommit = useCallback(async () => {

@@ -5,7 +5,12 @@
 
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage, SubagentChildTool } from '../types/types';
-import { decodeHtmlEntities, unescapeWithMathProtection, formatUsageLimitText } from '../utils/chatFormatting';
+import {
+  decodeHtmlEntities,
+  unescapeWithMathProtection,
+  formatUsageLimitText,
+  extractInternalMemoryCitation,
+} from '../utils/chatFormatting';
 
 function formatToolResultContent(content: unknown): string {
   const text = typeof content === 'string' ? content : JSON.stringify(content);
@@ -18,6 +23,12 @@ type ParsedTaskNotification = {
   summary: string;
   result: string;
 };
+
+function formatAssistantText(content: string) {
+  return extractInternalMemoryCitation(
+    formatUsageLimitText(unescapeWithMathProtection(decodeHtmlEntities(content))),
+  );
+}
 
 /**
  * Parses a background-agent `<task-notification>` block.
@@ -115,9 +126,14 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             // Render the agent's result as a normal assistant message so its
             // markdown displays correctly instead of leaking raw XML.
             if (taskNotif.result) {
+              const { text: result, citations: memoryCitations } = formatAssistantText(taskNotif.result);
+              if (!result.trim() && memoryCitations.length === 0) {
+                continue;
+              }
               converted.push({
                 type: 'assistant',
-                content: formatUsageLimitText(unescapeWithMathProtection(decodeHtmlEntities(taskNotif.result))),
+                content: result,
+                memoryCitations,
                 timestamp: msg.timestamp,
                 ...sharedMetadata,
                 // Two ChatMessages from one normalized row — keep ids unique.
@@ -134,12 +150,12 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             });
           }
         } else {
-          let text = decodeHtmlEntities(content);
-          text = unescapeWithMathProtection(text);
-          text = formatUsageLimitText(text);
+          const { text, citations: memoryCitations } = formatAssistantText(content);
+          if (!text.trim() && memoryCitations.length === 0) continue;
           converted.push({
             type: 'assistant',
             content: text,
+            memoryCitations,
             timestamp: msg.timestamp,
             ...sharedMetadata,
           });
@@ -239,9 +255,12 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
 
       case 'stream_delta':
         if (msg.content) {
+          const { text: content, citations: memoryCitations } = formatAssistantText(msg.content);
+          if (!content.trim() && memoryCitations.length === 0) break;
           converted.push({
             type: 'assistant',
-            content: msg.content,
+            content,
+            memoryCitations,
             timestamp: msg.timestamp,
             isStreaming: true,
             ...sharedMetadata,

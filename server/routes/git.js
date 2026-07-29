@@ -639,7 +639,12 @@ router.post('/commit', async (req, res) => {
     res.json({ success: true, output: stdout });
   } catch (error) {
     console.error('Git commit error:', error);
-    res.status(500).json({ error: error.message });
+    // Hooks (for example, commitlint via Husky) write the useful rejection
+    // reason to stderr. Include it so the Source Control UI can tell the user
+    // what to correct instead of appearing to do nothing.
+    const hookOutput = typeof error.stderr === 'string' ? error.stderr.trim() : '';
+    const message = hookOutput ? `${error.message}\n\n${hookOutput}` : error.message;
+    res.status(500).json({ error: message });
   }
 });
 

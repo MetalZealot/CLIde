@@ -1,3 +1,5 @@
+import type { MemoryCitation } from '../types/types';
+
 export function decodeHtmlEntities(text: string) {
   if (!text) return text;
   return text
@@ -15,6 +17,61 @@ export function normalizeInlineCodeFences(text: string) {
   } catch {
     return text;
   }
+}
+
+export type ExtractedMemoryCitation = {
+  text: string;
+  citations: MemoryCitation[];
+};
+
+export function formatMemoryCitationSource(source: string): string {
+  return source.replace(/:(\d+)-(\d+)$/, ':$1–$2');
+}
+
+/**
+ * Separates Codex's reserved memory provenance envelope from a displayed reply.
+ *
+ * The harness persists this metadata inside the assistant's final output text.
+ * Keep the raw transcript intact, but expose its useful source entries as
+ * structured UI metadata instead of rendering the XML envelope and rollout ids.
+ * Requiring the complete structure at the very end avoids treating ordinary
+ * XML-like prose as internal metadata.
+ */
+export function extractInternalMemoryCitation(text: string): ExtractedMemoryCitation {
+  if (!text || typeof text !== 'string') return { text, citations: [] };
+
+  const closingTag = '</oai-mem-citation>';
+  const trimmed = text.trimEnd();
+  if (!trimmed.endsWith(closingTag)) return { text, citations: [] };
+
+  const openingTag = '<oai-mem-citation>';
+  const openingIndex = trimmed.lastIndexOf(openingTag);
+  if (openingIndex < 0) return { text, citations: [] };
+
+  const candidate = trimmed.slice(openingIndex);
+  const isCompleteEnvelope =
+    /^<oai-mem-citation>\s*<citation_entries>[\s\S]*<\/citation_entries>\s*<rollout_ids>[\s\S]*<\/rollout_ids>\s*<\/oai-mem-citation>$/.test(
+      candidate,
+    );
+  if (!isCompleteEnvelope) return { text, citations: [] };
+
+  const entriesMatch = /<citation_entries>\s*([\s\S]*?)\s*<\/citation_entries>/.exec(candidate);
+  const citations = (entriesMatch?.[1] || '')
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry): MemoryCitation => {
+      const noteMatch = /^(.+?)\|note=\[(.*)\]$/.exec(entry);
+      return noteMatch
+        ? { source: noteMatch[1].trim(), note: noteMatch[2].trim() || undefined }
+        : { source: entry };
+    })
+    .filter((entry) => entry.source.length > 0);
+
+  return {
+    text: trimmed.slice(0, openingIndex).trimEnd(),
+    citations,
+  };
 }
 
 export function unescapeWithMathProtection(text: string) {

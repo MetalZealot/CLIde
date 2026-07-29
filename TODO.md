@@ -120,4 +120,3 @@ Grayson's explicit go-ahead.
 Moved to [`docs/todo-done.md`](docs/todo-done.md) on 2026-07-27 — the archive of completed,
 verified work (what/why, commit, classification, verification). Append finished items there
 and delete them from the sections above.
-

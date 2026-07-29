@@ -9,7 +9,7 @@ import type {
   PermissionGrantResult,
   Provider,
 } from '../../types/types';
-import { formatUsageLimitText } from '../../utils/chatFormatting';
+import { formatMemoryCitationSource, formatUsageLimitText } from '../../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import type { Project } from '../../../../types/app';
 import { ToolRenderer, shouldHideToolResult } from '../../tools';
@@ -452,6 +452,28 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               </div>
             )}
 
+            {message.memoryCitations && message.memoryCitations.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10px] leading-4 text-gray-400 dark:text-gray-500">
+                <span>
+                  {message.memoryCitations.length === 1
+                    ? t('memoryCitation.source', { defaultValue: 'Source:' })
+                    : t('memoryCitation.sources', { defaultValue: 'Sources:' })}
+                </span>
+                {message.memoryCitations.map((citation, index) => (
+                  <span key={`${citation.source}-${index}`} className="contents">
+                    {index > 0 && <span aria-hidden="true">·</span>}
+                    <code
+                      dir="ltr"
+                      title={citation.note}
+                      className="break-all font-mono text-[10px] text-gray-500 dark:text-gray-400"
+                    >
+                      {formatMemoryCitationSource(citation.source)}
+                    </code>
+                  </span>
+                ))}
+              </div>
+            )}
+
             {(shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
                 {shouldShowAssistantCopyControl && (
@@ -471,4 +493,3 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 });
 
 export default MessageComponent;
-
