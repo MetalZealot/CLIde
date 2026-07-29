@@ -55,3 +55,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0015 — The composer ring opens `/context`; `/cost` became `/usage`](0015-ring-opens-context-and-usage-rename.md)
 - [0016 — Projects group checkouts by repository; a project is not a directory](0016-repository-grouped-checkouts.md)
 - [0017 — A batch move preflights everything, then rolls back in reverse](0017-batch-move-preflight-then-rollback.md)
+- [0018 — Settings navigates by a history-backed drill-down stack, and each screen owns exactly one scroll container](0018-settings-drill-down-one-scroll-container.md)
