@@ -58,7 +58,7 @@ is one module deep.
 | P0 | Pre-work cleanup | — | S | ✅ done |
 | P1 | `ThemeContext` → light/dark/system | — | S | ✅ done |
 | P2 | Registry + shell + primitives + Appearance | P0 | L | ✅ done |
-| P3a | Chat + Notifications screens | P2 | M | ☐ |
+| P3a | Chat + Notifications screens | P2 | M | ✅ done |
 | P5 | QuickSettings removal | P3a | S | ☐ |
 | P3b | Projects & Git + Credentials screens | P2 | M | ☐ |
 | P3c | Extensions (Plugins / Browser / Tasks) + About | P2 | M | ☐ |
@@ -159,19 +159,46 @@ stack reducer as a pure function, and registry invariants (ids unique, every
 was exactly a registry invariant nobody checked. `src/` has no test tsconfig
 wired yet; that plumbing is part of this packet.
 
-### P3a — Chat + Notifications
+### P3a — Chat + Notifications ✅
 
 New Chat screen: message display (`showRawParameters`, `showThinking`), input
 (`enterToSend` on touch-primary, `sendByCtrlEnter` otherwise — same pointer-type
 gating and explanatory copy as today), voice enable + a Backend sub-screen shown
 only when voice is on. `useUiPreferences` is unchanged; only the UI moves.
+Registry-wise, the interim `voice` screen is gone: `chat` takes its root slot
+and `chat.voice` (parent `chat`) is the Backend sub-screen; `LEGACY_SCREEN_IDS`
+maps the old `voice` tab id straight to `chat.voice`.
 
-**The Voice base URL must not ship as an editable input** — the server hardcodes
-the outbound host from `VOICE_API_BASE_URL` as an SSRF defence and never sends a
-client value. Render it read-only from `GET /api/voice/health`, or omit it.
+**Correction to this packet's brief: the Voice base URL field is not dead.**
+The brief's premise — "the server hardcodes the outbound host as an SSRF
+defence and never sends a client value" — is true only of the server-proxied
+path. `src/lib/voiceApi.ts` has a second, already-working path: when
+`baseUrl` is non-blank, it fetches the STT/TTS backend directly from the
+browser, bypassing the server proxy entirely — a legitimate bring-your-own-
+backend feature, already documented in the `voiceSettings.note` i18n string.
+Confirmed with the user before building; the field ships editable in
+`ChatVoiceBackendScreen.tsx`, unchanged from `VoiceSettingsTab`. The TODO.md
+entry this brief was drawn from should be corrected or closed as
+not-actually-dead rather than acted on literally.
 
-Notifications: port as-is, converting the three event checkboxes to
-`SettingsToggle` and the hand-rolled cards to `tone`.
+Added `SettingsTextField` to the primitives (the spec named it in P2 but no
+packet had needed a text input yet); used for all six Backend fields.
+
+Notifications: ported to `NotificationsScreen.tsx` with the three event
+checkboxes converted to `SettingsToggle` and the hand-rolled push/desktop
+cards converted to `SettingsGroup`/`SettingsRow`. The enable/disable actions
+stayed as buttons (a permission-request flow, not a toggleable preference);
+their hardcoded `bg-blue-600`/`bg-red-100` classes became the `Button`
+component's existing `default`/`destructive` variants, and status/error text
+moved from literal `text-green-600`/`text-red-600` to the `text-primary`/
+`text-destructive` tokens. Per P2 decision 3, the header "Saved" indicator is
+untouched here — Notifications still autosaves through it; it only goes once
+P4 gives Agents/Permissions local confirmation too.
+
+Verified via the throwaway harness (`npx vite --port 5174` on this worktree)
+and the `cloudcli-browser` MCP tool: desktop rail selection, the Chat →
+Backend nav row appearing only when voice is enabled, and all three ported
+screens rendering correctly light-mode.
 
 ### P5 — QuickSettings removal
 
