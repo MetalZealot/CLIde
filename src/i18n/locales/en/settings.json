@@ -65,6 +65,14 @@
     "format": "Audio format",
     "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
   },
+  "chat": {
+    "messageDisplay": {
+      "title": "Message display"
+    },
+    "input": {
+      "title": "Input"
+    }
+  },
   "quickSettings": {
     "title": "Quick Settings",
     "sections": {
@@ -109,6 +117,7 @@
     "appearance": "Appearance",
     "git": "Git",
     "apiTokens": "API & Tokens",
+    "chat": "Chat",
     "voice": "Voice",
     "tasks": "Tasks",
     "browser": "Browser",

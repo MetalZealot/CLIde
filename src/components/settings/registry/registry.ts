@@ -15,6 +15,7 @@ export type SettingsIconName =
   | 'agents'
   | 'appearance'
   | 'codeEditor'
+  | 'chat'
   | 'voice'
   | 'notifications'
   | 'git'
@@ -54,11 +55,10 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
 ];
 
 /**
- * Three screens here are **interim** and are absorbed by later phases of the
+ * Two screens here are **interim** and are absorbed by later phases of the
  * build plan, which is why the list is not yet identical to the IA spec's root:
  *
  * - `agents` becomes four provider screens (`agent.claude`, …) in P4.
- * - `voice` is absorbed into `chat.voice` in P3a.
  * - `git` merges with project sorting into `projects-git` in P3b.
  *
  * They are listed now so that every destination that exists today stays
@@ -93,11 +93,20 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
   },
   {
     kind: 'screen',
-    id: 'voice',
-    labelKey: 'mainTabs.voice',
+    id: 'chat',
+    labelKey: 'mainTabs.chat',
+    icon: 'chat',
+    group: 'app',
+    keywords: 'chat messages input voice speech microphone dictation raw parameters thinking enter send',
+  },
+  {
+    kind: 'screen',
+    id: 'chat.voice',
+    labelKey: 'voiceSettings.backendTitle',
     icon: 'voice',
     group: 'app',
-    keywords: 'voice speech stt tts microphone dictation',
+    keywords: 'voice backend speech stt tts api key model format base url',
+    parent: 'chat',
   },
   {
     kind: 'screen',
@@ -166,12 +175,15 @@ export const MAX_SETTINGS_DEPTH = 2;
  * Old tab ids kept working as deep links. `openSettings('api')` and any
  * bookmarked palette entry must keep resolving after the restructure.
  * `tools` predates the Agents tab; `agents` is still a real screen id today and
- * needs no entry until P4 splits it.
+ * needs no entry until P4 splits it. `voice` was its own top-level tab; its
+ * enable toggle now lives on the `chat` screen itself, but the deep link goes
+ * straight to the backend sub-screen since that was the old tab's substance.
  */
 export const LEGACY_SCREEN_IDS: Record<string, string> = {
   tools: 'agents',
   api: 'credentials',
   'api-tokens': 'credentials',
+  voice: 'chat.voice',
 };
 
 const SCREENS_BY_ID = new Map(SETTINGS_SCREENS.map((screen) => [screen.id, screen]));

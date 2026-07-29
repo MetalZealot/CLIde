@@ -5,10 +5,8 @@ import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
 import CredentialsSettingsTab from '../view/tabs/api-settings/CredentialsSettingsTab';
-import VoiceSettingsTab from '../view/tabs/VoiceSettingsTab';
 import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
 import BrowserUseSettingsTab from '../view/tabs/browser-use-settings/BrowserUseSettingsTab';
-import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
 import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
 import AboutTab from '../view/tabs/AboutTab';
@@ -20,6 +18,9 @@ import type { SettingsProps } from '../types/types';
 
 import AppearanceEditorScreen from './screens/AppearanceEditorScreen';
 import AppearanceScreen from './screens/AppearanceScreen';
+import ChatScreen from './screens/ChatScreen';
+import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
 import { SettingsScreen } from './primitives';
 import SettingsHeader from './shell/SettingsHeader';
 import SettingsRail from './shell/SettingsRail';
@@ -200,26 +201,27 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
           </SettingsScreen>
         );
 
-      case 'voice':
-        return <SettingsScreen><VoiceSettingsTab /></SettingsScreen>;
+      case 'chat':
+        return <ChatScreen onOpenScreen={isMobile ? nav.push : nav.select} />;
+
+      case 'chat.voice':
+        return <ChatVoiceBackendScreen />;
 
       case 'notifications':
         return (
-          <SettingsScreen>
-            <NotificationsSettingsTab
-              notificationPreferences={notificationPreferences}
-              onNotificationPreferencesChange={setNotificationPreferences}
-              pushPermission={pushPermission}
-              isPushSubscribed={isPushSubscribed}
-              isPushLoading={isPushLoading}
-              onEnablePush={handleEnablePush}
-              onDisablePush={handleDisablePush}
-              isDesktop={Boolean(desktopNotificationsBridge)}
-              desktopNotifications={desktopNotificationsState}
-              onEnableDesktopNotifications={handleEnableDesktopNotifications}
-              onDisableDesktopNotifications={handleDisableDesktopNotifications}
-            />
-          </SettingsScreen>
+          <NotificationsScreen
+            notificationPreferences={notificationPreferences}
+            onNotificationPreferencesChange={setNotificationPreferences}
+            pushPermission={pushPermission}
+            isPushSubscribed={isPushSubscribed}
+            isPushLoading={isPushLoading}
+            onEnablePush={handleEnablePush}
+            onDisablePush={handleDisablePush}
+            isDesktop={Boolean(desktopNotificationsBridge)}
+            desktopNotifications={desktopNotificationsState}
+            onEnableDesktopNotifications={handleEnableDesktopNotifications}
+            onDisableDesktopNotifications={handleDisableDesktopNotifications}
+          />
         );
 
       case 'git':
