@@ -402,7 +402,8 @@ export function useProjectsState({
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgress | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState('agents');
+  // undefined means "open at the Settings root list".
+  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
   const [externalMessageUpdate, setExternalMessageUpdate] = useState(0);
   /**
    * `newSessionTrigger` is an explicit, monotonic intent signal for user-driven
@@ -665,7 +666,9 @@ export function useProjectsState({
     }
   }, []);
 
-  const openSettings = useCallback((tab = 'agents') => {
+  // No argument opens the root list, which is now a real destination rather
+  // than "whichever tab happened to be first".
+  const openSettings = useCallback((tab?: string) => {
     setSettingsInitialTab(tab);
     setShowSettings(true);
   }, []);

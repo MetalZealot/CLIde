@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -28,7 +29,8 @@ import {
 } from '../../shared/view/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { usePaletteOps } from '../../contexts/PaletteOpsContext';
-import { SETTINGS_MAIN_TABS } from '../settings/constants/constants';
+import { SETTINGS_SCREENS } from '../settings/registry/registry';
+import { SETTINGS_ICONS } from '../settings/view/primitives/SettingsIcons';
 import type { AppTab, Project } from '../../types/app';
 
 import { useSessionsSource } from './sources/useSessionsSource';
@@ -73,6 +75,7 @@ export default function CommandPalette({
   const [search, setSearch] = React.useState('');
   const [pages, setPages] = React.useState<Page[]>([]);
   const { toggleDarkMode } = useTheme();
+  const { t } = useTranslation('settings');
   const navigate = useNavigate();
   const ops = usePaletteOps();
 
@@ -261,16 +264,21 @@ export default function CommandPalette({
 
             {showActions && (
               <CommandGroup heading="Settings">
-                {SETTINGS_MAIN_TABS.map(({ id, label, keywords, icon: Icon }) => (
-                  <CommandItem
-                    key={id}
-                    value={`Settings ${label} ${keywords}`}
-                    onSelect={() => run(() => onOpenSettings(id))}
-                  >
-                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="flex-1">Settings: {label}</span>
-                  </CommandItem>
-                ))}
+                {SETTINGS_SCREENS.map(({ id, labelKey, keywords, icon }) => {
+                  const Icon = SETTINGS_ICONS[icon];
+                  const label = t(labelKey);
+
+                  return (
+                    <CommandItem
+                      key={id}
+                      value={`Settings ${label} ${keywords}`}
+                      onSelect={() => run(() => onOpenSettings(id))}
+                    >
+                      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="flex-1">Settings: {label}</span>
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             )}
 

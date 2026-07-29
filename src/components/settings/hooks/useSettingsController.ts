@@ -16,7 +16,6 @@ import type {
   CursorPermissionsState,
   NotificationPreferencesState,
   ProjectSortOrder,
-  SettingsMainTab,
 } from '../types/types';
 
 type ThemeContextValue = {
@@ -26,7 +25,6 @@ type ThemeContextValue = {
 
 type UseSettingsControllerArgs = {
   isOpen: boolean;
-  initialTab: string;
 };
 
 type ClaudeSettingsStorage = {
@@ -52,17 +50,6 @@ type NotificationPreferencesResponse = {
 };
 
 type ActiveLoginProvider = AgentProvider | '';
-
-const KNOWN_MAIN_TABS: SettingsMainTab[] = ['agents', 'appearance', 'git', 'api', 'tasks', 'browser', 'notifications', 'plugins', 'about'];
-
-const normalizeMainTab = (tab: string): SettingsMainTab => {
-  // Keep backwards compatibility with older callers that still pass "tools".
-  if (tab === 'tools') {
-    return 'agents';
-  }
-
-  return KNOWN_MAIN_TABS.includes(tab as SettingsMainTab) ? (tab as SettingsMainTab) : 'agents';
-};
 
 const parseJson = <T>(value: string | null, fallback: T): T => {
   if (!value) {
@@ -137,11 +124,10 @@ const normalizeNotificationPreferences = (
   };
 };
 
-export function useSettingsController({ isOpen, initialTab }: UseSettingsControllerArgs) {
+export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
   const { isDarkMode, toggleDarkMode } = useTheme() as ThemeContextValue;
   const closeTimerRef = useRef<number | null>(null);
 
-  const [activeTab, setActiveTab] = useState<SettingsMainTab>(() => normalizeMainTab(initialTab));
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
   const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(() => (
@@ -305,10 +291,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       return;
     }
 
-    setActiveTab(normalizeMainTab(initialTab));
     void loadSettings();
     void refreshProviderAuthStatuses();
-  }, [initialTab, isOpen, loadSettings, refreshProviderAuthStatuses]);
+  }, [isOpen, loadSettings, refreshProviderAuthStatuses]);
 
   useEffect(() => {
     setNotificationSoundEnabled(notificationPreferences.channels.sound);
@@ -377,8 +362,6 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   }, []);
 
   return {
-    activeTab,
-    setActiveTab,
     isDarkMode,
     toggleDarkMode,
     saveStatus,

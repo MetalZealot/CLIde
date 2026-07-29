@@ -15,7 +15,7 @@ import ProjectCreationWizard from '../../../project-creation-wizard';
 type SidebarModalsProps = {
   projects: Project[];
   showSettings: boolean;
-  settingsInitialTab: string;
+  settingsInitialTab?: string;
   onCloseSettings: () => void;
   showNewProject: boolean;
   onCloseNewProject: () => void;
@@ -39,7 +39,7 @@ type TypedSettingsProps = {
   isOpen: boolean;
   onClose: () => void;
   projects: SettingsProject[];
-  initialTab: string;
+  initialTab?: string;
 };
 
 const SettingsComponent = Settings as (props: TypedSettingsProps) => JSX.Element;

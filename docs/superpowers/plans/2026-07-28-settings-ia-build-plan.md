@@ -57,7 +57,7 @@ is one module deep.
 |---|---|---|---|---|
 | P0 | Pre-work cleanup | — | S | ✅ done |
 | P1 | `ThemeContext` → light/dark/system | — | S | ✅ done |
-| P2 | Registry + shell + primitives + Appearance | P0 | L | ☐ |
+| P2 | Registry + shell + primitives + Appearance | P0 | L | ✅ done |
 | P3a | Chat + Notifications screens | P2 | M | ☐ |
 | P5 | QuickSettings removal | P3a | S | ☐ |
 | P3b | Projects & Git + Credentials screens | P2 | M | ☐ |
@@ -107,9 +107,39 @@ Keep the two in sync; the comment there says so.
 
 The three-way segmented control that consumes this is P2's job, in Appearance.
 
-### P2 — registry, shell, primitives, Appearance
+### P2 — registry, shell, primitives, Appearance ✅
 
-**The keystone. Everything downstream copies its shape, so budget a full session.**
+**The keystone. Everything downstream copies its shape.** Read
+`AppearanceScreen.tsx` before writing any new screen; it is the reference port.
+
+Four decisions taken during the build that later packets inherit:
+
+1. **The registry holds no components.** The IA spec put a `component` field on
+   each node; instead `registry.ts` is pure data (icons are *names*, resolved by
+   `SettingsIcons.tsx`, exhaustive by type) and `Settings.tsx` switches on the
+   screen id. That keeps the registry unit-testable under `node:test` with no
+   renderer, and keeps the data out of an import cycle with the views.
+2. **The root list is not yet the spec's root list.** `agents`, `voice` and
+   `git` are interim single screens so that nothing became unreachable mid-port;
+   P4/P3a/P3b replace them. Reshaping the registry is each packet's job.
+3. **The header "Saved" indicator stays for now.** The spec's save model removes
+   it in favour of per-row confirmation, but it is currently the only feedback
+   for provider login and the permissions/notifications autosave. It goes when
+   P3a and P4 give those screens local confirmation — removing it earlier would
+   have dropped the feedback with nothing in its place.
+4. **`openSettings()` with no argument now opens the root list**, rather than
+   defaulting to a tab. `settingsInitialTab` is `string | undefined` throughout.
+
+New shared vocabulary lives in `view/primitives/`: `SettingsScreen`,
+`SettingsGroup` (with `tone`), `SettingsNavRow`, `SettingsSelect`,
+`SettingsSegmentedControl`, plus the existing `SettingsRow` (which gained a
+`stacked` prop for wide controls) and `SettingsToggle`. **A `--warning` theme
+token was added** to `index.css` and `tailwind.config.js` so `tone="warning"`
+maps to a token rather than hardcoded orange — P3c and P4 need it.
+
+`SettingsSidebar.tsx` and `SETTINGS_MAIN_TABS` are gone; the command palette now
+renders from `SETTINGS_SCREENS`, so Voice is reachable from it for the first
+time.
 
 Build the registry (`SettingsNode`, stable dotted ids), the mobile navigation
 stack, the desktop two-pane shell, and `SettingsScreen` / `SettingsGroup` /
@@ -213,10 +243,34 @@ P1 lost a test run to this. From this worktree, run your own instance:
 npx vite --port 5174 --strictPort
 ```
 
-Playwright with Chromium is available and worth using for behaviour that is
-awkward to eyeball — P1 used it to assert theme resolution across seven load
-cases, and **P2 should use it for the navigation stack's history behaviour**
-(push adds an entry, pop consumes one, close from depth 2 unwinds all). Note
-that `npm install` prunes the Chromium binary; restore it with
-`npx playwright install chromium`. Real-browser tests still cannot reach the
-installed-PWA acceptance criteria in P4 — those need the phone.
+**Driving the real app needs a login, and Settings sits behind it.** P2 worked
+around this with a throwaway harness — a `settings-harness.tmp.html` +
+`.tmp.jsx` pair at the repo root that mounts `<Settings isOpen>` inside a
+`ThemeProvider` with i18n imported, reading `?screen=` for the initial screen.
+Vite serves any root-level HTML, so no config change is needed. The API calls
+401 harmlessly. Recreate it when a packet needs browser verification and delete
+it before committing; it is ~30 lines and rots faster than it would earn its
+keep in-tree.
+
+Playwright is worth using for behaviour that is awkward to eyeball: P1 asserted
+theme resolution across seven load cases, and P2 asserted the whole history
+contract (each push adds one entry, back pops one screen without closing,
+closing from depth 2 returns to the pre-Settings entry, deep links still have a
+back path, desktop selection touches no history) plus one-scroll-container-per-
+screen. **Reuse `history.state?.__clideSettingsDepth` to assert unwinding —
+`history.length` does not shrink on `go(-n)` and will mislead you.**
+
+Two environment traps, both hit during P2. The worktree's `node_modules` is a
+**symlink to `~/Projects/cloudcli/node_modules`**, and `playwright` gets pruned
+from it periodically. Do **not** run `npm install` there to fix it — that tree
+backs the live service on 3001. Install to a scratch prefix instead:
+
+```
+npm install --prefix /tmp/pw-runtime playwright
+NODE_PATH=/tmp/pw-runtime/node_modules node your-script.mjs
+```
+
+The Chromium binary itself lives in `~/.cache/ms-playwright` and survives;
+`npx playwright install chromium` restores it if it does not. Real-browser tests
+still cannot reach the installed-PWA acceptance criteria in P4 — those need the
+phone.

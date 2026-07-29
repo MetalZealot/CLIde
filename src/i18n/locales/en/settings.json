@@ -114,7 +114,8 @@
     "browser": "Browser",
     "notifications": "Notifications",
     "plugins": "Plugins",
-    "about": "About"
+    "about": "About",
+    "credentials": "Credentials"
   },
   "notifications": {
     "title": "Notifications",
@@ -180,7 +181,19 @@
       "fontSize": {
         "label": "Font Size",
         "description": "Editor font size in pixels"
-      }
+      },
+      "description": "Word wrap, minimap, line numbers, font size"
+    },
+    "theme": {
+      "title": "Theme",
+      "label": "Appearance",
+      "description": "Follow your system setting, or pick light or dark.",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "language": {
+      "title": "Language"
     }
   },
   "mcpForm": {
@@ -577,5 +590,16 @@
     "installAriaLabel": "Plugin git repository URL",
     "tab": "tab",
     "runningStatus": "running"
+  },
+  "groups": {
+    "agents": "Agents",
+    "app": "App",
+    "extensions": "Extensions",
+    "system": "System"
+  },
+  "nav": {
+    "back": "Back",
+    "close": "Close settings",
+    "emptyPane": "Select a setting from the list."
   }
 }

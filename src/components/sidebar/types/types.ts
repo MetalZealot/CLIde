@@ -59,7 +59,7 @@ export type SidebarProps = {
   onRefresh: () => Promise<void> | void;
   onShowSettings: () => void;
   showSettings: boolean;
-  settingsInitialTab: string;
+  settingsInitialTab?: string;
   onCloseSettings: () => void;
   isMobile: boolean;
 };
