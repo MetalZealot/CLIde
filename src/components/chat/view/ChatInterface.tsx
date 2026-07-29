@@ -327,8 +327,14 @@ function ChatInterface({
     probeConnection();
   }, [handleAbortSession, probeConnection]);
 
+  // Require two Escape presses in quick succession before aborting — a single stray
+  // Escape (e.g. dismissing an unrelated menu) shouldn't kill an in-flight response.
+  const lastEscapeAtRef = useRef(0);
+  const DOUBLE_ESCAPE_WINDOW_MS = 500;
+
   useEffect(() => {
     if (!canAbortSession) {
+      lastEscapeAtRef.current = 0;
       return;
     }
 
@@ -338,7 +344,14 @@ function ChatInterface({
       }
 
       event.preventDefault();
-      handleAbortSessionWithProbe();
+
+      const now = Date.now();
+      if (now - lastEscapeAtRef.current <= DOUBLE_ESCAPE_WINDOW_MS) {
+        lastEscapeAtRef.current = 0;
+        handleAbortSessionWithProbe();
+      } else {
+        lastEscapeAtRef.current = now;
+      }
     };
 
     document.addEventListener('keydown', handleGlobalEscape, { capture: true });
