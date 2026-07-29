@@ -29,7 +29,9 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "incremental": true,
+    "tsBuildInfoFile": "../node_modules/.cache/tsbuildinfo/server.tsbuildinfo"
   },
   "include": ["./**/*.js", "./**/*.ts", "../shared/**/*.js", "../shared/**/*.ts"],
   "exclude": ["../dist", "../dist-server", "../node_modules", "../src"]
