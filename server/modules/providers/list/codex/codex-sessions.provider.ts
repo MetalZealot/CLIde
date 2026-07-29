@@ -262,6 +262,7 @@ async function getCodexSessionMessages(
           if (textContent.trim()) {
             messages.push({
               type: 'assistant',
+              uuid: typeof entry.payload.id === 'string' ? entry.payload.id : undefined,
               timestamp: entry.timestamp,
               message: {
                 role: 'assistant',
@@ -282,6 +283,7 @@ async function getCodexSessionMessages(
           if (summaryText.trim()) {
             messages.push({
               type: 'thinking',
+              uuid: typeof entry.payload.id === 'string' ? entry.payload.id : undefined,
               timestamp: entry.timestamp,
               message: {
                 role: 'assistant',

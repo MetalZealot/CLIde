@@ -176,6 +176,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     const firstCaptureMessage = first.messages.find((message) =>
       message.kind === 'text' && String(message.content).startsWith('CAPTURE:'));
     assert.ok(firstCaptureMessage);
+    assert.equal(firstCaptureMessage.id, 'capture-turn-1');
     const firstCapture = JSON.parse(String(firstCaptureMessage.content).slice(8));
     assert.equal(firstCapture.thread.method, 'thread/start');
     assert.equal(firstCapture.thread.params.model, 'gpt-test');
