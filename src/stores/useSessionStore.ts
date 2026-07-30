@@ -61,6 +61,8 @@ export interface NormalizedMessage {
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
+  /** Files a compaction carried across the boundary — see server types. */
+  compactReferences?: string[];
   /** CLI-fabricated notice rows (usage limits, API errors) — see server types. */
   isSystemNotice?: boolean;
   /**

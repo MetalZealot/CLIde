@@ -326,6 +326,11 @@ export type NormalizedMessage = {
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
   /**
+   * Display paths of the files a compaction carried across the boundary, in
+   * transcript order. Only set on `isCompactSummary` rows.
+   */
+  compactReferences?: string[];
+  /**
    * CLI-fabricated assistant notices (usage-limit banners, API-error
    * placeholders, "No response requested." — transcript rows with
    * `model: "<synthetic>"` / `isApiErrorMessage`). The UI renders these as a
