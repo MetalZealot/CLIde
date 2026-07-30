@@ -14,7 +14,7 @@ CLIde. It explains:
 - what changes if App Server becomes the default Chat transport; and
 - which integration surface future Codex work should target.
 
-It complements the dated, exhaustive
+It complements the current, curated
 [Codex CLI, SDK, and App Server surface map](2026-07-24-codex-cli-sdk-surface-map.md).
 ADR 0011 remains the canonical decision for the opt-in first rollout.
 
