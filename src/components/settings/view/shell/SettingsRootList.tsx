@@ -52,7 +52,7 @@ export default function SettingsRootList({
       </div>
 
       <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="space-y-6 p-4 pb-safe-area-inset-bottom">
+        <div className="space-y-6 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           {isSearching ? (
             searchResults.length > 0 ? (
               <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card/50">

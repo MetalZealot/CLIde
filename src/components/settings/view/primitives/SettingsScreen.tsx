@@ -21,7 +21,7 @@ type SettingsScreenProps = {
 export default function SettingsScreen({ description, children, className }: SettingsScreenProps) {
   return (
     <div className={cn('min-w-0 flex-1 overflow-y-auto overflow-x-hidden', className)}>
-      <div className="min-w-0 space-y-6 p-4 pb-safe-area-inset-bottom md:space-y-8 md:p-6">
+      <div className="min-w-0 space-y-6 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:space-y-8 md:p-6 md:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         {description && (
           <p className="text-sm text-muted-foreground">{description}</p>
         )}
