@@ -1,11 +1,15 @@
 import { useTranslation } from 'react-i18next';
 
-import { SETTINGS_GROUPS, getGroupScreens } from '../../registry/registry';
+import type { ProviderAuthStatusMap } from '../../../provider-auth/types';
+import { SETTINGS_GROUPS, getGroupScreens, parseAgentScreenId } from '../../registry/registry';
+import { toProviderStatus } from '../../utils/providerStatus';
 import { SETTINGS_ICONS } from '../primitives/SettingsIcons';
 import SettingsNavRow from '../primitives/SettingsNavRow';
+import SettingsStatus from '../primitives/SettingsStatus';
 
 type SettingsRootListProps = {
   onSelect: (screenId: string) => void;
+  providerAuthStatus: ProviderAuthStatusMap;
 };
 
 /**
@@ -13,8 +17,11 @@ type SettingsRootListProps = {
  *
  * This is what replaces the ten-item horizontal pill bar. Section headers are
  * labels, not tappable. It owns its scroll container, like any other screen.
+ *
+ * Provider rows carry their sign-in state, per the IA spec's root sketch — it is
+ * the one piece of live data worth showing before you drill in.
  */
-export default function SettingsRootList({ onSelect }: SettingsRootListProps) {
+export default function SettingsRootList({ onSelect, providerAuthStatus }: SettingsRootListProps) {
   const { t } = useTranslation('settings');
 
   return (
@@ -27,14 +34,22 @@ export default function SettingsRootList({ onSelect }: SettingsRootListProps) {
             </h3>
 
             <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card/50">
-              {getGroupScreens(group.id).map((screen) => (
-                <SettingsNavRow
-                  key={screen.id}
-                  label={t(screen.labelKey)}
-                  icon={SETTINGS_ICONS[screen.icon]}
-                  onClick={() => onSelect(screen.id)}
-                />
-              ))}
+              {getGroupScreens(group.id).map((screen) => {
+                const agent = parseAgentScreenId(screen.id);
+                const status = agent ? toProviderStatus(providerAuthStatus[agent.provider]) : null;
+
+                return (
+                  <SettingsNavRow
+                    key={screen.id}
+                    label={t(screen.labelKey)}
+                    icon={SETTINGS_ICONS[screen.icon]}
+                    trailing={status && (
+                      <SettingsStatus state={status.state} label={t(status.labelKey)} />
+                    )}
+                    onClick={() => onSelect(screen.id)}
+                  />
+                );
+              })}
             </div>
           </section>
         ))}

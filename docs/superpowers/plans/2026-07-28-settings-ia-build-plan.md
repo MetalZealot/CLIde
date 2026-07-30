@@ -46,7 +46,7 @@ is one module deep.
 |---|---|---|
 | 1 | **i18n: `en`-only additions**, other locales fall back. | Assumed; confirm |
 | 2 | **Desktop rail may scroll** when providers are expanded; no group-collapse behaviour. Resolves spec open question 2. | Assumed; confirm |
-| 3 | **Provider status copy**: status dot + "Signed in" / "Signed out". Spec open question 1 hedged on the Claude Layer-2 logout ambiguity; that was resolved in `1e13431`, so the constraint is gone. | Decide in P4 |
+| 3 | **Provider status copy**: status dot + "Signed in" / "Signed out". Spec open question 1 hedged on the Claude Layer-2 logout ambiguity; that was resolved in `1e13431`, so the constraint is gone. | Decided in P4 |
 | 4 | ~~**Plugins gets an explicit carve-out** from rule 1~~ — **no carve-out needed.** The premise was wrong: `PluginTabContent.tsx`'s `h-full w-full overflow-auto` mounts in `MainContent`'s plugin tab, not in Settings. The Settings Plugins screen never rendered it, and the ported screen opens no scroller of its own (asserted in the browser: exactly one scroller on all four P3c screens, desktop and mobile). Rule 1 stands unqualified — [ADR 0020](../../decisions/0020-no-plugin-exception-to-one-scroll-container.md). | Decided in P3c |
 | 5 | **No component-test infrastructure** (Vitest/jsdom). jsdom has no layout engine, so it would catch none of the scroll/safe-area/gesture bugs that motivated this work. Pure-logic modules get `node:test` tests instead — same runner as `server/`'s 40 test files. Playwright-based layout testing revisited separately, after this lands. | Decided |
 | 6 | **This restructure is fork-only** and not an upstream candidate; it is a large, deliberate divergence in an upstream-heavy subtree. Note it in `docs/upstream-candidates.md` so future rebases have context. | Do in P6 |
@@ -62,7 +62,7 @@ is one module deep.
 | P5 | QuickSettings removal | P3a | S | ✅ done |
 | P3b | Projects & Git + Credentials screens | P2 | M | ✅ done |
 | P3c | Extensions (Plugins / Browser / Tasks) + About | P2 | M | ✅ done |
-| P4 | Agents restructure + PWA verification | P2 | L | ☐ |
+| P4 | Agents restructure + PWA verification | P2 | L | ✅ code done; PWA pass outstanding |
 | P6 | Search + cleanup sweep | P2, all screens | M | ☐ |
 
 Two deliberate deviations from the spec's phase numbering:
@@ -337,22 +337,100 @@ screen** on all eight combinations, with no console or page errors.
 `npm run typecheck` and `npm run lint` clean (0 errors, unchanged warning
 baseline), 28 registry `node:test` cases still pass.
 
-### P4 — Agents restructure
+### P4 — Agents restructure ✅ (code) / PWA pass outstanding
 
-Providers to root. Provider screen = inline account card (why the user opened
-it) then nav rows for Permissions, MCP Servers (*n*), Skills (*n*, hidden for
-OpenCode). Permissions stays provider-branched exactly as today; the
-skip-permissions warning becomes `tone="warning"` instead of hardcoded orange.
+Providers are at the root. `view/tabs/agents-settings/` is gone entirely (eight
+files, including the already-dead `AgentListItem`), replaced by four screens:
+`AgentProviderScreen`, `AgentPermissionsScreen`, `AgentMcpScreen`,
+`AgentSkillsScreen`, plus `sections/agent/AgentAccountCard`. `Settings.tsx` now
+renders nothing bespoke — every destination is a screen built from the primitives.
 
-MCP (`McpServers`, 320 lines) and Skills (`ProviderSkills`, 751 lines) are
-mostly *re-parenting*, not rewriting — neither opens a scroll container in its
-pane body. The `overflow-y-auto` in `ProviderSkills.tsx:611` is inside its own
-add-skill dialog and is fine.
+**The registry generates the Agents group from data.** `AGENT_PROVIDERS` declares
+each provider's icon and its subsystems, and the fourteen nodes
+(`agent.claude`, `agent.claude.permissions`, …) are derived from it, because
+hand-writing fourteen near-identical entries is the divergence the registry
+exists to prevent. `parseAgentScreenId(id)` turns an id back into
+`{ provider, subsystem }`, so the view layer branches on two small values rather
+than a fourteen-case switch, and the id format stays inside the registry.
+`LEGACY_SCREEN_IDS` maps both `agents` and `tools` to `agent.claude` — where the
+old tab actually opened, since its provider pill defaulted to Claude and its
+category to Account. Five new invariants cover the group (33 registry tests).
 
-Ends with **the PWA verification pass**: `npm run build:client`, refresh the
-installed PWA on 3001, and check safe-area padding at the bottom of every screen
-plus Android back-gesture behaviour against the nav stack. Both are acceptance
-criteria and **neither is verifiable at 5173**.
+**Decision 3 settled: a status dot plus "Signed in" / "Signed out"**, via a new
+`SettingsStatus` primitive. It appears on the mobile root list (dot + copy), in
+the desktop rail (dot only — too narrow for copy), and on the account card, all
+reading one shared `toProviderStatus` helper so the three cannot drift. `primary`
+carries "signed in" rather than a green literal, following P3a/P3c.
+
+**OpenCode gets no Permissions row.** The brief only called out Skills as hidden
+for it, but `AgentCategoryContentSection` rendered *nothing* for OpenCode ›
+Permissions — the tab existed and was blank. The spec's own provider sketch
+enumerates Claude/Cursor/Codex permissions only, so the row is gone rather than
+leading to an empty screen. Flagged here because it is the one place P4 removes a
+(broken) destination rather than moving it.
+
+Ports of substance:
+
+- **Account card**: each provider used to be painted in its own brand palette
+  (`bg-blue-50` / `border-purple-200` / `bg-gray-800` / `bg-zinc-50`, plus a
+  per-provider button colour). All of it is tokens now; the provider's identity
+  is carried by its logo. Codex's transport diagnostics and the plan-usage card
+  moved across unchanged in behaviour.
+- **Permissions**: the four allow/deny list editors were four copies of the same
+  sixty lines, differing only in labels and in which literal tinted each entry;
+  they are now one `PermissionListGroup`. The skip-permissions checkbox became a
+  `SettingsToggle` inside a `tone="warning"` group (`SettingsRow` gained an `icon`
+  slot so it keeps its warning triangle). Codex's three clickable radio cards
+  became a real `role="radiogroup"` of rows with no raw inputs. One a11y fix
+  beyond the port: the icon-only Add button had no accessible name from `sm:` up,
+  and now carries an `aria-label`.
+- **MCP and Skills** are re-parenting, as expected. Two small edits each: the
+  `<h3>` that duplicated the screen header is gone (P3c's precedent), and
+  `ProviderSkills`' root lost its `overflow-x-hidden` — a non-`visible` overflow
+  on one axis makes the *other* axis a scroll container too, so that class was a
+  latent second scroller inside the screen that owns scrolling.
+- Nav-row counts come from `useMcpServers` / `useProviderSkills` themselves
+  rather than a cheaper count endpoint, so a count can never disagree with the
+  list it previews, and the fetch it triggers warms the module-level cache those
+  screens share. The cost is `2 × (1 + projects)` local GETs on entering a
+  provider screen; noted as a deliberate trade, revisit if it ever feels slow.
+
+**The global header "Saved" indicator is gone**, closing P2 decision 3 and the
+spec's save model. Its two triggers were provider login — now confirmed locally
+on the provider screen from a new `loginResult` in `useSettingsController` — and
+the debounced permissions/notifications autosave, where the control's own state
+is the confirmation. Notifications deliberately got *no* replacement line: the
+indicator only ever rendered `success` (an autosave failure was already
+invisible), and because loading settings dirties the autosave dependency it
+flashed "Saved" on open, which a group-local line would have made more
+conspicuous, not less. `saveStatus` is therefore removed from the controller
+rather than relocated.
+
+Also: the command palette now qualifies sub-screens with their ancestors
+(`Settings: Claude › Permissions`), since "Permissions" alone now appears three
+times and "Backend" said nothing on its own. Dead after this packet and removed:
+`AgentCategory`, `DEFAULT_SAVE_STATUS`.
+
+Verified with the throwaway harness (fetch-stubbed provider auth, usage, MCP,
+skills and Codex capabilities) driven by three Playwright scripts: ten screens ×
+light/dark × desktop/390px asserted **at most one content scroll container** and
+zero console/page errors on all forty combinations; the history contract
+re-asserted on the deepest new path (root → provider → subsystem → back → back,
+plus a depth-2 deep link and the legacy `agents` id) via
+`history.state.__clideSettingsDepth`; and the rewritten permission controls
+asserted to persist (skip-permissions, list add, quick-add, Codex mode).
+`npm run typecheck` and `npm run lint` clean (0 errors, unchanged 236-warning
+baseline), 33 registry tests pass.
+
+**Still outstanding — the PWA verification pass.** Safe-area padding at the
+bottom of every screen and the Android back gesture are acceptance criteria and
+are only verifiable on the installed PWA, which is served from the *main
+checkout's* `dist/` on 3001 (via `tailscale serve`). This work is on a worktree
+branch, so that pass cannot honestly be done from here: either merge
+`feat/settings-ia` into `main` and build there first, or expose the branch-test
+server on its own HTTPS origin (`tailscale serve --bg --https=8443 3002`) and
+install that as a second PWA. Not attempted unilaterally — it is a merge decision
+either way.
 
 ### P6 — search and sweep
 

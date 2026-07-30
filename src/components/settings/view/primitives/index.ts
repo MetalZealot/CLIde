@@ -7,6 +7,8 @@ export type { SettingsSelectOption } from './SettingsSelect';
 export { default as SettingsTextField } from './SettingsTextField';
 export { default as SettingsSegmentedControl } from './SettingsSegmentedControl';
 export type { SegmentedOption } from './SettingsSegmentedControl';
+export { default as SettingsStatus } from './SettingsStatus';
+export type { SettingsStatusState } from './SettingsStatus';
 export { SETTINGS_ICONS } from './SettingsIcons';
 
 // Carried over unchanged; every screen keeps using these for rows and booleans.

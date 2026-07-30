@@ -11,6 +11,11 @@ type SettingsRowProps = {
    * into a narrow column on a phone.
    */
   stacked?: boolean;
+  /**
+   * Leading glyph, e.g. the warning triangle on skip-permissions. Pass the
+   * element so the caller owns its size and token colour.
+   */
+  icon?: ReactNode;
   className?: string;
 };
 
@@ -19,8 +24,18 @@ export default function SettingsRow({
   description,
   children,
   stacked,
+  icon,
   className,
 }: SettingsRowProps) {
+  const text = (
+    <div className="min-w-0 flex-1">
+      <div className="text-sm font-medium text-foreground">{label}</div>
+      {description && (
+        <div className="mt-0.5 text-sm text-muted-foreground">{description}</div>
+      )}
+    </div>
+  );
+
   return (
     <div
       className={cn(
@@ -29,12 +44,12 @@ export default function SettingsRow({
         className,
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-foreground">{label}</div>
-        {description && (
-          <div className="mt-0.5 text-sm text-muted-foreground">{description}</div>
-        )}
-      </div>
+      {icon ? (
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span className="mt-0.5 flex-shrink-0">{icon}</span>
+          {text}
+        </div>
+      ) : text}
       <div className={stacked ? 'w-full' : 'flex-shrink-0'}>{children}</div>
     </div>
   );

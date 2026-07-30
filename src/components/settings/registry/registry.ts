@@ -12,7 +12,6 @@
  */
 
 export type SettingsIconName =
-  | 'agents'
   | 'appearance'
   | 'codeEditor'
   | 'chat'
@@ -23,7 +22,14 @@ export type SettingsIconName =
   | 'browser'
   | 'tasks'
   | 'credentials'
-  | 'about';
+  | 'about'
+  | 'providerClaude'
+  | 'providerCursor'
+  | 'providerCodex'
+  | 'providerOpenCode'
+  | 'permissions'
+  | 'mcp'
+  | 'skills';
 
 export type SettingsGroupId = 'agents' | 'app' | 'extensions' | 'system';
 
@@ -55,24 +61,90 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
 ];
 
 /**
- * One screen here is **interim** and is absorbed by a later phase of the build
- * plan, which is why the list is not yet identical to the IA spec's root:
+ * The four CLI providers, promoted to root by P4. Declared as data because
+ * their screens are otherwise identical: each is an account screen with up to
+ * three subsystem sub-screens, and hand-writing fourteen near-identical nodes
+ * is exactly the divergence the registry exists to prevent.
  *
- * - `agents` becomes four provider screens (`agent.claude`, …) in P4.
- *
- * It is listed now so that every destination that exists today stays
- * reachable; the shape of the registry, not the final destination list, is what
- * this phase proves.
+ * Mirrors `LLMProvider` from `types/app`, restated here so this module keeps its
+ * no-imports property; `AGENT_PROVIDER_IDS` is checked against it in the view
+ * layer, which is where the two meet.
+ */
+export type AgentProviderId = 'claude' | 'cursor' | 'codex' | 'opencode';
+
+export type AgentSubsystem = 'permissions' | 'mcp' | 'skills';
+
+type AgentProviderDescriptor = {
+  id: AgentProviderId;
+  icon: SettingsIconName;
+  /**
+   * OpenCode has neither a permissions UI nor per-provider skills, so it gets
+   * neither row. This is the pre-existing capability shape, not a new decision:
+   * `AgentCategoryContentSection` rendered nothing for OpenCode › Permissions,
+   * and the IA spec's provider sketch lists Skills as hidden for it.
+   */
+  subsystems: AgentSubsystem[];
+};
+
+export const AGENT_PROVIDERS: AgentProviderDescriptor[] = [
+  { id: 'claude', icon: 'providerClaude', subsystems: ['permissions', 'mcp', 'skills'] },
+  { id: 'cursor', icon: 'providerCursor', subsystems: ['permissions', 'mcp', 'skills'] },
+  { id: 'codex', icon: 'providerCodex', subsystems: ['permissions', 'mcp', 'skills'] },
+  { id: 'opencode', icon: 'providerOpenCode', subsystems: ['mcp'] },
+];
+
+export const AGENT_PROVIDER_IDS: AgentProviderId[] = AGENT_PROVIDERS.map((provider) => provider.id);
+
+const SUBSYSTEM_NODES: Record<AgentSubsystem, { labelKey: string; icon: SettingsIconName; keywords: string }> = {
+  permissions: {
+    labelKey: 'tabs.permissions',
+    icon: 'permissions',
+    keywords: 'permissions allow deny skip tools commands bypass mode',
+  },
+  mcp: {
+    labelKey: 'tabs.mcpServers',
+    icon: 'mcp',
+    keywords: 'mcp model context protocol servers stdio http sse',
+  },
+  skills: {
+    labelKey: 'tabs.skills',
+    icon: 'skills',
+    keywords: 'skills upload folder markdown',
+  },
+};
+
+/** `agent.claude`, and `agent.claude.permissions` for a subsystem. */
+export const agentScreenId = (provider: AgentProviderId, subsystem?: AgentSubsystem): string => (
+  subsystem ? `agent.${provider}.${subsystem}` : `agent.${provider}`
+);
+
+const AGENT_SCREENS: SettingsScreenNode[] = AGENT_PROVIDERS.flatMap((provider) => [
+  {
+    kind: 'screen' as const,
+    id: agentScreenId(provider.id),
+    labelKey: `agents.providers.${provider.id}`,
+    icon: provider.icon,
+    group: 'agents' as const,
+    keywords: `${provider.id} agent provider account sign in login permissions mcp skills`,
+  },
+  ...provider.subsystems.map((subsystem) => ({
+    kind: 'screen' as const,
+    id: agentScreenId(provider.id, subsystem),
+    labelKey: SUBSYSTEM_NODES[subsystem].labelKey,
+    icon: SUBSYSTEM_NODES[subsystem].icon,
+    group: 'agents' as const,
+    keywords: `${provider.id} ${SUBSYSTEM_NODES[subsystem].keywords}`,
+    parent: agentScreenId(provider.id),
+  })),
+]);
+
+/**
+ * Every destination in Settings. Since P4 this is the IA spec's root list
+ * exactly: the interim single `agents` screen is gone, replaced by the four
+ * provider screens above and their subsystem sub-screens.
  */
 export const SETTINGS_SCREENS: SettingsScreenNode[] = [
-  {
-    kind: 'screen',
-    id: 'agents',
-    labelKey: 'mainTabs.agents',
-    icon: 'agents',
-    group: 'agents',
-    keywords: 'agents providers claude cursor codex opencode account permissions mcp skills',
-  },
+  ...AGENT_SCREENS,
   {
     kind: 'screen',
     id: 'appearance',
@@ -173,15 +245,16 @@ export const MAX_SETTINGS_DEPTH = 2;
 /**
  * Old tab ids kept working as deep links. `openSettings('api')` and any
  * bookmarked palette entry must keep resolving after the restructure.
- * `tools` predates the Agents tab; `agents` is still a real screen id today and
- * needs no entry until P4 splits it. `voice` was its own top-level tab; its
- * enable toggle now lives on the `chat` screen itself, but the deep link goes
- * straight to the backend sub-screen since that was the old tab's substance.
- * `git` was its own top-level tab; P3b merged it with project sorting into
- * `projects-git`.
+ * `tools` predates the Agents tab; both it and `agents` land on Claude's
+ * provider screen, which is where the old Agents tab opened (Claude × Account).
+ * `voice` was its own top-level tab; its enable toggle now lives on the `chat`
+ * screen itself, but the deep link goes straight to the backend sub-screen since
+ * that was the old tab's substance. `git` was its own top-level tab; P3b merged
+ * it with project sorting into `projects-git`.
  */
 export const LEGACY_SCREEN_IDS: Record<string, string> = {
-  tools: 'agents',
+  tools: 'agent.claude',
+  agents: 'agent.claude',
   api: 'credentials',
   'api-tokens': 'credentials',
   voice: 'chat.voice',
@@ -223,6 +296,31 @@ export const getScreenPath = (id: string): string[] => {
  * Resolves anything a caller might pass — a current id, a legacy tab id, junk —
  * to a real screen id, or null meaning "open at the root list".
  */
+export type AgentScreenRef = {
+  provider: AgentProviderId;
+  /** null on the provider's own account screen. */
+  subsystem: AgentSubsystem | null;
+};
+
+const AGENT_SCREEN_REFS = new Map<string, AgentScreenRef>(
+  AGENT_PROVIDERS.flatMap((provider) => [
+    [agentScreenId(provider.id), { provider: provider.id, subsystem: null }] as const,
+    ...provider.subsystems.map((subsystem) => (
+      [agentScreenId(provider.id, subsystem), { provider: provider.id, subsystem }] as const
+    )),
+  ]),
+);
+
+/**
+ * Which provider and subsystem a screen id refers to, or null for any screen
+ * outside the Agents group. Lets the view layer branch on two small values
+ * instead of a fourteen-case switch, and keeps the id format an implementation
+ * detail of this module.
+ */
+export const parseAgentScreenId = (id: string | null | undefined): AgentScreenRef | null => (
+  id ? AGENT_SCREEN_REFS.get(id) ?? null : null
+);
+
 export const normalizeScreenId = (id: string | null | undefined): string | null => {
   if (!id) {
     return null;

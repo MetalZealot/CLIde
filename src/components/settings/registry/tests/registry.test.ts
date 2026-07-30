@@ -2,15 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  AGENT_PROVIDERS,
+  AGENT_PROVIDER_IDS,
   LEGACY_SCREEN_IDS,
   MAX_SETTINGS_DEPTH,
   SETTINGS_GROUPS,
   SETTINGS_SCREENS,
+  agentScreenId,
   getChildScreens,
   getGroupScreens,
   getScreen,
   getScreenPath,
   normalizeScreenId,
+  parseAgentScreenId,
 } from '../registry.js';
 
 // These invariants exist because the defect that motivated the registry was a
@@ -28,11 +32,9 @@ test('group ids are unique and do not collide with screen ids', () => {
   assert.equal(new Set(groupIds).size, groupIds.length);
 
   const screenIds = new Set(SETTINGS_SCREENS.map((screen) => screen.id));
-  const collisions = groupIds.filter((id) => screenIds.has(id));
-  // 'agents' is deliberately both a group and the interim single Agents screen
-  // until P4 splits it into per-provider screens. Deep links resolve against
-  // screens only, so this is safe, but it should not spread.
-  assert.deepEqual(collisions, ['agents']);
+  // P2's interim `agents` screen shared its id with the Agents group; P4 replaced
+  // it with per-provider screens, so no id is both a group and a screen again.
+  assert.deepEqual(groupIds.filter((id) => screenIds.has(id)), []);
 });
 
 test('every screen belongs to a declared group', () => {
@@ -97,7 +99,10 @@ test('getGroupScreens excludes sub-screens', () => {
 
 test('normalizeScreenId maps legacy tab ids to their new homes', () => {
   assert.equal(normalizeScreenId('api'), 'credentials');
-  assert.equal(normalizeScreenId('tools'), 'agents');
+  // Both old Agents-tab ids land on Claude's provider screen, which is where the
+  // tab opened: its provider pill defaulted to Claude and its category to Account.
+  assert.equal(normalizeScreenId('tools'), 'agent.claude');
+  assert.equal(normalizeScreenId('agents'), 'agent.claude');
 });
 
 test('every legacy mapping points at a screen that exists', () => {
@@ -113,6 +118,52 @@ test('normalizeScreenId passes through current ids and rejects junk', () => {
   assert.equal(normalizeScreenId(''), null);
   assert.equal(normalizeScreenId(undefined), null);
   assert.equal(normalizeScreenId(null), null);
+});
+
+// P4 promoted the four providers to the root list. These invariants stand in for
+// the old provider × category grid: every combination that grid could reach must
+// still be a screen, and no combination it could not reach may appear.
+
+test('every provider has a root screen in the agents group', () => {
+  const agentRootIds = getGroupScreens('agents').map((screen) => screen.id);
+  assert.deepEqual(agentRootIds, AGENT_PROVIDER_IDS.map((id) => agentScreenId(id)));
+});
+
+test('a provider discloses exactly the subsystems it declares', () => {
+  for (const provider of AGENT_PROVIDERS) {
+    const childIds = getChildScreens(agentScreenId(provider.id)).map((screen) => screen.id);
+    assert.deepEqual(
+      childIds,
+      provider.subsystems.map((subsystem) => agentScreenId(provider.id, subsystem)),
+    );
+  }
+});
+
+test('OpenCode has neither a permissions nor a skills screen', () => {
+  // Both were unreachable-or-blank before the restructure: the old category pane
+  // rendered nothing for OpenCode › Permissions, and Skills was already hidden.
+  assert.equal(getScreen('agent.opencode.permissions'), undefined);
+  assert.equal(getScreen('agent.opencode.skills'), undefined);
+  assert.ok(getScreen('agent.opencode.mcp'));
+});
+
+test('parseAgentScreenId round-trips agent screens and ignores the rest', () => {
+  assert.deepEqual(parseAgentScreenId('agent.codex'), { provider: 'codex', subsystem: null });
+  assert.deepEqual(parseAgentScreenId('agent.codex.mcp'), { provider: 'codex', subsystem: 'mcp' });
+  assert.equal(parseAgentScreenId('agent.opencode.skills'), null);
+  assert.equal(parseAgentScreenId('appearance'), null);
+  assert.equal(parseAgentScreenId(null), null);
+});
+
+test('every agent screen is parseable, and every parse names a real screen', () => {
+  for (const screen of SETTINGS_SCREENS) {
+    const parsed = parseAgentScreenId(screen.id);
+    assert.equal(
+      parsed !== null,
+      screen.group === 'agents',
+      `${screen.id} disagrees about being an agent screen`,
+    );
+  }
 });
 
 test('every destination reachable before the restructure is still reachable', () => {

@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 
 import { cn } from '../../../../lib/utils';
 
@@ -9,6 +9,8 @@ type SettingsNavRowProps = {
   icon?: ComponentType<{ className?: string }>;
   /** Trailing preview of the current value, or a count such as "3 configured". */
   value?: string;
+  /** Richer trailing content than `value` — a status dot, a badge. */
+  trailing?: ReactNode;
   onClick: () => void;
   isActive?: boolean;
   className?: string;
@@ -23,6 +25,7 @@ export default function SettingsNavRow({
   description,
   icon: Icon,
   value,
+  trailing,
   onClick,
   isActive,
   className,
@@ -51,6 +54,8 @@ export default function SettingsNavRow({
           {value}
         </span>
       )}
+
+      {trailing}
 
       <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
     </button>

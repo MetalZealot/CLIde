@@ -29,7 +29,7 @@ import {
 } from '../../shared/view/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { usePaletteOps } from '../../contexts/PaletteOpsContext';
-import { SETTINGS_SCREENS } from '../settings/registry/registry';
+import { SETTINGS_SCREENS, getScreen, getScreenPath } from '../settings/registry/registry';
 import { SETTINGS_ICONS } from '../settings/view/primitives/SettingsIcons';
 import type { AppTab, Project } from '../../types/app';
 
@@ -264,9 +264,13 @@ export default function CommandPalette({
 
             {showActions && (
               <CommandGroup heading="Settings">
-                {SETTINGS_SCREENS.map(({ id, labelKey, keywords, icon }) => {
+                {SETTINGS_SCREENS.map(({ id, keywords, icon }) => {
                   const Icon = SETTINGS_ICONS[icon];
-                  const label = t(labelKey);
+                  // Qualify sub-screens with their ancestors: "Permissions" alone
+                  // appears once per provider, and "Backend" says nothing on its own.
+                  const label = getScreenPath(id)
+                    .map((ancestorId) => t(getScreen(ancestorId)?.labelKey ?? ancestorId))
+                    .join(' › ');
 
                   return (
                     <CommandItem

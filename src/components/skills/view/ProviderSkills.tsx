@@ -13,7 +13,6 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
 import {
@@ -199,7 +198,6 @@ const buildQueuedSkillFolders = (selectedFiles: File[]): QueuedSkillFile[] => {
 };
 
 export default function ProviderSkills({ selectedProvider, currentProjects }: ProviderSkillsProps) {
-  const { t } = useTranslation('settings');
   const {
     skills,
     isLoading,
@@ -513,17 +511,21 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
   );
 
   return (
-    <div className="min-w-0 space-y-4 overflow-x-hidden">
+    // No `overflow-x-hidden` here: a non-visible overflow on one axis makes the
+    // other axis a scroll container too, which would be a second scroller inside
+    // the Settings screen that owns this pane. The screen already clips X.
+    <div className="min-w-0 space-y-4">
+      {/*
+        No heading: this renders as its own Settings screen, whose header already
+        says "Skills".
+      */}
       <div className="flex min-w-0 items-start gap-3">
         <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/20 text-muted-foreground">
           <FileCode2 className="h-4 w-4" strokeWidth={1.7} />
         </div>
-        <div className="min-w-0 space-y-1">
-          <h3 className="text-lg font-medium text-foreground">{t('tabs.skills', { defaultValue: 'Skills' })}</h3>
-          <p className="text-sm text-muted-foreground">
-            Manage {providerName} skills from local files, complete folders, and project-aware locations.
-          </p>
-        </div>
+        <p className="min-w-0 text-sm text-muted-foreground">
+          Manage {providerName} skills from local files, complete folders, and project-aware locations.
+        </p>
       </div>
 
       <div className="space-y-2">

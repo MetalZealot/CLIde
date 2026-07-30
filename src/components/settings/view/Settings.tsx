@@ -3,14 +3,17 @@ import { useTranslation } from 'react-i18next';
 
 import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
-import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
-import { getScreen } from '../registry/registry';
+import { getScreen, parseAgentScreenId } from '../registry/registry';
 import { useWebPush } from '../../../hooks/useWebPush';
 import type { SettingsProps } from '../types/types';
 
 import AboutScreen from './screens/AboutScreen';
+import AgentMcpScreen from './screens/AgentMcpScreen';
+import AgentPermissionsScreen from './screens/AgentPermissionsScreen';
+import AgentProviderScreen from './screens/AgentProviderScreen';
+import AgentSkillsScreen from './screens/AgentSkillsScreen';
 import AppearanceEditorScreen from './screens/AppearanceEditorScreen';
 import AppearanceScreen from './screens/AppearanceScreen';
 import ChatScreen from './screens/ChatScreen';
@@ -21,7 +24,6 @@ import ExtensionsPluginsScreen from './screens/ExtensionsPluginsScreen';
 import ExtensionsTasksScreen from './screens/ExtensionsTasksScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ProjectsGitScreen from './screens/ProjectsGitScreen';
-import { SettingsScreen } from './primitives';
 import SettingsHeader from './shell/SettingsHeader';
 import SettingsRail from './shell/SettingsRail';
 import SettingsRootList from './shell/SettingsRootList';
@@ -61,7 +63,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
   }, [nav.depth]);
 
   const {
-    saveStatus,
+    loginResult,
     projectSortOrder,
     setProjectSortOrder,
     codeEditorSettings,
@@ -154,14 +156,52 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
   const isAuthenticated = Boolean(loginProvider && providerAuthStatus[loginProvider].authenticated);
   const activeScreen = getScreen(nav.screenId);
   const parentScreen = getScreen(nav.parentId);
+  const agentScreen = parseAgentScreenId(nav.screenId);
 
   /**
-   * Agents is the last screen not yet ported to the primitives: it renders its
-   * existing tab component inside a `SettingsScreen` so the destination stays
-   * reachable, and keeps its own nested scroller — and therefore its known
-   * scrolling bugs — until P4 restructures it.
+   * Every destination is now a screen built from the shared primitives, so this
+   * is a plain id switch. The Agents group resolves through
+   * `parseAgentScreenId` instead of fourteen cases, since its screens differ
+   * only by provider and subsystem.
    */
   const renderScreen = () => {
+    if (agentScreen) {
+      const { provider, subsystem } = agentScreen;
+
+      switch (subsystem) {
+        case 'permissions':
+          return (
+            <AgentPermissionsScreen
+              provider={provider}
+              claudePermissions={claudePermissions}
+              onClaudePermissionsChange={setClaudePermissions}
+              cursorPermissions={cursorPermissions}
+              onCursorPermissionsChange={setCursorPermissions}
+              codexPermissionMode={codexPermissionMode}
+              onCodexPermissionModeChange={setCodexPermissionMode}
+            />
+          );
+
+        case 'mcp':
+          return <AgentMcpScreen provider={provider} projects={projects} />;
+
+        case 'skills':
+          return <AgentSkillsScreen provider={provider} projects={projects} />;
+
+        default:
+          return (
+            <AgentProviderScreen
+              provider={provider}
+              authStatus={providerAuthStatus[provider]}
+              onLogin={() => openLoginForProvider(provider)}
+              loginSucceeded={loginResult?.provider === provider ? loginResult.succeeded : null}
+              projects={projects}
+              onOpenScreen={isMobile ? nav.push : nav.select}
+            />
+          );
+      }
+    }
+
     switch (nav.screenId) {
       case 'appearance':
         return (
@@ -179,23 +219,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
             onLineNumbersChange={(value) => updateCodeEditorSetting('lineNumbers', value)}
             onFontSizeChange={(value) => updateCodeEditorSetting('fontSize', value)}
           />
-        );
-
-      case 'agents':
-        return (
-          <SettingsScreen>
-            <AgentsSettingsTab
-              providerAuthStatus={providerAuthStatus}
-              onProviderLogin={openLoginForProvider}
-              claudePermissions={claudePermissions}
-              onClaudePermissionsChange={setClaudePermissions}
-              cursorPermissions={cursorPermissions}
-              onCursorPermissionsChange={setCursorPermissions}
-              codexPermissionMode={codexPermissionMode}
-              onCodexPermissionModeChange={setCodexPermissionMode}
-              projects={projects}
-            />
-          </SettingsScreen>
         );
 
       case 'chat':
@@ -264,14 +287,19 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
           backLabel={isMobile && !nav.atRoot ? t(parentScreen?.labelKey ?? 'title') : null}
           onBack={isMobile && !nav.atRoot ? nav.goBack : undefined}
           onClose={nav.close}
-          showSavedIndicator={saveStatus === 'success'}
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
-          {!isMobile && <SettingsRail stack={nav.stack} onSelect={nav.select} />}
+          {!isMobile && (
+            <SettingsRail
+              stack={nav.stack}
+              onSelect={nav.select}
+              providerAuthStatus={providerAuthStatus}
+            />
+          )}
 
           {showRootList ? (
-            <SettingsRootList onSelect={nav.push} />
+            <SettingsRootList onSelect={nav.push} providerAuthStatus={providerAuthStatus} />
           ) : (
             <div
               key={nav.screenId ?? 'root'}

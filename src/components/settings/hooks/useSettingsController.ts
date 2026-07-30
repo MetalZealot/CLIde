@@ -51,6 +51,22 @@ type NotificationPreferencesResponse = {
 
 type ActiveLoginProvider = AgentProvider | '';
 
+/**
+ * Outcome of the most recent provider login, so the provider screen can confirm
+ * it locally. This replaced the global header "Saved" indicator in P4: the
+ * indicator's other trigger was the debounced permissions/notifications
+ * autosave, where the control's own state is the confirmation (IA spec, save
+ * model), and it also flashed spuriously on open because loading settings dirties
+ * the autosave dependency.
+ */
+type ProviderLoginResult = {
+  provider: AgentProvider;
+  succeeded: boolean;
+};
+
+/** How long the login confirmation stays on screen. */
+const LOGIN_RESULT_TTL_MS = 4000;
+
 const parseJson = <T>(value: string | null, fallback: T): T => {
   if (!value) {
     return fallback;
@@ -128,7 +144,7 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
   const { isDarkMode, toggleDarkMode } = useTheme() as ThemeContextValue;
   const closeTimerRef = useRef<number | null>(null);
 
-  const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
+  const [loginResult, setLoginResult] = useState<ProviderLoginResult | null>(null);
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
   const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(() => (
     readCodeEditorSettings()
@@ -209,6 +225,7 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
   }, []);
 
   const openLoginForProvider = useCallback((provider: AgentProvider) => {
+    setLoginResult(null);
     setLoginProvider(provider);
     setShowLoginModal(true);
   }, []);
@@ -222,16 +239,14 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
       const authStatus = await checkProviderAuthStatus(loginProvider);
 
       if (exitCode !== 0) {
-        console.warn(`Login process exited with code ${exitCode}; refreshing auth status before setting save status.`);
+        console.warn(`Login process exited with code ${exitCode}; refreshing auth status before reporting the result.`);
       }
 
-      setSaveStatus(authStatus.authenticated ? 'success' : 'error');
+      setLoginResult({ provider: loginProvider, succeeded: authStatus.authenticated });
     })();
   }, [checkProviderAuthStatus, loginProvider]);
 
   const saveSettings = useCallback(async () => {
-    setSaveStatus(null);
-
     try {
       const now = new Date().toISOString();
       localStorage.setItem('claude-settings', JSON.stringify({
@@ -261,11 +276,8 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
       if (!notificationResponse.ok) {
         throw new Error('Failed to save notification preferences');
       }
-
-      setSaveStatus('success');
     } catch (error) {
       console.error('Error saving settings:', error);
-      setSaveStatus('error');
     }
   }, [
     claudePermissions.allowedTools,
@@ -333,15 +345,15 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
     };
   }, [saveSettings]);
 
-  // Clear save status after 2 seconds
+  // Clear the login confirmation after a few seconds
   useEffect(() => {
-    if (saveStatus === null) {
-      return;
+    if (loginResult === null) {
+      return undefined;
     }
 
-    const timer = window.setTimeout(() => setSaveStatus(null), 2000);
+    const timer = window.setTimeout(() => setLoginResult(null), LOGIN_RESULT_TTL_MS);
     return () => window.clearTimeout(timer);
-  }, [saveStatus]);
+  }, [loginResult]);
 
   // Reset initial load flag when settings dialog opens
   useEffect(() => {
@@ -364,7 +376,7 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
   return {
     isDarkMode,
     toggleDarkMode,
-    saveStatus,
+    loginResult,
     projectSortOrder,
     setProjectSortOrder,
     codeEditorSettings,

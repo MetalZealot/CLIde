@@ -362,7 +362,9 @@
       "disconnected": "Disconnected",
       "checkingAuth": "Checking authentication status...",
       "loggedInAs": "Logged in as {{email}}",
-      "authenticatedUser": "authenticated user"
+      "authenticatedUser": "authenticated user",
+      "signedIn": "Signed in",
+      "signedOut": "Signed out"
     },
     "account": {
       "claude": {
@@ -385,7 +387,11 @@
       "description": "Sign in to your {{agent}} account to enable AI features",
       "reAuthDescription": "Sign in with a different account or refresh credentials",
       "button": "Login",
-      "reLoginButton": "Re-login"
+      "reLoginButton": "Re-login",
+      "status": {
+        "success": "Signed in",
+        "error": "Sign-in did not complete"
+      }
     },
     "error": "Error: {{error}}",
     "usage": {
@@ -394,6 +400,19 @@
       "refresh": "Refresh plan usage",
       "refreshButton": "Refresh",
       "apiKeyUnavailable": "Plan usage is only available for subscription (OAuth) sign-in, not API-key auth."
+    },
+    "providers": {
+      "claude": "Claude",
+      "cursor": "Cursor",
+      "codex": "Codex",
+      "opencode": "OpenCode"
+    },
+    "subsystems": {
+      "mcpCount": "{{count}} configured"
+    },
+    "codexTransport": {
+      "title": "Chat transport",
+      "detail": "Configured: {{configured}} · Status: {{health}}{{version}}"
     }
   },
   "permissions": {
@@ -469,7 +488,8 @@
       }
     },
     "actions": {
-      "add": "Add"
+      "add": "Add",
+      "remove": "Remove"
     }
   },
   "mcpServers": {

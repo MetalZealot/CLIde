@@ -1,7 +1,7 @@
 import {
   Bell,
-  Bot,
   Code2,
+  FileCode2,
   GitBranch,
   Info,
   KeyRound,
@@ -11,10 +11,31 @@ import {
   MonitorPlay,
   Palette,
   Puzzle,
+  Server,
+  ShieldCheck,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
-import type { SettingsIconName } from '../../registry/registry';
+import type { LLMProvider } from '../../../../types/app';
+import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+import type { AgentProviderId, SettingsIconName } from '../../registry/registry';
+
+/**
+ * Provider rows use the real product logo rather than a generic bot glyph — it
+ * is the fastest way to find your provider in the root list. Wrapped so the
+ * registry's icon contract stays "a component taking a className".
+ */
+const providerLogo = (provider: AgentProviderId): ComponentType<{ className?: string }> => {
+  // The registry restates the provider union to stay import-free; this widening
+  // is where the two definitions are checked against each other.
+  const providerId: LLMProvider = provider;
+
+  function ProviderLogoIcon({ className }: { className?: string }) {
+    return <SessionProviderLogo provider={providerId} className={className} />;
+  }
+
+  return ProviderLogoIcon;
+};
 
 /**
  * Resolves the registry's icon names to components. The registry stays pure
@@ -23,7 +44,6 @@ import type { SettingsIconName } from '../../registry/registry';
  * adding an icon name to the registry fails the typecheck until it is mapped.
  */
 export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?: string }>> = {
-  agents: Bot,
   appearance: Palette,
   codeEditor: Code2,
   chat: MessageSquare,
@@ -35,4 +55,11 @@ export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?
   tasks: ListChecks,
   credentials: KeyRound,
   about: Info,
+  providerClaude: providerLogo('claude'),
+  providerCursor: providerLogo('cursor'),
+  providerCodex: providerLogo('codex'),
+  providerOpenCode: providerLogo('opencode'),
+  permissions: ShieldCheck,
+  mcp: Server,
+  skills: FileCode2,
 };

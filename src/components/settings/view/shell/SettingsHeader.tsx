@@ -9,25 +9,23 @@ type SettingsHeaderProps = {
   backLabel?: string | null;
   onBack?: () => void;
   onClose: () => void;
-  showSavedIndicator: boolean;
 };
 
 /**
  * One header element across all depths and both form factors: title plus close,
  * gaining a back chevron once there is somewhere to go back to.
  *
- * The "Saved" indicator is still here rather than local to each row, as the
- * spec's save model calls for. It is currently the only feedback for provider
- * login and for the permissions/notifications autosave, and those screens do
- * not gain local confirmation until P3a and P4 — removing it now would drop
- * that feedback with nothing in its place. It goes when they land.
+ * The global "Saved" indicator that used to live here is gone as of P4, per the
+ * IA spec's save model: confirmation is local to the thing that changed. Its two
+ * triggers were provider login — now confirmed on the provider screen itself —
+ * and the permissions/notifications autosave, where the control's own state is
+ * the confirmation.
  */
 export default function SettingsHeader({
   title,
   backLabel,
   onBack,
   onClose,
-  showSavedIndicator,
 }: SettingsHeaderProps) {
   const { t } = useTranslation('settings');
 
@@ -51,11 +49,6 @@ export default function SettingsHeader({
       </h2>
 
       <div className="flex flex-shrink-0 items-center gap-2">
-        {showSavedIndicator && (
-          <span className="animate-in fade-in text-xs text-muted-foreground">
-            {t('saveStatus.success')}
-          </span>
-        )}
         <Button
           variant="ghost"
           size="sm"

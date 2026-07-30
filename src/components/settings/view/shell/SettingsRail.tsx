@@ -1,13 +1,22 @@
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../../lib/utils';
-import { SETTINGS_GROUPS, getChildScreens, getGroupScreens } from '../../registry/registry';
+import type { ProviderAuthStatusMap } from '../../../provider-auth/types';
+import {
+  SETTINGS_GROUPS,
+  getChildScreens,
+  getGroupScreens,
+  parseAgentScreenId,
+} from '../../registry/registry';
+import { toProviderStatus } from '../../utils/providerStatus';
 import { SETTINGS_ICONS } from '../primitives/SettingsIcons';
+import SettingsStatus from '../primitives/SettingsStatus';
 
 type SettingsRailProps = {
   /** The full navigation stack, so a selected sub-screen also marks its parent. */
   stack: string[];
   onSelect: (screenId: string) => void;
+  providerAuthStatus: ProviderAuthStatusMap;
 };
 
 /**
@@ -18,7 +27,7 @@ type SettingsRailProps = {
  * stack, so the detail pane always shows a leaf. The rail is allowed to scroll
  * when that runs long — see decision 2 in the build plan.
  */
-export default function SettingsRail({ stack, onSelect }: SettingsRailProps) {
+export default function SettingsRail({ stack, onSelect, providerAuthStatus }: SettingsRailProps) {
   const { t } = useTranslation('settings');
 
   return (
@@ -34,6 +43,9 @@ export default function SettingsRail({ stack, onSelect }: SettingsRailProps) {
               const Icon = SETTINGS_ICONS[screen.icon];
               const children = getChildScreens(screen.id);
               const isOnStack = stack.includes(screen.id);
+              const agent = parseAgentScreenId(screen.id);
+              // Dot only: the rail is too narrow for "Signed out" beside a label.
+              const status = agent ? toProviderStatus(providerAuthStatus[agent.provider]) : null;
 
               return (
                 <div key={screen.id} className="space-y-1">
@@ -48,7 +60,8 @@ export default function SettingsRail({ stack, onSelect }: SettingsRailProps) {
                     )}
                   >
                     <Icon className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">{t(screen.labelKey)}</span>
+                    <span className="min-w-0 flex-1 truncate">{t(screen.labelKey)}</span>
+                    {status && <SettingsStatus state={status.state} />}
                   </button>
 
                   {isOnStack && children.length > 0 && (
