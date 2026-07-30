@@ -5,7 +5,7 @@ Status: assessment only, no implementation
 Related: `docs/superpowers/specs/2026-07-28-settings-information-architecture.md`
 (the IA revamp, which explicitly declares "no new settings are introduced" — this
 audit is the follow-on that decides which new settings are worth introducing);
-[Claude Agent SDK and Claude Code surface map](../maps/claude-agent-sdk.md);
+[Claude Code and Agent SDK living surface map](../maps/claude-agent-sdk.md);
 [canonical CLIde provider capability map](../maps/clide-provider-capability-map.md)
 
 ## Purpose

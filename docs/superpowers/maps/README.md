@@ -8,7 +8,8 @@ CLIde or its provider runtimes change.
 | Document | Role | Status |
 |---|---|---|
 | [CLIde provider capability map](clide-provider-capability-map.md) | Canonical normalized behavior, implementation state, and provider/runtime bindings | Foundation baseline started 2026-07-30 |
-| [Claude Agent SDK and Claude Code map](claude-agent-sdk.md) | Claude-native SDK/CLI/control surface | Original 2026-07-19 snapshot; refresh pending |
+| [Claude Code and Agent SDK map](claude-agent-sdk.md) | Claude-native SDK/CLI/control surface and CLIde destinations | Current through SDK 0.3.165 / runtime 2.1.220 |
+| [Claude upgrade ledger](claude-upgrade-ledger.md) | Compact audit decisions and verification history | Current through 2026-07-30 |
 | [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Current through 0.146.0 |
 | [Codex upgrade ledger](codex-upgrade-ledger.md) | Compact release decisions and verification history | Current through 0.146.0 |
 

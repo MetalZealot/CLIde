@@ -87,7 +87,7 @@ manual assumptions.
 
 | Provider | Interactive profile | Other relevant profiles | Current availability note |
 |---|---|---|---|
-| Claude | Agent SDK launches standalone Claude Code per query | Separate Claude Shell; SDK control surface | Standalone Claude Code detected |
+| Claude | Agent SDK spawns a standalone Claude Code per turn | Separate Claude Shell; SDK control surface | Pinned SDK 0.3.165 bundles runtime 2.1.165; the runtime actually spawned is whatever `PATH` resolves (2.1.220 observed) |
 | Codex | Long-lived bundled App Server by default; bundled SDK fallback | SDK jobs, disposable usage App Server, separate standalone Shell | Bundled and standalone 0.146.0 were observed |
 | Cursor | External `cursor-agent` process | Native model/config/session stores | No installation detected in the audited service environment |
 | OpenCode | External `opencode run` process | Native model command and shared SQLite history | No installation detected in the audited service environment |
@@ -118,6 +118,8 @@ Notes:
   SDK fallback.
 - Claude's upstream SDK exposes native fork helpers, but CLIde's current
   capability contract does not advertise a provider fork binding.
+- Claude's rewind is conversation-only. File checkpoints are written on every
+  persistent run, but the native file-restore call is never made.
 - Live/history equivalence is an invariant; full per-message-kind conformance
   coverage remains incomplete.
 
@@ -157,6 +159,14 @@ prompting are separate dimensions.
 Known gap: Cursor currently advertises permission modes in the capability
 service, but its runtime adapter does not consume the composer's
 `permissionMode` consistently.
+
+Claude qualifications behind its exact marks: two native access modes
+(`dontAsk`, and the CLI-only `manual`) are unmapped; Plan mode relies on a
+CLIde-owned tool allow-list rather than native plan instructions; and in the
+`auto` and `bypassPermissions` modes the runtime resolves approval before the
+tool-permission callback, so interactive tools never reach the UI. Access-policy
+changes also apply only from the next turn, because CLIde constructs a new query
+per turn instead of holding a streaming-input session.
 
 ### 4.4 Provider resources
 
@@ -206,7 +216,7 @@ universal configuration object.
 
 | Provider | Native map | Upgrade ledger | Current action |
 |---|---|---|---|
-| Claude | [Agent SDK and Claude Code](claude-agent-sdk.md) | Not created | Refresh the dated snapshot, then add a compact ledger |
+| Claude | [Claude Code and Agent SDK](claude-agent-sdk.md) | [Claude ledger](claude-upgrade-ledger.md) | Maintain on each SDK bump or material runtime change |
 | Codex | [CLI, SDK, and App Server](codex-cli-sdk-app-server.md) | [Codex ledger](codex-upgrade-ledger.md) | Maintain on each stable candidate |
 | Cursor | Not created | Not created | Audit official docs plus installed CLI artifacts when available |
 | OpenCode | Not created | Not created | Audit source, config schema, OpenAPI server, CLI, and installed artifacts |
