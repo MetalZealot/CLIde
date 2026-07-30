@@ -58,3 +58,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0018 — Settings navigates by a history-backed drill-down stack, and each screen owns exactly one scroll container](0018-settings-drill-down-one-scroll-container.md)
 - [0019 — QuickSettings panel removed; no second settings surface](0019-quicksettings-removal.md)
 - [0020 — The one-scroll-container rule has no exceptions; Plugins never needed one](0020-no-plugin-exception-to-one-scroll-container.md)
+- [0021 — Save confirmation is local to the action, and only where an action can fail](0021-local-save-confirmation-no-global-indicator.md)

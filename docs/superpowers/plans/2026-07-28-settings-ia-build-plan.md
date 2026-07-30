@@ -404,7 +404,7 @@ indicator only ever rendered `success` (an autosave failure was already
 invisible), and because loading settings dirties the autosave dependency it
 flashed "Saved" on open, which a group-local line would have made more
 conspicuous, not less. `saveStatus` is therefore removed from the controller
-rather than relocated.
+rather than relocated. Recorded as [ADR 0021](../../decisions/0021-local-save-confirmation-no-global-indicator.md).
 
 Also: the command palette now qualifies sub-screens with their ancestors
 (`Settings: Claude › Permissions`), since "Permissions" alone now appears three
@@ -426,11 +426,17 @@ baseline), 33 registry tests pass.
 bottom of every screen and the Android back gesture are acceptance criteria and
 are only verifiable on the installed PWA, which is served from the *main
 checkout's* `dist/` on 3001 (via `tailscale serve`). This work is on a worktree
-branch, so that pass cannot honestly be done from here: either merge
-`feat/settings-ia` into `main` and build there first, or expose the branch-test
-server on its own HTTPS origin (`tailscale serve --bg --https=8443 3002`) and
-install that as a second PWA. Not attempted unilaterally — it is a merge decision
-either way.
+branch, so that pass cannot be done from here.
+
+**Decided with the user 2026-07-29: deferred until after P6.** P6 finishes on this
+branch, then `feat/settings-ia` merges to `main` once and a single PWA pass covers
+the whole restructure — including this packet's two TODO bugs (Agents scroll, the
+clipped Connection Status panel), which stay open in `TODO.md` until it runs. The
+alternative of giving the branch-test server its own HTTPS origin
+(`tailscale serve --bg --https=8443 3002`, installable as a second PWA) was
+considered and set aside as one merge's worth of setup for one verification.
+**So P6 now owns the PWA pass**: budget it, and check both P4 acceptance criteria
+and P6's own.
 
 ### P6 — search and sweep
 
