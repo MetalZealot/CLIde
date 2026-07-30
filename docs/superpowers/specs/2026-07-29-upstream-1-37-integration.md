@@ -14,6 +14,10 @@
   `6aba1bc40dcea19a0b2435858d40e82c827085d4`
 - Reviewed merge base:
   `27eaf0146a46aa8a55178f3d394360ff7465420f`
+- Re-measured against CLIde `main` at `3b892ec` after the Settings IA merge —
+  see [Re-measurement after the Settings IA
+  merge](#re-measurement-after-the-settings-ia-merge-2026-07-29). **Read that
+  section before Phase 6 or before resolving anything QuickSettings-shaped.**
 - Related upstream work:
   - [PR #1037 — numerous bugfixes and features](https://github.com/siteboon/claudecodeui/pull/1037)
   - [PR #979 — recognize `CLAUDE_CODE_OAUTH_TOKEN`](https://github.com/siteboon/claudecodeui/pull/979)
@@ -25,6 +29,7 @@
   - [ADR 0013 — abort is signal-first](../../decisions/0013-abort-is-signal-first-not-provider-id-keyed.md)
   - [ADR 0014 — context ceiling comes from the SDK](../../decisions/0014-context-ceiling-from-sdk.md)
   - [ADR 0016 — repository-grouped checkouts](../../decisions/0016-repository-grouped-checkouts.md)
+  - [ADR 0019 — QuickSettings panel removed; no second settings surface](../../decisions/0019-quicksettings-removal.md)
 - Related CLIde specifications:
   - [Settings information architecture](2026-07-28-settings-information-architecture.md)
   - [Git and Source Control workspace UX](2026-07-26-git-source-control-workspace-ux.md)
@@ -33,7 +38,10 @@
 
 ## Status and sequencing
 
-**Deferred. Do not implement this in the active Settings IA worktree.**
+**Gate satisfied 2026-07-29.** `feat/settings-ia` was completed, live-verified,
+and merged into `main` at `3b892ec`. Implementation may begin. The original
+gate text is kept below because its rationale still governs *how* Phase 6 is
+resolved.
 
 Implementation starts only after the `feat/settings-ia` worktree has been
 completed, live-verified, and merged into `main`. Upstream 1.37 changes
@@ -52,6 +60,14 @@ only four paths are touched by both efforts (`ChatInterface.tsx`,
 integrating first would cost extra conflicts. See
 [Claim verification](#claim-verification-2026-07-29).
 
+**Confirmed after the merge.** Against `main` at `3b892ec` the conflict count is
+still exactly 39, and only two IA-touched paths overlap upstream at all. The
+gate's real value turned out to be different again: it did not reduce conflicts,
+but the merge now hides two upstream changes *inside clean auto-merges* that
+would have been visible conflicts before the restructure. See
+[Re-measurement after the Settings IA
+merge](#re-measurement-after-the-settings-ia-merge-2026-07-29).
+
 When implementation begins:
 
 1. re-read `AGENTS.md`, the relevant `TODO.md` items, the decisions and
@@ -66,11 +82,17 @@ When implementation begins:
 5. create a fresh topic worktree from the then-current `main`. The suggestion
    below was superseded in practice on 2026-07-29 by branch
    `chore/upstream-1.37`, worktree `~/Projects/cloudcli-wt-upstream-1.37`,
-   ports **3003/5175** (verified to be `main` + one doc commit, with no
-   `feat/settings-ia` ancestry). Reuse those rather than creating a second
-   worktree:
+   ports **3003/5175**. Reuse those rather than creating a second worktree:
    - branch: `integrate/upstream-1.37`
    - worktree: `../cloudcli-wt-upstream-1-37`;
+
+   **`chore/upstream-1.37` is stale as of the Settings IA merge.** It is
+   `87d8fef` (old `main`) plus one doc commit, so it does *not* contain the
+   Settings IA result and Phase 0 acceptance step 4 fails as it stands. Bring it
+   up to `main` before forming the upstream merge — rebase the single doc commit
+   onto `main` rather than merging, so the upstream merge stays the branch's only
+   merge commit. Every measurement in the re-measurement section below simulated
+   `main` directly, so those numbers describe the post-update branch;
 6. do not reuse, replace, or reconfigure an occupied branch-test service;
 7. keep all commits on the topic branch until Grayson has verified the
    isolated live result; and
@@ -139,7 +161,12 @@ while also changing its semantics:
 - QuickSettings is retained upstream while CLIde's Settings IA removes it
   (**corrected 2026-07-29**: upstream's only change to the entire
   `quick-settings-panel/` directory is two z-index lines — `z-40`→`z-[9999]`,
-  `z-30`→`z-[9998]`. There is no repositioning, and the conflict is trivial);
+  `z-30`→`z-[9998]`. There is no repositioning, and the conflict is trivial.
+  **Partly wrong — amended after the Settings IA merge:** the *directory* is
+  indeed only two z-index lines, but upstream moves the panel's **mount point**
+  from `ChatInterface.tsx` into `AppContent.tsx`, which auto-merges and
+  resurrects the deleted panel. See [Re-measurement after the Settings IA
+  merge](#re-measurement-after-the-settings-ia-merge-2026-07-29));
 - the AI commit-message generator loses its UI wiring upstream while CLIde
   retains and extends it (**corrected 2026-07-29**: the server route and client
   hook both survive upstream — see [Claim
@@ -197,6 +224,12 @@ work Phase 1, Phase 4, and Phase 6 actually require.
    `GitPanel.tsx`'s conflict is two lines on CLIde's side.
 2. **QuickSettings is not repositioned upstream** — see the corrected bullet
    above. Nothing needs rejecting beyond discarding two z-index lines.
+   **Superseded 2026-07-29 (post-Settings-IA):** this correction over-corrected.
+   Upstream does not reposition the panel *within* its directory, but it does
+   relocate the mount from `ChatInterface.tsx` to `AppContent.tsx`, and that
+   relocation arrives with no conflict at all. "Nothing needs rejecting" is
+   false. See [Re-measurement after the Settings IA
+   merge](#re-measurement-after-the-settings-ia-merge-2026-07-29).
 3. **Rename detection removes most of Phase 1's apparent porting work.** Git
    pairs the moved files, so CLIde's changes land in the destination module
    paths automatically: `claude-sdk.js`→`claude-runtime.provider.js` (88%),
@@ -237,6 +270,199 @@ Churn on both sides of the 39 conflicted paths, to budget against:
   `websocket-server.service.ts`. CLIde's application-level ping
   (`chat-ping.test.ts`) is a different layer, so the two coexist rather than
   compete — consistent with Phase 2's instruction to keep both.
+
+## Re-measurement after the Settings IA merge (2026-07-29)
+
+Everything above was measured against `main` at `87d8fef`. `feat/settings-ia`
+has since merged, rewriting the entire Settings surface: 109 files,
++6,995/−4,083, including deletion of `src/components/quick-settings-panel/` and
+of every `settings/view/tabs/*` file, and five new ADRs (0018–0022). This
+section re-measures the integration against `main` at `3b892ec` and is
+authoritative wherever it contradicts an earlier section.
+
+### The conflict budget did not change
+
+| | `main` @ `87d8fef` | `main` @ `3b892ec` |
+|---|---|---|
+| Merge base | `27eaf014` | `27eaf014` (unchanged) |
+| `refs/tags/v1.37.0^{commit}` | `264e0946` | `264e0946`, still tip of `upstream/main` |
+| Total conflicts | 39 | **39** |
+| add/add | 1 | 1 |
+| content | 34 | 33 |
+| modify/delete | 4 | 5 |
+
+Exactly one path changed category: `QuickSettingsPanelView.tsx` moved from
+content to modify/delete. Every churn estimate under [Where the conflict work
+actually sits](#where-the-conflict-work-actually-sits) still holds.
+
+Of the 109 IA-touched paths, only **two** are also touched by upstream 1.37:
+
+- `src/components/quick-settings-panel/view/QuickSettingsPanelView.tsx` — IA
+  deleted it, upstream changed two z-index lines. Resolve modify/delete by
+  keeping the deletion; the z-index lines are moot.
+- `src/components/plugins/view/PluginSettingsTab.tsx` — IA renamed it to
+  `src/components/settings/view/screens/ExtensionsPluginsScreen.tsx` (80%
+  similarity), so git pairs them and upstream's change **auto-merges into the
+  renamed file**.
+
+Of the four "touched by both efforts" paths named in the sequencing section,
+`useProjectsState.ts` and `src/i18n/locales/en/settings.json` auto-merge cleanly;
+only `ChatInterface.tsx` still conflicts on both sides.
+
+### Post-merge deletion checklist — changes that arrive with no conflict
+
+This is the section's main product. The Settings restructure converted two
+"reject the upstream change" ledger items from *conflict resolutions you cannot
+miss* into *silent auto-merges*. Conflict-driven review will not surface them.
+Verified by inspecting the actual merged tree (`6393581`, from
+`git merge-tree --write-tree main 264e0946`).
+
+1. **`AppContent.tsx` resurrects the deleted QuickSettings panel.** Upstream
+   removes `import { QuickSettingsPanel }` and `<QuickSettingsPanel />` from
+   `ChatInterface.tsx` and adds both to `AppContent.tsx`. IA never touched
+   `AppContent.tsx`, so upstream's edit there is a clean auto-merge and the
+   merged tree contains:
+
+   ```text
+   src/components/app/AppContent.tsx:7    import { QuickSettingsPanel } from '../quick-settings-panel';
+   src/components/app/AppContent.tsx:258        <QuickSettingsPanel />
+   ```
+
+   pointing at a directory that no longer exists. Both lines must be deleted by
+   hand. Note that ADR 0019 names `ChatInterface.tsx` as *the* mount point, which
+   is why this is easy to miss — upstream changed where the mount lives.
+   `npm run build` / `npm run typecheck` will fail on the unresolved module, so
+   this cannot ship silently, but Phase 6's "resolve all QuickSettings conflicts
+   in favor of the merged Settings IA" will not catch it: `AppContent.tsx` is not
+   a conflict.
+
+2. **The Claude Usage plugin recommendation lands in the IA screen.** Because of
+   the rename pairing, upstream's addition arrives inside
+   `ExtensionsPluginsScreen.tsx` with no conflict. The merged tree contains
+   `CLAUDE_USAGE_PLUGIN_URL` at `:37`, the `claude-usage` recommendation entry at
+   `:125`, and `BarChart3` already imported at `:5` (so there is no unused-import
+   or undefined-symbol signal either). The `claudeUsagePlugin` string block also
+   lands at `src/i18n/locales/en/settings.json:576`. Rejecting this is now an
+   active three-site deletion, not a declined conflict — and nothing but this
+   checklist will remind you.
+
+Also merged silently but harmless: a `BrowserUseSettingsTab` mention in an
+`ExtensionsBrowserScreen.tsx` comment, and CLIde's browser-use MCP hardening
+(`server/modules/browser-use/browser-use-mcp.ts`, `browser-use.service.ts`),
+which auto-merge correctly.
+
+### Settings screens need no API rewiring
+
+Every endpoint the new Settings screens call survives upstream's server
+restructure at an identical path, so IA's `useCredentialsSettings`,
+`useSettingsController`, `useGitSettings`, `AgentAccountCard`, and
+`ExtensionsBrowserScreen` need no changes:
+
+| Called by IA screens | Upstream 1.37 location | Path |
+|---|---|---|
+| `/api/settings/api-keys`, `/credentials`, `/notification-preferences`, `/push/*` | `server/modules/settings/settings.routes.ts` | unchanged |
+| `/api/user/git-config` | `server/modules/user/user.routes.ts` | unchanged |
+| `/api/providers/codex/capabilities` | `provider.routes.ts:533` | unchanged |
+| `/api/browser-use/*` | `server/modules/browser-use/` (exists upstream) | unchanged |
+
+`server/routes/settings.js` is deleted upstream with no rename pair, and CLIde
+never modified it since the merge base, so it is a clean deletion with no
+conflict. The only obligation is that the `server/index.js` hand-port mounts
+`settingsRoutes` from `server/modules/settings/` and the `user` module. Related
+Phase 1 relief: upstream's `server/index.ts` already imports and mounts
+`browserUseRoutes`, `browserUseMcpRoutes`, and `browserUseService`, including
+`stopAllSessions()` in its shutdown path, so that fork surface does not need
+hand-reconstruction.
+
+The settings registry and `searchIndex.ts` need **no new rows** for upstream
+1.37. Chat export, general attachments, and worktrees are all non-Settings
+surfaces, and the worktrees UI sits in `git-panel` behind this spec's own
+exposure gate.
+
+### Newly identified gap: upstream's composer menus
+
+Not covered anywhere else in this specification, and unrelated to Settings
+except that it lands in the same Phase 6 pass. Upstream adds four files:
+`ComposerModelMenu.tsx` (168 lines), `ComposerPermissionMenu.tsx` (147),
+`ComposerMenuPrimitives.tsx` (94), and `useComposerMenuAnchor.ts` (82). Upstream's
+`ChatComposer.tsx` is 492 lines against CLIde's 650.
+
+**This is not a refactor of CLIde's pickers — the two forks put these controls in
+different places.** Mapping the three affordances, because the phrase "composer
+menu extraction" hides the real asymmetry:
+
+| Affordance | Upstream 1.37 | CLIde `main` |
+|---|---|---|
+| Model choice | `ComposerModelMenu`, in the composer | the `/models` command popup, `CommandResultModal.tsx` (CLIde +593 lines, a heavy conflict) |
+| Reasoning effort | a section of `ComposerModelMenu` | inline dropdown in `ChatComposer.tsx` (state ~228–290, render ~525–570) |
+| Permission mode | `ComposerPermissionMenu`, an explicit list with per-mode descriptions | a **cycling button** (`onModeSwitch`), which can only ever show the current mode's description |
+
+So adopting `ComposerModelMenu` would not replace a CLIde component — it would
+add a *second* model surface alongside the `/models` popup, which is the ADR 0003
+surface carrying per-session desired/effective tracking, fast-mode handling, and
+transcript-derived truth. Upstream's menu is presentation-only and models none of
+that.
+
+**Decision (Grayson, 2026-07-29): keep CLIde's.** Resolve `ChatComposer.tsx` in
+CLIde's favor for all three affordances and take upstream's non-menu composer
+changes. Do not adopt the extraction inside this merge.
+
+#### Where adopting parts of it later would genuinely help
+
+Recorded so the deferral is an informed one, not an omission. In rough
+benefit-per-risk order:
+
+1. **`useComposerMenuAnchor` — worth taking, cheapest win.** CLIde's inline
+   effort dropdown already duplicates ~60 lines of the same machinery
+   (`getBoundingClientRect`, Escape via capture, outside-`pointerdown`,
+   `resize`/`scroll` re-anchoring, portal), so this is duplicated logic rather
+   than new capability. The difference is the anchoring model: upstream anchors
+   with `right`/`bottom`, CLIde with `left`/`top`. Upstream's own comment states
+   the payoff — a menu anchored from its bottom-right "never paints in the wrong
+   spot for a frame" because it can grow up and leftward without measuring itself
+   first, and its `maxWidth` shrinks the menu on phones instead of letting it run
+   off the left edge. Both are real bug classes on the S20 form factor. Adopting
+   just this hook and pointing CLIde's existing effort dropdown at it is a small,
+   self-contained, ADR-neutral change.
+2. **`ComposerPermissionMenu` — a real UX win, moderate cost.** A cycling button
+   is poor discoverability for four or five modes, and it forces blind cycling on
+   touch. CLIde already computes `permissionModeLabel` and
+   `permissionModeDescription` (`ChatComposer.tsx:296–305`) but can only show one
+   at a time; a list shows all modes with their descriptions at the point of
+   choice. Provider-neutral, since which modes exist already comes from the
+   backend. Worth its own small branch.
+3. **`ComposerModelMenu` — do not adopt without a decision about `/models`
+   first.** The composer is arguably the better home for model choice, but that
+   is a *replacement* question for the `/models` popup, not an addition. It needs
+   an ADR-0003 review and would have to carry desired/effective distinction, fast
+   mode, effort capability gating, and per-session state that upstream's version
+   does not have. Two model surfaces would be worse than either one alone.
+
+Track these as post-integration TODO items, not merge work.
+
+### Decisions taken 2026-07-29 (Grayson)
+
+Eight questions raised by this re-measurement, answered. These are binding for
+the implementation session; the phase sections below carry the detail.
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Claude Usage recommendation | **Delete all three sites**, i18n strings included |
+| 2 | Composer menus | **Keep CLIde's**; deferral rationale and future benefit recorded [above](#newly-identified-gap-upstreams-composer-menus) |
+| 3 | Session model persistence | **Keep CLIde's** mechanism; see [Phase 3](#phase-3-desired-model-effective-model-and-context-usage) for what upstream changed and what the deferral costs |
+| 4 | Scope | Do the phases; **worktree foundations deferred**, to be assessed later — see [Phase 4](#phase-4-git-and-worktree-integration) |
+| 5 | `feat/settings-ia` worktree | **Removed** 2026-07-29, branch deleted (fully contained in `main` at `3b892ec`) |
+| 6 | Bring branch up to `main` | **Rebase** the two doc commits — neither branch was ever pushed to `origin`, so no history is shared and nothing downstream breaks |
+| 7 | `de`/`fr` `settings.json` | **English only**; drift noted below |
+| 8 | Upstream's `npm test` | Proven broken on CLIde; adopt only in corrected form — see [Phase 7](#phase-7-dependencies-build-and-package-metadata) |
+
+**i18n drift (decision 7).** Settings IA changed `src/i18n/locales/en/settings.json`
+only. `de` and `fr` still carry a `quickSettings` block (`de:52`, `fr:52`) whose
+panel no longer exists, and neither has the new IA keys, so those locales fall
+back to English for every new Settings string. This predates the integration and
+is not made worse by it — do not attempt to fix it inside the merge. The only
+integration-time obligation is not to *add* new non-English keys: upstream's
+`claudeUsagePlugin` block is English-only and is being deleted anyway.
 
 ## Goals
 
@@ -325,9 +551,13 @@ Apply these rules in order:
 - TypeScript server entrypoint and module-owned routes.
 - Provider runtime registration and app-session-ID ownership.
 - Auth refresh service and WebSocket token replacement.
-- Session-model database persistence.
+- ~~Session-model database persistence.~~ **Deferred 2026-07-29** (decision 3) —
+  keep CLIde's mechanism, leave `sessions.model` unread. See
+  [Phase 3](#decision-2026-07-29-keep-clides-mechanism-do-not-wire-upstreams-column).
 - Provider token-usage service.
-- Worktree parsing, injected Git services, and tests.
+- ~~Worktree parsing, injected Git services, and tests.~~ **Deferred 2026-07-29**
+  (decision 4) — left out of the tree entirely. See
+  [Phase 4](#decision-2026-07-29-worktree-foundations-deferred-out-of-this-release).
 - General file attachments and history restoration.
 - Codex wrapped command, tool, and subagent history reconstruction.
 - User-message Markdown and collapsed tool-error presentation.
@@ -342,7 +572,11 @@ Apply these rules in order:
   auto-merges.
 - Retain Settings IA's removal of QuickSettings. Corrected 2026-07-29: upstream
   did not reposition the panel; discard its two z-index lines and let the
-  Settings IA deletion win.
+  Settings IA deletion win. **Amended after the merge:** the z-index lines are
+  moot (the path is now modify/delete), but upstream's relocated mount in
+  `AppContent.tsx` auto-merges and must be deleted by hand — item 1 of the
+  [post-merge deletion
+  checklist](#post-merge-deletion-checklist--changes-that-arrive-with-no-conflict).
 - Retain transcript/provider evidence as the effective-model truth; reject a
   database picker value being presented as proof of what ran.
 - Retain SDK-derived context ceilings and synthetic/sidechain usage guards;
@@ -357,7 +591,10 @@ Apply these rules in order:
 - Reject `backdrop-blur` in worktree dialogs.
 - Reject provider-branded export labels such as calling every assistant
   "Claude".
-- Reject the unofficial Claude Usage plugin recommendation.
+- Reject the unofficial Claude Usage plugin recommendation. **Amended after the
+  merge:** this is an active three-site deletion inside an auto-merged file, not
+  a declined conflict — item 2 of the [post-merge deletion
+  checklist](#post-merge-deletion-checklist--changes-that-arrive-with-no-conflict).
 
 ## Phase 0: Freeze the integration baseline
 
@@ -371,7 +608,10 @@ Before forming the merge:
    - the CLIde-only path list;
    - the overlapping path list; and
    - a fresh merge-tree conflict list;
-4. verify that the Settings IA result is present in the topic base;
+4. verify that the Settings IA result is present in the topic base — concretely,
+   that `src/components/settings/registry/registry.ts` exists and
+   `src/components/quick-settings-panel/` does not. `chore/upstream-1.37` fails
+   this until it is brought up to `main`; see sequencing step 5;
 5. verify that no other worktree has the proposed branch checked out;
 6. check available memory before dependency installation or broad builds; and
 7. identify the exact isolated service/port available for later live testing.
@@ -530,6 +770,81 @@ Upstream's database persistence solves a real cross-client durability problem,
 but its single `sessions.model` value conflates user intent with evidence of
 what actually ran.
 
+### Decision 2026-07-29: keep CLIde's mechanism, do not wire upstream's column
+
+**Decided by Grayson.** The desired/effective data contract below is retained as
+the design CLIde is aiming at, but it is **not built in this merge**. CLIde's
+existing model machinery stays as-is and upstream's `sessions.model` is not read.
+The rest of this phase's *token and context usage* rules are unaffected and still
+apply in full.
+
+#### What upstream actually changed
+
+- `sessions.model TEXT` added to the schema (`schema.ts:112–115`), via an
+  additive migration (`migrations.ts:406–416`,
+  `addColumnToTableIfNotExists`) that leaves pre-existing rows `NULL` on purpose
+  and falls back to the old resolver for them.
+- `sessions.setSessionModel(sessionId, model)`
+  (`repositories/sessions.db.ts:223`), reached through
+  `providerModelsService.setSessionModel` (`provider.routes.ts:419`,
+  `provider-models.service.ts:330–345`).
+- Written **both** when the user picks a model and **on every send**
+  (`sessions.db.ts:219–221`).
+- Read with top priority: upstream's own tests are named `resolveSessionModel
+  prefers the recorded session model over everything else`
+  (`provider-models.service.test.ts:319`) and `resolveResumeModel prefers the
+  recorded session model over the requested one` (`:416`).
+
+#### What CLIde has instead
+
+- The picker's choice lives in **`localStorage`**, one key per provider —
+  `claude-model`, `codex-model`, `cursor-model`, `opencode-model`
+  (`useChatProviderState.ts:96–112`), also read directly by the `/models` popup
+  (`CommandResultModal.tsx:350`).
+- Per-session model *changes* live in a server-side sidecar JSON outside the
+  database, `~/.cloudcli/provider-session-active-model-changes.json`
+  (`server/shared/utils.ts:546`).
+- The effective model comes from provider/transcript evidence via
+  `GET /api/providers/:provider/sessions/:sessionId/active-model`
+  (`useChatProviderState.ts:552`) plus `resolveResumeModel` /
+  `pickSupersedesTranscript`, with the synthetic-row guard. This is the ADR 0003
+  contract: transcript is ground truth.
+
+#### Why keeping CLIde's is defensible
+
+Upstream's write-on-every-send plus "recorded model outranks everything else"
+inverts ADR 0003 directly: a picker value in a database row would outrank
+transcript evidence of what actually ran. That is the exact conflation this phase
+was written to prevent, and adopting it would mean superseding an ADR inside an
+already-large merge.
+
+#### What the deferral costs — state this plainly rather than let it look free
+
+CLIde keeps two real gaps that upstream's column would have closed:
+
+1. **The picker choice is per-browser, not per-session.** Because it is
+   `localStorage` keyed by provider, opening the same session on the laptop and
+   on the phone's PWA can seed different models, and clearing site data loses the
+   choice. This is the "cross-client durability problem" named above, and it stays
+   open.
+2. **The sidecar is outside the database.** It gets no transactionality with the
+   session rows it describes, is not covered by the `~/.cloudcli/auth.db` backup
+   and migration tooling, and can drift from a session that was renamed, forked,
+   or tombstoned.
+
+Neither is a regression introduced by the integration — both are today's
+behavior. The decision is to not fix them *here*.
+
+#### Follow-up
+
+Add a `TODO.md` item for a proper `desired_model` / effective-model design using
+the contract below, sized separately. Recommended shape when it happens: take
+upstream's additive column but name it `desiredModel` in TS/API and never let it
+outrank transcript evidence. Whether to accept upstream's migration now as a
+dormant column was considered and rejected for this merge — a column documented
+as "the model this session runs with" that nothing reads is a trap for the next
+reader, and the migration is trivially re-addable later.
+
 ### Data contract
 
 Do not document an ambiguous column as "the model this session runs with."
@@ -630,6 +945,32 @@ In particular:
 
 Upstream's worktree backend is useful implementation material, but its product
 contract is not safe to expose unchanged.
+
+### Decision 2026-07-29: worktree foundations deferred out of this release
+
+**Decided by Grayson: do the other phases; assess the worktree foundation
+later.** For this integration, do **not** merge upstream's worktree services,
+routes, controller, or modals — not even unregistered. Resolve worktree-only
+upstream additions by taking neither side: leave the files out of the tree.
+
+Rationale: the [exposure gate](#exposure-gate) below already forbids shipping the
+feature, so merging the code unregistered would add review surface, tests, and
+`server/shared/types.ts` churn for something no user can reach. Upstream's tag is
+immutable, so the material stays available at `v1.37.0` for whenever the
+assessment happens — nothing is lost by leaving it out.
+
+Consequences for the rest of this phase: everything under **Reuse** and
+**Replace** below, and the worktree rows of the Phase 4 test list, are deferred
+with it. What still applies now is **Other Git behavior** — CLIde's commit-error
+visibility, retained commit message, AI commit-message generation, and
+self-hosting branch-switch protection, plus porting upstream's Git
+initialization, history loading, refresh feedback, tab scrolling, and
+confirmation-modal scrolling. Recall from [Correction
+1](#corrections) that `routes/git.js` → `modules/git/git.routes.ts` auto-merges
+cleanly, so the Git server side arrives for free either way.
+
+Add a `TODO.md` item for the deferred assessment, pointing at both this section
+and `2026-07-26-git-source-control-workspace-ux.md`.
 
 ### Reuse
 
@@ -850,11 +1191,46 @@ Resolve all QuickSettings conflicts in favor of the merged Settings IA:
 - update upstream call sites to the settings registry; and
 - remove imports and state that exist only for the old panel.
 
+**Conflict resolution is not sufficient here.** Work the [post-merge deletion
+checklist](#post-merge-deletion-checklist--changes-that-arrive-with-no-conflict)
+as a separate explicit step: `AppContent.tsx:7` and `:258` reintroduce the panel
+through a clean auto-merge, and `QuickSettingsPanelView.tsx` is now modify/delete
+(keep the deletion, discard the z-index lines). ADR 0019 is the authority, but
+note it names `ChatInterface.tsx` as the mount point — upstream moved it.
+
+The Settings screens themselves need no API rewiring; see [Settings screens need
+no API rewiring](#settings-screens-need-no-api-rewiring). No new registry or
+`searchIndex.ts` rows are required for 1.37.
+
+### Composer menus
+
+Upstream adds `ComposerModelMenu`, `ComposerPermissionMenu`,
+`ComposerMenuPrimitives`, and `useComposerMenuAnchor`. **Decided 2026-07-29: keep
+CLIde's.** Resolve `ChatComposer.tsx` in CLIde's favor for the model, effort, and
+permission-mode affordances, and take upstream's non-menu composer changes. Leave
+the four new files out rather than merging them unused.
+
+Note that these are not upstream refactors of CLIde components — the forks site
+these controls differently (CLIde's model choice lives in the `/models` popup, and
+permission mode is a cycling button, not a menu). See [Newly identified gap:
+upstream's composer
+menus](#newly-identified-gap-upstreams-composer-menus) for the
+affordance-by-affordance mapping and for the three follow-ups worth taking later,
+`useComposerMenuAnchor` first.
+
 ### Upstream recommendations
 
 Do not add the unofficial Claude Usage plugin recommendation. CLIde already
 provides native usage and credits surfaces; a second recommendation would be
 duplicative and could confuse source-of-truth behavior.
+
+**Decision (Grayson, 2026-07-29): delete all three sites, i18n strings
+included.** Those are the `CLAUDE_USAGE_PLUGIN_URL` constant and the
+`claude-usage` recommendation entry in
+`src/components/settings/view/screens/ExtensionsPluginsScreen.tsx`, plus the
+`claudeUsagePlugin` block in `src/i18n/locales/en/settings.json`. `BarChart3` is
+used by another recommendation, so leave the import. Record the deletion in the
+merge message so the next upstream integration does not silently re-add it.
 
 ### Phase 6 tests
 
@@ -862,6 +1238,12 @@ duplicative and could confuse source-of-truth behavior.
 - Failed Bash and non-Bash tools in desktop and mobile layouts.
 - Provider-neutral exports from Claude and Codex sessions.
 - No QuickSettings affordance, import, dead setting, or duplicate control.
+  Specifically: `git grep -i quicksettings -- src/` returns only the surviving
+  `quickSettings.*` i18n keys that the Chat settings screen consumes, plus the
+  `de`/`fr` blocks, and no import of `quick-settings-panel` anywhere.
+- `git grep -i 'claude-usage\|claudeUsagePlugin' -- src/` returns nothing.
+- Settings deep links, search, and the command palette still resolve every
+  registry screen id after the merge.
 - Mobile rename and Git tabs on a real touch device.
 
 ## Phase 7: Dependencies, build, and package metadata
@@ -898,6 +1280,40 @@ aliases. Focused server tests continue to use:
 ```bash
 ./node_modules/.bin/tsx --tsconfig server/tsconfig.json --test <matching *.test.ts files>
 ```
+
+**Measured 2026-07-29 — upstream's script is broken on CLIde, not merely
+unproven.** Upstream adds:
+
+```text
+"test": "node --import tsx --test \"server/**/*.test.ts\" \"server/**/*.test.js\""
+```
+
+It omits `--tsconfig`, so tsx resolves the nearest config from the cwd — the root
+`tsconfig.json`, which maps `@/*` to `src/*` (the *client*). CLIde's server maps
+`@/*` to `server/*` in `server/tsconfig.json`, deliberately, so both sides can use
+the same alias name without sharing one compiler configuration. 35 server test
+files import through `@/`. Running upstream's exact form against one of them
+fails outright:
+
+```text
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@/modules' imported from
+  server/modules/providers/tests/provider-models.service.test.ts
+```
+
+**Decision (Grayson, 2026-07-29): adopt only in corrected form, as a convenience,
+never as the authority.** Add the `--tsconfig` flag CLIde's documented runner
+already uses:
+
+```text
+"test": "tsx --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\" \"server/**/*.test.js\""
+```
+
+Then prove it: it must pass before it is written into `AGENTS.md`, `CLAUDE.md`, or
+this specification's verification matrix as a substitute for the focused command.
+Keep the `*.test.js` glob — CLIde has JavaScript server tests
+(`server/routes/tests/commands.test.js` is one of the 39 conflicts). If the
+corrected form does not pass cleanly, omit the script entirely rather than commit
+a red `npm test`; a script everyone learns to ignore is worse than none.
 
 Update `server`/`bin` script paths only after the TypeScript entrypoint and
 compiled output locations are verified.
@@ -1065,8 +1481,18 @@ The work is complete only when all of the following are true:
 - desired and effective models remain distinguishable;
 - token/context usage preserves CLIde's three guarded paths;
 - commit errors and AI commit-message generation remain functional;
-- QuickSettings is not resurrected;
-- unsafe upstream worktree behavior is either replaced or inaccessible;
+- QuickSettings is not resurrected — including the auto-merged mount in
+  `AppContent.tsx`, not only the conflicted paths;
+- the Claude Usage plugin recommendation and its strings are absent from the
+  merged tree;
+- every item of the [post-merge deletion
+  checklist](#post-merge-deletion-checklist--changes-that-arrive-with-no-conflict)
+  is worked and recorded;
+- upstream's worktree services, routes, controller, and modals are absent from
+  the tree (deferred by decision 4), not merged-but-unregistered;
+- CLIde's model machinery is unchanged and `sessions.model` is unused (decision 3);
+- upstream's four composer menu files are absent (decision 2);
+- `npm test`, if present at all, passes (decision 8);
 - attachments and deep links pass round-trip tests;
 - Codex remains on the approved SDK/App Server version and transport;
 - typecheck, lint, client build, server build, and focused tests pass;
