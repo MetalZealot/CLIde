@@ -526,11 +526,38 @@ registry tests pass.
 
 **Still outstanding — the PWA verification pass**, which this packet owns per
 P4's note. It needs the installed PWA against 3001, which serves the *main
-checkout's* `dist/`, so it runs after `feat/settings-ia` merges to `main`.
-Acceptance criteria to check there: safe-area padding at the bottom of every
-screen, the Android back gesture popping rather than closing, and P4's two open
-TODO bugs (Agents scrolling, the clipped Connection Status panel), which stay
-open in `TODO.md` until it runs.
+checkout's* `dist/`. The branch merged to `main` on 2026-07-29 (`e3fe573`,
+fast-forward) and `npm run build:client` ran in the main checkout, so 3001 now
+serves the restructure; the pass itself needs the phone.
+
+### PWA pass checklist
+
+Refresh the installed PWA first (pull-to-refresh, or close and reopen it — the
+bundle is content-hashed and `index.html` is `no-cache`, so no restart is
+involved). Then, in Settings:
+
+1. **Safe-area padding, every screen.** Scroll each screen to its bottom and
+   confirm the last row clears the home-gesture bar. The known offender is
+   Claude › (account) — P4's *Connection Status panel clipped* bug, `TODO.md`.
+   Cover at least: the root list, Claude, Claude › Permissions (longest), Chat,
+   Chat › Backend, Projects & Git, Credentials, Plugins, About.
+2. **Agents scrolling** (`TODO.md`'s other Agents bug). On Claude ›
+   Permissions, drag anywhere in the content: one surface should move, with no
+   inner pane catching the gesture and no rubber-banding against a pinned row.
+3. **Android back gesture pops, never closes.** Root → Claude → Permissions,
+   then back twice: Permissions → Claude → root list, and only a third back
+   closes Settings. Repeat from Appearance › Code Editor.
+4. **Deep link back path.** Open Settings from somewhere that deep-links (the
+   command palette's `Settings: Claude › Permissions`) and confirm one back step
+   lands on Claude rather than closing.
+5. **Search with the keyboard up** (P6). On the root list, tap the field: the
+   results list should scroll under a pinned field, the field should not be
+   covered by the keyboard, and Escape/the clear button should restore the
+   grouped list. Then search "minimap", tap the result, and confirm back returns
+   to Appearance and then to the root list with the query cleared.
+
+Tick the two `TODO.md` Agents bugs and this packet's status only once 1–3 pass on
+the device.
 
 ## Verification reference
 
