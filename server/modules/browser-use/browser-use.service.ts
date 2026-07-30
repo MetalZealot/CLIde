@@ -20,9 +20,9 @@ const BROWSER_USE_SETTINGS_KEY = 'browser_use_settings';
 const BROWSER_USE_MCP_TOKEN_KEY = 'browser_use_mcp_token';
 
 type BrowserUseRuntime = 'cloud' | 'local';
-type BrowserUseSessionStatus = 'ready' | 'stopped' | 'unavailable';
+export type BrowserUseSessionStatus = 'ready' | 'stopped' | 'unavailable';
 
-type BrowserUseSession = {
+export type BrowserUseSession = {
   id: string;
   ownerId: string;
   createdBy: 'agent';
@@ -48,6 +48,24 @@ type BrowserUseSession = {
 };
 
 type PublicBrowserUseSession = Omit<BrowserUseSession, 'ownerId'>;
+
+export type AgentBrowserSessionSummary = {
+  id: string;
+  status: BrowserUseSessionStatus;
+  url: string | null;
+  title: string | null;
+  updatedAt: string;
+  lastAction: string | null;
+  message: string | null;
+  viewport: BrowserUseSession['viewport'];
+  cursor: BrowserUseSession['cursor'];
+};
+
+export type AgentBrowserTab = {
+  index: number;
+  url: string;
+  active: boolean;
+};
 
 type RuntimeHandle = {
   browser?: any;
@@ -84,6 +102,19 @@ const PROFILE_ROOT = path.join(os.homedir(), '.cloudcli', 'browser-use', 'profil
 const MCP_SERVER_NAME = 'cloudcli-browser';
 const LEGACY_MCP_SERVER_NAMES = ['cloudcli-browser-use'];
 const RUNTIME_READINESS_CACHE_TTL_MS = 30_000;
+const SCREENSHOT_DATA_URL_PREFIX = 'data:image/jpeg;base64,';
+const MAX_AGENT_TABS = 8;
+export const SNAPSHOT_TEXT_MAX_CHARS = 12_000;
+
+// Keep the default three-session list and tab-list results within the MCP
+// transport's 4 KiB ordinary-result budget while preserving useful metadata.
+const AGENT_SESSION_STRING_BYTES = {
+  url: 384,
+  title: 192,
+  lastAction: 128,
+  message: 256,
+  tabUrl: 256,
+} as const;
 
 function getRuntime(): BrowserUseRuntime {
   return IS_PLATFORM ? 'cloud' : 'local';
@@ -349,9 +380,83 @@ function normalizeUrl(rawUrl: string): string {
   return parsed.toString();
 }
 
-function publicSession(session: BrowserUseSession): PublicBrowserUseSession {
+export function publicBrowserSession(session: BrowserUseSession): PublicBrowserUseSession {
   const { ownerId: _ownerId, ...publicFields } = session;
   return publicFields;
+}
+
+function truncateUtf8(value: string | null, maxBytes: number): string | null {
+  if (value === null || Buffer.byteLength(value, 'utf8') <= maxBytes) {
+    return value;
+  }
+
+  const suffix = '…';
+  const suffixBytes = Buffer.byteLength(suffix, 'utf8');
+  let result = '';
+  let resultBytes = 0;
+
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character, 'utf8');
+    if (resultBytes + characterBytes + suffixBytes > maxBytes) {
+      break;
+    }
+    result += character;
+    resultBytes += characterBytes;
+  }
+
+  return `${result}${suffix}`;
+}
+
+export function agentSessionSummary(session: BrowserUseSession): AgentBrowserSessionSummary {
+  return {
+    id: session.id,
+    status: session.status,
+    url: truncateUtf8(session.url, AGENT_SESSION_STRING_BYTES.url),
+    title: truncateUtf8(session.title, AGENT_SESSION_STRING_BYTES.title),
+    updatedAt: session.updatedAt,
+    lastAction: truncateUtf8(session.lastAction, AGENT_SESSION_STRING_BYTES.lastAction),
+    message: truncateUtf8(session.message, AGENT_SESSION_STRING_BYTES.message),
+    viewport: session.viewport,
+    cursor: session.cursor,
+  };
+}
+
+export function agentSnapshotResult(session: BrowserUseSession, text: string) {
+  return {
+    session: agentSessionSummary(session),
+    text: text.slice(0, SNAPSHOT_TEXT_MAX_CHARS),
+  };
+}
+
+export function agentScreenshotResult(session: BrowserUseSession) {
+  if (!session.screenshotDataUrl?.startsWith(SCREENSHOT_DATA_URL_PREFIX)) {
+    throw new Error('Browser screenshot is not available.');
+  }
+
+  return {
+    session: agentSessionSummary(session),
+    data: session.screenshotDataUrl.slice(SCREENSHOT_DATA_URL_PREFIX.length),
+    mimeType: 'image/jpeg' as const,
+  };
+}
+
+export function agentTabsResult(session: BrowserUseSession, tabs: AgentBrowserTab[]) {
+  const activeTab = tabs.find((tab) => tab.active);
+  const selectedTabs = tabs.slice(0, MAX_AGENT_TABS);
+  if (activeTab && !selectedTabs.includes(activeTab)) {
+    selectedTabs[selectedTabs.length - 1] = activeTab;
+    selectedTabs.sort((left, right) => left.index - right.index);
+  }
+
+  return {
+    session: agentSessionSummary(session),
+    tabs: selectedTabs.map((tab) => ({
+      ...tab,
+      url: truncateUtf8(tab.url, AGENT_SESSION_STRING_BYTES.tabUrl) || '',
+    })),
+    totalTabs: tabs.length,
+    tabsTruncated: tabs.length > selectedTabs.length,
+  };
 }
 
 function ownerSessions(ownerId: string): BrowserUseSession[] {
@@ -499,7 +604,7 @@ export const browserUseService = {
     await expireStaleSessions();
     return [...sessions.values()]
       .filter((session) => session.ownerId === AGENT_OWNER_ID)
-      .map(publicSession);
+      .map(publicBrowserSession);
   },
 
   async createAgentSession(options?: { profileName?: string | null }) {
@@ -539,7 +644,7 @@ export const browserUseService = {
     if (!settings.enabled || !readiness.playwrightInstalled || !readiness.chromiumInstalled || !readiness.playwright) {
       session.message = getSetupMessage(settings, readiness);
       sessions.set(session.id, session);
-      return publicSession(session);
+      return agentSessionSummary(session);
     }
 
     let browser: any | undefined;
@@ -571,7 +676,7 @@ export const browserUseService = {
     sessions.set(session.id, session);
     handles.set(session.id, { browser, context, page });
     await captureSession(session, page);
-    return publicSession(session);
+    return agentSessionSummary(session);
   },
 
   async listAgentSessions() {
@@ -582,7 +687,7 @@ export const browserUseService = {
     await expireStaleSessions();
     return [...sessions.values()]
       .filter((session) => session.ownerId === AGENT_OWNER_ID)
-      .map(publicSession);
+      .map(agentSessionSummary);
   },
 
   async getAgentSession(sessionId: string) {
@@ -620,7 +725,7 @@ export const browserUseService = {
     session.lastAction = `navigate:${url}`;
     session.cursor = null;
     await captureSession(session, handle.page);
-    return publicSession(session);
+    return agentSessionSummary(session);
   },
 
   async agentSnapshot(sessionId: string) {
@@ -629,12 +734,21 @@ export const browserUseService = {
     if (!handle?.page) {
       throw new Error('Browser runtime handle is not available.');
     }
+    session.lastAction = 'snapshot';
     await captureSession(session, handle.page);
     const text = await handle.page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
-    return {
-      session: publicSession(session),
-      text: text.slice(0, 30_000),
-    };
+    return agentSnapshotResult(session, text);
+  },
+
+  async agentScreenshot(sessionId: string) {
+    const session = await this.getAgentSession(sessionId);
+    const handle = handles.get(sessionId);
+    if (!handle?.page) {
+      throw new Error('Browser runtime handle is not available.');
+    }
+    session.lastAction = 'screenshot';
+    await captureSession(session, handle.page);
+    return agentScreenshotResult(session);
   },
 
   async agentClick(sessionId: string, input: { selector?: string; text?: string; x?: number; y?: number }) {
@@ -658,7 +772,7 @@ export const browserUseService = {
     session.lastAction = 'click';
     session.cursor = point ? { ...point, actor: 'agent' } : null;
     await captureSession(session, handle.page);
-    return publicSession(session);
+    return agentSessionSummary(session);
   },
 
   async agentType(sessionId: string, input: { selector?: string; text: string; submit?: boolean }) {
@@ -682,7 +796,7 @@ export const browserUseService = {
 
     session.lastAction = 'type';
     await captureSession(session, handle.page);
-    return publicSession(session);
+    return agentSessionSummary(session);
   },
 
   async agentFillForm(sessionId: string, fields: Array<{ selector: string; value: string }>) {
@@ -701,7 +815,7 @@ export const browserUseService = {
       ));
     }
     await captureSession(session, handle.page);
-    return publicSession(session);
+    return agentSessionSummary(session);
   },
 
   async agentPressKey(sessionId: string, key: string) {
@@ -713,7 +827,7 @@ export const browserUseService = {
     await handle.page.keyboard.press(key);
     session.lastAction = `press_key:${key}`;
     await captureSession(session, handle.page);
-    return publicSession(session);
+    return agentSessionSummary(session);
   },
 
   async agentSelectOption(sessionId: string, selector: string, values: string[]) {
@@ -728,7 +842,7 @@ export const browserUseService = {
       point ? { ...point, actor: 'agent' as const } : null
     ));
     await captureSession(session, handle.page);
-    return publicSession(session);
+    return agentSessionSummary(session);
   },
 
   async agentWaitFor(sessionId: string, input: { text?: string; url?: string; timeoutMs?: number }) {
@@ -747,7 +861,7 @@ export const browserUseService = {
     }
     session.lastAction = 'wait_for';
     await captureSession(session, handle.page);
-    return publicSession(session);
+    return agentSessionSummary(session);
   },
 
   async agentTabs(sessionId: string, input: { action?: 'list' | 'new' | 'select' | 'close'; index?: number; url?: string }) {
@@ -780,14 +894,14 @@ export const browserUseService = {
     }
     const updatedHandle = handles.get(sessionId);
     await captureSession(session, updatedHandle?.page || handle.page);
-    return {
-      session: publicSession(session),
-      tabs: handle.context.pages().map((page: any, index: number) => ({
+    return agentTabsResult(
+      session,
+      handle.context.pages().map((page: any, index: number) => ({
         index,
         url: page.url(),
         active: page === (updatedHandle?.page || handle.page),
       })),
-    };
+    );
   },
 
   async stopSession(sessionId: string) {
@@ -802,7 +916,7 @@ export const browserUseService = {
     session.updatedAt = new Date().toISOString();
     session.lastAction = 'stop';
     session.message = 'Browser session stopped. Create a new session to continue browsing.';
-    return { stopped: true, session: publicSession(session) };
+    return { stopped: true, session: publicBrowserSession(session) };
   },
 
   async deleteSession(sessionId: string) {
@@ -817,8 +931,12 @@ export const browserUseService = {
   },
 
   async agentStopSession(sessionId: string) {
-    await this.getAgentSession(sessionId);
-    return this.stopSession(sessionId);
+    const session = await this.getAgentSession(sessionId);
+    const result = await this.stopSession(sessionId);
+    return {
+      stopped: result.stopped,
+      session: agentSessionSummary(session),
+    };
   },
 
   async stopAllSessions() {

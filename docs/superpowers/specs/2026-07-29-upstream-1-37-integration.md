@@ -1,0 +1,960 @@
+# Upstream v1.37.0 integration
+
+- Date: 2026-07-29
+- Status: Deferred implementation specification
+- Scope: Integrate `siteboon/claudecodeui` v1.37.0 into CLIde while
+  preserving CLIde's provider-neutral runtime, session identity, model,
+  context-usage, Source Control, WebSocket, Settings, and worktree safety
+  decisions
+- Upstream tag: `v1.37.0`
+- Upstream commit: `264e0946d2a168c281b85807cd1183130f40b090`
+- Upstream feature squash: `06e7ee9`
+- Upstream OAuth fix: `75ff8a5`
+- Reviewed CLIde commit:
+  `6aba1bc40dcea19a0b2435858d40e82c827085d4`
+- Reviewed merge base:
+  `27eaf0146a46aa8a55178f3d394360ff7465420f`
+- Related upstream work:
+  - [PR #1037 — numerous bugfixes and features](https://github.com/siteboon/claudecodeui/pull/1037)
+  - [PR #979 — recognize `CLAUDE_CODE_OAUTH_TOKEN`](https://github.com/siteboon/claudecodeui/pull/979)
+- Related CLIde decisions:
+  - [ADR 0001 — no backdrop blur](../../decisions/0001-no-backdrop-blur.md)
+  - [ADR 0003 — per-session model tracking](../../decisions/0003-per-session-model-tracking.md)
+  - [ADR 0006 — app-level WebSocket liveness](../../decisions/0006-app-level-ws-liveness.md)
+  - [ADR 0012 — Codex rewind and fork session identity](../../decisions/0012-codex-rewind-and-fork-session-identity.md)
+  - [ADR 0013 — abort is signal-first](../../decisions/0013-abort-is-signal-first-not-provider-id-keyed.md)
+  - [ADR 0014 — context ceiling comes from the SDK](../../decisions/0014-context-ceiling-from-sdk.md)
+  - [ADR 0016 — repository-grouped checkouts](../../decisions/0016-repository-grouped-checkouts.md)
+- Related CLIde specifications:
+  - [Settings information architecture](2026-07-28-settings-information-architecture.md)
+  - [Git and Source Control workspace UX](2026-07-26-git-source-control-workspace-ux.md)
+  - [Source Control commit-message model selection](2026-07-29-source-control-commit-message-model-selection.md)
+  - [Codex chat transport architecture](2026-07-25-codex-chat-transport-architecture.md)
+
+## Status and sequencing
+
+**Deferred. Do not implement this in the active Settings IA worktree.**
+
+Implementation starts only after the `feat/settings-ia` worktree has been
+completed, live-verified, and merged into `main`. Upstream 1.37 changes
+QuickSettings, authentication context, Git UI, session state, and shared
+settings-adjacent components. Integrating it while Settings IA has uncommitted
+changes would make it impossible to tell an upstream conflict from unfinished
+local restructuring.
+
+When implementation begins:
+
+1. re-read `AGENTS.md`, the relevant `TODO.md` items, the decisions and
+   specifications linked above, and the ignored local `CLAUDE.md`;
+2. run `git status --short`, `git worktree list --porcelain`, and
+   `git fetch upstream --tags --prune`;
+3. verify that `refs/tags/v1.37.0` resolves to the reviewed commit; treat any
+   later `upstream/main` commits as a separate integration target;
+4. claim the integration in `TODO.md`;
+5. create a fresh topic worktree from the then-current `main`, suggested as:
+   - branch: `integrate/upstream-1.37`
+   - worktree: `../cloudcli-wt-upstream-1-37`;
+6. do not reuse, replace, or reconfigure an occupied branch-test service;
+7. keep all commits on the topic branch until Grayson has verified the
+   isolated live result; and
+8. do not merge, push, or restart the production service before that
+   verification.
+
+The implementation worktree must begin from the current CLIde `main`, not from
+the reviewed commit recorded above. The hashes in this document preserve the
+evidence behind the analysis; they are not instructions to discard work merged
+after 2026-07-29.
+
+## Executive decision
+
+Integrate v1.37.0 as an **ancestry-preserving upstream merge with deliberate
+semantic conflict resolution**.
+
+Do not:
+
+- cherry-pick the feature squash as though it were one coherent CLIde feature;
+- replay hundreds of CLIde commits one by one through the upstream squash;
+- resolve modify/delete conflicts with blanket `ours` or `theirs`;
+- replace a CLIde implementation merely because upstream touched the same
+  path; or
+- expose an upstream feature whose behavior violates an existing CLIde
+  decision.
+
+On the topic branch, form one no-commit merge of the immutable `v1.37.0` tag
+and resolve the resulting tree once. Do not merge a later `upstream/main` by
+accident. The eventual integration commit should use an allowed Conventional
+Commit subject such as:
+
+```text
+chore(upstream): integrate v1.37.0
+```
+
+This approach preserves both ancestries, makes the imported upstream release
+visible to future comparisons, and avoids repeatedly resolving the same
+architectural move while replaying CLIde's post-1.36 history. The topic branch
+itself can later be fast-forwarded or merged into `main` according to the
+repository state after live verification.
+
+The release should not be treated as a version-number bump. Version metadata
+changes only after the integrated source builds, tests, and runs as CLIde.
+
+## Why this requires a dedicated integration
+
+The reviewed upstream range changes 257 files with approximately 19,204
+insertions and 9,284 deletions. Seventy-four paths also changed in CLIde, and a
+clean merge-tree simulation against the reviewed `main` predicted 39 direct
+conflicts.
+
+The high conflict count is not the only risk. Upstream moves critical behavior
+while also changing its semantics:
+
+- `server/index.js` and `server/cli.js` are deleted in favor of
+  `server/index.ts` and module-owned routes;
+- provider execution moves from `server/claude-sdk.js` and
+  `server/openai-codex.js` into provider runtime adapters;
+- app session IDs replace provider-native IDs as runtime ownership keys;
+- a database `sessions.model` column becomes the preferred session-model
+  source;
+- worktree creation, merge, and deletion become product features;
+- image attachments become general file attachments;
+- application JWT refresh, WebSocket authentication, and token propagation
+  change together;
+- QuickSettings is retained and repositioned upstream while CLIde's Settings
+  IA removes it;
+- the AI commit-message generator is removed upstream while CLIde retains and
+  extends it; and
+- token-usage extraction is centralized using rules that do not preserve
+  CLIde's Claude synthetic-row and context-ceiling invariants.
+
+The correct unit of review is therefore behavior, not filename.
+
+## Goals
+
+1. Adopt upstream's stronger backend module boundaries, dependency injection,
+   route tests, and provider-owned runtime structure.
+2. Preserve all CLIde behavior that is more complete, provider-neutral, or
+   protected by an ADR.
+3. Combine overlapping fixes when upstream and CLIde each solve a different
+   layer of the same failure.
+4. Make session identity unambiguous across the app database, provider
+   runtime, transcripts, WebSockets, rewind/fork, and abort.
+5. Make desired model selection durable without misreporting it as the model
+   that actually ran.
+6. Reuse safe upstream worktree primitives without shipping its separate-
+   project identity model or destructive defaults.
+7. Add useful chat, attachment, deep-link, Git, Codex-history, and skill
+   improvements without replacing CLIde-specific interaction behavior.
+8. Finish with an isolated, provider-aware live build that Grayson can verify
+   before production changes.
+
+## Non-goals
+
+- Rewriting unrelated CLIde components to match upstream style.
+- Removing fork-only features merely to reduce the diff.
+- Completing every deferred Source Control or Settings feature in the same
+  branch.
+- Enabling upstream's worktree UI before the CLIde repository/worktree safety
+  contract is satisfied.
+- Adding the unofficial Claude Usage plugin recommendation.
+- Reintroducing QuickSettings after Settings IA removes it.
+- Downgrading the Codex SDK or loosening CLIde's pinned runtime/tooling
+  requirements.
+- Restarting production, changing live credentials, or mutating real sessions
+  during implementation.
+- Opening or updating an upstream PR.
+
+## Conflict-resolution rules
+
+Apply these rules in order:
+
+1. **Preserve user data and stable IDs.** Never choose a resolution that can
+   orphan sessions, confuse app and provider session IDs, or migrate live data
+   without a backup and rollback path.
+2. **Use the new architectural destination.** When upstream moves a legacy
+   file into a module, port CLIde behavior into the destination module rather
+   than restoring the legacy monolith.
+3. **Existing ADRs win.** Upstream behavior that contradicts an ADR is adapted
+   or left disabled until the ADR is explicitly superseded.
+4. **Provider-neutral shared surfaces win.** Claude-specific assumptions must
+   stay inside the Claude adapter or be expressed through capabilities.
+5. **The more complete failure path wins.** Preserve input, return structured
+   errors, and render actionable diagnostics instead of accepting silent
+   failure.
+6. **Requested and effective state stay distinct.** A picker value, provider
+   alias, transcript value, and database preference are not interchangeable.
+7. **Local tests are additive.** Do not delete a CLIde regression test because
+   upstream has a differently scoped test. Adapt both to the final structure.
+8. **Dependencies do not drift backward.** Preserve CLIde's exact Codex SDK,
+   Node engine, build, lint, Playwright, and hook portability decisions unless
+   a separately verified change supersedes them.
+9. **No unsafe feature exposure.** Code may be integrated behind an internal
+   boundary or remain unregistered when its product contract is not yet safe.
+10. **Generated artifacts follow their source.** Do not hand-edit generated
+    public assets or generated App Server schemas.
+
+## Decision ledger
+
+### Adopt with minimal adaptation
+
+- `CLAUDE_CODE_OAUTH_TOKEN` discovery and precedence tests, adapted to
+  CLIde's current Claude credential helper.
+- Shell stale-socket ownership guards and reconnect-timer rechecks.
+- Codex user-skill discovery under `~/.codex/skills`.
+- Symlink-aware skill discovery, repeated-load suppression, and hiding injected
+  skill bodies from conversation rendering.
+- `.gitignore` filtering for `@` file mentions.
+- Authoritative session lookup for deep links, extended through CLIde's
+  provider-session aliases.
+- Scrollable Git tabs, mobile session rename visibility, and scrollable commit
+  confirmation content.
+- Explicit rejection of single-dollar inline math if it prevents ordinary
+  currency text from being parsed as mathematics.
+
+### Adopt the boundary, adapt the behavior
+
+- TypeScript server entrypoint and module-owned routes.
+- Provider runtime registration and app-session-ID ownership.
+- Auth refresh service and WebSocket token replacement.
+- Session-model database persistence.
+- Provider token-usage service.
+- Worktree parsing, injected Git services, and tests.
+- General file attachments and history restoration.
+- Codex wrapped command, tool, and subagent history reconstruction.
+- User-message Markdown and collapsed tool-error presentation.
+- Chat export.
+
+### Retain CLIde or reject the upstream change
+
+- Retain the Source Control commit-message generator and its visible commit
+  error path; reject upstream's removal.
+- Retain Settings IA's removal of QuickSettings; reject upstream's repositioned
+  panel.
+- Retain transcript/provider evidence as the effective-model truth; reject a
+  database picker value being presented as proof of what ran.
+- Retain SDK-derived context ceilings and synthetic/sidechain usage guards;
+  reject upstream's 160,000-token fallback as CLIde's general algorithm.
+- Retain CLIde's app-level WebSocket watchdog, wake probe, run/sequence
+  reconciliation, and reconnect UI.
+- Retain Codex App Server transport, SDK 0.146.0, rewind/fork aliases,
+  tombstones, usage accounting, and message identity reconciliation.
+- Reject separate top-level projects for every Git worktree.
+- Reject implicit merge targets and default squash, cleanup, or branch
+  deletion.
+- Reject `backdrop-blur` in worktree dialogs.
+- Reject provider-branded export labels such as calling every assistant
+  "Claude".
+- Reject the unofficial Claude Usage plugin recommendation.
+
+## Phase 0: Freeze the integration baseline
+
+Before forming the merge:
+
+1. record the current topic-base `main` commit;
+2. record `upstream/main`, `refs/tags/v1.37.0`, and their merge base;
+3. save:
+   - `git diff --stat <merge-base>..upstream/main`;
+   - `git diff --name-status <merge-base>..upstream/main`;
+   - the CLIde-only path list;
+   - the overlapping path list; and
+   - a fresh merge-tree conflict list;
+4. verify that the Settings IA result is present in the topic base;
+5. verify that no other worktree has the proposed branch checked out;
+6. check available memory before dependency installation or broad builds; and
+7. identify the exact isolated service/port available for later live testing.
+
+Do not modify `~/.cloudcli/auth.db` during this phase.
+
+### Phase 0 acceptance
+
+- The integration target and topic base are written into the worktree notes or
+  commit description.
+- Every pre-existing dirty or untracked path is accounted for and preserved.
+- No production process or occupied branch-test process has been replaced.
+
+## Phase 1: Establish the upstream module architecture
+
+Resolve structural moves before feature behavior. The end state should use
+upstream's module boundaries without losing CLIde capabilities.
+
+| Current CLIde area | Upstream destination | Required CLIde behavior |
+|---|---|---|
+| `server/index.js` | `server/index.ts` plus feature modules | Startup ordering, batch-move routing, context endpoints, Codex transport selection, token/context surfaces, service shutdown |
+| `server/routes/auth.js` | `server/modules/auth/` | Transient-failure-safe auth, refresh-token handling, structured auth errors |
+| `server/routes/git.js` | `server/modules/git/` and `server/modules/worktrees/` | Hook stderr, structured commit failures, commit-message generation, self-hosting safety |
+| `server/routes/agent.js` | provider routes/services | Live provider models, capabilities, Codex transport state |
+| `server/claude-sdk.js` | `claude-runtime.provider.js` | Signal-first abort, context usage, rewind/checkpoints, ephemeral jobs, stable session ownership |
+| `server/openai-codex.js` | `codex-runtime.provider.js` | App Server transport, SDK 0.146, rewind/fork, usage, aliases and tombstones |
+| Cursor/OpenCode runner files | provider runtime adapters | Clean no-op capabilities, stable app session IDs, current model/send behavior |
+| WebSocket service files | `server/modules/websocket/` | App-level heartbeat contract, run IDs, sequence handling, auth refresh |
+
+The new `server/index.ts` must be composition-only. Logic recovered from
+`server/index.js` belongs in the relevant module, not in a translated
+TypeScript monolith.
+
+Upstream's backend-module skill may be used as a directory-shape reference,
+but it must not replace CLIde's `AGENTS.md`. Resolve its inconsistencies during
+the port:
+
+- runtime adapters that remain JavaScript are an explicit migration exception,
+  not proof that every module may mix languages;
+- shared `types.ts` and `utils.ts` files must not become cross-module dumping
+  grounds; and
+- provider-specific behavior stays behind adapter interfaces.
+
+### Phase 1 tests
+
+- Server starts and shuts down cleanly from the TypeScript entrypoint.
+- Every registered module mounts once.
+- No legacy and module route both claim the same endpoint.
+- Provider registry tests cover all four providers.
+- Build output and package/bin entrypoints reference the new server artifact.
+
+## Phase 2: Runtime identity, abort, WebSocket, and authentication
+
+These changes are coupled because all four depend on which session and socket
+owns a running turn.
+
+### Stable runtime ownership
+
+Use the app-owned `session_id` as the key for:
+
+- active processes;
+- abort controllers;
+- pending permissions/approvals;
+- WebSocket turn ownership;
+- reconnect/replay state; and
+- runtime lookup.
+
+Resolve `provider_session_id` only at provider resume or transcript boundaries.
+Do not overwrite, alias, or collapse the app ID when the provider emits a new
+native ID.
+
+For Codex, preserve:
+
+- `session_provider_aliases`;
+- superseded provider-ID tombstones;
+- rewind/fork parent and child identity;
+- App Server thread IDs; and
+- stable message identity across live and final history.
+
+### Abort
+
+Combine the two implementations:
+
+1. CLIde's `AbortController` signal remains the immediate cancellation tier,
+   including before a provider ID exists.
+2. Upstream's app-session-keyed runtime lookup becomes the ownership tier.
+3. Provider-native cancellation is a later best-effort tier.
+4. Optimistic-message retraction still depends on whether work was delivered
+   to the provider.
+
+Add equivalent signal support or an explicit capability/no-op path for Cursor,
+Codex, and OpenCode. Shared UI must not imply that all adapters can cancel at
+the same provider-native tier.
+
+### Chat WebSocket
+
+Upstream's heartbeat helper may replace duplicated server timer code, but
+CLIde must retain:
+
+- inbound traffic marking a socket alive;
+- client `chat.ping`/application-level liveness;
+- wake-from-background probing;
+- reconnect banners and state;
+- run ID and sequence-number deduplication;
+- replay reconciliation; and
+- protection against delayed events from an old socket.
+
+Port upstream's equivalent stale-socket guard to Shell so a delayed close from
+an old WebSocket cannot detach the replacement PTY.
+
+### Application authentication
+
+Use a hybrid contract:
+
+- keep CLIde's retry and token-retention behavior for transient network and 5xx
+  failures;
+- adopt an explicit refresh endpoint and refresh scheduling based on JWT
+  lifetime;
+- use `X-Auth-Error` or an equivalent structured reason to distinguish
+  invalid/expired credentials from infrastructure failure;
+- propagate refreshed tokens consistently to fetch, upload, Shell, Chat, and
+  other realtime clients; and
+- close or replace sockets authenticated with the superseded token without
+  creating reconnect loops.
+
+Add `CLAUDE_CODE_OAUTH_TOKEN` after the existing Anthropic key/token sources,
+matching upstream's tested precedence, but implement it through CLIde's
+`readClaudeOAuthCredentials` path so stale access tokens with usable refresh
+credentials remain correctly understood.
+
+### Phase 2 tests
+
+- First-turn abort before provider-session creation.
+- Abort after provider-session creation.
+- Old Chat and Shell sockets cannot detach or mutate replacement sockets.
+- Background/wake reconnect with an expired application token.
+- Transient `/api/auth/user` and refresh failures do not log the user out.
+- Definitively invalid/expired credentials do log the user out with a visible
+  reason.
+- Refreshed tokens reach all HTTP and realtime clients.
+- Codex rewind/fork aliases still resolve after reconnect.
+
+## Phase 3: Desired model, effective model, and context usage
+
+Upstream's database persistence solves a real cross-client durability problem,
+but its single `sessions.model` value conflates user intent with evidence of
+what actually ran.
+
+### Data contract
+
+Do not document an ambiguous column as "the model this session runs with."
+Prefer:
+
+```text
+sessions.desired_model
+sessions.desired_model_updated_at
+```
+
+The desired model is:
+
+- written when the user explicitly picks a model for that session;
+- optionally confirmed from an explicit send request;
+- stored against the app session ID;
+- provider-scoped through the session row; and
+- never presented as transcript proof.
+
+The effective model is resolved from provider/transcript evidence using the
+existing validation and timestamp rules. It may be cached, but the cache must
+record its source and observation time.
+
+If keeping upstream's physical `model` column is substantially simpler, its
+TypeScript/API name must still be `desiredModel`, and comments, tests, and
+responses must use the desired/effective distinction. A later schema rename is
+preferable to permanently ambiguous semantics.
+
+### Resolution rules
+
+Separate two questions:
+
+1. **What should the next turn request?**
+   - a valid, newer, explicit desired-model choice;
+   - otherwise a valid effective model when resuming requires one;
+   - otherwise the provider default.
+2. **What model actually ran?**
+   - current provider state when available;
+   - otherwise the newest validated real transcript turn;
+   - never an unverified picker alias, `default`, `<synthetic>`, or arbitrary
+     Shell output.
+
+Preserve:
+
+- transcript-derived model validation;
+- the synthetic placeholder guard;
+- Shell `/model` handling;
+- fast-mode handling;
+- desired/effective timestamps;
+- provider model aliases and concrete model IDs; and
+- capability-gated effort values.
+
+Plan a one-time migration from
+`~/.cloudcli/provider-session-active-model-changes.json` only after backing up
+both that file and `~/.cloudcli/auth.db`. Migration must be idempotent and must
+not overwrite a newer database choice.
+
+### Token and context usage
+
+Adopt `provider-token-usage.service.ts` as the route/service boundary, not its
+Claude accounting algorithm.
+
+Provider adapters should supply usage through a capability or method rather
+than a central provider-name switch. Preserve all current Claude safeguards in
+all three paths:
+
+1. live extraction;
+2. the `/token-usage` endpoint; and
+3. history extraction.
+
+In particular:
+
+- skip synthetic zero-input rows;
+- skip sidechain rows where required;
+- prefer current SDK context data;
+- derive context ceilings and autocompact thresholds from the SDK/model
+  registry;
+- retain 200k/1M model distinctions;
+- keep Codex accounting separate; and
+- return explicit unknown/unavailable state instead of substituting 160,000 as
+  a universal truth.
+
+### Phase 3 tests
+
+- Picker choice survives browser/device reconnect.
+- Shell `/model` produces the correct effective model without corrupting the
+  desired model.
+- `default`, `<synthetic>`, and malformed model text never become send
+  arguments.
+- A newer explicit choice wins for the next send; a newer real transcript wins
+  for effective display.
+- Claude synthetic and sidechain rows do not inflate usage.
+- 200k and 1M context ceilings remain model-correct.
+- Codex usage and context continue to work through both SDK and App Server
+  transports.
+- Model sidecar migration is backed up, idempotent, and timestamp-aware.
+
+## Phase 4: Git and worktree integration
+
+Upstream's worktree backend is useful implementation material, but its product
+contract is not safe to expose unchanged.
+
+### Reuse
+
+Reuse or adapt:
+
+- `git worktree list --porcelain` parsing;
+- injected Git command runners;
+- repository/path membership validation;
+- source and target cleanliness checks;
+- merge-conflict abort and structured reporting;
+- compensation when project registration fails;
+- create/list/open/merge/remove service tests; and
+- separation between worktree routes and lower-level Git services.
+
+### Replace
+
+Replace upstream assumptions with the contract in the existing Git and Source
+Control specification:
+
+- group checkouts by `git rev-parse --git-common-dir`;
+- represent repository, checkout/worktree, branch, and remote separately;
+- preserve canonical full refs such as `refs/heads/feature`;
+- preserve remote identity such as `origin` versus `upstream`;
+- make source, target, and integration direction explicit;
+- detect detached HEAD and in-progress merge/rebase/cherry-pick state;
+- expose conflicts separately from ordinary modifications;
+- account for locked worktrees and active agent/runtime occupancy;
+- protect the checkout serving CLIde;
+- keep worktree removal separate from branch deletion;
+- refuse dirty, conflicted, active, locked, or unintegrated deletion by default;
+- default to keeping the branch;
+- never default to squash plus cleanup plus branch deletion; and
+- do not use `git branch -D` without proving the user explicitly authorized
+  loss of an unmerged branch.
+
+Use solid scrims such as `bg-black/50`; remove upstream
+`backdrop-blur-sm`.
+
+### Exposure gate
+
+The upstream Worktrees tab and mutating endpoints must not become reachable
+until the above identity and preflight contract is implemented and tested.
+
+The 1.37 integration may still complete with:
+
+- internal parser and service foundations merged;
+- tests adapted to CLIde's final data shape; and
+- the UI/routes unregistered or capability-disabled.
+
+Enabling the feature is a separate acceptance gate tied to
+`2026-07-26-git-source-control-workspace-ux.md`. Do not ship an unsafe
+intermediate UI merely to claim parity with upstream 1.37.
+
+### Other Git behavior
+
+Preserve CLIde's:
+
+- visible multiline commit-hook and server errors;
+- retained commit message after failure;
+- AI commit-message generation route;
+- provider/model-selectable ephemeral job design; and
+- self-hosting branch-switch protection.
+
+Port upstream's Git initialization, history loading, refresh feedback, tab
+scrolling, and confirmation-modal scrolling where they fit the final
+components.
+
+### Phase 4 tests
+
+- Canonical full-ref parsing and per-remote grouping.
+- Multiple worktrees share one repository identity.
+- Dirty, conflicted, locked, active, serving, and unintegrated removal
+  refusals.
+- Explicit fast-forward, merge-commit, and squash policies.
+- Conflict abort leaves source and target recoverable.
+- Cleanup and branch deletion require separate authorization.
+- Commitlint/hook stderr remains visible and the composer retains input.
+- Commit-message generation remains provider-neutral and ephemeral.
+- No modal uses backdrop filtering.
+
+## Phase 5: Sessions, attachments, deep links, Codex history, and skills
+
+### Deep links
+
+Adopt the authoritative provider session-detail route so a direct link can
+resolve a session omitted from a paginated project payload.
+
+Resolution must accept:
+
+- app session ID;
+- current provider session ID; and
+- CLIde provider-session aliases, including superseded rewind/fork IDs.
+
+Return the canonical app session ID and preserve `isStarred`. Any fetched
+session added to a list must still pass through
+`compareSessionsStarredFirst`.
+
+### General file attachments
+
+Generalize the composer and history model from image-only to file attachments,
+but retain provider capabilities:
+
+- JPEG, PNG, GIF, and WebP may use a provider's native image path when
+  supported;
+- SVG is a general file, not a Claude-native image;
+- non-image files use validated server paths and an explicit text/file
+  handoff;
+- symlink and path-boundary checks occur server-side;
+- attachments survive queued-send, history, reconnect, rewind, and optimistic
+  reconciliation; and
+- providers without a native attachment capability receive a clean supported
+  fallback or a visible rejection.
+
+Add `onDropRejected` or an equivalent explicit rejection path. Maximum size,
+count, and type failures must never look like a no-op.
+
+Do not assume upstream's increase to 10 MB is automatically correct for every
+provider. Define a client maximum that matches the backend and surface
+provider-specific limits before sending when known.
+
+Add a composer submission mutex/ref so a brand-new chat cannot create duplicate
+sessions through rapid repeated submission. Upstream's image-only
+reconciliation fix does not replace this guard.
+
+### Codex history
+
+Port upstream's broader history reconstruction for:
+
+- orchestration-wrapped `exec` calls;
+- wait/poll cells;
+- Bash command presentation;
+- subagent calls;
+- array-shaped tool output; and
+- hidden orchestration control tools.
+
+Merge it with, rather than replace:
+
+- App Server message normalization;
+- SDK 0.146 schema changes;
+- rewind/fork metadata;
+- live/final message deduplication;
+- context and usage events;
+- memory citations; and
+- CLIde's tool presentation components.
+
+### Skills
+
+Adopt:
+
+- `~/.codex/skills`;
+- symlinked skill directories;
+- repeated-load suppression; and
+- hiding full injected skill instructions from ordinary chat history.
+
+Keep `.agents/skills` and `.codex/skills/.system` behavior. Resolve roots
+through the provider skill capability instead of placing Codex-specific
+directories into shared UI code.
+
+### Phase 5 tests
+
+- Direct link to an unloaded app ID, provider ID, and superseded alias.
+- Starred deep-linked session remains starred and sorted correctly.
+- Native images, SVG, text/code files, oversize files, too many files, and
+  unsupported provider attachments.
+- Attachment history and reconnect round trips.
+- Rapid double-submit creates only one new app session.
+- Codex SDK and App Server history render the same wrapped command once.
+- Skill symlinks, user roots, deduplication, and hidden injected bodies.
+
+## Phase 6: Chat and UI refinements
+
+Port small UI changes manually into the final CLIde components.
+
+### User messages and tool failures
+
+- Render user Markdown with the same sanitization and link policy as assistant
+  content.
+- Add `remark-breaks` only if it is required by the chosen rendering path.
+- Disable single-dollar math while preserving fenced/block math.
+- Collapse non-Bash tool failures to a useful error summary.
+- Do not auto-expand failed Bash output merely because it failed.
+
+Do not replace `MessageComponent.tsx` wholesale. Preserve:
+
+- rewind/edit actions;
+- compact summaries;
+- system notices;
+- memory citations;
+- CLIde timestamps;
+- custom Bash/tool layouts;
+- live/final identity reconciliation; and
+- provider-neutral assistant presentation.
+
+### Export
+
+Treat upstream export as a starting point:
+
+- use the actual provider/assistant label rather than hardcoded "Claude";
+- include user, assistant, tool, attachment, and thinking data according to an
+  explicit export policy;
+- escape HTML;
+- make Markdown and HTML deterministic;
+- label browser print as Print/PDF rather than implying a native PDF renderer;
+  and
+- exclude hidden injected skill bodies and secrets.
+
+### Settings and QuickSettings
+
+Resolve all QuickSettings conflicts in favor of the merged Settings IA:
+
+- do not restore the edge panel;
+- keep tool-display and input preferences in the Chat settings screen;
+- keep theme/language in Appearance;
+- keep voice in Chat;
+- update upstream call sites to the settings registry; and
+- remove imports and state that exist only for the old panel.
+
+### Upstream recommendations
+
+Do not add the unofficial Claude Usage plugin recommendation. CLIde already
+provides native usage and credits surfaces; a second recommendation would be
+duplicative and could confuse source-of-truth behavior.
+
+### Phase 6 tests
+
+- Markdown lists, ordinary dollar amounts, block math, links, and code.
+- Failed Bash and non-Bash tools in desktop and mobile layouts.
+- Provider-neutral exports from Claude and Codex sessions.
+- No QuickSettings affordance, import, dead setting, or duplicate control.
+- Mobile rename and Git tabs on a real touch device.
+
+## Phase 7: Dependencies, build, and package metadata
+
+Review `package.json` and lockfile changes line by line.
+
+Expected additions may include:
+
+- `ignore`;
+- `remark-breaks`; and
+- `@types/cors`.
+
+CLIde must retain:
+
+- exact `@openai/codex-sdk` and bundled Codex version `0.146.0` or a separately
+  approved newer exact version;
+- Node 24 development/runtime pinning with Node 22 compatibility where already
+  required;
+- Husky and project-local hook portability;
+- lint and TypeScript cache behavior;
+- clean server emit behavior;
+- Playwright dependencies and scripts used by CLIde;
+- current client/server build separation; and
+- service/package naming.
+
+Do not adopt upstream's broad `npm test` command as the verification authority
+until it is proven to honor CLIde's server TypeScript configuration and path
+aliases. Focused server tests continue to use:
+
+```bash
+./node_modules/.bin/tsx --tsconfig server/tsconfig.json --test <matching *.test.ts files>
+```
+
+Update `server`/`bin` script paths only after the TypeScript entrypoint and
+compiled output locations are verified.
+
+Set the package/UI version to 1.37.0 only in the final coherent integration
+commit, after the built client, built server, and package metadata agree.
+
+## Database migration and rollback
+
+Upstream's session-model column makes this a data-affecting release.
+
+Before the first DB-backed test or isolated server start:
+
+1. stop using real user data for tests;
+2. create a timestamped backup of `~/.cloudcli/auth.db`;
+3. back up the active-model sidecar if it exists;
+4. record the source schema version;
+5. run migrations against a disposable database first; and
+6. verify downgrade/rollback behavior before touching the real database.
+
+Migration requirements:
+
+- additive and idempotent;
+- no rewrite of `session_id` or `provider_session_id`;
+- no loss of aliases, stars, archives, custom names, project paths, or
+  timestamps;
+- desired-model semantics documented in schema and repository types;
+- sidecar migration chooses the newest timestamp and can be safely rerun; and
+- failure leaves the original DB and sidecar recoverable.
+
+Live-session test cleanup order remains:
+
+1. remove test transcript/filesystem data;
+2. allow or stop the watcher as appropriate; and
+3. remove test database rows last so the watcher cannot rediscover them.
+
+## Verification matrix
+
+### Static and focused automated verification
+
+Run the narrowest relevant checks throughout, then the complete integration
+gate:
+
+```bash
+npm run typecheck
+npm run lint
+npm run build:client
+npm run build:server
+```
+
+Focused server suites must cover at least:
+
+- auth service and token refresh;
+- provider runtime registry;
+- provider model resolution and migration;
+- provider token/context usage;
+- Chat and Shell WebSocket ownership/liveness;
+- session detail/deep-link aliases;
+- attachment filtering/history;
+- Codex history and identity;
+- skills discovery;
+- Git commit errors; and
+- worktree parsing and safety services.
+
+Do not treat a truncated build line such as `transforming...` as a build
+failure. Check the exit code and artifacts.
+
+### Isolated live verification
+
+Use the available branch-test service or another explicitly approved isolated
+instance. Do not take over port 3001 or an occupied 3002 instance.
+
+Verify:
+
+1. new and resumed Claude chats;
+2. new and resumed Codex chats over the configured transport;
+3. Cursor and OpenCode capability/no-op behavior where installed;
+4. picker changes, Shell `/model`, fast mode, and browser refresh;
+5. context ring/usage values for a normal and large-context model;
+6. abort before and after provider-session creation;
+7. background/wake WebSocket recovery;
+8. application token refresh without transient logout;
+9. rewind/fork and superseded deep links;
+10. native image, SVG, and general file attachment behavior;
+11. Git hook failure visibility and commit-message generation;
+12. Settings search/navigation with no QuickSettings regression; and
+13. worktree feature absence or fully compliant gated behavior.
+
+For PWA safe-area, touch, and long-press behavior, the final check must use the
+installed app on a real device. The Vite page is not sufficient.
+
+### Source, build, and service truth
+
+Report these separately:
+
+- integration source commit;
+- installed dependencies;
+- client build timestamp/artifact;
+- server build timestamp/artifact;
+- isolated service process and port;
+- production service state; and
+- bundled child App Server/CLI version.
+
+A passing source build does not mean production is updated. A production
+service still running the old build is not a failed integration.
+
+## Commit structure
+
+Git records resolution of an ancestry-preserving merge as one merge commit.
+Do not try to manufacture a stack of ordinary commits while the repository is
+in an unresolved merge state.
+
+Keep the merge reviewable by tracking conflict resolution in this conceptual
+order:
+
+1. upstream ancestry and structural module moves;
+2. runtime identity/auth/WebSocket adaptation;
+3. model and usage persistence;
+4. session, attachment, Codex, and skill adaptations;
+5. Git/worktree foundations and safety gating;
+6. client UI refinements and Settings conflict resolution; and
+7. dependency, build, migration, and documentation updates.
+
+Run the narrow tests for each area as it becomes coherent, but record the
+completed resolution with one merge commit. Its message must summarize the
+semantic decisions rather than say only "resolve conflicts."
+
+Optional improvements that are not required to make the merged v1.37.0 tree
+correct may follow as separate commits on the same topic branch. Each such
+commit must be self-contained and tested. The complete gate runs before
+Grayson's live verification.
+
+## Rollback
+
+Before live testing, retain:
+
+- the pre-integration topic-base commit;
+- the database and sidecar backups;
+- the last known-good client/server build;
+- the existing production service configuration; and
+- the isolated test service's prior state.
+
+Rollback means:
+
+1. stop only the isolated integration instance;
+2. restore its disposable data or backed-up DB as appropriate;
+3. return the test service to its prior branch/build if it was explicitly
+   borrowed;
+4. leave production untouched; and
+5. keep the integration branch for diagnosis rather than deleting evidence.
+
+Never use `git reset --hard` against the main checkout or another user's dirty
+worktree.
+
+## Completion criteria
+
+The work is complete only when all of the following are true:
+
+- v1.37.0 ancestry is present in the topic branch;
+- all direct conflicts have documented semantic resolutions;
+- the server runs from the new module/TypeScript architecture;
+- all four providers retain correct capability boundaries;
+- stable app and provider session IDs remain distinct;
+- abort, reconnect, rewind, and fork behavior pass focused tests;
+- desired and effective models remain distinguishable;
+- token/context usage preserves CLIde's three guarded paths;
+- commit errors and AI commit-message generation remain functional;
+- QuickSettings is not resurrected;
+- unsafe upstream worktree behavior is either replaced or inaccessible;
+- attachments and deep links pass round-trip tests;
+- Codex remains on the approved SDK/App Server version and transport;
+- typecheck, lint, client build, server build, and focused tests pass;
+- a live isolated build has been personally verified by Grayson;
+- production has not been restarted without explicit approval;
+- `TODO.md` is updated with the verified outcome and commit;
+- completed work is recorded in `docs/todo-done.md`; and
+- only then is the topic branch merged and, with explicit approval, pushed.
+
+## ADR follow-up
+
+No ADR is required merely to perform this one release integration.
+
+Ask whether to add or supersede an ADR if implementation establishes either of
+these as a lasting contract:
+
+- the database schema/API distinction between desired and effective session
+  models; or
+- an ongoing policy that major squashed upstream releases are integrated with
+  ancestry-preserving merge commits rather than rebasing CLIde's full history.
+
+Do not rewrite ADR 0003 or ADR 0016 in place.

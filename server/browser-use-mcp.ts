@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 import './load-env.js';
 
+import {
+  browserJsonResponse,
+  browserScreenshotResponse,
+  browserSnapshotResponse,
+} from './modules/browser-use/browser-use-mcp-content.js';
+
 type JsonRpcRequest = {
   jsonrpc: '2.0';
   id?: string | number | null;
@@ -13,12 +19,6 @@ type ToolDefinition = {
   description: string;
   inputSchema: Record<string, unknown>;
 };
-
-const textResponse = (text: string) => ({
-  content: [{ type: 'text', text }],
-});
-
-const jsonResponse = (value: unknown) => textResponse(JSON.stringify(value, null, 2));
 
 const readString = (value: unknown, name: string): string => {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -84,12 +84,12 @@ const tools: ToolDefinition[] = [
   },
   {
     name: 'browser_snapshot',
-    description: 'Capture current page metadata, screenshot data URL, and visible body text for a Browser session.',
+    description: 'Capture current page metadata and up to 12,000 characters of visible body text for a Browser session.',
     inputSchema: sessionIdSchema,
   },
   {
     name: 'browser_take_screenshot',
-    description: 'Capture the latest screenshot for a Browser session.',
+    description: 'Capture the latest screenshot for a Browser session as MCP image content.',
     inputSchema: sessionIdSchema,
   },
   {
@@ -218,23 +218,27 @@ const tools: ToolDefinition[] = [
 async function callTool(name: string, args: Record<string, unknown>) {
   switch (name) {
     case 'browser_create_session':
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         profileName: readOptionalString(args.profileName),
       }));
     case 'browser_list_sessions':
-      return jsonResponse(await callBrowserUseApi(name, {}));
+      return browserJsonResponse(await callBrowserUseApi(name, {}));
     case 'browser_snapshot':
-      return jsonResponse(await callBrowserUseApi(name, { sessionId: readString(args.sessionId, 'sessionId') }));
+      return browserSnapshotResponse(
+        await callBrowserUseApi(name, { sessionId: readString(args.sessionId, 'sessionId') }),
+      );
     case 'browser_take_screenshot': {
-      return jsonResponse(await callBrowserUseApi(name, { sessionId: readString(args.sessionId, 'sessionId') }));
+      return browserScreenshotResponse(
+        await callBrowserUseApi(name, { sessionId: readString(args.sessionId, 'sessionId') }),
+      );
     }
     case 'browser_navigate':
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         sessionId: readString(args.sessionId, 'sessionId'),
         url: readString(args.url, 'url'),
       }));
     case 'browser_click':
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         sessionId: readString(args.sessionId, 'sessionId'),
         selector: readOptionalString(args.selector),
         text: readOptionalString(args.text),
@@ -242,7 +246,7 @@ async function callTool(name: string, args: Record<string, unknown>) {
         y: readNumber(args.y),
       }));
     case 'browser_type':
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         sessionId: readString(args.sessionId, 'sessionId'),
         selector: readOptionalString(args.selector),
         text: readString(args.text, 'text'),
@@ -258,31 +262,31 @@ async function callTool(name: string, args: Record<string, unknown>) {
           };
         })
         : [];
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         sessionId: readString(args.sessionId, 'sessionId'),
         fields,
       }));
     }
     case 'browser_press_key':
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         sessionId: readString(args.sessionId, 'sessionId'),
         key: readString(args.key, 'key'),
       }));
     case 'browser_select_option':
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         sessionId: readString(args.sessionId, 'sessionId'),
         selector: readString(args.selector, 'selector'),
         values: Array.isArray(args.values) ? args.values.filter((value): value is string => typeof value === 'string') : [],
       }));
     case 'browser_wait_for':
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         sessionId: readString(args.sessionId, 'sessionId'),
         text: readOptionalString(args.text),
         url: readOptionalString(args.url),
         timeoutMs: readNumber(args.timeoutMs),
       }));
     case 'browser_tabs':
-      return jsonResponse(await callBrowserUseApi(name, {
+      return browserJsonResponse(await callBrowserUseApi(name, {
         sessionId: readString(args.sessionId, 'sessionId'),
         action: args.action === 'new' || args.action === 'select' || args.action === 'close' || args.action === 'list'
           ? args.action
@@ -291,7 +295,9 @@ async function callTool(name: string, args: Record<string, unknown>) {
         url: readOptionalString(args.url),
       }));
     case 'browser_close_session':
-      return jsonResponse(await callBrowserUseApi(name, { sessionId: readString(args.sessionId, 'sessionId') }));
+      return browserJsonResponse(
+        await callBrowserUseApi(name, { sessionId: readString(args.sessionId, 'sessionId') }),
+      );
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
