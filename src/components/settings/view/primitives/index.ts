@@ -5,6 +5,7 @@ export { default as SettingsNavRow } from './SettingsNavRow';
 export { default as SettingsSelect } from './SettingsSelect';
 export type { SettingsSelectOption } from './SettingsSelect';
 export { default as SettingsTextField } from './SettingsTextField';
+export { default as SettingsSearchField } from './SettingsSearchField';
 export { default as SettingsSegmentedControl } from './SettingsSegmentedControl';
 export type { SegmentedOption } from './SettingsSegmentedControl';
 export { default as SettingsStatus } from './SettingsStatus';

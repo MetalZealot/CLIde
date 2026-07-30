@@ -125,7 +125,10 @@ const AGENT_SCREENS: SettingsScreenNode[] = AGENT_PROVIDERS.flatMap((provider) =
     labelKey: `agents.providers.${provider.id}`,
     icon: provider.icon,
     group: 'agents' as const,
-    keywords: `${provider.id} agent provider account sign in login permissions mcp skills`,
+    // Deliberately *not* listing the subsystems here: each subsystem is its own
+    // screen with its own keywords, so repeating them would make "claude
+    // permissions" match both the account screen and the Permissions screen.
+    keywords: `${provider.id} agent provider account sign in login usage plan`,
   },
   ...provider.subsystems.map((subsystem) => ({
     kind: 'screen' as const,

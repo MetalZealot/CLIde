@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../utils/api';
@@ -32,6 +33,7 @@ async function readJson<T>(response: Response): Promise<T> {
  * logic is unchanged, only the chrome moves to the shared primitives.
  */
 export default function ExtensionsBrowserScreen() {
+  const { t } = useTranslation('settings');
   const [settings, setSettings] = useState<BrowserUseSettings | null>(null);
   const [status, setStatus] = useState<BrowserUseStatus | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
@@ -58,13 +60,16 @@ export default function ExtensionsBrowserScreen() {
     setIsStatusLoading(true);
 
     void loadSettings()
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load Browser settings'))
+      .catch((err) => setError(err instanceof Error ? err.message : t('browserSettings.errors.loadSettings')))
       .finally(() => setIsSettingsLoading(false));
 
     void loadStatus()
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load Browser status'))
+      .catch((err) => setError(err instanceof Error ? err.message : t('browserSettings.errors.loadStatus')))
       .finally(() => setIsStatusLoading(false));
-  }, [loadSettings, loadStatus]);
+    // `t` is a dependency because the fallback messages are translated; a
+    // language switch re-runs two cheap GETs, which is the honest trade against
+    // holding a message key in state purely to keep it out of this array.
+  }, [loadSettings, loadStatus, t]);
 
   const updateSettings = async (nextSettings: Partial<BrowserUseSettings>) => {
     setIsSaving(true);
@@ -80,7 +85,7 @@ export default function ExtensionsBrowserScreen() {
       setIsStatusLoading(true);
       await loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save Browser settings');
+      setError(err instanceof Error ? err.message : t('browserSettings.errors.saveSettings'));
     } finally {
       setIsStatusLoading(false);
       setIsSaving(false);
@@ -96,7 +101,7 @@ export default function ExtensionsBrowserScreen() {
       setIsStatusLoading(true);
       await loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to install browser runtime');
+      setError(err instanceof Error ? err.message : t('browserSettings.errors.installRuntime'));
     } finally {
       setIsStatusLoading(false);
       setIsInstalling(false);
@@ -107,17 +112,23 @@ export default function ExtensionsBrowserScreen() {
   const needsBrowserBinaries = Boolean(browserEnabled && status && (!status.playwrightInstalled || !status.chromiumInstalled));
   const runtimeLabel = (installed?: boolean) => {
     if (isStatusLoading && !status) {
-      return 'checking...';
+      return t('browserSettings.runtime.checking');
     }
-    return installed ? 'installed' : 'missing';
+    return t(installed ? 'browserSettings.runtime.installed' : 'browserSettings.runtime.missing');
+  };
+
+  const statusLabel = () => {
+    if (isStatusLoading && !status) return t('browserSettings.runtime.checking');
+    if (status?.available) return t('browserSettings.runtime.ready');
+    return t(browserEnabled ? 'browserSettings.runtime.setupRequired' : 'browserSettings.runtime.disabled');
   };
 
   return (
-    <SettingsScreen description="Allow agents to create guarded Playwright browser sessions that you can monitor from the Browser tab.">
+    <SettingsScreen description={t('browserSettings.description')}>
       <SettingsGroup divided>
         <SettingsRow
-          label="Enable Browser"
-          description="Registers Browser for supported agents. Agents can create browser sessions; you can watch, stop, and delete them."
+          label={t('browserSettings.enable.label')}
+          description={t('browserSettings.enable.description')}
         >
           {isSettingsLoading && !settings ? (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -125,7 +136,7 @@ export default function ExtensionsBrowserScreen() {
             <SettingsToggle
               checked={browserEnabled}
               onChange={(value) => void updateSettings({ enabled: value })}
-              ariaLabel="Enable Browser"
+              ariaLabel={t('browserSettings.enable.label')}
               disabled={isSaving}
             />
           )}
@@ -134,22 +145,24 @@ export default function ExtensionsBrowserScreen() {
         <div className="space-y-4 px-4 py-4">
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span className="rounded-md border border-border px-2 py-1">
-              Playwright: {runtimeLabel(status?.playwrightInstalled)}
+              {t('browserSettings.runtime.playwright', { state: runtimeLabel(status?.playwrightInstalled) })}
             </span>
             <span className="rounded-md border border-border px-2 py-1">
-              Chromium: {runtimeLabel(status?.chromiumInstalled)}
+              {t('browserSettings.runtime.chromium', { state: runtimeLabel(status?.chromiumInstalled) })}
             </span>
             <span className="rounded-md border border-border px-2 py-1">
-              Status: {isStatusLoading && !status ? 'checking...' : status?.available ? 'ready' : browserEnabled ? 'setup required' : 'disabled'}
+              {t('browserSettings.runtime.status', { state: statusLabel() })}
             </span>
           </div>
 
           {needsBrowserBinaries && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 space-y-1">
-                <div className="text-sm font-medium text-foreground">Browser runtime required</div>
+                <div className="text-sm font-medium text-foreground">
+                  {t('browserSettings.runtime.requiredTitle')}
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  {status?.message || 'Install the browser runtime before agents can create Browser sessions.'}
+                  {status?.message || t('browserSettings.runtime.requiredDescription')}
                 </p>
               </div>
 
@@ -165,7 +178,9 @@ export default function ExtensionsBrowserScreen() {
                 ) : (
                   <Download className="h-4 w-4" />
                 )}
-                {isInstalling || status?.installInProgress ? 'Installing...' : 'Install Runtime'}
+                {t(isInstalling || status?.installInProgress
+                  ? 'browserSettings.runtime.installing'
+                  : 'browserSettings.runtime.install')}
               </Button>
             </div>
           )}

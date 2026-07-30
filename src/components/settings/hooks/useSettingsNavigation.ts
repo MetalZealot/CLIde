@@ -136,6 +136,27 @@ export function useSettingsNavigation({
     dispatch({ type: 'open', id });
   }, []);
 
+  /**
+   * Jump straight to a screen at any depth, expanding its ancestors — what a
+   * search result needs, since `push` deliberately only accepts a child of the
+   * current screen.
+   *
+   * Search is only offered at the root list, so this is reached with no entries
+   * owned and seeds the whole path exactly as opening on a deep link does. It
+   * does not unwind, because there is never anything to unwind from the root.
+   */
+  const jumpTo = useCallback((id: string) => {
+    const next = settingsNavReducer(state, { type: 'open', id });
+    if (next.stack.length === 0) return;
+
+    dispatch({ type: 'open', id });
+
+    if (!usesHistory) return;
+    for (let depth = ownedEntriesRef.current + 1; depth <= next.stack.length; depth += 1) {
+      pushHistoryEntry(depth);
+    }
+  }, [pushHistoryEntry, state, usesHistory]);
+
   const goBack = useCallback(() => {
     if (isAtRoot(state)) return;
 
@@ -167,7 +188,8 @@ export function useSettingsNavigation({
     atRoot: isAtRoot(state),
     push,
     select,
+    jumpTo,
     goBack,
     close,
-  }), [close, goBack, push, select, state]);
+  }), [close, goBack, jumpTo, push, select, state]);
 }

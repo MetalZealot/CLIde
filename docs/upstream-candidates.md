@@ -158,3 +158,24 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   so the `auth` subcommand family is accepted there. Caveat for the PR: needs a CLI new
   enough to have `claude auth` (2.1.x). **Pending live verification on the fork.**
 
+
+- [x] ~~**Settings information-architecture restructure**~~ (`19d078a`…P6, branch
+  `feat/settings-ia`) — **deliberately fork-only; not a PR candidate.** Recorded here
+  because it is the largest divergence this fork has taken in an upstream-heavy subtree,
+  and a future rebase will meet it as conflicts rather than as a feature. What changed:
+  the ten-tab pill bar became a registry-driven drill-down (root list → screen →
+  sub-screen, max depth 2, desktop rail + detail), `src/components/settings/view/tabs/`
+  is gone in favour of `view/screens/` + `view/primitives/`, the QuickSettings edge panel
+  was deleted outright ([ADR 0019](decisions/0019-quicksettings-removal.md)), and
+  providers were promoted to root. Rebase guidance: upstream changes to a *tab* file
+  usually have to be re-sited by hand into the matching screen; upstream changes to
+  `src/components/mcp/`, `src/components/plugins/` and the `api-settings/sections/` are
+  still ported nearly verbatim, since those were re-parented rather than rewritten. The
+  design record is `docs/superpowers/specs/2026-07-28-settings-information-architecture.md`
+  plus ADRs 0018–0021. Upstream check 2026-07-29: nothing proposes an IA change of this
+  size — `gh issue list --search "settings redesign"` returned nothing, `"settings tabs"`
+  returned only **#508** (a multi-tab right-side *panel*, unrelated), and
+  `gh pr list --search "settings redesign" --state all` returned only per-feature
+  redesigns inside the existing tabs (**#942** skills/MCP action controls, **#939** design
+  tweaks, both merged). PRing this would mean maintaining a second, upstream-shaped
+  variant of every screen.

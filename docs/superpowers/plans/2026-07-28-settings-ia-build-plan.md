@@ -49,7 +49,7 @@ is one module deep.
 | 3 | **Provider status copy**: status dot + "Signed in" / "Signed out". Spec open question 1 hedged on the Claude Layer-2 logout ambiguity; that was resolved in `1e13431`, so the constraint is gone. | Decided in P4 |
 | 4 | ~~**Plugins gets an explicit carve-out** from rule 1~~ — **no carve-out needed.** The premise was wrong: `PluginTabContent.tsx`'s `h-full w-full overflow-auto` mounts in `MainContent`'s plugin tab, not in Settings. The Settings Plugins screen never rendered it, and the ported screen opens no scroller of its own (asserted in the browser: exactly one scroller on all four P3c screens, desktop and mobile). Rule 1 stands unqualified — [ADR 0020](../../decisions/0020-no-plugin-exception-to-one-scroll-container.md). | Decided in P3c |
 | 5 | **No component-test infrastructure** (Vitest/jsdom). jsdom has no layout engine, so it would catch none of the scroll/safe-area/gesture bugs that motivated this work. Pure-logic modules get `node:test` tests instead — same runner as `server/`'s 40 test files. Playwright-based layout testing revisited separately, after this lands. | Decided |
-| 6 | **This restructure is fork-only** and not an upstream candidate; it is a large, deliberate divergence in an upstream-heavy subtree. Note it in `docs/upstream-candidates.md` so future rebases have context. | Do in P6 |
+| 6 | **This restructure is fork-only** and not an upstream candidate; it is a large, deliberate divergence in an upstream-heavy subtree. Note it in `docs/upstream-candidates.md` so future rebases have context. | Done in P6 |
 
 ## Packets
 
@@ -63,7 +63,7 @@ is one module deep.
 | P3b | Projects & Git + Credentials screens | P2 | M | ✅ done |
 | P3c | Extensions (Plugins / Browser / Tasks) + About | P2 | M | ✅ done |
 | P4 | Agents restructure + PWA verification | P2 | L | ✅ code done; PWA pass outstanding |
-| P6 | Search + cleanup sweep | P2, all screens | M | ☐ |
+| P6 | Search + cleanup sweep | P2, all screens | M | ✅ code done; PWA pass outstanding |
 
 Two deliberate deviations from the spec's phase numbering:
 
@@ -438,11 +438,99 @@ considered and set aside as one merge's worth of setup for one verification.
 **So P6 now owns the PWA pass**: budget it, and check both P4 acceptance criteria
 and P6's own.
 
-### P6 — search and sweep
+### P6 — search and sweep ✅ (code) / PWA pass outstanding
 
-Search field over screen labels, registry keywords, and per-screen setting
-labels. Then the dead-i18n-key sweep held back by rule 5, and the
-`docs/upstream-candidates.md` note from decision 6.
+**Search.** A field at the top of the mobile root list and the desktop rail,
+filtering to a flat result list; clearing it restores the grouped list. Two new
+pure modules beside the registry: `registry/search.ts` (the matcher) and
+`registry/searchIndex.ts` (the per-screen setting labels), both React-free and
+tested with `node:test` against the real `en` bundle — 16 new cases, 49 registry
+tests total.
+
+Four decisions inside it worth knowing:
+
+1. **The setting index is data, not registration.** The IA spec describes each
+   screen "registering" its setting labels. It cannot: only one screen is mounted
+   at a time, so a mounted screen can only advertise settings the user has
+   already navigated to. `searchIndex.ts` therefore declares them beside the
+   registry. The cost is drift — a screen can gain a row without gaining an entry
+   — so tests assert every entry points at a real screen *and* a real `en` key,
+   which catches rot but cannot catch an omission. Entries are labels worth
+   searching for, not an inventory; a missing one degrades search rather than
+   breaking a screen. See [ADR 0022](../../decisions/0022-settings-search-index-is-data.md).
+2. **Results are destinations, never settings.** A screen appears at most once
+   however many of its rows match, because navigating is what a result is for.
+   When the hit came from a row rather than the screen's own name, the row's
+   label is carried along as the reason — `describeSearchResult` renders
+   "Appearance › Show Minimap" — and a row only counts as a reason if its *own*
+   text contributed a token. Without that last guard, "claude permissions" listed
+   all three permission rows, since the screen's own words are in every row's
+   haystack.
+3. **Ranking is four tiers** (label prefix → label substring → ancestors +
+   registry keywords → row labels), ties broken by registry order so the list
+   does not reshuffle as the user types. Ancestor labels are in the keyword-tier
+   haystack, which is what makes "claude permissions" resolve a sub-screen whose
+   own label is just "Permissions".
+4. **`useSettingsNavigation` gained `jumpTo`.** `push` deliberately only accepts
+   a child of the current screen, so a depth-2 result needed a path-seeding entry
+   point; it pushes one history entry per level exactly as a deep link does.
+   Search is only offered at the root list, so it never has to unwind.
+
+One registry edit was needed: the provider screens' keywords no longer list
+`permissions mcp skills`. Those are their own screens now, and repeating the
+words made every provider account screen match "mcp".
+
+**The dead-i18n-key sweep, scoped to what this restructure orphaned.** 33 keys
+removed from `en/settings.json`: `quickSettings`' panel chrome (P5), the five
+`mainTabs` ids whose tabs were merged or replaced, `appearanceSettings.darkMode`
+and the unused `theme.label`, `notifications.title`/`sound.enabled`,
+`voiceSettings.description`, `git.actions.*`, the five orphaned
+`agents.authStatus` states, `tabs.account`, and the three `*.title` headings that
+P3c/P4 dropped as duplicates of the screen header. Each was verified live at the
+pre-restructure merge base and dead now.
+
+Two deliberate limits on the sweep. First, **`en` only** — the other nine locales
+are upstream-maintained files, so deleting inert keys from them buys nothing and
+adds nine files of rebase conflict; a key absent from `en` is simply never
+looked up. Second, **keys that were already dead before this work were left
+alone** (`mcp.*`, `appearance.*`, `actions.*`, `mcpForm.scope.*`,
+`mcpServers.tools.*`, `terminalShortcuts.*`, `pluginSettings.*.badge`,
+`apiKeys.documentation.*`, ~70 in total). They are upstream's cruft, they belong
+to components this fork still carries, and sweeping them is an upstream-facing
+cleanup with rebase cost and no benefit here.
+
+**The i18n gap P3c left.** Browser and About no longer hold hardcoded English:
+new `browserSettings.*` and `about.*` `en` blocks cover the runtime status chips,
+the install flow's four error messages, and About's tagline, links, hosted CTA,
+Pro placeholders and license line. The Browser screen's load effect now takes `t`
+as a dependency, which costs two cheap GETs on a language switch — noted in a
+comment as the honest trade against holding message keys in state.
+
+**Dead code deleted.** `AppearanceSettingsTab.tsx` (dead since P2) and with it
+the last consumers of `SettingsSection.tsx` and `SettingsCard.tsx`, all three
+gone. Also `SettingsMainTab`, `SaveStatus`, `SettingsStoragePayload` and
+`SetState` from `types/types.ts`: the first was the stale ten-id union typing
+`onShowSettings`, whose two consumers now take `string` like `initialTab` does,
+and the other three had no references at all.
+
+Verified with the throwaway harness (recreated, then deleted) driven by a
+Playwright script: 33 assertions across mobile and desktop covering the field's
+presence, "minimap" resolving to Code Editor with its reason, a depth-2 result
+seeding both history entries and unwinding one at a time, the query clearing on
+selection, Escape clearing it, the empty-result copy, the grouped list and rail
+returning afterwards, still one content scroll container on the restructured root
+list, and the Browser/About screens rendering their new keys with no unresolved
+key anywhere on screen. `npm run typecheck` and `npm run lint` clean (0 errors;
+232 warnings, down from the 236 baseline because three files are gone), 49
+registry tests pass.
+
+**Still outstanding — the PWA verification pass**, which this packet owns per
+P4's note. It needs the installed PWA against 3001, which serves the *main
+checkout's* `dist/`, so it runs after `feat/settings-ia` merges to `main`.
+Acceptance criteria to check there: safe-area padding at the bottom of every
+screen, the Android back gesture popping rather than closing, and P4's two open
+TODO bugs (Agents scrolling, the clipped Connection Status panel), which stay
+open in `TODO.md` until it runs.
 
 ## Verification reference
 

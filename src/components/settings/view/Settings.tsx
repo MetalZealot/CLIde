@@ -6,6 +6,7 @@ import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
 import { getScreen, parseAgentScreenId } from '../registry/registry';
+import { searchSettings } from '../registry/search';
 import { useWebPush } from '../../../hooks/useWebPush';
 import type { SettingsProps } from '../types/types';
 
@@ -52,6 +53,35 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
     mode: isMobile ? 'stack' : 'panes',
     onClose,
   });
+
+  // Search lives here rather than in the two shells so both read one query, and
+  // so it survives the rail's re-render on selection.
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchResults = useMemo(
+    () => searchSettings(searchQuery, (key: string) => t(key)),
+    [searchQuery, t],
+  );
+
+  useEffect(() => {
+    if (!isOpen) setSearchQuery('');
+  }, [isOpen]);
+
+  /**
+   * Choosing a destination clears the query on both surfaces: on mobile the back
+   * gesture should return to the whole list, and on desktop the rail then shows
+   * the selection in context instead of a stale result list.
+   *
+   * `jump` is for search results, which may sit at depth 2 — `push` only accepts
+   * a child of the current screen, by design.
+   */
+  const openFromSearch = (screenId: string, jump: boolean) => {
+    setSearchQuery('');
+    if (jump) {
+      nav.jumpTo(screenId);
+    } else {
+      nav.select(screenId);
+    }
+  };
 
   // Drives the push/pop slide direction; depth is the only thing that decides it.
   const previousDepthRef = useRef(nav.depth);
@@ -293,13 +323,23 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
           {!isMobile && (
             <SettingsRail
               stack={nav.stack}
-              onSelect={nav.select}
+              onSelect={(screenId) => openFromSearch(screenId, false)}
               providerAuthStatus={providerAuthStatus}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              searchResults={searchResults}
             />
           )}
 
           {showRootList ? (
-            <SettingsRootList onSelect={nav.push} providerAuthStatus={providerAuthStatus} />
+            <SettingsRootList
+              onSelect={nav.push}
+              onSelectResult={(screenId) => openFromSearch(screenId, true)}
+              providerAuthStatus={providerAuthStatus}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              searchResults={searchResults}
+            />
           ) : (
             <div
               key={nav.screenId ?? 'root'}

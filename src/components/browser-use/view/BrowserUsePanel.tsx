@@ -17,7 +17,6 @@ import {
 import { cn } from '../../../lib/utils';
 import { Badge, Button } from '../../../shared/view/ui';
 import { authenticatedFetch } from '../../../utils/api';
-import type { SettingsMainTab } from '../../settings/types/types';
 
 type BrowserUseStatus = {
   enabled: boolean;
@@ -54,7 +53,7 @@ type BrowserUseSession = {
 
 type BrowserUsePanelProps = {
   isVisible: boolean;
-  onShowSettings?: (tab?: SettingsMainTab) => void;
+  onShowSettings?: (tab?: string) => void;
 };
 
 async function readJson<T>(response: Response): Promise<T> {

@@ -1,12 +1,8 @@
-import type { Dispatch, SetStateAction } from 'react';
-
 import type { LLMProvider } from '../../../types/app';
 import type { ProviderAuthStatus } from '../../provider-auth/types';
 
-export type SettingsMainTab = 'agents' | 'appearance' | 'git' | 'api' | 'voice' | 'tasks' | 'browser' | 'notifications' | 'plugins' | 'about';
 export type AgentProvider = LLMProvider;
 export type ProjectSortOrder = 'name' | 'date';
-export type SaveStatus = 'success' | 'error' | null;
 export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 
 export type SettingsProject = {
@@ -51,17 +47,9 @@ export type CodeEditorSettingsState = {
   fontSize: string;
 };
 
-export type SettingsStoragePayload = {
-  claude: ClaudePermissionsState & { projectSortOrder: ProjectSortOrder; lastUpdated: string };
-  cursor: CursorPermissionsState & { lastUpdated: string };
-  codex: { permissionMode: CodexPermissionMode; lastUpdated: string };
-};
-
 export type SettingsProps = {
   isOpen: boolean;
   onClose: () => void;
   projects?: SettingsProject[];
   initialTab?: string;
 };
-
-export type SetState<T> = Dispatch<SetStateAction<T>>;
