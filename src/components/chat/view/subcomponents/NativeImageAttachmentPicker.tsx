@@ -1,11 +1,7 @@
-import type { ChangeEvent, InputHTMLAttributes, KeyboardEvent, PointerEvent } from 'react';
+import type { InputHTMLAttributes } from 'react';
 import { ImageIcon } from 'lucide-react';
 
 import { buttonVariants, Tooltip } from '../../../../shared/view/ui';
-import {
-  beginFilePickerDiagnostic,
-  finishFilePickerDiagnostic,
-} from '../../../../utils/lifecycleDiagnostics';
 
 type NativeImageAttachmentPickerProps = {
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
@@ -36,25 +32,6 @@ export default function NativeImageAttachmentPicker({
       cursor: 'pointer',
     },
     tabIndex: 0,
-    onPointerDown: (_event: PointerEvent<HTMLInputElement>) => {
-      beginFilePickerDiagnostic('pointer');
-    },
-    onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        beginFilePickerDiagnostic('keyboard');
-      }
-    },
-    onChange: (event: ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(event.currentTarget.files ?? []);
-      finishFilePickerDiagnostic('change', {
-        fileCount: files.length,
-        types: files.map((file) => file.type || 'unknown').join(','),
-        totalBytes: files.reduce((total, file) => total + file.size, 0),
-      });
-    },
-    onCancel: () => {
-      finishFilePickerDiagnostic('cancel');
-    },
   }) as InputHTMLAttributes<HTMLInputElement>;
 
   return (
