@@ -178,7 +178,6 @@ function ChatInterface({
     getRootProps,
     getInputProps,
     isDragActive,
-    openImagePicker,
     handleSubmit,
     queuedDraft,
     editQueuedDraft,
@@ -513,7 +512,6 @@ function ChatInterface({
           frequentCommands={commandQuery ? [] : frequentCommands}
           getRootProps={getRootProps as (...args: unknown[]) => Record<string, unknown>}
           getInputProps={getInputProps as (...args: unknown[]) => Record<string, unknown>}
-          openImagePicker={openImagePicker}
           inputHighlightRef={inputHighlightRef}
           renderInputWithMentions={renderInputWithMentions}
           textareaRef={textareaRef}
