@@ -552,6 +552,12 @@ export function useSessionStore() {
     sessionId: string,
     opts: {
       limit?: number;
+      /**
+       * Runs after the slot contains the prepended page but before subscribers
+       * are notified. The chat pane uses this to arm its scroll restoration in
+       * the same React commit that first renders the older rows.
+       */
+      onBeforeNotify?: (slot: SessionSlot) => void;
     } = {},
   ) => {
     const slot = getSlot(sessionId);
@@ -585,6 +591,9 @@ export function useSessionStore() {
       slot.hasMore = Boolean(data.hasMore);
       slot.offset = slot.offset + olderMessages.length;
       recomputeMergedIfNeeded(slot);
+      if (olderMessages.length > 0) {
+        opts.onBeforeNotify?.(slot);
+      }
       notify(sessionId);
       return slot;
     } catch (error) {

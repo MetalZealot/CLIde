@@ -381,10 +381,30 @@ export function useChatSessionState({
       const previousSlot = sessionStore.getSlot(selectedSession.id);
       const previousOffset = previousSlot.offset;
       const previousServerMessageCount = previousSlot.serverMessages.length;
+      let restoreWasArmed = false;
 
       try {
         const slot = await sessionStore.fetchMore(selectedSession.id, {
           limit: MESSAGES_PER_PAGE,
+          onBeforeNotify: (updatedSlot) => {
+            const madeProgress =
+              updatedSlot.offset > previousOffset
+              || updatedSlot.serverMessages.length > previousServerMessageCount;
+            if (!madeProgress) return;
+
+            // The store notification and these local updates are automatically
+            // batched by React 18. Older DOM rows, the larger visible window,
+            // and the pending anchor therefore arrive in one commit, allowing
+            // the layout effect to restore position before the browser paints.
+            restoreWasArmed = true;
+            pendingScrollRestoreRef.current = scrollRestore;
+            capturedScrollRestoreRef.current = null;
+            setScrollRestoreTick((tick) => tick + 1);
+            setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+            if (!updatedSlot.hasMore) {
+              setAllMessagesLoaded(true);
+            }
+          },
         });
         if (!slot) return false;
         const madeProgress =
@@ -397,12 +417,16 @@ export function useChatSessionState({
           return false;
         }
 
-        pendingScrollRestoreRef.current = scrollRestore;
-        capturedScrollRestoreRef.current = null;
-        setScrollRestoreTick((tick) => tick + 1);
-        setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
-        if (!slot.hasMore) {
-          setAllMessagesLoaded(true);
+        // Keep a defensive fallback in case a future store implementation
+        // applies a page without invoking the pre-notify hook.
+        if (!restoreWasArmed) {
+          pendingScrollRestoreRef.current = scrollRestore;
+          capturedScrollRestoreRef.current = null;
+          setScrollRestoreTick((tick) => tick + 1);
+          setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+          if (!slot.hasMore) {
+            setAllMessagesLoaded(true);
+          }
         }
         return true;
       } finally {
