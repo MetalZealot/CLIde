@@ -11,7 +11,6 @@ import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { api } from '../../utils/api';
-import { recordLifecycleDiagnostic } from '../../utils/lifecycleDiagnostics';
 
 import MobileSidebarOverlay from './MobileSidebarOverlay';
 
@@ -85,19 +84,6 @@ function AppContentInner() {
     isMobile,
     activeSessions: processingSessions,
   });
-
-  useEffect(() => {
-    recordLifecycleDiagnostic('app-content.mount');
-    return () => recordLifecycleDiagnostic('app-content.unmount');
-  }, []);
-
-  useEffect(() => {
-    recordLifecycleDiagnostic('projects.loading-state', {
-      loading: isLoadingProjects,
-      hasSelectedProject: Boolean(selectedProject),
-      hasSelectedSession: Boolean(selectedSession),
-    });
-  }, [isLoadingProjects, selectedProject, selectedSession]);
 
   const openSidebar = useCallback(() => setSidebarOpen(true), [setSidebarOpen]);
   const closeSidebar = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);

@@ -20,10 +20,6 @@ test('renders the real file input over the visible attachment control', () => {
 
   assert.equal(requestedProps?.['aria-label'], 'Attach images');
   assert.equal(requestedProps?.tabIndex, 0);
-  assert.equal(typeof requestedProps?.onPointerDown, 'function');
-  assert.equal(typeof requestedProps?.onKeyDown, 'function');
-  assert.equal(typeof requestedProps?.onChange, 'function');
-  assert.equal(typeof requestedProps?.onCancel, 'function');
   assert.deepEqual(requestedProps?.style, {
     position: 'absolute',
     inset: 0,

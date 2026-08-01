@@ -2,10 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { IS_PLATFORM } from '../../../constants/config';
 import { api, AUTH_TOKEN_REFRESHED_EVENT } from '../../../utils/api';
-import {
-  isResumeProbeEnabled,
-  recordLifecycleDiagnostic,
-} from '../../../utils/lifecycleDiagnostics';
 import { AUTH_ERROR_MESSAGES, AUTH_TOKEN_STORAGE_KEY } from '../constants';
 import type {
   AuthContextValue,
@@ -186,11 +182,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const recheckIfVisible = () => {
       if (document.visibilityState === 'visible') {
-        if (!isResumeProbeEnabled('auth')) {
-          recordLifecycleDiagnostic('auth.resume-recheck-suppressed');
-          return;
-        }
-        recordLifecycleDiagnostic('auth.resume-recheck');
         void checkAuthStatus();
       }
     };
@@ -214,7 +205,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const handleRefreshedToken = (event: Event) => {
       const refreshed = (event as CustomEvent<string>).detail;
       if (typeof refreshed === 'string' && refreshed.length > 0) {
-        recordLifecycleDiagnostic('auth.token-refreshed');
         setToken((current) => (current === refreshed ? current : refreshed));
       }
     };
@@ -231,36 +221,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    const ping = (source: 'interval' | 'visibility') => {
-      if (source === 'visibility') {
-        recordLifecycleDiagnostic('auth.resume-ping-start');
-      }
-      void api.auth.user()
-        .then((response) => {
-          if (source === 'visibility') {
-            recordLifecycleDiagnostic('auth.resume-ping-complete', {
-              status: response.status,
-            });
-          }
-        })
-        .catch((caughtError: unknown) => {
-          if (source === 'visibility') {
-            recordLifecycleDiagnostic('auth.resume-ping-failed', {
-              message: caughtError instanceof Error ? caughtError.message : String(caughtError),
-            });
-          }
-          console.error('[Auth] Token keep-alive ping failed:', caughtError);
-        });
+    const ping = () => {
+      void api.auth.user().catch((caughtError: unknown) => {
+        console.error('[Auth] Token keep-alive ping failed:', caughtError);
+      });
     };
 
-    const intervalId = window.setInterval(() => ping('interval'), TOKEN_KEEPALIVE_INTERVAL_MS);
+    const intervalId = window.setInterval(ping, TOKEN_KEEPALIVE_INTERVAL_MS);
     const pingIfVisible = () => {
       if (document.visibilityState === 'visible') {
-        if (!isResumeProbeEnabled('auth')) {
-          recordLifecycleDiagnostic('auth.resume-ping-suppressed');
-          return;
-        }
-        ping('visibility');
+        ping();
       }
     };
     document.addEventListener('visibilitychange', pingIfVisible);
