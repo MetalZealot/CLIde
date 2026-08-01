@@ -1,7 +1,10 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+
 import { IS_PLATFORM } from '../../../constants/config';
+import { recordLifecycleDiagnostic } from '../../../utils/lifecycleDiagnostics';
 import { useAuth } from '../context/AuthContext';
 import Onboarding from '../../onboarding/view/Onboarding';
+
 import AuthLoadingScreen from './AuthLoadingScreen';
 import LoginForm from './LoginForm';
 import SetupForm from './SetupForm';
@@ -12,6 +15,15 @@ type ProtectedRouteProps = {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading, needsSetup, hasCompletedOnboarding, refreshOnboardingStatus } = useAuth();
+
+  useEffect(() => {
+    recordLifecycleDiagnostic('auth.route-state', {
+      isLoading,
+      hasUser: Boolean(user),
+      needsSetup,
+      hasCompletedOnboarding,
+    });
+  }, [hasCompletedOnboarding, isLoading, needsSetup, user]);
 
   if (isLoading) {
     return <AuthLoadingScreen />;

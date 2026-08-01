@@ -1,6 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+
 import { useAuth } from '../components/auth/context/AuthContext';
 import { IS_PLATFORM } from '../constants/config';
+import {
+  isResumeProbeEnabled,
+  recordLifecycleDiagnostic,
+} from '../utils/lifecycleDiagnostics';
 
 /**
  * One frame received from the chat websocket. The server guarantees every
@@ -322,9 +327,14 @@ const useWebSocketProviderState = (): WebSocketContextType => {
    * backoff timer.
    */
   useEffect(() => {
-    const probe = () => {
+    const probe = (source: 'visibility' | 'online') => {
       if (unmountedRef.current) return;
       const socket = wsRef.current;
+      recordLifecycleDiagnostic('ws.resume-probe', {
+        source,
+        readyState: socket?.readyState ?? -1,
+        reconnectScheduled: Boolean(reconnectTimeoutRef.current),
+      });
       if (socket && socket.readyState === WebSocket.OPEN) {
         sendPing(socket);
         return;
@@ -337,13 +347,19 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       connectRef.current();
     };
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') probe();
+      if (document.visibilityState !== 'visible') return;
+      if (!isResumeProbeEnabled('ws')) {
+        recordLifecycleDiagnostic('ws.resume-probe-suppressed');
+        return;
+      }
+      probe('visibility');
     };
+    const onOnline = () => probe('online');
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('online', probe);
+    window.addEventListener('online', onOnline);
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('online', probe);
+      window.removeEventListener('online', onOnline);
     };
   }, [sendPing]);
 
