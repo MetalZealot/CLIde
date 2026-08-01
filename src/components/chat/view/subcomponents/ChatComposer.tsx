@@ -11,7 +11,7 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ChevronDown, Check, ArrowUpIcon, Shield, ShieldOff, Zap, FileCheck, ClipboardList } from 'lucide-react';
+import { MessageSquareIcon, XIcon, Loader2, ChevronDown, Check, ArrowUpIcon, Shield, ShieldOff, Zap, FileCheck, ClipboardList } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
@@ -42,6 +42,7 @@ import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
 import RewindEditCard from './RewindEditCard';
+import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 
 interface MentionableFile {
   name: string;
@@ -103,7 +104,6 @@ interface ChatComposerProps {
   frequentCommands: SlashCommand[];
   getRootProps: (...args: unknown[]) => Record<string, unknown>;
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
-  openImagePicker: () => void;
   inputHighlightRef: RefObject<HTMLDivElement>;
   renderInputWithMentions: (text: string) => ReactNode;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -173,7 +173,6 @@ export default function ChatComposer({
   frequentCommands,
   getRootProps,
   getInputProps,
-  openImagePicker,
   inputHighlightRef,
   renderInputWithMentions,
   textareaRef,
@@ -444,8 +443,6 @@ export default function ChatComposer({
             </PromptInputHeader>
           )}
 
-          <input {...getInputProps()} />
-
           <PromptInputBody>
             <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
               <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent">
@@ -471,12 +468,10 @@ export default function ChatComposer({
 
         <PromptInputFooter>
           <PromptInputTools>
-            <PromptInputButton
-              tooltip={{ content: t('input.attachImages') }}
-              onClick={openImagePicker}
-            >
-              <ImageIcon />
-            </PromptInputButton>
+            <NativeImageAttachmentPicker
+              getInputProps={getInputProps}
+              label={t('input.attachImages')}
+            />
 
             {onVoiceTranscript && voiceAvailable && (
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />

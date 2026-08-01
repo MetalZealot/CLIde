@@ -810,7 +810,7 @@ export function useChatComposerState({
     [handleImageFiles],
   );
 
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'],
     },
@@ -1580,7 +1580,6 @@ export function useChatComposerState({
     getRootProps,
     getInputProps,
     isDragActive,
-    openImagePicker: open,
     handleSubmit,
     queuedDraft,
     editQueuedDraft,
