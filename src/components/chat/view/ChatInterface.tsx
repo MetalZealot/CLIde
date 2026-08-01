@@ -11,6 +11,7 @@ import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionStore } from '../../../stores/useSessionStore';
+import { recordLifecycleDiagnostic } from '../../../utils/lifecycleDiagnostics';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
@@ -142,6 +143,22 @@ function ChatInterface({
     getReplayProgress,
     sessionStore,
   });
+
+  useEffect(() => {
+    recordLifecycleDiagnostic('chat.loading-state', {
+      loadingSessionMessages: isLoadingSessionMessages,
+      loadingMoreMessages: isLoadingMoreMessages,
+      loadingAllMessages: isLoadingAllMessages,
+      messageCount: chatMessages.length,
+      hasSelectedSession: Boolean(selectedSession),
+    });
+  }, [
+    chatMessages.length,
+    isLoadingAllMessages,
+    isLoadingMoreMessages,
+    isLoadingSessionMessages,
+    selectedSession,
+  ]);
 
   // Brand-new conversation: the composer allocated a stable session id via
   // the session gateway before the first send. Record it locally and put it
