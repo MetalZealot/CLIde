@@ -557,32 +557,28 @@ export function useChatSessionState({
     visibleMessageCount,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = scrollContainerRef.current;
     const content = messagesContentRef.current;
     if (!container || !content || typeof ResizeObserver === 'undefined') return;
-    let frame: number | null = null;
 
     const observer = new ResizeObserver(() => {
-      if (frame !== null) cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        frame = null;
-        const restore = settlingScrollRestoreRef.current;
-        if (restore) {
-          applyScrollRestore(container, restore);
-          return;
-        }
-        if (!isUserScrolledUpRef.current && !searchScrollActiveRef.current && !isLoadingMoreRef.current) {
-          container.scrollTop = container.scrollHeight;
-        }
-      });
+      // ResizeObserver runs after layout and before paint. Restore immediately:
+      // deferring through requestAnimationFrame exposes one incorrect frame in
+      // which a newly prepended assistant header can flash at the roof before
+      // late markdown/tool layout pushes it out of view.
+      const restore = settlingScrollRestoreRef.current;
+      if (restore) {
+        applyScrollRestore(container, restore);
+        return;
+      }
+      if (!isUserScrolledUpRef.current && !searchScrollActiveRef.current && !isLoadingMoreRef.current) {
+        container.scrollTop = container.scrollHeight;
+      }
     });
 
     observer.observe(content);
-    return () => {
-      observer.disconnect();
-      if (frame !== null) cancelAnimationFrame(frame);
-    };
+    return () => observer.disconnect();
   }, [selectedProject?.projectId, selectedSession?.id]);
 
   // Main session loading effect — store-based
