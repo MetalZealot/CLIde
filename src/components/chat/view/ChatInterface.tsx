@@ -115,24 +115,19 @@ function ChatInterface({
     isLoadingSessionMessages,
     isLoadingMoreMessages,
     hasMoreMessages,
-    totalMessages,
     isUserScrolledUp,
     setIsUserScrolledUp,
     tokenBudget,
     setTokenBudget,
     visibleMessageCount,
     visibleMessages,
-    loadEarlierMessages,
     loadAllMessages,
-    allMessagesLoaded,
     isLoadingAllMessages,
-    loadAllJustFinished,
-    showLoadAllOverlay,
     createDiff,
     scrollContainerRef,
+    messagesContentRef,
     scrollToBottom,
     scrollToBottomAndReset,
-    handleScroll,
   } = useChatSessionState({
     selectedProject,
     selectedSession,
@@ -399,8 +394,7 @@ function ChatInterface({
       <div className="flex h-full min-h-0 flex-col">
         <ChatMessagesPane
           scrollContainerRef={scrollContainerRef}
-          onWheel={handleScroll}
-          onTouchMove={handleScroll}
+          messagesContentRef={messagesContentRef}
           isLoadingSessionMessages={isLoadingSessionMessages}
           isProcessing={isProcessing}
           chatMessages={chatMessages}
@@ -425,16 +419,10 @@ function ChatInterface({
           setInput={setInput}
           isLoadingMoreMessages={isLoadingMoreMessages}
           hasMoreMessages={hasMoreMessages}
-          totalMessages={totalMessages}
-          sessionMessagesCount={chatMessages.length}
           visibleMessageCount={visibleMessageCount}
           visibleMessages={visibleMessages}
-          loadEarlierMessages={loadEarlierMessages}
           loadAllMessages={loadAllMessages}
-          allMessagesLoaded={allMessagesLoaded}
           isLoadingAllMessages={isLoadingAllMessages}
-          loadAllJustFinished={loadAllJustFinished}
-          showLoadAllOverlay={showLoadAllOverlay}
           createDiff={createDiff}
           onFileOpen={onFileOpen}
           onShowSettings={onShowSettings}

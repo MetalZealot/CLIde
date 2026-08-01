@@ -588,19 +588,9 @@
   }
 
   .chat-message {
+    /* Pagination restores from measured height deltas, so every message must
+       contribute its real geometry even while it is off-screen. */
     contain: layout style paint;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 180px;
-  }
-
-  .chat-message.assistant {
-    contain-intrinsic-size: auto 240px;
-  }
-
-  .chat-message.user,
-  .chat-message.tool,
-  .chat-message.error {
-    contain-intrinsic-size: auto 96px;
   }
 
 }
