@@ -112,7 +112,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setNeedsSetup(false);
 
-      if (!token) {
+      // Read storage at call time instead of closing over the token state. A
+      // successful authenticated request may rotate the token and update that
+      // state while this check is still finishing. If `checkAuthStatus` changes
+      // identity with every rotation, the mount effect below runs again,
+      // briefly returns ProtectedRoute to its loading screen, and unmounts the
+      // workspace (including any file input awaiting an Android picker result).
+      if (!readStoredToken()) {
         return;
       }
 
@@ -155,7 +161,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       checkInFlightRef.current = false;
       setIsLoading(false);
     }
-  }, [checkOnboardingStatus, clearSession, token]);
+  }, [checkOnboardingStatus, clearSession]);
 
   useEffect(() => {
     if (IS_PLATFORM) {
@@ -208,6 +214,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const handleRefreshedToken = (event: Event) => {
       const refreshed = (event as CustomEvent<string>).detail;
       if (typeof refreshed === 'string' && refreshed.length > 0) {
+        recordLifecycleDiagnostic('auth.token-refreshed');
         setToken((current) => (current === refreshed ? current : refreshed));
       }
     };
