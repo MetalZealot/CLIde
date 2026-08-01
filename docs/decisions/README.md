@@ -61,3 +61,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0021 — Save confirmation is local to the action, and only where an action can fail](0021-local-save-confirmation-no-global-indicator.md)
 - [0022 — The Settings search index is declared data, not screen registration](0022-settings-search-index-is-data.md)
 - [0023 — On `/compact`'s duplicate transcript row, the wrapper is dropped, not the prompt](0023-compact-echo-drops-wrapper-keeps-prompt.md)
+- [0024 — Token rotation does not restart auth bootstrap](0024-token-rotation-does-not-restart-auth-bootstrap.md)
