@@ -122,7 +122,6 @@ function ChatInterface({
     visibleMessageCount,
     visibleMessages,
     loadAllMessages,
-    allMessagesLoaded,
     isLoadingAllMessages,
     createDiff,
     scrollContainerRef,
@@ -423,7 +422,6 @@ function ChatInterface({
           visibleMessageCount={visibleMessageCount}
           visibleMessages={visibleMessages}
           loadAllMessages={loadAllMessages}
-          allMessagesLoaded={allMessagesLoaded}
           isLoadingAllMessages={isLoadingAllMessages}
           createDiff={createDiff}
           onFileOpen={onFileOpen}

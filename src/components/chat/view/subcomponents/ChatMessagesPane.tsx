@@ -47,7 +47,6 @@ interface ChatMessagesPaneProps {
   visibleMessageCount: number;
   visibleMessages: ChatMessage[];
   loadAllMessages: () => void;
-  allMessagesLoaded: boolean;
   isLoadingAllMessages: boolean;
   createDiff: any;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
@@ -92,7 +91,6 @@ function ChatMessagesPane({
   visibleMessageCount,
   visibleMessages,
   loadAllMessages,
-  allMessagesLoaded,
   isLoadingAllMessages,
   createDiff,
   onFileOpen,
@@ -184,7 +182,7 @@ function ChatMessagesPane({
         />
       ) : (
         <>
-          {((hasMoreMessages && !allMessagesLoaded) || chatMessages.length > visibleMessageCount) && (
+          {(hasMoreMessages || chatMessages.length > visibleMessageCount) && (
             <div className="flex items-center justify-center gap-2 border-b border-gray-200 py-2 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
               {(isLoadingMoreMessages || isLoadingAllMessages) && (
                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 dark:border-gray-600 dark:border-t-blue-400" />
