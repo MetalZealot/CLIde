@@ -158,8 +158,11 @@ export function useChatSessionState({
   const [scrollRestoreTick, setScrollRestoreTick] = useState(0);
   const [viewHiddenCount, setViewHiddenCount] = useState(0);
 
+  const selectedSessionId = selectedSession?.id ?? null;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
+  const currentSessionIdRef = useRef(currentSessionId);
+  currentSessionIdRef.current = currentSessionId;
   const isUserScrolledUpRef = useRef(false);
   isUserScrolledUpRef.current = isUserScrolledUp;
   const [searchTarget, setSearchTarget] = useState<{ timestamp?: string; uuid?: string; snippet?: string } | null>(null);
@@ -173,6 +176,11 @@ export function useChatSessionState({
   const scrollRestoreReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingInitialScrollRef = useRef(true);
   const scrollPositionRef = useRef({ height: 0, top: 0 });
+  const externalUpdateTargetRef = useRef<{ version: number; sessionId: string | null }>({
+    version: 0,
+    sessionId: null,
+  });
+  const handledExternalUpdateRef = useRef(0);
   /**
    * Tracks the last processed value from `useProjectsState.newSessionTrigger`.
    *
@@ -219,6 +227,7 @@ export function useChatSessionState({
      * - No coupling to unrelated external update signals.
      */
     resetStreamingState();
+    currentSessionIdRef.current = null;
     setCurrentSessionId(null);
     setPendingUserMessage(null);
     
@@ -363,7 +372,7 @@ export function useChatSessionState({
   const loadOlderMessages = useCallback(
     async (container: HTMLDivElement) => {
       if (!container || isLoadingMoreRef.current || isLoadingMoreMessages) return false;
-      if (!hasMoreMessages || !selectedSession || !selectedProject) return false;
+      if (!hasMoreMessages || !selectedSession?.id || !selectedProject?.projectId) return false;
 
       isLoadingMoreRef.current = true;
       setIsLoadingMoreMessages(true);
@@ -404,7 +413,7 @@ export function useChatSessionState({
         setIsLoadingMoreMessages(false);
       }
     },
-    [hasMoreMessages, isLoadingMoreMessages, selectedProject, selectedSession, sessionStore],
+    [hasMoreMessages, isLoadingMoreMessages, selectedProject?.projectId, selectedSession?.id, sessionStore],
   );
 
   const handleScroll = useCallback(async () => {
@@ -556,40 +565,41 @@ export function useChatSessionState({
   useEffect(() => {
     let cancelled = false;
 
-    if (!selectedSession || !selectedProject) {
+    if (!selectedSession?.id || !selectedProject?.projectId) {
       // A freshly created session can be mid-run before the router has a
       // canonical selectedSession (the URL effect synthesizes one on the
       // next render). Keep the active view intact instead of wiping it.
-      if (currentSessionId && processingSessionsRef.current?.has(currentSessionId)) {
+      if (currentSessionIdRef.current && processingSessionsRef.current?.has(currentSessionIdRef.current)) {
         return;
       }
 
       resetStreamingState();
+      currentSessionIdRef.current = null;
       setCurrentSessionId(null);
       setTokenBudget(null);
       return;
     }
 
-    const selectedSessionId = selectedSession.id;
+    const requestedSessionId = selectedSession.id;
 
     const subscribeToSelectedSession = () => {
       if (!ws) {
         return;
       }
 
-      statusCheckSentAtRef.current.set(selectedSessionId, Date.now());
-      const progress = getReplayProgress(selectedSessionId);
+      statusCheckSentAtRef.current.set(requestedSessionId, Date.now());
+      const progress = getReplayProgress(requestedSessionId);
       sendMessage({
         type: 'chat.subscribe',
         sessions: [{
-          sessionId: selectedSessionId,
+          sessionId: requestedSessionId,
           lastSeq: progress?.seq ?? 0,
           runId: progress?.runId ?? null,
         }],
       });
     };
 
-    const sessionChanged = currentSessionId !== null && currentSessionId !== selectedSessionId;
+    const sessionChanged = currentSessionIdRef.current !== null && currentSessionIdRef.current !== requestedSessionId;
     if (sessionChanged) {
       resetStreamingState();
     }
@@ -604,7 +614,8 @@ export function useChatSessionState({
       setTokenBudget(null);
     }
 
-    setCurrentSessionId(selectedSessionId);
+    currentSessionIdRef.current = requestedSessionId;
+    setCurrentSessionId(requestedSessionId);
 
     // Subscribe to the session's live run (if any): the ack reconciles the
     // processing indicator, re-attaches a mid-flight stream to this socket,
@@ -616,8 +627,8 @@ export function useChatSessionState({
     // Switching back to a recently viewed session should be instant. The old
     // guard only reused the cache when the same session was already selected,
     // forcing a needless full transcript parse on every A -> B -> A switch.
-    const cachedSlot = sessionStore.getSessionSlot(selectedSessionId);
-    if (cachedSlot && !sessionStore.isStale(selectedSessionId) && cachedSlot.status !== 'error') {
+    const cachedSlot = sessionStore.getSessionSlot(requestedSessionId);
+    if (cachedSlot && !sessionStore.isStale(requestedSessionId) && cachedSlot.status !== 'error') {
       setAllMessagesLoaded(!cachedSlot.hasMore);
       if (cachedSlot.tokenUsage) setTokenBudget(cachedSlot.tokenUsage as Record<string, unknown>);
       setIsLoadingSessionMessages(false);
@@ -626,7 +637,7 @@ export function useChatSessionState({
 
     // Fetch from server → store updates → chatMessages re-derives automatically
     setIsLoadingSessionMessages(true);
-    void sessionStore.fetchFromServer(selectedSessionId, {
+    void sessionStore.fetchFromServer(requestedSessionId, {
       limit: MESSAGES_PER_PAGE,
       offset: 0,
     }).then(slot => {
@@ -645,7 +656,7 @@ export function useChatSessionState({
     };
   }, [
     resetStreamingState,
-    selectedProject,
+    selectedProject?.projectId,
     selectedSession?.id,
     sendMessage,
     statusCheckSentAtRef,
@@ -656,17 +667,33 @@ export function useChatSessionState({
 
   // External message update (e.g. WebSocket reconnect, background refresh)
   useEffect(() => {
-    if (!externalMessageUpdate || !selectedSession || !selectedProject || isLoadingSessionMessages) return;
+    if (!externalMessageUpdate || !selectedSessionId || !selectedProject?.projectId) return;
+
+    if (externalUpdateTargetRef.current.version !== externalMessageUpdate) {
+      externalUpdateTargetRef.current = {
+        version: externalMessageUpdate,
+        sessionId: selectedSessionId,
+      };
+    }
+
+    const target = externalUpdateTargetRef.current;
+    if (
+      target.sessionId !== selectedSessionId
+      || target.version <= handledExternalUpdateRef.current
+      || isLoadingSessionMessages
+      || isProcessing
+    ) return;
+
+    // Claim this watcher version before starting the request. Object identity
+    // changes and processing transitions must not launch the same refresh again.
+    handledExternalUpdateRef.current = target.version;
 
     const reloadExternalMessages = async () => {
       try {
-        // Skip store refresh during active streaming
-        if (!isProcessing) {
-          await sessionStore.refreshFromServer(selectedSession.id);
+        await sessionStore.refreshFromServer(selectedSessionId);
 
-          if (isNearBottom()) {
-            setTimeout(() => scrollToBottom(), 200);
-          }
+        if (isNearBottom()) {
+          setTimeout(() => scrollToBottom(), 200);
         }
       } catch (error) {
         console.error('Error reloading messages from external update:', error);
@@ -678,11 +705,11 @@ export function useChatSessionState({
     externalMessageUpdate,
     isLoadingSessionMessages,
     isNearBottom,
-    scrollToBottom,
-    selectedProject,
-    selectedSession,
-    sessionStore,
     isProcessing,
+    scrollToBottom,
+    selectedProject?.projectId,
+    selectedSessionId,
+    sessionStore,
   ]);
 
   // Search navigation target
