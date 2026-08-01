@@ -18,6 +18,7 @@ import ToolGroupContainer from './ToolGroupContainer';
 
 interface ChatMessagesPaneProps {
   scrollContainerRef: RefObject<HTMLDivElement>;
+  messagesContentRef: RefObject<HTMLDivElement>;
   isLoadingSessionMessages: boolean;
   /** True while the viewed session has an active provider run in flight. */
   isProcessing?: boolean;
@@ -63,6 +64,7 @@ interface ChatMessagesPaneProps {
 
 function ChatMessagesPane({
   scrollContainerRef,
+  messagesContentRef,
   isLoadingSessionMessages,
   isProcessing = false,
   chatMessages,
@@ -150,7 +152,7 @@ function ChatMessagesPane({
       className="chat-messages-pane relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-3 pt-3 sm:pb-4 sm:pt-4"
       style={{ overflowAnchor: 'none' }}
     >
-      <div className="mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4">
+      <div ref={messagesContentRef} className="mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4">
       {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
         <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
           <div className="flex items-center justify-center space-x-2">

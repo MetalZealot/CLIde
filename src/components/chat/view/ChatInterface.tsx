@@ -126,6 +126,7 @@ function ChatInterface({
     isLoadingAllMessages,
     createDiff,
     scrollContainerRef,
+    messagesContentRef,
     scrollToBottom,
     scrollToBottomAndReset,
   } = useChatSessionState({
@@ -394,6 +395,7 @@ function ChatInterface({
       <div className="flex h-full min-h-0 flex-col">
         <ChatMessagesPane
           scrollContainerRef={scrollContainerRef}
+          messagesContentRef={messagesContentRef}
           isLoadingSessionMessages={isLoadingSessionMessages}
           isProcessing={isProcessing}
           chatMessages={chatMessages}
