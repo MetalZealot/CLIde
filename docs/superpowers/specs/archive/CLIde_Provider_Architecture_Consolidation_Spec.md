@@ -1,6 +1,6 @@
 # CLIde Provider Architecture Consolidation Spec
 
-**Status:** Historical design and audit record; current contract extracted July 30, 2026
+**Status:** Historical design and audit record; current contract extracted July 30, 2026; archived August 1, 2026
 **Audience:** CLIde maintainers and coding agents  
 **Repository:** `MetalZealot/CLIde`  
 **Basis:** Current `main` branch inspected July 29, 2026  
@@ -8,9 +8,9 @@
 
 > **Default reading path:** Do not load this entire document for ordinary
 > provider work. Read the concise
-> [current provider architecture contract](CLIde_Provider_Architecture_Current_Contract.md)
+> [current provider architecture contract](../CLIde_Provider_Architecture_Current_Contract.md)
 > and the living
-> [CLIde provider capability map](../maps/clide-provider-capability-map.md).
+> [CLIde provider capability map](../../maps/clide-provider-capability-map.md).
 > Return here only for the routed historical evidence identified by those
 > documents.
 
@@ -2595,12 +2595,12 @@ work.
 
 The current documentation layers are:
 
-1. [Current provider architecture contract](CLIde_Provider_Architecture_Current_Contract.md)
+1. [Current provider architecture contract](../CLIde_Provider_Architecture_Current_Contract.md)
    — concise invariants, ownership boundaries, current gaps, and implementation
    order.
-2. [CLIde provider capability map](../maps/clide-provider-capability-map.md)
+2. [CLIde provider capability map](../../maps/clide-provider-capability-map.md)
    — living normalized behavior and provider/runtime bindings.
-3. Provider-native maps under [`docs/superpowers/maps/`](../maps/README.md)
+3. Provider-native maps under [`docs/superpowers/maps/`](../../maps/README.md)
    — CLI, SDK, App Server, configuration, and protocol inventories.
 4. This document — the original proposal, repository-local re-audit, runtime
    resolution addendum, alternatives, and supporting evidence.

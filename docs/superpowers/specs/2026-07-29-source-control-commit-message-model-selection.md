@@ -9,7 +9,7 @@ CLI, and App Server 0.146.0.*
 **Ready for a fresh implementation worktree.**
 
 The prerequisite
-[Settings information architecture](2026-07-28-settings-information-architecture.md)
+[Settings information architecture](archive/2026-07-28-settings-information-architecture.md)
 is complete and merged into `main`. This feature adopts its finished
 **Projects & Git** screen, depth-two navigation, settings registry, navigation
 shell, one-scroll-container rule, local save feedback, and shared primitives.

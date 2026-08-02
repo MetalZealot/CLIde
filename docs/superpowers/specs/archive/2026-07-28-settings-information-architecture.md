@@ -1,7 +1,9 @@
 # Settings information architecture and mobile-first restructure
 
 - Date: 2026-07-28
-- Status: Design reference; implementation not started
+- Status: Completed and archived 2026-08-01. Implemented on `main` in
+  `19d078a` through `41e77af`, with the safe-area correction in `3b892ec`;
+  Grayson confirmed the installed-PWA behavior.
 - Scope: Settings navigation model, category tree, per-screen layout, the
   Agents pane restructure, absorption of the QuickSettings panel, shared
   settings primitives, and a settings registry that also feeds the command
@@ -16,10 +18,10 @@
   - "Typography overhaul" (reserves `--font-prose` for a future Settings font
     switcher)
 - Related decisions:
-  - [ADR 0001 — no backdrop-blur](../../decisions/0001-no-backdrop-blur.md)
-  - [ADR 0005 — mobile bottom navbar as in-flow layout](../../decisions/0005-mobile-bottom-navbar.md)
-  - [ADR 0009 — one shared context-menu overlay; touch belongs to `useLongPress`](../../decisions/0009-context-menu-overlay-touch-ownership.md)
-  - [ADR 0010 — PWA-mode fixed-inset override](../../decisions/0010-pwa-mode-fixed-inset-override.md)
+  - [ADR 0001 — no backdrop-blur](../../../decisions/0001-no-backdrop-blur.md)
+  - [ADR 0005 — mobile bottom navbar as in-flow layout](../../../decisions/0005-mobile-bottom-navbar.md)
+  - [ADR 0009 — one shared context-menu overlay; touch belongs to `useLongPress`](../../../decisions/0009-context-menu-overlay-touch-ownership.md)
+  - [ADR 0010 — PWA-mode fixed-inset override](../../../decisions/0010-pwa-mode-fixed-inset-override.md)
 
 ## Purpose
 

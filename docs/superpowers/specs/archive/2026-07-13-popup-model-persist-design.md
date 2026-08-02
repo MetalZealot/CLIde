@@ -1,7 +1,9 @@
 # Persist mid-session model picks as the new-session default
 
 **Date:** 2026-07-13
-**Status:** Approved (design)
+**Status:** Superseded and archived 2026-08-01. The proposed behavior landed in
+`d4cd982`, was reverted in `cc9ba04`, and was replaced by CLIde's per-session
+model-tracking architecture. Retained as historical design context.
 **Scope:** Frontend only — `src/components/chat/hooks/useChatProviderState.ts`
 
 ## Problem

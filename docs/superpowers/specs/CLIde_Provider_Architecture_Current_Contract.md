@@ -4,7 +4,7 @@
 
 **Last reconciled:** 2026-07-30 against CLIde `main` at `935c629`
 
-**Detailed history:** [Provider Architecture Consolidation Spec](CLIde_Provider_Architecture_Consolidation_Spec.md)
+**Detailed history:** [Provider Architecture Consolidation Spec](archive/CLIde_Provider_Architecture_Consolidation_Spec.md)
 
 **Living conformance inventory:** [CLIde provider capability map](../maps/clide-provider-capability-map.md)
 
