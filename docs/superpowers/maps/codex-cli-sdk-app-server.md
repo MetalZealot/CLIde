@@ -189,7 +189,7 @@ New Codex work should land at the narrowest owning boundary:
 |---|---|
 | Interactive App Server Chat | `server/modules/providers/list/codex/codex-app-server-chat.transport.ts` |
 | App Server process/RPC helper for bounded reads | `server/modules/providers/list/codex/codex-app-server.client.ts` |
-| SDK fallback and non-interactive turn normalization | `server/openai-codex.js` |
+| SDK fallback and non-interactive turn normalization | `server/modules/providers/list/codex/codex-runtime.provider.js` |
 | Transport selection, versions, and health | `server/modules/providers/list/codex/codex-chat-transport-state.ts` |
 | Curated consumed protocol | `server/modules/providers/list/codex/codex-app-server.protocol.ts` |
 | Generated contract guard | `server/modules/providers/tests/codex-app-server-protocol-drift.test.ts` |

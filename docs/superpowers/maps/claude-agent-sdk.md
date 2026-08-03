@@ -4,7 +4,7 @@
 the pinned `@anthropic-ai/claude-agent-sdk` 0.3.165 (`sdk.d.ts`, 6,128 lines),
 the SDK's bundled native runtime (`@anthropic-ai/claude-agent-sdk-linux-arm64`,
 reporting Claude Code 2.1.165), the standalone Claude Code 2.1.220 on this host,
-and CLIde's Claude adapter under `server/claude-sdk.js` plus
+and CLIde's Claude adapter under `server/modules/providers/list/claude/claude-runtime.provider.js` plus
 `server/modules/providers/list/claude/`.*
 
 This is the current human-maintained map of how Claude surfaces relate to CLIde.
@@ -87,7 +87,7 @@ CLIde provider orchestration
    |
    | provider_session_id (Claude's own session UUID)
    v
-Claude adapter (server/claude-sdk.js)
+Claude adapter (server/modules/providers/list/claude/claude-runtime.provider.js)
    |-- one query() per turn ---> spawns standalone Claude Code (PATH)
    |                               |-- ~/.claude/projects/<slug>/<id>.jsonl
    |                               |-- settings cascade, skills, MCP, hooks
@@ -138,7 +138,7 @@ Two consequences are already user-visible:
 
 | Capability | Upstream surface | CLIde today | Integration destination | Disposition |
 |---|---|---|---|---|
-| Start/resume text turns | `query()` + `resume` | Implemented | `server/claude-sdk.js` | Keep |
+| Start/resume text turns | `query()` + `resume` | Implemented | `server/modules/providers/list/claude/claude-runtime.provider.js` | Keep |
 | Local image input | Streaming-input `SDKUserMessage` | Implemented (`buildPromptPayload`) | Shared attachment normalization | Keep |
 | Model and effort per turn | `model`, `effort` options | Implemented; catalog is a hand-maintained fallback list | Claude models provider + composer | Keep; catalog authority is a separate candidate |
 | Access presets | `permissionMode` | Implemented for 5 of 6 SDK values; `dontAsk` unmapped, CLI-only `manual` unmapped | Capability service + composer | Candidate: map or stop advertising |
@@ -215,7 +215,7 @@ be decorative.
 | In-process MCP servers | `createSdkMcpServer()`, `tool()` | Not used | Exposing CLIde's own actions as tools | Defer |
 | Skills | Filesystem roots plus `settings.json` overrides | Implemented: discovery plus managed user-skill add/remove | `claude-skills.provider.ts` | Keep |
 | Skill reload | `reloadSkills()`, `skillOverrides`, `disableBundledSkills`, `disableSkillShellExecution` | Not exposed | Skills settings | Candidate |
-| Slash commands | `supportedCommands()`, `commands_changed` | Approximate: CLIde scans `.claude/commands/` and hardcodes a built-in list (`server/routes/commands.js`) — misses plugin, skill, and real built-in commands | Commands route + slash menu | Integrate |
+| Slash commands | `supportedCommands()`, `commands_changed` | Approximate: CLIde scans `.claude/commands/` and hardcodes a built-in list (`server/modules/commands/commands.routes.ts`) — misses plugin, skill, and real built-in commands | Commands route + slash menu | Integrate |
 | Plugins | `plugins` option, `reloadPlugins()`, `claude plugin`, `enabledPlugins` | Not exposed. CLIde's own Settings → Plugins is a *different* system — name collision to avoid | Provider-slotted extensions settings | Defer |
 | Subagents | `agents` option, `supportedAgents()`, `claude agents` | Not exposed as a library; subagent output is grouped in the transcript | Agents settings + activity model | Defer |
 | Hooks | 30 hook events | 1 registered (`Notification` → CLIde notifications) | Hook registration + provider settings | Integrate selectively (`PreToolUse` first — see §3.1) |
@@ -268,7 +268,7 @@ New Claude work should land at the narrowest owning boundary:
 
 | Concern | Current owner |
 |---|---|
-| Live query construction, streaming, approvals, abort | `server/claude-sdk.js` |
+| Live query construction, streaming, approvals, abort | `server/modules/providers/list/claude/claude-runtime.provider.js` |
 | Executable resolution | `server/shared/claude-cli-path.ts` |
 | History and transcript normalization | `server/modules/providers/list/claude/claude-sessions.provider.ts` |
 | Session discovery and watcher ingestion | `claude-session-synchronizer.provider.ts` |
@@ -280,7 +280,7 @@ New Claude work should land at the narrowest owning boundary:
 | Plan usage | `claude-usage.provider.ts` |
 | MCP | `claude-mcp.provider.ts` plus shared MCP services |
 | Skills | `claude-skills.provider.ts` plus shared skills services |
-| Slash-command discovery | `server/routes/commands.js` |
+| Slash-command discovery | `server/modules/commands/commands.routes.ts` |
 | Capability flags | `server/modules/providers/services/provider-capabilities.service.ts` |
 | Interactive request normalization | `interactive-request-registry.service.ts` |
 | Embedded terminal | `server/modules/websocket/services/shell-websocket.service.ts` |

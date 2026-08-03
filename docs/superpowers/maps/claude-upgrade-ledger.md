@@ -61,7 +61,7 @@ live behavior take precedence over documentation. See the map's evidence policy.
 - **Sources:** installed `sdk.d.ts` and `sdk.mjs`, the bundled
   `@anthropic-ai/claude-agent-sdk-linux-arm64` binary, `claude --help` and
   subcommand help for 2.1.220, and the full Claude adapter under
-  `server/claude-sdk.js` plus `server/modules/providers/list/claude/`.
+  `server/modules/providers/list/claude/claude-runtime.provider.js` plus `server/modules/providers/list/claude/`.
 - **Measured surface:** 62 top-level `Options` members, 23 `Query` control
   methods, 32 `SDKMessage` types, 30 `HookEvent` values, 6 `PermissionMode`
   values, and 17 top-level exported functions. CLIde binds 19, 2, 2, 1, 5, and 1

@@ -204,7 +204,7 @@ universal configuration object.
 | Provider registry and facets | `server/modules/providers/provider.registry.ts`, `server/shared/interfaces.ts` |
 | Static/dynamic capability declaration | `server/modules/providers/services/provider-capabilities.service.ts` |
 | Provider-native adapters | `server/modules/providers/list/<provider>/` |
-| Live runtime entrypoints awaiting registry migration | `server/claude-sdk.js`, `server/openai-codex.js`, `server/cursor-cli.js`, `server/opencode-cli.js` |
+| Live runtime entrypoints (registry migration completed by upstream v1.37) | `server/modules/providers/list/<provider>/<provider>-runtime.provider.js` for `claude`, `codex`, `cursor`, `opencode` |
 | Stable run ownership and normalized writing | WebSocket gateway, `chatRunRegistry`, `ChatSessionWriter` |
 | Interactive request normalization | `interactive-request-registry.service.ts`, shared request types, Chat request UI |
 | Stable session/native-ID persistence | Sessions repository/database plus provider synchronizers |
