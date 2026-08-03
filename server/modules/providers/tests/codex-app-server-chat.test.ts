@@ -213,9 +213,12 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     });
     assert.equal(first.messages.filter((message) => message.kind === 'complete').length, 1);
 
+    // The app-facing id and the Codex thread id are deliberately different:
+    // only the provider-native one may address a rollout.
     const resumed = createWriter();
     await transport.query('Continue', {
-      sessionId: 'stable-thread',
+      sessionId: 'app-stable',
+      providerSessionId: 'stable-thread',
       cwd: fake.root,
       permissionMode: 'acceptEdits',
     }, resumed);
@@ -262,7 +265,8 @@ test('App Server resets Plan collaboration mode when the same thread resumes wit
 
     const bypass = createWriter();
     await transport.query('Implement it', {
-      sessionId: 'thread-1',
+      sessionId: 'app-plan',
+      providerSessionId: 'thread-1',
       cwd: fake.root,
       permissionMode: 'bypassPermissions',
     }, bypass);
@@ -408,7 +412,8 @@ test('Codex rewind forks before the selected turn and remaps the writer to the c
   try {
     const writer = createWriter();
     await transport.query('Edited second prompt', {
-      sessionId: 'source-thread',
+      sessionId: 'app-source',
+      providerSessionId: 'source-thread',
       rewindToMessageId: 'turn-b',
       cwd: fake.root,
     }, writer);
@@ -436,7 +441,8 @@ test('Codex first-message rewind forks before the first turn and explicit fork s
   try {
     const writer = createWriter();
     await transport.query('Edited first prompt', {
-      sessionId: 'source-thread',
+      sessionId: 'app-source',
+      providerSessionId: 'source-thread',
       rewindToMessageId: 'turn-a',
       cwd: fake.root,
     }, writer);

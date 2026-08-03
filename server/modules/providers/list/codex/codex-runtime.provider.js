@@ -564,13 +564,23 @@ completedSessionCleanupTimer.unref?.();
  * once a thread/turn request is attempted, errors stay on that path so a user
  * instruction can never be duplicated by an SDK retry.
  */
-export async function queryCodexChat(command, options = {}, ws, context) {
+export async function queryCodexChat(command, options = {}, ws, context = defaultCodexRuntimeContext) {
   if (!isCodexAppServerChatEnabled()) {
     return queryCodexSdk(command, options, ws, context);
   }
 
+  // Callers pass the stable app session id. App Server resumes threads with the
+  // provider-native id recorded on the session row, and has to start a fresh
+  // thread when there is none yet — resuming an app-minted id makes Codex
+  // report "no rollout found for thread id ...". The transport gets no runtime
+  // context of its own, so the resolution happens here.
+  const appServerOptions = {
+    ...options,
+    providerSessionId: context.resolveProviderSessionId(options.sessionId),
+  };
+
   return withCodexAppServerStartupFallback(
-    () => queryCodexAppServer(command, options, ws),
+    () => queryCodexAppServer(command, appServerOptions, ws),
     (error) => {
       console.warn('[Codex] App Server initialization failed; using SDK fallback:', error.message);
       return queryCodexSdk(command, options, ws, context);

@@ -96,6 +96,12 @@ type AppServerChatOptions = {
 
 type QueryCodexAppServerOptions = AnyRecord & {
   sessionId?: string;
+  /**
+   * Provider-native thread id for resume, resolved by the runtime from the
+   * session row. `sessionId` is the app-facing id and is never a Codex thread
+   * id, so it must not reach `thread/resume` or `thread/fork`.
+   */
+  providerSessionId?: string | null;
   sessionSummary?: string;
   cwd?: string;
   projectPath?: string;
@@ -546,15 +552,18 @@ export class CodexAppServerChatTransport {
     const resolvedEffort = normalizeEffort(options.effort);
     const permissions = mapCodexAppServerPermissionMode(options.permissionMode);
 
-    let threadId = options.sessionId || '';
+    // Only a provider-native id can address a rollout on disk. A brand-new
+    // session has none, which is exactly what makes `thread/start` correct.
+    const resumeThreadId = readNonEmptyString(options.providerSessionId);
+    let threadId = resumeThreadId || '';
     let active: ActiveTurn | null = null;
 
     try {
       let threadResponse: CodexThreadResponse;
       const rewindToMessageId = readNonEmptyString(options.rewindToMessageId);
-      if (options.sessionId && rewindToMessageId) {
+      if (resumeThreadId && rewindToMessageId) {
         threadResponse = await client.request<CodexThreadForkResponse>('thread/fork', {
-          threadId: options.sessionId,
+          threadId: resumeThreadId,
           beforeTurnId: rewindToMessageId,
           model: resolvedModel,
           cwd: workingDirectory,
@@ -562,9 +571,9 @@ export class CodexAppServerChatTransport {
           approvalsReviewer: 'user',
           sandbox: permissions.sandboxMode,
         });
-      } else if (options.sessionId) {
+      } else if (resumeThreadId) {
         threadResponse = await client.request<CodexThreadResponse>('thread/resume', {
-          threadId: options.sessionId,
+          threadId: resumeThreadId,
           model: resolvedModel,
           cwd: workingDirectory,
           approvalPolicy: permissions.approvalPolicy,
