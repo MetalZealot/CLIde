@@ -52,6 +52,9 @@ const readModelProvider = (value) => {
   return MODEL_PROVIDERS.includes(normalized) ? normalized : "claude";
 };
 
+const hasConcreteSessionId = (value) =>
+  typeof value === "string" && value.trim().length > 0;
+
 /**
  * Resolves the model a command should report.
  *

@@ -118,6 +118,34 @@ test('cost and status commands report the same resolved model as /models', async
   assert.equal((status.data as { model: string }).model, 'haiku');
 });
 
+// `/context` is the usage ring's tap target and the only handler that reaches
+// past the injected services into the session row, so it is the one most easily
+// broken by a refactor of this file — and `@ts-nocheck` means the compiler will
+// not say so. A session with no recorded reading exercises the headline branch.
+test('context command answers for a session with no recorded reading', async () => {
+  const result = await executeCommand('/context', {
+    provider: 'claude',
+    sessionId: 'context-session-missing',
+    tokenUsage: { used: 1200, total: 200000 },
+  });
+
+  assert.equal(result.action, 'context');
+  const data = result.data as { provider: string; detail: string; usedTokens: number };
+  assert.equal(data.provider, 'claude');
+  assert.equal(data.detail, 'headline');
+  assert.equal(data.usedTokens, 1200);
+});
+
+// Providers without a context breakdown must say so rather than reach for a
+// Claude-only reading.
+test('context command reports unsupported providers instead of a breakdown', async () => {
+  const result = await executeCommand('/context', { provider: 'codex' });
+
+  const data = result.data as { unsupported: boolean };
+  assert.equal(result.action, 'context');
+  assert.equal(data.unsupported, true);
+});
+
 // The command was renamed when Claude Code retired /cost, so the alias is the
 // only thing keeping the old name (and any browser tab still holding it) alive.
 test('usage command keeps /cost working as an alias', async () => {
