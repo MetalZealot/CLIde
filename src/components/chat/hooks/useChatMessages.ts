@@ -109,7 +109,8 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       case 'text': {
         const content = msg.content || '';
         const images = Array.isArray(msg.images) && msg.images.length > 0 ? msg.images : undefined;
-        if (!content.trim() && !images) continue;
+        const files = Array.isArray(msg.files) && msg.files.length > 0 ? msg.files : undefined;
+        if (!content.trim() && !images && !files) continue;
 
         if (msg.role === 'user') {
           // Parse task notifications
@@ -146,6 +147,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
               content: unescapeWithMathProtection(decodeHtmlEntities(content)),
               timestamp: msg.timestamp,
               images,
+              files,
               ...sharedMetadata,
             });
           }

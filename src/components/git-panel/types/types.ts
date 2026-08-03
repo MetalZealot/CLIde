@@ -16,6 +16,10 @@ export type GitPanelProps = {
   selectedProject: Project | null;
   isMobile?: boolean;
   onFileOpen?: FileOpenHandler;
+  /** Switches the app to another project. */
+  onProjectSelect?: (project: Project) => void;
+  /** Silently re-syncs the sidebar project list. */
+  onProjectsRefresh?: () => void;
 };
 
 export type GitStatusResponse = {
@@ -29,6 +33,8 @@ export type GitStatusResponse = {
   staged?: string[];
   error?: string;
   details?: string;
+  /** True when the project directory is not a git repository — the UI offers `git init`. */
+  notGitRepository?: boolean;
 };
 
 export type GitRemoteStatus = {
@@ -80,6 +86,7 @@ export type GitPanelController = {
   gitStatus: GitStatusResponse | null;
   gitDiff: GitDiffMap;
   isLoading: boolean;
+  isLoadingCommits: boolean;
   currentBranch: string;
   branches: string[];
   localBranches: string[];
@@ -93,6 +100,7 @@ export type GitPanelController = {
   isPushing: boolean;
   isPublishing: boolean;
   isCreatingInitialCommit: boolean;
+  isInitializingRepository: boolean;
   operationError: string | null;
   clearOperationError: () => void;
   refreshAll: () => void;
@@ -111,6 +119,7 @@ export type GitPanelController = {
   generateCommitMessage: (files: string[]) => Promise<string | null>;
   commitChanges: (message: string, files: string[]) => Promise<boolean>;
   createInitialCommit: () => Promise<boolean>;
+  initRepository: () => Promise<boolean>;
   openFile: (filePath: string) => Promise<void>;
 };
 
@@ -148,3 +157,4 @@ export type GitFileWithDiffResponse = GitApiErrorResponse & {
   isDeleted?: boolean;
   isUntracked?: boolean;
 };
+

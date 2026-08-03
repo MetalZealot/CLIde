@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../components/auth/context/AuthContext';
 import { IS_PLATFORM } from '../constants/config';
+import { expireAuthSession, isAuthTokenExpired } from '../utils/api';
 
 /**
  * One frame received from the chat websocket. The server guarantees every
@@ -100,6 +101,10 @@ const buildWebSocketUrl = (token: string | null) => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   if (IS_PLATFORM) return `${protocol}//${window.location.host}/ws`; // Platform mode: Use same domain as the page (goes through proxy)
   if (!token) return null;
+  if (isAuthTokenExpired(token)) {
+    expireAuthSession();
+    return null;
+  }
   return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
 };
 
@@ -131,7 +136,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
    * useCallback dependency.
    */
   const connectRef = useRef<() => void>(() => {});
-  const { token } = useAuth();
+  const { isLoading: isAuthLoading, token, user } = useAuth();
 
   const dispatch = useCallback((event: ServerEvent) => {
     for (const listener of listenersRef.current) {
@@ -191,6 +196,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
   const connect = useCallback(() => {
     if (unmountedRef.current) return; // Prevent connection if unmounted
+    if (!IS_PLATFORM && (isAuthLoading || !user)) return;
     try {
       // Construct WebSocket URL
       const wsUrl = buildWebSocketUrl(token);
@@ -215,6 +221,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       stopHeartbeat();
 
       const websocket = new WebSocket(wsUrl);
+      // Store connecting sockets too, so a token refresh can close them before
+      // their handshake completes with stale credentials.
       wsRef.current = websocket;
 
       websocket.onopen = () => {
@@ -288,7 +296,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
     }
-  }, [token, dispatch, sendPing, stopHeartbeat, clearWatchdog]); // everytime token changes, we reconnect
+    // Reconnect on token change and on every authentication-state change.
+  }, [token, user, isAuthLoading, dispatch, sendPing, stopHeartbeat, clearWatchdog]);
 
   useEffect(() => {
     connectRef.current = connect;
@@ -299,6 +308,9 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     // re-run of the effect (e.g. on token refresh) would short-circuit connect()
     // at its unmounted guard and leave the socket permanently disconnected.
     unmountedRef.current = false;
+    if (!IS_PLATFORM && (isAuthLoading || !user)) {
+      return undefined;
+    }
     connect();
 
     return () => {
@@ -307,11 +319,20 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         clearTimeout(reconnectTimeoutRef.current);
       }
       stopHeartbeat();
-      if (wsRef.current) {
-        wsRef.current.close();
+      const activeSocket = wsRef.current;
+      if (activeSocket) {
+        // Prevent the intentionally closed, old-token socket from scheduling
+        // a reconnect after the refreshed-token effect has already started.
+        activeSocket.onopen = null;
+        activeSocket.onmessage = null;
+        activeSocket.onclose = null;
+        activeSocket.onerror = null;
+        activeSocket.close();
+        wsRef.current = null;
       }
     };
-  }, [token]); // everytime token changes, we reconnect
+    // Reconnect after authentication changes or a token refresh.
+  }, [token, user, isAuthLoading, connect, stopHeartbeat]);
 
   /**
    * Immediate liveness re-check when the app comes back to life — PWA wake

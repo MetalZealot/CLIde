@@ -33,6 +33,15 @@ Before changing code:
   schema/auth/data write.  Treat live-session tests as stateful: clean any test data
   from the filesystem before its database rows so the watcher cannot rediscover it.
 
+### Backend module standards
+
+Upstream 1.37 ships `.agents/skills/backend-module-standards/SKILL.md`.  Use it as a
+**directory-shape reference** for backend work under `server/modules/`; it does not
+replace this guide.  Where the two disagree, this guide wins.  Known exceptions:
+runtime adapters that remain JavaScript are a deliberate migration exception, shared
+`types.ts`/`utils.ts` are not cross-module dumping grounds, and provider-specific
+behaviour stays behind adapter interfaces.
+
 ## Development and verification
 
 - Use `npm run typecheck`, `npm run lint`, and the narrowest relevant build.  There

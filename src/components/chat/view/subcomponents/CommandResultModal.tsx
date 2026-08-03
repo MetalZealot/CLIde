@@ -53,7 +53,6 @@ type CommandResultModalProps = {
     sessionId?: string | null,
   ) => Promise<{
     scope: 'default' | 'session';
-    changed: boolean;
     model: string;
   }>;
 };
@@ -388,7 +387,7 @@ function ModelsContent({
       const result = await onSelectProviderModel(currentProvider, model, currentSessionId);
       if (result.scope === 'session') {
         setPendingSessionModel(result.model);
-        setSelectionNotice(`Next response will resume with ${result.model}.`);
+        setSelectionNotice(`This session now uses ${result.model}.`);
         return;
       }
 
@@ -479,7 +478,7 @@ function ModelsContent({
                   )}
                   {isPendingSelection && !isCurrent && (
                     <span className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-500 dark:text-emerald-400">
-                      Applies next response
+                      Session model
                     </span>
                   )}
                 </button>

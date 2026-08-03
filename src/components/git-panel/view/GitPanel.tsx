@@ -11,7 +11,13 @@ import GitRepositoryErrorState from '../view/GitRepositoryErrorState';
 import GitViewTabs from '../view/GitViewTabs';
 import ConfirmActionModal from '../view/modals/ConfirmActionModal';
 
-export default function GitPanel({ selectedProject, isMobile = false, onFileOpen }: GitPanelProps) {
+export default function GitPanel({
+  selectedProject,
+  isMobile = false,
+  onFileOpen,
+  onProjectSelect,
+  onProjectsRefresh,
+}: GitPanelProps) {
   const [activeView, setActiveView] = useState<GitPanelView>('changes');
   const [wrapText, setWrapText] = useState(true);
   const [hasExpandedFiles, setHasExpandedFiles] = useState(false);
@@ -21,6 +27,7 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
     gitStatus,
     gitDiff,
     isLoading,
+    isLoadingCommits,
     currentBranch,
     localBranches,
     remoteBranches,
@@ -33,6 +40,7 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
     isPushing,
     isPublishing,
     isCreatingInitialCommit,
+    isInitializingRepository,
     operationError,
     clearOperationError,
     refreshAll,
@@ -48,9 +56,9 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
     stageFiles,
     unstageFiles,
     fetchCommitDiff,
-    generateCommitMessage,
     commitChanges,
     createInitialCommit,
+    initRepository,
     openFile,
   } = useGitPanelController({
     selectedProject,
@@ -77,6 +85,9 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
   }, [confirmAction]);
 
   const changeCount = getChangedFileCount(gitStatus);
+  // Without a repository the branch/fetch/refresh header controls are all
+  // meaningless — hide the whole header and let the init state own the panel.
+  const isMissingRepository = Boolean(gitStatus?.notGitRepository);
 
   if (!selectedProject) {
     return (
@@ -88,34 +99,51 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <GitPanelHeader
-        isMobile={isMobile}
-        currentBranch={currentBranch}
-        localBranches={localBranches}
-        remoteBranches={remoteBranches}
-        remoteStatus={remoteStatus}
-        isLoading={isLoading}
-        isCreatingBranch={isCreatingBranch}
-        isFetching={isFetching}
-        isPulling={isPulling}
-        isPushing={isPushing}
-        isPublishing={isPublishing}
-        isRevertingLocalCommit={isRevertingLocalCommit}
-        operationError={operationError}
-        onRefresh={refreshAll}
-        onRevertLocalCommit={revertLatestLocalCommit}
-        onSwitchBranch={switchBranch}
-        onCreateBranch={createBranch}
-        onFetch={handleFetch}
-        onPull={handlePull}
-        onPush={handlePush}
-        onPublish={handlePublish}
-        onClearError={clearOperationError}
-        onRequestConfirmation={setConfirmAction}
-      />
+      {/*
+        Upstream 1.37 hides the header when the folder is not a repository, so
+        the Initialize affordance stands alone. CLIde keeps its own separate
+        local/remote branch props rather than upstream's single `branches`.
+      */}
+      {!isMissingRepository && (
+        <GitPanelHeader
+          isMobile={isMobile}
+          currentBranch={currentBranch}
+          localBranches={localBranches}
+          remoteBranches={remoteBranches}
+          remoteStatus={remoteStatus}
+          isLoading={isLoading}
+          isCreatingBranch={isCreatingBranch}
+          isFetching={isFetching}
+          isPulling={isPulling}
+          isPushing={isPushing}
+          isPublishing={isPublishing}
+          isRevertingLocalCommit={isRevertingLocalCommit}
+          operationError={operationError}
+          onRefresh={refreshAll}
+          onRevertLocalCommit={revertLatestLocalCommit}
+          onSwitchBranch={switchBranch}
+          onCreateBranch={createBranch}
+          onFetch={handleFetch}
+          onPull={handlePull}
+          onPush={handlePush}
+          onPublish={handlePublish}
+          onClearError={clearOperationError}
+          onRequestConfirmation={setConfirmAction}
+        />
+      )}
 
       {gitStatus?.error ? (
-        <GitRepositoryErrorState error={gitStatus.error} details={gitStatus.details} />
+        <GitRepositoryErrorState
+          error={gitStatus.error}
+          details={gitStatus.details}
+          canInitRepository={isMissingRepository}
+          isInitializingRepository={isInitializingRepository}
+          initError={isMissingRepository ? operationError : null}
+          onInitRepository={() => {
+            clearOperationError();
+            void initRepository();
+          }}
+        />
       ) : (
         <>
           <GitViewTabs
@@ -143,7 +171,6 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
               onStageFiles={stageFiles}
               onUnstageFiles={unstageFiles}
               onCommitChanges={commitChanges}
-              onGenerateCommitMessage={generateCommitMessage}
               onRequestConfirmation={setConfirmAction}
               onExpandedFilesChange={setHasExpandedFiles}
             />
@@ -152,7 +179,10 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
           {activeView === 'history' && (
             <HistoryView
               isMobile={isMobile}
-              isLoading={isLoading}
+              // Treat an in-flight commits request as loading only while the
+              // list is empty, so "No commits found" never flashes before the
+              // first response and refetches don't blank an existing list.
+              isLoading={isLoading || (recentCommits.length === 0 && isLoadingCommits)}
               recentCommits={recentCommits}
               commitDiffs={commitDiffs}
               wrapText={wrapText}

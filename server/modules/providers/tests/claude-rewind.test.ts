@@ -7,6 +7,7 @@ import {
   filterToActiveBranch,
   type RewindTranscriptEntry,
 } from '../list/claude/claude-rewind.util.js';
+import { codexAppServerRuntimeCapabilitiesAvailable } from '../list/codex/codex-chat-transport-state.js';
 import { providerCapabilitiesService } from '../services/provider-capabilities.service.js';
 
 const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -169,9 +170,16 @@ describe('filterToActiveBranch', () => {
 });
 
 describe('supportsRewind capability', () => {
-  it('is enabled only for claude', () => {
+  it('is enabled for claude, and for codex only on the App Server transport', () => {
     assert.equal(providerCapabilitiesService.getProviderCapabilities('claude').supportsRewind, true);
-    for (const provider of ['cursor', 'codex', 'opencode'] as const) {
+    // Codex gained rewind with the App Server transport (see
+    // withRuntimeCapabilities in provider-capabilities.service.ts); it stays off
+    // whenever that transport is not the one actually running.
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind,
+      codexAppServerRuntimeCapabilitiesAvailable(),
+    );
+    for (const provider of ['cursor', 'opencode'] as const) {
       assert.equal(
         providerCapabilitiesService.getProviderCapabilities(provider).supportsRewind,
         false,

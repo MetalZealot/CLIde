@@ -452,3 +452,109 @@ test('resolveResumeModel never adopts a default-source model as the session mode
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+// `resolveSessionModel` coverage adapted from upstream 1.37. Upstream drove
+// these through a `sessions` store stub because its version read a recorded
+// `sessions.model` column first; that column is not part of this fork (see
+// docs/superpowers/specs/2026-07-29-upstream-1-37-integration.md), so the tests
+// exercise the provider/requested/default chain that actually remains.
+test('resolveSessionModel asks the provider adapter for the session it was given', async () => {
+  const calls: Array<{ provider: LLMProvider; sessionId?: string }> = [];
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async (sessionId) => {
+          calls.push({ provider, sessionId });
+          return createCurrentActiveModel(`${provider}-${sessionId}`);
+        },
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  const resolved = await service.resolveSessionModel('opencode', { sessionId: 'session-123' });
+
+  assert.deepEqual(calls, [{ provider: 'opencode', sessionId: 'session-123' }]);
+  assert.equal(resolved.model, 'opencode-session-123');
+});
+
+test('resolveSessionModel prefers the provider\'s own session state over the requested model', async () => {
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async () => createCurrentActiveModel('provider-reported'),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  const resolved = await service.resolveSessionModel('opencode', {
+    sessionId: 'session-1',
+    requestedModel: 'requested',
+  });
+
+  assert.equal(resolved.model, 'provider-reported');
+  assert.equal(resolved.source, 'provider');
+});
+
+test('resolveSessionModel uses the requested model when the provider only reports its catalog default', async () => {
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels('default'),
+        getCurrentActiveModel: async () => createCurrentActiveModel('default'),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  const resolved = await service.resolveSessionModel('claude', {
+    sessionId: 'session-1',
+    requestedModel: 'haiku',
+  });
+
+  assert.equal(resolved.model, 'haiku');
+  assert.equal(resolved.source, 'session');
+});
+
+test('resolveSessionModel answers with the requested model for a chat that has no session yet', async () => {
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async () => createCurrentActiveModel('provider-reported'),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  const resolved = await service.resolveSessionModel('codex', { requestedModel: 'gpt-5.5' });
+
+  assert.equal(resolved.model, 'gpt-5.5');
+  assert.equal(resolved.sessionId, null);
+  assert.equal(resolved.source, 'session');
+});
+
+test('resolveSessionModel falls back to the catalog default with nothing else to go on', async () => {
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async () => createCurrentActiveModel('provider-reported'),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  const resolved = await service.resolveSessionModel('codex');
+
+  assert.equal(resolved.model, 'codex-models');
+  assert.equal(resolved.source, 'default');
+});

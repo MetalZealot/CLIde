@@ -416,6 +416,12 @@ const addSessionStarColumn = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'isStarred', 'BOOLEAN DEFAULT 0');
 };
 
+// Upstream 1.37 also adds a `sessions.model` column here, written on every send
+// and read ahead of transcript evidence. That inverts ADR 0003, so the column is
+// deliberately not taken — not even dormant, since a column documented as "the
+// model this session runs with" that nothing reads misleads the next reader. See
+// the 1.37 integration spec, Phase 3, and the `desired_model` TODO item.
+
 const ensureProjectsForSessionPaths = (db: Database): void => {
   if (!tableExists(db, 'sessions')) {
     return;

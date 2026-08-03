@@ -32,7 +32,7 @@ export const useEditorSidebar = ({
         name: fileNameFromPath(filePath),
         path: filePath,
         // DB projectId is forwarded to the editor so it can read/save files
-        // via `/api/projects/:projectId/file` endpoints.
+        // via `/api/file-tree/projects/:projectId/file` endpoints.
         projectId: selectedProject?.projectId,
         diffInfo,
         // A fresh id every open: this is a different document, so the editor

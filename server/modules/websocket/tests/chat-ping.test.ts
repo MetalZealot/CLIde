@@ -23,10 +23,13 @@ class FakeConnection extends EventEmitter {
 type ChatDependencies = Parameters<typeof handleChatConnection>[2];
 
 const noopDependencies: ChatDependencies = {
-  spawnFns: {} as never,
-  abortFns: {} as never,
-  resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
-  getPendingInteractiveRequestsForSession: () => [],
+  runtime: {
+    hasRuntime: () => false,
+    run: async () => undefined,
+    abort: async () => true,
+    resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+    getPendingApprovalsForSession: () => [],
+  },
 };
 
 function connectFake(): FakeConnection {
@@ -103,10 +106,12 @@ test('unknown message types still produce a protocol_error (ping must not regres
 test('chat.permission-response forwards normalized decisions and answer arrays', async () => {
   const calls: Array<{ requestId: string; payload: Record<string, unknown> }> = [];
   const connection = connectFakeWithDependencies({
-    ...noopDependencies,
-    resolveInteractiveRequest: async (requestId, payload) => {
-      calls.push({ requestId, payload });
-      return { status: 'resolved' as const };
+    runtime: {
+      ...noopDependencies.runtime,
+      resolveInteractiveRequest: async (requestId, payload) => {
+        calls.push({ requestId, payload });
+        return { status: 'resolved' as const };
+      },
     },
   });
   try {
@@ -141,10 +146,12 @@ test('chat.permission-response forwards normalized decisions and answer arrays',
 test('chat.permission-response rejects invalid enums and malformed answer arrays before resolution', async () => {
   let calls = 0;
   const connection = connectFakeWithDependencies({
-    ...noopDependencies,
-    resolveInteractiveRequest: async () => {
-      calls += 1;
-      return { status: 'resolved' as const };
+    runtime: {
+      ...noopDependencies.runtime,
+      resolveInteractiveRequest: async () => {
+        calls += 1;
+        return { status: 'resolved' as const };
+      },
     },
   });
   try {

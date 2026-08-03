@@ -1,10 +1,13 @@
 import express, { type Request, type Response } from 'express';
 
+import { sessionsDb } from '@/modules/database/index.js';
+import { refreshClaudeContextUsage } from '@/modules/providers/list/claude/claude-runtime.provider.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { providerUsageService } from '@/modules/providers/services/provider-usage.service.js';
+import { providerTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
@@ -405,6 +408,11 @@ router.get(
   }),
 );
 
+// Upstream 1.37 also registers a GET here backed by `resolveSessionModel`, and a
+// POST that writes the `sessions.model` column. CLIde keeps its own pair: the
+// POST records the pick in the active-model sidecar, and the GET below reports
+// the *effective* model from provider/transcript evidence (ADR 0003). Two GETs
+// on one path would silently shadow each other — Express matches the first.
 router.post(
   '/:provider/sessions/:sessionId/active-model',
   asyncHandler(async (req: Request, res: Response) => {
@@ -593,6 +601,51 @@ router.get(
   asyncHandler(async (_req: Request, res: Response) => {
     const sessions = sessionsService.listArchivedSessions();
     res.json(createApiSuccessResponse({ sessions }));
+  }),
+);
+
+router.get(
+  '/sessions/:sessionId/token-usage',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = await providerTokenUsageService.getSessionTokenUsage(sessionId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/**
+ * Manual re-capture for the /context modal's refresh button. Only Claude tracks
+ * a context reading at all, and the SDK control request behind it answers only
+ * while a turn is actually streaming — so this either lands a fresh reading or
+ * reports that there is no live turn to ask, never an error for that case.
+ */
+router.post(
+  '/sessions/:sessionId/context-usage/refresh',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    // The caller sends the app-facing id, but the live session (and its cached
+    // reading) is keyed by the provider-native id.
+    const session = sessionsDb.getSessionById(sessionId);
+    const providerSessionId = session?.provider_session_id || sessionId;
+
+    const ceiling = await refreshClaudeContextUsage(providerSessionId);
+    if (!ceiling) {
+      res.json(createApiSuccessResponse({ refreshed: false, reason: 'no-live-turn' }));
+      return;
+    }
+
+    res.json(createApiSuccessResponse({ refreshed: true, ceiling }));
+  }),
+);
+
+// Must stay registered after the static `/sessions/running` and
+// `/sessions/archived` routes so those literals never match `:sessionId`.
+router.get(
+  '/sessions/:sessionId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const result = sessionsService.getSessionDetailsById(sessionId);
+    res.json(createApiSuccessResponse(result));
   }),
 );
 

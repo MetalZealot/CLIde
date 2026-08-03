@@ -11,7 +11,7 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ChevronDown, Check, ArrowUpIcon, Shield, ShieldOff, Zap, FileCheck, ClipboardList } from 'lucide-react';
+import { PaperclipIcon, MessageSquareIcon, XIcon, Loader2, ChevronDown, Check, ArrowUpIcon, Shield, ShieldOff, Zap, FileCheck, ClipboardList } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
@@ -36,7 +36,7 @@ import OnCreditsBadge from '../../../provider-usage/OnCreditsBadge';
 
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
-import ImageAttachment from './ImageAttachment';
+import ComposerAttachment from './ComposerAttachment';
 import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
@@ -87,10 +87,10 @@ interface ChatComposerProps {
   onDeleteQueuedDraft: () => void;
   pendingRewind: PendingRewind | null;
   onCancelRewindEdit: () => void;
-  attachedImages: File[];
-  onRemoveImage: (index: number) => void;
-  uploadingImages: Map<string, number>;
-  imageErrors: Map<string, string>;
+  attachedFiles: File[];
+  onRemoveAttachment: (index: number) => void;
+  uploadingFiles: Map<string, number>;
+  fileErrors: Map<string, string>;
   showFileDropdown: boolean;
   filteredFiles: MentionableFile[];
   selectedFileIndex: number;
@@ -103,7 +103,7 @@ interface ChatComposerProps {
   frequentCommands: SlashCommand[];
   getRootProps: (...args: unknown[]) => Record<string, unknown>;
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
-  openImagePicker: () => void;
+  openAttachmentPicker: () => void;
   inputHighlightRef: RefObject<HTMLDivElement>;
   renderInputWithMentions: (text: string) => ReactNode;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -157,10 +157,10 @@ export default function ChatComposer({
   onDeleteQueuedDraft,
   pendingRewind,
   onCancelRewindEdit,
-  attachedImages,
-  onRemoveImage,
-  uploadingImages,
-  imageErrors,
+  attachedFiles,
+  onRemoveAttachment,
+  uploadingFiles,
+  fileErrors,
   showFileDropdown,
   filteredFiles,
   selectedFileIndex,
@@ -173,7 +173,7 @@ export default function ChatComposer({
   frequentCommands,
   getRootProps,
   getInputProps,
-  openImagePicker,
+  openAttachmentPicker,
   inputHighlightRef,
   renderInputWithMentions,
   textareaRef,
@@ -306,7 +306,7 @@ export default function ChatComposer({
   });
 
   const hasQueuedDraft = Boolean(queuedDraft);
-  const canQueueDraft = isLoading && Boolean(input.trim());
+  const canQueueDraft = isLoading && Boolean(input.trim() || attachedFiles.length > 0);
   // Mirrors handleKeyDown in useChatComposerState: plain Enter sends on desktop
   // unless sendByCtrlEnter, and on touch only when enterToSend is opted in.
   const isTouchPrimary = useMemo(() => isTouchPrimaryDevice(), []);
@@ -356,7 +356,7 @@ export default function ChatComposer({
       {queuedDraft && (
         <QueuedMessageCard
           content={queuedDraft.content}
-          imageCount={queuedDraft.images.length}
+          attachmentCount={queuedDraft.attachments.length}
           onEdit={onEditQueuedDraft}
           onDelete={onDeleteQueuedDraft}
         />
@@ -426,17 +426,17 @@ export default function ChatComposer({
             </div>
           )}
 
-          {attachedImages.length > 0 && (
+          {attachedFiles.length > 0 && (
             <PromptInputHeader>
               <div className="rounded-xl bg-muted/40 p-2">
                 <div className="flex flex-wrap gap-2">
-                  {attachedImages.map((file, index) => (
-                    <ImageAttachment
+                  {attachedFiles.map((file, index) => (
+                    <ComposerAttachment
                       key={index}
                       file={file}
-                      onRemove={() => onRemoveImage(index)}
-                      uploadProgress={uploadingImages.get(file.name)}
-                      error={imageErrors.get(file.name)}
+                      onRemove={() => onRemoveAttachment(index)}
+                      uploadProgress={uploadingFiles.get(file.name)}
+                      error={fileErrors.get(file.name)}
                     />
                   ))}
                 </div>
@@ -472,10 +472,11 @@ export default function ChatComposer({
         <PromptInputFooter>
           <PromptInputTools>
             <PromptInputButton
-              tooltip={{ content: t('input.attachImages') }}
-              onClick={openImagePicker}
+              tooltip={{ content: t('input.attachFiles') }}
+              onClick={openAttachmentPicker}
+              aria-label={t('input.attachFiles')}
             >
-              <ImageIcon />
+              <PaperclipIcon />
             </PromptInputButton>
 
             {onVoiceTranscript && voiceAvailable && (
@@ -630,7 +631,15 @@ export default function ChatComposer({
                       }
                     : undefined
               }
-              disabled={isLoading ? !canQueueDraft : isRecording ? false : isTranscribing ? true : !input.trim()}
+              disabled={
+                isLoading
+                  ? !canQueueDraft
+                  : isRecording
+                    ? false
+                    : isTranscribing
+                      ? true
+                      : !input.trim() && attachedFiles.length === 0
+              }
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
               className="h-10 w-10 sm:h-10 sm:w-10"

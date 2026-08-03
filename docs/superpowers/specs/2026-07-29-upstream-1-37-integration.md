@@ -200,7 +200,10 @@ work Phase 1, Phase 4, and Phase 6 actually require.
   `true`, `RemoveWorktreeModal` initialises `deleteBranch` to `true`, and
   `worktree-remove.service.ts:61` runs `git branch -D` inside a `try {} catch {}`
   that discards the failure. All four worktree/branch modals use
-  `backdrop-blur-sm`.
+  `backdrop-blur-sm`. **Amended 2026-07-30:** `worktree-merge.service.ts` also
+  hardcodes `deleteBranch: true` in its post-merge cleanup call, which no
+  checkbox controls — see [Review
+  2026-07-30](#review-2026-07-30-what-upstream-ships-and-what-to-keep).
 - Export hardcodes "Claude" (`chatExport.ts:56,103`) and its "PDF" path is
   `win.print()`. The Claude Usage plugin recommendation is at
   `PluginSettingsTab.tsx:37`.
@@ -972,18 +975,95 @@ cleanly, so the Git server side arrives for free either way.
 Add a `TODO.md` item for the deferred assessment, pointing at both this section
 and `2026-07-26-git-source-control-workspace-ux.md`.
 
+### Review 2026-07-30: what upstream ships, and what to keep
+
+Read directly out of the `v1.37.0` tree, since the files are deliberately absent
+from the merge. The deferral stands; this section exists so the later assessment
+starts from an inventory rather than a re-read.
+
+**Inventory.** 19 server files under `server/modules/worktrees/` (5 services,
+routes, module, index, and **8 test files totalling ~35 KB**) plus 5 client
+files: `WorktreesView.tsx`, `useWorktreesController.ts`, and New/Merge/Remove
+modals. `GitViewTabs.tsx` registers `worktrees` as a fourth tab beside Changes,
+Commits, and Branches. The API is `GET /api/worktrees` and `POST` `/create`
+(create-and-open), `/open`, `/merge`, `/remove`.
+
+**The list payload is the part CLIde does not have.** `listWorktrees` returns,
+per worktree: `path`, `branch`, `headSha`, `isMain`, `isCurrent`, `isLocked`,
+`isDetached`, `changedFileCount`, `ahead`/`behind`, last commit subject and ISO
+date, `linkedProjectId`, and `linkedProjectArchived` — fanned out with a
+concurrency cap of 4. That inventory is comparable to what Zed and VS Code
+worktree support display, and it is the single strongest reason to harvest
+rather than rewrite.
+
+**Findings not previously recorded**, all confirmed against the tag:
+
+- `worktree-merge.service.ts` **hardcodes `deleteBranch: true`** in the
+  post-merge cleanup call. This is worse than the modal defaults already noted:
+  it is not a default the user can override, so the merge path deletes the
+  source branch unconditionally whenever `removeAfterMerge` is set — and the
+  deletion runs through the same swallowed `git branch -D` at
+  `worktree-remove.service.ts:61`.
+- `countAheadBehind` compares only against the local base branch, never against
+  a remote-tracking ref, so the payload cannot distinguish *unmerged* from
+  *unpushed*. There is no tracking, upstream, or remote-identity field anywhere
+  in the descriptor.
+- `parseWorktreeListPorcelain` strips `refs/heads/`, discarding the canonical
+  ref this specification requires be preserved.
+- The base branch is `entries[0].branch` — whatever the main worktree happens to
+  have checked out. The merge target is never chosen, and there is no rebase,
+  fast-forward policy, push, or PR path.
+- `isPrunable` is parsed and never surfaced; no merge/rebase/cherry-pick
+  in-progress state is detected.
+- **Nothing reports agent or runtime occupancy.** For the goal that motivates
+  ADR 0016 — observing concurrent agents inside one project — the feature is
+  silent.
+- `createWorktree` hardcodes the layout
+  `<repoParent>/<repoName>-worktrees/<sanitized-branch>` and does nothing
+  further, so a created worktree has no `node_modules` and no port assignment.
+  CLIde's own `scripts/setup-worktree.sh` exists precisely because a bare
+  `git worktree add` is not usable in this repository.
+- Merging rewrites the main worktree with no self-hosting guard. Where that
+  checkout is the one serving CLIde — the normal case for anyone forking
+  CloudCLI to work on CloudCLI — this is the `TODO.md` branch-switcher footgun
+  reachable from a second button.
+- 1.37 does **not** close the Phase 0 truthfulness gaps: the merged
+  `git-parsing.service.ts:38` still folds conflicts into `modified`. The
+  worktree feature therefore adds power on top of a panel that still cannot
+  display a conflicted file.
+
+**Assessment.** Upstream delivers roughly Phase 2 of
+`2026-07-26-git-source-control-workspace-ux.md` (workspace inventory and
+creation) on a data model that predates Phases 0 and 1. The plumbing is better
+than expected and largely portable; the product contract is the
+"worktree as a display option" model ADR 0016 rejected —
+`worktree-open.service.ts` registers each worktree as a *separate top-level
+project* named `repo · branch`, joined to its parent by nothing but a
+convention in the display string. Sequencing Phases 0 and 1 first and porting
+this material onto the resulting model is cheaper than adopting the model and
+retrofitting identity underneath it.
+
 ### Reuse
 
-Reuse or adapt:
+Harvest at file level. Paths are upstream's, at `v1.37.0`.
 
-- `git worktree list --porcelain` parsing;
-- injected Git command runners;
-- repository/path membership validation;
-- source and target cleanliness checks;
-- merge-conflict abort and structured reporting;
-- compensation when project registration fails;
-- create/list/open/merge/remove service tests; and
-- separation between worktree routes and lower-level Git services.
+| Upstream file | Take | Amend before use |
+|---|---|---|
+| `services/worktree-git.service.ts` | Nearly whole: porcelain parser, `validateWorktreeBranchName`, `findWorktreeEntryByPath`, `countChangedFiles`, the injected `runGitCommand` | Preserve full refs instead of stripping `refs/heads/`; surface `isPrunable` and the locked reason |
+| `services/worktree-list.service.ts` | `countAheadBehind`, `readLastCommit`, and the concurrency-capped fan-out | Add remote-tracking comparison, repository grouping by `--git-common-dir`, and agent/runtime occupancy |
+| `services/worktree-merge.service.ts` | Both-sides cleanliness preflight, `git reset --merge` rollback, structured `409` conflict reporting with the conflicted path list | Explicit merge target; remove the hardcoded `deleteBranch: true`; add the self-hosting guard |
+| `services/worktree-create-and-open.service.ts` | The compensation pattern: roll back the created worktree when registration fails, and escalate loudly when the rollback also fails | Replace "open" with grouped-checkout registration, not a new top-level project |
+| `worktrees.routes.ts` | The route/service split, and resolving project paths through an injected service so transport never reaches the Database module | Route shape follows the final identity model |
+| `tests/*.test.ts` (8 files, ~35 KB) | The whole harness as a starting point | Re-point at CLIde's data shape; add the refusal cases from [Phase 4 tests](#phase-4-tests) |
+
+The membership guard is worth calling out separately: every mutating route
+resolves its path against `git worktree list --porcelain` before touching git,
+which is what stops these endpoints becoming a "run git anywhere" backdoor. Keep
+that property in any rewrite.
+
+Leave behind entirely: the project-per-worktree identity model, the implicit
+base branch, all four destructive defaults, the hardcoded post-merge branch
+deletion, the hardcoded `-worktrees/` layout, and the Worktrees tab as shipped.
 
 ### Replace
 
@@ -1002,9 +1082,18 @@ Control specification:
 - keep worktree removal separate from branch deletion;
 - refuse dirty, conflicted, active, locked, or unintegrated deletion by default;
 - default to keeping the branch;
-- never default to squash plus cleanup plus branch deletion; and
+- never default to squash plus cleanup plus branch deletion;
 - do not use `git branch -D` without proving the user explicitly authorized
-  loss of an unmerged branch.
+  loss of an unmerged branch — including from the post-merge cleanup path,
+  where upstream hardcodes the authorization it should be asking for;
+- distinguish unmerged from unpushed by comparing against the remote-tracking
+  ref, not only the local base branch;
+- let the worktree location be chosen rather than fixed at
+  `<repoParent>/<repoName>-worktrees/<branch>`, and run CLIde's worktree setup
+  (`scripts/setup-worktree.sh`: dependency links and a free port pair) as part
+  of creation, so a created worktree is actually usable; and
+- refuse or hard-warn on any operation that rewrites the checkout serving
+  CLIde, merge included — the same hazard as the branch switcher.
 
 Use solid scrims such as `bg-black/50`; remove upstream
 `backdrop-blur-sm`.
@@ -1046,7 +1135,14 @@ components.
   refusals.
 - Explicit fast-forward, merge-commit, and squash policies.
 - Conflict abort leaves source and target recoverable.
-- Cleanup and branch deletion require separate authorization.
+- Cleanup and branch deletion require separate authorization, and a merge with
+  cleanup enabled still leaves the branch intact unless deletion was authorized
+  on its own.
+- Ahead/behind distinguishes unmerged from unpushed.
+- Merge and removal refuse, or hard-warn, when the target is the checkout
+  serving CLIde.
+- A newly created worktree comes back usable: dependency links and a port pair
+  assigned.
 - Commitlint/hook stderr remains visible and the composer retains input.
 - Commit-message generation remains provider-neutral and ephemeral.
 - No modal uses backdrop filtering.

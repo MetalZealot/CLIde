@@ -12,6 +12,7 @@ import type {
   ProviderModelsDefinition,
   ProviderModelsResult,
   ProviderSessionActiveModelChange,
+  ProviderSessionModel,
 } from '@/shared/types.js';
 import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
 import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
@@ -139,7 +140,12 @@ const writeProviderModelsCacheFile = async (
  * place.
  */
 export const createProviderModelsService = (dependencies: ProviderModelsServiceDependencies = {}) => {
-  const resolveProvider = dependencies.resolveProvider ?? providerRegistry.resolveProvider;
+  // Resolved lazily, not captured at construction: `providerModelsService` is
+  // created at module scope, and the registry pulls in provider adapters that
+  // import this service back. Touching `providerRegistry` eagerly here throws
+  // "Cannot access 'providerRegistry' before initialization" on that cycle.
+  const resolveProvider: NonNullable<ProviderModelsServiceDependencies['resolveProvider']> =
+    dependencies.resolveProvider ?? ((provider) => providerRegistry.resolveProvider(provider));
   const cachePath = dependencies.cachePath ?? getProviderModelsCachePath();
   const activeModelChangesPath = dependencies.activeModelChangesPath;
   const now = dependencies.now ?? (() => Date.now());
@@ -324,21 +330,97 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     filePath: activeModelChangesPath,
   });
 
+  /**
+   * Answers "which model is this session using?" for every display surface.
+   *
+   * Precedence, highest first:
+   *   1. the provider's own session state — for Claude that is
+   *      `getCurrentActiveModel`, which already applies the pick-versus-
+   *      transcript recency rule (ADR 0003: the transcript is ground truth and
+   *      a stored pick only wins when it is newer);
+   *   2. `requestedModel`, the client's current default, for a chat that has no
+   *      session yet;
+   *   3. the provider catalog default.
+   *
+   * Upstream 1.37 ranks a `sessions.model` column above all of these. CLIde does
+   * not take that column (see the 1.37 integration spec, Phase 3): a picker value
+   * stored on the row would outrank transcript evidence of what actually ran.
+   */
+  const resolveSessionModel = async (
+    provider: LLMProvider,
+    options: { sessionId?: string | null; requestedModel?: string | null } = {},
+  ): Promise<ProviderSessionModel> => {
+    const normalizedSessionId = typeof options.sessionId === 'string' ? options.sessionId.trim() : '';
+    const normalizedRequestedModel = typeof options.requestedModel === 'string'
+      ? options.requestedModel.trim()
+      : '';
+
+    if (normalizedSessionId) {
+      // Ask the provider what its own session state says before falling back to
+      // anything client-supplied.
+      const catalog = (await getProviderModels(provider)).models;
+      const providerModel = await getCurrentActiveModel(provider, normalizedSessionId);
+      const resolvedProviderModel = providerModel.model?.trim();
+      if (resolvedProviderModel && resolvedProviderModel !== catalog.DEFAULT) {
+        return {
+          provider,
+          sessionId: normalizedSessionId,
+          model: resolvedProviderModel,
+          source: 'provider',
+        };
+      }
+
+      return {
+        provider,
+        sessionId: normalizedSessionId,
+        model: normalizedRequestedModel || catalog.DEFAULT,
+        source: normalizedRequestedModel ? 'session' : 'default',
+      };
+    }
+
+    if (normalizedRequestedModel) {
+      return {
+        provider,
+        sessionId: null,
+        model: normalizedRequestedModel,
+        source: 'session',
+      };
+    }
+
+    const catalog = (await getProviderModels(provider)).models;
+    return {
+      provider,
+      sessionId: null,
+      model: catalog.DEFAULT,
+      source: 'default',
+    };
+  };
+
+  /**
+   * Picks the model one run should use, for provider runtime adapters.
+   *
+   * Deliberately narrower than `resolveSessionModel`: the provider's own
+   * session state is not consulted here. Codex reports a global config value
+   * from `getCurrentActiveModel`, which would silently override the model the
+   * user picked in the composer on every single run.
+   */
   const resolveResumeModel = async (
     provider: LLMProvider,
     sessionId: string | undefined,
     requestedModel?: string | null,
   ): Promise<string | undefined> => {
+    void provider;
     const normalizedRequestedModel = typeof requestedModel === 'string' ? requestedModel.trim() : '';
-    if (!sessionId?.trim()) {
+    const normalizedSessionId = sessionId?.trim();
+    if (!normalizedSessionId) {
       return normalizedRequestedModel || undefined;
     }
 
-    const changedModel = await getChangedActiveModel(provider, sessionId);
+    const changedModel = await getChangedActiveModel(provider, normalizedSessionId);
     if (changedModel.supported && changedModel.changed && changedModel.model?.trim()) {
       const providerModels = resolveProvider(provider).models;
       const transcriptTimestamp = typeof providerModels.getTranscriptTurnTimestamp === 'function'
-        ? await providerModels.getTranscriptTurnTimestamp(sessionId)
+        ? await providerModels.getTranscriptTurnTimestamp(normalizedSessionId)
         : undefined;
       if (pickSupersedesTranscript(changedModel.updatedAt, transcriptTimestamp)) {
         return changedModel.model.trim();
@@ -377,6 +459,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     getCurrentActiveModel,
     getChangedActiveModel,
     changeActiveModel,
+    resolveSessionModel,
     resolveResumeModel,
     clearCache,
   };
