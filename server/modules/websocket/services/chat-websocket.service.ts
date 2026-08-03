@@ -73,14 +73,19 @@ type ProviderRuntimeGateway = {
     options: AnyRecord,
     writer: ProviderRuntimeWriter,
   ): Promise<unknown>;
-  /** Addressed with the provider-native id — runtimes key process maps by it. */
-  abort(provider: LLMProvider, providerSessionId: string): Promise<boolean>;
+  /**
+   * Addressed with the stable app session id. Runtimes key their process and
+   * approval maps by the id the caller handed them, which since v1.37 is the
+   * app one — and unlike the provider-native id it exists from the first
+   * message, so an early Stop is addressable too.
+   */
+  abort(provider: LLMProvider, appSessionId: string): Promise<boolean>;
   resolveInteractiveRequest(
     requestId: string,
     response: InteractiveRequestResponse,
   ): Promise<ProviderInteractiveResolution>;
-  /** Provider-neutral pending requests, keyed by provider-native session id. */
-  getPendingApprovalsForSession(providerSessionId: string): unknown[];
+  /** Provider-neutral pending requests, keyed by app session id. */
+  getPendingApprovalsForSession(appSessionId: string): unknown[];
 };
 
 type ChatWebSocketDependencies = {
@@ -309,21 +314,18 @@ async function handleChatAbort(
 
   // Two-tier cancellation. `beginAbort` has already tripped the run's
   // AbortController, which the runtime was handed at spawn time — that is the
-  // tier that always applies, including the window this handler used to miss
-  // entirely (no provider id yet, so nothing addressable to interrupt).
+  // tier that always applies, and the only one Cursor and OpenCode have.
   //
-  // The id-keyed `abortFn` remains the preferred tier when the id *is* known:
-  // it is the provider's own graceful interrupt, which unwinds the CLI/SDK
-  // cleanly and lets it flush partial output, whereas the signal is a blunter
-  // cancel. Its absence is no longer a failure — it just means the signal is
-  // doing the work — so a missing provider id must not be reported as a failed
-  // abort. Exit code 0 is "we cancelled this run", which is now true in both
-  // tiers; only a provider interrupt that was attempted and refused is a
-  // genuine failure.
-  let interruptFailed = false;
-  if (run.providerSessionId) {
-    interruptFailed = !(await dependencies.runtime.abort(run.provider, run.providerSessionId));
-  }
+  // The id-keyed abort remains the preferred tier: it is the provider's own
+  // graceful interrupt, which unwinds the CLI/SDK cleanly and lets it flush
+  // partial output, whereas the signal is a blunter cancel. It is addressed by
+  // the *app* session id — the key every runtime registers under since v1.37,
+  // and one that exists from the first message, so this tier no longer misses
+  // the opening leg of a new session the way provider-id addressing did.
+  //
+  // Exit code 0 is "we cancelled this run"; only an interrupt that was
+  // attempted and refused is a genuine failure.
+  const interruptFailed = !(await dependencies.runtime.abort(run.provider, sessionId));
 
   chatRunRegistry.completeRun(sessionId, {
     exitCode: interruptFailed ? 1 : 0,
@@ -379,12 +381,14 @@ function handleChatSubscribe(
       chatRunRegistry.attachConnection(sessionId, ws);
     }
 
-    // Pending interactions are tracked under the provider-native id inside
-    // each runtime; remap their sessionId so the client only sees app ids.
-    const pendingPermissions = (run?.providerSessionId
-      ? dependencies.runtime.getPendingApprovalsForSession(run.providerSessionId)
-      : []
-    ).map((approval) =>
+    // Runtimes register pending interactions under the app session id, so this
+    // resolves even before the provider has announced an id of its own — which
+    // is exactly when a mid-approval refresh used to lose the prompt. The
+    // sessionId is still restamped so a runtime that keys by its own id cannot
+    // leak one to the client.
+    const pendingPermissions = dependencies.runtime
+      .getPendingApprovalsForSession(sessionId)
+      .map((approval) =>
       approval && typeof approval === 'object'
         ? { ...(approval as AnyRecord), sessionId }
         : approval,

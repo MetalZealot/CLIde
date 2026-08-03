@@ -69,13 +69,19 @@ async function createFakeServer(source: string): Promise<{
   };
 }
 
+/**
+ * Interactions are registered under whichever id the caller supplied — the app
+ * session id when there is one, the thread id otherwise — so the key to poll is
+ * a parameter. Tests that drive `query` without a sessionId keep the default.
+ */
 async function waitForPending(
   predicate: (request: PendingInteractiveRequest) => boolean = () => true,
+  sessionId = 'thread-1',
 ): Promise<PendingInteractiveRequest> {
   const deadline = Date.now() + 3_000;
   while (Date.now() < deadline) {
     const request = interactiveRequestRegistry
-      .getPendingForSession('thread-1')
+      .getPendingForSession(sessionId)
       .find(predicate);
     if (request) {
       return request;
@@ -708,12 +714,24 @@ for await (const line of lines) {
   providerModelsService.resolveResumeModel = async () => 'gpt-test';
   const writer = createWriter();
   try {
-    const query = transport.query('abort', { cwd: fake.root }, writer);
-    await waitForPending();
-    assert.equal(await transport.abort('thread-1'), true);
+    // Driven the way the chat gateway drives it: an app session id that is not
+    // the Codex thread id. Abort, isActive and the interaction registry must
+    // all answer to that id, or Stop and approval replay miss the live turn.
+    const query = transport.query('abort', { sessionId: 'app-abort', cwd: fake.root }, writer);
+    await waitForPending(() => true, 'app-abort');
+    assert.deepEqual(
+      interactiveRequestRegistry.getPendingForSession('app-abort').map((request) => request.toolName),
+      ['request_user_input'],
+      'pending interactions are registered under the app session id',
+    );
+    assert.equal(transport.isActive('app-abort'), true);
+    assert.equal(await transport.abort('app-abort'), true);
     await query;
+    assert.equal(transport.isActive('app-abort'), false);
+    assert.deepEqual(interactiveRequestRegistry.getPendingForSession('app-abort'), []);
+    // The thread id still resolves too — `forkThread` and direct API callers
+    // address runs that way.
     assert.equal(transport.isActive('thread-1'), false);
-    assert.deepEqual(interactiveRequestRegistry.getPendingForSession('thread-1'), []);
     // The websocket gateway owns the immediate aborted completion.
     assert.equal(writer.messages.filter((message) => message.kind === 'complete').length, 0);
   } finally {

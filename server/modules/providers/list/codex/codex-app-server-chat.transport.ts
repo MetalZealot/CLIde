@@ -121,6 +121,12 @@ type ForkCodexThreadOptions = {
 
 type ActiveTurn = {
   threadId: string;
+  /**
+   * Stable app session id for this run. Inbound App Server events address the
+   * thread, but the chat gateway addresses runs by the app id — so the turn
+   * carries both and is reachable either way.
+   */
+  appSessionId: string | null;
   turnId: string | null;
   writer: AppServerWriter;
   done: Promise<void>;
@@ -609,6 +615,7 @@ export class CodexAppServerChatTransport {
       });
       active = {
         threadId,
+        appSessionId: readNonEmptyString(options.sessionId) || null,
         turnId: null,
         writer,
         done,
@@ -687,8 +694,28 @@ export class CodexAppServerChatTransport {
     }
   }
 
-  async abort(threadId: string): Promise<boolean> {
-    const active = this.activeTurns.get(threadId);
+  /**
+   * Finds a run by either id it answers to.
+   *
+   * The chat gateway addresses runs by the app session id; `forkThread` and
+   * direct API callers address them by the Codex thread id. Matching both keeps
+   * one lookup honest for all of them.
+   */
+  private findActiveTurn(sessionId: string): ActiveTurn | null {
+    const byThread = this.activeTurns.get(sessionId);
+    if (byThread) {
+      return byThread;
+    }
+    for (const turn of this.activeTurns.values()) {
+      if (turn.appSessionId && turn.appSessionId === sessionId) {
+        return turn;
+      }
+    }
+    return null;
+  }
+
+  async abort(sessionId: string): Promise<boolean> {
+    const active = this.findActiveTurn(sessionId);
     const client = this.client;
     if (!active || !active.turnId || !client?.isOpen) {
       return false;
@@ -697,14 +724,16 @@ export class CodexAppServerChatTransport {
     active.aborted = true;
     try {
       await client.request('turn/interrupt', {
-        threadId,
+        threadId: active.threadId,
         turnId: active.turnId,
       });
-      await interactiveRequestRegistry.cancelForSession(threadId);
+      // Pending interactions are registered under the app session id, so the
+      // cancel has to use the same key the register did.
+      await interactiveRequestRegistry.cancelForSession(active.appSessionId || active.threadId);
       return true;
     } catch (error) {
       active.aborted = false;
-      console.warn(`[Codex App Server] Failed to interrupt thread ${threadId}:`, error);
+      console.warn(`[Codex App Server] Failed to interrupt thread ${active.threadId}:`, error);
       return false;
     }
   }
@@ -748,8 +777,9 @@ export class CodexAppServerChatTransport {
     return response.thread;
   }
 
-  isActive(threadId: string): boolean {
-    return Boolean(this.activeTurns.get(threadId) && !this.activeTurns.get(threadId)?.terminal);
+  isActive(sessionId: string): boolean {
+    const active = this.findActiveTurn(sessionId);
+    return Boolean(active && !active.terminal);
   }
 
   closeForTests(): void {
@@ -975,7 +1005,9 @@ export class CodexAppServerChatTransport {
     interactiveRequestRegistry.register({
       requestId,
       provider: PROVIDER,
-      sessionId: active.threadId,
+      // Registered under the app session id so `chat.subscribe` can replay a
+      // pending prompt after a refresh, matching the other runtimes.
+      sessionId: active.appSessionId || active.threadId,
       requestType: 'user_input',
       toolName: 'request_user_input',
       toolId: readNonEmptyString(params.itemId) || undefined,
@@ -1149,7 +1181,8 @@ export class CodexAppServerChatTransport {
     interactiveRequestRegistry.register({
       requestId,
       provider: PROVIDER,
-      sessionId: active.threadId,
+      // See the user-input registration above: app session id, not thread id.
+      sessionId: active.appSessionId || active.threadId,
       requestType: request.requestType,
       toolName: request.toolName,
       input: request.input,
