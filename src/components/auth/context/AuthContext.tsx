@@ -118,11 +118,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [token, user]);
 
+  // Adopt tokens the server refreshes on ordinary requests; without this the
+  // in-memory token stays pinned to whatever was stored at mount and consumers
+  // that read it (WebSocketContext) keep reconnecting with a stale one. Per
+  // ADR 0024 this updates credentials only — it must never re-run bootstrap.
   useEffect(() => {
     const handleTokenRefreshed = (event: Event) => {
       const nextToken = (event as CustomEvent<unknown>).detail;
       if (isValidRefreshedToken(nextToken)) {
-        setToken(nextToken);
+        setToken((current) => (current === nextToken ? current : nextToken));
       }
     };
     const handleSessionExpired = () => {
@@ -247,23 +251,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       window.removeEventListener('online', recheck);
     };
   }, [checkAuthStatus, token, user]);
-
-  // Adopt tokens the server refreshes on ordinary requests; without this the
-  // in-memory token stays pinned to whatever was stored at mount and consumers
-  // that read it (WebSocketContext) keep reconnecting with a stale one.
-  useEffect(() => {
-    const handleRefreshedToken = (event: Event) => {
-      const refreshed = (event as CustomEvent<string>).detail;
-      if (typeof refreshed === 'string' && refreshed.length > 0) {
-        setToken((current) => (current === refreshed ? current : refreshed));
-      }
-    };
-
-    window.addEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleRefreshedToken);
-    return () => {
-      window.removeEventListener(AUTH_TOKEN_REFRESHED_EVENT, handleRefreshedToken);
-    };
-  }, []);
 
   // Keep an idle-but-open client's token alive (see TOKEN_KEEPALIVE_INTERVAL_MS).
   useEffect(() => {
