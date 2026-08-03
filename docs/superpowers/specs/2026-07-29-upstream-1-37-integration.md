@@ -31,7 +31,7 @@
   - [ADR 0016 — repository-grouped checkouts](../../decisions/0016-repository-grouped-checkouts.md)
   - [ADR 0019 — QuickSettings panel removed; no second settings surface](../../decisions/0019-quicksettings-removal.md)
 - Related CLIde specifications:
-  - [Settings information architecture](2026-07-28-settings-information-architecture.md)
+  - [Settings information architecture](archive/2026-07-28-settings-information-architecture.md)
   - [Git and Source Control workspace UX](2026-07-26-git-source-control-workspace-ux.md)
   - [Source Control commit-message model selection](2026-07-29-source-control-commit-message-model-selection.md)
   - [Codex chat transport architecture](2026-07-25-codex-chat-transport-architecture.md)

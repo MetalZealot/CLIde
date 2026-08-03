@@ -453,6 +453,29 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               </div>
             )}
 
+            {/* Files carried across a compaction boundary. The CLI lists these
+                under its own `/compact` output; here they sit below the
+                collapsed summary so they read without expanding it. */}
+            {message.isCompactSummary
+              && message.compactReferences
+              && message.compactReferences.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10px] leading-4 text-gray-400 dark:text-gray-500">
+                <span>{t('compactSummary.references', { defaultValue: 'Referenced:' })}</span>
+                {message.compactReferences.map((reference, index) => (
+                  <span key={`${reference}-${index}`} className="contents">
+                    {index > 0 && <span aria-hidden="true">·</span>}
+                    <code
+                      dir="ltr"
+                      title={reference}
+                      className="break-all font-mono text-[10px] text-gray-500 dark:text-gray-400"
+                    >
+                      {reference}
+                    </code>
+                  </span>
+                ))}
+              </div>
+            )}
+
             {message.memoryCitations && message.memoryCitations.length > 0 && (
               <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10px] leading-4 text-gray-400 dark:text-gray-500">
                 <span>

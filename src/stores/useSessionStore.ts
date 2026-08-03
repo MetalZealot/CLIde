@@ -63,6 +63,8 @@ export interface NormalizedMessage {
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
+  /** Files a compaction carried across the boundary — see server types. */
+  compactReferences?: string[];
   /** CLI-fabricated notice rows (usage limits, API errors) — see server types. */
   isSystemNotice?: boolean;
   /**
@@ -510,6 +512,12 @@ export function useSessionStore() {
     sessionId: string,
     opts: {
       limit?: number;
+      /**
+       * Runs after the slot contains the prepended page but before subscribers
+       * are notified. The chat pane uses this to arm its scroll restoration in
+       * the same React commit that first renders the older rows.
+       */
+      onBeforeNotify?: (slot: SessionSlot) => void;
     } = {},
   ) => {
     const slot = getSlot(sessionId);
@@ -543,6 +551,9 @@ export function useSessionStore() {
       slot.hasMore = Boolean(data.hasMore);
       slot.offset = slot.offset + olderMessages.length;
       recomputeMergedIfNeeded(slot);
+      if (olderMessages.length > 0) {
+        opts.onBeforeNotify?.(slot);
+      }
       notify(sessionId);
       return slot;
     } catch (error) {
@@ -599,7 +610,18 @@ export function useSessionStore() {
     const slot = getSlot(sessionId);
     const fetchTicket = ++slot._fetchSeq;
     try {
-      const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages`;
+      // Preserve the currently loaded tail window. A reconnect or transcript
+      // watcher refresh used to omit pagination and replace a 20-row view with
+      // the entire conversation, causing a huge render and invalidating the
+      // reader's scroll geometry. Full-history views still refresh in full.
+      const refreshLimit = slot.hasMore && slot.offset > 0 ? slot.offset : null;
+      const params = new URLSearchParams();
+      if (refreshLimit !== null) {
+        params.set('limit', String(refreshLimit));
+        params.set('offset', '0');
+      }
+      const query = params.toString();
+      const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${query ? `?${query}` : ''}`;
       const response = await authenticatedFetch(url);
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -617,6 +639,7 @@ export function useSessionStore() {
       slot.serverMessages = data.messages || [];
       slot.total = data.total ?? slot.serverMessages.length;
       slot.hasMore = Boolean(data.hasMore);
+      slot.offset = slot.serverMessages.length;
       slot.fetchedAt = Date.now();
       // Only drop realtime rows the server transcript now owns. A blind clear
       // here caused the chat pane to flash "Continue your conversation" after

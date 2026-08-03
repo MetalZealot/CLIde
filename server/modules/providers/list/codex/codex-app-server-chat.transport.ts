@@ -585,6 +585,10 @@ export class CodexAppServerChatTransport {
       if (!threadId) {
         throw new Error('Codex App Server returned a thread without an id.');
       }
+      resolvedModel ||= readNonEmptyString(threadResponse.model) || undefined;
+      if (!resolvedModel) {
+        throw new Error('Codex App Server returned a thread without a model.');
+      }
       writer.setSessionId?.(threadId, {
         jsonlPath: threadResponse.thread.path,
         projectPath: threadResponse.thread.cwd || workingDirectory,
@@ -617,18 +621,14 @@ export class CodexAppServerChatTransport {
         sandboxPolicy: permissions.sandboxPolicy,
         model: resolvedModel,
         effort: resolvedEffort,
-        ...(options.permissionMode === 'plan'
-          ? {
-              collaborationMode: {
-                mode: 'plan',
-                settings: {
-                  model: resolvedModel,
-                  reasoning_effort: resolvedEffort ?? null,
-                  developer_instructions: null,
-                },
-              },
-            }
-          : {}),
+        collaborationMode: {
+          mode: options.permissionMode === 'plan' ? 'plan' : 'default',
+          settings: {
+            model: resolvedModel,
+            reasoning_effort: resolvedEffort ?? null,
+            developer_instructions: null,
+          },
+        },
       });
 
       active.turnId = readNonEmptyString(turnResponse?.turn?.id);

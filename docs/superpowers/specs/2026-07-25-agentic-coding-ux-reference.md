@@ -598,8 +598,8 @@ When reviewing a proposed CLIde feature, ask:
 
 ## Related CLIde references
 
-- [Claude Agent SDK surface map](./2026-07-19-agent-sdk-surface-map.md)
-- [Codex CLI and SDK surface map](./2026-07-24-codex-cli-sdk-surface-map.md)
+- [Claude Agent SDK surface map](../maps/claude-agent-sdk.md)
+- [Codex CLI and SDK surface map](../maps/codex-cli-sdk-app-server.md)
 - [Provider permission mode map](./2026-07-25-provider-permission-mode-map.md)
 - [Background session notifications](./2026-07-21-background-session-notifications.md)
 - [ADR 0005: mobile bottom navigation](../../decisions/0005-mobile-bottom-navbar.md)

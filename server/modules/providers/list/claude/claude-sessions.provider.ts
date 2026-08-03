@@ -371,6 +371,129 @@ function stripAnsiFormatting(text: string): string {
   return text.replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '');
 }
 
+/**
+ * `/compact` reaches the transcript twice: once as the user's real prompt row
+ * (the rewind anchor) and again ~50ms later as the `<command-name>` wrapper,
+ * which normalizes to an identical second bubble. Every other local command
+ * (`/model`, `/plugin`, `/agents`, `/config`) writes only the wrapper — which
+ * is why it is rendered at all — so the wrapper is dropped just when a recent
+ * user row already said the same thing, rather than special-casing `/compact`.
+ *
+ * The surviving row is the plain prompt, so the edit/rewind affordance
+ * (suppressed on `isLocalCommand` rows) stays available on the command.
+ */
+const LOCAL_COMMAND_ECHO_WINDOW_MS = 60_000;
+
+export function dropDuplicateLocalCommandEchoes(messages: NormalizedMessage[]): NormalizedMessage[] {
+  return messages.filter((message, index) => {
+    if (!message.isLocalCommand) {
+      return true;
+    }
+
+    const commandText = (message.content || '').trim();
+    if (!commandText) {
+      return true;
+    }
+
+    const commandTime = Date.parse(message.timestamp);
+    for (let scan = index - 1; scan >= 0; scan--) {
+      const earlier = messages[scan];
+      const earlierTime = Date.parse(earlier.timestamp);
+      if (
+        Number.isFinite(commandTime)
+        && Number.isFinite(earlierTime)
+        && commandTime - earlierTime > LOCAL_COMMAND_ECHO_WINDOW_MS
+      ) {
+        break;
+      }
+
+      if (
+        earlier.kind === 'text'
+        && earlier.role === 'user'
+        && !earlier.isLocalCommand
+        && (earlier.content || '').trim() === commandText
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
+ * Compaction appends `attachment` rows naming the files it carried across the
+ * boundary: `compact_file_reference` for a bare mention, `file` for one whose
+ * contents were re-read. The CLI lists them under its `/compact` line, but
+ * `normalizeMessage` ignores attachment rows entirely, so they never reached
+ * chat.
+ *
+ * Rows are collected from each compact-summary row up to the next genuine
+ * conversational turn. The `/compact` bookkeeping in between (caveat, command
+ * wrapper, stdout) is skipped rather than treated as a boundary, since the
+ * transcript's timestamp ordering can interleave it with the attachments.
+ */
+const COMPACT_REFERENCE_ATTACHMENT_TYPES = new Set(['file', 'compact_file_reference']);
+
+function isCompactionBookkeepingRow(row: AnyRecord): boolean {
+  const content = row.message?.content;
+  return (
+    typeof content === 'string'
+    && (content.startsWith('<local-command-caveat>')
+      || content.includes('<command-name>')
+      || content.includes('<local-command-stdout>'))
+  );
+}
+
+export function collectCompactReferencesByRowId(rawMessages: AnyRecord[]): Map<string, string[]> {
+  const referencesByRowId = new Map<string, string[]>();
+
+  for (let index = 0; index < rawMessages.length; index++) {
+    const summaryRow = rawMessages[index];
+    if (summaryRow.isCompactSummary !== true || typeof summaryRow.uuid !== 'string') {
+      continue;
+    }
+
+    const displayPaths: string[] = [];
+    const seenPaths = new Set<string>();
+
+    for (let scan = index + 1; scan < rawMessages.length; scan++) {
+      const row = rawMessages[scan];
+
+      if (row.type === 'attachment') {
+        const attachment = readObjectRecord(row.attachment);
+        const displayPath = attachment?.displayPath;
+        if (
+          attachment
+          && COMPACT_REFERENCE_ATTACHMENT_TYPES.has(String(attachment.type))
+          && typeof displayPath === 'string'
+          && displayPath
+          && !seenPaths.has(displayPath)
+        ) {
+          seenPaths.add(displayPath);
+          displayPaths.push(displayPath);
+        }
+        continue;
+      }
+
+      if (isCompactionBookkeepingRow(row)) {
+        continue;
+      }
+
+      const role = row.message?.role;
+      if (role === 'user' || role === 'assistant') {
+        break;
+      }
+    }
+
+    if (displayPaths.length > 0) {
+      referencesByRowId.set(summaryRow.uuid, displayPaths);
+    }
+  }
+
+  return referencesByRowId;
+}
+
 export class ClaudeSessionsProvider implements IProviderSessions {
   /**
    * Normalizes one Claude JSONL entry or live SDK stream event into the shared
@@ -752,9 +875,23 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       }
     }
 
-    const normalized: NormalizedMessage[] = [];
+    const normalizedWithEchoes: NormalizedMessage[] = [];
     for (const raw of rawMessages) {
-      normalized.push(...this.normalizeMessage(raw, sessionId));
+      normalizedWithEchoes.push(...this.normalizeMessage(raw, sessionId));
+    }
+    const normalized = dropDuplicateLocalCommandEchoes(normalizedWithEchoes);
+
+    const compactReferencesByRowId = collectCompactReferencesByRowId(rawMessages);
+    if (compactReferencesByRowId.size > 0) {
+      for (const msg of normalized) {
+        if (!msg.isCompactSummary) {
+          continue;
+        }
+        const references = compactReferencesByRowId.get(msg.id);
+        if (references) {
+          msg.compactReferences = references;
+        }
+      }
     }
 
     for (const msg of normalized) {

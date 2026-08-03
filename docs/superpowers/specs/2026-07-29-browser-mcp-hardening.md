@@ -59,7 +59,7 @@ Before implementation:
 1. Confirm `ef604c5` (or its equivalent after rebase) is on the target branch
    and has passed the Browser MCP wire test on the isolated server.
 2. Re-read `TODO.md`, this document, the preceding
-   `2026-07-29-browser-mcp-tool-result-token-bloat-investigation.md`, and any
+   `archive/2026-07-29-browser-mcp-tool-result-token-bloat-investigation.md`, and any
    Browser-related ADR written after this proposal.
 3. Inspect the currently installed Playwright version and its supported
    accessibility/ARIA snapshot APIs. Do not assume an API from a newer

@@ -1,18 +1,28 @@
 # CLIde Provider Architecture Consolidation Spec
 
-**Status:** Proposed; repository-local re-audit appended July 29, 2026  
+**Status:** Historical design and audit record; current contract extracted July 30, 2026; archived August 1, 2026
 **Audience:** CLIde maintainers and coding agents  
 **Repository:** `MetalZealot/CLIde`  
 **Basis:** Current `main` branch inspected July 29, 2026  
 **Primary objective:** Make adding a new coding-agent provider require implementing a provider adapter rather than modifying provider-specific branches throughout the application.
 
-> **Implementation notice:** Sections 1–29 preserve the original architectural
+> **Default reading path:** Do not load this entire document for ordinary
+> provider work. Read the concise
+> [current provider architecture contract](../CLIde_Provider_Architecture_Current_Contract.md)
+> and the living
+> [CLIde provider capability map](../../maps/clide-provider-capability-map.md).
+> Return here only for the routed historical evidence identified by those
+> documents.
+
+> **Historical record:** Sections 1–29 preserve the original architectural
 > investigation and proposal. Section 30 records a second audit performed from
 > inside the CLIde checkout against current `main` at
 > `e09e9ed028cadb9d326fd1bb9b7f1a8237082e9e`. Where Section 30 identifies a
 > conflict, omission, or narrower boundary, its repository-backed finding should
-> guide implementation. The original text is intentionally retained to show how
-> the proposal evolved.
+> guide interpretation of the original proposal. Section 31 adds native-runtime
+> resolution. Section 32 defines the relationship to the extracted current
+> contract and living maps. The original text is intentionally retained to show
+> how the proposal evolved.
 
 ---
 
@@ -2576,3 +2586,51 @@ Expected output:
 - provider module documentation updates;
 - a superseding ADR proposed before the later Codex source switch; and
 - no intended execution behavior change.
+
+## 32. Extracted Current Contract and Living Maps
+
+This file is intentionally preserved as the complete design and re-audit
+record. It is no longer the default context document for routine provider
+work.
+
+The current documentation layers are:
+
+1. [Current provider architecture contract](../CLIde_Provider_Architecture_Current_Contract.md)
+   — concise invariants, ownership boundaries, current gaps, and implementation
+   order.
+2. [CLIde provider capability map](../../maps/clide-provider-capability-map.md)
+   — living normalized behavior and provider/runtime bindings.
+3. Provider-native maps under [`docs/superpowers/maps/`](../../maps/README.md)
+   — CLI, SDK, App Server, configuration, and protocol inventories.
+4. This document — the original proposal, repository-local re-audit, runtime
+   resolution addendum, alternatives, and supporting evidence.
+5. ADRs — canonical lasting decisions when they apply.
+
+### 32.1 Mapping rule
+
+Provider-native methods, flags, events, settings, and endpoints are not copied
+into one universal interface merely because they exist. Each material native
+surface receives one explicit disposition:
+
+- bind to an existing normalized CLIde capability;
+- add a new normalized capability because CLIde has selected corresponding
+  product behavior;
+- retain behind a provider-specific facet or UI;
+- expose only through the provider's Shell client;
+- defer as a compatibility watch; or
+- intentionally do not expose it.
+
+Normalization occurs at the user-visible behavior boundary. Native names and
+protocol details remain in provider-owned adapters and provider-native maps.
+
+### 32.2 Source-of-truth direction
+
+During consolidation, the living map is the reviewable conformance inventory.
+The target state is for typed capability descriptors and provider bindings to
+generate or validate its mechanical tables. Human-maintained text remains
+responsible for semantics, fidelity, degradation, security, evidence, and
+deliberate non-mappings.
+
+Release-specific discovery updates a provider-native map and compact upgrade
+ledger first. The canonical CLIde map changes only when a normalized contract,
+provider binding, implementation state, or selected disposition changes.

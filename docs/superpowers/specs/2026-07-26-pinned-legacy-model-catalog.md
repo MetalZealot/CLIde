@@ -27,7 +27,7 @@ catalog alongside the aliases.
 Read this alongside:
 
 - [ADR 0003 — Per-session model tracking](../../decisions/0003-per-session-model-tracking.md);
-- [Popup model persistence design](2026-07-13-popup-model-persist-design.md);
+- [Popup model persistence design](archive/2026-07-13-popup-model-persist-design.md);
 - [Chat picker state and Shell synchronization](2026-07-26-chat-picker-state-and-shell-sync.md);
 - `TODO.md` → "Model picker follow-ups", especially **#3** (1M-context alias
   resolution) and **#12** (context-window ceiling), both of which this work

@@ -72,6 +72,8 @@ export interface ChatMessage {
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
+  /** Files a compaction carried across the boundary; rendered like memory citations. */
+  compactReferences?: string[];
   /** CLI-fabricated notice rows (usage limits, API errors) — muted banner, not a Claude bubble. */
   isSystemNotice?: boolean;
   /** Parsed from Codex's trailing provenance envelope; rendered as compact sources. */

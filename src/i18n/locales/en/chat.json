@@ -293,6 +293,7 @@
     "pickerHint": "Picking a message loads it into the composer; sending rewinds the conversation to that point."
   },
   "compactSummary": {
-    "label": "Compaction summary"
+    "label": "Compaction summary",
+    "references": "Referenced:"
   }
 }

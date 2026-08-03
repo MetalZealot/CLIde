@@ -8,6 +8,9 @@
 **CONFIRMED 2026-07-29 (Claude, `main` @ `5f31bf7`). Stages 1 and 2 complete;
 Stage 3 not run and not needed. Cleared for implementation.**
 
+**Archived 2026-08-01 after the fix landed in `ef604c5` and passed the focused,
+build, and isolated live MCP verification recorded in `docs/todo-done.md`.**
+
 See [Confirmation record](#confirmation-record-2026-07-29) at the end of this
 document for the reproduced measurements, three corrections to the sections
 below, and the [Implementation session brief](#implementation-session-brief).

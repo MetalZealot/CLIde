@@ -840,7 +840,10 @@ export function useChatComposerState({
     [handleAttachmentFiles],
   );
 
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+  // No `open` here on purpose: the picker is opened by a real tap on the native
+  // input rendered by NativeImageAttachmentPicker, not programmatically. Android
+  // standalone PWAs drop the result of a JS-driven `open()`.
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     maxSize: MAX_ATTACHMENT_SIZE,
     maxFiles: MAX_ATTACHMENT_COUNT,
     onDrop: handleAttachmentFiles,
@@ -1659,7 +1662,6 @@ export function useChatComposerState({
     getRootProps,
     getInputProps,
     isDragActive,
-    openAttachmentPicker: open,
     handleSubmit,
     queuedDraft,
     editQueuedDraft,

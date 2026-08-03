@@ -91,6 +91,7 @@ const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infini
 let initialized = false;
 let threadNumber = 0;
 let pendingThread = null;
+const threadModels = new Map();
 const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
 for await (const line of lines) {
   const message = JSON.parse(line);
@@ -103,10 +104,12 @@ for await (const line of lines) {
     if (!initialized) process.exit(12);
     threadNumber += 1;
     const id = message.method === 'thread/resume' ? message.params.threadId : 'thread-' + threadNumber;
+    const model = message.params.model || threadModels.get(id) || 'default';
+    threadModels.set(id, model);
     pendingThread = { method: message.method, params: message.params, id };
     send({ id: message.id, result: {
       thread: { id, sessionId: id, path: null, cwd: message.params.cwd },
-      model: message.params.model || 'default',
+      model,
       cwd: message.params.cwd,
       reasoningEffort: null
     } });
@@ -186,7 +189,14 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
       { type: 'localImage', path: imagePath },
     ]);
     assert.equal(firstCapture.turn.effort, 'high');
-    assert.equal(firstCapture.turn.collaborationMode.mode, 'plan');
+    assert.deepEqual(firstCapture.turn.collaborationMode, {
+      mode: 'plan',
+      settings: {
+        model: 'gpt-test',
+        reasoning_effort: 'high',
+        developer_instructions: null,
+      },
+    });
     assert.equal(firstCapture.turn.sandboxPolicy.type, 'workspaceWrite');
 
     assert.ok(first.messages.some((message) => message.kind === 'tool_use' && message.toolName === 'Bash'));
@@ -207,7 +217,6 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     await transport.query('Continue', {
       sessionId: 'stable-thread',
       cwd: fake.root,
-      model: 'gpt-resume',
       permissionMode: 'acceptEdits',
     }, resumed);
     assert.deepEqual(resumed.sessionIds, ['stable-thread']);
@@ -217,8 +226,63 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     assert.equal(resumedCapture.thread.method, 'thread/resume');
     assert.equal(resumedCapture.thread.params.threadId, 'stable-thread');
     assert.equal(resumedCapture.turn.approvalPolicy, 'never');
-    assert.equal(resumedCapture.turn.collaborationMode, undefined);
+    assert.deepEqual(resumedCapture.turn.collaborationMode, {
+      mode: 'default',
+      settings: {
+        model: 'default',
+        reasoning_effort: null,
+        developer_instructions: null,
+      },
+    });
     assert.equal(resumed.messages.filter((message) => message.kind === 'complete').length, 1);
+  } finally {
+    await fake.cleanup();
+  }
+});
+
+test('App Server resets Plan collaboration mode when the same thread resumes with Bypass Permissions', async () => {
+  const fake = await createFakeServer(BASIC_SERVER);
+  const transport = new CodexAppServerChatTransport({ command: fake.command });
+  transports.push(transport);
+  providerModelsService.resolveResumeModel = async (_provider, _sessionId, requested) => requested || undefined;
+
+  try {
+    const plan = createWriter();
+    await transport.query('Plan this', {
+      cwd: fake.root,
+      model: 'gpt-plan',
+      effort: 'high',
+      permissionMode: 'plan',
+    }, plan);
+
+    const planCaptureMessage = plan.messages.find((message) =>
+      message.kind === 'text' && String(message.content).startsWith('CAPTURE:'));
+    const planCapture = JSON.parse(String(planCaptureMessage?.content).slice(8));
+    assert.equal(planCapture.turn.collaborationMode.mode, 'plan');
+
+    const bypass = createWriter();
+    await transport.query('Implement it', {
+      sessionId: 'thread-1',
+      cwd: fake.root,
+      permissionMode: 'bypassPermissions',
+    }, bypass);
+
+    const bypassCaptureMessage = bypass.messages.find((message) =>
+      message.kind === 'text' && String(message.content).startsWith('CAPTURE:'));
+    const bypassCapture = JSON.parse(String(bypassCaptureMessage?.content).slice(8));
+    assert.equal(bypassCapture.thread.method, 'thread/resume');
+    assert.equal(bypassCapture.thread.params.threadId, 'thread-1');
+    assert.equal(bypassCapture.turn.threadId, 'thread-1');
+    assert.equal(bypassCapture.turn.approvalPolicy, 'never');
+    assert.deepEqual(bypassCapture.turn.sandboxPolicy, { type: 'dangerFullAccess' });
+    assert.deepEqual(bypassCapture.turn.collaborationMode, {
+      mode: 'default',
+      settings: {
+        model: 'gpt-plan',
+        reasoning_effort: null,
+        developer_instructions: null,
+      },
+    });
   } finally {
     await fake.cleanup();
   }

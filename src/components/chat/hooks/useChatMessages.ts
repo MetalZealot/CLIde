@@ -102,6 +102,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       isLocalCommand: msg.isLocalCommand,
       isLocalCommandStdout: msg.isLocalCommandStdout,
       isCompactSummary: msg.isCompactSummary,
+      compactReferences: msg.compactReferences,
       isSystemNotice: msg.isSystemNotice,
     };
 

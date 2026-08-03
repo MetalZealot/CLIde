@@ -15,13 +15,11 @@ import { groupConsecutiveTools, isToolGroupItem } from '../../utils/toolGrouping
 import MessageComponent from './MessageComponent';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
 import ToolGroupContainer from './ToolGroupContainer';
-import LoadAllMessagesOverlay from './LoadAllMessagesOverlay';
 import ChatExportMenu from './ChatExportMenu';
 
 interface ChatMessagesPaneProps {
   scrollContainerRef: RefObject<HTMLDivElement>;
-  onWheel: () => void;
-  onTouchMove: () => void;
+  messagesContentRef: RefObject<HTMLDivElement>;
   isLoadingSessionMessages: boolean;
   /** True while the viewed session has an active provider run in flight. */
   isProcessing?: boolean;
@@ -47,16 +45,10 @@ interface ChatMessagesPaneProps {
   setInput: Dispatch<SetStateAction<string>>;
   isLoadingMoreMessages: boolean;
   hasMoreMessages: boolean;
-  totalMessages: number;
-  sessionMessagesCount: number;
   visibleMessageCount: number;
   visibleMessages: ChatMessage[];
-  loadEarlierMessages: () => void;
   loadAllMessages: () => void;
-  allMessagesLoaded: boolean;
   isLoadingAllMessages: boolean;
-  loadAllJustFinished: boolean;
-  showLoadAllOverlay: boolean;
   createDiff: any;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
@@ -72,8 +64,7 @@ interface ChatMessagesPaneProps {
 
 function ChatMessagesPane({
   scrollContainerRef,
-  onWheel,
-  onTouchMove,
+  messagesContentRef,
   isLoadingSessionMessages,
   isProcessing = false,
   chatMessages,
@@ -98,16 +89,10 @@ function ChatMessagesPane({
   setInput,
   isLoadingMoreMessages,
   hasMoreMessages,
-  totalMessages,
-  sessionMessagesCount,
   visibleMessageCount,
   visibleMessages,
-  loadEarlierMessages,
   loadAllMessages,
-  allMessagesLoaded,
   isLoadingAllMessages,
-  loadAllJustFinished,
-  showLoadAllOverlay,
   createDiff,
   onFileOpen,
   onShowSettings,
@@ -163,9 +148,8 @@ function ChatMessagesPane({
   return (
     <div
       ref={scrollContainerRef}
-      onWheel={onWheel}
-      onTouchMove={onTouchMove}
       className="chat-messages-pane relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-3 pt-3 sm:pb-4 sm:pt-4"
+      style={{ overflowAnchor: 'none' }}
     >
       {chatMessages.length > 0 && (
         <div className="pointer-events-none sticky right-4 top-3 z-10 mb-2 flex justify-end sm:px-4">
@@ -174,7 +158,10 @@ function ChatMessagesPane({
           </div>
         </div>
       )}
-      <div className="mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4">
+      <div
+        ref={messagesContentRef}
+        className="mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4"
+      >
       {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
         <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
           <div className="flex items-center justify-center space-x-2">
@@ -206,50 +193,26 @@ function ChatMessagesPane({
         />
       ) : (
         <>
-          {/* Loading indicator for older messages (hide when load-all is active) */}
-          {isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded && (
-            <div className="py-3 text-center text-gray-500 dark:text-gray-400">
-              <div className="flex items-center justify-center space-x-2">
-                <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-400" />
-                <p className="text-sm">{t('session.loading.olderMessages')}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Indicator showing there are more messages to load (hide when all loaded) */}
-          {hasMoreMessages && !isLoadingMoreMessages && !allMessagesLoaded && (
-            <div className="border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              {totalMessages > 0 && (
-                <span>
-                  {t('session.messages.showingOf', { shown: sessionMessagesCount, total: totalMessages })}{' '}
-                  <span className="text-xs">{t('session.messages.scrollToLoad')}</span>
-                </span>
+          {(hasMoreMessages || chatMessages.length > visibleMessageCount) && (
+            <div className="flex items-center justify-center gap-2 border-b border-gray-200 py-2 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              {(isLoadingMoreMessages || isLoadingAllMessages) && (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 dark:border-gray-600 dark:border-t-blue-400" />
               )}
-            </div>
-          )}
-
-          <LoadAllMessagesOverlay
-            showLoadAllOverlay={showLoadAllOverlay}
-            isLoadingAllMessages={isLoadingAllMessages}
-            loadAllJustFinished={loadAllJustFinished}
-            totalMessages={totalMessages}
-            onLoadAllMessages={loadAllMessages}
-          />
-
-          {/* Legacy message count indicator (for non-paginated view) */}
-          {!hasMoreMessages && chatMessages.length > visibleMessageCount && (
-            <div className="border-b border-gray-200 py-2 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              {t('session.messages.showingLast', { count: visibleMessageCount, total: chatMessages.length })} |
-              <button className="ml-1 text-blue-600 underline hover:text-blue-700" onClick={loadEarlierMessages}>
-                {t('session.messages.loadEarlier')}
-              </button>
-              {' | '}
-              <button
-                className="text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                onClick={loadAllMessages}
-              >
-                {t('session.messages.loadAll')}
-              </button>
+              <span>
+                {isLoadingAllMessages
+                  ? t('session.messages.loadingAll')
+                  : isLoadingMoreMessages
+                    ? t('session.loading.olderMessages')
+                    : t('session.messages.scrollToLoad')}
+              </span>
+              {!isLoadingMoreMessages && !isLoadingAllMessages && (
+                <button
+                  className="font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                  onClick={loadAllMessages}
+                >
+                  {t('session.messages.loadAll')}
+                </button>
+              )}
             </div>
           )}
 

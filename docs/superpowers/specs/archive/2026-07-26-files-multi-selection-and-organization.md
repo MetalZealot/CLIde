@@ -1,10 +1,10 @@
 # Files multi-selection and organization
 
 - Date: 2026-07-26
-- Status: Design reference; phases 1–3 implemented 2026-07-28 on
-  `feat/files-multi-select` (`b37cb8c` server, `51af9ba` client). Live
-  verification — the desktop drag matrix and the installed-PWA touch pass in
-  the verification plan below — is still outstanding.
+- Status: Completed and archived 2026-08-01. Phases 1–3 were implemented on
+  `feat/files-multi-select` (`b37cb8c` server, `51af9ba` client), merged to
+  `main` in `63655cb`, and Grayson confirmed the desktop multi-selection flow.
+  This completion record does not claim a separate installed-PWA touch pass.
 - Scope: Files-tab selection, multi-item move, desktop drag behavior, mobile
   selection mode, context menus, accessibility, batch filesystem safety, and
   open-editor path handoff
@@ -15,7 +15,7 @@
   - `0f31388` — shared, anchored, scroll-safe touch context menus
 - Related decisions:
   - [ADR 0009 — Long-press menus: one shared overlay, and touch belongs to
-    `useLongPress`](../../decisions/0009-context-menu-overlay-touch-ownership.md)
+    `useLongPress`](../../../decisions/0009-context-menu-overlay-touch-ownership.md)
 
 ## Purpose
 
@@ -829,4 +829,3 @@ perform the final production restart from SSH after merge.
 8. Verify desktop behavior and the installed mobile PWA.
 9. Record any non-obvious lasting decision as a new ADR rather than rewriting
    ADR 0009.
-

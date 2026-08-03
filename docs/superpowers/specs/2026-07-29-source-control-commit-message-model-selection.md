@@ -1,27 +1,25 @@
 # Source Control commit-message model selection
 
-*Recorded 2026-07-29 against CLIde `main`, the in-progress Settings information
-architecture worktree, and bundled Codex CLI/App Server 0.145.0.*
+*Recorded 2026-07-29. Reassessed 2026-07-30 against CLIde `main` after the
+Settings information architecture merged, and against bundled Codex SDK,
+CLI, and App Server 0.146.0.*
 
 ## Status and sequencing
 
-**Deferred follow-on. Do not implement this inside the Settings IA worktree.**
+**Ready for a fresh implementation worktree.**
 
-Implementation starts only after the
-[Settings information architecture](2026-07-28-settings-information-architecture.md)
-branch has been completed, verified, and merged into `main`. That work
-deliberately reorganizes existing settings without adding new ones. This
-feature is additive: it adopts the finished **Projects & Git** screen, settings
-registry, navigation shell, and shared settings primitives rather than
-expanding the active worktree's scope.
+The prerequisite
+[Settings information architecture](archive/2026-07-28-settings-information-architecture.md)
+is complete and merged into `main`. This feature adopts its finished
+**Projects & Git** screen, depth-two navigation, settings registry, navigation
+shell, one-scroll-container rule, local save feedback, and shared primitives.
 
 When implementation begins:
 
 1. claim or add the corresponding `TODO.md` item;
 2. create a fresh topic worktree from the then-current `main`;
-3. inspect the merged Settings IA component names instead of assuming the
-   provisional names in this document survived unchanged; and
-4. preserve unrelated work in the main checkout.
+3. preserve unrelated work in the main checkout; and
+4. use `cloudcli-branch-test` for the database/server/PWA verification pass.
 
 ## Purpose
 
@@ -33,8 +31,8 @@ conversation that appears in the sidebar.
 The feature has two coordinated surfaces:
 
 - a compact model selector in the Source Control commit composer; and
-- a **Commit messages** group in Settings -> Projects & Git that controls which
-  provider/model choices appear.
+- a **Commit message writer** child screen under Settings -> Projects & Git
+  that controls the default and which provider/model choices appear.
 
 The everyday interaction stays one click: the composer remembers the last
 commit-message model, displays it beside the generation action, and uses it
@@ -102,8 +100,11 @@ The bundled Codex runtime already has the safe primitive:
 - `codex exec --ephemeral`; and
 - App Server `thread/start` with `ephemeral: true`.
 
-The generated 0.145.0 App Server schema includes the field, although CLIde's
-curated `CodexThreadStartParams` type does not yet carry it.
+The generated 0.146.0 App Server schema confirms
+`ThreadStartParams.ephemeral?: boolean | null`, and the returned thread also
+reports whether it is ephemeral. CLIde's curated `CodexThreadStartParams` type
+does not yet carry the field, and the protocol-drift test checks the method but
+not this required field.
 
 Upstream `siteboon/claudecodeui` has the same Claude/Cursor allowlist and
 provider switch. CLIde's normalized-writer and Claude non-persistence fixes are
@@ -157,8 +158,9 @@ Codex
   GPT-5.4
 ```
 
-Do not hardcode model slugs or labels in the Git panel. Reuse
-`GET /api/providers/:provider/models` and the backend capability matrix.
+Do not hardcode model slugs or labels in the Git panel. Consume the resolved
+provider groups returned by the commit-message settings endpoint, which in turn
+uses the backend model, capability, and auth services.
 
 Provider states:
 
@@ -167,9 +169,9 @@ Provider states:
   reason, but omitted or disabled in the compact composer menu.
 - **Model removed from the live catalog:** stale stored reference; reconcile as
   described below.
-- **Usage exhausted:** do not silently switch provider/model. If current usage
-  data can establish the state, show it as temporarily unavailable; otherwise
-  attempt generation and display the provider's returned limit error.
+- **Usage exhausted:** do not silently switch provider/model or hide a
+  configured choice based on transient quota state. Attempt generation and
+  display the provider's returned limit error.
 - **No eligible choices:** disable Sparkles and show `Configure commit-message
   models in Settings`.
 
@@ -199,25 +201,33 @@ successful model response.
 
 ## Settings design
 
-After Settings IA merges, add a third group to **Projects & Git**:
+Add a navigation row to the existing **Projects & Git** screen:
 
-1. Project list
-2. Git identity
-3. Commit messages
+```text
+Projects & Git
+└── Commit message writer        Claude · Sonnet 5  >
+```
 
-Use the merged `SettingsGroup`, `SettingsRow`, `SettingsSelect`, and navigation
-patterns. Add `commit`, `message`, `model`, `Claude`, `Codex`, `Haiku`, and
-`Source Control` to the screen/setting search keywords.
+The row opens a depth-two screen with stable id
+`projects-git.commit-messages`. Use `SettingsNavRow` on the parent and
+`SettingsScreen`, `SettingsGroup`, `SettingsRow`, `SettingsSelect`, and
+`SettingsToggle` on the child. The child owns the only scroll container; model
+groups must not introduce nested scrolling.
 
-### Commit messages group
+Add `commit`, `message`, `writer`, `model`, `Claude`, `Codex`, `Haiku`,
+`Sparkles`, and `Source Control` to the registry and setting search data.
 
-The group contains:
+### Commit message writer screen
+
+The screen contains:
 
 #### Selected model
 
 A select displaying the current provider/model pair. Changing it saves
 immediately and changes the composer selection everywhere. This is the
 last-selected/default model; the two concepts intentionally share one value.
+The select contains enabled, catalog-valid models. A stale selected model
+remains visible as unavailable until the user chooses a replacement.
 
 Help text:
 
@@ -226,27 +236,33 @@ Help text:
 
 #### Models shown in Source Control
 
-An allowlist editor grouped by provider. Prefer selected chips plus an `Add
-model` control over a permanent wall of checkboxes if the live catalogs are
-large.
+An allowlist editor grouped by provider. The first implementation exposes only
+providers whose adapters advertise ephemeral text generation. Claude and Codex
+are the initial required implementations, so their combined catalogs are small
+enough for divided toggle rows under provider headings.
+
+If later ephemeral-capable providers make the list unwieldy, add filtering or
+an `Add model` chooser without introducing a nested scroller. Do not build that
+complexity in v1.
 
 Requirements:
 
 - only providers advertising ephemeral text generation can be enabled;
 - provider and model labels come from the live catalogs;
-- at least one enabled choice is required while generation is enabled;
-- removing the currently selected choice requires choosing a replacement in
-  the same interaction, or automatically selects the first remaining choice
-  with a clear confirmation;
+- at least one choice must remain enabled;
+- the selected model's toggle is disabled with guidance to choose another
+  default first; never silently select a replacement;
 - stale stored choices are shown as unavailable until removed, rather than
   silently disappearing from Settings; and
 - changes save immediately, matching the Settings IA save model for selects and
   toggles.
 
-No separate `Use current Chat model` mode ships initially. It would recreate
-the coupling this feature is intended to remove. The initial selection may be
-seeded from the active Chat model only when no commit-message preference has
-ever been stored; after that, the commit setting is authoritative.
+The control's updated value is normal success feedback. Render an inline error
+inside this screen if a backend write fails, per ADR 0021; do not restore a
+global Settings save indicator.
+
+No separate `Use current Chat model` mode ships. It would recreate the coupling
+this feature is intended to remove.
 
 ## Preference source of truth
 
@@ -285,54 +301,92 @@ Version and normalize the JSON:
 type SourceControlPreferencesV1 = {
   version: 1;
   commitMessage: {
-    selectedModel: CommitMessageModelRef | null;
-    /**
-     * null means every currently eligible model until the user customizes the
-     * list. An array is the explicit allowlist.
-     */
-    enabledModels: CommitMessageModelRef[] | null;
+    selectedModel: CommitMessageModelRef;
+    enabledModels: CommitMessageModelRef[];
   };
 };
 ```
 
-The server returns normalized preferences plus live resolution information:
+For an existing user with no row, normalize to the exact legacy behavior:
 
 ```ts
+{
+  version: 1,
+  commitMessage: {
+    selectedModel: { provider: 'claude', model: 'sonnet' },
+    enabledModels: [{ provider: 'claude', model: 'sonnet' }],
+  },
+}
+```
+
+This preserves the model that the old route hardcoded while making future
+changes explicit. Do not seed from active Chat and do not silently substitute a
+provider catalog default. If the legacy selection is unavailable, generation
+stays disabled until the user chooses another enabled model.
+
+The server returns a Source-Control-specific resolved view model rather than
+making each client independently join preferences, capabilities, auth, and
+model catalogs:
+
+```ts
+type CommitMessageModelChoice = {
+  ref: CommitMessageModelRef;
+  label: string;
+  description?: string;
+  enabled: boolean;
+  available: boolean;
+  unavailableReason?: string;
+};
+
+type CommitMessageProviderGroup = {
+  provider: LLMProvider;
+  installed: boolean;
+  authenticated: boolean;
+  supportsEphemeralTextGeneration: boolean;
+  models: CommitMessageModelChoice[];
+};
+
 type ResolvedCommitMessagePreferences = {
-  selectedModel: CommitMessageModelRef | null;
+  selectedModel: CommitMessageModelRef;
   enabledModels: CommitMessageModelRef[];
   staleModels: CommitMessageModelRef[];
-  selectionSource: 'stored' | 'active-chat-seed' | 'provider-default' | 'none';
+  selectionSource: 'stored' | 'legacy-default';
+  canGenerate: boolean;
+  selectionIssue?: string;
+  providerGroups: CommitMessageProviderGroup[];
 };
 ```
 
-Suggested endpoints:
+Endpoints:
 
 ```text
-GET /api/settings/source-control-preferences
-PUT /api/settings/source-control-preferences
+GET /api/settings/source-control/commit-message
+PUT /api/settings/source-control/commit-message
 ```
 
-The PUT endpoint validates provider IDs, model-reference shape, and duplicates.
-Catalog eligibility is rechecked at generation time because installed CLIs,
-authentication, and dynamic model catalogs can change after preferences are
-saved.
+The GET handler uses the existing provider registry, models service,
+capabilities service, and auth service to build the resolved response. The PUT
+endpoint validates provider IDs, model-reference shape, duplicates, a non-empty
+allowlist, and that `selectedModel` belongs to `enabledModels`.
+
+Catalog eligibility, job capability, installation, and authentication are
+rechecked at generation time because provider state and dynamic catalogs can
+change after preferences are saved. Usage limits are not used to hide choices:
+they are transient, sometimes unavailable to CLIde, and should surface as
+actionable generation errors.
 
 ### Selection reconciliation
 
 Resolve the model in this order:
 
-1. stored `selectedModel`, if it is enabled, catalog-valid, supported, and
-   available;
-2. active Chat's provider/model, only when no preference row has ever existed
-   and it supports ephemeral generation;
-3. an eligible provider catalog default; or
-4. `null`, disabling generation with configuration guidance.
+1. stored `selectedModel`; or
+2. the virtual legacy default `Claude · Sonnet` when no row exists.
 
 Once a user selects a commit-message model in either Settings or the composer,
-save it as `selectedModel`. A stale selection does not authorize silently
-switching providers. If reconciliation must choose a replacement, return the
-reason so the UI can say what changed.
+save it as `selectedModel`. Reconciliation determines whether that exact
+reference is usable; it never chooses a replacement. A stale, disabled,
+unsupported, unauthenticated, or unavailable selection sets `canGenerate:
+false` and returns `selectionIssue` so the UI can explain what must change.
 
 ## Provider-neutral backend contract
 
@@ -351,7 +405,9 @@ type ProviderTextJobInput = {
 type ProviderTextJobResult = {
   text: string;
   provider: LLMProvider;
-  model: string;
+  requestedModel: string;
+  /** Present only when the provider reports what actually ran. */
+  effectiveModel?: string;
 };
 
 interface IProviderJobs {
@@ -366,8 +422,15 @@ interface IProvider {
 ```
 
 Expose the capability through `provider-capabilities.service.ts`. The frontend
-renders eligible choices from backend capabilities and catalogs; it must not
-branch on provider IDs.
+renders the backend-resolved Source Control choices; it must not infer job
+support from provider IDs. Where practical, derive the advertised capability
+from the registered `jobs` facet or cover the two with a conformance test so
+the capability matrix cannot drift from the adapter.
+
+This separate facet follows the
+[current provider architecture contract](CLIde_Provider_Architecture_Current_Contract.md):
+interactive Chat and small ephemeral jobs have different lifecycle,
+persistence, permission, and transport requirements.
 
 The job contract owns:
 
@@ -384,7 +447,7 @@ The Git route owns:
 - project and selected-file validation;
 - safe repository-relative diff construction;
 - prompt construction;
-- preference/request selection;
+- authoritative preference resolution;
 - calling the provider job; and
 - cleaning/validating the conventional commit message.
 
@@ -395,7 +458,8 @@ Use the existing Claude Agent SDK with:
 - `persistSession: false`;
 - no file checkpoints;
 - the requested validated model instead of hardcoded `sonnet`;
-- the least tool access needed for a prompt that already contains the diff; and
+- an empty tool allowlist and no `bypassPermissions`, because the prompt already
+  contains the diff and needs no repository tools;
 - no CLIde session/database registration.
 
 Retain the transcript-directory verification added for the earlier
@@ -408,20 +472,22 @@ Do not route ephemeral generation through the current TypeScript
 
 Preferred implementation:
 
-- a job-owned App Server client/transport separate from interactive Chat
-  transport state;
+- a disposable job-owned `JsonlRpcClient`, following the existing account-usage
+  App Server pattern and separate from interactive Chat transport state;
 - resolve the CLI bundled with `@openai/codex`, never an unrelated global
   executable;
 - `thread/start` with `ephemeral: true`;
-- read-only sandbox and no approval path that can hang an HTTP request;
+- read-only sandbox, network disabled, and approval policy `never`;
 - `turn/start` with the requested validated model;
-- collect the final assistant message;
+- collect completed `agentMessage` text and finish on `turn/completed`;
+- reject unexpected server requests rather than opening an interactive approval
+  path that can hang the HTTP request;
 - suppress Chat lifecycle notifications and session registration; and
-- close/unload job state when complete.
+- close the disposable process on success, error, cancellation, or timeout.
 
 Keeping job transport state separate prevents a commit-message request from
-making SDK-configured interactive Chat falsely advertise App Server runtime
-capabilities.
+changing interactive Chat health/capability diagnostics or sharing its active
+turn bookkeeping and failure domain.
 
 Extend the curated `CodexThreadStartParams` type with `ephemeral?: boolean |
 null` and add it to the generated-schema drift coverage.
@@ -448,14 +514,14 @@ that it satisfies the no-phantom-session invariant. Unsupported providers omit
 
 ## Generation API
 
-Evolve the request to carry an explicit model:
+The stored commit-message preference is authoritative. The composer saves a
+selection change before enabling Sparkles; generation itself does not accept a
+second provider/model value that can drift from Settings.
 
 ```ts
 type GenerateCommitMessageRequest = {
   project: string;
   files: string[];
-  provider: LLMProvider;
-  model: string;
 };
 ```
 
@@ -465,13 +531,20 @@ Success response:
 type GenerateCommitMessageResponse = {
   message: string;
   provider: LLMProvider;
-  model: string;
+  requestedModel: string;
+  effectiveModel?: string;
 };
 ```
 
-The response echoes the **effective** provider/model so the composer can confirm
-what actually ran. If the requested model cannot run, return an actionable
-error; do not report another model as if it were the request.
+The route reads the authenticated user's stored or virtual-legacy selection,
+revalidates that exact reference, and invokes its provider job. It always
+echoes the requested provider/model. It reports `effectiveModel` only when the
+provider confirms what actually ran; requested state must never be mislabeled
+as effective truth.
+
+If the selected model cannot run, return an actionable error. Do not run
+another model or provider and do not report a substitution as if it were the
+request.
 
 Use consistent HTTP/error semantics:
 
@@ -485,52 +558,72 @@ The current 4,000-character diff prompt limit may remain in the first
 implementation. Improving diff selection/truncation is separate work unless
 tests show it prevents useful messages.
 
-## Shared client model-catalog state
+## Shared client preference state
 
-Today `useChatProviderState` owns the four-provider model-catalog fetch and
-reconciliation logic. The Git composer and Settings screen must not copy that
-large hook or maintain a second hardcoded catalog.
+Do not copy or extract `useChatProviderState` for this feature. That hook owns
+interactive-session desired/effective model behavior, provider-specific browser
+keys, effort, permissions, and catalog refresh state that Source Control must
+not inherit.
 
-Extract the reusable catalog/capability read into a focused shared hook or
-context, for example:
+The backend-resolved commit-message endpoint is the only catalog/capability/auth
+view model the Source Control UI consumes.
+
+Use one lazy `CommitMessagePreferencesContext` (or equivalently scoped external
+store) shared by the Settings portal and Git panel:
 
 ```text
-useProviderCatalogs()
-  -> catalogs
-  -> capabilities
-  -> auth status needed for eligibility
-  -> loading/refresh state
+useCommitMessagePreferences()
+  -> resolved preferences and provider groups
+  -> lazy load / refresh
+  -> setSelectedModel(ref), awaited PUT
+  -> setModelEnabled(ref, enabled), awaited PUT
+  -> loading / saving / error
 ```
 
-Chat keeps its session-specific desired/effective model logic. Source Control
-uses only catalog/capability/auth data plus its own backend preference.
+Mount the provider inside the authenticated application tree, but defer its
+GET until the Git composer or Projects & Git settings first consumes it. This
+avoids querying provider auth/catalog state on every CLIde page load while
+still keeping Settings and the composer synchronized in one browser window.
 
 Delete `useSelectedProvider` from the commit-generation path once the explicit
-provider/model preference is wired. It may remain elsewhere only if another
-consumer still needs it.
+commit-message preference is wired. It may remain elsewhere only if another
+consumer still needs it. Do not mutate Chat's `selected-provider` or
+per-provider model local-storage keys.
 
 ## Implementation sequence
 
-1. **Adopt merged Settings IA.** Re-read the resulting registry, Projects & Git
-   screen, primitives, save behavior, and tests. Update this spec's provisional
-   component names if necessary.
-2. **Preference persistence.** Back up the database, add schema/migration,
-   repository, normalization, and authenticated GET/PUT routes.
-3. **Provider job contract.** Add `IProviderJobs`, capability exposure, error
+1. **Claim and isolate.** Add/claim the `TODO.md` item and create a fresh topic
+   worktree from current `main`.
+2. **Provider job contract.** Add `IProviderJobs`, capability exposure, error
    types, final-text collector, and provider-neutral tests.
-4. **Claude and Codex adapters.** Preserve Claude non-persistence; implement
-   Codex App Server ephemeral generation and protocol drift coverage.
-5. **Generation route.** Replace the allowlist/switch, accept model, return
-   effective metadata, and surface provider failures.
-6. **Shared catalogs.** Extract the reusable client catalog/capability loader
-   without changing Chat selection semantics.
-7. **Settings group.** Add selected-model and enabled-model controls to
-   Projects & Git, registry search metadata, and responsive states.
-8. **Composer UI.** Add the compact model selector, remembered selection,
-   loading/disabled states, and visible errors.
-9. **Provider probes.** Evaluate Cursor and OpenCode separately; enable only
-   those proven ephemeral.
-10. **Verification and rollout.** Focused tests, typecheck, lint, client/server
+3. **Claude and Codex adapters.** Preserve Claude non-persistence and remove
+   tool access; implement the disposable Codex App Server ephemeral job,
+   protocol field, and drift coverage.
+4. **Artifact proof.** Against fake protocol fixtures and then the isolated
+   branch test, prove both adapters return text without native transcript or
+   CLIde session artifacts before adding preference/UI state.
+5. **Preference persistence.** Add schema/migration, repository, deterministic
+   legacy default, normalization, and authenticated GET/PUT routes. The branch
+   test uses its database snapshot; back up the live database before the first
+   production start that can run the migration.
+6. **Resolved Source Control service.** Aggregate preference, job capability,
+   auth, and live model catalogs on the backend; use it for both GET and
+   generation-time validation.
+7. **Generation route.** Replace the allowlist/switch, read the authenticated
+   user's selected model, return requested/effective metadata separately, and
+   surface provider failures without canned output.
+8. **Shared preference context.** Add lazy synchronized state for Settings and
+   the Git composer without changing Chat selection semantics.
+9. **Settings child screen.** Register `projects-git.commit-messages`, add the
+   parent navigation row, selected/enabled controls, search metadata, local
+   errors, and responsive states.
+10. **Composer UI.** Add the compact grouped model selector, awaited selection
+    persistence, loading/disabled states, and visible errors.
+11. **Provider probes.** Evaluate Cursor and OpenCode separately. Do not simply
+   delete Cursor's inherited generator path; either migrate it to a verified
+   non-persistent job adapter or leave it explicitly unsupported with the
+   compatibility impact documented.
+12. **Verification and rollout.** Focused tests, typecheck, lint, client/server
     builds, isolated branch test, merge to `main`, then user-owned production
     restart and installed-PWA verification.
 
@@ -539,11 +632,15 @@ consumer still needs it.
 ### Backend unit/integration coverage
 
 - Preference JSON defaults, normalization, duplicate removal, and versioning.
+- An absent row resolves to exactly Claude/Sonnet selected and enabled.
 - A stored provider/model round-trips per authenticated user.
+- The PUT route rejects an empty allowlist or a selection outside it.
 - Stale models are reported and never sent to an adapter.
 - Generation rejects a provider without ephemeral job capability.
-- Requested provider/model reaches the correct adapter.
-- Effective provider/model is echoed in success.
+- The stored requested provider/model reaches the correct adapter without a
+  client-supplied provider/model override.
+- Requested model is always echoed; effective model is present only when the
+  provider confirms it.
 - Provider errors reach the response; canned fallback is not returned.
 - Empty assistant output is an error.
 - Only selected files contribute diff context.
@@ -560,7 +657,11 @@ consumer still needs it.
 - Composer renders enabled models grouped by provider.
 - Selecting a model updates the displayed choice and persists it.
 - Settings and composer reflect the same backend preference.
+- Projects & Git displays the selected model and opens the registered
+  depth-two writer screen.
+- The writer screen and its model groups introduce no nested scroll container.
 - Commit-message selection does not mutate Chat model/provider state.
+- The selected model cannot be disabled until another default is chosen.
 - A removed model reconciles visibly.
 - Unsupported/unauthenticated choices cannot be invoked.
 - Usage/auth/generation errors render in the Git panel.
@@ -613,14 +714,16 @@ remaining step rather than restarting it.
 - Do not create or resume a provider conversation for generation.
 - Do not redesign diff truncation, conventional-commit rules, staging, or
   commit execution unless focused testing exposes a blocker.
-- Do not add the new settings to the active Settings IA worktree.
+- Do not create a new top-level Settings destination; adopt the merged
+  Projects & Git drill-down.
 - Do not enable Cursor/OpenCode without proving non-persistence.
 - Do not open or update an upstream PR without explicit user approval.
 
 ## Classification and decision record
 
-The backend provider-job contract, explicit provider/model request, error
-surfacing, and inherited allowlist removal are candidates for upstreaming.
+The backend provider-job contract, backend-authoritative provider/model
+selection, error surfacing, and inherited allowlist removal are candidates for
+upstreaming.
 The exact Settings placement and presentation depend on CLIde's fork-specific
 Settings IA and Source Control direction.
 

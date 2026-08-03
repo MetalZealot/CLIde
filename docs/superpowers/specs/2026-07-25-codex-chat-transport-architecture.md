@@ -14,8 +14,8 @@ CLIde. It explains:
 - what changes if App Server becomes the default Chat transport; and
 - which integration surface future Codex work should target.
 
-It complements the dated, exhaustive
-[Codex CLI, SDK, and App Server surface map](2026-07-24-codex-cli-sdk-surface-map.md).
+It complements the current, curated
+[Codex CLI, SDK, and App Server surface map](../maps/codex-cli-sdk-app-server.md).
 ADR 0011 remains the canonical decision for the opt-in first rollout.
 
 ## Executive summary
@@ -396,5 +396,5 @@ will package the Codex runtime and service non-interactive jobs.
 - [OpenAI Codex App Server](https://developers.openai.com/codex/app-server)
 - [OpenAI Codex non-interactive mode](https://developers.openai.com/codex/noninteractive)
 - [OpenAI Codex CLI reference](https://developers.openai.com/codex/cli/reference)
-- [Codex CLI, SDK, and App Server surface map](2026-07-24-codex-cli-sdk-surface-map.md)
+- [Codex CLI, SDK, and App Server surface map](../maps/codex-cli-sdk-app-server.md)
 - [ADR 0011 — Codex App Server is the opt-in interactive Chat transport](../../decisions/0011-codex-app-server-chat-transport.md)
