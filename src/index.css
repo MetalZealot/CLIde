@@ -811,6 +811,27 @@
   display: none !important;
 }
 
+/* User turns render as Markdown inside the solid blue bubble. `prose-invert`
+   repaints the body gray-300, which reads as a blue tint on that background;
+   inherit the bubble's own white instead. Only the *-invert vars are set, so
+   this never races the `prose-invert` utility that consumes them. */
+.prose-on-accent {
+  --tw-prose-invert-body: inherit;
+  --tw-prose-invert-headings: inherit;
+  --tw-prose-invert-lead: inherit;
+  --tw-prose-invert-bold: inherit;
+  --tw-prose-invert-counters: inherit;
+  --tw-prose-invert-bullets: currentColor;
+  --tw-prose-invert-quotes: inherit;
+  --tw-prose-invert-captions: inherit;
+  --tw-prose-invert-code: inherit;
+  --tw-prose-invert-pre-code: inherit;
+  --tw-prose-invert-quote-borders: rgb(255 255 255 / 0.4);
+  --tw-prose-invert-hr: rgb(255 255 255 / 0.3);
+  --tw-prose-invert-th-borders: rgb(255 255 255 / 0.4);
+  --tw-prose-invert-td-borders: rgb(255 255 255 / 0.25);
+}
+
 /* Custom spinner animation for mobile compatibility */
 @layer utilities {
   @keyframes spin {

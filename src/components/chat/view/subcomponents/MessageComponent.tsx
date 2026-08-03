@@ -133,7 +133,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                         user turns render as Markdown rather than pre-wrapped text. */}
                     <Markdown
                       breaks
-                      className="prose prose-sm prose-invert max-w-none font-serif [&_a]:text-blue-100 [&_a]:underline"
+                      className="prose prose-on-accent prose-sm prose-invert max-w-none font-serif [&_a]:text-blue-100 [&_a]:underline"
                     >
                       {message.content}
                     </Markdown>
