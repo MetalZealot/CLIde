@@ -17,6 +17,40 @@ const hasActionablePermissionRequests = (requests: Array<{ toolName?: unknown }>
   return Array.isArray(requests) && requests.some((request) => isActionablePermissionRequest(request));
 };
 
+/**
+ * Collapses repeated `requestId`s in a `chat_subscribed` ack.
+ *
+ * The live `permission_request` path appends one request at a time behind an
+ * explicit id check, but the ack replaces the whole list with whatever the
+ * server sent — so it was the one path that could seat the same prompt twice.
+ * That is not hypothetical: the server's pending lookup fanned out across
+ * providers that share one interactive-request registry and answered a single
+ * pending question once per runtime, which rendered as two identical panels
+ * (fixed server-side in `interactive-request-registry.service.ts`). Keeping the
+ * guard here too means a runtime added later cannot resurrect the symptom, and
+ * it costs one pass over a list that is almost always empty or length 1.
+ *
+ * Entries without a usable id are passed through rather than dropped: they are
+ * already broken for decision routing, and silently hiding them would make that
+ * harder to see, not easier.
+ */
+export const dedupePermissionRequestsById = (
+  requests: PendingPermissionRequest[],
+): PendingPermissionRequest[] => {
+  const seenRequestIds = new Set<string>();
+  return requests.filter((request) => {
+    const requestId = request?.requestId;
+    if (typeof requestId !== 'string' || requestId.length === 0) {
+      return true;
+    }
+    if (seenRequestIds.has(requestId)) {
+      return false;
+    }
+    seenRequestIds.add(requestId);
+    return true;
+  });
+};
+
 interface UseChatRealtimeHandlersArgs {
   subscribe: (listener: (event: ServerEvent) => void) => () => void;
   provider: LLMProvider;
@@ -122,7 +156,9 @@ export function useChatRealtimeHandlers({
 
           const isViewedSession = sid === activeViewSessionId;
           if (isViewedSession && Array.isArray(msg.pendingPermissions)) {
-            const nextPendingPermissionRequests = msg.pendingPermissions as PendingPermissionRequest[];
+            const nextPendingPermissionRequests = dedupePermissionRequestsById(
+              msg.pendingPermissions as PendingPermissionRequest[],
+            );
             const hadActionablePermissionRequests = hasActionablePermissionRequests(pendingPermissionRequestsRef.current);
             const hasPendingActionablePermissionRequests = hasActionablePermissionRequests(nextPendingPermissionRequests);
 
