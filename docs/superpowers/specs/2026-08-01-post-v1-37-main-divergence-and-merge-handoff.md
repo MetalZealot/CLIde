@@ -451,3 +451,157 @@ After the final source merge, append a short outcome section that records:
 Do not change this document's pre-merge measurements after the fact. Preserve
 them as the explanation for why the synchronization was required, then add the
 actual result beside the prediction.
+
+## Outcome — 2026-08-03
+
+Source integration is complete. `main` fast-forwarded to the verified
+integration tip; nothing has been pushed, rebuilt, or deployed.
+
+### Commits
+
+| Role | Commit |
+|---|---|
+| Phase 1 — v1.37.0 integration merge | `17d9326` (parents `cff37b3`, `264e094`) |
+| Phase 2 — `main` synchronized into the topic branch | `49bfcb4` (parents `17d9326`, `bd61d08`) |
+| Final commit merged to `main` | `658d536` |
+| `main` before the merge (revert anchor) | `bd61d08` |
+
+The v1.37 merge retains the immutable upstream tag as its second parent, as
+required, and `264e094` is confirmed an ancestor of `main`. Phase 4 was a true
+fast-forward — `main` was already an ancestor of `chore/upstream-1.37`, so no
+conflict was ever resolved in the production-serving checkout. 22 commits
+advanced `main`.
+
+### Overlap outcome: 5 of the 14 predicted paths conflicted
+
+The prediction was a ceiling, and it held. Conflicted in Phase 2:
+
+- `TODO.md` (hand-resolved, both coordination histories retained);
+- `src/components/chat/hooks/useChatComposerState.ts`;
+- `src/components/chat/view/ChatInterface.tsx`;
+- `src/components/chat/view/subcomponents/ChatComposer.tsx`; and
+- `src/components/chat/view/subcomponents/ChatMessagesPane.tsx`.
+
+Auto-merged, and reviewed anyway per the rule that a clean textual merge still
+requires behavior-level verification: `claude-sessions.provider.ts`,
+`server/shared/types.ts`, `AuthContext.tsx`, `useChatMessages.ts`,
+`useChatSessionState.ts`, `src/components/chat/types/types.ts`,
+`MessageComponent.tsx`, `src/i18n/locales/en/chat.json`, `useSessionStore.ts`.
+
+`ChatMessagesPane.tsx` conflicted in Phase 2 despite being recorded `M` for the
+upstream merge — the two merges have independent conflict sets, and the table's
+`M`/`UU` column described only the first.
+
+### Semantic corrections made after Phase 2
+
+Four defects were found post-merge, all of the same shape and **all in files
+that merged without any conflict**: upstream and CLIde had refactored toward the
+same structure, so Git merged the file moves cleanly and silently dropped the
+semantic reconciliation.
+
+| Fix | Defect |
+|---|---|
+| `fd5d724` | `/context` 500'd — `hasConcreteSessionId` went with upstream's `commands.js` → `commands.routes.ts` move; the CLIde handler merged in still referencing it. `@ts-nocheck` meant typecheck could not catch it. Two tests added. |
+| `3e84bd7` | New/resumed/forked Codex sessions failed — upstream flipped the runtime contract to pass the *app* session id, and every runtime got `resolveProviderSessionId` except CLIde's own `codex-app-server-chat.transport.ts`, which upstream had never seen. |
+| `21f0088` | User bubble text turned blue-grey — upstream renders user turns through `<Markdown>` with `prose-invert`, whose gray-300 body colour overrode `text-white`. Fixed with `.prose-on-accent`, which sets only the `--tw-prose-invert-*` vars, so there is no specificity race. |
+| `9a9d47b` | `chat.abort` never found the run and `chat.subscribe` looked up approvals under the wrong id. Claude survived on its tier-1 AbortController (ADR 0013); **Cursor and OpenCode have no such tier, so Stop did nothing.** Codex worked by accident. Regression coverage in `chat-session-addressing.test.ts` drives all four providers with the two ids deliberately unequal. |
+
+Two further fixes landed during the pre-merge audit and **post-date the live
+acceptance below**: `a4af8bf` scopes `getPendingForSession` by provider (Claude
+and Codex share one module-level `interactiveRequestRegistry`, so a pending
+`AskUserQuestion` was answered once per runtime and the subscribe ack carried
+the same `requestId` twice), and `658d536` dedupes the ack client-side so a
+later runtime cannot resurrect the symptom.
+
+### Verification at merge time
+
+Re-run on the integration tip immediately before the fast-forward, because the
+two permission-dedupe commits post-dated the recorded green run:
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | clean, both projects |
+| `npm run lint` | **0 errors**, 194 warnings |
+| `npm run test:server` | **398/398** (was 389 pre-audit) |
+| `npm run test:client` | **94/94** |
+| Conflict-marker sweep over `src/`, `server/`, `shared/` | 0 |
+
+Builds were deliberately not run — see production state below.
+
+Spec-required presences and absences confirmed on merged `main`:
+`LoadAllMessagesOverlay.tsx` was **not** resurrected; `NativeImageAttachmentPicker`
++ its test, `claude-compaction-rows.test.ts`, ADR 0024, the living provider maps,
+and the UI-overhaul design assets are all present; the Codex collaboration-mode
+reset (`3cdeec9`) is in `main`; and every deferral held — no `sessions.model`
+column (only a comment in `migrations.ts` recording why), no `server/modules/worktrees/`,
+no `quick-settings-panel/`, and none of upstream's four composer menu files.
+
+### Isolated service and live acceptance
+
+Live verification ran on the `cloudcli-branch-test` harness at **port 3002**,
+serving a build of `~/Projects/cloudcli-wt-upstream-1.37` against a snapshot of
+the production database. Grayson accepted on **2026-08-03** at `21f0088`: new
+Codex session, resumed Codex session, the usage ring (`/context`), and user-bubble
+text colour all confirmed. Pagination and scroll anchoring were separately
+accepted on 2026-08-01, with two residual symptoms deliberately retained in
+`TODO.md` (assistant header/logo flash; viewport movement when the roof is
+reached during a load) — scrolling is improved, not finished.
+
+**Stated plainly: `9a9d47b`, `a4af8bf`, and `658d536` have not been live-verified.**
+They carry static coverage only. The duplicate-`AskUserQuestion` panel and Stop
+behaviour on Cursor/OpenCode should be exercised on the next live pass.
+
+### Production deployment state — not deployed
+
+Source only. Production on port 3001 is unchanged and still serving its
+pre-1.37 build:
+
+- `dist/` and `dist-server/` are gitignored, so the fast-forward could not alter
+  what the running service serves;
+- `~/Projects/cloudcli`'s `node_modules` is now **stale against the merged
+  `package.json`** — `ignore@^7`, `remark-breaks`, `@types/cors`, `jsdom`, and
+  `@types/jsdom` are new. `npm install` is required before any build there;
+- the server entry moved to `server/index.ts` and the `bin` target to
+  `dist-server/server/modules/cli/cli.js`, so this is a **server** change and
+  needs a restart, which is **SSH-only — never from inside a CLIde session**;
+- nothing has been pushed to `origin`; `main` is 22 ahead. The push will need
+  no force, since this was a fast-forward, not a rebase.
+
+Deploy order when it happens: `npm install` → `npm run build` → restart from
+SSH → verify on 3001. The topic branch `chore/upstream-1.37` and its worktree
+are intentionally left in place until then, so a revert to `bd61d08` stays
+cheap.
+
+### Follow-up order
+
+Grayson's call, 2026-08-03, taken before the merge: reassess the fork's own
+divergence first, ahead of the five queued specs above. Measured overlap with
+upstream is 75 of 641 changed paths (~12%), and **none of the four merge defects
+traced to an ADR** — they traced to upstream's restructure meeting a fork that
+had been refactoring the same area. The queue is therefore:
+
+1. **ADR reassessment** (this session's finding). Three items carry real cost:
+   the ADR 0003 model-picker divergence, which sits in the single hottest
+   contested file set and currently stores per-session picks in a sidecar JSON
+   outside the database, outside backup, and outside migrations — take upstream's
+   additive column as `desiredModel` without letting it outrank transcript truth;
+   a yes/no on whether the Codex App Server transport (ADR 0011/0012) earns its
+   maintenance, given it is opt-in, invisible to upstream, and broke on the
+   runtime-contract flip; and ADR 0016, which is **entirely unimplemented** — no
+   `git-common-dir` anywhere in `server/` or `src/` — yet blocks adopting
+   upstream's worktrees module. Either build its Phase 0 or downgrade it to
+   Proposed and harvest upstream's `listWorktrees` descriptor and test harness.
+2. Source Control and repository-grouped worktrees.
+3. WebSocket liveness (ADR 0006 vs the final gateway).
+4. Source Control commit-message model selection.
+5. MCP scope-storage collision guard.
+
+### The lesson worth carrying to the next upstream bump
+
+Only 5 files conflicted textually in Phase 2, and 39 in Phase 1 — but every
+genuine defect was in a file that merged **cleanly**. Conflict markers were an
+anti-signal here. When both sides refactor toward the same target, diff the
+*contract* surfaces — runtime options, gateway addressing, provider context —
+rather than trusting Git's conflict set. `chat-session-addressing.test.ts` is
+the right shape of artifact: one per contract, driving every provider with the
+ids deliberately unequal.
