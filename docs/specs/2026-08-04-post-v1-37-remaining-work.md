@@ -72,17 +72,29 @@ The third item, the ADR 0003 model-picker divergence, is done. These two are
 not, and both are a yes/no rather than a build.
 
 - [ ] **Does the Codex App Server transport earn its maintenance?** (ADR
-  0011/0012.) The case against: it is opt-in, upstream does not know it exists,
-  and it broke during the v1.37 merge because upstream changed a runtime
-  contract it could not see (`3e84bd7`). The case for is in
-  [the transport architecture spec](../maps/2026-07-25-codex-chat-transport-architecture.md);
-  note that spec's own outstanding work is verification, not code. Decide keep
-  or drop before doing any more work on it. **M**
-- [ ] **ADR 0016 is written but entirely unimplemented** — no `git-common-dir`
-  anywhere in `server/` or `src/` — and it is what blocks adopting upstream's
-  worktrees module. Two honest exits: build its Phase 0, or downgrade it to
-  Proposed and harvest upstream's `listWorktrees` descriptor and test harness.
-  Blocks the next item. **M–L**
+  0011/0012.) **Reframed 2026-08-04 — the original "it is opt-in" premise was
+  stale.** Since `cbf2960` it is the *default* interactive Chat transport:
+  `getConfiguredCodexChatTransport` (`codex-chat-transport-state.ts:69`) returns
+  `app-server` unless `CLIDE_CODEX_CHAT_TRANSPORT=sdk`, and the SDK path is
+  described in its own comment as "an explicit emergency escape hatch". It is
+  1,840 lines of implementation behind 1,005 lines of tests, with a startup
+  fallback to the SDK already built in. So this is no longer "drop a side
+  experiment" — it is "revert the default path to the escape hatch". What stands
+  from the original case against: upstream does not know it exists, and it broke
+  during the v1.37 merge because upstream changed a runtime contract it could not
+  see (`3e84bd7`). The case for is in
+  [the transport architecture map](../maps/2026-07-25-codex-chat-transport-architecture.md);
+  its own outstanding work is verification, not code. **M**
+- [ ] **ADR 0016 is written but entirely unimplemented** — status `Accepted`, yet
+  no `git-common-dir` or `commonDir` anywhere in `server/`, `src/` or `shared/`
+  (re-verified 2026-08-04) — and it is what blocks adopting upstream's worktrees
+  module. Note the exit originally listed here, "downgrade it to Proposed", is
+  not available: [the decision log's README](../decisions/README.md) is
+  append-only and recognises only `Accepted` or `Superseded by NNNN`, with no
+  `Proposed` state. The two exits that fit the convention are to build Phase 0 so
+  the Accepted status becomes true, or to write a superseding ADR recording the
+  deferral and harvest upstream's `listWorktrees` descriptor and test harness
+  under it. Blocks the next item. **M–L**
 
 ## Queued specs, not started
 
