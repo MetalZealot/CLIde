@@ -432,12 +432,15 @@ const addSessionStarColumn = (db: Database): void => {
  *
  * See ADR 0025, which supersedes the storage half of ADR 0003.
  */
-const addSessionModelColumns = (db: Database): void => {
+const addSessionModelColumns = (db: Database): { addedModelColumn: boolean } => {
   const sessionsTableInfo = getTableInfo(db, 'sessions');
   const columnNames = sessionsTableInfo.map((column) => column.name);
+  const addedModelColumn = !columnNames.includes('model');
 
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'model', 'TEXT');
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'model_updated_at', 'DATETIME');
+
+  return { addedModelColumn };
 };
 
 type LegacyActiveModelChangeEntry = {
@@ -460,21 +463,13 @@ type LegacyActiveModelChangeEntry = {
  * Deliberately non-destructive in both directions: rows that already carry a
  * model are left alone, and the sidecar file is not deleted. It stays on disk as
  * a fallback until the migration is confirmed in the wild.
+ *
+ * Runs only on the upgrade that adds the column. "Does any row have a model?"
+ * would be the obvious sentinel and is the wrong one — it conflates "already
+ * imported" with "the user has picked a model since", so a database that
+ * happened to carry one pick would skip the import of every other.
  */
 const importLegacySessionModelPicks = (db: Database): void => {
-  const sessionsTableInfo = getTableInfo(db, 'sessions');
-  const columnNames = sessionsTableInfo.map((column) => column.name);
-  if (!columnNames.includes('model') || !columnNames.includes('model_updated_at')) {
-    return;
-  }
-
-  const alreadyImported = db
-    .prepare('SELECT COUNT(*) AS count FROM sessions WHERE model IS NOT NULL')
-    .get() as { count: number };
-  if (alreadyImported.count > 0) {
-    return;
-  }
-
   const legacyPath = path.join(
     os.homedir(),
     '.cloudcli',
@@ -569,8 +564,9 @@ export const runMigrations = (db: Database) => {
     migrateLegacySessionNames(db);
     addProviderSessionIdMapping(db);
     addSessionStarColumn(db);
-    addSessionModelColumns(db);
-    importLegacySessionModelPicks(db);
+    if (addSessionModelColumns(db).addedModelColumn) {
+      importLegacySessionModelPicks(db);
+    }
     ensureProjectsForSessionPaths(db);
 
     db.exec(SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL);

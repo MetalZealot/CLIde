@@ -103,53 +103,67 @@ test('a pick for a session that has no row reports that nothing was stored', asy
   });
 });
 
-test('picks from the pre-ADR-0025 sidecar file are imported on first migration', async () => {
+/**
+ * Reproduces a pre-ADR-0025 database: rows exist, the model columns do not.
+ * Building it this way (rather than hand-writing an old schema) keeps the
+ * fixture honest as the rest of the sessions table evolves.
+ */
+const dropModelColumns = (): void => {
+  const db = getConnection();
+  db.exec('ALTER TABLE sessions DROP COLUMN model');
+  db.exec('ALTER TABLE sessions DROP COLUMN model_updated_at');
+};
+
+const writeLegacySidecar = async (
+  homeDirectory: string,
+  entries: Record<string, unknown>,
+): Promise<void> => {
+  const cloudcliDirectory = path.join(homeDirectory, '.cloudcli');
+  await mkdir(cloudcliDirectory, { recursive: true });
+  await writeFile(
+    path.join(cloudcliDirectory, 'provider-session-active-model-changes.json'),
+    JSON.stringify({ version: 1, entries }),
+    'utf8',
+  );
+};
+
+test('picks from the pre-ADR-0025 sidecar file are imported on the upgrade', async () => {
   await withIsolatedDatabase(async (homeDirectory) => {
-    // Build the rows first, then re-run migrations with a sidecar present, so
-    // the import has something to match against — the real upgrade order.
     await initializeDatabase();
     sessionsDb.createAppSession('legacy-1', 'claude', '/workspace/demo');
     sessionsDb.createAppSession('legacy-2', 'codex', '/workspace/demo');
     sessionsDb.createAppSession('legacy-3', 'claude', '/workspace/demo');
+    dropModelColumns();
     closeConnection();
 
-    const cloudcliDirectory = path.join(homeDirectory, '.cloudcli');
-    await mkdir(cloudcliDirectory, { recursive: true });
-    await writeFile(
-      path.join(cloudcliDirectory, 'provider-session-active-model-changes.json'),
-      JSON.stringify({
-        version: 1,
-        entries: {
-          'claude:legacy-1': {
-            provider: 'claude',
-            sessionId: 'legacy-1',
-            supported: true,
-            changed: true,
-            model: 'fable',
-            updatedAt: '2026-07-13T17:37:44.771Z',
-          },
-          // Provider mismatch: this entry names claude, but the row is codex.
-          'claude:legacy-2': {
-            provider: 'claude',
-            sessionId: 'legacy-2',
-            supported: true,
-            changed: true,
-            model: 'sonnet',
-            updatedAt: '2026-07-13T17:37:44.771Z',
-          },
-          // A cleared pick carries changed: false and must not be imported.
-          'claude:legacy-3': {
-            provider: 'claude',
-            sessionId: 'legacy-3',
-            supported: true,
-            changed: false,
-            model: null,
-            updatedAt: '2026-07-13T17:37:44.771Z',
-          },
-        },
-      }),
-      'utf8',
-    );
+    await writeLegacySidecar(homeDirectory, {
+      'claude:legacy-1': {
+        provider: 'claude',
+        sessionId: 'legacy-1',
+        supported: true,
+        changed: true,
+        model: 'fable',
+        updatedAt: '2026-07-13T17:37:44.771Z',
+      },
+      // Provider mismatch: this entry names claude, but the row is codex.
+      'claude:legacy-2': {
+        provider: 'claude',
+        sessionId: 'legacy-2',
+        supported: true,
+        changed: true,
+        model: 'sonnet',
+        updatedAt: '2026-07-13T17:37:44.771Z',
+      },
+      // A cleared pick carries changed: false and must not be imported.
+      'claude:legacy-3': {
+        provider: 'claude',
+        sessionId: 'legacy-3',
+        supported: true,
+        changed: false,
+        model: null,
+        updatedAt: '2026-07-13T17:37:44.771Z',
+      },
+    });
 
     await initializeDatabase();
 
@@ -166,36 +180,34 @@ test('picks from the pre-ADR-0025 sidecar file are imported on first migration',
   });
 });
 
-test('the sidecar import does not overwrite picks already in the database', async () => {
+test('a pick made after the upgrade survives later restarts', async () => {
   await withIsolatedDatabase(async (homeDirectory) => {
     await initializeDatabase();
     sessionsDb.createAppSession('kept-1', 'claude', '/workspace/demo');
+    dropModelColumns();
+    closeConnection();
+
+    await writeLegacySidecar(homeDirectory, {
+      'claude:kept-1': {
+        provider: 'claude',
+        sessionId: 'kept-1',
+        supported: true,
+        changed: true,
+        model: 'stale-sidecar-value',
+        updatedAt: '2026-07-13T17:37:44.771Z',
+      },
+    });
+
+    // Upgrade imports the sidecar value, then the user picks something else.
+    await initializeDatabase();
+    assert.equal((await readProviderSessionModelPick('claude', 'kept-1')).model, 'stale-sidecar-value');
     await writeProviderSessionModelPick('claude', { sessionId: 'kept-1', model: 'opus' });
     closeConnection();
 
-    await mkdir(path.join(homeDirectory, '.cloudcli'), { recursive: true });
-    await writeFile(
-      path.join(homeDirectory, '.cloudcli', 'provider-session-active-model-changes.json'),
-      JSON.stringify({
-        version: 1,
-        entries: {
-          'claude:kept-1': {
-            provider: 'claude',
-            sessionId: 'kept-1',
-            supported: true,
-            changed: true,
-            model: 'stale-sidecar-value',
-            updatedAt: '2026-07-13T17:37:44.771Z',
-          },
-        },
-      }),
-      'utf8',
-    );
-
+    // The sidecar is still on disk (the migration never deletes it), so a
+    // restart must not resurrect the value the user just replaced.
     await initializeDatabase();
-
-    const pick = await readProviderSessionModelPick('claude', 'kept-1');
-    assert.equal(pick.model, 'opus');
+    assert.equal((await readProviderSessionModelPick('claude', 'kept-1')).model, 'opus');
   });
 });
 
