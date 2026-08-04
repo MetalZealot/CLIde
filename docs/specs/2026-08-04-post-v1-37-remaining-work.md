@@ -19,10 +19,18 @@ exists elsewhere is linked, not restated.
 - [ ] **Push `main` to `origin`.** 27 commits ahead, fast-forward, plain
   `git push` — no `--force-with-lease`, since the release was a merge, not a
   rebase. **S**
-- [ ] **Retire the `chore/upstream-1.37` branch and its worktree**
-  (`~/Projects/cloudcli-wt-upstream-1.37`). They were kept only so a revert to
-  `bd61d08` stayed cheap; 3001 has been running the release since 2026-08-04, so
-  that reason is spent. Removing them also frees ports 3003/5175. **S**
+- [x] **Retire the `chore/upstream-1.37` branch and its worktree**
+  (`~/Projects/cloudcli-wt-upstream-1.37`) — **done 2026-08-04.** Verified first
+  that the branch held nothing unique (`git log main..chore/upstream-1.37` empty,
+  tip `658d536` an ancestor of `main`, worktree clean, no stashes or checkpoint
+  refs, gitignored files identical to main's apart from the generated
+  `.env.local` ports). Ports 3003/5175 are free. The revert path is unaffected:
+  `bd61d08` is an ancestor of `main`, so it stays reachable without the branch.
+  Four other fully-merged branches were retired in the same pass —
+  `fix/chat-scroll-pagination` (`8537fb2`), `fix/codex-plan-mode-reset`
+  (`3cdeec9`), `fix/samsung-picker-lifecycle` (`8aee41e`), and
+  `fix/pwa-attachment-picker` (`449b944`) — leaving `feature/tts-and-stt` and
+  `fix/synthetic-model-guard` as the only live branches.
 
 ## Live-verification debt
 
