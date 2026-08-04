@@ -62,3 +62,5 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0022 — The Settings search index is declared data, not screen registration](0022-settings-search-index-is-data.md)
 - [0023 — On `/compact`'s duplicate transcript row, the wrapper is dropped, not the prompt](0023-compact-echo-drops-wrapper-keeps-prompt.md)
 - [0024 — Token rotation does not restart auth bootstrap](0024-token-rotation-does-not-restart-auth-bootstrap.md)
+- [0025 — Per-session model picks live in the sessions table, behind transcript truth](0025-session-model-picks-live-in-the-database.md)
+- [0026 — Android's file chooser can't be shaped from the web; the composer keeps one plain input](0026-attachment-menu-accept-ceiling.md)
