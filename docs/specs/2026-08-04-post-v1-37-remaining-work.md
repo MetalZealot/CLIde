@@ -16,9 +16,9 @@ exists elsewhere is linked, not restated.
 
 ## Ready now, mechanical
 
-- [ ] **Push `main` to `origin`.** 27 commits ahead, fast-forward, plain
-  `git push` — no `--force-with-lease`, since the release was a merge, not a
-  rebase. **S**
+- [x] **Push `main` to `origin`** — **done 2026-08-04.** Fast-forward, plain
+  `git push`; no `--force-with-lease` was needed, since the release was a merge,
+  not a rebase. `origin/main` and local `main` have been level ever since.
 - [x] **Retire the `chore/upstream-1.37` branch and its worktree**
   (`~/Projects/cloudcli-wt-upstream-1.37`) — **done 2026-08-04.** Verified first
   that the branch held nothing unique (`git log main..chore/upstream-1.37` empty,
@@ -32,7 +32,7 @@ exists elsewhere is linked, not restated.
   `fix/pwa-attachment-picker` (`449b944`) — leaving `feature/tts-and-stt` and
   `fix/synthetic-model-guard` as the only live branches.
 
-## Live-verification debt
+## Live-verification debt — closed 2026-08-04
 
 - [x] **Exercise `9a9d47b`, `a4af8bf`, and `658d536` on a real session** —
   **done 2026-08-04 on 3001**, where all three were already deployed (the two
@@ -48,15 +48,23 @@ exists elsewhere is linked, not restated.
     it `user_input` vs `tool_approval`, and the broken lookup filtered on
     `sessionId` alone — so any tool approval reproduces it. No need to coax an
     AskUserQuestion out of the model to test this path.
-- [ ] **Still unverified: Stop on Cursor and OpenCode.** They have no
-  AbortController tier, so before `9a9d47b` the button did nothing — the case
-  Claude masks and Codex can't speak for. Neither CLI is installed and
-  `cursor-agent` needs a paid account, so live testing is the expensive path.
-  Cheaper close: `opencode-runtime.provider.test.js` already stubs the CLI as a
-  shell script on `PATH` and drives the real `spawnOpenCode`; extend it with a
-  stub that hangs, then assert `abortOpenCodeSession(appSessionId)` kills it.
-  That pins the runtime-side keying `chat-session-addressing.test.ts` stubs out
-  (it fakes only the runtime boundary). Same shape for Cursor. **S/M**
+- [x] **Stop on Cursor and OpenCode** — **closed 2026-08-04 by test, not live
+  run.** They have no AbortController tier, so before `9a9d47b` the button did
+  nothing — the case Claude masks and Codex can't speak for. Neither CLI is
+  installed and `cursor-agent` needs a paid account, so the stub-CLI route was
+  taken instead: a hanging fake on `PATH` drives the real `spawnOpenCode` /
+  `spawnCursor`, and the test asserts `abort*Session(appSessionId)` kills it
+  while `abort*Session(providerSessionId)` returns false. That pins the
+  runtime-side keying `chat-session-addressing.test.ts` stubs out (it fakes only
+  the runtime boundary). New: `cursor-runtime.provider.test.js`; extended:
+  `opencode-runtime.provider.test.js`. Server suite 404 → 406.
+  - Both guards were mutation-checked: re-keying `processKey` to
+    `providerSessionId || sessionId` — the pre-`9a9d47b` shape — fails each one
+    on "Timed out waiting for the run to register under the app session id". A
+    guard that has never been seen to fail is not a guard.
+  - The stub self-exits after 30s. Without it the first mutation run wedged the
+    test runner: the orphaned child held stdio open, so `node --test` never
+    exited even though the test itself had already failed.
 
 ## ADR reassessment — two decisions left
 
