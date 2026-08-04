@@ -34,12 +34,29 @@ exists elsewhere is linked, not restated.
 
 ## Live-verification debt
 
-- [ ] **Exercise `9a9d47b`, `a4af8bf`, and `658d536` on a real session.** All
-  three shipped with static coverage only and are now running on 3001
-  unverified. Two concrete checks: **Stop on Cursor and OpenCode** (they have no
-  AbortController tier, so before `9a9d47b` the button did nothing), and a
-  **duplicate `AskUserQuestion` panel** (one pending request answered once per
-  runtime). **S**
+- [x] **Exercise `9a9d47b`, `a4af8bf`, and `658d536` on a real session** —
+  **done 2026-08-04 on 3001**, where all three were already deployed (the two
+  server fixes in the Aug-4 09:20 build, the client fix in the Aug-3 21:13 one).
+  Grayson got a tool approval in Default mode, left CLIde, and returned: the
+  prompt replayed (`9a9d47b`'s subscribe half — pre-fix it replayed nothing and
+  the run sat until its 55s timeout) and rendered as **one** panel (`a4af8bf` +
+  `658d536`). Stop mid-turn on Codex also worked, covering `9a9d47b`'s abort
+  half against the runtime that commit actually rewrote.
+  - Correction worth keeping: the duplicate-panel bug is **not**
+    AskUserQuestion-specific. `claude-runtime.provider.js:102` files every
+    interactive request in the one `interactiveRequestRegistry` and only labels
+    it `user_input` vs `tool_approval`, and the broken lookup filtered on
+    `sessionId` alone — so any tool approval reproduces it. No need to coax an
+    AskUserQuestion out of the model to test this path.
+- [ ] **Still unverified: Stop on Cursor and OpenCode.** They have no
+  AbortController tier, so before `9a9d47b` the button did nothing — the case
+  Claude masks and Codex can't speak for. Neither CLI is installed and
+  `cursor-agent` needs a paid account, so live testing is the expensive path.
+  Cheaper close: `opencode-runtime.provider.test.js` already stubs the CLI as a
+  shell script on `PATH` and drives the real `spawnOpenCode`; extend it with a
+  stub that hangs, then assert `abortOpenCodeSession(appSessionId)` kills it.
+  That pins the runtime-side keying `chat-session-addressing.test.ts` stubs out
+  (it fakes only the runtime boundary). Same shape for Cursor. **S/M**
 
 ## ADR reassessment — two decisions left
 
