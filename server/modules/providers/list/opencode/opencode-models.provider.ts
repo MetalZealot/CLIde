@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import crossSpawn from 'cross-spawn';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { writeProviderSessionModelPick } from '@/modules/providers/services/provider-session-model.service.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -15,7 +16,6 @@ import {
   getOpenCodeDatabasePath,
   readObjectRecord,
   readOptionalString,
-  writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
 
 export const OPENCODE_FALLBACK_MODELS: ProviderModelsDefinition = {
@@ -516,6 +516,6 @@ export class OpenCodeProviderModels implements IProviderModels {
   async changeActiveModel(
     input: ProviderChangeActiveModelInput,
   ): Promise<ProviderSessionActiveModelChange> {
-    return writeProviderSessionActiveModelChange('opencode', input);
+    return writeProviderSessionModelPick('opencode', input);
   }
 }

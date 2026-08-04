@@ -9,7 +9,7 @@ import {
   ClaudeProviderModels,
   resolveClaudeModelAlias,
 } from '@/modules/providers/list/claude/claude-models.provider.js';
-import { writeProviderSessionActiveModelChange } from '@/shared/utils.js';
+import type { SessionModelPickStore } from '@/modules/providers/services/provider-session-model.service.js';
 
 const APP_SESSION_ID = '011a8bc9-ad89-42fd-96c2-c8ac5ef4f999';
 const PROVIDER_SESSION_ID = '77af7791-311d-4f0e-abbf-381f25ed775a';
@@ -37,39 +37,22 @@ const writeSessionJsonl = async (
   return jsonlPath;
 };
 
-// Writes the change cache directly so a test can control `updatedAt`, which the
-// public write helper always stamps with the current time.
-const writeChangeCacheFile = async (
-  changesPath: string,
-  { model, updatedAt }: { model: string; updatedAt: string },
-): Promise<void> => {
-  const entry = {
-    provider: 'claude',
-    sessionId: APP_SESSION_ID,
-    supported: true,
-    changed: true,
-    model,
-    updatedAt,
-  };
-  await writeFile(
-    changesPath,
-    JSON.stringify({ version: 1, entries: { [`claude:${APP_SESSION_ID}`]: entry } }),
-    'utf8',
-  );
-};
+// An in-memory stand-in for the sessions table. Tests control `updatedAt`
+// directly, which the write path always stamps with the current time, and the
+// recency rule (ADR 0003) is entirely about that timestamp.
+const createPickStore = (
+  pick?: { model: string; updatedAt: string | null },
+): SessionModelPickStore => ({
+  getSessionModelPick: (sessionId, provider) =>
+    (pick && sessionId === APP_SESSION_ID && provider === 'claude' ? pick : null),
+  setSessionModelPick: () => true,
+});
 
 test('claude current active model returns a picker-selected session model immediately', async () => {
   await withTempDir(async (dir) => {
-    const changesPath = path.join(dir, 'changes.json');
-    await writeProviderSessionActiveModelChange(
-      'claude',
-      { sessionId: APP_SESSION_ID, model: 'fable' },
-      { filePath: changesPath },
-    );
-
     const provider = new ClaudeProviderModels({
       getSessionRow: () => null,
-      activeModelChangesPath: changesPath,
+      modelPickStore: createPickStore({ model: 'fable', updatedAt: '2026-07-13T21:51:21.834Z' }),
     });
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
@@ -86,7 +69,7 @@ test('claude current active model matches transcript events by the provider sess
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
           : null,
-      activeModelChangesPath: path.join(dir, 'missing-changes.json'),
+      modelPickStore: createPickStore(),
     });
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
@@ -96,13 +79,8 @@ test('claude current active model matches transcript events by the provider sess
 
 test('claude current active model prefers the transcript when a session turn is newer than a stale popup pick', async () => {
   await withTempDir(async (dir) => {
-    const changesPath = path.join(dir, 'changes.json');
     // Popup pick of "default" recorded before the model was later changed (via
-    // fast mode / a Shell /model) to Opus, which the cache never learned about.
-    await writeChangeCacheFile(changesPath, {
-      model: 'default',
-      updatedAt: '2026-07-13T21:51:21.834Z',
-    });
+    // fast mode / a Shell /model) to Opus, which the pick never learned about.
     const jsonlPath = await writeSessionJsonl(dir, 'claude-opus-4-8', '2026-07-13T23:22:29.721Z');
 
     const provider = new ClaudeProviderModels({
@@ -110,7 +88,7 @@ test('claude current active model prefers the transcript when a session turn is 
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
           : null,
-      activeModelChangesPath: changesPath,
+      modelPickStore: createPickStore({ model: 'default', updatedAt: '2026-07-13T21:51:21.834Z' }),
     });
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
@@ -120,11 +98,6 @@ test('claude current active model prefers the transcript when a session turn is 
 
 test('claude current active model keeps a popup pick newer than the last transcript turn', async () => {
   await withTempDir(async (dir) => {
-    const changesPath = path.join(dir, 'changes.json');
-    await writeChangeCacheFile(changesPath, {
-      model: 'sonnet',
-      updatedAt: '2026-07-13T23:59:00.000Z',
-    });
     const jsonlPath = await writeSessionJsonl(dir, 'claude-fable-5', '2026-07-13T23:00:00.000Z');
 
     const provider = new ClaudeProviderModels({
@@ -132,7 +105,7 @@ test('claude current active model keeps a popup pick newer than the last transcr
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
           : null,
-      activeModelChangesPath: changesPath,
+      modelPickStore: createPickStore({ model: 'sonnet', updatedAt: '2026-07-13T23:59:00.000Z' }),
     });
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
@@ -180,7 +153,7 @@ test('claude current active model skips synthetic error rows and recovers the re
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
           : null,
-      activeModelChangesPath: path.join(dir, 'missing-changes.json'),
+      modelPickStore: createPickStore(),
     });
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
@@ -193,7 +166,7 @@ test('claude current active model falls back to the catalog default without sess
   await withTempDir(async (dir) => {
     const provider = new ClaudeProviderModels({
       getSessionRow: () => null,
-      activeModelChangesPath: path.join(dir, 'missing-changes.json'),
+      modelPickStore: createPickStore(),
     });
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);

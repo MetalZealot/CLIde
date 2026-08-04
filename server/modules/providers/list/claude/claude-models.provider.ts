@@ -3,6 +3,11 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import {
+  readProviderSessionModelPick,
+  writeProviderSessionModelPick,
+  type SessionModelPickStore,
+} from '@/modules/providers/services/provider-session-model.service.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -11,11 +16,7 @@ import type {
   ProviderModelsDefinition,
   ProviderSessionActiveModelChange,
 } from '@/shared/types.js';
-import {
-  buildDefaultProviderCurrentActiveModel,
-  readProviderSessionActiveModelChange,
-  writeProviderSessionActiveModelChange,
-} from '@/shared/utils.js';
+import { buildDefaultProviderCurrentActiveModel } from '@/shared/utils.js';
 
 // Labels carry the version number ("Opus 5", not "Opus") because the
 // new-session picker renders the label alone — it never shows `description`
@@ -315,7 +316,7 @@ type ClaudeSessionRow = {
 
 type ClaudeProviderModelsDeps = {
   getSessionRow?: (sessionId: string) => ClaudeSessionRow | null;
-  activeModelChangesPath?: string;
+  modelPickStore?: SessionModelPickStore;
   claudeSettingsPath?: string;
 };
 
@@ -387,8 +388,8 @@ export class ClaudeProviderModels implements IProviderModels {
       return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());
     }
 
-    const changedModel = await readProviderSessionActiveModelChange('claude', normalizedSessionId, {
-      filePath: this.deps.activeModelChangesPath,
+    const changedModel = await readProviderSessionModelPick('claude', normalizedSessionId, {
+      store: this.deps.modelPickStore,
     });
     const hasPendingPick = changedModel.changed && Boolean(changedModel.model);
 
@@ -428,7 +429,7 @@ export class ClaudeProviderModels implements IProviderModels {
   async changeActiveModel(
     input: ProviderChangeActiveModelInput,
   ): Promise<ProviderSessionActiveModelChange> {
-    return writeProviderSessionActiveModelChange('claude', input);
+    return writeProviderSessionModelPick('claude', input, { store: this.deps.modelPickStore });
   }
 
   async getTranscriptTurnTimestamp(sessionId: string): Promise<string | undefined> {

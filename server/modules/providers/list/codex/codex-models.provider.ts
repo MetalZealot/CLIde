@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import TOML from '@iarna/toml';
 
+import { writeProviderSessionModelPick } from '@/modules/providers/services/provider-session-model.service.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -16,7 +17,6 @@ import {
   buildDefaultProviderCurrentActiveModel,
   readObjectRecord,
   readOptionalString,
-  writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
 
 export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
@@ -171,6 +171,6 @@ export class CodexProviderModels implements IProviderModels {
   async changeActiveModel(
     input: ProviderChangeActiveModelInput,
   ): Promise<ProviderSessionActiveModelChange> {
-    return writeProviderSessionActiveModelChange('codex', input);
+    return writeProviderSessionModelPick('codex', input);
   }
 }

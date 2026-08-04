@@ -273,6 +273,62 @@ export const sessionsDb = {
     ).run(customName, sessionId);
   },
 
+  /**
+   * Records the model the user explicitly picked for one session.
+   *
+   * Scoped by provider as well as id: the pick arrives on a provider-specific
+   * route, and a row whose provider no longer matches must not silently adopt
+   * another provider's model name. Returns whether a row was actually written
+   * so callers can report an unsupported/missing session honestly instead of
+   * pretending the pick stuck.
+   *
+   * The stored value is a *desire*, not evidence of what ran — see ADR 0025.
+   */
+  setSessionModelPick(sessionId: string, provider: string, model: string, updatedAt: string): boolean {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        `UPDATE sessions
+         SET model = ?, model_updated_at = ?
+         WHERE session_id = ? AND provider = ?`
+      )
+      .run(model, updatedAt, sessionId, provider);
+
+    return result.changes > 0;
+  },
+
+  /**
+   * Reads back one session's model pick and when it was made.
+   *
+   * The timestamp is not decoration: `pickSupersedesTranscript` needs it to
+   * decide whether this pick still describes the session or has been overtaken
+   * by a turn that ran with something else (ADR 0003).
+   */
+  getSessionModelPick(
+    sessionId: string,
+    provider: string
+  ): { model: string; updatedAt: string | null } | null {
+    const db = getConnection();
+    const row = db
+      .prepare(
+        `SELECT model, model_updated_at
+         FROM sessions
+         WHERE session_id = ? AND provider = ?
+         LIMIT 1`
+      )
+      .get(sessionId, provider) as { model: string | null; model_updated_at: string | null } | undefined;
+
+    const model = row?.model?.trim();
+    if (!model) {
+      return null;
+    }
+
+    return {
+      model,
+      updatedAt: normalizeTimestamp(row?.model_updated_at ?? undefined),
+    };
+  },
+
   getSessionById(sessionId: string): SessionRow | null {
     const db = getConnection();
     const row = db

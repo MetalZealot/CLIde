@@ -14,7 +14,10 @@ import type {
   ProviderSessionActiveModelChange,
   ProviderSessionModel,
 } from '@/shared/types.js';
-import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
+import {
+  readProviderSessionModelPick,
+  type SessionModelPickStore,
+} from '@/modules/providers/services/provider-session-model.service.js';
 import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
@@ -27,7 +30,7 @@ const UNCACHED_PROVIDERS = new Set<LLMProvider>(['claude', 'codex']);
 type ProviderModelsServiceDependencies = {
   resolveProvider?: (provider: LLMProvider) => Pick<IProvider, 'models'>;
   cachePath?: string;
-  activeModelChangesPath?: string;
+  modelPickStore?: SessionModelPickStore;
   now?: () => number;
 };
 
@@ -147,7 +150,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
   const resolveProvider: NonNullable<ProviderModelsServiceDependencies['resolveProvider']> =
     dependencies.resolveProvider ?? ((provider) => providerRegistry.resolveProvider(provider));
   const cachePath = dependencies.cachePath ?? getProviderModelsCachePath();
-  const activeModelChangesPath = dependencies.activeModelChangesPath;
+  const modelPickStore = dependencies.modelPickStore;
   const now = dependencies.now ?? (() => Date.now());
   const memoryCache = new Map<LLMProvider, ProviderModelsCacheEntry>();
   const pendingRequests = new Map<LLMProvider, Promise<ProviderModelsResult>>();
@@ -326,8 +329,8 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
   const getChangedActiveModel = async (
     provider: LLMProvider,
     sessionId: string,
-  ): Promise<ProviderSessionActiveModelChange> => readProviderSessionActiveModelChange(provider, sessionId, {
-    filePath: activeModelChangesPath,
+  ): Promise<ProviderSessionActiveModelChange> => readProviderSessionModelPick(provider, sessionId, {
+    store: modelPickStore,
   });
 
   /**

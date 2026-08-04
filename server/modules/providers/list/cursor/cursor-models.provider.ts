@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import crossSpawn from 'cross-spawn';
 
+import { writeProviderSessionModelPick } from '@/modules/providers/services/provider-session-model.service.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -15,7 +16,6 @@ import type {
 import {
   buildDefaultProviderCurrentActiveModel,
   sanitizeLeafDirectoryName,
-  writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
 
 export const CURSOR_FALLBACK_MODELS: ProviderModelsDefinition = {
@@ -801,7 +801,7 @@ export class CursorProviderModels implements IProviderModels {
   async changeActiveModel(
     input: ProviderChangeActiveModelInput,
   ): Promise<ProviderSessionActiveModelChange> {
-    return writeProviderSessionActiveModelChange('cursor', input);
+    return writeProviderSessionModelPick('cursor', input);
   }
 }
 

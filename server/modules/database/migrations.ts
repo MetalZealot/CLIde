@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { Database } from 'better-sqlite3';
 
 import {
@@ -416,11 +420,103 @@ const addSessionStarColumn = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'isStarred', 'BOOLEAN DEFAULT 0');
 };
 
-// Upstream 1.37 also adds a `sessions.model` column here, written on every send
-// and read ahead of transcript evidence. That inverts ADR 0003, so the column is
-// deliberately not taken — not even dormant, since a column documented as "the
-// model this session runs with" that nothing reads misleads the next reader. See
-// the 1.37 integration spec, Phase 3, and the `desired_model` TODO item.
+/**
+ * Adds the per-session model pick columns.
+ *
+ * `model` is upstream 1.37's column, taken deliberately so both forks store this
+ * in the same place. `model_updated_at` is ours and is not optional: ADR 0003
+ * settles a disagreement between the stored pick and the session transcript by
+ * comparing *when* each happened, and upstream's bare column cannot answer that.
+ * A column without the timestamp would quietly turn the precedence rule into
+ * "the pick always wins", which is the behaviour ADR 0003 exists to prevent.
+ *
+ * See ADR 0025, which supersedes the storage half of ADR 0003.
+ */
+const addSessionModelColumns = (db: Database): void => {
+  const sessionsTableInfo = getTableInfo(db, 'sessions');
+  const columnNames = sessionsTableInfo.map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'model', 'TEXT');
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'model_updated_at', 'DATETIME');
+};
+
+type LegacyActiveModelChangeEntry = {
+  provider?: unknown;
+  sessionId?: unknown;
+  changed?: unknown;
+  model?: unknown;
+  updatedAt?: unknown;
+};
+
+/**
+ * Imports picks from the pre-ADR-0025 sidecar file into the sessions table.
+ *
+ * Until ADR 0025 these lived in `~/.cloudcli/provider-session-active-model-changes.json`
+ * — outside the database, so outside backups and outside this migration system.
+ * Entries are matched to session rows by id *and* provider, because the sidecar
+ * was keyed by both and a row whose provider has since changed should not
+ * inherit another provider's pick.
+ *
+ * Deliberately non-destructive in both directions: rows that already carry a
+ * model are left alone, and the sidecar file is not deleted. It stays on disk as
+ * a fallback until the migration is confirmed in the wild.
+ */
+const importLegacySessionModelPicks = (db: Database): void => {
+  const sessionsTableInfo = getTableInfo(db, 'sessions');
+  const columnNames = sessionsTableInfo.map((column) => column.name);
+  if (!columnNames.includes('model') || !columnNames.includes('model_updated_at')) {
+    return;
+  }
+
+  const alreadyImported = db
+    .prepare('SELECT COUNT(*) AS count FROM sessions WHERE model IS NOT NULL')
+    .get() as { count: number };
+  if (alreadyImported.count > 0) {
+    return;
+  }
+
+  const legacyPath = path.join(
+    os.homedir(),
+    '.cloudcli',
+    'provider-session-active-model-changes.json',
+  );
+
+  let entries: Record<string, LegacyActiveModelChangeEntry>;
+  try {
+    const parsed = JSON.parse(readFileSync(legacyPath, 'utf8')) as {
+      entries?: Record<string, LegacyActiveModelChangeEntry>;
+    };
+    entries = parsed?.entries ?? {};
+  } catch {
+    // No sidecar, unreadable, or malformed — nothing to import.
+    return;
+  }
+
+  const update = db.prepare(`
+    UPDATE sessions
+    SET model = ?, model_updated_at = ?
+    WHERE session_id = ? AND provider = ? AND model IS NULL
+  `);
+
+  const importAll = db.transaction((rows: LegacyActiveModelChangeEntry[]) => {
+    for (const row of rows) {
+      update.run(row.model, row.updatedAt, row.sessionId, row.provider);
+    }
+  });
+
+  const importable = Object.values(entries).filter((entry) => (
+    entry?.changed === true
+    && typeof entry.model === 'string'
+    && entry.model.trim().length > 0
+    && typeof entry.sessionId === 'string'
+    && typeof entry.provider === 'string'
+    && typeof entry.updatedAt === 'string'
+  ));
+
+  if (importable.length > 0) {
+    importAll(importable);
+  }
+};
 
 const ensureProjectsForSessionPaths = (db: Database): void => {
   if (!tableExists(db, 'sessions')) {
@@ -473,6 +569,8 @@ export const runMigrations = (db: Database) => {
     migrateLegacySessionNames(db);
     addProviderSessionIdMapping(db);
     addSessionStarColumn(db);
+    addSessionModelColumns(db);
+    importLegacySessionModelPicks(db);
     ensureProjectsForSessionPaths(db);
 
     db.exec(SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL);

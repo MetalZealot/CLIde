@@ -15,7 +15,7 @@ import type {
   ProviderModelsDefinition,
   ProviderSessionActiveModelChange,
 } from '@/shared/types.js';
-import { writeProviderSessionActiveModelChange } from '@/shared/utils.js';
+import type { SessionModelPickStore } from '@/modules/providers/services/provider-session-model.service.js';
 
 const createModels = (value: string): ProviderModelsDefinition => ({
   OPTIONS: [{ value, label: value }],
@@ -324,140 +324,114 @@ test('provider models service delegates active model change requests to the prov
   assert.equal(changedModel.model, 'opus');
 });
 
+// Stands in for the sessions table. `updatedAt` defaults to now so a seeded
+// pick is "fresh" unless a test deliberately makes the transcript newer.
+const createPickStore = (
+  seed?: { provider: string; sessionId: string; model: string; updatedAt?: string },
+): SessionModelPickStore => ({
+  getSessionModelPick: (sessionId, provider) =>
+    (seed && seed.sessionId === sessionId && seed.provider === provider
+      ? { model: seed.model, updatedAt: seed.updatedAt ?? new Date().toISOString() }
+      : null),
+  setSessionModelPick: () => true,
+});
+
 test('resolveResumeModel prefers a stored changed model over the requested one', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-change-'));
-  const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');
-
-  try {
-    const service = createProviderModelsService({
-      activeModelChangesPath,
-      resolveProvider: (provider) => ({
-        models: {
-          getSupportedModels: async () => createModels(`${provider}-models`),
-          getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
-          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
-        },
-      }),
-    });
-
-    await writeProviderSessionActiveModelChange('cursor', {
+  const service = createProviderModelsService({
+    modelPickStore: createPickStore({
+      provider: 'cursor',
       sessionId: 'session-456',
       model: 'composer-2',
-    }, {
-      filePath: activeModelChangesPath,
-    });
+    }),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
 
-    const model = await service.resolveResumeModel('cursor', 'session-456', 'composer-2-fast');
-    assert.equal(model, 'composer-2');
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
+  const model = await service.resolveResumeModel('cursor', 'session-456', 'composer-2-fast');
+  assert.equal(model, 'composer-2');
 });
 
 test('resolveResumeModel ignores a pick that is older than the last transcript turn', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-change-'));
-  const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');
-
-  try {
-    const service = createProviderModelsService({
-      activeModelChangesPath,
-      resolveProvider: (provider) => ({
-        models: {
-          getSupportedModels: async () => createModels(`${provider}-models`),
-          getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`, 'default'),
-          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
-          // A transcript turn recorded far in the future always supersedes the pick.
-          getTranscriptTurnTimestamp: async () => new Date(Date.now() + 60_000).toISOString(),
-        },
-      }),
-    });
-
-    await writeProviderSessionActiveModelChange('claude', {
+  const service = createProviderModelsService({
+    modelPickStore: createPickStore({
+      provider: 'claude',
       sessionId: 'session-789',
       model: 'opus',
-    }, {
-      filePath: activeModelChangesPath,
-    });
+    }),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`, 'default'),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+        // A transcript turn recorded far in the future always supersedes the pick.
+        getTranscriptTurnTimestamp: async () => new Date(Date.now() + 60_000).toISOString(),
+      },
+    }),
+  });
 
-    const model = await service.resolveResumeModel('claude', 'session-789', 'sonnet');
-    assert.equal(model, 'sonnet');
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
+  const model = await service.resolveResumeModel('claude', 'session-789', 'sonnet');
+  assert.equal(model, 'sonnet');
 });
 
 test('resolveResumeModel returns the requested model when no pick is stored', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-change-'));
+  const service = createProviderModelsService({
+    modelPickStore: createPickStore(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async () => createCurrentActiveModel('transcript-model', 'transcript'),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
 
-  try {
-    const service = createProviderModelsService({
-      activeModelChangesPath: path.join(tempRoot, 'session-model-changes.json'),
-      resolveProvider: (provider) => ({
-        models: {
-          getSupportedModels: async () => createModels(`${provider}-models`),
-          getCurrentActiveModel: async () => createCurrentActiveModel('transcript-model', 'transcript'),
-          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
-        },
-      }),
-    });
-
-    const model = await service.resolveResumeModel('claude', 'session-1', 'requested-model');
-    assert.equal(model, 'requested-model');
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
+  const model = await service.resolveResumeModel('claude', 'session-1', 'requested-model');
+  assert.equal(model, 'requested-model');
 });
 
 test('resolveResumeModel falls back to the session transcript model when nothing is requested', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-change-'));
+  const service = createProviderModelsService({
+    modelPickStore: createPickStore(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async () => createCurrentActiveModel('transcript-model', 'transcript'),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
 
-  try {
-    const service = createProviderModelsService({
-      activeModelChangesPath: path.join(tempRoot, 'session-model-changes.json'),
-      resolveProvider: (provider) => ({
-        models: {
-          getSupportedModels: async () => createModels(`${provider}-models`),
-          getCurrentActiveModel: async () => createCurrentActiveModel('transcript-model', 'transcript'),
-          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
-        },
-      }),
-    });
-
-    const model = await service.resolveResumeModel('claude', 'session-1', undefined);
-    assert.equal(model, 'transcript-model');
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
+  const model = await service.resolveResumeModel('claude', 'session-1', undefined);
+  assert.equal(model, 'transcript-model');
 });
 
 test('resolveResumeModel never adopts a default-source model as the session model', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-change-'));
+  const service = createProviderModelsService({
+    modelPickStore: createPickStore(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        // Codex-style adapter: reports global config, not session state.
+        getCurrentActiveModel: async () => createCurrentActiveModel('global-config-model', 'default'),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
 
-  try {
-    const service = createProviderModelsService({
-      activeModelChangesPath: path.join(tempRoot, 'session-model-changes.json'),
-      resolveProvider: (provider) => ({
-        models: {
-          getSupportedModels: async () => createModels(`${provider}-models`),
-          // Codex-style adapter: reports global config, not session state.
-          getCurrentActiveModel: async () => createCurrentActiveModel('global-config-model', 'default'),
-          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
-        },
-      }),
-    });
-
-    const model = await service.resolveResumeModel('codex', 'session-1', undefined);
-    assert.equal(model, undefined);
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
+  const model = await service.resolveResumeModel('codex', 'session-1', undefined);
+  assert.equal(model, undefined);
 });
 
 // `resolveSessionModel` coverage adapted from upstream 1.37. Upstream drove
-// these through a `sessions` store stub because its version read a recorded
-// `sessions.model` column first; that column is not part of this fork (see
-// docs/superpowers/specs/2026-07-29-upstream-1-37-integration.md), so the tests
-// exercise the provider/requested/default chain that actually remains.
+// these through a `sessions` store stub because its version reads the recorded
+// `sessions.model` column *first*. This fork now stores picks in that same
+// column but keeps them behind transcript evidence (ADR 0025), so these tests
+// exercise the provider/requested/default chain that decides display.
 test('resolveSessionModel asks the provider adapter for the session it was given', async () => {
   const calls: Array<{ provider: LLMProvider; sessionId?: string }> = [];
   const service = createProviderModelsService({

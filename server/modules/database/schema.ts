@@ -111,6 +111,16 @@ CREATE TABLE IF NOT EXISTS sessions (
     jsonl_path TEXT,
     isArchived BOOLEAN DEFAULT 0,
     isStarred BOOLEAN DEFAULT 0,
+    -- The model the user last explicitly picked for this session, and when.
+    -- This is a *desire*, not a record of what ran: the transcript stays the
+    -- ground truth for a session's active model (ADR 0003). The timestamp is
+    -- what lets \`pickSupersedesTranscript\` choose between the two — a pick only
+    -- wins while it is at least as recent as the last recorded turn, so a model
+    -- changed by a path the app never sees (Shell \`/model\`, fast mode) still
+    -- takes over. Upstream 1.37 ships \`model\` without a timestamp and ranks it
+    -- above the transcript; ADR 0025 takes the column and keeps our precedence.
+    model TEXT,
+    model_updated_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (session_id),
