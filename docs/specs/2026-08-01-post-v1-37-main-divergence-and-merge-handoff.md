@@ -1,8 +1,12 @@
 # Post-v1.37 main divergence and merge handoff
 
 - Date: 2026-08-01
-- Status: Current source assessment and merge handoff; refresh the snapshot if
-  either branch advances
+- Status: **Completed and archived 2026-08-04.** Merged, deployed, and closed
+  out — see [Closing status](#closing-status--2026-08-04) at the end of this
+  document. Remaining work moved to
+  [Post-v1.37 remaining work](../2026-08-04-post-v1-37-remaining-work.md);
+  read that, not this. This document is retained as provenance for why the
+  synchronization was needed and what it cost.
 - Scope: Record everything added to CLIde `main` after the upstream v1.37
   integration branch forked, identify the overlap with the in-progress v1.37
   merge, and define how to bring the integration worktree back to `main`
@@ -605,3 +609,52 @@ anti-signal here. When both sides refactor toward the same target, diff the
 rather than trusting Git's conflict set. `chat-session-addressing.test.ts` is
 the right shape of artifact: one per contract, driving every provider with the
 ids deliberately unequal.
+
+## Closing status — 2026-08-04
+
+Everything this document was written to coordinate is finished. It is archived
+so it stops being re-read; the leftovers it names live in
+[Post-v1.37 remaining work](../2026-08-04-post-v1-37-remaining-work.md).
+
+### Deployment — done, and the "not deployed" section above is now historical
+
+Production on 3001 was built and restarted from SSH on **2026-08-04 09:20:58
+MDT**, in the order the outcome section prescribed: `npm install`, `npm run
+build`, SSH restart, verify. `node_modules` is current against the merged
+`package.json` (`ignore@^7`, `remark-breaks`, `@types/cors`, `jsdom`,
+`@types/jsdom` all present), and the service runs the v1.37 entry point
+`dist-server/server/index.js` with the CLI bin at
+`dist-server/server/modules/cli/cli.js`.
+
+### Follow-up queue item 1, first bullet — done
+
+The ADR 0003 model-picker divergence closed exactly as this document proposed:
+take upstream's additive column, do not let it outrank transcript truth.
+Per-session picks now live on the `sessions` row in upstream's `model` column
+plus a `model_updated_at` column of ours, and the sidecar JSON is gone from the
+code path. `pickSupersedesTranscript` is untouched.
+
+- Commits `6d20dc2` (storage move) and `39610fd` (migration sentinel fix).
+- [ADR 0025](../../decisions/0025-session-model-picks-live-in-the-database.md),
+  which supersedes the storage half of ADR 0003 and records the three rejected
+  alternatives.
+- Verified on the 3002 branch-test harness against a snapshot of production,
+  then on production itself: 26 legacy picks imported (claude 23, codex 3).
+- Consequence for the outcome section above: its recorded deferral "no
+  `sessions.model` column (only a comment in `migrations.ts`)" was correct at
+  merge time and is no longer true.
+
+### Also closed since the outcome section
+
+- `CLAUDE.md` names `server/index.ts` as the backend entry; the Phase 3 leftover
+  is resolved.
+- Both `main`-side worktrees created for this work are removed and their
+  branches deleted.
+
+### Deliberately still open
+
+Carried forward to the remaining-work document rather than resolved here:
+`main` is unpushed; `9a9d47b`/`a4af8bf`/`658d536` still have static coverage
+only; the `chore/upstream-1.37` branch and worktree are still in place; and two
+of the three ADR reassessments (Codex App Server transport, ADR 0016) plus
+queue items 2–5 have not been started.
