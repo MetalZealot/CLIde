@@ -4,7 +4,7 @@
 
 **Last reconciled:** 2026-07-30 against CLIde `main` at `935c629`
 
-**Detailed history:** [Provider Architecture Consolidation Spec](archive/CLIde_Provider_Architecture_Consolidation_Spec.md)
+**Detailed history:** [Provider Architecture Consolidation Spec](../specs/archive/CLIde_Provider_Architecture_Consolidation_Spec.md)
 
 **Living conformance inventory:** [CLIde provider capability map](../maps/clide-provider-capability-map.md)
 
@@ -248,10 +248,10 @@ a whole.
 
 ## 9. Documentation ownership
 
-- `docs/superpowers/maps/` contains living current-state inventories.
-- `docs/superpowers/specs/` contains dated assessments, designs, and the
+- `docs/maps/` contains living current-state inventories.
+- `docs/specs/` contains dated assessments, designs, and the
   preserved architecture history.
-- `docs/superpowers/plans/` contains implementation sequences.
+- `docs/plans/` contains implementation sequences.
 - `docs/decisions/` contains lasting architectural decisions.
 - Git history and compact upgrade ledgers preserve change history; living maps
   do not accumulate obsolete release-by-release detail.

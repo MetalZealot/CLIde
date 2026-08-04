@@ -45,7 +45,7 @@ Maps are curated current truth. They do not retain every old release delta.
 - Git history and compact provider ledgers preserve prior states and decisions.
 
 The focused
-[Claude Code settings audit](../specs/2026-07-28-claude-code-settings-surface-audit.md)
+[Claude Code settings audit](2026-07-28-claude-code-settings-surface-audit.md)
 is a good example of a dated assessment that informs a living map without
 becoming one.
 

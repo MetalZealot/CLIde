@@ -7,7 +7,7 @@
  *   npx tsx scripts/verify-rewind-sdk.ts
  *
  * Answers the verification questions for the chat-rewind feature
- * (see docs/superpowers/specs + plan):
+ * (see docs/specs + docs/plans):
  *   V1 — resumeSessionAt: is a user-message uuid accepted? is the anchor inclusive?
  *   V2 — does resume+resumeSessionAt continue the SAME session id (in place) or fork?
  *        what happens to the original transcript jsonl on disk?

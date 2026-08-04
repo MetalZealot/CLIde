@@ -11,7 +11,7 @@
 - Decision record: ADR 0016 — projects group checkouts by repository; a project
   is not a directory (`docs/decisions/0016-repository-grouped-checkouts.md`)
 - Related reference:
-  `docs/superpowers/specs/2026-07-25-agentic-coding-ux-reference.md`
+  `docs/specs/2026-07-25-agentic-coding-ux-reference.md`
 - Absorbed: an external reference, *CLIde Source Control, Git Workspaces &
   Agent Workflow UX* (prepared 2026-07-27, deleted after merging). Its
   object-model discipline, iconography and colour rules, integration-naming

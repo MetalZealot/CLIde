@@ -20,7 +20,7 @@ It is intentionally not a copy of the SDK type declarations or a changelog:
 
 Cross-provider semantics and normalized CLIde bindings belong in the
 [CLIde provider capability map](clide-provider-capability-map.md). The focused
-[Claude Code settings audit](../specs/2026-07-28-claude-code-settings-surface-audit.md)
+[Claude Code settings audit](2026-07-28-claude-code-settings-surface-audit.md)
 remains the companion inventory for the settings cascade.
 
 ## Current compatibility snapshot

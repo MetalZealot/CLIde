@@ -64,6 +64,6 @@ needs its own privacy, size, and provider-semantics decision.
 
 ## References
 
-- [ADR 0012: Codex rewind and fork session identity](../../decisions/0012-codex-rewind-and-fork-session-identity.md)
+- [ADR 0012: Codex rewind and fork session identity](../decisions/0012-codex-rewind-and-fork-session-identity.md)
 - [Provider session gateway](../../../server/modules/providers/services/sessions.service.ts)
 - [Upstream export formatter](../../../src/components/chat/utils/chatExport.ts)

@@ -10,7 +10,7 @@ Before changing code:
 
 1. Run `git status --short`, inspect active worktrees/branches when relevant, and
    preserve unrelated user changes.
-2. Read the relevant open item in `TODO.md`.  It is the tracked backlog and the
+2. Read the relevant open item in `docs/TODO.md`.  It is the tracked backlog and the
    coordination board for concurrent work.
 3. Read relevant ADRs in `docs/decisions/`.  Treat Claude-specific project history as
    provider-specific context, not as a reason to assume the same behaviour applies to

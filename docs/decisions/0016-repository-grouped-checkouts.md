@@ -26,7 +26,7 @@ Concretely:
   property of the server, not of a thread.
 - Branch and checkout never share an icon, a label, or a list.
 
-Design: `docs/superpowers/specs/2026-07-26-git-source-control-workspace-ux.md`.
+Design: `docs/specs/2026-07-26-git-source-control-workspace-ux.md`.
 
 ## Rejected
 

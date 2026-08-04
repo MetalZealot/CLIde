@@ -8,7 +8,7 @@
   which is archived. Nothing here requires reading that document first.
 
 The v1.37 integration is merged, built, deployed to 3001, and closed out. So is
-the model-picker storage divergence ([ADR 0025](../../decisions/0025-session-model-picks-live-in-the-database.md)).
+the model-picker storage divergence ([ADR 0025](../decisions/0025-session-model-picks-live-in-the-database.md)).
 What follows is what was deliberately not done.
 
 Each item states what the decision or action actually is. Detail that already
@@ -75,7 +75,7 @@ new one.
    after the module migration, then prevent same-file/same-table user/project
    scope aliases without de-duplicating legitimate entries. **M**
 5. [ ] **Provider architecture consolidation** — baseline is
-   [the current contract](CLIde_Provider_Architecture_Current_Contract.md) and
+   [the current contract](../maps/CLIde_Provider_Architecture_Current_Contract.md) and
    the living maps. Kept separate from release work on purpose. **L**
 
 ## The lesson worth keeping from v1.37

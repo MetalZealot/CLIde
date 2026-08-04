@@ -6,7 +6,7 @@
 
 **Last source audit:** CLIde `main` at `935c629`
 
-**Architecture contract:** [Current provider architecture contract](../specs/CLIde_Provider_Architecture_Current_Contract.md)
+**Architecture contract:** [Current provider architecture contract](CLIde_Provider_Architecture_Current_Contract.md)
 
 This is the canonical map of provider-normalized behavior in CLIde. It records
 what CLIde means, who owns it, how each active provider/runtime binds to it, and

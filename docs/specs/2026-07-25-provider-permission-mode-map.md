@@ -421,8 +421,8 @@ Official OpenAI:
 
 Related CLIde records:
 
-- `docs/superpowers/maps/claude-agent-sdk.md`
-- `docs/superpowers/maps/codex-cli-sdk-app-server.md`
+- `docs/maps/claude-agent-sdk.md`
+- `docs/maps/codex-cli-sdk-app-server.md`
 - `docs/decisions/0011-codex-app-server-chat-transport.md`
 
 These provider surfaces evolve quickly. Recheck the pinned SDK/CLI versions and

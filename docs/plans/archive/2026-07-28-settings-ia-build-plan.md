@@ -2,7 +2,7 @@
 
 - Date: 2026-07-28
 - Branch: `feat/settings-ia` (worktree `cloudcli-wt-settings-ia`)
-- Design: [the archived IA spec](../specs/archive/2026-07-28-settings-information-architecture.md) — **read it first**; this
+- Design: [the archived IA spec](../../specs/archive/2026-07-28-settings-information-architecture.md) — **read it first**; this
   file says *how and in what order*, never *what*. Where the two disagree, the
   spec wins on design and this file wins on sequencing.
 

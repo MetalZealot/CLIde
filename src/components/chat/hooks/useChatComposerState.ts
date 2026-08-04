@@ -699,7 +699,7 @@ export function useChatComposerState({
   }, [executeCommand]);
 
   // Manually re-fires the SDK's context reading (only possible mid-turn — see
-  // docs/superpowers/specs/2026-07-28-context-usage-live-refresh.md) and then
+  // docs/specs/2026-07-28-context-usage-live-refresh.md) and then
   // re-opens the modal so it renders whatever the refresh produced. A
   // "no live turn" response changes nothing server-side, so re-running is
   // still correct there — the modal just re-renders the same cached reading.

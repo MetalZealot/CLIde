@@ -397,4 +397,4 @@ will package the Codex runtime and service non-interactive jobs.
 - [OpenAI Codex non-interactive mode](https://developers.openai.com/codex/noninteractive)
 - [OpenAI Codex CLI reference](https://developers.openai.com/codex/cli/reference)
 - [Codex CLI, SDK, and App Server surface map](../maps/codex-cli-sdk-app-server.md)
-- [ADR 0011 — Codex App Server is the opt-in interactive Chat transport](../../decisions/0011-codex-app-server-chat-transport.md)
+- [ADR 0011 — Codex App Server is the opt-in interactive Chat transport](../decisions/0011-codex-app-server-chat-transport.md)

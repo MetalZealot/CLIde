@@ -15,7 +15,7 @@
   - `0f31388` — shared, anchored, scroll-safe touch context menus
 - Related decisions:
   - [ADR 0009 — Long-press menus: one shared overlay, and touch belongs to
-    `useLongPress`](../../../decisions/0009-context-menu-overlay-touch-ownership.md)
+    `useLongPress`](../../decisions/0009-context-menu-overlay-touch-ownership.md)
 
 ## Purpose
 

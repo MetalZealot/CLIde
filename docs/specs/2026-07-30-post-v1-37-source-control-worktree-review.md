@@ -15,7 +15,7 @@
 - Governing design:
   [Git Source Control and workspace UX](2026-07-26-git-source-control-workspace-ux.md)
 - Governing decision:
-  [ADR 0016 — projects group checkouts by repository](../../decisions/0016-repository-grouped-checkouts.md)
+  [ADR 0016 — projects group checkouts by repository](../decisions/0016-repository-grouped-checkouts.md)
 - Related follow-up:
   [Source Control commit-message model selection](2026-07-29-source-control-commit-message-model-selection.md)
 

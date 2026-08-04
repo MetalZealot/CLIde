@@ -171,7 +171,7 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   usually have to be re-sited by hand into the matching screen; upstream changes to
   `src/components/mcp/`, `src/components/plugins/` and the `api-settings/sections/` are
   still ported nearly verbatim, since those were re-parented rather than rewritten. The
-  design record is `docs/superpowers/specs/archive/2026-07-28-settings-information-architecture.md`
+  design record is `docs/specs/archive/2026-07-28-settings-information-architecture.md`
   plus ADRs 0018–0021. Upstream check 2026-07-29: nothing proposes an IA change of this
   size — `gh issue list --search "settings redesign"` returned nothing, `"settings tabs"`
   returned only **#508** (a multi-tab right-side *panel*, unrelated), and

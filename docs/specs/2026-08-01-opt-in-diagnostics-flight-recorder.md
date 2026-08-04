@@ -11,7 +11,7 @@
 - Historical fix reference: `4b5ac61`
 - Historical cleanup reference: `05cf60c`
 - Related decision: [ADR 0024 — token rotation does not restart auth
-  bootstrap](../../decisions/0024-token-rotation-does-not-restart-auth-bootstrap.md)
+  bootstrap](../decisions/0024-token-rotation-does-not-restart-auth-bootstrap.md)
 - Related integration plan: [Upstream v1.37.0
   integration](2026-07-29-upstream-1-37-integration.md)
 

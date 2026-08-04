@@ -51,7 +51,7 @@ live behavior take precedence over documentation. See the map's evidence policy.
   silently overridden on every query.
 - **Disposition:** read-only cascade viewer first, then Tier A writes starting
   with permissions reconciliation. Never surface terminal-only keys.
-- **Detail:** [settings surface audit](../specs/2026-07-28-claude-code-settings-surface-audit.md).
+- **Detail:** [settings surface audit](2026-07-28-claude-code-settings-surface-audit.md).
 
 ## Living-map refresh — 2026-07-30
 

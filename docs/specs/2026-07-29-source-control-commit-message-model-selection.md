@@ -428,7 +428,7 @@ from the registered `jobs` facet or cover the two with a conformance test so
 the capability matrix cannot drift from the adapter.
 
 This separate facet follows the
-[current provider architecture contract](CLIde_Provider_Architecture_Current_Contract.md):
+[current provider architecture contract](../maps/CLIde_Provider_Architecture_Current_Contract.md):
 interactive Chat and small ephemeral jobs have different lifecycle,
 persistence, permission, and transport requirements.
 

@@ -87,8 +87,8 @@ CLIde owns the stable app-facing `session_id`. Codex owns its native thread ID,
 stored by CLIde as `provider_session_id`. Rewind may replace the provider
 thread behind one stable CLIde session; an explicit fork creates another CLIde
 session. See ADRs
-[0011](../../decisions/0011-codex-app-server-chat-transport.md) and
-[0012](../../decisions/0012-codex-rewind-and-fork-session-identity.md).
+[0011](../decisions/0011-codex-app-server-chat-transport.md) and
+[0012](../decisions/0012-codex-rewind-and-fork-session-identity.md).
 
 ## 2. Current CLIde mapping
 
