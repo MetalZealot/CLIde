@@ -515,7 +515,10 @@ export const codexRuntime = {
   abort: abortCodexSession,
   permissions: {
     resolve: (requestId, response) => interactiveRequestRegistry.resolve(requestId, response),
-    listPending: (sessionId) => interactiveRequestRegistry.getPendingForSession(sessionId),
+    // Provider-scoped for the same reason Claude's is: the registry is one
+    // shared map, so an unfiltered lookup would also report Claude's pending
+    // prompts and duplicate them in the `chat.subscribe` replay.
+    listPending: (sessionId) => interactiveRequestRegistry.getPendingForSession(sessionId, 'codex'),
   },
 };
 

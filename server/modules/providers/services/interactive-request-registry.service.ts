@@ -1,5 +1,6 @@
 import type {
   InteractiveRequestResponse,
+  LLMProvider,
   PendingInteractiveRequest,
 } from '@/shared/types.js';
 
@@ -159,10 +160,22 @@ export const interactiveRequestRegistry = {
     ));
   },
 
-  getPendingForSession(sessionId: string): PendingInteractiveRequest[] {
+  /**
+   * Pending requests for one session, optionally narrowed to one provider.
+   *
+   * This registry is a single process-wide map shared by every runtime, so a
+   * lookup keyed on `sessionId` alone answers the same entries to all of them.
+   * The gateway's `getPendingApprovalsForSession` flat-maps across providers,
+   * which turned one pending request into one copy per runtime that delegates
+   * here — `chat.subscribe` then replayed the same prompt twice and the client
+   * rendered two identical panels. Callers that speak for a specific provider
+   * pass it, so each runtime reports only what it actually owns.
+   */
+  getPendingForSession(sessionId: string, provider?: LLMProvider): PendingInteractiveRequest[] {
     return Array.from(pending.values())
       .map((entry) => entry.request)
-      .filter((request) => request.sessionId === sessionId);
+      .filter((request) => request.sessionId === sessionId
+        && (provider === undefined || request.provider === provider));
   },
 
   get(requestId: string): PendingInteractiveRequest | null {

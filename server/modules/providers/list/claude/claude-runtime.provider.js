@@ -1020,7 +1020,11 @@ function getActiveClaudeSDKSessions() {
  * @returns {Array} Array of pending permission request objects
  */
 function getPendingApprovalsForSession(sessionId) {
-  return interactiveRequestRegistry.getPendingForSession(sessionId);
+  // Provider-scoped: the registry is shared with the other runtimes, and the
+  // gateway asks each of them in turn. Without the filter every runtime that
+  // delegates here answers with the same entries, so one pending prompt is
+  // replayed once per runtime on `chat.subscribe`.
+  return interactiveRequestRegistry.getPendingForSession(sessionId, 'claude');
 }
 
 /**

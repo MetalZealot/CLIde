@@ -100,3 +100,65 @@ test('interactive registry server resolution and abort cancellation clear reques
   assert.equal(cancellations, 1);
   assert.equal(interactiveRequestRegistry.getPendingForSession('thread-1').length, 0);
 });
+
+test('a pending request is reported only by the provider that owns it', () => {
+  // The registry is one process-wide map shared by every runtime, and the
+  // gateway's getPendingApprovalsForSession flat-maps over all of them. An
+  // unfiltered per-session lookup therefore answered the same entry to each
+  // runtime, so `chat.subscribe` replayed one prompt twice and the client
+  // rendered two identical question panels on returning to the session.
+  interactiveRequestRegistry.register({
+    ...baseRequest,
+    requestId: 'claude-request',
+    provider: 'claude',
+    sessionId: 'app-session-1',
+    toolName: 'AskUserQuestion',
+  }, { onResponse: () => {} });
+
+  assert.deepEqual(
+    interactiveRequestRegistry
+      .getPendingForSession('app-session-1', 'claude')
+      .map((request) => request.requestId),
+    ['claude-request'],
+  );
+
+  // Codex shares the map but owns nothing in this session.
+  assert.deepEqual(
+    interactiveRequestRegistry.getPendingForSession('app-session-1', 'codex'),
+    [],
+  );
+
+  // Unscoped callers still see everything for the session.
+  assert.equal(
+    interactiveRequestRegistry.getPendingForSession('app-session-1').length,
+    1,
+  );
+});
+
+test('providers sharing a session id each report only their own pending request', () => {
+  interactiveRequestRegistry.register({
+    ...baseRequest,
+    requestId: 'claude-request',
+    provider: 'claude',
+    sessionId: 'shared-session',
+  }, { onResponse: () => {} });
+  interactiveRequestRegistry.register({
+    ...baseRequest,
+    requestId: 'codex-request',
+    provider: 'codex',
+    sessionId: 'shared-session',
+  }, { onResponse: () => {} });
+
+  assert.deepEqual(
+    interactiveRequestRegistry
+      .getPendingForSession('shared-session', 'claude')
+      .map((request) => request.requestId),
+    ['claude-request'],
+  );
+  assert.deepEqual(
+    interactiveRequestRegistry
+      .getPendingForSession('shared-session', 'codex')
+      .map((request) => request.requestId),
+    ['codex-request'],
+  );
+});
