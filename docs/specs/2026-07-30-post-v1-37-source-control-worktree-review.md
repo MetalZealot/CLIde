@@ -11,7 +11,7 @@
   `264e0946d2a168c281b85807cd1183130f40b090`
 - Upstream feature squash: `06e7ee9`
 - Integration prerequisite:
-  [Upstream v1.37.0 integration](2026-07-29-upstream-1-37-integration.md)
+  [Upstream v1.37.0 integration](archive/2026-07-29-upstream-1-37-integration.md)
 - Governing design:
   [Git Source Control and workspace UX](2026-07-26-git-source-control-workspace-ux.md)
 - Governing decision:

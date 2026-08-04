@@ -1,7 +1,8 @@
 # Upstream v1.37.0 integration
 
 - Date: 2026-07-29
-- Status: Deferred implementation specification
+- Status: Completed and archived 2026-08-04. Integrated into `main` in
+  `658d536`, deployed to port 3001, and accepted by Grayson.
 - Scope: Integrate `siteboon/claudecodeui` v1.37.0 into CLIde while
   preserving CLIde's provider-neutral runtime, session identity, model,
   context-usage, Source Control, WebSocket, Settings, and worktree safety
@@ -22,19 +23,19 @@
   - [PR #1037 — numerous bugfixes and features](https://github.com/siteboon/claudecodeui/pull/1037)
   - [PR #979 — recognize `CLAUDE_CODE_OAUTH_TOKEN`](https://github.com/siteboon/claudecodeui/pull/979)
 - Related CLIde decisions:
-  - [ADR 0001 — no backdrop blur](../decisions/0001-no-backdrop-blur.md)
-  - [ADR 0003 — per-session model tracking](../decisions/0003-per-session-model-tracking.md)
-  - [ADR 0006 — app-level WebSocket liveness](../decisions/0006-app-level-ws-liveness.md)
-  - [ADR 0012 — Codex rewind and fork session identity](../decisions/0012-codex-rewind-and-fork-session-identity.md)
-  - [ADR 0013 — abort is signal-first](../decisions/0013-abort-is-signal-first-not-provider-id-keyed.md)
-  - [ADR 0014 — context ceiling comes from the SDK](../decisions/0014-context-ceiling-from-sdk.md)
-  - [ADR 0016 — repository-grouped checkouts](../decisions/0016-repository-grouped-checkouts.md)
-  - [ADR 0019 — QuickSettings panel removed; no second settings surface](../decisions/0019-quicksettings-removal.md)
+  - [ADR 0001 — no backdrop blur](../../decisions/0001-no-backdrop-blur.md)
+  - [ADR 0003 — per-session model tracking](../../decisions/0003-per-session-model-tracking.md)
+  - [ADR 0006 — app-level WebSocket liveness](../../decisions/0006-app-level-ws-liveness.md)
+  - [ADR 0012 — Codex rewind and fork session identity](../../decisions/0012-codex-rewind-and-fork-session-identity.md)
+  - [ADR 0013 — abort is signal-first](../../decisions/0013-abort-is-signal-first-not-provider-id-keyed.md)
+  - [ADR 0014 — context ceiling comes from the SDK](../../decisions/0014-context-ceiling-from-sdk.md)
+  - [ADR 0016 — repository-grouped checkouts](../../decisions/0016-repository-grouped-checkouts.md)
+  - [ADR 0019 — QuickSettings panel removed; no second settings surface](../../decisions/0019-quicksettings-removal.md)
 - Related CLIde specifications:
-  - [Settings information architecture](archive/2026-07-28-settings-information-architecture.md)
-  - [Git and Source Control workspace UX](2026-07-26-git-source-control-workspace-ux.md)
-  - [Source Control commit-message model selection](2026-07-29-source-control-commit-message-model-selection.md)
-  - [Codex chat transport architecture](2026-07-25-codex-chat-transport-architecture.md)
+  - [Settings information architecture](2026-07-28-settings-information-architecture.md)
+  - [Git and Source Control workspace UX](../2026-07-26-git-source-control-workspace-ux.md)
+  - [Source Control commit-message model selection](../2026-07-29-source-control-commit-message-model-selection.md)
+  - [Codex chat transport architecture](../../maps/2026-07-25-codex-chat-transport-architecture.md)
 
 ## Status and sequencing
 

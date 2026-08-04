@@ -14,7 +14,7 @@
 - Integration worktree: `~/Projects/cloudcli-wt-upstream-1.37`
 - Integration branch: `chore/upstream-1.37`
 - Integration prerequisite:
-  [Upstream v1.37.0 integration](../2026-07-29-upstream-1-37-integration.md)
+  [Upstream v1.37.0 integration](2026-07-29-upstream-1-37-integration.md)
 - Post-integration reviews:
   [Source Control and worktrees](../2026-07-30-post-v1-37-source-control-worktree-review.md)
   and

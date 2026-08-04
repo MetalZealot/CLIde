@@ -67,7 +67,7 @@ not, and both are a yes/no rather than a build.
   0011/0012.) The case against: it is opt-in, upstream does not know it exists,
   and it broke during the v1.37 merge because upstream changed a runtime
   contract it could not see (`3e84bd7`). The case for is in
-  [the transport architecture spec](2026-07-25-codex-chat-transport-architecture.md);
+  [the transport architecture spec](../maps/2026-07-25-codex-chat-transport-architecture.md);
   note that spec's own outstanding work is verification, not code. Decide keep
   or drop before doing any more work on it. **M**
 - [ ] **ADR 0016 is written but entirely unimplemented** — no `git-common-dir`

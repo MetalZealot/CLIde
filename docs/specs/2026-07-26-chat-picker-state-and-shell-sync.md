@@ -22,7 +22,7 @@ This note records:
 Read this alongside:
 
 - [Provider permission and mode surface map](2026-07-25-provider-permission-mode-map.md);
-- [Codex Chat transport architecture](2026-07-25-codex-chat-transport-architecture.md);
+- [Codex Chat transport architecture](../maps/2026-07-25-codex-chat-transport-architecture.md);
 - [Codex CLI, SDK, and App Server surface map](../maps/codex-cli-sdk-app-server.md);
 - [ADR 0011 — Codex App Server Chat transport](../decisions/0011-codex-app-server-chat-transport.md); and
 - [ADR 0003 — Per-session model tracking](../decisions/0003-per-session-model-tracking.md).
