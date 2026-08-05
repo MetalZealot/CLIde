@@ -509,7 +509,7 @@ test('Codex synchronizer labels top-level fork lineage instead of an unrelated d
   }
 });
 
-test('Codex history renders Promise.all shell wrappers as Bash activity', { concurrency: false }, async () => {
+test('Codex history restores current and legacy exec wrappers without exposing controls', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-exec-history-'));
   const workspacePath = path.join(tempRoot, 'workspace');
   await mkdir(workspacePath, { recursive: true });
@@ -518,14 +518,20 @@ test('Codex history renders Promise.all shell wrappers as Bash activity', { conc
   try {
     const providerSessionId = 'codex-exec-1';
     const transcriptPath = await writeCodexTranscript(tempRoot, providerSessionId, workspacePath);
-    const execInput = 'const cmds = ["echo one", "echo two"]; await Promise.all(cmds.map(command => tools.shell_command({ command })));';
+    const legacyExecInput = 'const cmds = ["echo one", "echo two"]; await Promise.all(cmds.map(command => tools.shell_command({ command })));';
+    const currentExecInput = 'const result = await tools.exec_command({"cmd":"echo current","workdir":"/workspace"}); text(result.output);';
     const planInput = 'await tools.update_plan({ plan: [] });';
+    const unknownExecInput = 'const result = await tools.view_image({"path":"/tmp/example.png"}); image(result.image_url);';
     await writeFile(transcriptPath, [
       JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
-      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'exec-1', input: execInput } }),
-      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'exec-1', output: 'done' } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'legacy-exec', input: legacyExecInput } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'legacy-exec', output: 'legacy done' } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'current-exec', input: currentExecInput } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'current-exec', output: 'current done' } }),
       JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'plan-1', input: planInput } }),
       JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'plan-1', output: 'done' } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'unknown-exec', input: unknownExecInput } }),
+      JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'unknown-exec', output: 'image done' } }),
     ].join('\n') + '\n', 'utf8');
 
     await withIsolatedDatabase(async () => {
@@ -537,9 +543,16 @@ test('Codex history renders Promise.all shell wrappers as Bash activity', { conc
       const toolUses = history.messages.filter((message) => message.kind === 'tool_use');
       const toolResults = history.messages.filter((message) => message.kind === 'tool_result');
 
-      assert.equal(toolUses.length, 1);
+      assert.equal(toolUses.length, 3);
       assert.equal(toolUses[0].toolName, 'Bash');
       assert.equal(toolUses[0].toolInput, JSON.stringify({ command: 'echo one\necho two' }));
+      assert.equal(toolUses[0].toolResult?.content, 'legacy done');
+      assert.equal(toolUses[1].toolName, 'Bash');
+      assert.equal(toolUses[1].toolInput, JSON.stringify({ command: 'echo current' }));
+      assert.equal(toolUses[1].toolResult?.content, 'current done');
+      assert.equal(toolUses[2].toolName, 'exec');
+      assert.equal(toolUses[2].toolInput, unknownExecInput);
+      assert.equal(toolUses[2].toolResult?.content, 'image done');
       assert.equal(toolResults.some((message) => message.toolCallId === 'plan-1'), false);
     });
   } finally {
