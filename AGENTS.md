@@ -20,9 +20,11 @@ Before changing code:
 
 ## Architecture and compatibility
 
-- The backend is Express + WebSocket under `server/` (mid-migration into
-  `server/modules/`); the frontend is React 18, Vite, and Tailwind under `src/`.
-  Shared types and utilities live in `shared/`.
+- The backend is Express + WebSocket under `server/`, fully migrated into
+  `server/modules/` as of upstream 1.37; the frontend is React 18, Vite, and Tailwind
+  under `src/`.  Shared types and utilities live in `shared/`.  `server/routes/`,
+  `server/utils/`, `server/services/`, `server/middleware/`, and the flat adapter files
+  at `server/`'s root are gone — be suspicious of any doc or memory that names them.
 - Providers are adapters.  Claude is the daily driver, but shared UI, protocol,
   database, and provider-interface work must continue to work for Codex, Cursor, and
   OpenCode.  Add capability flags or clean no-op behaviour instead of leaking
@@ -44,11 +46,17 @@ behaviour stays behind adapter interfaces.
 
 ## Development and verification
 
-- Use `npm run typecheck`, `npm run lint`, and the narrowest relevant build.  There
-  is no `npm test`; server tests use:
-  `npx tsx --tsconfig server/tsconfig.json --test <matching *.test.ts files>`.
-- Small client-only changes: `npm run build:client`, then refresh the app on port
-  3001.  A server restart is not needed for client bundles.
+- Use `npm run typecheck`, `npm run lint`, and the narrowest relevant build.
+- `npm test` runs `test:server` then `test:client`; run either half alone while
+  iterating.  A single server test needs the server tsconfig —
+  `npx tsx --tsconfig server/tsconfig.json --test <path to *.test.ts>` — because the
+  root tsconfig maps `@/*` to `src/*` while the server maps it to `server/*`.
+- Small client-only changes: `npm run build:client`, then refresh the running app.  A
+  server restart is not needed for client bundles.
+- Verify on the server that actually serves the checkout you edited.  The main
+  checkout's server does not serve a worktree's `dist/`, so worktree work is never
+  verified there — use that worktree's own test server.  Never tell the user to refresh
+  the main app for a change that only exists on a topic branch.
 - Iterative visual work may use the `cloudcli-dev` Vite service on port 5173; never
   run plain `npm run dev`, which conflicts with the production server.  The dev page
   is not an installed PWA, so verify standalone/safe-area/mobile-PWA behaviour against
@@ -87,8 +95,9 @@ behaviour stays behind adapter interfaces.
   claim the TODO item and create a worktree/topic branch from `main`, then merge it
   back into `main`; do not switch the main checkout while its service or dev server is
   using it.
-- Keep `TODO.md` current: use `[ ]`, `[~]`, and `[x]`; move verified work to `docs/todo-done.md` as a
-  short record with its commit.  Git history and ADRs are the canonical detail.
+- Keep `docs/TODO.md` current: use `[ ]`, `[~]`, and `[x]`; move verified work to
+  `docs/todo-done.md` as a short record with its commit.  Git history and ADRs are the
+  canonical detail.
 - Categorize fixes as fork-only or upstreamable.  Before describing a defect as
   upstream-wide, inspect upstream code as well as searching issues/PRs.  Never open,
   push, or update an upstream PR without the user's explicit approval.
@@ -97,7 +106,7 @@ behaviour stays behind adapter interfaces.
 
 ## Safety
 
-- Never use a destructive operation on user documents, especially `TODO.md` or
+- Never use a destructive operation on user documents, especially `docs/TODO.md` or
   `UI Visual References/`.  To stop tracking a file while keeping it on disk, use
   `git rm --cached`, never `git rm`.
 - Do not delete or modify real user sessions, projects, credentials, or databases

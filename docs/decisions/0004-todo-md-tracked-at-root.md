@@ -1,7 +1,7 @@
 # 0004 — TODO.md is tracked in-repo, at the repo root
 
 - Date: 2026-07-22
-- Status: Accepted
+- Status: Accepted; location half superseded by 0027
 
 ## Decision
 

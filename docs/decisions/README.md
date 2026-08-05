@@ -41,7 +41,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0001 — No backdrop-filter blur / glassmorphism](0001-no-backdrop-blur.md)
 - [0002 — PWA icons declare purpose "any" only, never "maskable"](0002-no-maskable-icon-purpose.md)
 - [0003 — Active model is tracked per session; transcript is ground truth](0003-per-session-model-tracking.md)
-- [0004 — TODO.md is tracked in-repo, at the repo root](0004-todo-md-tracked-at-root.md)
+- [0004 — TODO.md is tracked in-repo, at the repo root](0004-todo-md-tracked-at-root.md) *(location superseded by 0027)*
 - [0005 — Mobile bottom navbar, restored as in-flow layout](0005-mobile-bottom-navbar.md)
 - [0006 — WS liveness is client-driven via app-level ping, not protocol ping](0006-app-level-ws-liveness.md)
 - [0007 — Rewind is in-place tree-append; history must be branch-filtered](0007-rewind-in-place-tree-append.md)
@@ -64,3 +64,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0024 — Token rotation does not restart auth bootstrap](0024-token-rotation-does-not-restart-auth-bootstrap.md)
 - [0025 — Per-session model picks live in the sessions table, behind transcript truth](0025-session-model-picks-live-in-the-database.md)
 - [0026 — Android's file chooser can't be shaped from the web; the composer keeps one plain input](0026-attachment-menu-accept-ceiling.md)
+- [0027 — The backlog lives at `docs/TODO.md`](0027-todo-md-lives-in-docs.md)
