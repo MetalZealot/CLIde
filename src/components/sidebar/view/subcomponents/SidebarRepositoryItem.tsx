@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, Pin, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -50,7 +50,8 @@ type SidebarRepositoryItemProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
-  onLoadMoreSessions: (entry: RepositoryEntry) => void;
+  visibleSessionCount: number;
+  onShowMoreSessions: (entry: RepositoryEntry, loadedCount: number) => void;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
@@ -116,7 +117,8 @@ export default function SidebarRepositoryItem({
   onDeleteProject,
   onSessionSelect,
   onDeleteSession,
-  onLoadMoreSessions,
+  visibleSessionCount,
+  onShowMoreSessions,
   activeSessions,
   unreadSessionIds,
   attentionSessionIds,
@@ -204,21 +206,27 @@ export default function SidebarRepositoryItem({
 
   return (
     <div className={cn('md:space-y-1', isDeleting && 'opacity-50 pointer-events-none')}>
-      <div className="md:group group">
+      {/*
+        While the row is open its header pins to the top of the scroll area, so
+        a long merged session list can be collapsed again without scrolling back
+        up to find its own header. Sticky lives on this wrapper rather than the
+        row itself: the wrapper's parent also contains the session list, which
+        is the distance the header needs to travel.
+      */}
+      <div className={cn('md:group group', isExpanded && 'sticky top-0 z-10 bg-background')}>
         <div className="md:hidden">
           <div
             ref={mobileRowRef}
             className={cn(
-              'long-pressable p-2 mx-3 my-0.5 rounded-lg bg-card border border-border/50 transition-all duration-150',
-              isContextActive && 'scale-[0.98] ring-1 ring-inset ring-primary/50',
-              isSelected && 'bg-primary/10 border-primary/50',
-              projectNeedsAttention &&
-                !isSelected &&
-                'border-amber-500/40 bg-amber-50/5 dark:bg-amber-900/5',
-              projectHasUnread &&
-                !isSelected &&
-                !projectNeedsAttention &&
-                'border-green-500/30 bg-green-50/5 dark:bg-green-900/5',
+              // No resting card — see SidebarSessionItem for the reasoning.
+              // The row keeps an opaque background only while it is stuck to
+              // the top, so scrolled content cannot show through it.
+              'long-pressable p-2 mx-3 my-0.5 rounded-lg transition-all duration-150',
+              isContextActive && 'scale-[0.98] bg-accent/60',
+              isSelected && 'bg-primary/10',
+              projectNeedsAttention && !isSelected && 'bg-amber-500/10',
+              projectHasUnread && !isSelected && !projectNeedsAttention && 'bg-green-500/10',
+              !isSelected && !projectNeedsAttention && !projectHasUnread && 'active:bg-accent/50',
             )}
             onClick={toggleProject}
             {...longPress}
@@ -257,7 +265,7 @@ export default function SidebarRepositoryItem({
                       <div className="flex min-w-0 flex-1 items-center justify-between">
                         <div className="flex min-w-0 flex-1 items-center gap-1.5">
                           {isStarred && (
-                            <Star className="h-3.5 w-3.5 flex-shrink-0 fill-current text-yellow-500" />
+                            <Pin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
                           )}
                           <h3 className="truncate text-sm font-normal text-foreground">{entry.displayName}</h3>
                         </div>
@@ -324,15 +332,13 @@ export default function SidebarRepositoryItem({
         <Button
           variant="ghost"
           className={cn(
-            'hidden md:flex w-full justify-between p-2 h-auto font-normal border border-transparent hover:bg-accent/50',
-            isSelected && 'bg-primary/10 border-primary/50',
-            projectNeedsAttention &&
-              !isSelected &&
-              'border-amber-500/40 bg-amber-50/5 hover:bg-amber-100/40 dark:bg-amber-900/10 dark:hover:bg-amber-900/20',
+            'hidden md:flex w-full justify-between p-2 h-auto font-normal hover:bg-accent/50',
+            isSelected && 'bg-primary/10',
+            projectNeedsAttention && !isSelected && 'bg-amber-500/10 hover:bg-amber-500/20',
             projectHasUnread &&
               !isSelected &&
               !projectNeedsAttention &&
-              'border-green-500/30 bg-green-50/5 hover:bg-green-100/40 dark:bg-green-900/10 dark:hover:bg-green-900/20',
+              'bg-green-500/10 hover:bg-green-500/20',
           )}
           onClick={selectAndToggleProject}
         >
@@ -341,7 +347,7 @@ export default function SidebarRepositoryItem({
               className={cn(
                 'w-6 h-6 flex items-center justify-center rounded cursor-pointer transition-all duration-200',
                 isStarred
-                  ? 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                  ? 'hover:bg-accent'
                   : 'opacity-40 hover:opacity-100 hover:bg-accent',
               )}
               onClick={(event) => {
@@ -350,11 +356,11 @@ export default function SidebarRepositoryItem({
               }}
               title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
             >
-              <Star
+              <Pin
                 className={cn(
                   'w-3 h-3 transition-colors',
                   isStarred
-                    ? 'text-yellow-600 dark:text-yellow-400 fill-current'
+                    ? 'text-primary'
                     : 'text-muted-foreground',
                 )}
               />
@@ -489,7 +495,8 @@ export default function SidebarRepositoryItem({
         onProjectSelect={onProjectSelect}
         onSessionSelect={onSessionSelect}
         onDeleteSession={onDeleteSession}
-        onLoadMoreSessions={onLoadMoreSessions}
+        visibleSessionCount={visibleSessionCount}
+        onShowMoreSessions={onShowMoreSessions}
         onNewSession={onNewSession}
         onLongPressSessionMenu={onLongPressSessionMenu}
         activeContextMenuKey={activeContextMenuKey}

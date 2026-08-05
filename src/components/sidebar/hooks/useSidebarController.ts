@@ -131,9 +131,12 @@ export function useSidebarController({
   const [showNewProject, setShowNewProject] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [initialSessionsLoaded, setInitialSessionsLoaded] = useState<Set<string>>(new Set());
+  // How many sessions each open row shows, keyed by `repositoryEntryKey`.
+  // Absent means the default first page.
+  const [visibleSessionCounts, setVisibleSessionCounts] = useState<Map<string, number>>(new Map());
+  const [isPinnedSectionCollapsed, setIsPinnedSectionCollapsed] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
@@ -468,6 +471,10 @@ export function useSidebarController({
     });
   }, []);
 
+  const togglePinnedSection = useCallback(() => {
+    setIsPinnedSectionCollapsed((previous) => !previous);
+  }, []);
+
   const handleSessionClick = useCallback(
     (session: SessionWithProvider, projectId: string) => {
       // Tag the session with its owning projectId so downstream handlers
@@ -637,6 +644,37 @@ export function useSidebarController({
       );
     },
     [loadMoreSessionsForProject],
+  );
+
+  /** Sessions shown before "show more", and how many each press adds. */
+  const SESSION_PAGE_SIZE = 5;
+
+  const getVisibleSessionCount = useCallback(
+    (entryKey: string) => visibleSessionCounts.get(entryKey) ?? SESSION_PAGE_SIZE,
+    [visibleSessionCounts],
+  );
+
+  /**
+   * Reveals another page of an open row, fetching from the server only once the
+   * already-loaded sessions run out. Without this cap one busy repository fills
+   * the sidebar and every other project scrolls off — the problem the reference
+   * clients solve with a per-project "Show more".
+   */
+  const showMoreSessions = useCallback(
+    (entry: RepositoryEntry, loadedCount: number) => {
+      const nextCount = getVisibleSessionCount(entry.key) + SESSION_PAGE_SIZE;
+
+      setVisibleSessionCounts((previous) => {
+        const next = new Map(previous);
+        next.set(entry.key, nextCount);
+        return next;
+      });
+
+      if (nextCount > loadedCount) {
+        void loadMoreSessionsForRepository(entry);
+      }
+    },
+    [getVisibleSessionCount, loadMoreSessionsForRepository],
   );
 
   const projectsWithResolvedStarState = useMemo(() => {
@@ -1020,18 +1058,6 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onRefresh, t]);
 
-  const refreshProjects = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await Promise.all([
-        Promise.resolve(onRefresh()),
-        fetchArchivedSessions(),
-      ]);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [fetchArchivedSessions, onRefresh]);
-
   const updateSessionSummary = useCallback(
     // `_projectId` and `_provider` are preserved for compatibility with
     // existing sidebar callback signatures; backend rename only needs sessionId.
@@ -1078,7 +1104,6 @@ export function useSidebarController({
     initialSessionsLoaded,
     currentTime,
     projectSortOrder,
-    isRefreshing,
     editingSession,
     editingSessionName,
     searchFilter,
@@ -1102,10 +1127,14 @@ export function useSidebarController({
     isProjectStarred,
     isRepositoryStarred,
     toggleStarRepository,
+    isPinnedSectionCollapsed,
+    togglePinnedSection,
     getProjectSessions,
     getRepositorySessions,
     loadMoreSessionsForProject,
     loadMoreSessionsForRepository,
+    getVisibleSessionCount,
+    showMoreSessions,
     startEditing,
     cancelEditing,
     saveProjectName,
@@ -1119,7 +1148,6 @@ export function useSidebarController({
     openArchivedSession,
     restoreArchivedProject,
     restoreArchivedSession,
-    refreshProjects,
     updateSessionSummary,
     collapseSidebar,
     expandSidebar,

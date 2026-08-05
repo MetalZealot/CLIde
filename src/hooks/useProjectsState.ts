@@ -778,6 +778,15 @@ export function useProjectsState({
         }
       }
 
+      // While the socket was down no `session_upserted` deltas arrived, so the
+      // list is stale by an unknown amount. Resync once on reconnect — this is
+      // what makes the manual refresh control unnecessary rather than merely
+      // hidden. Silent, so it cannot disturb an open chat.
+      if (event.kind === 'websocket_reconnected') {
+        void refreshProjectsSilently();
+        return;
+      }
+
       if (event.kind !== 'session_upserted') {
         return;
       }
@@ -884,7 +893,7 @@ export function useProjectsState({
     };
 
     return subscribe(handleEvent);
-  }, [markSessionAttention, markSessionUnread, clearSessionAttention, navigate, sessionId, subscribe]);
+  }, [markSessionAttention, markSessionUnread, clearSessionAttention, navigate, refreshProjectsSilently, sessionId, subscribe]);
 
   useEffect(() => {
     return () => {

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, GitBranch, Pencil, Plus, Star, Trash2 } from 'lucide-react';
+import { Archive, Copy, GitBranch, Pencil, Plus, Pin, Trash2 } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -74,7 +74,6 @@ function Sidebar({
     editingName,
     initialSessionsLoaded,
     currentTime,
-    isRefreshing,
     editingSession,
     editingSessionName,
     searchFilter,
@@ -103,10 +102,13 @@ function Sidebar({
     toggleStarRepository,
     isProjectStarred,
     isRepositoryStarred,
+    isPinnedSectionCollapsed,
+    togglePinnedSection,
     getProjectSessions,
     getRepositorySessions,
     loadingMoreProjects,
-    loadMoreSessionsForRepository,
+    getVisibleSessionCount,
+    showMoreSessions,
     startEditing,
     cancelEditing,
     saveProjectName,
@@ -120,7 +122,6 @@ function Sidebar({
     openArchivedSession,
     restoreArchivedProject,
     restoreArchivedSession,
-    refreshProjects,
     updateSessionSummary,
     collapseSidebar: handleCollapseSidebar,
     expandSidebar: handleExpandSidebar,
@@ -211,7 +212,7 @@ function Sidebar({
         {
           key: 'star',
           label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
-          icon: Star,
+          icon: Pin,
           onSelect: () => toggleStarSession(session.id, isStarred),
         },
         {
@@ -287,7 +288,7 @@ function Sidebar({
       {
         key: 'star',
         label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
-        icon: Star,
+        icon: Pin,
         onSelect: () => toggleStarProject(project.projectId),
       },
       {
@@ -326,13 +327,14 @@ function Sidebar({
     tasksEnabled,
     mcpServerStatus,
     getRepositorySessions,
-    getProjectSessions,
     loadingMoreProjects,
     activeSessions,
     attentionSessionIds,
     unreadSessionIds,
     forceExpanded: searchMode === 'running',
     isRepositoryStarred,
+    isPinnedSectionCollapsed,
+    onTogglePinnedSection: togglePinnedSection,
     onEditingNameChange: setEditingName,
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
@@ -345,7 +347,8 @@ function Sidebar({
     onDeleteProject: requestProjectDelete,
     onSessionSelect: handleSessionClick,
     onDeleteSession: showDeleteSessionConfirmation,
-    onLoadMoreSessions: loadMoreSessionsForRepository,
+    getVisibleSessionCount,
+    onShowMoreSessions: showMoreSessions,
     onNewSession,
     onEditingSessionNameChange: setEditingSessionName,
     onStartEditingSession: (sessionId, initialName) => {
@@ -471,10 +474,6 @@ function Sidebar({
                 handleSessionClick(sessionObj, projectId ?? '');
               }
             }}
-            onRefresh={() => {
-              void refreshProjects();
-            }}
-            isRefreshing={isRefreshing}
             onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
             updateAvailable={updateAvailable}

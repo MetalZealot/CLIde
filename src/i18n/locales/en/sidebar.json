@@ -8,7 +8,7 @@
     "loadingProjects": "Loading projects...",
     "searchPlaceholder": "Search projects...",
     "projectNamePlaceholder": "Project name",
-    "starred": "Starred",
+    "starred": "Pinned",
     "all": "All",
     "untitledSession": "Untitled Session",
     "newSession": "New Session",
@@ -19,7 +19,8 @@
     "repositoryCheckouts_other": "{{count}} checkouts",
     "noMatchingProjects": "No matching projects",
     "tryDifferentSearch": "Try adjusting your search term",
-    "runClaudeCli": "Run Claude CLI in a project directory to get started"
+    "runClaudeCli": "Run Claude CLI in a project directory to get started",
+    "pinned": "Pinned"
   },
   "app": {
     "title": "CLIde",
@@ -43,8 +44,8 @@
     "refresh": "Refresh projects and sessions (Ctrl+R)",
     "renameProject": "Rename project (F2)",
     "deleteProject": "Remove project from sidebar (Delete)",
-    "addToFavorites": "Add to favorites",
-    "removeFromFavorites": "Remove from favorites",
+    "addToFavorites": "Pin",
+    "removeFromFavorites": "Unpin",
     "editSessionName": "Manually edit session name",
     "deleteSession": "Delete this session permanently",
     "activeSessionIndicator": "Recently active session (last 10 minutes)",

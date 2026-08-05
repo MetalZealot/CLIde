@@ -35,7 +35,9 @@ type SidebarProjectSessionsProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
-  onLoadMoreSessions: (entry: RepositoryEntry) => void;
+  /** How many of `sessions` to render before the "show more" control. */
+  visibleSessionCount: number;
+  onShowMoreSessions: (entry: RepositoryEntry, loadedCount: number) => void;
   onNewSession: (project: Project) => void;
   onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
@@ -89,7 +91,8 @@ export default function SidebarProjectSessions({
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
-  onLoadMoreSessions,
+  visibleSessionCount,
+  onShowMoreSessions,
   onNewSession,
   onLongPressSessionMenu,
   activeContextMenuKey,
@@ -100,6 +103,10 @@ export default function SidebarProjectSessions({
   }
 
   const hasSessions = sessions.length > 0;
+  const visibleSessions = sessions.slice(0, visibleSessionCount);
+  // More to show if this row is holding sessions back, or if the server still
+  // has some it has not sent.
+  const canShowMore = sessions.length > visibleSessions.length || hasMoreSessions;
   // A new session has to land in exactly one working tree; the lead checkout is
   // the only non-arbitrary choice. Long-pressing the row reaches the others.
   const newSessionTarget = entry.leadCheckout;
@@ -137,7 +144,7 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          {sessions.map(({ session, checkout, branchLabel }) => (
+          {visibleSessions.map(({ session, checkout, branchLabel }) => (
             <SidebarSessionItem
               key={session.id}
               project={checkout}
@@ -163,12 +170,12 @@ export default function SidebarProjectSessions({
             />
           ))}
 
-          {hasMoreSessions && (
+          {canShowMore && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-full justify-center text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => onLoadMoreSessions(entry)}
+              className="h-7 w-full justify-start px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => onShowMoreSessions(entry, sessions.length)}
               disabled={isLoadingMoreSessions}
             >
               {isLoadingMoreSessions ? t('sessions.loadingSessions') : t('sessions.showMore')}

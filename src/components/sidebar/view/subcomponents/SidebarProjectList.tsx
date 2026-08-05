@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Pin } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
@@ -13,6 +14,7 @@ import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 
 import SidebarRepositoryItem from './SidebarRepositoryItem';
 import SidebarProjectsState from './SidebarProjectsState';
+import SidebarSectionHeader from './SidebarSectionHeader';
 
 export type SidebarProjectListProps = {
   projects: Project[];
@@ -34,19 +36,16 @@ export type SidebarProjectListProps = {
   tasksEnabled: boolean;
   mcpServerStatus: MCPServerStatus;
   getRepositorySessions: (entry: RepositoryEntry) => CheckoutSession[];
-  /**
-   * Unused by this list, which reads sessions per repository. Carried in the
-   * shared props bundle for the Conversations tab, whose flat cross-project
-   * list has no repository rows to hang sessions off.
-   */
-  getProjectSessions: (project: Project) => SessionWithProvider[];
-  onLoadMoreSessions: (entry: RepositoryEntry) => void;
+  getVisibleSessionCount: (entryKey: string) => number;
+  onShowMoreSessions: (entry: RepositoryEntry, loadedCount: number) => void;
   loadingMoreProjects: Set<string>;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   forceExpanded?: boolean;
   isRepositoryStarred: (entry: RepositoryEntry) => boolean;
+  isPinnedSectionCollapsed: boolean;
+  onTogglePinnedSection: () => void;
   onEditingNameChange: (value: string) => void;
   onToggleProject: (entryKey: string) => void;
   onProjectSelect: (project: Project) => void;
@@ -93,13 +92,16 @@ export default function SidebarProjectList({
   tasksEnabled,
   mcpServerStatus,
   getRepositorySessions,
-  onLoadMoreSessions,
+  getVisibleSessionCount,
+  onShowMoreSessions,
   loadingMoreProjects,
   activeSessions,
   attentionSessionIds,
   unreadSessionIds,
   forceExpanded = false,
   isRepositoryStarred,
+  isPinnedSectionCollapsed,
+  onTogglePinnedSection,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
@@ -141,11 +143,13 @@ export default function SidebarProjectList({
 
   const showProjects = !isLoading && projects.length > 0 && filteredProjects.length > 0;
 
-  return (
-    <div className="pb-safe-area-inset-bottom md:space-y-1">
-      {!showProjects
-        ? state
-        : repositoryEntries.map((entry) => (
+  // Pinned rows are hoisted into their own section rather than merely sorted to
+  // the top, so the boundary between "what I keep" and "everything else" is
+  // visible — Codex does the same with its Pinned block.
+  const pinnedEntries = repositoryEntries.filter(isRepositoryStarred);
+  const unpinnedEntries = repositoryEntries.filter((entry) => !isRepositoryStarred(entry));
+
+  const renderEntry = (entry: RepositoryEntry) => (
             <SidebarRepositoryItem
               key={entry.key}
               entry={entry}
@@ -183,7 +187,8 @@ export default function SidebarProjectList({
               onDeleteProject={onDeleteProject}
               onSessionSelect={onSessionSelect}
               onDeleteSession={onDeleteSession}
-              onLoadMoreSessions={onLoadMoreSessions}
+              visibleSessionCount={getVisibleSessionCount(entry.key)}
+              onShowMoreSessions={onShowMoreSessions}
               activeSessions={activeSessions}
               attentionSessionIds={attentionSessionIds}
               unreadSessionIds={unreadSessionIds}
@@ -197,7 +202,34 @@ export default function SidebarProjectList({
               activeContextMenuKey={activeContextMenuKey}
               t={t}
             />
-          ))}
+  );
+
+  return (
+    <div className="pb-safe-area-inset-bottom md:space-y-1">
+      {!showProjects ? (
+        state
+      ) : (
+        <>
+          {pinnedEntries.length > 0 && (
+            <>
+              <SidebarSectionHeader
+                label={t('projects.pinned')}
+                icon={Pin}
+                count={pinnedEntries.length}
+                isCollapsed={isPinnedSectionCollapsed}
+                onToggle={onTogglePinnedSection}
+              />
+              {!isPinnedSectionCollapsed && pinnedEntries.map(renderEntry)}
+            </>
+          )}
+
+          {/* The label is worth its line only once something sits above it. */}
+          {pinnedEntries.length > 0 && unpinnedEntries.length > 0 && (
+            <SidebarSectionHeader label={t('projects.title')} />
+          )}
+          {unpinnedEntries.map(renderEntry)}
+        </>
+      )}
     </div>
   );
 }
