@@ -44,6 +44,7 @@ import {
   type JsonlRpcId,
 } from '@/modules/providers/shared/jsonl-rpc.client.js';
 import {
+  appendFilesInputTag,
   buildCodexInputItems,
   normalizeImageDescriptors,
 } from '@/shared/image-attachments.js';
@@ -108,6 +109,7 @@ type QueryCodexAppServerOptions = AnyRecord & {
   model?: string;
   effort?: string;
   images?: unknown;
+  files?: unknown;
   permissionMode?: string;
   rewindToMessageId?: string;
 };
@@ -630,7 +632,11 @@ export class CodexAppServerChatTransport {
 
       const turnResponse = await client.request<CodexTurnStartResponse>('turn/start', {
         threadId,
-        input: toCodexInput(command, options.images, workingDirectory),
+        input: toCodexInput(
+          appendFilesInputTag(command, options.files),
+          options.images,
+          workingDirectory,
+        ),
         cwd: workingDirectory,
         approvalPolicy: permissions.approvalPolicy,
         approvalsReviewer: 'user',

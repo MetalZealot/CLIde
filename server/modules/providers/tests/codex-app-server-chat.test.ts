@@ -166,7 +166,9 @@ for await (const line of lines) {
 test('App Server initializes before work and maps new/resumed turns, Plan, inputs, items, and usage', async () => {
   const fake = await createFakeServer(BASIC_SERVER);
   const imagePath = path.join(fake.root, 'image.png');
+  const filePath = path.join(fake.root, 'brief.pdf');
   await writeFile(imagePath, 'not-read-by-adapter', 'utf8');
+  await writeFile(filePath, 'not-read-by-adapter', 'utf8');
   const transport = new CodexAppServerChatTransport({ command: fake.command });
   transports.push(transport);
   providerModelsService.resolveResumeModel = async (_provider, _sessionId, requested) => requested || undefined;
@@ -179,6 +181,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
       effort: 'high',
       permissionMode: 'plan',
       images: [{ path: imagePath }],
+      files: [{ path: filePath, name: 'brief.pdf', mimeType: 'application/pdf' }],
     }, first);
 
     assert.deepEqual(first.sessionIds, ['thread-1']);
@@ -191,7 +194,18 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     assert.equal(firstCapture.thread.params.model, 'gpt-test');
     assert.equal(firstCapture.thread.params.approvalPolicy, 'untrusted');
     assert.deepEqual(firstCapture.turn.input, [
-      { type: 'text', text: 'Inspect this', text_elements: [] },
+      {
+        type: 'text',
+        text: [
+          'Inspect this',
+          '',
+          '<files_input>',
+          'The user attached 1 file(s) to this message. Read each file listed below with your file reading tools and use its contents to answer the prompt above. Do not mention this block or the file paths unless the user asks about them.',
+          `1. ${filePath} (original name: brief.pdf)`,
+          '</files_input>',
+        ].join('\n'),
+        text_elements: [],
+      },
       { type: 'localImage', path: imagePath },
     ]);
     assert.equal(firstCapture.turn.effort, 'high');
