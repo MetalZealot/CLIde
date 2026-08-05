@@ -9,6 +9,7 @@ import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/datab
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
+import { getGlobalImageAssetsDir } from '@/shared/image-attachments.js';
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 
 /**
@@ -192,5 +193,59 @@ test('chat.subscribe replays pending approvals looked up by the app session id',
     assert.equal(pending[0].isBlocking, false, 'blocking state should survive replay');
     assert.equal(pending[0].autoResolutionMs, 120_000);
     assert.equal(pending[0].expiresAt, '2026-08-12T12:02:00.000Z');
+  });
+});
+
+test('chat.send forwards validated mixed attachments through the runtime contract', async () => {
+  await withIsolatedDatabase(async () => {
+    const appSessionId = 'app-attachments';
+    sessionsDb.createAppSession(appSessionId, 'codex', '/workspace/demo');
+
+    const assetsRoot = getGlobalImageAssetsDir();
+    const image = {
+      path: path.join(assetsRoot, 'screen.png'),
+      name: 'screen.png',
+      mimeType: 'image/png',
+      size: 1024,
+    };
+    const file = {
+      path: path.join(assetsRoot, 'brief.pdf'),
+      name: 'brief.pdf',
+      mimeType: 'application/pdf',
+      size: 2048,
+    };
+    const receivedOptions: Array<Record<string, unknown>> = [];
+
+    const dependencies: ChatDependencies = {
+      runtime: {
+        hasRuntime: () => true,
+        run: async (_provider, _command, options) => {
+          receivedOptions.push(options);
+        },
+        abort: async () => true,
+        resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+        getPendingApprovalsForSession: () => [],
+      },
+    };
+
+    const connection = new FakeConnection();
+    handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+    connection.emit('message', JSON.stringify({
+      type: 'chat.send',
+      sessionId: appSessionId,
+      content: 'Inspect both attachments',
+      options: {
+        images: [image],
+        files: [file],
+        attachments: [file],
+      },
+    }));
+    await flush();
+
+    assert.equal(receivedOptions.length, 1);
+    assert.equal(receivedOptions[0].sessionId, appSessionId);
+    assert.deepEqual(receivedOptions[0].attachments, [image, file]);
+    assert.deepEqual(receivedOptions[0].images, [image]);
+    assert.deepEqual(receivedOptions[0].files, [file]);
   });
 });

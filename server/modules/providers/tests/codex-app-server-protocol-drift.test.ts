@@ -11,7 +11,20 @@ import { checkCodexAppServerCompatibility } from '@/modules/providers/list/codex
 const moduleRequire = createRequire(import.meta.url);
 const EXPECTED_CODEX_VERSION = '0.147.0';
 
-test(`Codex SDK and bundled CLI stay pinned to ${EXPECTED_CODEX_VERSION}`, () => {
+test(`Codex source, lockfile, SDK, and bundled CLI stay pinned to ${EXPECTED_CODEX_VERSION}`, () => {
+  const manifest = JSON.parse(readFileSync(
+    path.resolve('package.json'),
+    'utf8',
+  )) as { dependencies?: Record<string, string> };
+  const lockfile = JSON.parse(readFileSync(
+    path.resolve('package-lock.json'),
+    'utf8',
+  )) as {
+    packages?: Record<string, {
+      dependencies?: Record<string, string>;
+      version?: string;
+    }>;
+  };
   const codexBin = moduleRequire.resolve('@openai/codex/bin/codex.js');
   const sdk = JSON.parse(readFileSync(
     path.resolve(codexBin, '../../../codex-sdk/package.json'),
@@ -21,6 +34,11 @@ test(`Codex SDK and bundled CLI stay pinned to ${EXPECTED_CODEX_VERSION}`, () =>
     path.resolve(codexBin, '../../package.json'),
     'utf8',
   )) as { version: string };
+
+  assert.equal(manifest.dependencies?.['@openai/codex-sdk'], EXPECTED_CODEX_VERSION);
+  assert.equal(lockfile.packages?.['']?.dependencies?.['@openai/codex-sdk'], EXPECTED_CODEX_VERSION);
+  assert.equal(lockfile.packages?.['node_modules/@openai/codex-sdk']?.version, EXPECTED_CODEX_VERSION);
+  assert.equal(lockfile.packages?.['node_modules/@openai/codex']?.version, EXPECTED_CODEX_VERSION);
   assert.equal(sdk.version, EXPECTED_CODEX_VERSION);
   assert.equal(cli.version, EXPECTED_CODEX_VERSION);
 });

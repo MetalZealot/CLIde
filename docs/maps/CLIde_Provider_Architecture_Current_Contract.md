@@ -2,7 +2,7 @@
 
 **Status:** Current implementation contract and reading guide
 
-**Last reconciled:** 2026-07-30 against CLIde `main` at `935c629`
+**Last reconciled:** 2026-08-04 against post-v1.37 CLIde `main` at `9135b52`
 
 **Detailed history:** [Provider Architecture Consolidation Spec](../specs/archive/CLIde_Provider_Architecture_Consolidation_Spec.md)
 
@@ -58,8 +58,7 @@ secondary action, including before a native session ID exists.
 ### 2.3 Providers own native behavior
 
 Provider-specific SDKs, CLI flags, protocols, transcript formats, configuration,
-and normalization live under `server/modules/providers/list/<provider>/` or in
-the existing thin runtime entrypoint awaiting migration.
+and normalization live under `server/modules/providers/list/<provider>/`.
 
 Shared code consumes:
 
@@ -113,6 +112,7 @@ The current `IProvider` registry owns:
 
 | Facet | Current contract |
 |---|---|
+| Runtime | interactive run, abort, optional interactive-request resolution |
 | Models | catalog, current/effective model lookup, next-resume override |
 | Authentication | installed/authenticated status |
 | Usage | optional plan/rate-limit reporting |
@@ -121,10 +121,13 @@ The current `IProvider` registry owns:
 | Sessions | native event normalization, history, optional fork |
 | Synchronization | full and incremental native-session indexing |
 
-Live Chat start/resume/abort dispatch remains outside `IProvider` through
-application-level runtime functions. Native runtime resolution is specified but
-not yet implemented. The provider catalogue and capability-driven frontend are
-also incomplete.
+Upstream v1.37 completed the runtime-registry migration. The WebSocket gateway
+dispatches start/abort through `providerRuntimeService`, which resolves the
+registered provider runtime and supplies a registry-backed runtime context.
+Non-interactive jobs remain separate entry points. Codex resolves and manages a
+native executable ([ADR 0034](../decisions/0034-codex-managed-native-runtime.md));
+no other provider does. The frontend provider catalogue and capability-driven UI
+remain incomplete.
 
 ## 4. Normalized contract rules
 
@@ -225,12 +228,15 @@ effective binding at runtime.
 - Some declared capability flags are not consistently consumed by generic UI.
 - Cursor advertises permission modes its runtime adapter does not fully map.
 - Desired/effective provider state is only partially represented.
-- Capability declarations do not yet have end-to-end conformance tests.
+- Codex has a focused cross-layer conformance command and map, but capability
+  declarations still do not have generated end-to-end evidence for every
+  provider and row.
 - Claude, Cursor, and OpenCode do not yet have refreshed living
   provider-maintenance maps and ledgers.
 
 These are tracked in the
-[living capability map](../maps/clide-provider-capability-map.md) and `TODO.md`.
+[living capability map](../maps/clide-provider-capability-map.md), the
+[Codex conformance map](codex-integration-conformance.md), and `docs/TODO.md`.
 
 ## 8. Reading router
 
@@ -240,6 +246,7 @@ Read only the material needed for the task:
 |---|---|
 | Generic provider implementation | This contract + canonical capability map |
 | One provider update | Provider-native map + its ledger + relevant adapter |
+| Codex regression or post-merge check | Codex conformance map + `npm run test:codex` |
 | Session identity, rewind, or fork | ADRs 0003, 0007, 0008, 0012 + map identity section |
 | Abort, replay, or completion | ADR 0013 + Section 30.3–30.6 of the historical spec |
 | Permissions or Plan | Provider permission-mode map + canonical access binding |

@@ -16,6 +16,7 @@ CLIde or its provider runtimes change.
 | [Claude upgrade ledger](claude-upgrade-ledger.md) | Compact audit decisions and verification history | Current through SDK 0.3.233 / runtime 2.1.233, 2026-08-16 |
 | [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Current through 0.147.0 and managed runtime selection |
 | [Codex upgrade ledger](codex-upgrade-ledger.md) | Compact release decisions and verification history | Current through 0.147.0 |
+| [Codex integration conformance](codex-integration-conformance.md) | Executable cross-layer regression matrix and live acceptance rows | Harness current; live rows unverified since Codex 0.147 |
 
 Future provider maps should use stable, undated filenames:
 

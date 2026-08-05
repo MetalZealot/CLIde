@@ -53,6 +53,7 @@
     "test:client": "tsx --tsconfig tsconfig.json --import ./src/test/setup-client-env.ts --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
     "test:server:one": "tsx --tsconfig server/tsconfig.json --test",
     "test:client:one": "tsx --tsconfig tsconfig.json --import ./src/test/setup-client-env.ts --test",
+    "test:codex": "node scripts/verify-codex-integration.mjs",
     "lint": "eslint --cache --cache-location node_modules/.cache/eslintcache src/ server/",
     "lint:fix": "eslint --cache --cache-location node_modules/.cache/eslintcache src/ server/ --fix",
     "start": "npm run build && npm run server",
