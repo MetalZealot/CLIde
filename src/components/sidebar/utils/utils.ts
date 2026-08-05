@@ -1,7 +1,13 @@
 import type { TFunction } from 'i18next';
 
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
-import type { ProjectSortOrder, SettingsProject, SessionViewModel, SessionWithProvider } from '../types/types';
+import type {
+  ProjectSortOrder,
+  RepositoryGroup,
+  SettingsProject,
+  SessionViewModel,
+  SessionWithProvider,
+} from '../types/types';
 
 export const readProjectSortOrder = (): ProjectSortOrder => {
   try {
@@ -174,8 +180,114 @@ export const filterProjects = (projects: Project[], searchFilter: string): Proje
     // `project.path`/`fullPath` is the most useful search target now that the
     // folder-derived name is gone; fall back to displayName above.
     const searchPath = (project.path || project.fullPath || '').toLowerCase();
-    return displayName.includes(normalizedSearch) || searchPath.includes(normalizedSearch);
+    // Branch is searchable because once several checkouts of one repository are
+    // on screen, the branch is often the only thing that distinguishes them.
+    const branch = (project.branch || '').toLowerCase();
+    return (
+      displayName.includes(normalizedSearch) ||
+      searchPath.includes(normalizedSearch) ||
+      (branch.length > 0 && branch.includes(normalizedSearch))
+    );
   });
+};
+
+/**
+ * Directory of the main checkout of the repository identified by `repositoryId`.
+ *
+ * A linked worktree's shared git directory is the *main* checkout's `.git`, so
+ * stripping that suffix names the main checkout's directory. Returns null for
+ * layouts where that does not hold — a bare repository, or one created with
+ * `--separate-git-dir` — and then no checkout is treated as the main one.
+ */
+const deriveMainCheckoutPath = (repositoryId: string): string | null => {
+  const withoutGitSuffix = repositoryId.replace(/\/\.git\/?$/, '');
+  return withoutGitSuffix === repositoryId ? null : withoutGitSuffix;
+};
+
+/** True when this project is its repository's main checkout, not a linked worktree. */
+export const isMainCheckout = (project: Project): boolean => {
+  const repositoryId = typeof project.repositoryId === 'string' ? project.repositoryId : null;
+  if (!repositoryId) {
+    return false;
+  }
+
+  const mainPath = deriveMainCheckoutPath(repositoryId);
+  return mainPath !== null && (project.fullPath === mainPath || project.path === mainPath);
+};
+
+const deriveRepositoryName = (repositoryId: string, checkouts: Project[]): string => {
+  const mainCheckout = checkouts.find(isMainCheckout);
+  if (mainCheckout) {
+    return mainCheckout.displayName || mainCheckout.projectId;
+  }
+
+  // The main checkout is not registered as a project here, so fall back to the
+  // directory that contains the shared git dir.
+  const mainPath = deriveMainCheckoutPath(repositoryId) ?? repositoryId;
+  return mainPath.split('/').filter(Boolean).pop() || repositoryId;
+};
+
+/**
+ * Groups an already-sorted, already-filtered project list by repository (ADR 0016).
+ *
+ * Order is preserved: a group takes the position of its highest-sorted member,
+ * so changing the sort order or starring a checkout still moves it where the
+ * user expects. Within a group the main checkout leads, because it owns the
+ * repository's shared git directory.
+ */
+export const groupProjectsByRepository = (projects: Project[]): RepositoryGroup[] => {
+  const checkoutsByRepository = new Map<string, Project[]>();
+  for (const project of projects) {
+    const repositoryId = typeof project.repositoryId === 'string' ? project.repositoryId : null;
+    if (!repositoryId) {
+      continue;
+    }
+
+    const existing = checkoutsByRepository.get(repositoryId);
+    if (existing) {
+      existing.push(project);
+    } else {
+      checkoutsByRepository.set(repositoryId, [project]);
+    }
+  }
+
+  const groups: RepositoryGroup[] = [];
+  const emittedRepositories = new Set<string>();
+
+  for (const project of projects) {
+    const repositoryId = typeof project.repositoryId === 'string' ? project.repositoryId : null;
+    const checkouts = repositoryId ? checkoutsByRepository.get(repositoryId) : undefined;
+
+    // A repository with a single registered checkout is not a group: a header
+    // above one row would add depth without telling the user anything.
+    if (!repositoryId || !checkouts || checkouts.length < 2) {
+      groups.push({
+        key: project.projectId,
+        repositoryId: null,
+        repositoryName: project.displayName || project.projectId,
+        checkouts: [project],
+      });
+      continue;
+    }
+
+    if (emittedRepositories.has(repositoryId)) {
+      continue;
+    }
+    emittedRepositories.add(repositoryId);
+
+    const mainCheckoutFirst = [...checkouts].sort(
+      (a, b) => Number(isMainCheckout(b)) - Number(isMainCheckout(a)),
+    );
+
+    groups.push({
+      key: repositoryId,
+      repositoryId,
+      repositoryName: deriveRepositoryName(repositoryId, checkouts),
+      checkouts: mainCheckoutFirst,
+    });
+  }
+
+  return groups;
 };
 
 export const getTaskIndicatorStatus = (

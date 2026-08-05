@@ -7,6 +7,8 @@ import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
+import { readCheckoutIdentity } from './repository-identity.service.js';
+
 type SessionSummary = {
   id: string;
   provider: string;
@@ -36,9 +38,21 @@ export type ProjectListItem = {
     hasMore: boolean;
     total: number;
   };
+  // ADR 0016: `repositoryId` groups several project rows into one repository in
+  // the sidebar. Null for non-repositories, which stay ordinary flat projects.
+  repositoryId: string | null;
+  branch: string | null;
+  detachedHead: string | null;
 };
 
-export type ArchivedProjectListItem = ProjectListItem & {
+// The archive is a flat historical view, so it carries no repository grouping.
+// Omitting the fields is deliberate: an archived project's directory is often
+// gone, and inventing nulls for it would read as "not a repository" rather than
+// "not grouped here".
+export type ArchivedProjectListItem = Omit<
+  ProjectListItem,
+  'repositoryId' | 'branch' | 'detachedHead'
+> & {
   isArchived: true;
 };
 
@@ -220,6 +234,8 @@ export async function getProjectsWithSessions(
       offset: options.sessionsOffset,
     });
 
+    const checkoutIdentity = await readCheckoutIdentity(projectPath);
+
     projects.push({
       projectId,
       path: projectPath,
@@ -231,6 +247,9 @@ export async function getProjectsWithSessions(
         hasMore: sessionsPage.hasMore,
         total: sessionsPage.total,
       },
+      repositoryId: checkoutIdentity.repositoryId,
+      branch: checkoutIdentity.branch,
+      detachedHead: checkoutIdentity.detachedHead,
     });
   }
 

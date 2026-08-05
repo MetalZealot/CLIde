@@ -3,6 +3,27 @@ import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 
 export type ProjectSortOrder = 'name' | 'date';
 export type SidebarSearchMode = 'projects' | 'conversations' | 'running' | 'archived';
+
+/**
+ * One entry in the grouped project list (ADR 0016).
+ *
+ * A repository with two or more registered checkouts renders as a header with
+ * its checkouts nested beneath it. Everything else — single-checkout
+ * repositories and plain folders — is emitted with `repositoryId: null` and
+ * exactly one checkout, and renders as it did before grouping existed. That
+ * keeps the common case visually unchanged and avoids a header wrapping a
+ * group of one.
+ */
+export type RepositoryGroup = {
+  /** Stable React key: the repositoryId, or the lone project's id. */
+  key: string;
+  /** Null for an ungrouped project, which renders without a header. */
+  repositoryId: string | null;
+  /** Header label; the main checkout's display name when it is registered. */
+  repositoryName: string;
+  /** Main checkout first when identifiable, then the list's existing order. */
+  checkouts: Project[];
+};
 export type ArchivedProjectListItem = Project & { isArchived: true };
 
 export type SessionWithProvider = ProjectSession & {

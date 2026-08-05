@@ -15,6 +15,8 @@
     "codexSession": "Codex Session",
     "fetchingProjects": "Fetching your Claude projects and sessions",
     "projects": "projects",
+    "repositoryCheckouts_one": "{{count}} checkout",
+    "repositoryCheckouts_other": "{{count}} checkouts",
     "noMatchingProjects": "No matching projects",
     "tryDifferentSearch": "Try adjusting your search term",
     "runClaudeCli": "Run Claude CLI in a project directory to get started"

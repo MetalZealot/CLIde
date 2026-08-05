@@ -18,6 +18,7 @@ import {
   clearLegacyStarredProjectIds,
   filterProjects,
   getAllSessions,
+  groupProjectsByRepository,
   readLegacyStarredProjectIds,
   readProjectSortOrder,
   sortProjects,
@@ -121,6 +122,10 @@ export function useSidebarController({
 }: UseSidebarControllerArgs) {
   const paletteOps = usePaletteOps();
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  // Repository groups track what is *collapsed*, so the default of "nothing in
+  // the set" means every checkout stays visible. Defaulting groups to collapsed
+  // would hide projects that are visible today.
+  const [collapsedRepositories, setCollapsedRepositories] = useState<Set<string>>(new Set());
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
   const [editingName, setEditingName] = useState('');
@@ -459,6 +464,21 @@ export function useSidebarController({
     });
   }, []);
 
+  // Unlike projects, repository groups are independent of one another: opening
+  // one must not collapse another, because the point of the group is seeing
+  // concurrent work across checkouts at the same time.
+  const toggleRepository = useCallback((repositoryId: string) => {
+    setCollapsedRepositories((prev) => {
+      const next = new Set(prev);
+      if (next.has(repositoryId)) {
+        next.delete(repositoryId);
+      } else {
+        next.add(repositoryId);
+      }
+      return next;
+    });
+  }, []);
+
   const handleSessionClick = useCallback(
     (session: SessionWithProvider, projectId: string) => {
       // Tag the session with its owning projectId so downstream handlers
@@ -637,6 +657,10 @@ export function useSidebarController({
     () => filterProjects(searchMode === 'running' ? runningProjects : sortedProjects, debouncedSearchQuery),
     [debouncedSearchQuery, runningProjects, searchMode, sortedProjects],
   );
+
+  // ADR 0016: grouping is the last step, so sorting, the running filter, and
+  // the search filter all keep operating on a flat list and stay unchanged.
+  const projectGroups = useMemo(() => groupProjectsByRepository(filteredProjects), [filteredProjects]);
 
   const filteredArchivedSessions = useMemo(() => {
     const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
@@ -1025,6 +1049,9 @@ export function useSidebarController({
     sessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
+    projectGroups,
+    collapsedRepositories,
+    toggleRepository,
     runningSessionsCount,
     archivedProjects: filteredArchivedProjects,
     archivedSessions: filteredArchivedSessions,

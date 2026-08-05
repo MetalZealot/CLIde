@@ -72,6 +72,13 @@ export interface Project {
   sessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
   taskmaster?: ProjectTaskmasterInfo;
+  // ADR 0016: git-derived identity supplied by the projects API. `repositoryId`
+  // is the shared git directory that every checkout of one repository resolves
+  // to, and is the key the sidebar groups on. Absent for non-repository projects
+  // and on the archived list, which is deliberately flat.
+  repositoryId?: string | null;
+  branch?: string | null;
+  detachedHead?: string | null;
   [key: string]: unknown;
 }
 

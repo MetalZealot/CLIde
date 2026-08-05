@@ -3,15 +3,20 @@ import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
-import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
+import type { MCPServerStatus, RepositoryGroup, SessionWithProvider } from '../../types/types';
 import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 
 import SidebarProjectItem from './SidebarProjectItem';
 import SidebarProjectsState from './SidebarProjectsState';
+import SidebarRepositoryGroup from './SidebarRepositoryGroup';
 
 export type SidebarProjectListProps = {
   projects: Project[];
   filteredProjects: Project[];
+  /** `filteredProjects` grouped by repository (ADR 0016) — this is what renders. */
+  projectGroups: RepositoryGroup[];
+  collapsedRepositories: Set<string>;
+  onToggleRepository: (repositoryId: string) => void;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   isLoading: boolean;
@@ -64,6 +69,9 @@ export type SidebarProjectListProps = {
 export default function SidebarProjectList({
   projects,
   filteredProjects,
+  projectGroups,
+  collapsedRepositories,
+  onToggleRepository,
   selectedProject,
   selectedSession,
   isLoading,
@@ -127,11 +135,7 @@ export default function SidebarProjectList({
 
   const showProjects = !isLoading && projects.length > 0 && filteredProjects.length > 0;
 
-  return (
-    <div className="pb-safe-area-inset-bottom md:space-y-1">
-      {!showProjects
-        ? state
-        : filteredProjects.map((project) => (
+  const renderProject = (project: Project) => (
             // React key + per-project state lookups all use the DB `projectId`
             // so they remain stable across renames and session changes.
             <SidebarProjectItem
@@ -176,7 +180,30 @@ export default function SidebarProjectList({
               activeContextMenuKey={activeContextMenuKey}
               t={t}
             />
-          ))}
+  );
+
+  return (
+    <div className="pb-safe-area-inset-bottom md:space-y-1">
+      {!showProjects
+        ? state
+        : projectGroups.map((group) =>
+            // An ungrouped entry renders exactly as it did before grouping
+            // existed: no header, no extra indent, one project.
+            group.repositoryId === null ? (
+              renderProject(group.checkouts[0])
+            ) : (
+              <SidebarRepositoryGroup
+                key={group.key}
+                repositoryName={group.repositoryName}
+                checkoutCount={group.checkouts.length}
+                isCollapsed={collapsedRepositories.has(group.repositoryId)}
+                onToggle={() => onToggleRepository(group.repositoryId as string)}
+                t={t}
+              >
+                {group.checkouts.map(renderProject)}
+              </SidebarRepositoryGroup>
+            ),
+          )}
     </div>
   );
 }

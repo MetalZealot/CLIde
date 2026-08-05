@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, ChevronDown, ChevronRight, Edit3, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -65,6 +65,24 @@ const getSessionCountDisplay = (project: Project, sessions: SessionWithProvider[
   return String(total);
 };
 
+/**
+ * Branch label for a checkout, or a short SHA when HEAD is detached.
+ *
+ * Detached HEAD is deliberately not shown as a branch called `HEAD`; the
+ * existing Git panel does that and ADR 0016 lists it as a truthfulness defect.
+ */
+const getCheckoutRefLabel = (project: Project): string | null => {
+  if (typeof project.branch === 'string' && project.branch.length > 0) {
+    return project.branch;
+  }
+
+  if (typeof project.detachedHead === 'string' && project.detachedHead.length > 0) {
+    return `detached @ ${project.detachedHead}`;
+  }
+
+  return null;
+};
+
 export default function SidebarProjectItem({
   project,
   selectedProject,
@@ -114,6 +132,7 @@ export default function SidebarProjectItem({
   const sessionCountDisplay = getSessionCountDisplay(project, sessions);
   const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
   const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
+  const checkoutRefLabel = getCheckoutRefLabel(project);
   // Surface a collapsed project from its loaded sessions: amber if any child is
   // blocked on the user, else green if any child has unread finished output.
   // (Sessions not yet paginated in can't be mapped here; they light up once the
@@ -236,7 +255,17 @@ export default function SidebarProjectItem({
                           />
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="flex-shrink-0">{sessionCountLabel}</span>
+                        {checkoutRefLabel && (
+                          <>
+                            <GitBranch className="h-3 w-3 flex-shrink-0 opacity-60" />
+                            <span className="truncate" title={checkoutRefLabel}>
+                              {checkoutRefLabel}
+                            </span>
+                          </>
+                        )}
+                      </p>
                     </>
                   )}
                 </div>
@@ -344,13 +373,25 @@ export default function SidebarProjectItem({
                   <div className="truncate text-sm font-normal text-foreground" title={project.displayName}>
                     {project.displayName}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {sessionCountDisplay}
-                    {project.fullPath !== project.displayName && (
-                      <span className="ml-1 opacity-60" title={project.fullPath}>
-                        {' - '}
-                        {project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath}
-                      </span>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="flex-shrink-0">{sessionCountDisplay}</span>
+                    {checkoutRefLabel ? (
+                      // For a checkout the branch is the more useful identifier
+                      // than the path, especially with sibling worktrees on
+                      // screen whose paths differ only in a suffix.
+                      <>
+                        <GitBranch className="h-3 w-3 flex-shrink-0 opacity-60" />
+                        <span className="truncate opacity-80" title={`${checkoutRefLabel} — ${project.fullPath}`}>
+                          {checkoutRefLabel}
+                        </span>
+                      </>
+                    ) : (
+                      project.fullPath !== project.displayName && (
+                        <span className="truncate opacity-60" title={project.fullPath}>
+                          {' - '}
+                          {project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath}
+                        </span>
+                      )
                     )}
                   </div>
                 </div>
