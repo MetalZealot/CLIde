@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, Pencil, Star, Trash2 } from 'lucide-react';
+import { Archive, Copy, GitBranch, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -10,9 +10,14 @@ import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
-import type { MCPServerStatus, SidebarProps, SessionWithProvider } from '../types/types';
+import type {
+  MCPServerStatus,
+  RepositoryEntry,
+  SidebarProps,
+  SessionWithProvider,
+} from '../types/types';
 import type { ContextMenuAnchor } from '../../../shared/view/ui';
-import { getSessionName } from '../utils/utils';
+import { getCheckoutRefLabel, getSessionName, repositoryEntryKey } from '../utils/utils';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
@@ -87,9 +92,7 @@ function Sidebar({
     sessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
-    projectGroups,
-    collapsedRepositories,
-    toggleRepository,
+    repositoryEntries,
     archivedProjects,
     archivedSessions,
     archivedSessionsCount,
@@ -97,10 +100,13 @@ function Sidebar({
     toggleProject,
     handleSessionClick,
     toggleStarProject,
+    toggleStarRepository,
     isProjectStarred,
+    isRepositoryStarred,
     getProjectSessions,
+    getRepositorySessions,
     loadingMoreProjects,
-    loadMoreSessionsForProject,
+    loadMoreSessionsForRepository,
     startEditing,
     cancelEditing,
     saveProjectName,
@@ -161,22 +167,35 @@ function Sidebar({
 
   type SidebarMenuState =
     | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor }
+    // Checkout picker for a row that merges several working trees; choosing one
+    // replaces this state with the `project` menu for that checkout.
+    | { kind: 'repository'; entry: RepositoryEntry; anchor: ContextMenuAnchor }
     | { kind: 'project'; project: Project; anchor: ContextMenuAnchor };
   const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
 
   const handleLongPressSessionMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'session', session, anchor });
   };
-  const handleLongPressProjectMenu = (project: Project, anchor: ContextMenuAnchor) => {
-    setContextMenu({ kind: 'project', project, anchor });
+  // Flattening the checkouts into one row took their individual action targets
+  // with it, so a merged row asks which checkout first (ADR 0016).
+  const handleLongPressProjectMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
+    if (entry.checkouts.length > 1) {
+      setContextMenu({ kind: 'repository', entry, anchor });
+      return;
+    }
+
+    setContextMenu({ kind: 'project', project: entry.leadCheckout, anchor });
   };
 
   // Lets the row that owns the open menu stay highlighted, so it's clear which
-  // project/session the actions apply to.
+  // repository/session the actions apply to. Keyed by row, so drilling into a
+  // checkout keeps its repository's row lit.
   const activeContextMenuKey = contextMenu
     ? contextMenu.kind === 'session'
       ? `session:${contextMenu.session.id}`
-      : `project:${contextMenu.project.projectId}`
+      : contextMenu.kind === 'repository'
+        ? `project:${contextMenu.entry.key}`
+        : `project:${repositoryEntryKey(contextMenu.project)}`
     : null;
 
   const contextMenuItems = useMemo<SidebarContextMenuItem[]>(() => {
@@ -238,9 +257,33 @@ function Sidebar({
       ];
     }
 
+    if (contextMenu.kind === 'repository') {
+      const { entry, anchor } = contextMenu;
+      return entry.checkouts.map((checkout) => ({
+        key: `checkout:${checkout.projectId}`,
+        // The branch is what tells two checkouts of one repository apart; the
+        // directory name is the fallback when HEAD is detached or unreadable.
+        label: getCheckoutRefLabel(checkout) ?? checkout.displayName ?? checkout.projectId,
+        icon: GitBranch,
+        keepOpen: true,
+        onSelect: () => setContextMenu({ kind: 'project', project: checkout, anchor }),
+      }));
+    }
+
     const { project } = contextMenu;
     const isStarred = isProjectStarred(project.projectId);
     return [
+      {
+        // Reachable only from this menu once checkouts share a row, so it is
+        // the sole way to start a session on a specific worktree.
+        key: 'new-session',
+        label: t('sessions.newSession'),
+        icon: Plus,
+        onSelect: () => {
+          handleProjectSelect(project);
+          onNewSession(project);
+        },
+      },
       {
         key: 'star',
         label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
@@ -267,9 +310,7 @@ function Sidebar({
   const projectListProps: SidebarProjectListProps = {
     projects,
     filteredProjects,
-    projectGroups,
-    collapsedRepositories,
-    onToggleRepository: toggleRepository,
+    repositoryEntries,
     selectedProject,
     selectedSession,
     isLoading,
@@ -284,17 +325,18 @@ function Sidebar({
     deletingProjects,
     tasksEnabled,
     mcpServerStatus,
+    getRepositorySessions,
     getProjectSessions,
     loadingMoreProjects,
     activeSessions,
     attentionSessionIds,
     unreadSessionIds,
     forceExpanded: searchMode === 'running',
-    isProjectStarred,
+    isRepositoryStarred,
     onEditingNameChange: setEditingName,
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
-    onToggleStarProject: toggleStarProject,
+    onToggleStarProject: toggleStarRepository,
     onStartEditingProject: startEditing,
     onCancelEditingProject: cancelEditing,
     onSaveProjectName: (projectName) => {
@@ -303,7 +345,7 @@ function Sidebar({
     onDeleteProject: requestProjectDelete,
     onSessionSelect: handleSessionClick,
     onDeleteSession: showDeleteSessionConfirmation,
-    onLoadMoreSessions: loadMoreSessionsForProject,
+    onLoadMoreSessions: loadMoreSessionsForRepository,
     onNewSession,
     onEditingSessionNameChange: setEditingSessionName,
     onStartEditingSession: (sessionId, initialName) => {

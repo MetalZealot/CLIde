@@ -9,6 +9,11 @@ export type SidebarContextMenuItem = {
   icon: LucideIcon;
   onSelect: () => void;
   isDanger?: boolean;
+  /**
+   * Leaves the overlay up so `onSelect` can replace the menu's contents — used
+   * to step from a repository's checkout list into one checkout's actions.
+   */
+  keepOpen?: boolean;
 };
 
 type SidebarContextMenuProps = {
@@ -40,7 +45,9 @@ export default function SidebarContextMenu({ anchor, items, onClose }: SidebarCo
             role="menuitem"
             onClick={() => {
               item.onSelect();
-              onClose();
+              if (!item.keepOpen) {
+                onClose();
+              }
             }}
             className={cn(
               'flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors',

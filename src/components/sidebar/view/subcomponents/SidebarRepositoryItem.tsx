@@ -6,15 +6,20 @@ import { Button, anchorFromElement, type ContextMenuAnchor } from '../../../../s
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
-import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
-import { getTaskIndicatorStatus } from '../../utils/utils';
+import type {
+  CheckoutSession,
+  MCPServerStatus,
+  RepositoryEntry,
+  SessionWithProvider,
+} from '../../types/types';
+import { getCheckoutRefLabel, getTaskIndicatorStatus } from '../../utils/utils';
 import { useLongPress } from '../../../../hooks/useLongPress';
 
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
 
-type SidebarProjectItemProps = {
-  project: Project;
+type SidebarRepositoryItemProps = {
+  entry: RepositoryEntry;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   isExpanded: boolean;
@@ -22,7 +27,7 @@ type SidebarProjectItemProps = {
   isStarred: boolean;
   editingProject: string | null;
   editingName: string;
-  sessions: SessionWithProvider[];
+  sessions: CheckoutSession[];
   initialSessionsLoaded: boolean;
   isLoadingMoreSessions: boolean;
   currentTime: Date;
@@ -31,9 +36,9 @@ type SidebarProjectItemProps = {
   tasksEnabled: boolean;
   mcpServerStatus: MCPServerStatus;
   onEditingNameChange: (name: string) => void;
-  onToggleProject: (projectName: string) => void;
+  onToggleProject: (entryKey: string) => void;
   onProjectSelect: (project: Project) => void;
-  onToggleStarProject: (projectName: string) => void;
+  onToggleStarProject: (entry: RepositoryEntry) => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
@@ -45,7 +50,7 @@ type SidebarProjectItemProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
-  onLoadMoreSessions: (projectId: string) => void;
+  onLoadMoreSessions: (entry: RepositoryEntry) => void;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
@@ -54,37 +59,38 @@ type SidebarProjectItemProps = {
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
-  onLongPressProjectMenu?: (project: Project, anchor: ContextMenuAnchor) => void;
+  onLongPressProjectMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
   t: TFunction;
 };
 
-const getSessionCountDisplay = (project: Project, sessions: SessionWithProvider[]): string => {
-  const total = Number(project.sessionMeta?.total ?? sessions.length);
-  return String(total);
+/**
+ * Total across every checkout the row covers, so the count still matches the
+ * list it opens. `sessionMeta.total` is the server's count including sessions
+ * not yet paginated in.
+ */
+const getSessionCountDisplay = (entry: RepositoryEntry, sessions: CheckoutSession[]): number => {
+  const hasServerTotals = entry.checkouts.some(
+    (checkout) => typeof checkout.sessionMeta?.total === 'number',
+  );
+
+  return hasServerTotals
+    ? entry.checkouts.reduce((total, checkout) => total + Number(checkout.sessionMeta?.total ?? 0), 0)
+    : sessions.length;
 };
 
 /**
- * Branch label for a checkout, or a short SHA when HEAD is detached.
+ * One repository, one row (ADR 0016).
  *
- * Detached HEAD is deliberately not shown as a branch called `HEAD`; the
- * existing Git panel does that and ADR 0016 lists it as a truthfulness defect.
+ * For the ordinary single-checkout project this is the project row it always
+ * was. When a repository has several registered checkouts it becomes the
+ * repository's row: the sessions beneath it are merged across those checkouts
+ * and labelled with their branch, and repository-scoped actions target the lead
+ * checkout. Per-checkout actions live in the long-press menu.
  */
-const getCheckoutRefLabel = (project: Project): string | null => {
-  if (typeof project.branch === 'string' && project.branch.length > 0) {
-    return project.branch;
-  }
-
-  if (typeof project.detachedHead === 'string' && project.detachedHead.length > 0) {
-    return `detached @ ${project.detachedHead}`;
-  }
-
-  return null;
-};
-
-export default function SidebarProjectItem({
-  project,
+export default function SidebarRepositoryItem({
+  entry,
   selectedProject,
   selectedSession,
   isExpanded,
@@ -123,22 +129,30 @@ export default function SidebarProjectItem({
   onLongPressSessionMenu,
   activeContextMenuKey,
   t,
-}: SidebarProjectItemProps) {
-  // Project identity is tracked by the DB-assigned `projectId` everywhere
-  // after the projectName → projectId migration.
-  const isSelected = selectedProject?.projectId === project.projectId;
+}: SidebarRepositoryItemProps) {
+  // Repository-scoped actions (rename, delete, new session, task status) act on
+  // the lead checkout — the main working tree when it is registered.
+  const project = entry.leadCheckout;
+  const isMerged = entry.checkouts.length > 1;
+  // Any checkout being current lights the row, since they share it.
+  const isSelected = entry.checkouts.some(
+    (checkout) => selectedProject?.projectId === checkout.projectId,
+  );
   const isEditing = editingProject === project.projectId;
-  const totalSessionCount = Number(project.sessionMeta?.total ?? sessions.length);
-  const sessionCountDisplay = getSessionCountDisplay(project, sessions);
-  const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
+  const totalSessionCount = getSessionCountDisplay(entry, sessions);
+  const sessionCountLabel = `${totalSessionCount} session${totalSessionCount === 1 ? '' : 's'}`;
   const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
-  const checkoutRefLabel = getCheckoutRefLabel(project);
-  // Surface a collapsed project from its loaded sessions: amber if any child is
+  // A merged row names its checkouts instead of a branch: it has several, and
+  // each session below already carries the one it belongs to.
+  const rowSubtitle = isMerged
+    ? t('projects.repositoryCheckouts', { count: entry.checkouts.length })
+    : getCheckoutRefLabel(project);
+  // Surface a collapsed row from its loaded sessions: amber if any child is
   // blocked on the user, else green if any child has unread finished output.
   // (Sessions not yet paginated in can't be mapped here; they light up once the
-  // project is expanded and their rows load.)
-  const projectNeedsAttention = sessions.some((session) => attentionSessionIds.has(session.id));
-  const projectHasUnread = sessions.some((session) => unreadSessionIds.has(session.id));
+  // row is expanded and their sessions load.)
+  const projectNeedsAttention = sessions.some(({ session }) => attentionSessionIds.has(session.id));
+  const projectHasUnread = sessions.some(({ session }) => unreadSessionIds.has(session.id));
 
   const mobileRenameInputRef = useRef<HTMLInputElement>(null);
 
@@ -164,17 +178,17 @@ export default function SidebarProjectItem({
     };
   }, [isEditing]);
 
-  const toggleProject = () => onToggleProject(project.projectId);
-  const toggleStarProject = () => onToggleStarProject(project.projectId);
+  const toggleProject = () => onToggleProject(entry.key);
+  const toggleStarProject = () => onToggleStarProject(entry);
   // Anchor the menu to the row's box, not the finger, so it opens attached to
-  // the project it acts on.
+  // the repository it acts on.
   const mobileRowRef = useRef<HTMLDivElement>(null);
   const { handlers: longPress, isPressing } = useLongPress(
-    (coords) => onLongPressProjectMenu?.(project, anchorFromElement(mobileRowRef.current, coords)),
+    (coords) => onLongPressProjectMenu?.(entry, anchorFromElement(mobileRowRef.current, coords)),
     { disabled: !onLongPressProjectMenu },
   );
   // Stays on for as long as this row's menu is open.
-  const isContextActive = isPressing || activeContextMenuKey === `project:${project.projectId}`;
+  const isContextActive = isPressing || activeContextMenuKey === `project:${entry.key}`;
 
   const saveProjectName = () => {
     onSaveProjectName(project.projectId);
@@ -245,7 +259,7 @@ export default function SidebarProjectItem({
                           {isStarred && (
                             <Star className="h-3.5 w-3.5 flex-shrink-0 fill-current text-yellow-500" />
                           )}
-                          <h3 className="truncate text-sm font-normal text-foreground">{project.displayName}</h3>
+                          <h3 className="truncate text-sm font-normal text-foreground">{entry.displayName}</h3>
                         </div>
                         {tasksEnabled && (
                           <TaskIndicator
@@ -257,11 +271,11 @@ export default function SidebarProjectItem({
                       </div>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <span className="flex-shrink-0">{sessionCountLabel}</span>
-                        {checkoutRefLabel && (
+                        {rowSubtitle && (
                           <>
                             <GitBranch className="h-3 w-3 flex-shrink-0 opacity-60" />
-                            <span className="truncate" title={checkoutRefLabel}>
-                              {checkoutRefLabel}
+                            <span className="truncate" title={rowSubtitle}>
+                              {rowSubtitle}
                             </span>
                           </>
                         )}
@@ -370,23 +384,23 @@ export default function SidebarProjectItem({
                 </div>
               ) : (
                 <div>
-                  <div className="truncate text-sm font-normal text-foreground" title={project.displayName}>
-                    {project.displayName}
+                  <div className="truncate text-sm font-normal text-foreground" title={entry.displayName}>
+                    {entry.displayName}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <span className="flex-shrink-0">{sessionCountDisplay}</span>
-                    {checkoutRefLabel ? (
-                      // For a checkout the branch is the more useful identifier
-                      // than the path, especially with sibling worktrees on
-                      // screen whose paths differ only in a suffix.
+                    <span className="flex-shrink-0">{totalSessionCount}</span>
+                    {rowSubtitle ? (
+                      // The branch (or the checkout count) is the more useful
+                      // identifier than the path — none of the reference clients
+                      // in `docs/ui ref/` show a filesystem path at all.
                       <>
                         <GitBranch className="h-3 w-3 flex-shrink-0 opacity-60" />
-                        <span className="truncate opacity-80" title={`${checkoutRefLabel} — ${project.fullPath}`}>
-                          {checkoutRefLabel}
+                        <span className="truncate opacity-80" title={`${rowSubtitle} — ${project.fullPath}`}>
+                          {rowSubtitle}
                         </span>
                       </>
                     ) : (
-                      project.fullPath !== project.displayName && (
+                      project.fullPath !== entry.displayName && (
                         <span className="truncate opacity-60" title={project.fullPath}>
                           {' - '}
                           {project.fullPath.length > 25 ? `...${project.fullPath.slice(-22)}` : project.fullPath}
@@ -455,12 +469,12 @@ export default function SidebarProjectItem({
       </div>
 
       <SidebarProjectSessions
-        project={project}
+        entry={entry}
         isExpanded={isExpanded}
         sessions={sessions}
         selectedSession={selectedSession}
         initialSessionsLoaded={initialSessionsLoaded}
-        hasMoreSessions={Boolean(project.sessionMeta?.hasMore)}
+        hasMoreSessions={entry.checkouts.some((checkout) => Boolean(checkout.sessionMeta?.hasMore))}
         isLoadingMoreSessions={isLoadingMoreSessions}
         activeSessions={activeSessions}
         attentionSessionIds={attentionSessionIds}

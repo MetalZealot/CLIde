@@ -10,17 +10,20 @@ import type {
   ArchivedSessionListItem,
   DeleteProjectConfirmation,
   ProjectSortOrder,
+  RepositoryEntry,
   SidebarSearchMode,
   SessionDeleteConfirmation,
   SessionWithProvider,
 } from '../types/types';
 import {
+  buildRepositoryEntries,
   clearLegacyStarredProjectIds,
   filterProjects,
   getAllSessions,
-  groupProjectsByRepository,
+  mergeCheckoutSessions,
   readLegacyStarredProjectIds,
   readProjectSortOrder,
+  repositoryEntryKey,
   sortProjects,
 } from '../utils/utils';
 
@@ -121,11 +124,9 @@ export function useSidebarController({
   sidebarVisible,
 }: UseSidebarControllerArgs) {
   const paletteOps = usePaletteOps();
+  // Keyed by `repositoryEntryKey`, not by projectId: one repository is one row,
+  // so its several checkouts share a single expansion state.
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
-  // Repository groups track what is *collapsed*, so the default of "nothing in
-  // the set" means every checkout stays visible. Defaulting groups to collapsed
-  // would hide projects that are visible today.
-  const [collapsedRepositories, setCollapsedRepositories] = useState<Set<string>>(new Set());
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
   const [editingName, setEditingName] = useState('');
@@ -188,24 +189,27 @@ export function useSidebarController({
     setInitialSessionsLoaded(new Set());
   }, [projects]);
 
+  // Expand the *row* holding the selected project, which for a worktree is its
+  // repository's row rather than its own projectId.
+  const selectedEntryKey = selectedProject ? repositoryEntryKey(selectedProject) : null;
+
   useEffect(() => {
-    // Auto-expand only when the selected project identity changes.
+    // Auto-expand only when the selected row changes.
     // Depending on the full `selectedProject` object (or `selectedSession`) causes
     // websocket-driven list refreshes to re-open projects users manually collapsed.
-    const selectedProjectId = selectedProject?.projectId;
-    if (!selectedProjectId) {
+    if (!selectedEntryKey) {
       return;
     }
 
     setExpandedProjects((prev) => {
-      if (prev.has(selectedProjectId)) {
+      if (prev.has(selectedEntryKey)) {
         return prev;
       }
       const next = new Set(prev);
-      next.add(selectedProjectId);
+      next.add(selectedEntryKey);
       return next;
     });
-  }, [selectedProject?.projectId]);
+  }, [selectedEntryKey]);
 
   useEffect(() => {
     if (projects.length > 0 && !isLoading) {
@@ -452,28 +456,13 @@ export function useSidebarController({
     };
   }, [debouncedSearchQuery, searchMode]);
 
-  // All sidebar state keys (expanded, starred, loading, etc.) use the DB
-  // `projectId` as their identifier after the migration.
-  const toggleProject = useCallback((projectId: string) => {
+  // Starred/loading state still keys on the DB `projectId`; expansion keys on
+  // the row (`repositoryEntryKey`), since a repository is a single row.
+  const toggleProject = useCallback((entryKey: string) => {
     setExpandedProjects((prev) => {
       const next = new Set<string>();
-      if (!prev.has(projectId)) {
-        next.add(projectId);
-      }
-      return next;
-    });
-  }, []);
-
-  // Unlike projects, repository groups are independent of one another: opening
-  // one must not collapse another, because the point of the group is seeing
-  // concurrent work across checkouts at the same time.
-  const toggleRepository = useCallback((repositoryId: string) => {
-    setCollapsedRepositories((prev) => {
-      const next = new Set(prev);
-      if (next.has(repositoryId)) {
-        next.delete(repositoryId);
-      } else {
-        next.add(repositoryId);
+      if (!prev.has(entryKey)) {
+        next.add(entryKey);
       }
       return next;
     });
@@ -562,7 +551,44 @@ export function useSidebarController({
     [resolveProjectStarState],
   );
 
+  /**
+   * A repository row reads as starred when *any* of its checkouts is, because
+   * `sortProjects` already hoists the whole row in that case — showing an empty
+   * star on a row sitting in the starred block would just look like a bug.
+   */
+  const isRepositoryStarred = useCallback(
+    (entry: RepositoryEntry) =>
+      entry.checkouts.some((checkout) => resolveProjectStarState(checkout.projectId)),
+    [resolveProjectStarState],
+  );
+
+  /**
+   * Un-starring clears every starred checkout, so one tap always undoes what the
+   * star is reporting. Starring marks only the lead checkout, which is enough to
+   * hoist the row and avoids N writes for one gesture.
+   */
+  const toggleStarRepository = useCallback(
+    (entry: RepositoryEntry) => {
+      const starredCheckouts = entry.checkouts.filter((checkout) =>
+        resolveProjectStarState(checkout.projectId),
+      );
+
+      if (starredCheckouts.length === 0) {
+        toggleStarProject(entry.leadCheckout.projectId);
+        return;
+      }
+
+      starredCheckouts.forEach((checkout) => toggleStarProject(checkout.projectId));
+    },
+    [resolveProjectStarState, toggleStarProject],
+  );
+
   const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
+
+  const getRepositorySessions = useCallback(
+    (entry: RepositoryEntry) => mergeCheckoutSessions(entry),
+    [],
+  );
 
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
     if (!onLoadMoreSessions) {
@@ -598,6 +624,20 @@ export function useSidebarController({
       });
     }
   }, [onLoadMoreSessions, t]);
+
+  /**
+   * Pagination is still per checkout on the server, so one "load more" on a
+   * merged row fans out to every checkout that still has sessions to fetch.
+   */
+  const loadMoreSessionsForRepository = useCallback(
+    async (entry: RepositoryEntry) => {
+      const pending = entry.checkouts.filter((checkout) => Boolean(checkout.sessionMeta?.hasMore));
+      await Promise.all(
+        pending.map((checkout) => loadMoreSessionsForProject(checkout.projectId)),
+      );
+    },
+    [loadMoreSessionsForProject],
+  );
 
   const projectsWithResolvedStarState = useMemo(() => {
     if (optimisticStarByProjectId.size === 0) {
@@ -658,9 +698,10 @@ export function useSidebarController({
     [debouncedSearchQuery, runningProjects, searchMode, sortedProjects],
   );
 
-  // ADR 0016: grouping is the last step, so sorting, the running filter, and
-  // the search filter all keep operating on a flat list and stay unchanged.
-  const projectGroups = useMemo(() => groupProjectsByRepository(filteredProjects), [filteredProjects]);
+  // ADR 0016: collapsing to one row per repository is the last step, so
+  // sorting, the running filter, and the search filter all keep operating on a
+  // flat project list and stay unchanged.
+  const repositoryEntries = useMemo(() => buildRepositoryEntries(filteredProjects), [filteredProjects]);
 
   const filteredArchivedSessions = useMemo(() => {
     const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
@@ -1049,9 +1090,7 @@ export function useSidebarController({
     sessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
-    projectGroups,
-    collapsedRepositories,
-    toggleRepository,
+    repositoryEntries,
     runningSessionsCount,
     archivedProjects: filteredArchivedProjects,
     archivedSessions: filteredArchivedSessions,
@@ -1061,8 +1100,12 @@ export function useSidebarController({
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    isRepositoryStarred,
+    toggleStarRepository,
     getProjectSessions,
+    getRepositorySessions,
     loadMoreSessionsForProject,
+    loadMoreSessionsForRepository,
     startEditing,
     cancelEditing,
     saveProjectName,

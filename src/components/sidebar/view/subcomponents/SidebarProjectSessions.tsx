@@ -4,15 +4,15 @@ import type { TFunction } from 'i18next';
 import { Button } from '../../../../shared/view/ui';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
-import type { SessionWithProvider } from '../../types/types';
+import type { CheckoutSession, RepositoryEntry, SessionWithProvider } from '../../types/types';
 import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 
 import SidebarSessionItem from './SidebarSessionItem';
 
 type SidebarProjectSessionsProps = {
-  project: Project;
+  entry: RepositoryEntry;
   isExpanded: boolean;
-  sessions: SessionWithProvider[];
+  sessions: CheckoutSession[];
   selectedSession: ProjectSession | null;
   initialSessionsLoaded: boolean;
   hasMoreSessions: boolean;
@@ -35,7 +35,7 @@ type SidebarProjectSessionsProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
-  onLoadMoreSessions: (projectId: string) => void;
+  onLoadMoreSessions: (entry: RepositoryEntry) => void;
   onNewSession: (project: Project) => void;
   onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
@@ -60,8 +60,16 @@ function SessionListSkeleton() {
   );
 }
 
+/**
+ * The one list under a repository row: every session across its checkouts,
+ * merged and ordered together (ADR 0016).
+ *
+ * Each row carries its *own* checkout, so selecting a session still switches
+ * the app to the working tree that session actually runs in — the branch label
+ * is only there to say which one that is.
+ */
 export default function SidebarProjectSessions({
-  project,
+  entry,
   isExpanded,
   sessions,
   selectedSession,
@@ -92,6 +100,9 @@ export default function SidebarProjectSessions({
   }
 
   const hasSessions = sessions.length > 0;
+  // A new session has to land in exactly one working tree; the lead checkout is
+  // the only non-arbitrary choice. Long-pressing the row reaches the others.
+  const newSessionTarget = entry.leadCheckout;
 
   return (
     <div className="ml-3 space-y-1 border-l border-border pl-3">
@@ -99,8 +110,8 @@ export default function SidebarProjectSessions({
         <button
           className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
           onClick={() => {
-            onProjectSelect(project);
-            onNewSession(project);
+            onProjectSelect(newSessionTarget);
+            onNewSession(newSessionTarget);
           }}
         >
           <Plus className="h-3 w-3" />
@@ -112,7 +123,7 @@ export default function SidebarProjectSessions({
         variant="default"
         size="sm"
         className="hidden h-8 w-full justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 md:flex"
-        onClick={() => onNewSession(project)}
+        onClick={() => onNewSession(newSessionTarget)}
       >
         <Plus className="h-3 w-3" />
         {t('sessions.newSession')}
@@ -126,11 +137,12 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          {sessions.map((session) => (
+          {sessions.map(({ session, checkout, branchLabel }) => (
             <SidebarSessionItem
               key={session.id}
-              project={project}
+              project={checkout}
               session={session}
+              branchLabel={branchLabel}
               selectedSession={selectedSession}
               isProcessing={activeSessions.has(session.id)}
               needsAttention={attentionSessionIds.has(session.id)}
@@ -156,10 +168,10 @@ export default function SidebarProjectSessions({
               variant="ghost"
               size="sm"
               className="h-8 w-full justify-center text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => onLoadMoreSessions(project.projectId)}
+              onClick={() => onLoadMoreSessions(entry)}
               disabled={isLoadingMoreSessions}
             >
-              {isLoadingMoreSessions ? t('sessions.loadingSessions') : 'Load more sessions'}
+              {isLoadingMoreSessions ? t('sessions.loadingSessions') : t('sessions.showMore')}
             </Button>
           )}
         </>

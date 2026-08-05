@@ -2,8 +2,9 @@ import type { TFunction } from 'i18next';
 
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type {
+  CheckoutSession,
   ProjectSortOrder,
-  RepositoryGroup,
+  RepositoryEntry,
   SettingsProject,
   SessionViewModel,
   SessionWithProvider,
@@ -215,6 +216,37 @@ export const isMainCheckout = (project: Project): boolean => {
   return mainPath !== null && (project.fullPath === mainPath || project.path === mainPath);
 };
 
+/**
+ * Branch label for a checkout, or a short SHA when HEAD is detached.
+ *
+ * Detached HEAD is deliberately not shown as a branch called `HEAD`; the Git
+ * panel does that and ADR 0016 lists it as a truthfulness defect.
+ */
+export const getCheckoutRefLabel = (project: Project): string | null => {
+  if (typeof project.branch === 'string' && project.branch.length > 0) {
+    return project.branch;
+  }
+
+  if (typeof project.detachedHead === 'string' && project.detachedHead.length > 0) {
+    return `detached @ ${project.detachedHead}`;
+  }
+
+  return null;
+};
+
+/**
+ * Which sidebar row a project belongs to.
+ *
+ * Deliberately a pure function of the project alone. Deriving it from the
+ * visible list instead would let a search that hides one checkout silently
+ * re-key the surviving one, collapsing the row the user had open.
+ */
+export const repositoryEntryKey = (project: Project): string => {
+  return typeof project.repositoryId === 'string' && project.repositoryId.length > 0
+    ? project.repositoryId
+    : project.projectId;
+};
+
 const deriveRepositoryName = (repositoryId: string, checkouts: Project[]): string => {
   const mainCheckout = checkouts.find(isMainCheckout);
   if (mainCheckout) {
@@ -228,66 +260,78 @@ const deriveRepositoryName = (repositoryId: string, checkouts: Project[]): strin
 };
 
 /**
- * Groups an already-sorted, already-filtered project list by repository (ADR 0016).
+ * Collapses an already-sorted, already-filtered project list into one row per
+ * repository (ADR 0016).
  *
- * Order is preserved: a group takes the position of its highest-sorted member,
- * so changing the sort order or starring a checkout still moves it where the
- * user expects. Within a group the main checkout leads, because it owns the
- * repository's shared git directory.
+ * Order is preserved: an entry takes the position of its highest-sorted
+ * checkout, so changing the sort order or starring a worktree still moves the
+ * row where the user expects. The main checkout leads, because it owns the
+ * repository's shared git directory and is the sane default for
+ * repository-scoped actions.
  */
-export const groupProjectsByRepository = (projects: Project[]): RepositoryGroup[] => {
-  const checkoutsByRepository = new Map<string, Project[]>();
+export const buildRepositoryEntries = (projects: Project[]): RepositoryEntry[] => {
+  const checkoutsByKey = new Map<string, Project[]>();
   for (const project of projects) {
-    const repositoryId = typeof project.repositoryId === 'string' ? project.repositoryId : null;
-    if (!repositoryId) {
-      continue;
-    }
-
-    const existing = checkoutsByRepository.get(repositoryId);
+    const key = repositoryEntryKey(project);
+    const existing = checkoutsByKey.get(key);
     if (existing) {
       existing.push(project);
     } else {
-      checkoutsByRepository.set(repositoryId, [project]);
+      checkoutsByKey.set(key, [project]);
     }
   }
 
-  const groups: RepositoryGroup[] = [];
-  const emittedRepositories = new Set<string>();
+  const entries: RepositoryEntry[] = [];
+  const emitted = new Set<string>();
 
   for (const project of projects) {
-    const repositoryId = typeof project.repositoryId === 'string' ? project.repositoryId : null;
-    const checkouts = repositoryId ? checkoutsByRepository.get(repositoryId) : undefined;
-
-    // A repository with a single registered checkout is not a group: a header
-    // above one row would add depth without telling the user anything.
-    if (!repositoryId || !checkouts || checkouts.length < 2) {
-      groups.push({
-        key: project.projectId,
-        repositoryId: null,
-        repositoryName: project.displayName || project.projectId,
-        checkouts: [project],
-      });
+    const key = repositoryEntryKey(project);
+    if (emitted.has(key)) {
       continue;
     }
+    emitted.add(key);
 
-    if (emittedRepositories.has(repositoryId)) {
-      continue;
-    }
-    emittedRepositories.add(repositoryId);
-
-    const mainCheckoutFirst = [...checkouts].sort(
+    const checkouts = [...(checkoutsByKey.get(key) ?? [project])].sort(
       (a, b) => Number(isMainCheckout(b)) - Number(isMainCheckout(a)),
     );
+    const leadCheckout = checkouts[0];
+    const repositoryId =
+      typeof leadCheckout.repositoryId === 'string' && leadCheckout.repositoryId.length > 0
+        ? leadCheckout.repositoryId
+        : null;
 
-    groups.push({
-      key: repositoryId,
+    entries.push({
+      key,
       repositoryId,
-      repositoryName: deriveRepositoryName(repositoryId, checkouts),
-      checkouts: mainCheckoutFirst,
+      displayName:
+        repositoryId && checkouts.length > 1
+          ? deriveRepositoryName(repositoryId, checkouts)
+          : leadCheckout.displayName || leadCheckout.projectId,
+      leadCheckout,
+      checkouts,
     });
   }
 
-  return groups;
+  return entries;
+};
+
+/**
+ * Every session across an entry's checkouts, newest first, starred pinned to
+ * the top — the flattened list that replaces a tier of checkout rows.
+ *
+ * The branch label is attached here rather than read off the row's own project
+ * so that a single-checkout entry stays free of a redundant label: there is
+ * nothing to disambiguate it from.
+ */
+export const mergeCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[] => {
+  const needsBranchLabel = entry.checkouts.length > 1;
+
+  return entry.checkouts
+    .flatMap((checkout) => {
+      const branchLabel = needsBranchLabel ? getCheckoutRefLabel(checkout) : null;
+      return getAllSessions(checkout).map((session) => ({ session, checkout, branchLabel }));
+    })
+    .sort((a, b) => compareSessionsStarredFirst(a.session, b.session));
 };
 
 export const getTaskIndicatorStatus = (

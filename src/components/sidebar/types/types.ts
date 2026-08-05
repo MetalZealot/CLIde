@@ -5,25 +5,42 @@ export type ProjectSortOrder = 'name' | 'date';
 export type SidebarSearchMode = 'projects' | 'conversations' | 'running' | 'archived';
 
 /**
- * One entry in the grouped project list (ADR 0016).
+ * One row in the sidebar's project list (ADR 0016).
  *
- * A repository with two or more registered checkouts renders as a header with
- * its checkouts nested beneath it. Everything else — single-checkout
- * repositories and plain folders — is emitted with `repositoryId: null` and
- * exactly one checkout, and renders as it did before grouping existed. That
- * keeps the common case visually unchanged and avoids a header wrapping a
- * group of one.
+ * The list is deliberately two levels deep — repository, then session — which
+ * is the shape every reference client in `docs/ui ref/` converged on. So a
+ * repository with several registered checkouts is *one* row whose sessions are
+ * merged across those checkouts and labelled with the branch each came from,
+ * not a third tier of checkout rows. A single-checkout repository renders
+ * exactly as a project row did before grouping existed.
  */
-export type RepositoryGroup = {
-  /** Stable React key: the repositoryId, or the lone project's id. */
+export type RepositoryEntry = {
+  /**
+   * React key and expansion key. Derived only from the project, never from the
+   * current filter, so searching cannot change which row a project belongs to.
+   */
   key: string;
-  /** Null for an ungrouped project, which renders without a header. */
+  /** Null for a directory that is not a git checkout. */
   repositoryId: string | null;
-  /** Header label; the main checkout's display name when it is registered. */
-  repositoryName: string;
-  /** Main checkout first when identifiable, then the list's existing order. */
+  /** Row label: the repository's name, else the project's display name. */
+  displayName: string;
+  /** Target of repository-scoped actions; the main checkout when registered. */
+  leadCheckout: Project;
+  /** Every registered checkout, lead first. Length 1 in the common case. */
   checkouts: Project[];
 };
+
+/** A session paired with the checkout it actually belongs to. */
+export type CheckoutSession = {
+  session: SessionWithProvider;
+  checkout: Project;
+  /**
+   * Branch shown beneath the session title. Null when the row needs no
+   * disambiguation, so an ordinary single-checkout project stays uncluttered.
+   */
+  branchLabel: string | null;
+};
+
 export type ArchivedProjectListItem = Project & { isArchived: true };
 
 export type SessionWithProvider = ProjectSession & {

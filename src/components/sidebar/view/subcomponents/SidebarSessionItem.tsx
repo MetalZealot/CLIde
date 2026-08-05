@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, Loader2, Star, Trash2, X } from 'lucide-react';
+import { Check, Edit2, GitBranch, Loader2, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip, buttonVariants, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -23,6 +23,12 @@ type SidebarSessionItemProps = {
   editingSessionName: string;
   /** Shown under the session name in flat lists that mix projects. */
   projectLabel?: string;
+  /**
+   * Checkout this session runs in, shown under the title when its repository
+   * row merges several checkouts (ADR 0016). Null when there is nothing to
+   * disambiguate.
+   */
+  branchLabel?: string | null;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
@@ -80,6 +86,7 @@ export default function SidebarSessionItem({
   editingSession,
   editingSessionName,
   projectLabel,
+  branchLabel,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
@@ -96,6 +103,17 @@ export default function SidebarSessionItem({
   const isEditing = editingSession === session.id;
   const isStarred = Boolean(session.isStarred);
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
+  // Shares the metadata line with the message-count badge rather than claiming a
+  // line of its own, so a merged repository row is no taller per session.
+  const branchBadge = branchLabel ? (
+    <span
+      className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground/70"
+      title={branchLabel}
+    >
+      <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
+      <span className="truncate">{branchLabel}</span>
+    </span>
+  ) : null;
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const mobileEditRef = useRef<HTMLDivElement>(null);
   // Anchor the menu to the row's box, not the finger, so it opens attached to
@@ -255,6 +273,7 @@ export default function SidebarSessionItem({
                   {projectLabel && (
                     <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                   )}
+                  {branchBadge}
                 </div>
               </div>
             </div>
@@ -329,6 +348,7 @@ export default function SidebarSessionItem({
                 {projectLabel && (
                   <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                 )}
+                {branchBadge}
               </div>
             </div>
           </div>
