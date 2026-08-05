@@ -243,7 +243,7 @@ function decodeJavaScriptStringLiteral(literal: string): string {
 
 function extractNestedCodexCommands(source: string): string[] {
   const commands: string[] = [];
-  const commandPattern = /\bcommand\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/gs;
+  const commandPattern = /(?:["']?(?:command|cmd)["']?)\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/gs;
   for (const match of source.matchAll(commandPattern)) {
     commands.push(decodeJavaScriptStringLiteral(match[1]));
   }
@@ -273,7 +273,7 @@ function extractNestedCodexCommands(source: string): string[] {
  */
 function translateCodexExecInput(input: unknown): { toolName: string; toolInput: string } | null {
   const source = typeof input === 'string' ? input : String(input || '');
-  if (/\btools\.shell_command\s*\(/.test(source)) {
+  if (/\btools\.(?:exec_command|shell_command)\s*\(/.test(source)) {
     const commands = extractNestedCodexCommands(source);
     if (commands.length > 0) {
       return {
@@ -284,6 +284,34 @@ function translateCodexExecInput(input: unknown): { toolName: string; toolInput:
   }
 
   return null;
+}
+
+const CODEX_COLLABORATION_CONTROL_TOOLS = new Set([
+  'followup_task',
+  'interrupt_agent',
+  'list_agents',
+  'send_message',
+  'wait_agent',
+]);
+
+const CODEX_HIDDEN_EXEC_CONTROL_TOOLS = new Set([
+  ...CODEX_COLLABORATION_CONTROL_TOOLS,
+  'update_plan',
+  'wait',
+]);
+
+/**
+ * Keeps internal orchestration-only wrappers out of history without treating
+ * every unfamiliar nested tool as disposable. Unknown wrappers must remain
+ * visible so protocol drift cannot silently erase persisted transcript rows.
+ */
+function isHiddenCodexExecControl(input: unknown): boolean {
+  const source = typeof input === 'string' ? input : String(input || '');
+  const nestedToolNames = [...source.matchAll(/\btools\.([A-Za-z_$][\w$]*)\s*\(/g)]
+    .map((match) => match[1]);
+
+  return nestedToolNames.length > 0
+    && nestedToolNames.every((toolName) => CODEX_HIDDEN_EXEC_CONTROL_TOOLS.has(toolName));
 }
 
 function humanizeCodexToolName(toolName: string): string {
@@ -318,14 +346,6 @@ function parseCodexSubagentMessage(payload: AnyRecord): {
     result: header?.[3]?.trim() || '',
   };
 }
-
-const CODEX_COLLABORATION_CONTROL_TOOLS = new Set([
-  'followup_task',
-  'interrupt_agent',
-  'list_agents',
-  'send_message',
-  'wait_agent',
-]);
 
 function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
@@ -657,7 +677,22 @@ async function getCodexSessionMessages(
           if (toolName === 'exec') {
             const translated = translateCodexExecInput(input);
             if (!translated) {
-              ignoredToolCallIds.add(entry.payload.call_id);
+              if (isHiddenCodexExecControl(input)) {
+                ignoredToolCallIds.add(entry.payload.call_id);
+                continue;
+              }
+
+              // Preserve unfamiliar wrappers generically. The nested-tool
+              // syntax is not a stable serialization contract, so failing
+              // open is safer than deleting real transcript evidence.
+              messages.push({
+                type: 'tool_use',
+                timestamp: entry.timestamp,
+                toolName,
+                toolInput: input,
+                toolCallId: entry.payload.call_id,
+              });
+              execToolCallIds.add(entry.payload.call_id);
               continue;
             }
             toolName = translated.toolName;
