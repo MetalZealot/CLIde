@@ -6,9 +6,10 @@
 #
 # git worktree only checks out *tracked* files, so a fresh worktree is missing
 # every gitignored thing the app needs: node_modules, CLAUDE.md, .claude/, and
-# .env.local. This links them to the main worktree and allocates a free
-# SERVER_PORT / VITE_PORT pair so the worktree can run alongside the 3001
-# systemd service without a collision.
+# .env.local. This links them to the main worktree — except CLAUDE.md, which is
+# written as a real file because Claude Code will not load a symlinked one — and
+# allocates a free SERVER_PORT / VITE_PORT pair so the worktree can run
+# alongside the 3001 systemd service without a collision.
 #
 # Safe to re-run. It never overwrites a real file whose contents differ from
 # main's, and it never deletes anything through a symlink.
@@ -38,8 +39,8 @@ printf '  (main worktree: %s)\n\n' "$MAIN"
 
 # --- link a gitignored path from main into the worktree --------------------
 #
-# Symlinked rather than copied so there is one source of truth: editing
-# CLAUDE.md in any worktree edits the same file.
+# Symlinked rather than copied so there is one source of truth: editing the
+# linked path in any worktree edits main's file.
 link_from_main() {
   local name=$1
   local src="$MAIN/$name"
@@ -93,7 +94,43 @@ else
 fi
 
 # --- agent + editor config -------------------------------------------------
-link_from_main CLAUDE.md
+#
+# CLAUDE.md is deliberately NOT linked. Claude Code silently ignores an
+# instruction file reached through a symlink -- no warning, the file is just
+# absent from context (proved 2026-08-04 on 2.1.221: a symlinked CLAUDE.md
+# loaded nothing, an identical real file in the same directory loaded fine).
+# A linked CLAUDE.md therefore left every worktree session uninstructed.
+#
+# The stub below is a real file. It imports the *branch's own* tracked
+# AGENTS.md -- verified to resolve relative to the importing file, so a
+# worktree gets its branch's guide, not main's -- and points back at main for
+# host-specific facts, which Claude reads on demand.
+write_claude_stub() {
+  local dst="$TARGET/CLAUDE.md"
+
+  if [ -L "$dst" ]; then
+    rm -- "$dst"
+    warn "CLAUDE.md — removed a symlink; Claude Code does not load those"
+  elif [ -e "$dst" ] && ! grep -q '^@AGENTS\.md$' "$dst" 2>/dev/null; then
+    warn "CLAUDE.md — a different real file exists here; left it alone"
+    warn "    it must contain a line reading exactly '@AGENTS.md' to be useful"
+    return
+  fi
+
+  cat > "$dst" <<EOF
+# CLAUDE.md — worktree
+
+@AGENTS.md
+
+This is a worktree of the CLIde checkout at \`$MAIN\`. The import above is this
+branch's own tracked guide. Host-specific facts — ports, services, the deploy
+loop, the branch-test harness — are in \`$MAIN/CLAUDE.md\`; read it when the task
+needs them. Never build or deploy this worktree to the production port.
+EOF
+  ok "CLAUDE.md — wrote worktree stub (real file, imports this branch's AGENTS.md)"
+}
+
+write_claude_stub
 link_from_main .claude
 
 # .gitignore has `.claude/` with a trailing slash, which only matches real
