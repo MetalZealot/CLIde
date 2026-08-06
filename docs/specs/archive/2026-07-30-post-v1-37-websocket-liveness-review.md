@@ -6,9 +6,9 @@
 - Scope: Reassess ADR 0006 and the final integrated WebSocket implementation;
   do not change the active `chore/upstream-1.37` worktree as part of this review
 - Related decision:
-  [ADR 0006 — WS liveness is client-driven via app-level ping](../decisions/0006-app-level-ws-liveness.md)
+  [ADR 0006 — WS liveness is client-driven via app-level ping](../../decisions/0006-app-level-ws-liveness.md)
 - Integration prerequisite:
-  [Upstream v1.37.0 integration](archive/2026-07-29-upstream-1-37-integration.md)
+  [Upstream v1.37.0 integration](2026-07-29-upstream-1-37-integration.md)
 
 ## Why this is deferred
 

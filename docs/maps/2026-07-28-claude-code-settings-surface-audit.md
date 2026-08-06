@@ -8,7 +8,7 @@ audit is the follow-on that decides which new settings are worth introducing);
 [Claude Code and Agent SDK living surface map](../maps/claude-agent-sdk.md);
 [canonical CLIde provider capability map](../maps/clide-provider-capability-map.md)
 
-## Purpose
+## What this covers
 
 Answer two questions:
 
@@ -294,7 +294,7 @@ the better source.
    OpenCode have their own. The screen should be a per-provider slot with a
    Claude implementation, not a hardcoded Claude screen.
 
-## Open questions
+## Unresolved, tracked in TODO.md
 
 1. Should CLIde write the user's `~/.claude/settings.json` at all, or confine
    itself to project/local files plus the `Options.settings` flag tier? Writing

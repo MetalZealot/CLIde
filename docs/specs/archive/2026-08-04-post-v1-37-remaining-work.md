@@ -4,11 +4,11 @@
 - Status: Open. This is the live continuation list for everything the v1.37
   release left behind.
 - Replaces: the follow-up queue in
-  [the merge handoff](archive/2026-08-01-post-v1-37-main-divergence-and-merge-handoff.md),
+  [the merge handoff](2026-08-01-post-v1-37-main-divergence-and-merge-handoff.md),
   which is archived. Nothing here requires reading that document first.
 
 The v1.37 integration is merged, built, deployed to 3001, and closed out. So is
-the model-picker storage divergence ([ADR 0025](../decisions/0025-session-model-picks-live-in-the-database.md)).
+the model-picker storage divergence ([ADR 0025](../../decisions/0025-session-model-picks-live-in-the-database.md)).
 What follows is what was deliberately not done.
 
 Each item states what the decision or action actually is. Detail that already
@@ -83,13 +83,13 @@ not, and both are a yes/no rather than a build.
   from the original case against: upstream does not know it exists, and it broke
   during the v1.37 merge because upstream changed a runtime contract it could not
   see (`3e84bd7`). The case for is in
-  [the transport architecture map](../maps/2026-07-25-codex-chat-transport-architecture.md);
+  [the transport architecture map](../../maps/2026-07-25-codex-chat-transport-architecture.md);
   its own outstanding work is verification, not code. **M**
 - [ ] **ADR 0016 is written but entirely unimplemented** — status `Accepted`, yet
   no `git-common-dir` or `commonDir` anywhere in `server/`, `src/` or `shared/`
   (re-verified 2026-08-04) — and it is what blocks adopting upstream's worktrees
   module. Note the exit originally listed here, "downgrade it to Proposed", is
-  not available: [the decision log's README](../decisions/README.md) is
+  not available: [the decision log's README](../../decisions/README.md) is
   append-only and recognises only `Accepted` or `Superseded by NNNN`, with no
   `Proposed` state. The two exits that fit the convention are to build Phase 0 so
   the Accepted status becomes true, or to write a superseding ADR recording the
@@ -120,7 +120,7 @@ new one.
    after the module migration, then prevent same-file/same-table user/project
    scope aliases without de-duplicating legitimate entries. **M**
 5. [ ] **Provider architecture consolidation** — baseline is
-   [the current contract](../maps/CLIde_Provider_Architecture_Current_Contract.md) and
+   [the current contract](../../maps/CLIde_Provider_Architecture_Current_Contract.md) and
    the living maps. Kept separate from release work on purpose. **L**
 
 ## The lesson worth keeping from v1.37

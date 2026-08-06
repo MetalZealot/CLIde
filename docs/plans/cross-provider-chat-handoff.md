@@ -1,9 +1,14 @@
 # Cross-provider chat handoff
 
-- Date: 2026-08-04
-- Status: Deferred implementation spec; re-verify before coding.
-- Goal: start a new CLIde chat with another provider/model, seeded with a
-  safe, chat-only projection of a selected source conversation.
+- Status: not started
+- Next: re-verify the four contracts under "Re-verify before coding" — this was
+  written 2026-08-04 and assumes pre-v1.37 behaviour in places.
+- Context: [ADR 0012 — Codex rewind and fork session identity](../decisions/0012-codex-rewind-and-fork-session-identity.md)
+  · `server/modules/providers/services/sessions.service.ts` (session gateway)
+  · `src/components/chat/utils/chatExport.ts` (upstream export formatter)
+
+Goal: start a new CLIde chat with another provider/model, seeded with a safe,
+chat-only projection of a selected source conversation.
 
 ## Product boundary
 
@@ -23,7 +28,7 @@ Do not reuse the upstream **Export as** menu as the transport. It is a
 client-side archive formatter over the currently loaded message list, not a
 provider-neutral complete-history projection.
 
-## Current evidence to re-verify
+## Re-verify before coding
 
 - `POST /api/providers/sessions` already allocates a new app-owned session id
   before any `chat.send`; the normal new-chat flow then places it in the URL and
@@ -40,30 +45,24 @@ provider-neutral complete-history projection.
   wanted, make an explicit schema/ADR decision rather than overloading
   `provider_session_id` or provider-native fork metadata.
 
-## Minimal implementation plan
+## Phases
 
-1. Add a tested server-side transcript projector with provider fixtures:
+- [ ] 1. Add a tested server-side transcript projector with provider fixtures:
    user/assistant only, chronological, bounded, and no tool/output leakage.
-2. Add a thin handoff endpoint/service that validates a finished source and a
+- [ ] 2. Add a thin handoff endpoint/service that validates a finished source and a
    ready target, allocates the target session, and returns the projected initial
    prompt plus its size estimate. Use the existing session gateway; do not
    change its source-to-provider-id mapping.
-3. Add a restrained `Handoff...` action beside export: target provider/model,
+- [ ] 3. Add a restrained `Handoff...` action beside export: target provider/model,
    range, estimate/error state, then create, navigate, and send through the
    ordinary chat path. Title the new session `Handoff: <source title>`.
-4. Verify with real Claude and Codex sessions first, then the enabled
+- [ ] 4. Verify with real Claude and Codex sessions first, then the enabled
    Cursor/OpenCode targets. Check source immutability, one new sidebar row,
    model selection, complete expected chat context, excluded tool data, a
    context-limit refusal, refresh/reopen, and installed-PWA behavior.
 
-## Out of scope
+## Not doing
 
 Raw tool-trace transfer, automatic LLM summarization, cross-provider native
 resume, file-state/checkpoint transfer, and a permanent lineage graph. Each
 needs its own privacy, size, and provider-semantics decision.
-
-## References
-
-- [ADR 0012: Codex rewind and fork session identity](../decisions/0012-codex-rewind-and-fork-session-identity.md)
-- [Provider session gateway](../../../server/modules/providers/services/sessions.service.ts)
-- [Upstream export formatter](../../../src/components/chat/utils/chatExport.ts)

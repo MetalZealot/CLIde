@@ -3,7 +3,7 @@
 *Recorded 2026-07-25 against CLIde `main`, `@openai/codex-sdk` 0.144.6,
 the CLI bundled with that SDK, and the accepted App Server rollout in ADR 0011.*
 
-## Purpose
+## What this covers
 
 This document is the durable mental model for implementing Codex features in
 CLIde. It explains:
@@ -18,7 +18,7 @@ It complements the current, curated
 [Codex CLI, SDK, and App Server surface map](codex-cli-sdk-app-server.md).
 ADR 0011 remains the canonical decision for the opt-in first rollout.
 
-## Executive summary
+## Findings
 
 The Codex TypeScript SDK and App Server can both run coding-agent threads, but
 they are not interchangeable layers with merely different option counts:

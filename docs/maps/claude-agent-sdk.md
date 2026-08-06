@@ -289,44 +289,7 @@ Shared UI and protocol work must stay provider-neutral: other adapters have no
 `rate_limit_event`, no settings cascade, and no checkpoints, so shared surfaces
 must render absence gracefully.
 
-## 6. Delta since the 2026-07-19 snapshot
-
-This section describes only the newest audited transition. On the next refresh,
-condense it into the ledger and replace it.
-
-The SDK pin has not moved (0.3.165 then and now), so every change is on CLIde's
-side or in the unpinned runtime:
-
-| Change | Surface | Result |
-|---|---|---|
-| Conversation rewind shipped | `resumeSessionAt` + anchor resolution | Moved from "unused, wishlist L" to Implemented; ADR 0007 |
-| File checkpointing enabled | `enableFileCheckpointing` | Snapshots written on every persistent run; `rewindFiles()` still uncalled |
-| Authoritative context readings | `getContextUsage()` | Second control method now in use; disk-backed cache; ADR 0014 |
-| Signal-first abort | `abortController` | Stop works before the session id exists; ADR 0013 |
-| Ephemeral runs | `persistSession: false` | Commit-message generator no longer pollutes the sidebar |
-| Compaction rows | Transcript parsing | `/compact` de-duplicated and referenced files surfaced; ADR 0023 |
-| Synthetic-row handling | Transcript and live stream | Zero-usage and `<synthetic>` notices no longer corrupt the ring or the transcript |
-| Runtime drift | Standalone Claude Code | Host advanced to 2.1.220 while the SDK still bundles 2.1.165 |
-
-Compatibility watches opened by this audit:
-
-1. **Unpinned runtime pair.** Nothing verifies that the spawned Claude Code is
-   compatible with the pinned SDK's control protocol. A version read plus a
-   sanitized compatibility note belongs in provider diagnostics.
-2. **Mirrored model registry provenance.** `claude-context-window.ts` cites the
-   registry embedded in "`@anthropic-ai/claude-agent-sdk` 0.3.220", but the pinned
-   SDK is 0.3.165. Re-derive the table and correct the citation on the next
-   refresh; per the standing rule these facts are never written from memory.
-3. **Plan-mode allow-list.** CLIde injects its own tool list for `plan` instead of
-   letting the runtime define plan semantics; a runtime change to plan-mode tools
-   will not reach CLIde.
-4. **Hand-read MCP config.** `loadMcpConfig` reimplements part of the CLI's own
-   MCP resolution against `~/.claude.json`; scope rules that change upstream will
-   silently diverge.
-5. **Unmapped access modes.** The SDK exposes `dontAsk` and the CLI additionally
-   offers `manual`; CLIde advertises neither.
-
-## 7. Drift detection and diagnostics
+## 6. Drift detection and diagnostics
 
 There is no Claude equivalent of the Codex generated-protocol drift test, and
 none is obviously warranted: the contract is a TypeScript declaration file
@@ -345,7 +308,7 @@ type, unknown transcript row type, count and last-seen timestamp, spawned
 runtime version, and pinned SDK version. This belongs in provider diagnostics,
 not the user transcript.
 
-## 8. Sources and evidence policy
+## 7. Sources and evidence policy
 
 Claude Code has no public tagged source repository, so the evidence hierarchy
 differs from Codex's:
@@ -377,7 +340,7 @@ Do **not** load the bundled `claude-api` skill to answer questions about this
 surface; it is a different subject (the raw API) and its context cost is
 prohibitive on this host.
 
-## 9. Recurring update procedure
+## 8. Recurring update procedure
 
 For each candidate SDK bump or material runtime change:
 

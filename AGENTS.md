@@ -17,10 +17,15 @@ Before changing code:
 1. Run `git status --short`, inspect active worktrees/branches when relevant, and
    preserve unrelated user changes.
 2. Read the relevant open item in `docs/TODO.md`.  It is the tracked backlog and the
-   coordination board for concurrent work.  Claim an item before you touch it.
+   coordination board for concurrent work.  Claim an item before you touch it.  Items
+   are one line and point elsewhere; follow the pointer only for the item you claimed.
 3. Read relevant ADRs in `docs/decisions/` — especially before "fixing" anything that
    looks odd but deliberate.
 4. Load the task-specific context below.
+
+**Read indexes before documents.**  The READMEs in `docs/plans/`, `docs/maps/`, and
+`docs/decisions/` say what each document covers and where it stands.  Open a document
+only once an index says it is the one you need; never read a directory to find out.
 
 ### Task-specific context
 
@@ -33,6 +38,7 @@ Before changing code:
 | The model picker | "Model picker follow-ups" in `docs/TODO.md`, ADRs 0003 and 0025 |
 | Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
+| Multi-session work with phases | its plan in `docs/plans/` — the board in that README first |
 
 ## Architecture and compatibility
 
@@ -41,9 +47,7 @@ Before changing code:
   under `src/`.  Shared types and utilities live in `shared/`.  `server/routes/`,
   `server/utils/`, `server/services/`, `server/middleware/`, and the flat adapter files
   at `server/`'s root are gone — be suspicious of any doc or memory that names them.
-  The 19 modules: `agent/`, `assets/`, `auth/`, `browser-use/`, `cli/`, `commands/`,
-  `database/`, `file-tree/`, `git/`, `notifications/`, `plugins/`, `projects/`,
-  `providers/`, `settings/`, `system/`, `taskmaster/`, `user/`, `voice/`, `websocket/`.
+  `ls server/modules/` lists the 19 current ones.
 - Providers are adapters.  Claude is the daily driver, but shared UI, protocol,
   database, and provider-interface work must continue to work for Codex, Cursor, and
   OpenCode.  Prototype against Claude first, then check how each other adapter
@@ -132,40 +136,57 @@ behaviour stays behind adapter interfaces.
   `dist-server/` at all**, while `typecheck` skips files it thinks are unchanged so a
   clean result is vacuous.
 - Keep `docs/TODO.md` current **in the same batch as the code change** — flip `[ ]` →
-  `[~]` → `[x]` and move verified work to `docs/todo-done.md` as you go, never as a
-  separate turn at the end of a session.  Do not ask permission to update the board.
-  Git history and ADRs are the canonical detail — keep the board's entries short.
+  `[~]` → `[x]` and move verified work to `docs/todo-done.md` as you go, not as a
+  separate turn at the end.  Do not ask permission to update the board.  An item is
+  one line naming the work and pointing at its plan, ADR, or commit; 400 characters
+  is the enforced ceiling and most need far less, because git history and ADRs are
+  the canonical detail.
+- When a document and reality diverge, **edit the document**.  Never append a
+  correction, re-measurement, or audit section to preserve the wrong text — git holds
+  the old version, and that habit turned the v1.37 integration document into 79 KB
+  whose two largest sections were both audits.
+- **Git's conflict set is an anti-signal when merging upstream.**  Only 5 files
+  conflicted textually in the final v1.37 merge, yet every genuine defect was in a
+  file that merged cleanly.  When both sides refactor toward the same shape, diff the
+  *contract* surfaces — runtime options, gateway addressing, provider context — and
+  write one test per contract driving every provider with the ids deliberately
+  unequal (`server/modules/websocket/tests/chat-session-addressing.test.ts`).
 - Categorize fixes as fork-only or upstreamable in `docs/upstream-candidates.md`.
   Before describing a defect as upstream-wide, inspect upstream code as well as
   searching issues/PRs.  Never open, push, or update an upstream PR without the user's
   explicit approval.
 - **Never end a turn by asking "worth an ADR?"** — that spends a whole reply asking
-  permission to write a document.  Write an ADR only when the user asks for one, or
-  when a decision is the kind a future session would otherwise undo (a deliberate
-  constraint that looks like a bug).  In that case write it inside the same batch as
-  the work, unasked, in five sentences.  Otherwise the commit message is the record.
-  ADRs are append-only: supersede a prior decision rather than rewriting history.
+  permission to write a document.  Write one only when asked, or when a decision is
+  the kind a future session would otherwise undo (a deliberate constraint that looks
+  like a bug); then write it in the same batch as the work, unasked, in five
+  sentences.  Otherwise the commit message is the record.  ADRs are append-only:
+  supersede, never rewrite.
 
 ## Keeping the guides honest
 
-This file drifted from the local `CLAUDE.md` because nothing said which one owned a
-fact.  It does now:
+Nothing used to say which file owned a fact, so this one and the local `CLAUDE.md`
+drifted apart.  Ownership now:
 
 - **This file** owns shared project truth: architecture, invariants, workflow,
-  verification rules, and the routing table above.  It is tracked and published on the
-  fork, so it must contain **no host-specific detail** — no absolute home paths, no
-  hostnames, no port numbers, no systemd unit names (ADR 0027).
-- **`docs/`** owns depth: maps for current code and provider surfaces, ADRs for
-  decisions, `TODO.md` for live work.  Prefer adding detail there and routing to it
-  over growing this file.
-- **The ignored local `CLAUDE.md`** owns only the host: this machine's paths, ports,
-  services, and deploy loop.  If a fact would be true for anyone who cloned the fork,
-  it does not belong there.
+  verification, and the routing table above.  It is published on the fork, so it
+  carries **no host detail** — no home paths, hostnames, ports, or unit names
+  (ADR 0027).
+- **`docs/`** owns depth, in three document types, each answering one question: a
+  **map** (`docs/maps/`) answers "how does this work today", an **ADR**
+  (`docs/decisions/`) "what did we choose and why", a **plan** (`docs/plans/`)
+  "what is left, in what order".  Writing something that answers a different
+  question means it does not need a document.  `docs/specs/` is **retired** — the
+  name invited an essay, and eighteen of them reached 317 KB.  The replacement
+  rules (byte caps, banned ceremony sections, why a plan may point at a map but
+  never restate one) live in `docs/plans/README.md`, enforced by
+  `npm run check:docs`.  Do not invent a fourth type to escape them.
+- **The ignored local `CLAUDE.md`** owns only the host: paths, ports, services,
+  and the deploy loop.  A fact true for anyone who cloned the fork does not
+  belong there.
 
-When you learn something durable, write it to the owner above and route to it — do not
-record it in whichever file you happen to have open.  Repeating a rule that a linter,
-type checker, or test already enforces is not documentation; make the gate executable
-instead.
+Write a durable fact to its owner and route to it, rather than into whichever file
+you happen to have open.  Restating a rule a linter, type checker, or test already
+enforces is not documentation — make the gate executable instead.
 
 ## Safety
 

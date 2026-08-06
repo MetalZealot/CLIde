@@ -9,6 +9,7 @@ CLIde or its provider runtimes change.
 |---|---|---|
 | [Code anchors](code-anchors.md) | Symbol-anchored map of the code worth not blind-reading; the areas where a wrong assumption is expensive | Moved out of the local `CLAUDE.md` 2026-08-04 |
 | [CLIde provider capability map](clide-provider-capability-map.md) | Canonical normalized behavior, implementation state, and provider/runtime bindings | Foundation baseline started 2026-07-30 |
+| [Provider permission and mode surfaces](provider-permission-modes.md) | How Claude and Codex permission concepts actually differ, and which CLIde mode names are false friends | Surveyed against SDK 0.3.217 / Codex 0.144.6 |
 | [Claude Code and Agent SDK map](claude-agent-sdk.md) | Claude-native SDK/CLI/control surface and CLIde destinations | Current through SDK 0.3.165 / runtime 2.1.220 |
 | [Claude upgrade ledger](claude-upgrade-ledger.md) | Compact audit decisions and verification history | Current through 2026-07-30 |
 | [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Current through 0.146.0 |
@@ -37,10 +38,12 @@ Maps are curated current truth. They do not retain every old release delta.
 
 ## What stays elsewhere
 
-- Dated feasibility audits, investigations, and proposed designs stay in
-  [`../specs/`](../specs/).
-- Implementation sequences stay in [`../plans/`](../plans/).
-- Lasting decisions stay in [`../../decisions/`](../../decisions/).
+- Remaining work and implementation sequences stay in [`../plans/`](../plans/),
+  under the caps in [the plan format](../plans/README.md).
+- Lasting decisions stay in [`../decisions/`](../decisions/).
+- `../specs/` is retired; its archive is frozen and not read by default. A dated
+  investigation is either current truth (a map), a decision (an ADR), or work
+  left to do (a plan). It is not a fourth thing.
 - Generated schemas, raw CLI help, and exhaustive diffs remain temporary audit
   artifacts.
 - Git history and compact provider ledgers preserve prior states and decisions.

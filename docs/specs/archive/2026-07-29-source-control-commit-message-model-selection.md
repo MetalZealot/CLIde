@@ -9,7 +9,7 @@ CLI, and App Server 0.146.0.*
 **Ready for a fresh implementation worktree.**
 
 The prerequisite
-[Settings information architecture](archive/2026-07-28-settings-information-architecture.md)
+[Settings information architecture](2026-07-28-settings-information-architecture.md)
 is complete and merged into `main`. This feature adopts its finished
 **Projects & Git** screen, depth-two navigation, settings registry, navigation
 shell, one-scroll-container rule, local save feedback, and shared primitives.
@@ -428,7 +428,7 @@ from the registered `jobs` facet or cover the two with a conformance test so
 the capability matrix cannot drift from the adapter.
 
 This separate facet follows the
-[current provider architecture contract](../maps/CLIde_Provider_Architecture_Current_Contract.md):
+[current provider architecture contract](../../maps/CLIde_Provider_Architecture_Current_Contract.md):
 interactive Chat and small ephemeral jobs have different lifecycle,
 persistence, permission, and transport requirements.
 

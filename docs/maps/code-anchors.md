@@ -48,6 +48,27 @@ touching abort, approval replay, or resume, confirm which id space you are in:
 `server/modules/websocket/tests/chat-session-addressing.test.ts`. See ADRs 0008, 0012,
 0013.
 
+**Known open defect — aborting a new session's *first* message orphans it into two
+sidebar rows.** A fourth, distinct id-mapping bug: not one of ADR 0013's three, not
+ADR 0008's rotation case. `capturedSessionId` is assigned only *inside* the stream loop
+(`claude-runtime.provider.js`, `for await (const message of queryInstance)`), so an
+abort that trips the AbortController before the SDK yields its first message runs zero
+iterations — no `session_created`, `ws.setSessionId` never fires, and
+**`assignProviderSessionId` is never called**. The CLI subprocess has already written
+the jsonl, so the synchronizer correctly indexes it as a second session.
+
+The reconciliation already exists and simply never runs: `assignProviderSessionId`
+(`sessions.db.ts`) merges a watcher-created duplicate into the app row in one
+transaction, covered by `sessions-provider-mapping.test.ts`. **This is a missing-trigger
+bug, not a missing-mechanism one.** Pre-allocating the id is not available — `query()`
+takes `resume` for existing sessions only and `forkSession` *returns* a new UUID — so
+the fix must be reconciliation on teardown: where `capturedSessionId` is still null,
+find a jsonl in the run's project transcript dir created within the run's lifetime that
+no session row claims and no alias tombstones, disambiguate by matching its first `user`
+row against the aborted prompt, and call `assignProviderSessionId`. **If more than one
+candidate matches, do nothing** — that leaves today's behaviour, so an ambiguous case is
+no worse than the status quo.
+
 ## Model picker: catalog and active-model are two systems
 
 The **catalog** (the static list of selectable models) is server-side and hardcoded:
@@ -62,6 +83,17 @@ as opposed to the catalog — is its own subsystem: client `SessionSlot`, server
 several known-open bugs; read the "Model picker follow-ups" section of `docs/TODO.md`
 and ADRs 0003 and 0025 before touching it.
 
+`resolveClaudeModelAlias` (`claude-models.provider.ts`) maps a transcript's model id back
+onto a catalog card by **substring match over alias values**, which works only because
+every current alias (`opus`, `sonnet`, `haiku`, `fable`) is a family name. Two
+consequences to know before adding any non-alias entry: a dated id like
+`claude-opus-4-1-20250805` falls through to the `opus` card — so a session pinned to
+4.1 both displays and can *resume* as Opus 5 — and the first `includes` hit wins, making
+array order load-bearing. Fixing it means exact match, then a `startsWith` test against
+each option's wire ids, then family fallback last, preserving the `[1m]` symmetry check.
+The Shell `/model` prose bug ("Sonnet 4.5 (1M context)" instead of a `[1m]` token) is in
+the same function — fix both in one pass.
+
 ## Frontend
 
 - **`MessageComponent.tsx`** — single memo'd component. Copy-control gating is
@@ -75,6 +107,19 @@ and ADRs 0003 and 0025 before touching it.
 - **Biggest state hooks — reach for these by name** rather than grepping cold:
   `useChatComposerState`, `useProjectsState`, `useSidebarController`,
   `useChatSessionState`, `useSessionStore`, `useGitPanelController`.
+- **Composer picker state is browser-global, not per session** — surveyed 2026-07-26,
+  unchanged since. `useChatProviderState` keys effort as `<provider>-effort` with **no
+  session id**, so it means "the last effort picked in this browser for this provider":
+  changing it in one Codex session changes what every other Codex session displays.
+  Permission mode has two keys, `permissionMode-last-<provider>` and
+  `permissionMode-<app-session-id>`; a mode chosen before the first send has no session
+  id yet, writes only the provider key, and is never promoted when the id arrives — so a
+  later conversation's choice can surface in an earlier one. Settings writes a third,
+  `codex-settings.permissionMode`, which the composer never reads to initialize, despite
+  Settings copy describing it as the value sessions override. None of the three is
+  reconciled against what the provider actually enforced for the turn, so there is no
+  requested-versus-effective distinction anywhere in the UI. Treat all of this as current
+  behaviour to work around, not as a bug already being fixed.
 
 ## Build and layout
 

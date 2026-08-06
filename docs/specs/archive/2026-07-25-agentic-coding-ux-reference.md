@@ -598,14 +598,14 @@ When reviewing a proposed CLIde feature, ask:
 
 ## Related CLIde references
 
-- [Claude Agent SDK surface map](../maps/claude-agent-sdk.md)
-- [Codex CLI and SDK surface map](../maps/codex-cli-sdk-app-server.md)
-- [Provider permission mode map](./2026-07-25-provider-permission-mode-map.md)
-- [Background session notifications](./2026-07-21-background-session-notifications.md)
-- [ADR 0005: mobile bottom navigation](../decisions/0005-mobile-bottom-navbar.md)
-- [ADR 0007: rewind in-place conversation tree](../decisions/0007-rewind-in-place-tree-append.md)
-- [ADR 0011: Codex App Server opt-in](../decisions/0011-codex-app-server-chat-transport.md)
-- [`TODO.md`](../TODO.md)
+- [Claude Agent SDK surface map](../../maps/claude-agent-sdk.md)
+- [Codex CLI and SDK surface map](../../maps/codex-cli-sdk-app-server.md)
+- [Provider permission mode map](../../maps/provider-permission-modes.md)
+- [Background session notifications](2026-07-21-background-session-notifications.md)
+- [ADR 0005: mobile bottom navigation](../../decisions/0005-mobile-bottom-navbar.md)
+- [ADR 0007: rewind in-place conversation tree](../../decisions/0007-rewind-in-place-tree-append.md)
+- [ADR 0011: Codex App Server opt-in](../../decisions/0011-codex-app-server-chat-transport.md)
+- [`TODO.md`](../../TODO.md)
 
 ## Official product sources
 

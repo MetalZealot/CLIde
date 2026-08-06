@@ -4,7 +4,7 @@
 - Status: **Completed and archived 2026-08-04.** Merged, deployed, and closed
   out — see [Closing status](#closing-status--2026-08-04) at the end of this
   document. Remaining work moved to
-  [Post-v1.37 remaining work](../2026-08-04-post-v1-37-remaining-work.md);
+  [Post-v1.37 remaining work](2026-08-04-post-v1-37-remaining-work.md);
   read that, not this. This document is retained as provenance for why the
   synchronization was needed and what it cost.
 - Scope: Record everything added to CLIde `main` after the upstream v1.37
@@ -16,9 +16,9 @@
 - Integration prerequisite:
   [Upstream v1.37.0 integration](2026-07-29-upstream-1-37-integration.md)
 - Post-integration reviews:
-  [Source Control and worktrees](../2026-07-30-post-v1-37-source-control-worktree-review.md)
+  [Source Control and worktrees](2026-07-30-post-v1-37-source-control-worktree-review.md)
   and
-  [WebSocket liveness](../2026-07-30-post-v1-37-websocket-liveness-review.md)
+  [WebSocket liveness](2026-07-30-post-v1-37-websocket-liveness-review.md)
 
 ## Purpose and boundary
 
@@ -401,7 +401,7 @@ is focused-tested, built, isolated-live-verified, accepted, and merged to
 
 ### 1. Source Control and repository-grouped worktrees
 
-[Post-v1.37 Source Control and worktree review](../2026-07-30-post-v1-37-source-control-worktree-review.md)
+[Post-v1.37 Source Control and worktree review](2026-07-30-post-v1-37-source-control-worktree-review.md)
 rejects upstream's Worktrees feature as shipped. The later implementation must
 start from the final integrated Git module and preserve ADR 0016: truthful Git
 state, repository-grouped checkouts, canonical refs, occupancy and self-hosting
@@ -409,7 +409,7 @@ guards, explicit integration targets, and non-destructive defaults.
 
 ### 2. WebSocket liveness
 
-[Post-v1.37 WebSocket liveness review](../2026-07-30-post-v1-37-websocket-liveness-review.md)
+[Post-v1.37 WebSocket liveness review](2026-07-30-post-v1-37-websocket-liveness-review.md)
 will compare the final gateway with ADR 0006. The likely architecture remains
 server protocol Ping/Pong plus a browser-visible application probe. The open
 question is whether the client watchdog should accept any inbound activity or
@@ -417,14 +417,14 @@ require a matched application echo.
 
 ### 3. Source Control commit-message model selection
 
-[Source Control commit-message model selection](../2026-07-29-source-control-commit-message-model-selection.md)
+[Source Control commit-message model selection](2026-07-29-source-control-commit-message-model-selection.md)
 is ready for a fresh implementation worktree, but should use the post-v1.37 Git
 module and panel as its actual baseline. It must remain a provider-neutral,
 ephemeral text job and preserve visible commit/hook errors.
 
 ### 4. MCP scope-storage collision guard
 
-[MCP scope storage collisions](../2026-07-30-mcp-scope-storage-collisions.md)
+[MCP scope storage collisions](2026-07-30-mcp-scope-storage-collisions.md)
 is a focused provider-boundary correction. Re-map its named source paths after
 the v1.37 module migration, then prevent same-file/same-table user/project scope
 aliases without name-deduplicating legitimate entries.
@@ -614,7 +614,7 @@ ids deliberately unequal.
 
 Everything this document was written to coordinate is finished. It is archived
 so it stops being re-read; the leftovers it names live in
-[Post-v1.37 remaining work](../2026-08-04-post-v1-37-remaining-work.md).
+[Post-v1.37 remaining work](2026-08-04-post-v1-37-remaining-work.md).
 
 ### Deployment — done, and the "not deployed" section above is now historical
 
