@@ -209,8 +209,13 @@ cat <<EOF
 
 Ready. From $TARGET:
 
-  npm run build && npm run server    # backend on :$sp
-  npm run dev                        # Vite on :$vp, proxying /api to :$sp
+  npm run build
+  node --env-file=.env.local dist-server/server/index.js   # backend on :$sp
+  npm run dev                                              # Vite on :$vp -> :$sp
 
-Nothing here touches the systemd service on :3001.
+Note the --env-file. Only Vite reads .env.local; the server does not, so a bare
+"npm run server" ignores the SERVER_PORT allocated above and falls back to the
+3001 default -- the port an already-running instance occupies. It will either
+fail to bind or, if that instance is stopped, quietly take its place and write
+to the real database.
 EOF
