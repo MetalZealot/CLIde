@@ -138,7 +138,6 @@ type SidebarContentProps = {
   // Conversation result clicks pass back the DB projectId (or null when the
   // server couldn't resolve it). Consumers must handle the null case.
   onConversationResultClick: (projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => void;
-  onCreateProject: () => void;
   onCollapseSidebar: () => void;
   updateAvailable: boolean;
   restartRequired: boolean;
@@ -176,7 +175,6 @@ export default function SidebarContent({
   onRestoreArchivedSession,
   onDeleteArchivedSession,
   onConversationResultClick,
-  onCreateProject,
   onCollapseSidebar,
   updateAvailable,
   restartRequired,
@@ -216,7 +214,6 @@ export default function SidebarContent({
         onToggleSearchBar={onToggleSearchBar}
         searchMode={searchMode}
         onSearchModeChange={onSearchModeChange}
-        onCreateProject={onCreateProject}
         onCollapseSidebar={onCollapseSidebar}
         t={t}
       />

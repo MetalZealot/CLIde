@@ -30,6 +30,28 @@ export type RepositoryEntry = {
   checkouts: Project[];
 };
 
+export type CreateWorktreeOptions = {
+  /** Any registered checkout of the repository; git resolves the rest. */
+  projectId: string;
+  /** Branch to create along with the tree. */
+  branch: string;
+  /** Absolute destination. Derived beside the repository when omitted. */
+  worktreePath?: string | null;
+  /** Commit-ish the branch starts from. The current HEAD when omitted. */
+  baseRef?: string | null;
+};
+
+/**
+ * `git worktree add` and CLIde's registration of the result are two steps, and
+ * only the first is undoable by the user. A rejected promise means neither
+ * happened; `registrationError` means the tree is on disk and unregistered.
+ */
+export type CreateWorktreeOutcome = {
+  worktreePath: string;
+  project: Project | null;
+  registrationError: string | null;
+};
+
 /** A session paired with the checkout it actually belongs to. */
 export type CheckoutSession = {
   session: SessionWithProvider;
@@ -39,6 +61,14 @@ export type CheckoutSession = {
    * disambiguation, so an ordinary single-checkout project stays uncluttered.
    */
   branchLabel: string | null;
+};
+
+/**
+ * A pinned session as the Pinned section draws it: it has left its repository's
+ * row, so it has to name the repository it came from itself.
+ */
+export type PinnedSession = CheckoutSession & {
+  repositoryName: string;
 };
 
 export type ArchivedProjectListItem = Project & { isArchived: true };
@@ -61,7 +91,13 @@ export type ArchivedSessionListItem = {
 };
 
 export type DeleteProjectConfirmation = {
-  project: Project;
+  /**
+   * Every worktree the action covers. A sidebar row is a repository, so its own
+   * delete covers all of them; the worktree manager confirms one at a time.
+   */
+  projects: Project[];
+  /** What the confirmation names — the row's label, or one worktree's. */
+  displayName: string;
   sessionCount: number;
 };
 

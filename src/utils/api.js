@@ -237,6 +237,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(projectData),
     }),
+  // Branches of a project's repository, for choosing what a new worktree
+  // starts from. Returns { branches, localBranches, remoteBranches }.
+  gitBranches: (projectId) =>
+    authenticatedFetch(`/api/git/branches?project=${encodeURIComponent(projectId)}`),
+  // Runs `git worktree add -b <branch>` in this project's repository, then
+  // registers the new directory so it joins that repository's sidebar row.
+  createWorktree: (projectId, options) => {
+    const { branch, path = null, baseRef = null } = options || {};
+    return authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/worktrees`, {
+      method: 'POST',
+      body: JSON.stringify({ branch, path, baseRef }),
+    });
+  },
   migrateLegacyProjectStars: (projectIds) =>
     authenticatedFetch('/api/projects/migrate-legacy-stars', {
       method: 'POST',

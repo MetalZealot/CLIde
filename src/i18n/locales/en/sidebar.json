@@ -15,12 +15,12 @@
     "codexSession": "Codex Session",
     "fetchingProjects": "Fetching your Claude projects and sessions",
     "projects": "projects",
-    "repositoryCheckouts_one": "{{count}} checkout",
-    "repositoryCheckouts_other": "{{count}} checkouts",
+    "repositoryCheckouts_one": "{{count}} worktree",
+    "repositoryCheckouts_other": "{{count}} worktrees",
     "noMatchingProjects": "No matching projects",
     "tryDifferentSearch": "Try adjusting your search term",
     "runClaudeCli": "Run Claude CLI in a project directory to get started",
-    "pinned": "Pinned"
+    "noMatchingSessions": "No matching sessions"
   },
   "app": {
     "title": "CLIde",
@@ -109,6 +109,7 @@
     "renameSessionError": "Error renaming session. Please try again.",
     "deleteProjectFailed": "Failed to remove project. Please try again.",
     "deleteProjectError": "Error removing project. Please try again.",
+    "deleteProjectsPartial": "Removed {{removed}}. Failed on {{failed}}:",
     "createProjectFailed": "Failed to create project. Please try again.",
     "createProjectError": "Error creating project. Please try again.",
     "updateProjectError": "Error updating project. Please try again.",
@@ -116,7 +117,9 @@
     "restoreProjectFailed": "Failed to restore project. Please try again.",
     "restoreProjectError": "Error restoring project. Please try again.",
     "restoreSessionFailed": "Failed to restore session. Please try again.",
-    "restoreSessionError": "Error restoring session. Please try again."
+    "restoreSessionError": "Error restoring session. Please try again.",
+    "renameProjectFailed": "Failed to rename project",
+    "createWorktreeFailed": "Failed to create worktree"
   },
   "version": {
     "updateAvailable": "Update available",
@@ -125,7 +128,8 @@
   "search": {
     "modeProjects": "Projects",
     "modeConversations": "Sessions",
-    "conversationsPlaceholder": "Search sessions...",
+    "sessionsPlaceholder": "Search session names...",
+    "conversationsPlaceholder": "Search inside messages...",
     "searching": "Searching...",
     "noResults": "No results found",
     "tryDifferentQuery": "Try a different search query",
@@ -143,6 +147,24 @@
     "removeFromSidebar": "Remove from sidebar only",
     "deleteAllData": "Delete all data permanently",
     "allConversationsDeleted": "The project will be removed from the sidebar. Your files, memories, and session data will be preserved.",
-    "cannotUndo": "You can re-add the project later."
+    "cannotUndo": "You can re-add the project later.",
+    "worktreeScope_one": "This covers the 1 worktree registered for this repository. Its directory stays on disk.",
+    "worktreeScope_other": "This covers all {{count}} worktrees registered for this repository. Their directories stay on disk."
+  },
+  "worktrees": {
+    "title": "Worktrees",
+    "main": "main",
+    "new": "New Worktree",
+    "create": "Create worktree",
+    "remove": "Remove from CLIde",
+    "branchLabel": "New branch",
+    "branchPlaceholder": "feature/my-change",
+    "baseLabel": "Start from",
+    "baseCurrent": "Current — {{branch}}",
+    "baseLocal": "Local branches",
+    "baseRemote": "Remote-only branches",
+    "createHint": "Creates the branch and a worktree beside the repository, then adds it here.",
+    "scopeNotice": "Archive and Remove only change what CLIde tracks. The worktree stays on disk — use `git worktree remove` to delete it.",
+    "createdButUnregistered": "The worktree was created at {{path}}, but CLIde could not add it: {{reason}}"
   }
 }

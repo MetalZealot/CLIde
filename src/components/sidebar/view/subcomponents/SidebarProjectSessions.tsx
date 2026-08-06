@@ -1,7 +1,8 @@
+import { useRef } from 'react';
 import { Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button } from '../../../../shared/view/ui';
+import { Button, anchorFromElement } from '../../../../shared/view/ui';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { CheckoutSession, RepositoryEntry, SessionWithProvider } from '../../types/types';
@@ -39,6 +40,8 @@ type SidebarProjectSessionsProps = {
   visibleSessionCount: number;
   onShowMoreSessions: (entry: RepositoryEntry, loadedCount: number) => void;
   onNewSession: (project: Project) => void;
+  /** Asks which worktree to start in; only reached when there is a choice. */
+  onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
   t: TFunction;
@@ -94,10 +97,14 @@ export default function SidebarProjectSessions({
   visibleSessionCount,
   onShowMoreSessions,
   onNewSession,
+  onNewSessionMenu,
   onLongPressSessionMenu,
   activeContextMenuKey,
   t,
 }: SidebarProjectSessionsProps) {
+  const mobileNewSessionRef = useRef<HTMLButtonElement>(null);
+  const desktopNewSessionRef = useRef<HTMLButtonElement>(null);
+
   if (!isExpanded) {
     return null;
   }
@@ -107,19 +114,34 @@ export default function SidebarProjectSessions({
   // More to show if this row is holding sessions back, or if the server still
   // has some it has not sent.
   const canShowMore = sessions.length > visibleSessions.length || hasMoreSessions;
-  // A new session has to land in exactly one working tree; the lead checkout is
-  // the only non-arbitrary choice. Long-pressing the row reaches the others.
-  const newSessionTarget = entry.leadCheckout;
 
+  /**
+   * A new session has to land in exactly one worktree, so when the row covers
+   * several the button asks which — picking for them would silently run the
+   * session against the wrong branch. With one worktree there is no question to
+   * put, so it starts straight away.
+   */
+  const startNewSession = (anchorElement: HTMLElement | null) => {
+    if (entry.checkouts.length > 1 && onNewSessionMenu) {
+      const rect = anchorElement?.getBoundingClientRect();
+      onNewSessionMenu(entry, anchorFromElement(anchorElement, { x: rect?.left ?? 0, y: rect?.bottom ?? 0 }));
+      return;
+    }
+
+    onProjectSelect(entry.leadCheckout);
+    onNewSession(entry.leadCheckout);
+  };
+
+  // The rail marks the list as belonging to the row above it, and that is all
+  // the indent it needs: each session already carries a provider logo, which
+  // sets its text in from the left on its own.
   return (
-    <div className="ml-3 space-y-1 border-l border-border pl-3">
-      <div className="px-3 pb-1 pt-1 md:hidden">
+    <div className="ml-2 space-y-1 border-l border-border pl-1">
+      <div className="px-1 pb-1 pt-1 md:hidden">
         <button
+          ref={mobileNewSessionRef}
           className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
-          onClick={() => {
-            onProjectSelect(newSessionTarget);
-            onNewSession(newSessionTarget);
-          }}
+          onClick={() => startNewSession(mobileNewSessionRef.current)}
         >
           <Plus className="h-3 w-3" />
           {t('sessions.newSession')}
@@ -127,10 +149,11 @@ export default function SidebarProjectSessions({
       </div>
 
       <Button
+        ref={desktopNewSessionRef}
         variant="default"
         size="sm"
         className="hidden h-8 w-full justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 md:flex"
-        onClick={() => onNewSession(newSessionTarget)}
+        onClick={() => startNewSession(desktopNewSessionRef.current)}
       >
         <Plus className="h-3 w-3" />
         {t('sessions.newSession')}

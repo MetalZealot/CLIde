@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Activity, Archive, FolderPlus, MessageSquare, Plus, Search, X, PanelLeftClose } from 'lucide-react';
+import { Activity, Archive, MessageSquare, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, Input, Tooltip } from '../../../../shared/view/ui';
@@ -29,7 +29,6 @@ type SidebarHeaderProps = {
   onToggleSearchBar: () => void;
   searchMode: SidebarSearchMode;
   onSearchModeChange: (mode: SidebarSearchMode) => void;
-  onCreateProject: () => void;
   onCollapseSidebar: () => void;
   t: TFunction;
 };
@@ -49,7 +48,6 @@ export default function SidebarHeader({
   onToggleSearchBar,
   searchMode,
   onSearchModeChange,
-  onCreateProject,
   onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
@@ -64,13 +62,15 @@ export default function SidebarHeader({
     }
   }, [isSearchBarOpen]);
 
+  // Every mode searches sessions now — the sidebar's short list of
+  // repositories was never the thing worth searching for.
   const searchPlaceholder = searchMode === 'conversations'
     ? t('search.conversationsPlaceholder')
     : searchMode === 'archived'
       ? t('search.archivedPlaceholder', 'Search archived sessions...')
       : searchMode === 'running'
         ? t('search.runningPlaceholder', 'Search running sessions...')
-        : t('projects.searchPlaceholder');
+        : t('search.sessionsPlaceholder', 'Search session names...');
   const runningBadgeText = runningSessionsCount > 99 ? '99+' : String(runningSessionsCount);
 
   /**
@@ -84,11 +84,18 @@ export default function SidebarHeader({
 
   const isContentSearch = searchMode === 'conversations';
   // Full-text search across transcripts used to be a permanent tab. It is a
-  // search refinement, not a place, so it now hangs off the query itself.
+  // search refinement, not a place, so it now hangs off the query itself: the
+  // plain query matches session names, this reaches into their messages.
   const canSearchContents =
     isSearchBarOpen && searchFilter.trim().length >= MIN_CONTENT_SEARCH_LENGTH;
 
-  const LogoBlock = () => (
+  /*
+    These are render functions, not components declared in the body.
+    A component declared here is a new type on every render, so React would
+    unmount and remount the search input on each keystroke — which blurs it and
+    dismisses the on-screen keyboard.
+  */
+  const renderLogoBlock = () => (
     <div className="flex min-w-0 items-center gap-2.5">
       <div
         aria-hidden
@@ -114,10 +121,10 @@ export default function SidebarHeader({
   );
 
   /**
-   * Search, Running and Archive sit on the title row beside New Project, so the
-   * list starts one row higher than it did with the segmented control.
+   * Search, Running and Archive sit on the title row, so the list starts one
+   * row higher than it did with the segmented control.
    */
-  const HeaderTools = ({ compact }: { compact: boolean }) => {
+  const renderHeaderTools = (compact: boolean) => {
     const buttonSize = compact ? 'h-8 w-8' : 'h-7 w-7';
     const iconSize = compact ? 'h-4 w-4' : 'h-3.5 w-3.5';
     const toolClass = (isActive: boolean) =>
@@ -178,42 +185,27 @@ export default function SidebarHeader({
           </>
         )}
 
-        {compact ? (
-          <button
-            type="button"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 text-primary-foreground transition-all active:scale-95"
-            onClick={onCreateProject}
-            aria-label={t('tooltips.createProject')}
+        {/*
+          Creating a project is not a header action: it belongs at the end of
+          the list it adds to, where the eye already is once you have read
+          through the projects and not found the one you wanted.
+        */}
+        {!compact && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+            onClick={onCollapseSidebar}
+            title={t('tooltips.hideSidebar')}
           >
-            <FolderPlus className="h-4 w-4" />
-          </button>
-        ) : (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
-              onClick={onCreateProject}
-              title={t('tooltips.createProject')}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
-              onClick={onCollapseSidebar}
-              title={t('tooltips.hideSidebar')}
-            >
-              <PanelLeftClose className="h-3.5 w-3.5" />
-            </Button>
-          </>
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </Button>
         )}
       </div>
     );
   };
 
-  const ContentSearchToggle = () =>
+  const renderContentSearchToggle = () =>
     canSearchContents ? (
       <button
         type="button"
@@ -229,13 +221,13 @@ export default function SidebarHeader({
         <MessageSquare className="h-3 w-3 flex-shrink-0" />
         <span className="truncate">
           {isContentSearch
-            ? t('search.backToProjects', 'Search project names instead')
+            ? t('search.backToSessionNames', 'Search session names instead')
             : t('search.searchContents', 'Search inside messages')}
         </span>
       </button>
     ) : null;
 
-  const SearchInput = ({ compact }: { compact: boolean }) => (
+  const renderSearchInput = (compact: boolean) => (
     <div className="relative">
       <Search
         className={cn(
@@ -288,19 +280,19 @@ export default function SidebarHeader({
               className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
               title={t('tooltips.viewEnvironments')}
             >
-              <LogoBlock />
+              {renderLogoBlock()}
             </a>
           ) : (
-            <LogoBlock />
+            renderLogoBlock()
           )}
 
-          <HeaderTools compact={false} />
+          {renderHeaderTools(false)}
         </div>
 
         {isSearchBarOpen && showSearchTools && (
           <div className="mt-2.5 space-y-1">
-            <SearchInput compact={false} />
-            <ContentSearchToggle />
+            {renderSearchInput(false)}
+            {renderContentSearchToggle()}
           </div>
         )}
       </div>
@@ -324,19 +316,19 @@ export default function SidebarHeader({
               className="flex min-w-0 items-center gap-2.5 transition-opacity active:opacity-70"
               title={t('tooltips.viewEnvironments')}
             >
-              <LogoBlock />
+              {renderLogoBlock()}
             </a>
           ) : (
-            <LogoBlock />
+            renderLogoBlock()
           )}
 
-          <HeaderTools compact />
+          {renderHeaderTools(true)}
         </div>
 
         {isSearchBarOpen && showSearchTools && (
           <div className="mt-2.5 space-y-1">
-            <SearchInput compact />
-            <ContentSearchToggle />
+            {renderSearchInput(true)}
+            {renderContentSearchToggle()}
           </div>
         )}
       </div>

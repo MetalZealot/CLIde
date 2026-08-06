@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, GitBranch, Pencil, Plus, Pin, Trash2 } from 'lucide-react';
+import { Archive, Copy, GitBranch, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -17,13 +17,14 @@ import type {
   SessionWithProvider,
 } from '../types/types';
 import type { ContextMenuAnchor } from '../../../shared/view/ui';
-import { getCheckoutRefLabel, getSessionName, repositoryEntryKey } from '../utils/utils';
+import { getCheckoutRefLabel, getSessionName } from '../utils/utils';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
 import SidebarContextMenu, { type SidebarContextMenuItem } from './subcomponents/SidebarContextMenu';
+import WorktreeManagerModal from './subcomponents/WorktreeManagerModal';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
 
 type TaskMasterSidebarContext = {
@@ -92,18 +93,16 @@ function Sidebar({
     showVersionModal,
     filteredProjects,
     repositoryEntries,
+    pinnedSessions,
+    isPinnedSectionCollapsed,
+    togglePinnedSection,
+    isSessionSearchActive,
     archivedProjects,
     archivedSessions,
     archivedSessionsCount,
     isArchivedSessionsLoading,
     toggleProject,
     handleSessionClick,
-    toggleStarProject,
-    toggleStarRepository,
-    isProjectStarred,
-    isRepositoryStarred,
-    isPinnedSectionCollapsed,
-    togglePinnedSection,
     getProjectSessions,
     getRepositorySessions,
     loadingMoreProjects,
@@ -117,6 +116,10 @@ function Sidebar({
     archiveSessionDirect,
     toggleStarSession,
     requestProjectDelete,
+    requestRepositoryDelete,
+    archiveProjects,
+    renameProjectDirect,
+    createWorktree,
     confirmDeleteProject,
     handleProjectSelect,
     openArchivedSession,
@@ -168,35 +171,44 @@ function Sidebar({
 
   type SidebarMenuState =
     | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor }
-    // Checkout picker for a row that merges several working trees; choosing one
-    // replaces this state with the `project` menu for that checkout.
+    // The row's own actions: repository-scoped, plus the way into the worktree
+    // manager. Not a worktree picker — that step used to stand between the user
+    // and every action on the row.
     | { kind: 'repository'; entry: RepositoryEntry; anchor: ContextMenuAnchor }
-    | { kind: 'project'; project: Project; anchor: ContextMenuAnchor };
+    // Which worktree a new session should start in, asked only when the row
+    // covers more than one (ADR 0016).
+    | { kind: 'new-session'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
   const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
+  const [worktreeManagerEntry, setWorktreeManagerEntry] = useState<RepositoryEntry | null>(null);
 
   const handleLongPressSessionMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'session', session, anchor });
   };
-  // Flattening the checkouts into one row took their individual action targets
-  // with it, so a merged row asks which checkout first (ADR 0016).
-  const handleLongPressProjectMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
-    if (entry.checkouts.length > 1) {
-      setContextMenu({ kind: 'repository', entry, anchor });
-      return;
-    }
 
-    setContextMenu({ kind: 'project', project: entry.leadCheckout, anchor });
+  const handleLongPressProjectMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
+    setContextMenu({ kind: 'repository', entry, anchor });
   };
 
+  const handleNewSessionMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
+    setContextMenu({ kind: 'new-session', entry, anchor });
+  };
+
+  /**
+   * The open manager follows the live entry rather than the one captured when
+   * it opened, so creating or removing a worktree updates the list in place.
+   */
+  const activeWorktreeEntry = worktreeManagerEntry
+    ? repositoryEntries.find(
+        (entry) => entry.key === worktreeManagerEntry.key && entry.repositoryId !== null,
+      ) ?? null
+    : null;
+
   // Lets the row that owns the open menu stay highlighted, so it's clear which
-  // repository/session the actions apply to. Keyed by row, so drilling into a
-  // checkout keeps its repository's row lit.
+  // repository/session the actions apply to.
   const activeContextMenuKey = contextMenu
     ? contextMenu.kind === 'session'
       ? `session:${contextMenu.session.id}`
-      : contextMenu.kind === 'repository'
-        ? `project:${contextMenu.entry.key}`
-        : `project:${repositoryEntryKey(contextMenu.project)}`
+      : `project:${contextMenu.entry.key}`
     : null;
 
   const contextMenuItems = useMemo<SidebarContextMenuItem[]>(() => {
@@ -258,51 +270,58 @@ function Sidebar({
       ];
     }
 
-    if (contextMenu.kind === 'repository') {
-      const { entry, anchor } = contextMenu;
+    if (contextMenu.kind === 'new-session') {
+      const { entry } = contextMenu;
       return entry.checkouts.map((checkout) => ({
         key: `checkout:${checkout.projectId}`,
-        // The branch is what tells two checkouts of one repository apart; the
+        // The branch is what tells two worktrees of one repository apart; the
         // directory name is the fallback when HEAD is detached or unreadable.
         label: getCheckoutRefLabel(checkout) ?? checkout.displayName ?? checkout.projectId,
         icon: GitBranch,
-        keepOpen: true,
-        onSelect: () => setContextMenu({ kind: 'project', project: checkout, anchor }),
+        onSelect: () => {
+          handleProjectSelect(checkout);
+          onNewSession(checkout);
+        },
       }));
     }
 
-    const { project } = contextMenu;
-    const isStarred = isProjectStarred(project.projectId);
+    const { entry } = contextMenu;
     return [
       {
-        // Reachable only from this menu once checkouts share a row, so it is
-        // the sole way to start a session on a specific worktree.
-        key: 'new-session',
-        label: t('sessions.newSession'),
-        icon: Plus,
-        onSelect: () => {
-          handleProjectSelect(project);
-          onNewSession(project);
-        },
-      },
-      {
-        key: 'star',
-        label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
-        icon: Pin,
-        onSelect: () => toggleStarProject(project.projectId),
-      },
-      {
+        // Renaming relabels the row, which is the lead worktree's display name.
+        // Renaming a *particular* worktree is a job for the manager below.
         key: 'rename',
         label: t('actions.rename'),
         icon: Pencil,
-        onSelect: () => startEditing(project),
+        onSelect: () => startEditing(entry.leadCheckout),
+      },
+      // Offered only for an actual git checkout root. A plain folder project has
+      // no repository to add a worktree to, and the manager's create form would
+      // only fail server-side with "Not a git repository".
+      ...(entry.repositoryId
+        ? [
+            {
+              key: 'worktrees',
+              label: t('worktrees.title', 'Worktrees'),
+              icon: TreeDeciduous,
+              onSelect: () => setWorktreeManagerEntry(entry),
+            },
+          ]
+        : []),
+      {
+        // Reversible from the Archive view, so it needs no confirmation of its
+        // own — unlike Delete, which opens the modal.
+        key: 'archive',
+        label: t('actions.archive', 'Archive'),
+        icon: Archive,
+        onSelect: () => archiveProjects(entry.checkouts),
       },
       {
         key: 'delete',
         label: t('actions.delete'),
         icon: Trash2,
         isDanger: true,
-        onSelect: () => requestProjectDelete(project),
+        onSelect: () => requestRepositoryDelete(entry),
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -312,6 +331,9 @@ function Sidebar({
     projects,
     filteredProjects,
     repositoryEntries,
+    pinnedSessions,
+    isPinnedSectionCollapsed,
+    onTogglePinnedSection: togglePinnedSection,
     selectedProject,
     selectedSession,
     isLoading,
@@ -331,25 +353,25 @@ function Sidebar({
     activeSessions,
     attentionSessionIds,
     unreadSessionIds,
-    forceExpanded: searchMode === 'running',
-    isRepositoryStarred,
-    isPinnedSectionCollapsed,
-    onTogglePinnedSection: togglePinnedSection,
+    // A search narrows each row to its matching sessions, so the rows have to
+    // open to show them; running mode does the same for the same reason.
+    forceExpanded: searchMode === 'running' || isSessionSearchActive,
     onEditingNameChange: setEditingName,
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
-    onToggleStarProject: toggleStarRepository,
     onStartEditingProject: startEditing,
     onCancelEditingProject: cancelEditing,
     onSaveProjectName: (projectName) => {
       void saveProjectName(projectName);
     },
-    onDeleteProject: requestProjectDelete,
+    onDeleteRepository: requestRepositoryDelete,
     onSessionSelect: handleSessionClick,
     onDeleteSession: showDeleteSessionConfirmation,
     getVisibleSessionCount,
     onShowMoreSessions: showMoreSessions,
     onNewSession,
+    onNewSessionMenu: handleNewSessionMenu,
+    onCreateProject: () => setShowNewProject(true),
     onEditingSessionNameChange: setEditingSessionName,
     onStartEditingSession: (sessionId, initialName) => {
       setEditingSession(sessionId);
@@ -375,6 +397,19 @@ function Sidebar({
             anchor={contextMenu.anchor}
             items={contextMenuItems}
             onClose={() => setContextMenu(null)}
+          />
+        )}
+
+        {activeWorktreeEntry && (
+          <WorktreeManagerModal
+            entry={activeWorktreeEntry}
+            onClose={() => setWorktreeManagerEntry(null)}
+            onRenameWorktree={renameProjectDirect}
+            onArchiveWorktree={(project) => archiveProjects([project])}
+            onRemoveWorktree={requestProjectDelete}
+            onCreateWorktree={createWorktree}
+            onOpenWorktree={handleProjectSelect}
+            t={t}
           />
         )}
 
@@ -474,7 +509,6 @@ function Sidebar({
                 handleSessionClick(sessionObj, projectId ?? '');
               }
             }}
-            onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
             updateAvailable={updateAvailable}
             restartRequired={restartRequired}

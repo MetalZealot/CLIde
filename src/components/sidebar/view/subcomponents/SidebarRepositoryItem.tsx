@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, Pin, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, TreeDeciduous, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -24,7 +24,6 @@ type SidebarRepositoryItemProps = {
   selectedSession: ProjectSession | null;
   isExpanded: boolean;
   isDeleting: boolean;
-  isStarred: boolean;
   editingProject: string | null;
   editingName: string;
   sessions: CheckoutSession[];
@@ -38,11 +37,10 @@ type SidebarRepositoryItemProps = {
   onEditingNameChange: (name: string) => void;
   onToggleProject: (entryKey: string) => void;
   onProjectSelect: (project: Project) => void;
-  onToggleStarProject: (entry: RepositoryEntry) => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
-  onDeleteProject: (project: Project) => void;
+  onDeleteRepository: (entry: RepositoryEntry) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
     projectName: string,
@@ -56,6 +54,7 @@ type SidebarRepositoryItemProps = {
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   onNewSession: (project: Project) => void;
+  onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
@@ -70,15 +69,25 @@ type SidebarRepositoryItemProps = {
  * Total across every checkout the row covers, so the count still matches the
  * list it opens. `sessionMeta.total` is the server's count including sessions
  * not yet paginated in.
+ *
+ * Pinned sessions are subtracted: they were moved into the Pinned section, and
+ * counting them here would promise rows the list no longer holds. Counting them
+ * off the loaded page is exact, because the server orders `isStarred DESC` and
+ * so never leaves a pinned session behind pagination.
  */
 const getSessionCountDisplay = (entry: RepositoryEntry, sessions: CheckoutSession[]): number => {
   const hasServerTotals = entry.checkouts.some(
     (checkout) => typeof checkout.sessionMeta?.total === 'number',
   );
 
-  return hasServerTotals
-    ? entry.checkouts.reduce((total, checkout) => total + Number(checkout.sessionMeta?.total ?? 0), 0)
-    : sessions.length;
+  if (!hasServerTotals) {
+    return sessions.length;
+  }
+
+  return entry.checkouts.reduce((total, checkout) => {
+    const pinnedCount = (checkout.sessions ?? []).filter((session) => session.isStarred).length;
+    return total + Number(checkout.sessionMeta?.total ?? 0) - pinnedCount;
+  }, 0);
 };
 
 /**
@@ -96,7 +105,6 @@ export default function SidebarRepositoryItem({
   selectedSession,
   isExpanded,
   isDeleting,
-  isStarred,
   editingProject,
   editingName,
   sessions,
@@ -110,11 +118,10 @@ export default function SidebarRepositoryItem({
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
-  onToggleStarProject,
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
-  onDeleteProject,
+  onDeleteRepository,
   onSessionSelect,
   onDeleteSession,
   visibleSessionCount,
@@ -123,6 +130,7 @@ export default function SidebarRepositoryItem({
   unreadSessionIds,
   attentionSessionIds,
   onNewSession,
+  onNewSessionMenu,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
@@ -132,8 +140,9 @@ export default function SidebarRepositoryItem({
   activeContextMenuKey,
   t,
 }: SidebarRepositoryItemProps) {
-  // Repository-scoped actions (rename, delete, new session, task status) act on
-  // the lead checkout — the main working tree when it is registered.
+  // Rename and task status act on the lead checkout — the main working tree
+  // when it is registered. Delete covers the whole repository, because the row
+  // is the repository and would otherwise leave its other worktrees stranded.
   const project = entry.leadCheckout;
   const isMerged = entry.checkouts.length > 1;
   // Any checkout being current lights the row, since they share it.
@@ -147,8 +156,15 @@ export default function SidebarRepositoryItem({
   // A merged row names its checkouts instead of a branch: it has several, and
   // each session below already carries the one it belongs to.
   const rowSubtitle = isMerged
-    ? t('projects.repositoryCheckouts', { count: entry.checkouts.length })
+    ? t('projects.repositoryCheckouts', {
+        count: entry.checkouts.length,
+        defaultValue_one: '{{count}} worktree',
+        defaultValue: '{{count}} worktrees',
+      })
     : getCheckoutRefLabel(project);
+  // ADR 0016: a branch and a checkout never share an icon. The subtitle is a
+  // branch only on an unmerged row; on a merged one it counts worktrees.
+  const RowSubtitleIcon = isMerged ? TreeDeciduous : GitBranch;
   // Surface a collapsed row from its loaded sessions: amber if any child is
   // blocked on the user, else green if any child has unread finished output.
   // (Sessions not yet paginated in can't be mapped here; they light up once the
@@ -181,7 +197,6 @@ export default function SidebarRepositoryItem({
   }, [isEditing]);
 
   const toggleProject = () => onToggleProject(entry.key);
-  const toggleStarProject = () => onToggleStarProject(entry);
   // Anchor the menu to the row's box, not the finger, so it opens attached to
   // the repository it acts on.
   const mobileRowRef = useRef<HTMLDivElement>(null);
@@ -264,9 +279,6 @@ export default function SidebarRepositoryItem({
                     <>
                       <div className="flex min-w-0 flex-1 items-center justify-between">
                         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                          {isStarred && (
-                            <Pin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-                          )}
                           <h3 className="truncate text-sm font-normal text-foreground">{entry.displayName}</h3>
                         </div>
                         {tasksEnabled && (
@@ -281,7 +293,7 @@ export default function SidebarRepositoryItem({
                         <span className="flex-shrink-0">{sessionCountLabel}</span>
                         {rowSubtitle && (
                           <>
-                            <GitBranch className="h-3 w-3 flex-shrink-0 opacity-60" />
+                            <RowSubtitleIcon className="h-3 w-3 flex-shrink-0 opacity-60" />
                             <span className="truncate" title={rowSubtitle}>
                               {rowSubtitle}
                             </span>
@@ -343,28 +355,6 @@ export default function SidebarRepositoryItem({
           onClick={selectAndToggleProject}
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div
-              className={cn(
-                'w-6 h-6 flex items-center justify-center rounded cursor-pointer transition-all duration-200',
-                isStarred
-                  ? 'hover:bg-accent'
-                  : 'opacity-40 hover:opacity-100 hover:bg-accent',
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleStarProject();
-              }}
-              title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
-            >
-              <Pin
-                className={cn(
-                  'w-3 h-3 transition-colors',
-                  isStarred
-                    ? 'text-primary'
-                    : 'text-muted-foreground',
-                )}
-              />
-            </div>
             <div className="min-w-0 flex-1 text-left">
               {isEditing ? (
                 <div className="space-y-1">
@@ -400,7 +390,7 @@ export default function SidebarRepositoryItem({
                       // identifier than the path — none of the reference clients
                       // in `docs/ui ref/` show a filesystem path at all.
                       <>
-                        <GitBranch className="h-3 w-3 flex-shrink-0 opacity-60" />
+                        <RowSubtitleIcon className="h-3 w-3 flex-shrink-0 opacity-60" />
                         <span className="truncate opacity-80" title={`${rowSubtitle} — ${project.fullPath}`}>
                           {rowSubtitle}
                         </span>
@@ -457,7 +447,7 @@ export default function SidebarRepositoryItem({
                   className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
                   onClick={(event) => {
                     event.stopPropagation();
-                    onDeleteProject(project);
+                    onDeleteRepository(entry);
                   }}
                   title={t('tooltips.deleteProject')}
                 >
@@ -498,6 +488,7 @@ export default function SidebarRepositoryItem({
         visibleSessionCount={visibleSessionCount}
         onShowMoreSessions={onShowMoreSessions}
         onNewSession={onNewSession}
+        onNewSessionMenu={onNewSessionMenu}
         onLongPressSessionMenu={onLongPressSessionMenu}
         activeContextMenuKey={activeContextMenuKey}
         t={t}

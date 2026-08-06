@@ -21,7 +21,7 @@ type CreateProjectDependencies = {
   getProjectByPath: (projectPath: string) => ProjectRepositoryRow | null;
 };
 
-type ProjectApiView = {
+export type ProjectApiView = {
   projectId: string;
   path: string;
   fullPath: string;

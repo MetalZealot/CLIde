@@ -1,12 +1,14 @@
 import express from 'express';
 
-import { createProject, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
+import { createProject, updateProjectDisplayName, type ProjectApiView } from '@/modules/projects/services/project-management.service.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
+import { createRepositoryWorktree } from '@/modules/projects/services/worktree.service.js';
+import { projectsDb } from '@/modules/database/index.js';
 
 const router = express.Router();
 
@@ -244,6 +246,72 @@ router.post(
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const { isStarred } = toggleProjectStar(projectId);
     res.json({ success: true, isStarred });
+  }),
+);
+
+/**
+ * Adds a linked worktree to the repository this project belongs to, then
+ * registers it as a project so it joins that repository's sidebar row.
+ *
+ * The two steps are reported separately: the worktree exists on disk once git
+ * succeeds, so a failure to register it is not a failure to create it.
+ */
+router.post(
+  '/:projectId/worktrees',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const projectPath = projectsDb.getProjectPathById(projectId);
+    if (!projectPath) {
+      throw new AppError('Project not found', {
+        code: 'PROJECT_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const requestBody = req.body as Record<string, unknown>;
+    const branch = typeof requestBody.branch === 'string' ? requestBody.branch : '';
+    if (!branch.trim()) {
+      throw new AppError('branch is required', {
+        code: 'BRANCH_REQUIRED',
+        statusCode: 400,
+      });
+    }
+
+    const worktree = await createRepositoryWorktree({
+      repositoryProjectPath: projectPath,
+      branch,
+      worktreePath: typeof requestBody.path === 'string' ? requestBody.path : null,
+      baseRef: typeof requestBody.baseRef === 'string' ? requestBody.baseRef : null,
+    });
+
+    // Past this point the worktree exists on disk, so nothing below may throw:
+    // an error response would report a failure that did not happen and leave
+    // the directory behind with nothing in the UI naming it. The registration
+    // outcome rides on a successful response instead.
+    let project: ProjectApiView | null = null;
+    let registrationError: string | null = null;
+
+    try {
+      const projectCreationResult = await createProject({
+        projectPath: worktree.worktreePath,
+        customName: typeof requestBody.customName === 'string' ? requestBody.customName : null,
+      });
+      project = projectCreationResult.project;
+    } catch (error) {
+      const details = error instanceof AppError && typeof error.details === 'string' ? error.details : '';
+      registrationError =
+        details
+        || (error instanceof Error ? error.message : 'Failed to register the new worktree as a project');
+    }
+
+    res.json(
+      createApiSuccessResponse({
+        worktreePath: worktree.worktreePath,
+        branch: worktree.branch,
+        project,
+        registrationError,
+      }),
+    );
   }),
 );
 

@@ -5,7 +5,9 @@ import type { Project, ProjectSession } from '../../../types/app';
 
 import {
   buildRepositoryEntries,
-  filterProjects,
+  collectPinnedSessions,
+  filterProjectsBySessionTitle,
+  getUnpinnedCheckoutSessions,
   isMainCheckout,
   mergeCheckoutSessions,
   repositoryEntryKey,
@@ -31,7 +33,7 @@ const mainCheckout = project({
   fullPath: '/home/user/Projects/cloudcli',
   repositoryId: CLOUDCLI_REPO,
   branch: 'main',
-  sessions: [session('s-main-old', '2026-08-01T10:00:00Z')],
+  sessions: [session('s-main-old', '2026-08-01T10:00:00Z', { summary: 'Review the merge plan' })],
 });
 
 const worktreeA = project({
@@ -40,7 +42,7 @@ const worktreeA = project({
   fullPath: '/home/user/Projects/cloudcli-wt-tts',
   repositoryId: CLOUDCLI_REPO,
   branch: 'feature/tts-and-stt',
-  sessions: [session('s-tts-new', '2026-08-04T10:00:00Z')],
+  sessions: [session('s-tts-new', '2026-08-04T10:00:00Z', { summary: 'Wire up speech playback' })],
 });
 
 const worktreeB = project({
@@ -49,7 +51,7 @@ const worktreeB = project({
   fullPath: '/home/user/Projects/cloudcli-wt-codex',
   repositoryId: CLOUDCLI_REPO,
   branch: 'test/codex',
-  sessions: [session('s-codex-mid', '2026-08-02T10:00:00Z')],
+  sessions: [session('s-codex-mid', '2026-08-02T10:00:00Z', { summary: 'Codex parity review' })],
 });
 
 const soloRepository = project({
@@ -120,7 +122,9 @@ test('the row key never depends on which checkouts survive a filter', () => {
   // The regression guarded here: deriving the key from the visible list would
   // re-key a repository whose siblings are filtered out, collapsing an open row.
   const everything = buildRepositoryEntries([mainCheckout, worktreeA, worktreeB]);
-  const narrowed = buildRepositoryEntries(filterProjects([mainCheckout, worktreeA, worktreeB], 'tts'));
+  const narrowed = buildRepositoryEntries(
+    filterProjectsBySessionTitle([mainCheckout, worktreeA, worktreeB], 'speech'),
+  );
 
   assert.equal(everything[0].key, narrowed[0].key);
   assert.equal(repositoryEntryKey(worktreeA), CLOUDCLI_REPO);
@@ -188,8 +192,64 @@ test('starred sessions lead the merged list regardless of checkout', () => {
   assert.equal(merged[0].session.id, 's-starred');
 });
 
-test('projects are searchable by branch', () => {
-  const matches = filterProjects([mainCheckout, worktreeA, worktreeB], 'tts-and-stt');
+test('a pinned session leaves its row and is listed once, in Pinned', () => {
+  const starredInWorktree = project({
+    ...worktreeB,
+    sessions: [session('s-starred', '2026-07-01T10:00:00Z', { isStarred: true })],
+  });
+
+  const entries = buildRepositoryEntries([mainCheckout, worktreeA, starredInWorktree]);
+  const rowSessions = getUnpinnedCheckoutSessions(entries[0]).map(({ session: item }) => item.id);
+  const pinned = collectPinnedSessions(entries).map(({ session: item }) => item.id);
+
+  assert.deepEqual(rowSessions, ['s-tts-new', 's-main-old'], 'the row must not repeat a pinned session');
+  assert.deepEqual(pinned, ['s-starred']);
+  // Together the two lists are the merged list exactly once over: pinning moves
+  // a session, it does not copy it.
+  assert.deepEqual(
+    [...rowSessions, ...pinned].sort(),
+    mergeCheckoutSessions(entries[0]).map(({ session: item }) => item.id).sort(),
+  );
+});
+
+test('Pinned gathers across repositories, newest first, naming each one', () => {
+  const pinnedHere = project({
+    ...worktreeA,
+    sessions: [session('s-old-pin', '2026-07-01T10:00:00Z', { isStarred: true })],
+  });
+  const pinnedThere = project({
+    ...soloRepository,
+    sessions: [session('s-new-pin', '2026-08-03T10:00:00Z', { isStarred: true })],
+  });
+
+  const pinned = collectPinnedSessions(buildRepositoryEntries([pinnedHere, pinnedThere]));
+
+  assert.deepEqual(
+    pinned.map(({ session: item }) => item.id),
+    ['s-new-pin', 's-old-pin'],
+    'the section orders by activity, not by the row each session came from',
+  );
+  // A session out of its row still has to say where it belongs — under the
+  // same name the row it left carries.
+  assert.deepEqual(
+    pinned.map(({ repositoryName }) => repositoryName),
+    ['oney-index', 'cloudcli-wt-tts'],
+  );
+  assert.equal(pinned[1].checkout.projectId, 'p-tts', 'selecting it must open its own checkout');
+});
+
+test('search matches session names, not project names, paths, or branches', () => {
+  // Every one of these used to be a hit; searching for a repository is exactly
+  // what this filter stopped doing.
+  for (const query of ['cloudcli', 'Projects', 'tts-and-stt']) {
+    assert.deepEqual(
+      filterProjectsBySessionTitle([mainCheckout, worktreeA, worktreeB], query),
+      [],
+      `"${query}" names a project, so it must not match anything`,
+    );
+  }
+
+  const matches = filterProjectsBySessionTitle([mainCheckout, worktreeA, worktreeB], 'speech');
 
   assert.deepEqual(
     matches.map((match) => match.projectId),
@@ -197,13 +257,32 @@ test('projects are searchable by branch', () => {
   );
 });
 
+test('a matching row keeps only its matching sessions, and counts them', () => {
+  const busyWorktree = project({
+    ...worktreeA,
+    sessions: [
+      session('s-hit', '2026-08-04T10:00:00Z', { summary: 'Wire up speech playback' }),
+      session('s-miss', '2026-08-03T10:00:00Z', { summary: 'Unrelated work' }),
+    ],
+    sessionMeta: { total: 40, hasMore: true },
+  });
+
+  const [match] = filterProjectsBySessionTitle([busyWorktree], 'speech');
+
+  assert.deepEqual(match.sessions?.map((item) => item.id), ['s-hit']);
+  // The row's "22 sessions" and its "show more" have to describe the matches,
+  // or the count contradicts the list it opens.
+  assert.equal(match.sessionMeta?.total, 1);
+  assert.equal(match.sessionMeta?.hasMore, false);
+});
+
 test('a search that matches only some checkouts leaves the rest out of the row', () => {
-  const filtered = filterProjects([mainCheckout, worktreeA, worktreeB], 'cloudcli-wt');
+  const filtered = filterProjectsBySessionTitle([mainCheckout, worktreeA, worktreeB], 'review');
   const entries = buildRepositoryEntries(filtered);
 
   assert.equal(entries.length, 1);
   assert.deepEqual(
     entries[0].checkouts.map((checkout) => checkout.projectId),
-    ['p-tts', 'p-codex'],
+    ['p-main', 'p-codex'],
   );
 });

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Pin } from 'lucide-react';
+import { Pin, Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
@@ -7,6 +7,7 @@ import type { SessionActivityMap } from '../../../../hooks/useSessionProtection'
 import type {
   CheckoutSession,
   MCPServerStatus,
+  PinnedSession,
   RepositoryEntry,
   SessionWithProvider,
 } from '../../types/types';
@@ -15,12 +16,17 @@ import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 import SidebarRepositoryItem from './SidebarRepositoryItem';
 import SidebarProjectsState from './SidebarProjectsState';
 import SidebarSectionHeader from './SidebarSectionHeader';
+import SidebarSessionItem from './SidebarSessionItem';
 
 export type SidebarProjectListProps = {
   projects: Project[];
   filteredProjects: Project[];
   /** `filteredProjects` collapsed to one row per repository (ADR 0016). */
   repositoryEntries: RepositoryEntry[];
+  /** Pinned sessions, which live here instead of inside their own row. */
+  pinnedSessions: PinnedSession[];
+  isPinnedSectionCollapsed: boolean;
+  onTogglePinnedSection: () => void;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   isLoading: boolean;
@@ -43,17 +49,13 @@ export type SidebarProjectListProps = {
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   forceExpanded?: boolean;
-  isRepositoryStarred: (entry: RepositoryEntry) => boolean;
-  isPinnedSectionCollapsed: boolean;
-  onTogglePinnedSection: () => void;
   onEditingNameChange: (value: string) => void;
   onToggleProject: (entryKey: string) => void;
   onProjectSelect: (project: Project) => void;
-  onToggleStarProject: (entry: RepositoryEntry) => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
-  onDeleteProject: (project: Project) => void;
+  onDeleteRepository: (entry: RepositoryEntry) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
     projectName: string,
@@ -62,10 +64,12 @@ export type SidebarProjectListProps = {
     provider: LLMProvider,
   ) => void;
   onNewSession: (project: Project) => void;
+  onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onCreateProject: () => void;
   onLongPressProjectMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   /** `project:<entryKey>` / `session:<sessionId>` of the row whose menu is open. */
@@ -77,6 +81,9 @@ export default function SidebarProjectList({
   projects,
   filteredProjects,
   repositoryEntries,
+  pinnedSessions,
+  isPinnedSectionCollapsed,
+  onTogglePinnedSection,
   selectedProject,
   selectedSession,
   isLoading,
@@ -99,24 +106,22 @@ export default function SidebarProjectList({
   attentionSessionIds,
   unreadSessionIds,
   forceExpanded = false,
-  isRepositoryStarred,
-  isPinnedSectionCollapsed,
-  onTogglePinnedSection,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
-  onToggleStarProject,
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
-  onDeleteProject,
+  onDeleteRepository,
   onSessionSelect,
   onDeleteSession,
   onNewSession,
+  onNewSessionMenu,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onCreateProject,
   onLongPressProjectMenu,
   onLongPressSessionMenu,
   activeContextMenuKey,
@@ -143,92 +148,132 @@ export default function SidebarProjectList({
 
   const showProjects = !isLoading && projects.length > 0 && filteredProjects.length > 0;
 
-  // Pinned rows are hoisted into their own section rather than merely sorted to
-  // the top, so the boundary between "what I keep" and "everything else" is
-  // visible — Codex does the same with its Pinned block.
-  const pinnedEntries = repositoryEntries.filter(isRepositoryStarred);
-  const unpinnedEntries = repositoryEntries.filter((entry) => !isRepositoryStarred(entry));
-
   const renderEntry = (entry: RepositoryEntry) => (
-            <SidebarRepositoryItem
-              key={entry.key}
-              entry={entry}
-              selectedProject={selectedProject}
-              selectedSession={selectedSession}
-              isExpanded={forceExpanded || expandedProjects.has(entry.key)}
-              // The row is busy while any of its checkouts is being removed.
-              isDeleting={entry.checkouts.some((checkout) =>
-                deletingProjects.has(checkout.projectId),
-              )}
-              isStarred={isRepositoryStarred(entry)}
-              editingProject={editingProject}
-              editingName={editingName}
-              sessions={getRepositorySessions(entry)}
-              // The skeleton clears only once every checkout's sessions have
-              // arrived, so a merged list never renders half-populated.
-              initialSessionsLoaded={entry.checkouts.every((checkout) =>
-                initialSessionsLoaded.has(checkout.projectId),
-              )}
-              isLoadingMoreSessions={entry.checkouts.some((checkout) =>
-                loadingMoreProjects.has(checkout.projectId),
-              )}
-              currentTime={currentTime}
-              editingSession={editingSession}
-              editingSessionName={editingSessionName}
-              tasksEnabled={tasksEnabled}
-              mcpServerStatus={mcpServerStatus}
-              onEditingNameChange={onEditingNameChange}
-              onToggleProject={onToggleProject}
-              onProjectSelect={onProjectSelect}
-              onToggleStarProject={onToggleStarProject}
-              onStartEditingProject={onStartEditingProject}
-              onCancelEditingProject={onCancelEditingProject}
-              onSaveProjectName={onSaveProjectName}
-              onDeleteProject={onDeleteProject}
-              onSessionSelect={onSessionSelect}
-              onDeleteSession={onDeleteSession}
-              visibleSessionCount={getVisibleSessionCount(entry.key)}
-              onShowMoreSessions={onShowMoreSessions}
-              activeSessions={activeSessions}
-              attentionSessionIds={attentionSessionIds}
-              unreadSessionIds={unreadSessionIds}
-              onNewSession={onNewSession}
-              onEditingSessionNameChange={onEditingSessionNameChange}
-              onStartEditingSession={onStartEditingSession}
-              onCancelEditingSession={onCancelEditingSession}
-              onSaveEditingSession={onSaveEditingSession}
-              onLongPressProjectMenu={onLongPressProjectMenu}
-              onLongPressSessionMenu={onLongPressSessionMenu}
-              activeContextMenuKey={activeContextMenuKey}
-              t={t}
-            />
+    <SidebarRepositoryItem
+      key={entry.key}
+      entry={entry}
+      selectedProject={selectedProject}
+      selectedSession={selectedSession}
+      isExpanded={forceExpanded || expandedProjects.has(entry.key)}
+      // The row is busy while any of its checkouts is being removed.
+      isDeleting={entry.checkouts.some((checkout) =>
+        deletingProjects.has(checkout.projectId),
+      )}
+      editingProject={editingProject}
+      editingName={editingName}
+      sessions={getRepositorySessions(entry)}
+      // The skeleton clears only once every checkout's sessions have
+      // arrived, so a merged list never renders half-populated.
+      initialSessionsLoaded={entry.checkouts.every((checkout) =>
+        initialSessionsLoaded.has(checkout.projectId),
+      )}
+      isLoadingMoreSessions={entry.checkouts.some((checkout) =>
+        loadingMoreProjects.has(checkout.projectId),
+      )}
+      currentTime={currentTime}
+      editingSession={editingSession}
+      editingSessionName={editingSessionName}
+      tasksEnabled={tasksEnabled}
+      mcpServerStatus={mcpServerStatus}
+      onEditingNameChange={onEditingNameChange}
+      onToggleProject={onToggleProject}
+      onProjectSelect={onProjectSelect}
+      onStartEditingProject={onStartEditingProject}
+      onCancelEditingProject={onCancelEditingProject}
+      onSaveProjectName={onSaveProjectName}
+      onDeleteRepository={onDeleteRepository}
+      onSessionSelect={onSessionSelect}
+      onDeleteSession={onDeleteSession}
+      visibleSessionCount={getVisibleSessionCount(entry.key)}
+      onShowMoreSessions={onShowMoreSessions}
+      activeSessions={activeSessions}
+      attentionSessionIds={attentionSessionIds}
+      unreadSessionIds={unreadSessionIds}
+      onNewSession={onNewSession}
+      onNewSessionMenu={onNewSessionMenu}
+      onEditingSessionNameChange={onEditingSessionNameChange}
+      onStartEditingSession={onStartEditingSession}
+      onCancelEditingSession={onCancelEditingSession}
+      onSaveEditingSession={onSaveEditingSession}
+      onLongPressProjectMenu={onLongPressProjectMenu}
+      onLongPressSessionMenu={onLongPressSessionMenu}
+      activeContextMenuKey={activeContextMenuKey}
+      t={t}
+    />
   );
+
+  /**
+   * A pinned session, drawn at the top level rather than under a row. It names
+   * its repository because it has left that repository's list — this is the
+   * only place it appears.
+   */
+  const renderPinnedSession = ({ session, checkout, branchLabel, repositoryName }: PinnedSession) => (
+    <SidebarSessionItem
+      key={session.id}
+      project={checkout}
+      session={session}
+      projectLabel={repositoryName}
+      branchLabel={branchLabel}
+      selectedSession={selectedSession}
+      isProcessing={activeSessions.has(session.id)}
+      needsAttention={attentionSessionIds.has(session.id)}
+      isUnread={unreadSessionIds.has(session.id)}
+      currentTime={currentTime}
+      editingSession={editingSession}
+      editingSessionName={editingSessionName}
+      onEditingSessionNameChange={onEditingSessionNameChange}
+      onStartEditingSession={onStartEditingSession}
+      onCancelEditingSession={onCancelEditingSession}
+      onSaveEditingSession={onSaveEditingSession}
+      onProjectSelect={onProjectSelect}
+      onSessionSelect={onSessionSelect}
+      onDeleteSession={onDeleteSession}
+      onLongPressMenu={onLongPressSessionMenu}
+      activeContextMenuKey={activeContextMenuKey}
+      t={t}
+    />
+  );
+
+  const showPinnedSection = showProjects && pinnedSessions.length > 0;
 
   return (
     <div className="pb-safe-area-inset-bottom md:space-y-1">
-      {!showProjects ? (
-        state
-      ) : (
+      {/*
+        Pinning is a session-level idea only: a repository cannot be pinned, and
+        a pinned session moves up here instead of being copied, so it is never
+        listed twice. The "Projects" label appears only to separate the two
+        runs — with nothing pinned the list stays a single unlabelled column.
+      */}
+      {showPinnedSection && (
         <>
-          {pinnedEntries.length > 0 && (
-            <>
-              <SidebarSectionHeader
-                label={t('projects.pinned')}
-                icon={Pin}
-                count={pinnedEntries.length}
-                isCollapsed={isPinnedSectionCollapsed}
-                onToggle={onTogglePinnedSection}
-              />
-              {!isPinnedSectionCollapsed && pinnedEntries.map(renderEntry)}
-            </>
-          )}
-
-          {/* The label is worth its line only once something sits above it. */}
-          {pinnedEntries.length > 0 && unpinnedEntries.length > 0 && (
-            <SidebarSectionHeader label={t('projects.title')} />
-          )}
-          {unpinnedEntries.map(renderEntry)}
+          <SidebarSectionHeader
+            label={t('projects.starred')}
+            icon={Pin}
+            count={pinnedSessions.length}
+            isCollapsed={isPinnedSectionCollapsed}
+            onToggle={onTogglePinnedSection}
+          />
+          {!isPinnedSectionCollapsed && pinnedSessions.map(renderPinnedSession)}
+          <SidebarSectionHeader label={t('projects.title')} />
         </>
+      )}
+
+      {!showProjects ? state : repositoryEntries.map(renderEntry)}
+
+      {/*
+        Creating a project is the last thing in the list it adds to, faded
+        because it is an affordance rather than a project. It stays visible even
+        with no projects at all — that is when it matters most.
+      */}
+      {!isLoading && (
+        <button
+          type="button"
+          onClick={onCreateProject}
+          className="flex w-full items-center gap-2 rounded-md px-4 py-2.5 text-left text-sm text-muted-foreground/60 transition-colors hover:bg-accent/40 hover:text-foreground active:bg-accent/50 md:px-3 md:py-2"
+        >
+          <Plus className="h-3.5 w-3.5 flex-shrink-0" />
+          <span className="truncate">{t('projects.newProject')}</span>
+        </button>
       )}
     </div>
   );

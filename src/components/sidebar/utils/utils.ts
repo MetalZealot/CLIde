@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type {
   CheckoutSession,
+  PinnedSession,
   ProjectSortOrder,
   RepositoryEntry,
   SettingsProject,
@@ -21,42 +22,6 @@ export const readProjectSortOrder = (): ProjectSortOrder => {
     return settings.projectSortOrder === 'date' ? 'date' : 'name';
   } catch {
     return 'name';
-  }
-};
-
-const LEGACY_STARRED_PROJECTS_STORAGE_KEY = 'starredProjects';
-
-/**
- * Reads legacy project stars from localStorage (used only for one-time migration to backend).
- */
-export const readLegacyStarredProjectIds = (): string[] => {
-  try {
-    const saved = localStorage.getItem(LEGACY_STARRED_PROJECTS_STORAGE_KEY);
-    if (!saved) {
-      return [];
-    }
-
-    const parsed = JSON.parse(saved) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed
-      .map((value) => String(value).trim())
-      .filter((value) => value.length > 0);
-  } catch {
-    return [];
-  }
-};
-
-/**
- * Clears the legacy localStorage stars key after migration to backend completes.
- */
-export const clearLegacyStarredProjectIds = () => {
-  try {
-    localStorage.removeItem(LEGACY_STARRED_PROJECTS_STORAGE_KEY);
-  } catch {
-    // Keep UI responsive even if storage is unavailable.
   }
 };
 
@@ -81,8 +46,12 @@ export const getSessionDate = (session: SessionWithProvider): Date => {
 
 /**
  * Sort comparator that pins starred sessions to the top, then falls back to
- * most-recent-activity order. Mirrors the starred-first behaviour of
- * `sortProjects` so the Projects and Conversations tabs behave consistently.
+ * most-recent-activity order.
+ *
+ * The sidebar lifts pinned sessions out into their own section, so the starred
+ * tier rarely fires there; it still governs every other session list, and it
+ * matches the server's own `isStarred DESC` page order, which is what
+ * guarantees a pinned session is never stranded behind pagination.
  */
 export const compareSessionsStarredFirst = (
   a: SessionWithProvider,
@@ -147,19 +116,9 @@ export const sortProjects = (
 ): Project[] => {
   const byName = [...projects];
 
+  // No starred-first tier: pinning belongs to sessions only (decided
+  // 2026-08-05), so a repository's position is its sort order and nothing else.
   byName.sort((projectA, projectB) => {
-    // Star order now comes from backend `projects.isStarred`.
-    const aStarred = Boolean(projectA.isStarred);
-    const bStarred = Boolean(projectB.isStarred);
-
-    if (aStarred && !bStarred) {
-      return -1;
-    }
-
-    if (!aStarred && bStarred) {
-      return 1;
-    }
-
     if (projectSortOrder === 'date') {
       return getProjectLastActivity(projectB).getTime() - getProjectLastActivity(projectA).getTime();
     }
@@ -170,26 +129,52 @@ export const sortProjects = (
   return byName;
 };
 
-export const filterProjects = (projects: Project[], searchFilter: string): Project[] => {
+/**
+ * Narrows each project to the sessions whose title matches, dropping projects
+ * that keep none.
+ *
+ * Search deliberately no longer matches project names, paths, or branches
+ * (decided 2026-08-05). Repositories are a short, permanently visible list —
+ * collapsing their worktrees into one row was itself the fix for a long
+ * sidebar — so the thing actually worth finding is a session.
+ *
+ * Only sessions already loaded into the row can match; the server paginates
+ * them. "Search inside messages" is what reaches further back.
+ */
+export const filterProjectsBySessionTitle = (
+  projects: Project[],
+  searchFilter: string,
+): Project[] => {
   const normalizedSearch = searchFilter.trim().toLowerCase();
   if (!normalizedSearch) {
     return projects;
   }
 
-  return projects.filter((project) => {
-    const displayName = (project.displayName || project.projectId).toLowerCase();
-    // `project.path`/`fullPath` is the most useful search target now that the
-    // folder-derived name is gone; fall back to displayName above.
-    const searchPath = (project.path || project.fullPath || '').toLowerCase();
-    // Branch is searchable because once several checkouts of one repository are
-    // on screen, the branch is often the only thing that distinguishes them.
-    const branch = (project.branch || '').toLowerCase();
-    return (
-      displayName.includes(normalizedSearch) ||
-      searchPath.includes(normalizedSearch) ||
-      (branch.length > 0 && branch.includes(normalizedSearch))
+  return projects.reduce<Project[]>((matchingProjects, project) => {
+    const sessions = (project.sessions || []).filter((session) =>
+      String(session.summary || session.name || '')
+        .toLowerCase()
+        .includes(normalizedSearch),
     );
-  });
+
+    if (sessions.length === 0) {
+      return matchingProjects;
+    }
+
+    matchingProjects.push({
+      ...project,
+      sessions,
+      // The row's count and its "show more" have to describe the matches, not
+      // the full list the server paginated — same shape the running filter uses.
+      sessionMeta: {
+        ...project.sessionMeta,
+        total: sessions.length,
+        hasMore: false,
+      },
+    });
+
+    return matchingProjects;
+  }, []);
 };
 
 /**
@@ -332,6 +317,36 @@ export const mergeCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[]
       return getAllSessions(checkout).map((session) => ({ session, checkout, branchLabel }));
     })
     .sort((a, b) => compareSessionsStarredFirst(a.session, b.session));
+};
+
+/**
+ * The sessions a repository row actually lists: its merged sessions minus the
+ * pinned ones.
+ *
+ * A pinned session is *moved* into the Pinned section, not copied there
+ * (decided 2026-08-05) — one session, one row, so nothing is ever read twice
+ * or unpinned from a place it appears to still be in.
+ */
+export const getUnpinnedCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[] => {
+  return mergeCheckoutSessions(entry).filter(({ session }) => !session.isStarred);
+};
+
+/**
+ * Every pinned session across the visible rows, newest first, each tagged with
+ * the repository it came from so it still says where it belongs.
+ *
+ * Built from the rows rather than from the raw project list so a search narrows
+ * this section too, and so the branch label stays consistent with the row the
+ * session left.
+ */
+export const collectPinnedSessions = (entries: RepositoryEntry[]): PinnedSession[] => {
+  return entries
+    .flatMap((entry) =>
+      mergeCheckoutSessions(entry)
+        .filter(({ session }) => session.isStarred)
+        .map((checkoutSession) => ({ ...checkoutSession, repositoryName: entry.displayName })),
+    )
+    .sort((a, b) => getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime());
 };
 
 export const getTaskIndicatorStatus = (
