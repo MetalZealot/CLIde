@@ -2,9 +2,11 @@
 
 - Date: 2026-07-26; merged with the 2026-07-27 UX reference on 2026-07-27;
   rescoped 2026-08-05
-- Status: Active design reference. Repository identity and sidebar grouping are
-  implemented (ADR 0016). Everything else is either planned, listed in
-  "Implementation sequence", or parked in Appendix A.
+- Status: Active design reference. Repository identity, sidebar grouping, and
+  worktree *creation* are implemented (ADRs 0016, 0028, 0029); per-row session
+  sort/filter shipped 2026-08-06. Everything else — Phase 0's truthfulness
+  fixes, worktree/branch removal, and branch integration — is either planned,
+  listed in "Implementation sequence", or parked in Appendix A.
 - Scope: Git mental model, CLIde's project/repository/checkout identity model,
   worktree lifecycle, agent occupancy, labels and iconography.
 - Related backlog: `TODO.md` — Source Control worktrees and branch integration;
@@ -836,6 +838,10 @@ its checkouts and labelled by branch. See ADR 0016 and
 
 Structured local/remote refs (replacing the branch string arrays, preserving
 remote namespaces) belong to this phase and are **not** done.
+
+Worktree *creation* also shipped here rather than in Phase 2 — ADR 0028 records
+why the additive half of the worktree lifecycle was allowed to precede Phase 0.
+The row's own session sort/filter arrived with it (ADR 0029).
 
 ## Phase 2: occupancy and workspace lifecycle
 
