@@ -9,6 +9,7 @@ import type {
   MCPServerStatus,
   PinnedSession,
   RepositoryEntry,
+  RepositoryViewOptions,
   SessionWithProvider,
 } from '../../types/types';
 import type { ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -43,7 +44,7 @@ export type SidebarProjectListProps = {
   mcpServerStatus: MCPServerStatus;
   getRepositorySessions: (entry: RepositoryEntry) => CheckoutSession[];
   getVisibleSessionCount: (entryKey: string) => number;
-  onShowMoreSessions: (entry: RepositoryEntry, loadedCount: number) => void;
+  onShowAllSessions: (entry: RepositoryEntry) => void;
   loadingMoreProjects: Set<string>;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
@@ -65,6 +66,9 @@ export type SidebarProjectListProps = {
   ) => void;
   onNewSession: (project: Project) => void;
   onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
+  onNewWorktree?: (entry: RepositoryEntry) => void;
+  getRepositoryView: (entryKey: string) => RepositoryViewOptions;
+  onOpenViewMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
@@ -100,7 +104,7 @@ export default function SidebarProjectList({
   mcpServerStatus,
   getRepositorySessions,
   getVisibleSessionCount,
-  onShowMoreSessions,
+  onShowAllSessions,
   loadingMoreProjects,
   activeSessions,
   attentionSessionIds,
@@ -117,6 +121,9 @@ export default function SidebarProjectList({
   onDeleteSession,
   onNewSession,
   onNewSessionMenu,
+  onNewWorktree,
+  getRepositoryView,
+  onOpenViewMenu,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
@@ -185,12 +192,15 @@ export default function SidebarProjectList({
       onSessionSelect={onSessionSelect}
       onDeleteSession={onDeleteSession}
       visibleSessionCount={getVisibleSessionCount(entry.key)}
-      onShowMoreSessions={onShowMoreSessions}
+      onShowAllSessions={onShowAllSessions}
       activeSessions={activeSessions}
       attentionSessionIds={attentionSessionIds}
       unreadSessionIds={unreadSessionIds}
       onNewSession={onNewSession}
       onNewSessionMenu={onNewSessionMenu}
+      onNewWorktree={onNewWorktree}
+      viewOptions={getRepositoryView(entry.key)}
+      onOpenViewMenu={onOpenViewMenu}
       onEditingSessionNameChange={onEditingSessionNameChange}
       onStartEditingSession={onStartEditingSession}
       onCancelEditingSession={onCancelEditingSession}

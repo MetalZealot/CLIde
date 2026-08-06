@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, TreeDeciduous } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, anchorFromElement } from '../../../../shared/view/ui';
@@ -38,10 +38,12 @@ type SidebarProjectSessionsProps = {
   ) => void;
   /** How many of `sessions` to render before the "show more" control. */
   visibleSessionCount: number;
-  onShowMoreSessions: (entry: RepositoryEntry, loadedCount: number) => void;
+  onShowAllSessions: (entry: RepositoryEntry) => void;
   onNewSession: (project: Project) => void;
   /** Asks which worktree to start in; only reached when there is a choice. */
   onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
+  /** Opens the worktree manager with its create form already open. */
+  onNewWorktree?: (entry: RepositoryEntry) => void;
   onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
   t: TFunction;
@@ -95,9 +97,10 @@ export default function SidebarProjectSessions({
   onSessionSelect,
   onDeleteSession,
   visibleSessionCount,
-  onShowMoreSessions,
+  onShowAllSessions,
   onNewSession,
   onNewSessionMenu,
+  onNewWorktree,
   onLongPressSessionMenu,
   activeContextMenuKey,
   t,
@@ -110,10 +113,17 @@ export default function SidebarProjectSessions({
   }
 
   const hasSessions = sessions.length > 0;
+  // A plain folder has no repository to add a worktree to, and the create form
+  // would only fail server-side with "Not a git repository".
+  const canAddWorktree = Boolean(entry.repositoryId) && Boolean(onNewWorktree);
   const visibleSessions = sessions.slice(0, visibleSessionCount);
   // More to show if this row is holding sessions back, or if the server still
   // has some it has not sent.
   const canShowMore = sessions.length > visibleSessions.length || hasMoreSessions;
+  // How many are still hidden, when that is knowable. The server's own count is
+  // per checkout and excludes pinned sessions, so a merged row can only promise
+  // a number once every page has arrived; until then the label stays plain.
+  const hiddenSessionCount = hasMoreSessions ? null : sessions.length - visibleSessions.length;
 
   /**
    * A new session has to land in exactly one worktree, so when the row covers
@@ -137,27 +147,56 @@ export default function SidebarProjectSessions({
   // sets its text in from the left on its own.
   return (
     <div className="ml-2 space-y-1 border-l border-border pl-1">
-      <div className="px-1 pb-1 pt-1 md:hidden">
+      {/*
+        Both actions share the width the single New Session button used to take.
+        Filtering moved up into the row's header, so nothing here had to be
+        condensed to make room; the two split the row evenly and the difference
+        between them is weight, not size — starting a session is the ordinary
+        act, adding a worktree the occasional one.
+      */}
+      <div className="flex gap-1 px-1 pb-1 pt-1 md:hidden">
         <button
           ref={mobileNewSessionRef}
-          className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
+          className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
           onClick={() => startNewSession(mobileNewSessionRef.current)}
         >
-          <Plus className="h-3 w-3" />
-          {t('sessions.newSession')}
+          <Plus className="h-3 w-3 flex-shrink-0" />
+          <span className="truncate">{t('sessions.newSession')}</span>
         </button>
+        {canAddWorktree && (
+          <button
+            className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium text-foreground transition-all duration-150 active:scale-[0.98] active:bg-accent/50"
+            onClick={() => onNewWorktree?.(entry)}
+          >
+            <TreeDeciduous className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{t('worktrees.new')}</span>
+          </button>
+        )}
       </div>
 
-      <Button
-        ref={desktopNewSessionRef}
-        variant="default"
-        size="sm"
-        className="hidden h-8 w-full justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 md:flex"
-        onClick={() => startNewSession(desktopNewSessionRef.current)}
-      >
-        <Plus className="h-3 w-3" />
-        {t('sessions.newSession')}
-      </Button>
+      <div className="hidden gap-1 md:flex">
+        <Button
+          ref={desktopNewSessionRef}
+          variant="default"
+          size="sm"
+          className="h-8 flex-1 justify-start gap-1.5 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={() => startNewSession(desktopNewSessionRef.current)}
+        >
+          <Plus className="h-3 w-3 flex-shrink-0" />
+          <span className="truncate">{t('sessions.newSession')}</span>
+        </Button>
+        {canAddWorktree && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 flex-1 justify-start gap-1.5 text-xs font-medium"
+            onClick={() => onNewWorktree?.(entry)}
+          >
+            <TreeDeciduous className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{t('worktrees.new')}</span>
+          </Button>
+        )}
+      </div>
 
       {!initialSessionsLoaded ? (
         <SessionListSkeleton />
@@ -193,15 +232,27 @@ export default function SidebarProjectSessions({
             />
           ))}
 
+          {/*
+            One press opens the row completely rather than adding five at a
+            time: paging a sidebar list in fives is busywork, and sorting or
+            filtering needs the whole set loaded anyway.
+          */}
           {canShowMore && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 w-full justify-start px-2 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => onShowMoreSessions(entry, sessions.length)}
+              onClick={() => onShowAllSessions(entry)}
               disabled={isLoadingMoreSessions}
             >
-              {isLoadingMoreSessions ? t('sessions.loadingSessions') : t('sessions.showMore')}
+              {isLoadingMoreSessions
+                ? t('sessions.loadingSessions')
+                : hiddenSessionCount
+                  ? t('sessions.showAllCount', {
+                      count: hiddenSessionCount,
+                      defaultValue: 'Show all ({{count}} more)',
+                    })
+                  : t('sessions.showAll', 'Show all sessions')}
             </Button>
           )}
         </>

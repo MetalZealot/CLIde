@@ -4,10 +4,13 @@ import test from 'node:test';
 import type { Project, ProjectSession } from '../../../types/app';
 
 import {
+  applyRepositoryViewOptions,
   buildRepositoryEntries,
   collectPinnedSessions,
+  DEFAULT_REPOSITORY_VIEW_OPTIONS,
   filterProjectsBySessionTitle,
   getUnpinnedCheckoutSessions,
+  isDefaultRepositoryView,
   isMainCheckout,
   mergeCheckoutSessions,
   repositoryEntryKey,
@@ -284,5 +287,83 @@ test('a search that matches only some checkouts leaves the rest out of the row',
   assert.deepEqual(
     entries[0].checkouts.map((checkout) => checkout.projectId),
     ['p-main', 'p-codex'],
+  );
+});
+
+/** The row list a view is applied to: three checkouts, three activity dates. */
+const mergedRow = () =>
+  getUnpinnedCheckoutSessions(buildRepositoryEntries([mainCheckout, worktreeA, worktreeB])[0]);
+
+// `getSessionName`'s fallback, which the title sort has to see rather than the
+// empty summary underneath it.
+const fallbackName = ((key: string) => key) as unknown as Parameters<
+  typeof applyRepositoryViewOptions
+>[2];
+
+test('the default view is newest first across every checkout', () => {
+  const ordered = applyRepositoryViewOptions(
+    mergedRow(),
+    DEFAULT_REPOSITORY_VIEW_OPTIONS,
+    fallbackName,
+  );
+
+  assert.deepEqual(
+    ordered.map(({ session }) => session.id),
+    ['s-tts-new', 's-codex-mid', 's-main-old'],
+  );
+  assert.ok(isDefaultRepositoryView(DEFAULT_REPOSITORY_VIEW_OPTIONS));
+});
+
+test('oldest-first is the exact reverse, and title sorts by displayed name', () => {
+  const oldest = applyRepositoryViewOptions(
+    mergedRow(),
+    { sort: 'oldest', worktreeProjectIds: null },
+    fallbackName,
+  );
+  assert.deepEqual(
+    oldest.map(({ session }) => session.id),
+    ['s-main-old', 's-codex-mid', 's-tts-new'],
+  );
+
+  const byTitle = applyRepositoryViewOptions(
+    mergedRow(),
+    { sort: 'title', worktreeProjectIds: null },
+    fallbackName,
+  );
+  assert.deepEqual(
+    byTitle.map(({ session }) => session.summary),
+    ['Codex parity review', 'Review the merge plan', 'Wire up speech playback'],
+  );
+});
+
+test('worktree sort groups by branch label, newest first inside a group', () => {
+  const grouped = applyRepositoryViewOptions(
+    mergedRow(),
+    { sort: 'worktree', worktreeProjectIds: null },
+    fallbackName,
+  );
+
+  // feature/tts-and-stt < main < test/codex
+  assert.deepEqual(
+    grouped.map(({ checkout }) => checkout.branch),
+    ['feature/tts-and-stt', 'main', 'test/codex'],
+  );
+});
+
+test('a worktree filter keeps only the checkouts it names', () => {
+  const filtered = applyRepositoryViewOptions(
+    mergedRow(),
+    { sort: 'recent', worktreeProjectIds: ['p-codex'] },
+    fallbackName,
+  );
+
+  assert.deepEqual(
+    filtered.map(({ session }) => session.id),
+    ['s-codex-mid'],
+  );
+  // The header's lit state reads off this, so a real filter must not look default.
+  assert.equal(
+    isDefaultRepositoryView({ sort: 'recent', worktreeProjectIds: ['p-codex'] }),
+    false,
   );
 });

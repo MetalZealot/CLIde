@@ -6,6 +6,7 @@ import type {
   PinnedSession,
   ProjectSortOrder,
   RepositoryEntry,
+  RepositoryViewOptions,
   SettingsProject,
   SessionViewModel,
   SessionWithProvider,
@@ -347,6 +348,65 @@ export const collectPinnedSessions = (entries: RepositoryEntry[]): PinnedSession
         .map((checkoutSession) => ({ ...checkoutSession, repositoryName: entry.displayName })),
     )
     .sort((a, b) => getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime());
+};
+
+/** Newest first, every worktree shown — the order the row has always used. */
+export const DEFAULT_REPOSITORY_VIEW_OPTIONS: RepositoryViewOptions = {
+  sort: 'recent',
+  worktreeProjectIds: null,
+};
+
+/** True when a row is presenting its sessions the plain way. */
+export const isDefaultRepositoryView = (options: RepositoryViewOptions): boolean => {
+  return options.sort === 'recent' && options.worktreeProjectIds === null;
+};
+
+/**
+ * Applies one row's sort and worktree filter to its merged session list.
+ *
+ * Worktree ordering falls back to recency within a worktree, and names the
+ * checkout by the same branch label the rows themselves show, so the groups
+ * read in the order the eye expects. `title` uses the displayed name, fallback
+ * included, rather than the raw summary — otherwise every unnamed session
+ * sorts under the empty string while showing "New Session".
+ */
+export const applyRepositoryViewOptions = (
+  sessions: CheckoutSession[],
+  options: RepositoryViewOptions,
+  t: TFunction,
+): CheckoutSession[] => {
+  const kept = options.worktreeProjectIds
+    ? sessions.filter(({ checkout }) => options.worktreeProjectIds?.includes(checkout.projectId))
+    : sessions;
+
+  const byRecency = (a: CheckoutSession, b: CheckoutSession) =>
+    getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime();
+
+  const sorted = [...kept];
+
+  switch (options.sort) {
+    case 'oldest':
+      sorted.sort((a, b) => -byRecency(a, b));
+      break;
+    case 'title':
+      sorted.sort((a, b) =>
+        getSessionName(a.session, t).localeCompare(getSessionName(b.session, t)),
+      );
+      break;
+    case 'worktree':
+      sorted.sort((a, b) => {
+        const label = (entry: CheckoutSession) =>
+          getCheckoutRefLabel(entry.checkout) ?? entry.checkout.displayName ?? entry.checkout.projectId;
+        const byWorktree = label(a).localeCompare(label(b));
+        return byWorktree !== 0 ? byWorktree : byRecency(a, b);
+      });
+      break;
+    default:
+      sorted.sort(byRecency);
+      break;
+  }
+
+  return sorted;
 };
 
 export const getTaskIndicatorStatus = (

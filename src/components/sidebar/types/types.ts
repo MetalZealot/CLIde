@@ -4,6 +4,24 @@ import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 export type ProjectSortOrder = 'name' | 'date';
 export type SidebarSearchMode = 'projects' | 'conversations' | 'running' | 'archived';
 
+/** Order of the sessions under one repository row. `recent` is the default. */
+export type SessionSortKey = 'recent' | 'oldest' | 'title' | 'worktree';
+
+/**
+ * How one repository row presents its sessions.
+ *
+ * Held per row and only in memory, so a view survives navigating away and back
+ * but never outlives the tab — a sort you forgot you set is worse than one you
+ * have to set again. Sorting and filtering by model are deliberately absent:
+ * the model pick lives in the database but never reaches the session list, and
+ * almost no row carries one yet (see `docs/TODO.md`).
+ */
+export type RepositoryViewOptions = {
+  sort: SessionSortKey;
+  /** Checkouts to keep, by `projectId`. Null shows every one of them. */
+  worktreeProjectIds: string[] | null;
+};
+
 /**
  * One row in the sidebar's project list (ADR 0016).
  *

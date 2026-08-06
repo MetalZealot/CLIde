@@ -24,6 +24,7 @@ import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
 import SidebarContextMenu, { type SidebarContextMenuItem } from './subcomponents/SidebarContextMenu';
+import SidebarSessionViewMenu from './subcomponents/SidebarSessionViewMenu';
 import WorktreeManagerModal from './subcomponents/WorktreeManagerModal';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
 
@@ -105,9 +106,12 @@ function Sidebar({
     handleSessionClick,
     getProjectSessions,
     getRepositorySessions,
+    getRepositoryView,
+    setRepositoryView,
+    resetRepositoryView,
     loadingMoreProjects,
     getVisibleSessionCount,
-    showMoreSessions,
+    showAllSessions,
     startEditing,
     cancelEditing,
     saveProjectName,
@@ -179,7 +183,13 @@ function Sidebar({
     // covers more than one (ADR 0016).
     | { kind: 'new-session'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
   const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
-  const [worktreeManagerEntry, setWorktreeManagerEntry] = useState<RepositoryEntry | null>(null);
+  // `mode` decides whether the manager opens on its list or its create form.
+  const [worktreeManager, setWorktreeManager] = useState<
+    { entry: RepositoryEntry; mode: 'manage' | 'create' } | null
+  >(null);
+  const [viewMenu, setViewMenu] = useState<
+    { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
+  >(null);
 
   const handleLongPressSessionMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'session', session, anchor });
@@ -197,10 +207,18 @@ function Sidebar({
    * The open manager follows the live entry rather than the one captured when
    * it opened, so creating or removing a worktree updates the list in place.
    */
-  const activeWorktreeEntry = worktreeManagerEntry
+  const activeWorktreeEntry = worktreeManager
     ? repositoryEntries.find(
-        (entry) => entry.key === worktreeManagerEntry.key && entry.repositoryId !== null,
+        (entry) => entry.key === worktreeManager.entry.key && entry.repositoryId !== null,
       ) ?? null
+    : null;
+
+  /**
+   * The open menu follows the live entry too, so adding a worktree while it is
+   * open adds a row to its filter list instead of leaving a stale one.
+   */
+  const activeViewMenuEntry = viewMenu
+    ? repositoryEntries.find((entry) => entry.key === viewMenu.entry.key) ?? null
     : null;
 
   // Lets the row that owns the open menu stay highlighted, so it's clear which
@@ -304,7 +322,7 @@ function Sidebar({
               key: 'worktrees',
               label: t('worktrees.title', 'Worktrees'),
               icon: TreeDeciduous,
-              onSelect: () => setWorktreeManagerEntry(entry),
+              onSelect: () => setWorktreeManager({ entry, mode: 'manage' }),
             },
           ]
         : []),
@@ -368,9 +386,13 @@ function Sidebar({
     onSessionSelect: handleSessionClick,
     onDeleteSession: showDeleteSessionConfirmation,
     getVisibleSessionCount,
-    onShowMoreSessions: showMoreSessions,
+    onShowAllSessions: showAllSessions,
     onNewSession,
     onNewSessionMenu: handleNewSessionMenu,
+    onNewWorktree: (entry: RepositoryEntry) => setWorktreeManager({ entry, mode: 'create' }),
+    getRepositoryView,
+    onOpenViewMenu: (entry: RepositoryEntry, anchor: ContextMenuAnchor) =>
+      setViewMenu({ entry, anchor }),
     onCreateProject: () => setShowNewProject(true),
     onEditingSessionNameChange: setEditingSessionName,
     onStartEditingSession: (sessionId, initialName) => {
@@ -400,15 +422,28 @@ function Sidebar({
           />
         )}
 
-        {activeWorktreeEntry && (
+        {activeViewMenuEntry && viewMenu && (
+          <SidebarSessionViewMenu
+            entry={activeViewMenuEntry}
+            anchor={viewMenu.anchor}
+            options={getRepositoryView(activeViewMenuEntry.key)}
+            onChange={(options) => setRepositoryView(activeViewMenuEntry.key, options)}
+            onReset={() => resetRepositoryView(activeViewMenuEntry.key)}
+            onClose={() => setViewMenu(null)}
+            t={t}
+          />
+        )}
+
+        {activeWorktreeEntry && worktreeManager && (
           <WorktreeManagerModal
             entry={activeWorktreeEntry}
-            onClose={() => setWorktreeManagerEntry(null)}
+            onClose={() => setWorktreeManager(null)}
             onRenameWorktree={renameProjectDirect}
             onArchiveWorktree={(project) => archiveProjects([project])}
             onRemoveWorktree={requestProjectDelete}
             onCreateWorktree={createWorktree}
             onOpenWorktree={handleProjectSelect}
+            startInCreate={worktreeManager.mode === 'create'}
             t={t}
           />
         )}

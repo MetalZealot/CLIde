@@ -35,7 +35,9 @@
     "loadingSessions": "Loading sessions...",
     "unnamed": "Unnamed",
     "loading": "Loading...",
-    "showMore": "Show more sessions"
+    "showMore": "Show more sessions",
+    "showAll": "Show all sessions",
+    "showAllCount": "Show all ({{count}} more)"
   },
   "tooltips": {
     "viewEnvironments": "View Environments",
@@ -166,5 +168,15 @@
     "createHint": "Creates the branch and a worktree beside the repository, then adds it here.",
     "scopeNotice": "Archive and Remove only change what CLIde tracks. The worktree stays on disk — use `git worktree remove` to delete it.",
     "createdButUnregistered": "The worktree was created at {{path}}, but CLIde could not add it: {{reason}}"
+  },
+  "sessionView": {
+    "title": "Sort and filter sessions",
+    "sortBy": "Sort by",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "sortTitle": "Session title",
+    "sortWorktree": "Worktree",
+    "filterByWorktree": "Filter by worktree",
+    "reset": "Reset"
   }
 }

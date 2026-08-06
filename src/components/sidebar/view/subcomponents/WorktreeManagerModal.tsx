@@ -18,6 +18,12 @@ type WorktreeManagerModalProps = {
   onRemoveWorktree: (project: Project) => void;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   onOpenWorktree: (project: Project) => void;
+  /**
+   * Opens straight into the create form. Set when the row's New Worktree
+   * button was the way in, so that button lands on the thing it names rather
+   * than on the list with the form still shut.
+   */
+  startInCreate?: boolean;
   t: TFunction;
 };
 
@@ -44,11 +50,12 @@ export default function WorktreeManagerModal({
   onRemoveWorktree,
   onCreateWorktree,
   onOpenWorktree,
+  startInCreate = false,
   t,
 }: WorktreeManagerModalProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreating, setIsCreating] = useState(startInCreate);
   const [newBranch, setNewBranch] = useState('');
   const [baseRef, setBaseRef] = useState<string>(CURRENT_HEAD);
   const [localBranches, setLocalBranches] = useState<string[]>([]);

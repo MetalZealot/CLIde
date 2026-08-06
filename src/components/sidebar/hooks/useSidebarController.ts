@@ -13,16 +13,20 @@ import type {
   DeleteProjectConfirmation,
   ProjectSortOrder,
   RepositoryEntry,
+  RepositoryViewOptions,
   SidebarSearchMode,
   SessionDeleteConfirmation,
   SessionWithProvider,
 } from '../types/types';
 import {
+  applyRepositoryViewOptions,
   buildRepositoryEntries,
   collectPinnedSessions,
+  DEFAULT_REPOSITORY_VIEW_OPTIONS,
   filterProjectsBySessionTitle,
   getAllSessions,
   getUnpinnedCheckoutSessions,
+  isDefaultRepositoryView,
   readProjectSortOrder,
   repositoryEntryKey,
   sortProjects,
@@ -135,6 +139,11 @@ export function useSidebarController({
   // How many sessions each open row shows, keyed by `repositoryEntryKey`.
   // Absent means the default first page.
   const [visibleSessionCounts, setVisibleSessionCounts] = useState<Map<string, number>>(new Map());
+  // Per-row sort/filter, keyed by entry key. Deliberately not persisted: it
+  // clears on refresh (decided 2026-08-06).
+  const [repositoryViews, setRepositoryViews] = useState<Map<string, RepositoryViewOptions>>(new Map());
+  // Rows the user asked to see in full, which keep pulling pages until drained.
+  const [fullyRevealedRows, setFullyRevealedRows] = useState<Set<string>>(new Set());
   const [isPinnedSectionCollapsed, setIsPinnedSectionCollapsed] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
@@ -428,9 +437,44 @@ export function useSidebarController({
 
   const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
 
+  const getRepositoryView = useCallback(
+    (entryKey: string): RepositoryViewOptions =>
+      repositoryViews.get(entryKey) ?? DEFAULT_REPOSITORY_VIEW_OPTIONS,
+    [repositoryViews],
+  );
+
+  /** Drops the entry entirely at default, so "is this row customized?" stays a map lookup. */
+  const setRepositoryView = useCallback((entryKey: string, options: RepositoryViewOptions) => {
+    setRepositoryViews((previous) => {
+      const next = new Map(previous);
+      if (isDefaultRepositoryView(options)) {
+        next.delete(entryKey);
+      } else {
+        next.set(entryKey, options);
+      }
+      return next;
+    });
+  }, []);
+
+  const resetRepositoryView = useCallback((entryKey: string) => {
+    setRepositoryViews((previous) => {
+      if (!previous.has(entryKey)) {
+        return previous;
+      }
+      const next = new Map(previous);
+      next.delete(entryKey);
+      return next;
+    });
+  }, []);
+
   const getRepositorySessions = useCallback(
-    (entry: RepositoryEntry) => getUnpinnedCheckoutSessions(entry),
-    [],
+    (entry: RepositoryEntry) =>
+      applyRepositoryViewOptions(
+        getUnpinnedCheckoutSessions(entry),
+        getRepositoryView(entry.key),
+        t,
+      ),
+    [getRepositoryView, t],
   );
 
   const togglePinnedSection = useCallback(() => {
@@ -495,26 +539,35 @@ export function useSidebarController({
   );
 
   /**
-   * Reveals another page of an open row, fetching from the server only once the
-   * already-loaded sessions run out. Without this cap one busy repository fills
-   * the sidebar and every other project scrolls off — the problem the reference
-   * clients solve with a per-project "Show more".
+   * Opens one row all the way: every session it has, fetched and shown.
+   *
+   * This replaced a "show more" that added five at a time. Paging a sidebar row
+   * five sessions at a time is busywork — the cap exists so one busy repository
+   * cannot push every other project off the screen, and once you have asked to
+   * see past it you have already said that is not what you want. Sorting and
+   * filtering need the whole set loaded anyway (see the effect below), so this
+   * is the same fetch the view menu performs, reachable on its own.
+   *
+   * The page loop lives in that effect: marking the row here is what starts it,
+   * and it stops when no checkout reports more.
    */
-  const showMoreSessions = useCallback(
-    (entry: RepositoryEntry, loadedCount: number) => {
-      const nextCount = getVisibleSessionCount(entry.key) + SESSION_PAGE_SIZE;
-
-      setVisibleSessionCounts((previous) => {
-        const next = new Map(previous);
-        next.set(entry.key, nextCount);
+  const showAllSessions = useCallback(
+    (entry: RepositoryEntry) => {
+      setFullyRevealedRows((previous) => {
+        const next = new Set(previous);
+        next.add(entry.key);
         return next;
       });
 
-      if (nextCount > loadedCount) {
-        void loadMoreSessionsForRepository(entry);
-      }
+      setVisibleSessionCounts((previous) => {
+        const next = new Map(previous);
+        next.set(entry.key, Number.MAX_SAFE_INTEGER);
+        return next;
+      });
+
+      void loadMoreSessionsForRepository(entry);
     },
-    [getVisibleSessionCount, loadMoreSessionsForRepository],
+    [loadMoreSessionsForRepository],
   );
 
   const sortedProjects = useMemo(
@@ -598,6 +651,31 @@ export function useSidebarController({
       (entry) => getUnpinnedCheckoutSessions(entry).length > 0,
     );
   }, [allRepositoryEntries, isSessionSearchActive]);
+
+  /**
+   * A sorted or filtered row loads every session it has before it answers.
+   *
+   * The server pages sessions (`isStarred DESC`, then newest first), so sorting
+   * or filtering only the loaded page would quietly answer from five sessions
+   * out of forty — an alphabetical list missing most of the alphabet, or a
+   * worktree filter reporting nothing while its matches sit behind "show more".
+   * Each arriving page re-runs this, and it stops once no checkout has more.
+   */
+  useEffect(() => {
+    if (repositoryViews.size === 0 && fullyRevealedRows.size === 0) {
+      return;
+    }
+
+    for (const entry of allRepositoryEntries) {
+      if (!repositoryViews.has(entry.key) && !fullyRevealedRows.has(entry.key)) {
+        continue;
+      }
+
+      if (entry.checkouts.some((checkout) => Boolean(checkout.sessionMeta?.hasMore))) {
+        void loadMoreSessionsForRepository(entry);
+      }
+    }
+  }, [allRepositoryEntries, fullyRevealedRows, loadMoreSessionsForRepository, repositoryViews]);
 
   const filteredArchivedSessions = useMemo(() => {
     const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
@@ -1154,10 +1232,13 @@ export function useSidebarController({
     handleSessionClick,
     getProjectSessions,
     getRepositorySessions,
+    getRepositoryView,
+    setRepositoryView,
+    resetRepositoryView,
     loadMoreSessionsForProject,
     loadMoreSessionsForRepository,
     getVisibleSessionCount,
-    showMoreSessions,
+    showAllSessions,
     startEditing,
     cancelEditing,
     saveProjectName,
