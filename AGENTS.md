@@ -131,14 +131,19 @@ behaviour stays behind adapter interfaces.
   reads that state, believes everything is emitted, and **silently produces no
   `dist-server/` at all**, while `typecheck` skips files it thinks are unchanged so a
   clean result is vacuous.
-- Keep `docs/TODO.md` current: use `[ ]`, `[~]`, and `[x]`; move verified work to
-  `docs/todo-done.md` as a short record with its commit.  Git history and ADRs are the
-  canonical detail — keep the board's entries short.
+- Keep `docs/TODO.md` current **in the same batch as the code change** — flip `[ ]` →
+  `[~]` → `[x]` and move verified work to `docs/todo-done.md` as you go, never as a
+  separate turn at the end of a session.  Do not ask permission to update the board.
+  Git history and ADRs are the canonical detail — keep the board's entries short.
 - Categorize fixes as fork-only or upstreamable in `docs/upstream-candidates.md`.
   Before describing a defect as upstream-wide, inspect upstream code as well as
   searching issues/PRs.  Never open, push, or update an upstream PR without the user's
   explicit approval.
-- When work creates a non-obvious lasting decision, ask whether it merits a new ADR.
+- **Never end a turn by asking "worth an ADR?"** — that spends a whole reply asking
+  permission to write a document.  Write an ADR only when the user asks for one, or
+  when a decision is the kind a future session would otherwise undo (a deliberate
+  constraint that looks like a bug).  In that case write it inside the same batch as
+  the work, unasked, in five sentences.  Otherwise the commit message is the record.
   ADRs are append-only: supersede a prior decision rather than rewriting history.
 
 ## Keeping the guides honest
