@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, Loader2, Star, Trash2, X } from 'lucide-react';
+import { Check, Edit2, GitBranch, Loader2, Pin, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip, buttonVariants, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -23,6 +23,12 @@ type SidebarSessionItemProps = {
   editingSessionName: string;
   /** Shown under the session name in flat lists that mix projects. */
   projectLabel?: string;
+  /**
+   * Checkout this session runs in, shown under the title when its repository
+   * row merges several checkouts (ADR 0016). Null when there is nothing to
+   * disambiguate.
+   */
+  branchLabel?: string | null;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
@@ -80,6 +86,7 @@ export default function SidebarSessionItem({
   editingSession,
   editingSessionName,
   projectLabel,
+  branchLabel,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
@@ -96,6 +103,17 @@ export default function SidebarSessionItem({
   const isEditing = editingSession === session.id;
   const isStarred = Boolean(session.isStarred);
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
+  // Shares the metadata line with the message-count badge rather than claiming a
+  // line of its own, so a merged repository row is no taller per session.
+  const branchBadge = branchLabel ? (
+    <span
+      className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground/70"
+      title={branchLabel}
+    >
+      <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
+      <span className="truncate">{branchLabel}</span>
+    </span>
+  ) : null;
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const mobileEditRef = useRef<HTMLDivElement>(null);
   // Anchor the menu to the row's box, not the finger, so it opens attached to
@@ -200,20 +218,24 @@ export default function SidebarSessionItem({
           <div
             ref={mobileRowRef}
             className={cn(
-              'long-pressable p-2 mx-3 my-0.5 rounded-md bg-card border transition-all duration-150 relative',
-              isContextActive && 'scale-[0.98] ring-1 ring-inset ring-primary/50',
-              // Single chain: a trailing border fallback would win inside cn()
+              // No resting card: every reference client in `docs/ui ref/` shows
+              // a row's surface only while it is pressed, hovered, or current.
+              // A tint alone carries the status states — the border was what
+              // made a dense list read as a stack of boxes.
+              'long-pressable p-2 mx-1 my-0.5 rounded-md transition-all duration-150 relative',
+              isContextActive && 'scale-[0.98] bg-accent/60',
+              // Single chain: a trailing fallback would win inside cn()
               // (tailwind-merge keeps the last conflicting class) and erase the
-              // selected border.
+              // selected fill.
               isSelected
-                ? 'bg-primary/10 border-primary/50'
+                ? 'bg-primary/10'
                 : needsAttentionHighlight
-                ? 'border-amber-500/40 bg-amber-50/5 dark:bg-amber-900/5'
+                ? 'bg-amber-500/10'
                 : isProcessing
-                ? 'border-border/60 bg-muted/20'
+                ? 'bg-muted/40'
                 : unreadHighlight
-                ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
-                : 'border-border/30',
+                ? 'bg-green-500/10'
+                : 'active:bg-accent/50',
             )}
             onClick={selectMobileSession}
             {...longPress}
@@ -231,7 +253,7 @@ export default function SidebarSessionItem({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   {isStarred && (
-                    <Star className="h-3 w-3 flex-shrink-0 fill-current text-yellow-500" />
+                    <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                   )}
                   <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
                   {isProcessing ? (
@@ -255,6 +277,7 @@ export default function SidebarSessionItem({
                   {projectLabel && (
                     <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                   )}
+                  {branchBadge}
                 </div>
               </div>
             </div>
@@ -267,14 +290,16 @@ export default function SidebarSessionItem({
           href={`/session/${session.id}`}
           className={cn(
             buttonVariants({ variant: 'ghost' }),
-            'h-auto w-full justify-start rounded-md border bg-card p-2 text-left font-normal transition-all duration-150',
-            isSelected ? 'border-primary/50 bg-primary/10' : 'border-border/30',
+            // Surface on hover or when current, never at rest — see the mobile
+            // row above for why the resting card and border are gone.
+            'h-auto w-full justify-start rounded-md p-2 text-left font-normal transition-all duration-150',
+            isSelected ? 'bg-primary/10' : null,
             needsAttentionHighlight
-              ? 'border-amber-500/40 bg-amber-50/5 hover:bg-amber-50/10 dark:bg-amber-900/5 dark:hover:bg-amber-900/10'
+              ? 'bg-amber-500/10 hover:bg-amber-500/20'
               : !isSelected && isProcessing
-                ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
+                ? 'bg-muted/40 hover:bg-muted/50'
                 : unreadHighlight
-                  ? 'border-green-500/30 bg-green-50/5 hover:bg-green-50/10 dark:bg-green-900/5 dark:hover:bg-green-900/10'
+                  ? 'bg-green-500/10 hover:bg-green-500/20'
                   : 'hover:bg-accent/50',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
@@ -297,7 +322,7 @@ export default function SidebarSessionItem({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 {isStarred && (
-                  <Star className="h-3 w-3 flex-shrink-0 fill-current text-yellow-500" />
+                  <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                 )}
                 <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
                 {isProcessing ? (
@@ -329,6 +354,7 @@ export default function SidebarSessionItem({
                 {projectLabel && (
                   <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                 )}
+                {branchBadge}
               </div>
             </div>
           </div>

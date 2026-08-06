@@ -1,7 +1,7 @@
 # 0016 — Projects group checkouts by repository; a project is not a directory (intentional divergence from upstream)
 
 - Date: 2026-07-27
-- Status: Accepted
+- Status: Accepted; the worktree-creation half of its sequencing narrowed by 0028
 
 ## Decision
 

@@ -69,7 +69,7 @@ export default function SidebarProjectsState({
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-muted md:mb-3">
           <Search className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h3 className="mb-2 text-base font-medium text-foreground md:mb-1">{t('projects.noMatchingProjects')}</h3>
+        <h3 className="mb-2 text-base font-medium text-foreground md:mb-1">{t('projects.noMatchingSessions', 'No matching sessions')}</h3>
         <p className="text-sm text-muted-foreground">{t('projects.tryDifferentSearch')}</p>
       </div>
     );

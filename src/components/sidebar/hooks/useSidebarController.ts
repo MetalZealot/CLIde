@@ -8,18 +8,27 @@ import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type {
   ArchivedProjectListItem,
   ArchivedSessionListItem,
+  CreateWorktreeOptions,
+  CreateWorktreeOutcome,
   DeleteProjectConfirmation,
   ProjectSortOrder,
+  RepositoryEntry,
+  RepositoryViewOptions,
   SidebarSearchMode,
   SessionDeleteConfirmation,
   SessionWithProvider,
 } from '../types/types';
 import {
-  clearLegacyStarredProjectIds,
-  filterProjects,
+  applyRepositoryViewOptions,
+  buildRepositoryEntries,
+  collectPinnedSessions,
+  DEFAULT_REPOSITORY_VIEW_OPTIONS,
+  filterProjectsBySessionTitle,
   getAllSessions,
-  readLegacyStarredProjectIds,
+  getUnpinnedCheckoutSessions,
+  isDefaultRepositoryView,
   readProjectSortOrder,
+  repositoryEntryKey,
   sortProjects,
 } from '../utils/utils';
 
@@ -120,14 +129,24 @@ export function useSidebarController({
   sidebarVisible,
 }: UseSidebarControllerArgs) {
   const paletteOps = usePaletteOps();
+  // Keyed by `repositoryEntryKey`, not by projectId: one repository is one row,
+  // so its several checkouts share a single expansion state.
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [editingProject, setEditingProject] = useState<string | null>(null);
   const [showNewProject, setShowNewProject] = useState(false);
   const [editingName, setEditingName] = useState('');
   const [initialSessionsLoaded, setInitialSessionsLoaded] = useState<Set<string>>(new Set());
+  // How many sessions each open row shows, keyed by `repositoryEntryKey`.
+  // Absent means the default first page.
+  const [visibleSessionCounts, setVisibleSessionCounts] = useState<Map<string, number>>(new Map());
+  // Per-row sort/filter, keyed by entry key. Deliberately not persisted: it
+  // clears on refresh (decided 2026-08-06).
+  const [repositoryViews, setRepositoryViews] = useState<Map<string, RepositoryViewOptions>>(new Map());
+  // Rows the user asked to see in full, which keep pulling pages until drained.
+  const [fullyRevealedRows, setFullyRevealedRows] = useState<Set<string>>(new Set());
+  const [isPinnedSectionCollapsed, setIsPinnedSectionCollapsed] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
@@ -144,12 +163,9 @@ export function useSidebarController({
   const [archivedSessions, setArchivedSessions] = useState<ArchivedSessionListItem[]>([]);
   const [isArchivedSessionsLoading, setIsArchivedSessionsLoading] = useState(false);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [optimisticStarByProjectId, setOptimisticStarByProjectId] = useState<Map<string, boolean>>(new Map());
   const [loadingMoreProjects, setLoadingMoreProjects] = useState<Set<string>>(new Set());
   const searchSeqRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const starToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
-  const migrationStartedRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
 
   const isSidebarCollapsed = !isMobile && !sidebarVisible;
@@ -183,24 +199,27 @@ export function useSidebarController({
     setInitialSessionsLoaded(new Set());
   }, [projects]);
 
+  // Expand the *row* holding the selected project, which for a worktree is its
+  // repository's row rather than its own projectId.
+  const selectedEntryKey = selectedProject ? repositoryEntryKey(selectedProject) : null;
+
   useEffect(() => {
-    // Auto-expand only when the selected project identity changes.
+    // Auto-expand only when the selected row changes.
     // Depending on the full `selectedProject` object (or `selectedSession`) causes
     // websocket-driven list refreshes to re-open projects users manually collapsed.
-    const selectedProjectId = selectedProject?.projectId;
-    if (!selectedProjectId) {
+    if (!selectedEntryKey) {
       return;
     }
 
     setExpandedProjects((prev) => {
-      if (prev.has(selectedProjectId)) {
+      if (prev.has(selectedEntryKey)) {
         return prev;
       }
       const next = new Set(prev);
-      next.add(selectedProjectId);
+      next.add(selectedEntryKey);
       return next;
     });
-  }, [selectedProject?.projectId]);
+  }, [selectedEntryKey]);
 
   useEffect(() => {
     if (projects.length > 0 && !isLoading) {
@@ -280,32 +299,6 @@ export function useSidebarController({
   }, []);
 
   useEffect(() => {
-    if (migrationStartedRef.current) {
-      return;
-    }
-
-    const legacyStarredProjectIds = readLegacyStarredProjectIds();
-    if (legacyStarredProjectIds.length === 0) {
-      return;
-    }
-
-    migrationStartedRef.current = true;
-
-    const migrateLegacyStars = async () => {
-      try {
-        await api.migrateLegacyProjectStars(legacyStarredProjectIds);
-        await onRefreshRef.current();
-      } catch (error) {
-        console.error('[Sidebar] Failed to migrate legacy starred projects:', error);
-      } finally {
-        clearLegacyStarredProjectIds();
-      }
-    };
-
-    void migrateLegacyStars();
-  }, [onRefresh]);
-
-  useEffect(() => {
     void fetchArchivedSessions();
   }, [fetchArchivedSessions]);
 
@@ -318,33 +311,6 @@ export function useSidebarController({
     // and background synchronizer updates are reflected without a full reload.
     void fetchArchivedSessions();
   }, [fetchArchivedSessions, searchMode]);
-
-  useEffect(() => {
-    setOptimisticStarByProjectId((previous) => {
-      if (previous.size === 0) {
-        return previous;
-      }
-
-      const next = new Map(previous);
-      let changed = false;
-
-      for (const [projectId, optimisticValue] of previous.entries()) {
-        const project = projects.find((candidate) => candidate.projectId === projectId);
-        if (!project) {
-          next.delete(projectId);
-          changed = true;
-          continue;
-        }
-
-        if (Boolean(project.isStarred) === optimisticValue) {
-          next.delete(projectId);
-          changed = true;
-        }
-      }
-
-      return changed ? next : previous;
-    });
-  }, [projects]);
 
   // Debounce search text updates so both project filtering and conversation
   // SSE requests avoid running on every keypress.
@@ -447,13 +413,13 @@ export function useSidebarController({
     };
   }, [debouncedSearchQuery, searchMode]);
 
-  // All sidebar state keys (expanded, starred, loading, etc.) use the DB
-  // `projectId` as their identifier after the migration.
-  const toggleProject = useCallback((projectId: string) => {
+  // Starred/loading state still keys on the DB `projectId`; expansion keys on
+  // the row (`repositoryEntryKey`), since a repository is a single row.
+  const toggleProject = useCallback((entryKey: string) => {
     setExpandedProjects((prev) => {
       const next = new Set<string>();
-      if (!prev.has(projectId)) {
-        next.add(projectId);
+      if (!prev.has(entryKey)) {
+        next.add(entryKey);
       }
       return next;
     });
@@ -469,80 +435,51 @@ export function useSidebarController({
     [onSessionSelect, closeSearchBar],
   );
 
-  const resolveProjectStarState = useCallback(
-    (projectId: string): boolean => {
-      if (optimisticStarByProjectId.has(projectId)) {
-        return Boolean(optimisticStarByProjectId.get(projectId));
-      }
+  const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
 
-      return projects.some((project) => project.projectId === projectId && Boolean(project.isStarred));
-    },
-    [optimisticStarByProjectId, projects],
+  const getRepositoryView = useCallback(
+    (entryKey: string): RepositoryViewOptions =>
+      repositoryViews.get(entryKey) ?? DEFAULT_REPOSITORY_VIEW_OPTIONS,
+    [repositoryViews],
   );
 
-  const toggleStarProject = useCallback((projectId: string) => {
-    const previousStarState = resolveProjectStarState(projectId);
-    const optimisticStarState = !previousStarState;
-    const latestSequence = (starToggleSequenceByProjectRef.current.get(projectId) ?? 0) + 1;
-    starToggleSequenceByProjectRef.current.set(projectId, latestSequence);
-
-    setOptimisticStarByProjectId((previous) => {
+  /** Drops the entry entirely at default, so "is this row customized?" stays a map lookup. */
+  const setRepositoryView = useCallback((entryKey: string, options: RepositoryViewOptions) => {
+    setRepositoryViews((previous) => {
       const next = new Map(previous);
-      next.set(projectId, optimisticStarState);
+      if (isDefaultRepositoryView(options)) {
+        next.delete(entryKey);
+      } else {
+        next.set(entryKey, options);
+      }
       return next;
     });
+  }, []);
 
-    const updateStar = async () => {
-      try {
-        const response = await api.toggleProjectStar(projectId);
-        if (!response.ok) {
-          const payload = (await response.json()) as { error?: string | { message?: string } };
-          const errorPayload = payload.error;
-          const message =
-            typeof errorPayload === 'string'
-              ? errorPayload
-              : errorPayload && typeof errorPayload === 'object' && errorPayload.message
-                ? errorPayload.message
-                : t('messages.updateProjectError');
-          throw new Error(message);
-        }
-
-        const payload = (await response.json()) as { isStarred?: boolean };
-        const isLatestSequence = starToggleSequenceByProjectRef.current.get(projectId) === latestSequence;
-        if (!isLatestSequence) {
-          return;
-        }
-
-        setOptimisticStarByProjectId((previous) => {
-          const next = new Map(previous);
-          next.set(projectId, Boolean(payload.isStarred));
-          return next;
-        });
-      } catch (error) {
-        const isLatestSequence = starToggleSequenceByProjectRef.current.get(projectId) === latestSequence;
-        if (!isLatestSequence) {
-          return;
-        }
-
-        setOptimisticStarByProjectId((previous) => {
-          const next = new Map(previous);
-          next.set(projectId, previousStarState);
-          return next;
-        });
-        console.error('[Sidebar] Failed to toggle project star:', error);
-        alert(t('messages.updateProjectError'));
+  const resetRepositoryView = useCallback((entryKey: string) => {
+    setRepositoryViews((previous) => {
+      if (!previous.has(entryKey)) {
+        return previous;
       }
-    };
+      const next = new Map(previous);
+      next.delete(entryKey);
+      return next;
+    });
+  }, []);
 
-    void updateStar();
-  }, [resolveProjectStarState, t]);
-
-  const isProjectStarred = useCallback(
-    (projectId: string) => resolveProjectStarState(projectId),
-    [resolveProjectStarState],
+  const getRepositorySessions = useCallback(
+    (entry: RepositoryEntry) =>
+      applyRepositoryViewOptions(
+        getUnpinnedCheckoutSessions(entry),
+        getRepositoryView(entry.key),
+        t,
+      ),
+    [getRepositoryView, t],
   );
 
-  const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
+  const togglePinnedSection = useCallback(() => {
+    setIsPinnedSectionCollapsed((previous) => !previous);
+  }, []);
 
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
     if (!onLoadMoreSessions) {
@@ -579,32 +516,63 @@ export function useSidebarController({
     }
   }, [onLoadMoreSessions, t]);
 
-  const projectsWithResolvedStarState = useMemo(() => {
-    if (optimisticStarByProjectId.size === 0) {
-      return projects;
-    }
+  /**
+   * Pagination is still per checkout on the server, so one "load more" on a
+   * merged row fans out to every checkout that still has sessions to fetch.
+   */
+  const loadMoreSessionsForRepository = useCallback(
+    async (entry: RepositoryEntry) => {
+      const pending = entry.checkouts.filter((checkout) => Boolean(checkout.sessionMeta?.hasMore));
+      await Promise.all(
+        pending.map((checkout) => loadMoreSessionsForProject(checkout.projectId)),
+      );
+    },
+    [loadMoreSessionsForProject],
+  );
 
-    return projects.map((project) => {
-      const optimisticStarState = optimisticStarByProjectId.get(project.projectId);
-      if (optimisticStarState === undefined) {
-        return project;
-      }
+  /** Sessions shown before "show more", and how many each press adds. */
+  const SESSION_PAGE_SIZE = 5;
 
-      const currentStarState = Boolean(project.isStarred);
-      if (currentStarState === optimisticStarState) {
-        return project;
-      }
+  const getVisibleSessionCount = useCallback(
+    (entryKey: string) => visibleSessionCounts.get(entryKey) ?? SESSION_PAGE_SIZE,
+    [visibleSessionCounts],
+  );
 
-      return {
-        ...project,
-        isStarred: optimisticStarState,
-      };
-    });
-  }, [optimisticStarByProjectId, projects]);
+  /**
+   * Opens one row all the way: every session it has, fetched and shown.
+   *
+   * This replaced a "show more" that added five at a time. Paging a sidebar row
+   * five sessions at a time is busywork — the cap exists so one busy repository
+   * cannot push every other project off the screen, and once you have asked to
+   * see past it you have already said that is not what you want. Sorting and
+   * filtering need the whole set loaded anyway (see the effect below), so this
+   * is the same fetch the view menu performs, reachable on its own.
+   *
+   * The page loop lives in that effect: marking the row here is what starts it,
+   * and it stops when no checkout reports more.
+   */
+  const showAllSessions = useCallback(
+    (entry: RepositoryEntry) => {
+      setFullyRevealedRows((previous) => {
+        const next = new Set(previous);
+        next.add(entry.key);
+        return next;
+      });
+
+      setVisibleSessionCounts((previous) => {
+        const next = new Map(previous);
+        next.set(entry.key, Number.MAX_SAFE_INTEGER);
+        return next;
+      });
+
+      void loadMoreSessionsForRepository(entry);
+    },
+    [loadMoreSessionsForRepository],
+  );
 
   const sortedProjects = useMemo(
-    () => sortProjects(projectsWithResolvedStarState, projectSortOrder),
-    [projectSortOrder, projectsWithResolvedStarState],
+    () => sortProjects(projects, projectSortOrder),
+    [projectSortOrder, projects],
   );
 
   const runningProjects = useMemo(() => {
@@ -634,9 +602,80 @@ export function useSidebarController({
   }, [activeSessionIds, sortedProjects]);
 
   const filteredProjects = useMemo(
-    () => filterProjects(searchMode === 'running' ? runningProjects : sortedProjects, debouncedSearchQuery),
+    () =>
+      filterProjectsBySessionTitle(
+        searchMode === 'running' ? runningProjects : sortedProjects,
+        debouncedSearchQuery,
+      ),
     [debouncedSearchQuery, runningProjects, searchMode, sortedProjects],
   );
+
+  /**
+   * True while a typed query is narrowing the rows to matching sessions. The
+   * rows have to open themselves for it: a match the user cannot see is the
+   * same as no match at all.
+   */
+  const isSessionSearchActive =
+    searchMode !== 'conversations' && searchMode !== 'archived' && debouncedSearchQuery.length > 0;
+
+  // ADR 0016: collapsing to one row per repository is the last step, so
+  // sorting, the running filter, and the search filter all keep operating on a
+  // flat project list and stay unchanged.
+  const allRepositoryEntries = useMemo(
+    () => buildRepositoryEntries(filteredProjects),
+    [filteredProjects],
+  );
+
+  /**
+   * Pinned sessions, lifted out of their rows into one section at the top of
+   * the sidebar and listed there only (decided 2026-08-05).
+   */
+  const pinnedSessions = useMemo(
+    () => collectPinnedSessions(allRepositoryEntries),
+    [allRepositoryEntries],
+  );
+
+  /**
+   * The rows drawn below the pinned section.
+   *
+   * A search that a row matched only through a pinned session leaves that row
+   * with nothing left to list, and the match is already visible above it, so
+   * the empty row drops out rather than reading as a dead end.
+   */
+  const repositoryEntries = useMemo(() => {
+    if (!isSessionSearchActive) {
+      return allRepositoryEntries;
+    }
+
+    return allRepositoryEntries.filter(
+      (entry) => getUnpinnedCheckoutSessions(entry).length > 0,
+    );
+  }, [allRepositoryEntries, isSessionSearchActive]);
+
+  /**
+   * A sorted or filtered row loads every session it has before it answers.
+   *
+   * The server pages sessions (`isStarred DESC`, then newest first), so sorting
+   * or filtering only the loaded page would quietly answer from five sessions
+   * out of forty — an alphabetical list missing most of the alphabet, or a
+   * worktree filter reporting nothing while its matches sit behind "show more".
+   * Each arriving page re-runs this, and it stops once no checkout has more.
+   */
+  useEffect(() => {
+    if (repositoryViews.size === 0 && fullyRevealedRows.size === 0) {
+      return;
+    }
+
+    for (const entry of allRepositoryEntries) {
+      if (!repositoryViews.has(entry.key) && !fullyRevealedRows.has(entry.key)) {
+        continue;
+      }
+
+      if (entry.checkouts.some((checkout) => Boolean(checkout.sessionMeta?.hasMore))) {
+        void loadMoreSessionsForRepository(entry);
+      }
+    }
+  }, [allRepositoryEntries, fullyRevealedRows, loadMoreSessionsForRepository, repositoryViews]);
 
   const filteredArchivedSessions = useMemo(() => {
     const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
@@ -829,14 +868,124 @@ export function useSidebarController({
     [onSessionStarPatch],
   );
 
+  /** Confirms removal of one worktree — the manager's per-row action. */
   const requestProjectDelete = useCallback(
     (project: Project) => {
       setDeleteConfirmation({
-        project,
+        projects: [project],
+        displayName: project.displayName || project.projectId,
         sessionCount: getProjectSessions(project).length,
       });
     },
     [getProjectSessions],
+  );
+
+  /**
+   * Confirms removal of a whole repository row, every worktree included.
+   *
+   * A row *is* the repository, so deleting it must not leave its other
+   * worktrees behind as rows of their own — which is exactly what deleting only
+   * the lead would do.
+   */
+  const requestRepositoryDelete = useCallback(
+    (entry: RepositoryEntry) => {
+      setDeleteConfirmation({
+        projects: entry.checkouts,
+        displayName: entry.displayName,
+        sessionCount: entry.checkouts.reduce(
+          (total, checkout) => total + getProjectSessions(checkout).length,
+          0,
+        ),
+      });
+    },
+    [getProjectSessions],
+  );
+
+  /**
+   * Archives or removes every project in `targets`. `deleteData` is the
+   * destructive branch: it drops the DB row and the provider transcripts.
+   * Neither branch touches the directory on disk.
+   *
+   * A repository row's delete covers every worktree in it, so this is a batch,
+   * and ADR 0017's preflight-then-rollback shape does not transfer: a hard
+   * delete has nothing to roll back to. What transfers is the point of that
+   * ADR — never leave the user in a half-finished state they cannot see. So
+   * every target is attempted and the report names each failure, rather than
+   * stopping at the first one with a message that does not say which of the
+   * worktrees it is even about, or which of the rest were tried.
+   */
+  const deleteProjects = useCallback(
+    async (targets: Project[], deleteData: boolean) => {
+      const projectIds = targets.map((target) => target.projectId);
+      // Track in-flight deletes by projectId so the UI can disable actions
+      // even if the project object is rebuilt while the request is flying.
+      setDeletingProjects((prev) => new Set([...prev, ...projectIds]));
+
+      const failures: Array<{ name: string; reason: string }> = [];
+      let removed = 0;
+
+      try {
+        for (const target of targets) {
+          const name = target.displayName || target.projectId;
+
+          try {
+            const response = await api.deleteProject(target.projectId, deleteData);
+
+            if (!response.ok) {
+              const data = (await response.json().catch(() => ({}))) as {
+                error?: string | { message?: string };
+              };
+              const err = data.error;
+              failures.push({
+                name,
+                reason:
+                  typeof err === 'string'
+                    ? err
+                    : (err && typeof err === 'object' && err.message) || t('messages.deleteProjectFailed'),
+              });
+              continue;
+            }
+
+            removed += 1;
+            onProjectDelete?.(target.projectId);
+          } catch (error) {
+            console.error('Error deleting project:', error);
+            failures.push({
+              name,
+              reason: error instanceof Error ? error.message : t('messages.deleteProjectError'),
+            });
+          }
+        }
+      } finally {
+        setDeletingProjects((prev) => {
+          const next = new Set(prev);
+          for (const projectId of projectIds) {
+            next.delete(projectId);
+          }
+          return next;
+        });
+      }
+
+      if (failures.length === 0) {
+        return;
+      }
+
+      // A single target keeps its own message. Server text is concatenated
+      // rather than interpolated, because i18next escapes interpolated values
+      // and would mangle the quotes in git's own wording.
+      if (targets.length === 1) {
+        alert(failures[0].reason);
+        return;
+      }
+
+      const heading = t('messages.deleteProjectsPartial', {
+        removed,
+        failed: failures.length,
+        defaultValue: 'Removed {{removed}}. Failed on {{failed}}:',
+      });
+      alert(`${heading}\n\n${failures.map(({ name, reason }) => `• ${name} — ${reason}`).join('\n')}`);
+    },
+    [onProjectDelete, t],
   );
 
   const confirmDeleteProject = useCallback(async (deleteData = false) => {
@@ -844,36 +993,93 @@ export function useSidebarController({
       return;
     }
 
-    const { project } = deleteConfirmation;
-
+    const { projects: targets } = deleteConfirmation;
     setDeleteConfirmation(null);
-    // Track in-flight deletes by projectId so the UI can disable actions
-    // even if the project object is rebuilt while the request is flying.
-    setDeletingProjects((prev) => new Set([...prev, project.projectId]));
+    await deleteProjects(targets, deleteData);
+  }, [deleteConfirmation, deleteProjects]);
 
-    try {
-      const response = await api.deleteProject(project.projectId, deleteData);
+  /**
+   * Archives without a confirmation step: archiving is reversible from the
+   * Archive view, so a modal would only be in the way.
+   */
+  const archiveProjects = useCallback(
+    (targets: Project[]) => {
+      void deleteProjects(targets, false);
+    },
+    [deleteProjects],
+  );
 
-      if (response.ok) {
-        onProjectDelete?.(project.projectId);
-      } else {
-        const data = (await response.json()) as { error?: string | { message?: string } };
-        const err = data.error;
-        const message =
-          typeof err === 'string' ? err : err && typeof err === 'object' && err.message ? err.message : t('messages.deleteProjectFailed');
-        alert(message);
+  /** Renames one project outside the sidebar's inline-edit flow. */
+  const renameProjectDirect = useCallback(
+    async (projectId: string, displayName: string) => {
+      const trimmed = displayName.trim();
+      if (!trimmed) {
+        return;
       }
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      alert(t('messages.deleteProjectError'));
-    } finally {
-      setDeletingProjects((prev) => {
-        const next = new Set(prev);
-        next.delete(project.projectId);
-        return next;
+
+      try {
+        const response = await api.renameProject(projectId, trimmed);
+        if (!response.ok) {
+          alert(t('messages.renameProjectFailed', 'Failed to rename project'));
+          return;
+        }
+
+        await onRefresh?.();
+      } catch (error) {
+        console.error('[Sidebar] Error renaming project:', error);
+        alert(t('messages.renameProjectFailed', 'Failed to rename project'));
+      }
+    },
+    [onRefresh, t],
+  );
+
+  /**
+   * Adds a worktree to a repository: git creates the tree, the server registers
+   * it, and the refresh brings it into the row it belongs to.
+   *
+   * The two steps come back separately, because the tree exists on disk as soon
+   * as git succeeds. A thrown error therefore means *no worktree was created*;
+   * a returned `registrationError` means one was, and CLIde could not adopt it.
+   */
+  const createWorktree = useCallback(
+    async (options: CreateWorktreeOptions): Promise<CreateWorktreeOutcome> => {
+      const response = await api.createWorktree(options.projectId, {
+        branch: options.branch,
+        path: options.worktreePath ?? null,
+        baseRef: options.baseRef ?? null,
       });
-    }
-  }, [deleteConfirmation, onProjectDelete, t]);
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string | { message?: string; details?: string };
+        };
+        const err = data.error;
+        // git's own refusal is carried in `details` and is the actionable part.
+        const message =
+          typeof err === 'string'
+            ? err
+            : err?.details || err?.message || t('messages.createWorktreeFailed', 'Failed to create worktree');
+        throw new Error(message);
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        data?: {
+          worktreePath?: string;
+          project?: Project | null;
+          registrationError?: string | null;
+        };
+      };
+
+      await onRefresh?.();
+
+      return {
+        worktreePath: payload.data?.worktreePath ?? '',
+        project: payload.data?.project ?? null,
+        registrationError: payload.data?.registrationError ?? null,
+      };
+    },
+    [onRefresh, t],
+  );
 
   const handleProjectSelect = useCallback(
     (project: Project) => {
@@ -955,18 +1161,6 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onRefresh, t]);
 
-  const refreshProjects = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      await Promise.all([
-        Promise.resolve(onRefresh()),
-        fetchArchivedSessions(),
-      ]);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [fetchArchivedSessions, onRefresh]);
-
   const updateSessionSummary = useCallback(
     // `_projectId` and `_provider` are preserved for compatibility with
     // existing sidebar callback signatures; backend rename only needs sessionId.
@@ -1013,7 +1207,6 @@ export function useSidebarController({
     initialSessionsLoaded,
     currentTime,
     projectSortOrder,
-    isRefreshing,
     editingSession,
     editingSessionName,
     searchFilter,
@@ -1025,6 +1218,11 @@ export function useSidebarController({
     sessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
+    repositoryEntries,
+    pinnedSessions,
+    isPinnedSectionCollapsed,
+    togglePinnedSection,
+    isSessionSearchActive,
     runningSessionsCount,
     archivedProjects: filteredArchivedProjects,
     archivedSessions: filteredArchivedSessions,
@@ -1032,10 +1230,15 @@ export function useSidebarController({
     isArchivedSessionsLoading,
     toggleProject,
     handleSessionClick,
-    toggleStarProject,
-    isProjectStarred,
     getProjectSessions,
+    getRepositorySessions,
+    getRepositoryView,
+    setRepositoryView,
+    resetRepositoryView,
     loadMoreSessionsForProject,
+    loadMoreSessionsForRepository,
+    getVisibleSessionCount,
+    showAllSessions,
     startEditing,
     cancelEditing,
     saveProjectName,
@@ -1044,12 +1247,15 @@ export function useSidebarController({
     archiveSessionDirect,
     toggleStarSession,
     requestProjectDelete,
+    requestRepositoryDelete,
+    archiveProjects,
+    renameProjectDirect,
+    createWorktree,
     confirmDeleteProject,
     handleProjectSelect,
     openArchivedSession,
     restoreArchivedProject,
     restoreArchivedSession,
-    refreshProjects,
     updateSessionSummary,
     collapseSidebar,
     expandSidebar,

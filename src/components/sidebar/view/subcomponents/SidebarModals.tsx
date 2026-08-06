@@ -114,13 +114,28 @@ export default function SidebarModals({
                     <p className="mb-1 text-sm text-muted-foreground">
                       {t('deleteConfirmation.confirmDelete')}{' '}
                       <span className="font-medium text-foreground">
-                        {deleteConfirmation.project.displayName || deleteConfirmation.project.projectId}
+                        {deleteConfirmation.displayName}
                       </span>
                       ?
                     </p>
                     {deleteConfirmation.sessionCount > 0 && (
                       <p className="mt-2 text-sm text-muted-foreground">
                         {t('deleteConfirmation.sessionCount', { count: deleteConfirmation.sessionCount })}
+                      </p>
+                    )}
+                    {/*
+                      A row is a repository, so its delete covers every worktree
+                      in it — say so, because the row only ever named one thing.
+                    */}
+                    {deleteConfirmation.projects.length > 1 && (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {t('deleteConfirmation.worktreeScope', {
+                          count: deleteConfirmation.projects.length,
+                          defaultValue_one:
+                            'This covers the 1 worktree registered for this repository. Its directory stays on disk.',
+                          defaultValue:
+                            'This covers all {{count}} worktrees registered for this repository. Their directories stay on disk.',
+                        })}
                       </p>
                     )}
                   </div>

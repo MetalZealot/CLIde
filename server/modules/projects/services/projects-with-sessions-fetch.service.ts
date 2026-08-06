@@ -7,6 +7,8 @@ import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
+import { readCheckoutIdentity, type CheckoutIdentity } from './repository-identity.service.js';
+
 type SessionSummary = {
   id: string;
   provider: string;
@@ -36,9 +38,21 @@ export type ProjectListItem = {
     hasMore: boolean;
     total: number;
   };
+  // ADR 0016: `repositoryId` groups several project rows into one repository in
+  // the sidebar. Null for non-repositories, which stay ordinary flat projects.
+  repositoryId: string | null;
+  branch: string | null;
+  detachedHead: string | null;
 };
 
-export type ArchivedProjectListItem = ProjectListItem & {
+// The archive is a flat historical view, so it carries no repository grouping.
+// Omitting the fields is deliberate: an archived project's directory is often
+// gone, and inventing nulls for it would read as "not a repository" rather than
+// "not grouped here".
+export type ArchivedProjectListItem = Omit<
+  ProjectListItem,
+  'repositoryId' | 'branch' | 'detachedHead'
+> & {
   isArchived: true;
 };
 
@@ -177,6 +191,36 @@ function broadcastProgress(progress: ProgressUpdate) {
   });
 }
 
+const NO_CHECKOUT_IDENTITY: CheckoutIdentity = {
+  repositoryId: null,
+  branch: null,
+  detachedHead: null,
+};
+
+/**
+ * How many identity reads run at once.
+ *
+ * Each one spawns git, so reading them inside the sequential project loop makes
+ * the list as slow as the project count, while a flat `Promise.all` would fork
+ * one process per project at the same instant. A small pool is the middle
+ * ground; `readCheckoutIdentity` never rejects, so no settling wrapper is needed.
+ */
+const IDENTITY_READ_CONCURRENCY = 8;
+
+async function readCheckoutIdentities(
+  projectPaths: string[],
+): Promise<Map<string, CheckoutIdentity>> {
+  const identities = new Map<string, CheckoutIdentity>();
+
+  for (let index = 0; index < projectPaths.length; index += IDENTITY_READ_CONCURRENCY) {
+    const batch = projectPaths.slice(index, index + IDENTITY_READ_CONCURRENCY);
+    const read = await Promise.all(batch.map((projectPath) => readCheckoutIdentity(projectPath)));
+    batch.forEach((projectPath, offset) => identities.set(projectPath, read[offset]));
+  }
+
+  return identities;
+}
+
 /**
  * Reads all projects from DB and returns normalized session summaries.
  */
@@ -196,6 +240,8 @@ export async function getProjectsWithSessions(
   const totalProjects = projectRows.length;
   const projects: ProjectListItem[] = [];
   let processedProjects = 0;
+
+  const checkoutIdentities = await readCheckoutIdentities(projectRows.map((row) => row.project_path));
 
   for (const row of projectRows) {
     processedProjects += 1;
@@ -220,6 +266,8 @@ export async function getProjectsWithSessions(
       offset: options.sessionsOffset,
     });
 
+    const checkoutIdentity = checkoutIdentities.get(projectPath) ?? NO_CHECKOUT_IDENTITY;
+
     projects.push({
       projectId,
       path: projectPath,
@@ -231,6 +279,9 @@ export async function getProjectsWithSessions(
         hasMore: sessionsPage.hasMore,
         total: sessionsPage.total,
       },
+      repositoryId: checkoutIdentity.repositoryId,
+      branch: checkoutIdentity.branch,
+      detachedHead: checkoutIdentity.detachedHead,
     });
   }
 

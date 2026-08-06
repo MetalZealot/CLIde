@@ -10,7 +10,6 @@ import type { ArchivedProjectListItem, ArchivedSessionListItem, SidebarSearchMod
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import { getAllSessions } from '../../utils/utils';
 
-import SidebarAllConversations from './SidebarAllConversations';
 import SidebarFooter from './SidebarFooter';
 import SidebarHeader from './SidebarHeader';
 import SidebarProjectList, { type SidebarProjectListProps } from './SidebarProjectList';
@@ -139,9 +138,6 @@ type SidebarContentProps = {
   // Conversation result clicks pass back the DB projectId (or null when the
   // server couldn't resolve it). Consumers must handle the null case.
   onConversationResultClick: (projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => void;
-  onRefresh: () => void;
-  isRefreshing: boolean;
-  onCreateProject: () => void;
   onCollapseSidebar: () => void;
   updateAvailable: boolean;
   restartRequired: boolean;
@@ -179,9 +175,6 @@ export default function SidebarContent({
   onRestoreArchivedSession,
   onDeleteArchivedSession,
   onConversationResultClick,
-  onRefresh,
-  isRefreshing,
-  onCreateProject,
   onCollapseSidebar,
   updateAvailable,
   restartRequired,
@@ -221,9 +214,6 @@ export default function SidebarContent({
         onToggleSearchBar={onToggleSearchBar}
         searchMode={searchMode}
         onSearchModeChange={onSearchModeChange}
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
-        onCreateProject={onCreateProject}
         onCollapseSidebar={onCollapseSidebar}
         t={t}
       />
@@ -611,12 +601,9 @@ export default function SidebarContent({
               ))}
             </div>
           )
-        ) : searchMode === 'conversations' ? (
-          <SidebarAllConversations
-            projectListProps={projectListProps}
-            searchFilter={searchFilter}
-          />
         ) : (
+          // 'conversations' with a short query lands here too: below the
+          // full-text threshold there is nothing to show but the project list.
           <SidebarProjectList {...projectListProps} />
         )}
       </ScrollArea>

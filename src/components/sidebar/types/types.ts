@@ -3,6 +3,92 @@ import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 
 export type ProjectSortOrder = 'name' | 'date';
 export type SidebarSearchMode = 'projects' | 'conversations' | 'running' | 'archived';
+
+/** Order of the sessions under one repository row. `recent` is the default. */
+export type SessionSortKey = 'recent' | 'oldest' | 'title' | 'worktree';
+
+/**
+ * How one repository row presents its sessions.
+ *
+ * Held per row and only in memory, so a view survives navigating away and back
+ * but never outlives the tab — a sort you forgot you set is worse than one you
+ * have to set again. Sorting and filtering by model are deliberately absent:
+ * the model pick lives in the database but never reaches the session list, and
+ * almost no row carries one yet (see `docs/TODO.md`).
+ */
+export type RepositoryViewOptions = {
+  sort: SessionSortKey;
+  /** Checkouts to keep, by `projectId`. Null shows every one of them. */
+  worktreeProjectIds: string[] | null;
+};
+
+/**
+ * One row in the sidebar's project list (ADR 0016).
+ *
+ * The list is deliberately two levels deep — repository, then session — which
+ * is the shape every reference client in `docs/ui ref/` converged on. So a
+ * repository with several registered checkouts is *one* row whose sessions are
+ * merged across those checkouts and labelled with the branch each came from,
+ * not a third tier of checkout rows. A single-checkout repository renders
+ * exactly as a project row did before grouping existed.
+ */
+export type RepositoryEntry = {
+  /**
+   * React key and expansion key. Derived only from the project, never from the
+   * current filter, so searching cannot change which row a project belongs to.
+   */
+  key: string;
+  /** Null for a directory that is not a git checkout. */
+  repositoryId: string | null;
+  /** Row label: the repository's name, else the project's display name. */
+  displayName: string;
+  /** Target of repository-scoped actions; the main checkout when registered. */
+  leadCheckout: Project;
+  /** Every registered checkout, lead first. Length 1 in the common case. */
+  checkouts: Project[];
+};
+
+export type CreateWorktreeOptions = {
+  /** Any registered checkout of the repository; git resolves the rest. */
+  projectId: string;
+  /** Branch to create along with the tree. */
+  branch: string;
+  /** Absolute destination. Derived beside the repository when omitted. */
+  worktreePath?: string | null;
+  /** Commit-ish the branch starts from. The current HEAD when omitted. */
+  baseRef?: string | null;
+};
+
+/**
+ * `git worktree add` and CLIde's registration of the result are two steps, and
+ * only the first is undoable by the user. A rejected promise means neither
+ * happened; `registrationError` means the tree is on disk and unregistered.
+ */
+export type CreateWorktreeOutcome = {
+  worktreePath: string;
+  project: Project | null;
+  registrationError: string | null;
+};
+
+/** A session paired with the checkout it actually belongs to. */
+export type CheckoutSession = {
+  session: SessionWithProvider;
+  checkout: Project;
+  /**
+   * Branch shown beneath the session title. Null when the row needs no
+   * disambiguation, so an ordinary single-checkout project stays uncluttered.
+   */
+  branchLabel: string | null;
+};
+
+/**
+ * A pinned session as the Pinned section draws it: it has left its repository's
+ * row, so it has to name the repository it came from itself.
+ */
+export type PinnedSession = CheckoutSession & {
+  repositoryName: string;
+};
+
 export type ArchivedProjectListItem = Project & { isArchived: true };
 
 export type SessionWithProvider = ProjectSession & {
@@ -23,7 +109,13 @@ export type ArchivedSessionListItem = {
 };
 
 export type DeleteProjectConfirmation = {
-  project: Project;
+  /**
+   * Every worktree the action covers. A sidebar row is a repository, so its own
+   * delete covers all of them; the worktree manager confirms one at a time.
+   */
+  projects: Project[];
+  /** What the confirmation names — the row's label, or one worktree's. */
+  displayName: string;
   sessionCount: number;
 };
 
