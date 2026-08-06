@@ -56,7 +56,8 @@
     "prepublishOnly": "npm run build",
     "postinstall": "node scripts/fix-node-pty.js",
     "prepare": "husky",
-    "update:platform": "./update-platform.sh"
+    "update:platform": "./update-platform.sh",
+    "check:docs": "node scripts/check-docs.mjs"
   },
   "build": {
     "appId": "ai.cloudcli.desktop",
@@ -252,7 +253,9 @@
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": "eslint",
-    "server/**/*.{js,ts}": "eslint"
+    "server/**/*.{js,ts}": "eslint",
+    "docs/**/*.md": "node scripts/check-docs.mjs --",
+    "AGENTS.md": "node scripts/check-docs.mjs --"
   },
   "optionalDependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",
