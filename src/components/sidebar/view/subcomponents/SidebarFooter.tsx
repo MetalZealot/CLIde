@@ -1,4 +1,4 @@
-import { Settings, ArrowUpCircle, AlertTriangle } from 'lucide-react';
+import { Archive, Settings, ArrowUpCircle, AlertTriangle } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { IS_PLATFORM } from '../../../../constants/config';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
@@ -13,6 +13,8 @@ type SidebarFooterProps = {
   currentVersion: string;
   onShowVersionModal: () => void;
   onShowSettings: () => void;
+  isArchiveOpen: boolean;
+  onShowArchive: () => void;
   t: TFunction;
 };
 
@@ -24,6 +26,8 @@ export default function SidebarFooter({
   currentVersion,
   onShowVersionModal,
   onShowSettings,
+  isArchiveOpen,
+  onShowArchive,
   t,
 }: SidebarFooterProps) {
   return (
@@ -92,18 +96,33 @@ export default function SidebarFooter({
         </>
       )}
 
-      {/* Community + Settings */}
+      {/* Settings + Archive */}
       <div className="nav-divider" />
 
-      {/* Settings */}
       <div className="px-2 py-1.5">
-        <button
-          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
-          onClick={onShowSettings}
-        >
-          <Settings className="h-3.5 w-3.5" />
-          <span className="text-sm">{t('actions.settings')}</span>
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+            onClick={onShowSettings}
+          >
+            <Settings className="h-3.5 w-3.5" />
+            <span className="text-sm">{t('actions.settings')}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onShowArchive}
+            aria-pressed={isArchiveOpen}
+            aria-label={t('actions.archive', 'Archive')}
+            title={t('actions.archive', 'Archive')}
+            className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors ${
+              isArchiveOpen
+                ? 'bg-muted/60 text-foreground'
+                : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+            }`}
+          >
+            <Archive className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Desktop version brand line (OSS mode only) */}

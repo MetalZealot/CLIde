@@ -66,3 +66,5 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0026 — Android's file chooser can't be shaped from the web; the composer keeps one plain input](0026-attachment-menu-accept-ceiling.md)
 - [0027 — The backlog lives at `docs/TODO.md`](0027-todo-md-lives-in-docs.md)
 - [0028 — Creating a worktree ships ahead of ADR 0016's Phase 0; removing one does not](0028-worktree-creation-precedes-phase-0.md) *(narrows 0016's sequencing)*
+- [0029 — A repository row's session view is per row, in memory, and loads before it filters](0029-per-row-session-views-load-before-they-filter.md)
+- [0030 — Sidebar activity is a section; search is persistent and Archive is in the footer](0030-sidebar-activity-persistent-search-footer-archive.md)

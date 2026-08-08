@@ -79,15 +79,12 @@ function Sidebar({
     editingSession,
     editingSessionName,
     searchFilter,
-    isSearchBarOpen,
-    toggleSearchBar,
     searchMode,
     setSearchMode,
     conversationResults,
     isSearching,
     searchProgress,
     clearConversationResults,
-    runningSessionsCount,
     deletingProjects,
     deleteConfirmation,
     sessionDeleteConfirmation,
@@ -383,8 +380,8 @@ function Sidebar({
     attentionSessionIds,
     unreadSessionIds,
     // A search narrows each row to its matching sessions, so the rows have to
-    // open to show them; running mode does the same for the same reason.
-    forceExpanded: searchMode === 'running' || isSessionSearchActive,
+    // open to show them.
+    forceExpanded: isSessionSearchActive,
     onEditingNameChange: setEditingName,
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
@@ -497,9 +494,6 @@ function Sidebar({
         <SidebarContent
             isPWA={isPWA}
             isMobile={isMobile}
-            isLoading={isLoading}
-            projects={projects}
-            runningSessionsCount={runningSessionsCount}
             archivedProjects={archivedProjects}
             archivedSessions={archivedSessions}
             archivedSessionsCount={archivedSessionsCount}
@@ -507,8 +501,6 @@ function Sidebar({
             searchFilter={searchFilter}
             onSearchFilterChange={setSearchFilter}
             onClearSearchFilter={() => setSearchFilter('')}
-            isSearchBarOpen={isSearchBarOpen}
-            onToggleSearchBar={toggleSearchBar}
             searchMode={searchMode}
             onSearchModeChange={(mode) => {
               setSearchMode(mode);

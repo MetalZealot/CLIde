@@ -172,7 +172,6 @@ export function useSidebarController({
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
-  const [isSearchBarOpen, setIsSearchBarOpen] = useState(false);
   const [deletingProjects, setDeletingProjects] = useState<Set<string>>(new Set());
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteProjectConfirmation | null>(null);
   const [sessionDeleteConfirmation, setSessionDeleteConfirmation] = useState<SessionDeleteConfirmation | null>(null);
@@ -192,21 +191,9 @@ export function useSidebarController({
 
   const isSidebarCollapsed = !isMobile && !sidebarVisible;
   const activeSessionIds = useMemo(() => new Set(activeSessions.keys()), [activeSessions]);
-  const runningSessionsCount = activeSessionIds.size;
 
-  const closeSearchBar = useCallback(() => {
-    setIsSearchBarOpen(false);
+  const clearSearchFilter = useCallback(() => {
     setSearchFilter('');
-  }, []);
-
-  const toggleSearchBar = useCallback(() => {
-    setIsSearchBarOpen((prev) => {
-      const next = !prev;
-      if (!next) {
-        setSearchFilter('');
-      }
-      return next;
-    });
   }, []);
 
   useEffect(() => {
@@ -452,9 +439,9 @@ export function useSidebarController({
       // Tag the session with its owning projectId so downstream handlers
       // can correlate it with the selectedProject in the app state.
       onSessionSelect({ ...session, __projectId: projectId });
-      closeSearchBar();
+      clearSearchFilter();
     },
-    [onSessionSelect, closeSearchBar],
+    [onSessionSelect, clearSearchFilter],
   );
 
   const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
@@ -629,39 +616,9 @@ export function useSidebarController({
     [projectSortOrder, projects],
   );
 
-  const runningProjects = useMemo(() => {
-    if (activeSessionIds.size === 0) {
-      return [];
-    }
-
-    return sortedProjects.reduce<Project[]>((acc, project) => {
-      const sessions = (project.sessions ?? []).filter((session) => activeSessionIds.has(String(session.id)));
-      const runningCount = sessions.length;
-
-      if (runningCount === 0) {
-        return acc;
-      }
-
-      acc.push({
-        ...project,
-        sessions,
-        sessionMeta: {
-          ...project.sessionMeta,
-          total: runningCount,
-          hasMore: false,
-        },
-      });
-      return acc;
-    }, []);
-  }, [activeSessionIds, sortedProjects]);
-
   const filteredProjects = useMemo(
-    () =>
-      filterProjectsBySessionTitle(
-        searchMode === 'running' ? runningProjects : sortedProjects,
-        debouncedSearchQuery,
-      ),
-    [debouncedSearchQuery, runningProjects, searchMode, sortedProjects],
+    () => filterProjectsBySessionTitle(sortedProjects, debouncedSearchQuery),
+    [debouncedSearchQuery, sortedProjects],
   );
 
   /**
@@ -673,8 +630,7 @@ export function useSidebarController({
     searchMode !== 'conversations' && searchMode !== 'archived' && debouncedSearchQuery.length > 0;
 
   // ADR 0016: collapsing to one row per repository is the last step, so
-  // sorting, the running filter, and the search filter all keep operating on a
-  // flat project list and stay unchanged.
+  // sorting and the search filter both keep operating on a flat project list.
   const allRepositoryEntries = useMemo(
     () => buildRepositoryEntries(filteredProjects),
     [filteredProjects],
@@ -1190,8 +1146,8 @@ export function useSidebarController({
     }
 
     onSessionSelect(sessionPayload);
-    closeSearchBar();
-  }, [archivedProjects, handleProjectSelect, onSessionSelect, projects, closeSearchBar]);
+    clearSearchFilter();
+  }, [archivedProjects, clearSearchFilter, handleProjectSelect, onSessionSelect, projects]);
 
   const restoreArchivedProject = useCallback(async (projectId: string) => {
     try {
@@ -1288,8 +1244,6 @@ export function useSidebarController({
     editingSession,
     editingSessionName,
     searchFilter,
-    isSearchBarOpen,
-    toggleSearchBar,
     deletingProjects,
     loadingMoreProjects,
     deleteConfirmation,
@@ -1305,7 +1259,6 @@ export function useSidebarController({
     isPinnedSectionCollapsed,
     togglePinnedSection,
     isSessionSearchActive,
-    runningSessionsCount,
     archivedProjects: filteredArchivedProjects,
     archivedSessions: filteredArchivedSessions,
     archivedSessionsCount: archivedProjects.length + archivedSessions.length,
