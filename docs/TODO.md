@@ -99,6 +99,12 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [~] **Half-open WebSocket: dead Stop, frozen "thinking", then a wall of missed messages.** All four parts of the fix are implemented (`dd47ddd`, ADR 0006). What remains is deciding whether the watchdog keeps its permissive "any frame" rule or moves to matched echoes: [plan](plans/websocket-liveness.md). **M**
 - [ ] **Adopt upstream #1050's chat-scroll perf fixes** (complementary to `55d8c44`). Three causes still present here: `normalizedToChatMessages` mints new objects every ~100 ms flush, defeating `React.memo`; `Markdown`/`CodeBlock` are unmemoized; and the third from the issue. Render-side, distinct from the pagination item above. **M**
 
+## Agent context in worktrees
+
+- [x] **Worktree sessions started with zero memory.** Memory is keyed by absolute cwd with no fallback: main had 30 facts, every worktree had 0. `setup-worktree.sh` now symlinks the worktree's `~/.claude/projects/<slug>/memory` to main's; verified by probe. All four live worktrees backfilled. **S**
+- [ ] **Host `CLAUDE.md` still doesn't reach worktree sessions.** The stub only *points* at it, and `@` imports outside the project tree do not resolve (both absolute and `../` forms tested). Only fix left is `setup-worktree.sh` inlining main's host sections into the real stub — accepts drift. **S**
+- [ ] **Two missing agent guardrails in `AGENTS.md`.** A session drove Browser into its own live session and used its Shell; the same session asked for and typed Grayson's password into a login form, against the existing "the user clicks through, not you" rule. Add both as explicit invariants. **S**
+
 ## Upstream candidates (PRs to siteboon/claudecodeui)
 
 Moved to [`upstream-candidates.md`](upstream-candidates.md) on 2026-07-27 — the ledger of

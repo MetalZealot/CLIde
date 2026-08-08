@@ -133,6 +133,46 @@ EOF
 write_claude_stub
 link_from_main .claude
 
+# --- Claude Code memory ----------------------------------------------------
+#
+# Memory lives OUTSIDE the checkout, at ~/.claude/projects/<cwd with / as ->,
+# and is keyed by absolute path with no fallback to a parent or to the main
+# worktree. So every worktree session started with an empty memory: main had 30
+# facts, each worktree had zero (measured 2026-08-06). That is the single
+# largest reason a worktree session behaves like it has never seen this app --
+# it loses the session-id model, the model-picker resolution, the test-runner
+# invocation, client-build-needs-no-restart, and so on.
+#
+# Unlike CLAUDE.md, a symlinked memory directory IS read (verified 2026-08-06:
+# a worktree probe correctly answered a fact present only in main's memory), so
+# linking the whole directory gives every worktree one shared, always-current
+# memory rather than a divergent copy.
+link_memory_from_main() {
+  local base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+  local src="$base/$(printf '%s' "$MAIN"   | tr '/' '-')/memory"
+  local dst="$base/$(printf '%s' "$TARGET" | tr '/' '-')/memory"
+
+  if [ ! -d "$src" ]; then
+    skip "memory — main has none yet at $src"
+    return
+  fi
+  if [ -L "$dst" ]; then
+    ok "memory — already linked to main's"
+    return
+  fi
+  if [ -e "$dst" ]; then
+    warn "memory — a real directory exists here; left it alone"
+    warn "    merge it into main's by hand, then re-run: $0 '$TARGET'"
+    return
+  fi
+
+  mkdir -p "$(dirname "$dst")"
+  ln -s "$src" "$dst"
+  ok "memory — linked to main's ($(ls "$src" | wc -l) files)"
+}
+
+link_memory_from_main
+
 # .gitignore has `.claude/` with a trailing slash, which only matches real
 # directories — a symlink to one still shows as untracked. info/exclude lives in
 # the shared git dir, so one entry covers every worktree and is never committed.
