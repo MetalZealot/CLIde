@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
-import { Pin, Plus } from 'lucide-react';
+import { Loader2, Pin, Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type {
+  ActivitySession,
+  ActivitySummary,
   CheckoutSession,
   MCPServerStatus,
   PinnedSession,
@@ -26,6 +28,11 @@ export type SidebarProjectListProps = {
   repositoryEntries: RepositoryEntry[];
   /** Pinned sessions, which live here instead of inside their own row. */
   pinnedSessions: PinnedSession[];
+  /** Transient activity is copied here and remains inside repository rows. */
+  activitySessions: ActivitySession[];
+  activitySummary: ActivitySummary;
+  isActivitySectionCollapsed: boolean;
+  onToggleActivitySection: () => void;
   isPinnedSectionCollapsed: boolean;
   onTogglePinnedSection: () => void;
   selectedProject: Project | null;
@@ -86,6 +93,10 @@ export default function SidebarProjectList({
   projects,
   filteredProjects,
   repositoryEntries,
+  activitySessions,
+  activitySummary,
+  isActivitySectionCollapsed,
+  onToggleActivitySection,
   pinnedSessions,
   isPinnedSectionCollapsed,
   onTogglePinnedSection,
@@ -215,14 +226,13 @@ export default function SidebarProjectList({
     />
   );
 
-  /**
-   * A pinned session, drawn at the top level rather than under a row. It names
-   * its repository because it has left that repository's list — this is the
-   * only place it appears.
-   */
-  const renderPinnedSession = ({ session, checkout, branchLabel, repositoryName }: PinnedSession) => (
+  /** A flat-section session labelled with the repository it belongs to. */
+  const renderSectionSession = (
+    { session, checkout, branchLabel, repositoryName }: PinnedSession | ActivitySession,
+    facet: 'activity' | 'pinned',
+  ) => (
     <SidebarSessionItem
-      key={session.id}
+      key={`${facet}:${session.id}`}
       project={checkout}
       session={session}
       projectLabel={repositoryName}
@@ -247,16 +257,50 @@ export default function SidebarProjectList({
     />
   );
 
+  const showActivitySection = showProjects && activitySessions.length > 0;
   const showPinnedSection = showProjects && pinnedSessions.length > 0;
+  const activitySummaryNode = (
+    <span className="ml-auto flex flex-shrink-0 items-center gap-2 normal-case tracking-normal">
+      {activitySummary.blocked > 0 && (
+        <span className="flex items-center gap-1 tabular-nums text-amber-600 dark:text-amber-400" title={t('projects.activityBlocked', 'Blocked')}>
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          {activitySummary.blocked}
+        </span>
+      )}
+      {activitySummary.unread > 0 && (
+        <span className="flex items-center gap-1 tabular-nums text-green-600 dark:text-green-400" title={t('projects.activityUnread', 'Unread finished')}>
+          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+          {activitySummary.unread}
+        </span>
+      )}
+      {activitySummary.running > 0 && (
+        <span className="flex items-center gap-1 tabular-nums text-muted-foreground" title={t('projects.activityRunning', 'Running')}>
+          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+          {activitySummary.running}
+        </span>
+      )}
+    </span>
+  );
 
   return (
     <div className="pb-safe-area-inset-bottom md:space-y-1">
       {/*
-        Pinning is a session-level idea only: a repository cannot be pinned, and
-        a pinned session moves up here instead of being copied, so it is never
-        listed twice. The "Projects" label appears only to separate the two
-        runs — with nothing pinned the list stays a single unlabelled column.
+        Activity is a transient copy while Pinned is a durable move. The
+        "Projects" label appears only when either flat section needs separating
+        from the repository rows below it.
       */}
+      {showActivitySection && (
+        <>
+          <SidebarSectionHeader
+            label={t('projects.activity')}
+            summary={activitySummaryNode}
+            isCollapsed={isActivitySectionCollapsed}
+            onToggle={onToggleActivitySection}
+          />
+          {!isActivitySectionCollapsed && activitySessions.map((session) => renderSectionSession(session, 'activity'))}
+        </>
+      )}
+
       {showPinnedSection && (
         <>
           <SidebarSectionHeader
@@ -266,10 +310,11 @@ export default function SidebarProjectList({
             isCollapsed={isPinnedSectionCollapsed}
             onToggle={onTogglePinnedSection}
           />
-          {!isPinnedSectionCollapsed && pinnedSessions.map(renderPinnedSession)}
-          <SidebarSectionHeader label={t('projects.title')} />
+          {!isPinnedSectionCollapsed && pinnedSessions.map((session) => renderSectionSession(session, 'pinned'))}
         </>
       )}
+
+      {(showActivitySection || showPinnedSection) && <SidebarSectionHeader label={t('projects.title')} />}
 
       {!showProjects ? state : repositoryEntries.map(renderEntry)}
 

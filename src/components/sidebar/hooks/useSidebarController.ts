@@ -6,6 +6,7 @@ import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 import type {
+  ActivitySummary,
   ArchivedProjectListItem,
   ArchivedSessionListItem,
   CreateWorktreeOptions,
@@ -21,6 +22,7 @@ import type {
 import {
   applyRepositoryViewOptions,
   buildRepositoryEntries,
+  collectActivitySessions,
   collectPinnedSessions,
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
   filterProjectsBySessionTitle,
@@ -92,6 +94,8 @@ type UseSidebarControllerArgs = {
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   activeSessions: SessionActivityMap;
+  attentionSessionIds: ReadonlySet<string>;
+  unreadSessionIds: ReadonlySet<string>;
   isLoading: boolean;
   isMobile: boolean;
   t: TFunction;
@@ -112,11 +116,23 @@ type UseSidebarControllerArgs = {
 /** Sessions a row shows before "Show all", and what "Show less" returns it to. */
 export const SESSION_PAGE_SIZE = 5;
 
+const ACTIVITY_SECTION_COLLAPSED_STORAGE_KEY = 'sidebar-activity-section-collapsed';
+
+const readActivitySectionCollapsed = (): boolean => {
+  try {
+    return localStorage.getItem(ACTIVITY_SECTION_COLLAPSED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
 export function useSidebarController({
   projects,
   selectedProject,
   selectedSession: _selectedSession,
   activeSessions,
+  attentionSessionIds,
+  unreadSessionIds,
   isLoading,
   isMobile,
   t,
@@ -147,6 +163,9 @@ export function useSidebarController({
   const [repositoryViews, setRepositoryViews] = useState<Map<string, RepositoryViewOptions>>(new Map());
   // Rows the user asked to see in full, which keep pulling pages until drained.
   const [fullyRevealedRows, setFullyRevealedRows] = useState<Set<string>>(new Set());
+  const [isActivitySectionCollapsed, setIsActivitySectionCollapsed] = useState(
+    readActivitySectionCollapsed,
+  );
   const [isPinnedSectionCollapsed, setIsPinnedSectionCollapsed] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
@@ -484,6 +503,18 @@ export function useSidebarController({
     setIsPinnedSectionCollapsed((previous) => !previous);
   }, []);
 
+  const toggleActivitySection = useCallback(() => {
+    setIsActivitySectionCollapsed((previous) => {
+      const next = !previous;
+      try {
+        localStorage.setItem(ACTIVITY_SECTION_COLLAPSED_STORAGE_KEY, String(next));
+      } catch {
+        // The section still collapses when storage is unavailable.
+      }
+      return next;
+    });
+  }, []);
+
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
     if (!onLoadMoreSessions) {
       return;
@@ -656,6 +687,30 @@ export function useSidebarController({
   const pinnedSessions = useMemo(
     () => collectPinnedSessions(allRepositoryEntries),
     [allRepositoryEntries],
+  );
+
+  /**
+   * Transient session activity, copied above Pinned without removing anything
+   * from its repository row. The collector applies the urgency ordering.
+   */
+  const activitySessions = useMemo(
+    () => collectActivitySessions(
+      allRepositoryEntries,
+      activeSessionIds,
+      attentionSessionIds,
+      unreadSessionIds,
+    ),
+    [activeSessionIds, allRepositoryEntries, attentionSessionIds, unreadSessionIds],
+  );
+  const activitySummary = useMemo<ActivitySummary>(
+    () => activitySessions.reduce(
+      (summary, session) => ({
+        ...summary,
+        [session.activityState]: summary[session.activityState] + 1,
+      }),
+      { blocked: 0, unread: 0, running: 0 },
+    ),
+    [activitySessions],
   );
 
   /**
@@ -1242,6 +1297,10 @@ export function useSidebarController({
     showVersionModal,
     filteredProjects,
     repositoryEntries,
+    activitySessions,
+    activitySummary,
+    isActivitySectionCollapsed,
+    toggleActivitySection,
     pinnedSessions,
     isPinnedSectionCollapsed,
     togglePinnedSection,

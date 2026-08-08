@@ -6,6 +6,7 @@ import type { Project, ProjectSession } from '../../../types/app';
 import {
   applyRepositoryViewOptions,
   buildRepositoryEntries,
+  collectActivitySessions,
   collectPinnedSessions,
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
   filterProjectsBySessionTitle,
@@ -239,6 +240,43 @@ test('Pinned gathers across repositories, newest first, naming each one', () => 
     ['oney-index', 'cloudcli-wt-tts'],
   );
   assert.equal(pinned[1].checkout.projectId, 'p-tts', 'selecting it must open its own checkout');
+});
+
+test('Activity copies sessions and orders blocked, unread, then running', () => {
+  const entries = buildRepositoryEntries([mainCheckout, worktreeA, worktreeB, soloRepository]);
+  const activeSessionIds = new Set(['s-main-old', 's-tts-new', 's-codex-mid']);
+  const attentionSessionIds = new Set(['s-main-old']);
+  const unreadSessionIds = new Set(['s-oney']);
+
+  const activity = collectActivitySessions(
+    entries,
+    activeSessionIds,
+    attentionSessionIds,
+    unreadSessionIds,
+  );
+
+  assert.deepEqual(
+    activity.map(({ session: item, activityState }) => [item.id, activityState]),
+    [
+      ['s-main-old', 'blocked'],
+      ['s-oney', 'unread'],
+      ['s-tts-new', 'running'],
+      ['s-codex-mid', 'running'],
+    ],
+  );
+  assert.ok(
+    mergeCheckoutSessions(entries[0]).some(({ session: item }) => item.id === 's-main-old'),
+    'Activity must copy a session instead of removing it from its repository row',
+  );
+});
+
+test('Activity assigns overlapping states to the highest urgency only', () => {
+  const entries = buildRepositoryEntries([mainCheckout]);
+  const sessionIds = new Set(['s-main-old']);
+
+  const [activity] = collectActivitySessions(entries, sessionIds, sessionIds, sessionIds);
+
+  assert.equal(activity.activityState, 'blocked');
 });
 
 test('search matches session names, not project names, paths, or branches', () => {

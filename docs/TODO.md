@@ -42,7 +42,7 @@ main checkout only).
 - [ ] **Move the top tab strip to a bottom nav** — core tabs go in a bottom bar, design decided 2026-07-22 (ADR 0005). Supersedes the old "plugin buttons cramp the conversation title" item. **M**
 - [ ] Kebab menu: add "Copy session ID" for the **current** session. The long-press sidebar menu covers other sessions; copying the id of the chat you're in still means hunting for it. **S**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
-- [~] Sidebar Projects tab: show an indicator on projects containing an active session, matching the active-session dot. Partly done by the sidebar-indicator work. **S**
+- [~] **Sidebar Activity section and collapsed-rail indicator.** Add the urgency-ordered transient session facet while keeping sessions in their project rows; rearrange persistent search and Archive per ADR 0030. — in progress on `cloudcli-wt-sidebar-activity-section`. **S**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client** — it clears only on open or a `permission_cancelled` frame. Acceptable for now. **S**
 - [ ] Tool-call copy button placement on mobile: always-visible since `05b176b`, but it spans the whole right edge of the tool row, which is heavy. Compact or fold into a row action; keep hover-reveal on desktop. **S/M — design decision first**
 - [ ] **Git branch picker: label branches by remote (origin/ vs upstream/), grouped per remote.** Tier 1 (compact header dropdown) is done. Blocked on the structured-refs work in [the Source Control plan](plans/source-control-truthfulness.md), since the API currently strips remote namespaces. **M**

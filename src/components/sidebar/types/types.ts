@@ -89,6 +89,16 @@ export type PinnedSession = CheckoutSession & {
   repositoryName: string;
 };
 
+export type ActivityState = 'blocked' | 'unread' | 'running';
+
+/** A transiently active session, labelled because Activity is a flat section. */
+export type ActivitySession = CheckoutSession & {
+  repositoryName: string;
+  activityState: ActivityState;
+};
+
+export type ActivitySummary = Record<ActivityState, number>;
+
 export type ArchivedProjectListItem = Project & { isArchived: true };
 
 export type SessionWithProvider = ProjectSession & {

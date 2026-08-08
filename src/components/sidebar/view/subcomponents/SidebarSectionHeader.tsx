@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -7,6 +8,7 @@ type SidebarSectionHeaderProps = {
   label: string;
   icon?: LucideIcon;
   count?: number;
+  summary?: ReactNode;
   /** Omit to render an inert label, as the reference clients do for "Projects". */
   isCollapsed?: boolean;
   onToggle?: () => void;
@@ -23,6 +25,7 @@ export default function SidebarSectionHeader({
   label,
   icon: Icon,
   count,
+  summary,
   isCollapsed,
   onToggle,
 }: SidebarSectionHeaderProps) {
@@ -39,6 +42,7 @@ export default function SidebarSectionHeader({
       {typeof count === 'number' && (
         <span className="flex-shrink-0 tabular-nums opacity-60">{count}</span>
       )}
+      {summary}
     </>
   );
 

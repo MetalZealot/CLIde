@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next';
 
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type {
+  ActivitySession,
   CheckoutSession,
   PinnedSession,
   ProjectSortOrder,
@@ -348,6 +349,48 @@ export const collectPinnedSessions = (entries: RepositoryEntry[]): PinnedSession
         .map((checkoutSession) => ({ ...checkoutSession, repositoryName: entry.displayName })),
     )
     .sort((a, b) => getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime());
+};
+
+const ACTIVITY_URGENCY: Record<ActivitySession['activityState'], number> = {
+  blocked: 0,
+  unread: 1,
+  running: 2,
+};
+
+/**
+ * Every session with transient activity, grouped by urgency and newest first
+ * within each group. Unlike Pinned, Activity copies sessions into its section:
+ * transient work must not make repository rows jump in and out.
+ */
+export const collectActivitySessions = (
+  entries: RepositoryEntry[],
+  activeSessionIds: ReadonlySet<string>,
+  attentionSessionIds: ReadonlySet<string>,
+  unreadSessionIds: ReadonlySet<string>,
+): ActivitySession[] => {
+  return entries
+    .flatMap((entry) =>
+      mergeCheckoutSessions(entry).flatMap((checkoutSession) => {
+        const sessionId = checkoutSession.session.id;
+        const activityState: ActivitySession['activityState'] | null = attentionSessionIds.has(sessionId)
+          ? 'blocked'
+          : unreadSessionIds.has(sessionId)
+            ? 'unread'
+            : activeSessionIds.has(sessionId)
+              ? 'running'
+              : null;
+
+        return activityState
+          ? [{ ...checkoutSession, repositoryName: entry.displayName, activityState }]
+          : [];
+      }),
+    )
+    .sort((a, b) => {
+      const urgencyDifference = ACTIVITY_URGENCY[a.activityState] - ACTIVITY_URGENCY[b.activityState];
+      return urgencyDifference !== 0
+        ? urgencyDifference
+        : getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime();
+    });
 };
 
 /** Newest first, every worktree shown — the order the row has always used. */
