@@ -45,6 +45,7 @@ export type SidebarProjectListProps = {
   getRepositorySessions: (entry: RepositoryEntry) => CheckoutSession[];
   getVisibleSessionCount: (entryKey: string) => number;
   onShowAllSessions: (entry: RepositoryEntry) => void;
+  onCollapseSessions: (entry: RepositoryEntry) => void;
   loadingMoreProjects: Set<string>;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
@@ -105,6 +106,7 @@ export default function SidebarProjectList({
   getRepositorySessions,
   getVisibleSessionCount,
   onShowAllSessions,
+  onCollapseSessions,
   loadingMoreProjects,
   activeSessions,
   attentionSessionIds,
@@ -193,6 +195,7 @@ export default function SidebarProjectList({
       onDeleteSession={onDeleteSession}
       visibleSessionCount={getVisibleSessionCount(entry.key)}
       onShowAllSessions={onShowAllSessions}
+      onCollapseSessions={onCollapseSessions}
       activeSessions={activeSessions}
       attentionSessionIds={attentionSessionIds}
       unreadSessionIds={unreadSessionIds}

@@ -109,6 +109,9 @@ type UseSidebarControllerArgs = {
   sidebarVisible: boolean;
 };
 
+/** Sessions a row shows before "Show all", and what "Show less" returns it to. */
+export const SESSION_PAGE_SIZE = 5;
+
 export function useSidebarController({
   projects,
   selectedProject,
@@ -530,9 +533,6 @@ export function useSidebarController({
     [loadMoreSessionsForProject],
   );
 
-  /** Sessions shown before "show more", and how many each press adds. */
-  const SESSION_PAGE_SIZE = 5;
-
   const getVisibleSessionCount = useCallback(
     (entryKey: string) => visibleSessionCounts.get(entryKey) ?? SESSION_PAGE_SIZE,
     [visibleSessionCounts],
@@ -569,6 +569,29 @@ export function useSidebarController({
     },
     [loadMoreSessionsForRepository],
   );
+
+  /**
+   * Puts one row back to its first page. Already-fetched sessions stay in
+   * memory, so this only changes how many are drawn; dropping the row from
+   * `fullyRevealedRows` is what stops the page loop asking for more.
+   */
+  const collapseSessions = useCallback((entry: RepositoryEntry) => {
+    setFullyRevealedRows((previous) => {
+      if (!previous.has(entry.key)) {
+        return previous;
+      }
+
+      const next = new Set(previous);
+      next.delete(entry.key);
+      return next;
+    });
+
+    setVisibleSessionCounts((previous) => {
+      const next = new Map(previous);
+      next.delete(entry.key);
+      return next;
+    });
+  }, []);
 
   const sortedProjects = useMemo(
     () => sortProjects(projects, projectSortOrder),
@@ -1239,6 +1262,7 @@ export function useSidebarController({
     loadMoreSessionsForRepository,
     getVisibleSessionCount,
     showAllSessions,
+    collapseSessions,
     startEditing,
     cancelEditing,
     saveProjectName,

@@ -7,6 +7,7 @@ import type { SessionActivityMap } from '../../../../hooks/useSessionProtection'
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { CheckoutSession, RepositoryEntry, SessionWithProvider } from '../../types/types';
 import type { ContextMenuAnchor } from '../../../../shared/view/ui';
+import { SESSION_PAGE_SIZE } from '../../hooks/useSidebarController';
 
 import SidebarSessionItem from './SidebarSessionItem';
 
@@ -39,6 +40,7 @@ type SidebarProjectSessionsProps = {
   /** How many of `sessions` to render before the "show more" control. */
   visibleSessionCount: number;
   onShowAllSessions: (entry: RepositoryEntry) => void;
+  onCollapseSessions: (entry: RepositoryEntry) => void;
   onNewSession: (project: Project) => void;
   /** Asks which worktree to start in; only reached when there is a choice. */
   onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
@@ -98,6 +100,7 @@ export default function SidebarProjectSessions({
   onDeleteSession,
   visibleSessionCount,
   onShowAllSessions,
+  onCollapseSessions,
   onNewSession,
   onNewSessionMenu,
   onNewWorktree,
@@ -124,6 +127,9 @@ export default function SidebarProjectSessions({
   // per checkout and excludes pinned sessions, so a merged row can only promise
   // a number once every page has arrived; until then the label stays plain.
   const hiddenSessionCount = hasMoreSessions ? null : sessions.length - visibleSessions.length;
+  // Nothing left to reveal and the cap has been lifted: the same button folds
+  // the row back to its first page, so opening it is not a one-way door.
+  const canShowLess = !canShowMore && visibleSessionCount > SESSION_PAGE_SIZE;
 
   /**
    * A new session has to land in exactly one worktree, so when the row covers
@@ -237,22 +243,24 @@ export default function SidebarProjectSessions({
             time: paging a sidebar list in fives is busywork, and sorting or
             filtering needs the whole set loaded anyway.
           */}
-          {canShowMore && (
+          {(canShowMore || canShowLess) && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 w-full justify-start px-2 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => onShowAllSessions(entry)}
+              onClick={() => (canShowMore ? onShowAllSessions(entry) : onCollapseSessions(entry))}
               disabled={isLoadingMoreSessions}
             >
               {isLoadingMoreSessions
                 ? t('sessions.loadingSessions')
-                : hiddenSessionCount
-                  ? t('sessions.showAllCount', {
-                      count: hiddenSessionCount,
-                      defaultValue: 'Show all ({{count}} more)',
-                    })
-                  : t('sessions.showAll', 'Show all sessions')}
+                : !canShowMore
+                  ? t('sessions.showLess', 'Show less')
+                  : hiddenSessionCount
+                    ? t('sessions.showAllCount', {
+                        count: hiddenSessionCount,
+                        defaultValue: 'Show all ({{count}} more)',
+                      })
+                    : t('sessions.showAll', 'Show all sessions')}
             </Button>
           )}
         </>

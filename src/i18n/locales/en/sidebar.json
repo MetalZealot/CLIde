@@ -37,7 +37,8 @@
     "loading": "Loading...",
     "showMore": "Show more sessions",
     "showAll": "Show all sessions",
-    "showAllCount": "Show all ({{count}} more)"
+    "showAllCount": "Show all ({{count}} more)",
+    "showLess": "Show less"
   },
   "tooltips": {
     "viewEnvironments": "View Environments",

@@ -51,6 +51,7 @@ type SidebarRepositoryItemProps = {
   ) => void;
   visibleSessionCount: number;
   onShowAllSessions: (entry: RepositoryEntry) => void;
+  onCollapseSessions: (entry: RepositoryEntry) => void;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
@@ -142,6 +143,7 @@ export default function SidebarRepositoryItem({
   onDeleteSession,
   visibleSessionCount,
   onShowAllSessions,
+  onCollapseSessions,
   activeSessions,
   unreadSessionIds,
   attentionSessionIds,
@@ -572,6 +574,7 @@ export default function SidebarRepositoryItem({
         onDeleteSession={onDeleteSession}
         visibleSessionCount={visibleSessionCount}
         onShowAllSessions={onShowAllSessions}
+        onCollapseSessions={onCollapseSessions}
         onNewSession={onNewSession}
         onNewSessionMenu={onNewSessionMenu}
         onNewWorktree={onNewWorktree}
