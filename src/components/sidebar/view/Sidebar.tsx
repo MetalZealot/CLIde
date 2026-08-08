@@ -486,6 +486,7 @@ function Sidebar({
           onShowSettings={onShowSettings}
           updateAvailable={updateAvailable}
           restartRequired={restartRequired}
+          activitySummary={activitySummary}
           onShowVersionModal={() => setShowVersionModal(true)}
           t={t}
         />
