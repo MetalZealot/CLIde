@@ -172,7 +172,7 @@ export default function SidebarSessionItem({
         {isEditing ? (
           <div
             ref={mobileEditRef}
-            className="mx-3 my-0.5 flex items-center gap-1 rounded-md border border-primary/50 bg-card p-2"
+            className="my-0.5 ml-1 mr-3 flex items-center gap-1 rounded-md border border-primary/50 bg-card p-2"
           >
             <input
               type="text"
@@ -222,9 +222,9 @@ export default function SidebarSessionItem({
               // a row's surface only while it is pressed, hovered, or current.
               // A tint alone carries the status states — the border was what
               // made a dense list read as a stack of boxes.
-              // Match the repository header's outer gutter. Nested sessions
-              // still read as children because their parent owns the left rail.
-              'long-pressable p-2 mx-3 my-0.5 rounded-md transition-all duration-150 relative',
+              // Match the action row's left edge and keep its right gutter.
+              // The parent rail still makes these read as nested sessions.
+              'long-pressable p-2 ml-1 mr-3 my-0.5 rounded-md transition-all duration-150 relative',
               isContextActive && 'scale-[0.98] bg-accent/60',
               // Single chain: a trailing fallback would win inside cn()
               // (tailwind-merge keeps the last conflicting class) and erase the
@@ -242,16 +242,7 @@ export default function SidebarSessionItem({
             onClick={selectMobileSession}
             {...longPress}
           >
-            <div className="flex items-center gap-2">
-              <div
-                className={cn(
-                  'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0',
-                  isSelected ? 'bg-primary/10' : 'bg-muted/50',
-                )}
-              >
-                <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
-              </div>
-
+            <div className="min-w-0">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   {isStarred && (
@@ -280,6 +271,9 @@ export default function SidebarSessionItem({
                     <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                   )}
                   {branchBadge}
+                  <span className="ml-auto flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                    <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
+                  </span>
                 </div>
               </div>
             </div>
@@ -312,15 +306,7 @@ export default function SidebarSessionItem({
             onSessionSelect(session, project.projectId);
           }}
         >
-          <div className="flex w-full min-w-0 items-center gap-2">
-            <div
-              className={cn(
-                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
-                isSelected ? 'bg-primary/10' : 'bg-muted/50',
-              )}
-            >
-              <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
-            </div>
+          <div className="w-full min-w-0">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 {isStarred && (
@@ -357,6 +343,9 @@ export default function SidebarSessionItem({
                   <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                 )}
                 {branchBadge}
+                <span className="ml-auto flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                  <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
+                </span>
               </div>
             </div>
           </div>

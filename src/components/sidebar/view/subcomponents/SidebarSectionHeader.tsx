@@ -9,7 +9,7 @@ type SidebarSectionHeaderProps = {
   icon?: LucideIcon;
   count?: number;
   summary?: ReactNode;
-  /** Omit to render an inert label, as the reference clients do for "Projects". */
+  /** Omit to render an inert label. */
   isCollapsed?: boolean;
   onToggle?: () => void;
 };
@@ -31,17 +31,17 @@ export default function SidebarSectionHeader({
 }: SidebarSectionHeaderProps) {
   const content = (
     <>
+      {Icon && <Icon className="h-3 w-3 flex-shrink-0" />}
+      <span className="truncate">{label}</span>
+      {typeof count === 'number' && (
+        <span className="flex-shrink-0 tabular-nums opacity-60">{count}</span>
+      )}
       {onToggle &&
         (isCollapsed ? (
           <ChevronRight className="h-3 w-3 flex-shrink-0" />
         ) : (
           <ChevronDown className="h-3 w-3 flex-shrink-0" />
         ))}
-      {Icon && <Icon className="h-3 w-3 flex-shrink-0" />}
-      <span className="truncate">{label}</span>
-      {typeof count === 'number' && (
-        <span className="flex-shrink-0 tabular-nums opacity-60">{count}</span>
-      )}
       {summary}
     </>
   );

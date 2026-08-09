@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Plus, TreeDeciduous } from 'lucide-react';
+import { MessageSquare, TreeDeciduous } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, anchorFromElement } from '../../../../shared/view/ui';
@@ -166,7 +166,7 @@ export default function SidebarProjectSessions({
           className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
           onClick={() => startNewSession(mobileNewSessionRef.current)}
         >
-          <Plus className="h-3 w-3 flex-shrink-0" />
+          <MessageSquare className="h-3 w-3 flex-shrink-0" />
           <span className="truncate">{t('sessions.newSession')}</span>
         </button>
         {canAddWorktree && (
@@ -188,7 +188,7 @@ export default function SidebarProjectSessions({
           className="h-8 flex-1 justify-start gap-1.5 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           onClick={() => startNewSession(desktopNewSessionRef.current)}
         >
-          <Plus className="h-3 w-3 flex-shrink-0" />
+          <MessageSquare className="h-3 w-3 flex-shrink-0" />
           <span className="truncate">{t('sessions.newSession')}</span>
         </Button>
         {canAddWorktree && (

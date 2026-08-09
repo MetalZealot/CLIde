@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Loader2, Pin, Plus } from 'lucide-react';
+import { FolderPlus, Loader2, Pin } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
@@ -18,6 +18,7 @@ import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 
 import SidebarRepositoryItem from './SidebarRepositoryItem';
 import SidebarProjectsState from './SidebarProjectsState';
+import SidebarProjectPicker from './SidebarProjectPicker';
 import SidebarSectionHeader from './SidebarSectionHeader';
 import SidebarSessionItem from './SidebarSessionItem';
 
@@ -26,6 +27,11 @@ export type SidebarProjectListProps = {
   filteredProjects: Project[];
   /** `filteredProjects` collapsed to one row per repository (ADR 0016). */
   repositoryEntries: RepositoryEntry[];
+  /** Every repository row, unaffected by session search or project scope. */
+  projectPickerEntries: RepositoryEntry[];
+  /** Null means every repository row is visible. */
+  projectFilterKey: string | null;
+  onProjectFilterSelect: (entryKey: string | null) => void;
   /** Pinned sessions, which live here instead of inside their own row. */
   pinnedSessions: PinnedSession[];
   /** Transient activity is copied here and remains inside repository rows. */
@@ -93,6 +99,9 @@ export default function SidebarProjectList({
   projects,
   filteredProjects,
   repositoryEntries,
+  projectPickerEntries,
+  projectFilterKey,
+  onProjectFilterSelect,
   activitySessions,
   activitySummary,
   isActivitySectionCollapsed,
@@ -286,8 +295,8 @@ export default function SidebarProjectList({
     <div className="pb-safe-area-inset-bottom md:space-y-1">
       {/*
         Activity is a transient copy while Pinned is a durable move. The
-        "Projects" label appears only when either flat section needs separating
-        from the repository rows below it.
+        project picker scopes only the repository rows below it; the two global
+        sections keep background status and durable shortcuts visible.
       */}
       {showActivitySection && (
         <>
@@ -314,7 +323,12 @@ export default function SidebarProjectList({
         </>
       )}
 
-      {(showActivitySection || showPinnedSection) && <SidebarSectionHeader label={t('projects.title')} />}
+      <SidebarProjectPicker
+        entries={projectPickerEntries}
+        selectedEntryKey={projectFilterKey}
+        onSelect={onProjectFilterSelect}
+        t={t}
+      />
 
       {!showProjects ? state : repositoryEntries.map(renderEntry)}
 
@@ -329,7 +343,7 @@ export default function SidebarProjectList({
           onClick={onCreateProject}
           className="flex w-full items-center gap-2 rounded-md px-4 py-2.5 text-left text-sm text-muted-foreground/60 transition-colors hover:bg-accent/40 hover:text-foreground active:bg-accent/50 md:px-3 md:py-2"
         >
-          <Plus className="h-3.5 w-3.5 flex-shrink-0" />
+          <FolderPlus className="h-3.5 w-3.5 flex-shrink-0" />
           <span className="truncate">{t('projects.newProject')}</span>
         </button>
       )}

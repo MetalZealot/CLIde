@@ -9,6 +9,7 @@ import {
   collectActivitySessions,
   collectPinnedSessions,
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
+  filterProjectsByRepositoryEntry,
   filterProjectsBySessionTitle,
   getUnpinnedCheckoutSessions,
   isDefaultRepositoryView,
@@ -133,6 +134,23 @@ test('the row key never depends on which checkouts survive a filter', () => {
   assert.equal(everything[0].key, narrowed[0].key);
   assert.equal(repositoryEntryKey(worktreeA), CLOUDCLI_REPO);
   assert.equal(repositoryEntryKey(plainFolder), 'p-home', 'a non-repo folder keys on its own id');
+});
+
+test('project scope keeps every checkout belonging to the selected repository row', () => {
+  const scoped = filterProjectsByRepositoryEntry(
+    [mainCheckout, worktreeA, soloRepository, worktreeB],
+    CLOUDCLI_REPO,
+  );
+
+  assert.deepEqual(
+    scoped.map((item) => item.projectId),
+    ['p-main', 'p-tts', 'p-codex'],
+  );
+  assert.equal(
+    filterProjectsByRepositoryEntry([mainCheckout, soloRepository], null).length,
+    2,
+    'the All projects choice must preserve the complete list',
+  );
 });
 
 test('sessions from every checkout merge into one activity-ordered list', () => {

@@ -14,6 +14,8 @@
     "activityUnread": "Unread finished",
     "activityRunning": "Running",
     "all": "All",
+    "allProjects": "All projects",
+    "chooseProject": "Choose project",
     "untitledSession": "Untitled Session",
     "newSession": "New Session",
     "codexSession": "Codex Session",

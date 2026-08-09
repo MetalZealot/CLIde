@@ -396,7 +396,7 @@ export default function SidebarRepositoryItem({
                         <ListFilter className="h-3.5 w-3.5" />
                       </div>
                     )}
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/30">
+                    <div className="flex h-6 w-6 items-center justify-center">
                       {isExpanded ? (
                         <ChevronDown className="h-3 w-3 text-muted-foreground" />
                       ) : (

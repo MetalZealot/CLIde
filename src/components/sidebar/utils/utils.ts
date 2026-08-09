@@ -303,6 +303,24 @@ export const buildRepositoryEntries = (projects: Project[]): RepositoryEntry[] =
 };
 
 /**
+ * Keeps the raw project rows belonging to one visible repository entry.
+ *
+ * The sidebar still needs raw rows for loading/empty state, while its picker
+ * exposes repository rows. Matching through the shared entry key preserves
+ * every worktree in a selected repository instead of picking only its lead.
+ */
+export const filterProjectsByRepositoryEntry = (
+  projects: Project[],
+  entryKey: string | null,
+): Project[] => {
+  if (entryKey === null) {
+    return projects;
+  }
+
+  return projects.filter((project) => repositoryEntryKey(project) === entryKey);
+};
+
+/**
  * Every session across an entry's checkouts, newest first, starred pinned to
  * the top — the flattened list that replaces a tier of checkout rows.
  *
