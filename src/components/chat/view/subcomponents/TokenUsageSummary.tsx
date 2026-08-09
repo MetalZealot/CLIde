@@ -423,6 +423,9 @@ export default function TokenUsageSummary({
             maxHeight: anchor.maxHeight,
           }}
         >
+          <div className="mb-3 text-[11px] font-medium text-muted-foreground">
+            Context &amp; Usage
+          </div>
           {view === 'summary' && (
             <div className="space-y-4">
               <section className="space-y-1.5">

@@ -172,6 +172,9 @@ export default function ComposerPermissionMenu({
         <ComposerMenuSurface anchor={anchor} menuRef={menuRef} ariaLabel={heading}>
           <div className="w-64 max-w-full">
             <div className="py-0.5">
+              <div className="px-2.5 pb-1 pt-0.5 text-[11px] font-medium text-muted-foreground">
+                {t('composer.permissions', { defaultValue: 'Permissions' })}
+              </div>
               {permissionModes.map((mode) => {
                 const appearance = getAppearance(mode);
                 const ModeIcon = appearance.icon;

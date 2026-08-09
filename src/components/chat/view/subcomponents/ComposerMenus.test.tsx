@@ -206,6 +206,7 @@ test('permission trigger toggles routine access while the chevron opens every mo
   await React.act(async () => menuTrigger.click());
 
   const menu = document.querySelector('[role="menu"]');
+  assert.match(menu?.textContent || '', /Permissions/);
   assert.match(menu?.textContent || '', /Ask Before Tools/);
   assert.doesNotMatch(menu?.textContent || '', /Default Mode/);
 
@@ -269,6 +270,7 @@ test('Codex access presets stay independent from Build and Plan collaboration', 
   await React.act(async () => menuTrigger.click());
 
   const menu = document.querySelector('[role="menu"]');
+  assert.match(menu?.textContent || '', /Permissions/);
   assert.match(menu?.textContent || '', /Ask When Needed/);
   assert.match(menu?.textContent || '', /Auto in Workspace/);
   assert.match(menu?.textContent || '', /Full Access/);

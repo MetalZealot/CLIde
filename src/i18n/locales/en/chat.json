@@ -177,6 +177,7 @@
   "composer": {
     "reasoning": "Reasoning",
     "model": "Model",
+    "permissions": "Permissions",
     "effortDefault": "Default",
     "loadingModels": "Loading models…",
     "modelMenu": "Select model and reasoning effort",

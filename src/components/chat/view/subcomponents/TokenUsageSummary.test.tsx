@@ -169,6 +169,7 @@ test('Claude usage follows the compact mockup order and drills into only its bre
   const text = dialog.textContent || '';
 
   assert.equal(trigger.getAttribute('aria-label'), 'Show usage; credits available');
+  assert.match(text, /Context & Usage/);
   assert.match(trigger.textContent || '', /\$/);
   assert.match(text, /Session13% used117,721 \/ 934,000 · AutoBreakdown/);
   assert.match(text, /5-hour limit75% usedResets at/);
@@ -253,6 +254,7 @@ test('Codex omits breakdown and links weekly usage to account activity', async (
   const { dialog } = await openPopover(host);
   const text = dialog.textContent || '';
 
+  assert.match(text, /Context & Usage/);
   assert.match(text, /Session16% used42,000 \/ 258,400/);
   assert.doesNotMatch(text, /Breakdown/);
   assert.match(text, /Weekly52% used.*Usage/);
