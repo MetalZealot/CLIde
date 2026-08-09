@@ -222,7 +222,9 @@ export default function SidebarSessionItem({
               // a row's surface only while it is pressed, hovered, or current.
               // A tint alone carries the status states — the border was what
               // made a dense list read as a stack of boxes.
-              'long-pressable p-2 mx-1 my-0.5 rounded-md transition-all duration-150 relative',
+              // Match the repository header's outer gutter. Nested sessions
+              // still read as children because their parent owns the left rail.
+              'long-pressable p-2 mx-3 my-0.5 rounded-md transition-all duration-150 relative',
               isContextActive && 'scale-[0.98] bg-accent/60',
               // Single chain: a trailing fallback would win inside cn()
               // (tailwind-merge keeps the last conflicting class) and erase the

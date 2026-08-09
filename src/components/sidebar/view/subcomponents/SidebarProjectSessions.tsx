@@ -160,7 +160,7 @@ export default function SidebarProjectSessions({
         between them is weight, not size — starting a session is the ordinary
         act, adding a worktree the occasional one.
       */}
-      <div className="flex gap-1 px-1 pb-1 pt-1 md:hidden">
+      <div className="flex gap-1 pb-1 pl-1 pr-3 pt-1 md:hidden">
         <button
           ref={mobileNewSessionRef}
           className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
