@@ -164,6 +164,8 @@ export type SidebarProps = {
   settingsInitialTab?: string;
   onCloseSettings: () => void;
   isMobile: boolean;
+  /** Closes the mobile drawer; desktop collapse uses the persisted preference. */
+  onCloseSidebar?: () => void;
 };
 
 export type SessionViewModel = {

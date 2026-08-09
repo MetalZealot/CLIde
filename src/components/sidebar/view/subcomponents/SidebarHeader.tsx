@@ -81,19 +81,21 @@ export default function SidebarHeader({
     </div>
   );
 
-  /** The desktop title row keeps one structural control: collapse. */
+  /** The title row keeps one structural control: collapse/close Sidebar. */
   const renderHeaderTools = (compact: boolean) => {
-    if (compact) return null;
-
     return (
       <Button
         variant="ghost"
         size="sm"
-        className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+        className={cn(
+          'rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground',
+          compact ? 'h-8 w-8 active:scale-95' : 'h-7 w-7',
+        )}
         onClick={onCollapseSidebar}
+        aria-label={t('tooltips.hideSidebar')}
         title={t('tooltips.hideSidebar')}
       >
-        <PanelLeftClose className="h-3.5 w-3.5" />
+        <PanelLeftClose className={compact ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
       </Button>
     );
   };

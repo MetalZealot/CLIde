@@ -55,6 +55,7 @@ function Sidebar({
   settingsInitialTab,
   onCloseSettings,
   isMobile,
+  onCloseSidebar,
 }: SidebarProps) {
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
@@ -549,7 +550,7 @@ function Sidebar({
                 handleSessionClick(sessionObj, projectId ?? '');
               }
             }}
-            onCollapseSidebar={handleCollapseSidebar}
+            onCollapseSidebar={isMobile && onCloseSidebar ? onCloseSidebar : handleCollapseSidebar}
             updateAvailable={updateAvailable}
             restartRequired={restartRequired}
             releaseInfo={releaseInfo}

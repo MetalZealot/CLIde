@@ -214,7 +214,7 @@ function AppContentInner() {
         </div>
       ) : (
         <MobileSidebarOverlay isOpen={sidebarOpen} onOpen={openSidebar} onClose={closeSidebar}>
-          <Sidebar {...sidebarSharedProps} />
+          <Sidebar {...sidebarSharedProps} onCloseSidebar={closeSidebar} />
         </MobileSidebarOverlay>
       )}
 
