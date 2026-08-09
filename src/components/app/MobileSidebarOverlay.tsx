@@ -70,6 +70,8 @@ export default function MobileSidebarOverlay({
       />
       <div
         ref={panelRef}
+        // Full viewport width is deliberate: accepted on-device after comparing
+        // it with the former 85vw/max-sm side sheet on 2026-08-08.
         className={`relative h-full w-full transform bg-card transition-transform duration-150 ease-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}

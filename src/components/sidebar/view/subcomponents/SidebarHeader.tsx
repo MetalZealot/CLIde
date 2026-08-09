@@ -95,7 +95,7 @@ export default function SidebarHeader({
         aria-label={t('tooltips.hideSidebar')}
         title={t('tooltips.hideSidebar')}
       >
-        <PanelLeftClose className={compact ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
+        <PanelLeftClose className={compact ? 'h-5 w-5' : 'h-3.5 w-3.5'} />
       </Button>
     );
   };
