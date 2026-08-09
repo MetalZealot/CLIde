@@ -17,7 +17,7 @@ export default function MobileMenuButton({ onMenuClick, compact = false }: Mobil
       className={buttonClasses}
       aria-label="Open sidebar"
     >
-      <PanelLeftOpen className="h-5 w-5" />
+      <PanelLeftOpen strokeWidth={1.5} className="h-5 w-5" />
     </button>
   );
 }

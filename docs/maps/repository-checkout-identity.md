@@ -22,19 +22,19 @@ checkout already holds the branch and offers to open it.
 
 ## What CLIde does today
 
-**A CLIde project *is* a checkout.** `projects.project_path` is `NOT NULL UNIQUE`
-and is the identity everything downstream hangs off: `sessions.project_path` is
-a foreign key to it, and the provider's own transcript storage is separately
-keyed by encoded path (`~/.claude/projects/<slug>`).
+**A stored CLIde project *is* a checkout.** `projects.project_path` is `NOT NULL
+UNIQUE` and is the identity everything downstream hangs off:
+`sessions.project_path` is a foreign key to it, and the provider's own
+transcript storage is separately keyed by encoded path
+(`~/.claude/projects/<slug>`). Threads therefore remain pinned to the checkout
+where they run.
 
-Two consequences follow from that, and neither is a labelling choice:
-
-1. **Threads are already pinned to checkouts** — correct behaviour, free.
-2. **A linked worktree becomes a separate top-level project.** `git worktree add`
-   plus a session there yields a second sidebar project with its own session
-   list, unrelated in the UI to the one it branched from.
-
-Closing (2) is what the repository-grouping work exists for.
+**The sidebar presents repositories above those checkout rows.** Git-backed
+projects sharing `git rev-parse --git-common-dir` appear as one repository row;
+their sessions are merged and retain checkout labels. A linked worktree still
+registers as its own stored project, but no longer becomes an unrelated
+top-level sidebar entry. The Projects picker also scopes repository rows rather
+than raw checkouts, while Activity and Pinned remain global navigation.
 
 ## Identity rules (ADR 0016)
 
