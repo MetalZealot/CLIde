@@ -70,7 +70,7 @@ export default function MobileSidebarOverlay({
       />
       <div
         ref={panelRef}
-        className={`relative h-full w-[85vw] max-w-sm transform border-r border-border/40 bg-card transition-transform duration-150 ease-out sm:w-80 ${
+        className={`relative h-full w-full transform bg-card transition-transform duration-150 ease-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         onClick={(event) => event.stopPropagation()}
