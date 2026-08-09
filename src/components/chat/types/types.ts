@@ -8,6 +8,7 @@ import type {
 export type Provider = LLMProvider;
 
 export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions' | 'plan';
+export type CollaborationMode = 'build' | 'plan';
 
 export interface ChatAttachment {
   /** Absolute path inside the server-managed chat attachment store. */

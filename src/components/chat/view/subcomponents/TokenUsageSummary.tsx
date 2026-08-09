@@ -130,7 +130,7 @@ export default function TokenUsageSummary({ usage, onClick, provider }: TokenUsa
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-background/70 px-2 text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:gap-2 sm:px-2.5"
+      className="inline-flex h-8 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       title={title}
       aria-label="Show context window and plan usage"
     >
@@ -141,8 +141,7 @@ export default function TokenUsageSummary({ usage, onClick, provider }: TokenUsa
       ) : (
         <UsageWheel fraction={fraction} tone={toneFor(Math.min(Math.max(fraction, 0), 1))} />
       )}
-      <span className="font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
-      <span className="hidden text-muted-foreground/70 sm:inline">tokens</span>
+      <span className="hidden font-medium text-foreground md:inline">{formatTokenCount(usedTokens)}</span>
     </button>
   );
 }

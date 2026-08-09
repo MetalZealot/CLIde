@@ -180,7 +180,90 @@
     "effortDefault": "Default",
     "loadingModels": "Loading models…",
     "modelMenu": "Select model and reasoning effort",
-    "permissionHeading": "How should {{provider}} actions be approved?"
+    "permissionHeading": "How should {{provider}} actions be approved?",
+    "togglePermissionMode": "Switch to {{mode}}",
+    "permissionQuickToggle": "Switch to {{mode}}. Long press for all access modes.",
+    "openPermissionMenu": "Show all access modes",
+    "mode": "Mode",
+    "collaborationHeading": "Collaboration mode",
+    "collaborationModes": {
+      "build": "Build",
+      "plan": "Plan"
+    },
+    "permissionOptions": {
+      "claude": {
+        "default": {
+          "label": "Ask Before Tools",
+          "description": "Ask before using unapproved tools"
+        },
+        "auto": {
+          "label": "Auto Review",
+          "description": "Claude reviews permission requests"
+        },
+        "acceptEdits": {
+          "label": "Accept Edits",
+          "description": "Approve file edits automatically"
+        },
+        "bypassPermissions": {
+          "label": "Bypass Permissions",
+          "description": "Skip all permission checks"
+        },
+        "plan": {
+          "label": "Plan",
+          "description": "Research and plan without edits"
+        }
+      },
+      "codex": {
+        "default": {
+          "label": "Ask When Needed",
+          "description": "Prompt for untrusted commands"
+        },
+        "acceptEdits": {
+          "label": "Auto in Workspace",
+          "description": "Run without prompts inside the sandbox"
+        },
+        "bypassPermissions": {
+          "label": "Full Access",
+          "description": "Run without sandbox or approval prompts"
+        }
+      },
+      "cursor": {
+        "default": {
+          "label": "Cursor Settings",
+          "description": "Use Cursor's configured permissions"
+        },
+        "acceptEdits": {
+          "label": "Accept Edits",
+          "description": "Not yet applied by CLIde's adapter"
+        },
+        "bypassPermissions": {
+          "label": "Bypass Permissions",
+          "description": "Use Skip Permissions in Settings instead"
+        },
+        "plan": {
+          "label": "Plan",
+          "description": "Not yet applied by CLIde's adapter"
+        }
+      },
+      "opencode": {
+        "default": {
+          "label": "OpenCode Settings",
+          "description": "Use your configured permission rules"
+        },
+        "acceptEdits": {
+          "label": "Accept Edits",
+          "description": "Approve file edits automatically"
+        },
+        "bypassPermissions": {
+          "label": "Auto",
+          "description": "Approve unless configuration denies"
+        },
+        "plan": {
+          "label": "Plan",
+          "description": "Use OpenCode's read-only Plan agent"
+        }
+      }
+    }
   },
   "providerSelection": {
     "title": "Choose Your AI Assistant",

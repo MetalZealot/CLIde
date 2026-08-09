@@ -88,11 +88,14 @@ function ChatInterface({
     opencodeModel,
     setOpenCodeModel,
     permissionMode,
+    collaborationMode,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     availablePermissionModes,
+    availableCollaborationModes,
     selectPermissionMode,
-    cyclePermissionMode,
+    selectCollaborationMode,
+    togglePermissionMode,
     providerModelCatalog,
     providerModelCacheCatalog,
     providerModelsLoading,
@@ -169,7 +172,6 @@ function ChatInterface({
     selectedCommandIndex,
     resetCommandMenuState,
     handleCommandSelect,
-    handleToggleCommandMenu,
     showFileDropdown,
     filteredFiles,
     selectedFileIndex,
@@ -207,6 +209,7 @@ function ChatInterface({
     handleGrantToolPermission,
     handleInputFocusChange,
     commandModalPayload,
+    modelMenuOpenRequest,
     closeCommandModal,
     showUsageModal,
     showContextModal,
@@ -218,7 +221,8 @@ function ChatInterface({
     currentSessionId,
     provider,
     permissionMode,
-    cyclePermissionMode,
+    collaborationMode,
+    togglePermissionMode,
     currentProviderModel,
     currentProviderEffort,
     isLoading: isProcessing,
@@ -270,6 +274,14 @@ function ChatInterface({
     }
     return result;
   }, [selectProviderModel, sessionStore]);
+
+  const handleSelectComposerModel = useCallback(async (model: string) => {
+    try {
+      await handleSelectProviderModel(provider, model, currentSessionId || selectedSession?.id || null);
+    } catch (error) {
+      console.error('Error changing the active session model:', error);
+    }
+  }, [currentSessionId, handleSelectProviderModel, provider, selectedSession?.id]);
 
   // Latest composer text, read from a ref so the realtime listener does not
   // rebind on every keystroke.
@@ -482,14 +494,23 @@ function ChatInterface({
           isLoading={isProcessing}
           onAbortSession={handleAbortSessionWithProbe}
           permissionMode={permissionMode}
-          onModeSwitch={cyclePermissionMode}
+          availablePermissionModes={availablePermissionModes}
+          onSelectPermissionMode={(mode) => selectPermissionMode(mode as PermissionMode)}
+          collaborationMode={collaborationMode}
+          availableCollaborationModes={availableCollaborationModes}
+          onSelectCollaborationMode={selectCollaborationMode}
+          providerLabel={selectedProviderLabel}
           effort={currentProviderEffort}
           availableEffortOptions={currentProviderEffortOptions}
           onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
+          model={currentProviderModel}
+          availableModelOptions={currentProviderModelOptions}
+          onSelectModel={handleSelectComposerModel}
+          modelsLoading={providerModelsLoading}
+          modelMenuOpenRequest={modelMenuOpenRequest}
           tokenBudget={tokenBudget}
           onShowContext={showContextModal}
           provider={provider}
-          onToggleCommandMenu={handleToggleCommandMenu}
           hasInput={Boolean(input.trim())}
           onClearInput={handleClearInput}
           onSubmit={handleSubmit}

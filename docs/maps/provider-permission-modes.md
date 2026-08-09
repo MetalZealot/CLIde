@@ -26,24 +26,14 @@ Normalizing the *interactive request lifecycle* — reconnect, rendering, respon
 UX — is sound and is what CLIde should share. Normalizing the permission engines
 underneath it is not.
 
-## The picker's "Default" sends no mode at all
+## "Ask Before Tools" sends Claude's native mode explicitly
 
-`claude-runtime.provider.js` forwards `permissionMode` only when it is **not**
-`'default'`, so choosing Default leaves `sdkOptions.permissionMode` unset and the
-SDK falls through to `~/.claude/settings.json` → `permissions.defaultMode`. On a
-machine where that is `acceptEdits`, "Default" has silently been running as
-acceptEdits with nothing in the UI saying so — which is why default mode can feel
-like auto-approve. Two further layers compound it and are **not** bugs, merely
-invisible: allowlist rules in `.claude/settings.local.json` (a `Bash(git *)` /
-`Bash(npm run *)` pair covers nearly everything run in a repo like this), and Bash
-sandboxing.
-
-The fix is a choice, not a patch — send `permissionMode: 'default'` explicitly and
-mean it, or relabel to something honest such as "Inherit from settings" and surface
-the resolved mode. The wider job this belongs to: **"default" means three different
-things across the Claude CLI, the Agent SDK, and CLIde's picker, and nothing
-documents how the layers resolve.** The picker is a provider-agnostic surface, so
-check the other adapters before changing shared UI.
+The composer labels Claude's internal `default` value **Ask Before Tools** and
+forwards it explicitly to the Agent SDK. It no longer omits the value and silently
+inherits `~/.claude/settings.json` → `permissions.defaultMode`, which previously
+allowed a picker displaying "Default" to run as `acceptEdits`. Settings allowlists
+and Bash sandboxing still participate in Claude's ordered policy evaluation, so
+the label describes the native mode rather than claiming that every tool must ask.
 
 Useful while testing: `TOOLS_REQUIRING_INTERACTION` (`AskUserQuestion`,
 `ExitPlanMode`) is checked *before* the bypass/allow/deny block, so those two always
@@ -165,19 +155,27 @@ type PermissionMode =
   | 'plan';
 ```
 
-Provider capabilities publish a list of strings in cycle order. This keeps the
-React UI provider-neutral, but the strings currently imply shared semantics
-that the adapters do not provide.
+Provider capabilities publish access modes and collaboration modes separately.
+The React UI remains provider-neutral while each provider supplies accurate
+labels and behavior for its own values.
+
+The composer preserves that separation. A tap or keyboard Tab cycles only the
+routine modes a provider exposes: Claude's `default` / `auto` / `acceptEdits`,
+or the `default` / `acceptEdits` pair elsewhere. Native Plan and unrestricted
+access require an explicit picker selection. A touch long-press opens that
+complete picker, while desktop exposes the same picker through a chevron and
+places Codex Build / Plan beside the access control. Mobile keeps Build / Plan
+in the complete picker and marks active Plan on the composer access icon.
 
 Current capability lists after the App Server feature:
 
-| Provider | Modes exposed |
-|---|---|
-| Claude | `default`, `auto`, `acceptEdits`, `bypassPermissions`, `plan` |
-| Codex App Server | `default`, `acceptEdits`, `bypassPermissions`, `plan` |
-| Codex SDK fallback | `default`, `acceptEdits`, `bypassPermissions` |
-| Cursor | `default`, `acceptEdits`, `bypassPermissions`, `plan` |
-| OpenCode | `default`, `acceptEdits`, `bypassPermissions`, `plan` |
+| Provider | Access modes exposed | Collaboration modes |
+|---|---|---|
+| Claude | `default`, `auto`, `acceptEdits`, `bypassPermissions`, `plan` | none; Plan is a native permission mode |
+| Codex App Server | `default`, `acceptEdits`, `bypassPermissions` | `build`, `plan` |
+| Codex SDK fallback | `default`, `acceptEdits`, `bypassPermissions` | none |
+| Cursor | `default`, `acceptEdits`, `bypassPermissions`, `plan` | none |
+| OpenCode | `default`, `acceptEdits`, `bypassPermissions`, `plan` | none |
 
 The fallback difference is significant: the Codex TypeScript SDK wraps
 non-interactive `codex exec --json` and cannot round-trip interactive approval
@@ -185,7 +183,7 @@ requests. The App Server transport can.
 
 ### 3.2 Claude adapter
 
-CLIde forwards the selected non-default composer mode to the Agent SDK and
+CLIde forwards every selected composer mode, including native `default`, to the Agent SDK and
 supplies:
 
 - `allowedTools`;
@@ -217,36 +215,32 @@ version, then update either the adapter or the stale comment.
 
 ### 3.3 Codex SDK and App Server adapters
 
-Both Codex paths currently translate composer modes as follows:
+Both Codex paths translate access presets as follows:
 
 | CLIde mode | Codex sandbox | Codex approval policy | Effective meaning |
 |---|---|---|---|
 | `default` | `workspace-write` | `untrusted` | Workspace edits can proceed; only trusted commands auto-run. |
 | `acceptEdits` | `workspace-write` | `never` | Everything available inside the workspace sandbox runs without prompts. |
 | `bypassPermissions` | `danger-full-access` | `never` | No sandbox and no approval prompts. |
-| `plan` (App Server only) | `workspace-write` | `untrusted` | Same access mapping as default plus Codex Plan collaboration mode. |
 
 Consequences:
 
-- Codex `acceptEdits` should be described as **Auto in workspace**.
-- Codex `default` is closer to **Edit workspace, ask about risky commands**.
-- Codex Plan is not read-only in the first App Server rollout.
+- Codex `acceptEdits` is displayed as **Auto in Workspace**.
+- Codex `default` is displayed as **Ask When Needed**.
+- Codex `bypassPermissions` is displayed as **Full Access**.
+- App Server Plan/Build is selected independently beneath those access presets;
+  Build is translated to native collaboration mode `default` on every turn.
 - App Server currently sets `approvalsReviewer: 'user'` explicitly; Codex
   automatic review is not exposed.
 - The SDK fallback cannot display the prompts produced by `untrusted`, so the
   transport capability changes the effective UX of the same selected mode.
 
-### 3.4 Existing copy that should change in the revamp
+### 3.4 Composer copy
 
-Current composer/settings copy includes:
-
-- Default: "Other commands are skipped."
-- Accept Edits: "All commands run automatically within the workspace."
-- Plan: "No commands are executed."
-
-The second statement describes the current Codex implementation but not the
-name "Accept Edits." The first varies by transport, and the Plan statement is
-wrong for both providers' exploration behavior.
+The compact composer menu uses provider-specific labels and short behavioral
+descriptions. It does not present one shared "Default" or claim that Plan means
+no commands execute. Settings retains its more detailed technical descriptions
+until the later desired-versus-effective policy redesign consolidates both surfaces.
 
 ## 4. Interactive requests and decisions
 

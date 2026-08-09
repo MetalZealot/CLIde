@@ -1,5 +1,5 @@
 import type { InputHTMLAttributes } from 'react';
-import { PaperclipIcon } from 'lucide-react';
+import { PlusIcon } from 'lucide-react';
 
 import { buttonVariants, Tooltip } from '../../../../shared/view/ui';
 
@@ -17,7 +17,8 @@ type NativeImageAttachmentPickerProps = {
  * react-dropzone still owns change handling, validation, and drag/drop.
  *
  * Accepted types come from the dropzone config, not from here — since v1.37
- * that is any file, not just images, so the control wears a paperclip.
+ * that is any file, not just images. The plus restores CLIde's compact
+ * add-to-composer affordance without changing the native picker path.
  */
 export default function NativeImageAttachmentPicker({
   getInputProps,
@@ -46,7 +47,7 @@ export default function NativeImageAttachmentPicker({
           className: 'relative h-8 w-8 focus-within:ring-1 focus-within:ring-ring [&_svg]:size-4',
         })}
       >
-        <PaperclipIcon aria-hidden="true" />
+        <PlusIcon aria-hidden="true" />
         <input {...inputProps} />
       </span>
     </Tooltip>

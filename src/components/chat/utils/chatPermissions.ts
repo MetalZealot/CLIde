@@ -1,6 +1,32 @@
 import { safeJsonParse } from '../../../lib/utils.js';
-import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult } from '../types/types.js';
+import type {
+  ChatMessage,
+  ClaudePermissionSuggestion,
+  PermissionGrantResult,
+  PermissionMode,
+} from '../types/types.js';
+
 import { CLAUDE_SETTINGS_KEY, getClaudeSettings, safeLocalStorage } from './chatStorage';
+
+/**
+ * Keep the composer's quick toggle on the two routine access presets. Modes
+ * such as automatic review, Plan, and unrestricted access require an explicit
+ * picker selection instead of appearing in a casual tap/Tab sequence.
+ */
+export function getNextRoutinePermissionMode(
+  permissionMode: PermissionMode | string,
+  availableModes: (PermissionMode | string)[],
+): PermissionMode | string {
+  const routineModes = availableModes.filter((mode) => (
+    mode === 'default' || mode === 'auto' || mode === 'acceptEdits'
+  ));
+  const saferMode = routineModes[0] ?? availableModes[0];
+
+  if (!saferMode) return permissionMode;
+  const currentIndex = routineModes.findIndex((mode) => mode === permissionMode);
+  if (currentIndex === -1) return saferMode;
+  return routineModes[(currentIndex + 1) % routineModes.length];
+}
 
 export function buildClaudeToolPermissionEntry(toolName?: string, toolInput?: unknown) {
   if (!toolName) return null;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
-import type { PendingPermissionRequest, PermissionMode } from '../types/types';
+import type { CollaborationMode, PendingPermissionRequest, PermissionMode } from '../types/types';
 import type {
   ProjectSession,
   LLMProvider,
@@ -15,6 +15,7 @@ import {
   FALLBACK_PROVIDER_EFFORT_VALUES,
   toProviderEffortOptions,
 } from '../constants/providerEffort';
+import { getNextRoutinePermissionMode } from '../utils/chatPermissions';
 
 const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   claude: 'default',
@@ -45,10 +46,22 @@ const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
   opencode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
 };
 
+// Collaboration controls stay hidden until the backend confirms that the
+// active runtime can honor them. In particular, Codex's SDK fallback has no
+// Plan collaboration surface even though App Server does.
+const FALLBACK_COLLABORATION_MODES: Record<LLMProvider, CollaborationMode[]> = {
+  claude: [],
+  cursor: [],
+  codex: [],
+  opencode: [],
+};
+
 type ProviderCapabilities = {
   provider: LLMProvider;
   permissionModes: string[];
   defaultPermissionMode: string;
+  collaborationModes?: string[];
+  defaultCollaborationMode?: string | null;
   supportsImages: boolean;
   supportsFiles: boolean;
   supportsAbort: boolean;
@@ -96,6 +109,7 @@ type SessionModelApiResponse = {
 
 export function useChatProviderState({ selectedSession, selectedProject: _selectedProject }: UseChatProviderStateArgs) {
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default');
+  const [collaborationMode, setCollaborationMode] = useState<CollaborationMode>('build');
   const [pendingPermissionRequests, setPendingPermissionRequests] = useState<PendingPermissionRequest[]>([]);
   const [provider, setProvider] = useState<LLMProvider>(readStoredProvider);
   const [cursorModel, setCursorModel] = useState<string>(() => {
@@ -277,6 +291,23 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     }
     return modes[0] ?? 'default';
   }, [getPermissionModesForProvider, providerCapabilities]);
+
+  const getCollaborationModesForProvider = useCallback((targetProvider: LLMProvider): CollaborationMode[] => {
+    const capabilityModes = providerCapabilities?.[targetProvider]?.collaborationModes;
+    if (capabilityModes && capabilityModes.length > 0) {
+      return capabilityModes as CollaborationMode[];
+    }
+    return FALLBACK_COLLABORATION_MODES[targetProvider] ?? [];
+  }, [providerCapabilities]);
+
+  const getDefaultCollaborationModeForProvider = useCallback((targetProvider: LLMProvider): CollaborationMode => {
+    const modes = getCollaborationModesForProvider(targetProvider);
+    const capabilityDefault = providerCapabilities?.[targetProvider]?.defaultCollaborationMode as CollaborationMode | undefined;
+    if (capabilityDefault && modes.includes(capabilityDefault)) {
+      return capabilityDefault;
+    }
+    return modes[0] ?? 'build';
+  }, [getCollaborationModesForProvider, providerCapabilities]);
 
   const getSupportsEffortForProvider = useCallback((targetProvider: LLMProvider): boolean => {
     const capabilitySupport = providerCapabilities?.[targetProvider]?.supportsEffort;
@@ -473,6 +504,52 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, [selectedSession?.id, provider, getDefaultPermissionModeForProvider, getPermissionModesForProvider]);
 
   useEffect(() => {
+    const validModes = getCollaborationModesForProvider(provider);
+    if (validModes.length === 0) {
+      setCollaborationMode('build');
+      return;
+    }
+
+    const sessionId = selectedSession?.id;
+    const sessionSavedMode = sessionId
+      ? (localStorage.getItem(`collaborationMode-${sessionId}`) as CollaborationMode | null)
+      : null;
+    const providerSavedMode = localStorage.getItem(`collaborationMode-last-${provider}`) as CollaborationMode | null;
+    const savedMode = [sessionSavedMode, providerSavedMode].find(
+      (mode): mode is CollaborationMode => Boolean(mode && validModes.includes(mode)),
+    );
+
+    // Before collaboration became independent, Codex stored Plan in the
+    // permission slot. Preserve that intent once, then repair the access slot
+    // to its non-escalating baseline so the two settings can evolve separately.
+    const legacySessionPermission = sessionId
+      ? localStorage.getItem(`permissionMode-${sessionId}`)
+      : null;
+    const legacyProviderPermission = localStorage.getItem(`permissionMode-last-${provider}`);
+    const migratedPlan = provider === 'codex'
+      && validModes.includes('plan')
+      && (legacySessionPermission === 'plan' || legacyProviderPermission === 'plan');
+    const nextMode = savedMode
+      ?? (migratedPlan ? 'plan' : getDefaultCollaborationModeForProvider(provider));
+
+    setCollaborationMode(nextMode);
+    if (migratedPlan) {
+      localStorage.setItem(`collaborationMode-last-${provider}`, nextMode);
+      localStorage.setItem(`permissionMode-last-${provider}`, 'default');
+      if (sessionId) {
+        localStorage.setItem(`collaborationMode-${sessionId}`, nextMode);
+        localStorage.setItem(`permissionMode-${sessionId}`, 'default');
+      }
+      setPermissionMode('default');
+    }
+  }, [
+    getCollaborationModesForProvider,
+    getDefaultCollaborationModeForProvider,
+    provider,
+    selectedSession?.id,
+  ]);
+
+  useEffect(() => {
     if (!selectedSession?.__provider || selectedSession.__provider === provider) {
       return;
     }
@@ -501,18 +578,34 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     }
   }, [provider, selectedSession?.id]);
 
-  const cyclePermissionMode = useCallback(() => {
-    const modes = getPermissionModesForProvider(provider);
+  const selectCollaborationMode = useCallback((nextMode: CollaborationMode) => {
+    const validModes = getCollaborationModesForProvider(provider);
+    if (!validModes.includes(nextMode)) return;
 
-    const currentIndex = modes.indexOf(permissionMode);
-    const nextIndex = (currentIndex + 1) % modes.length;
-    selectPermissionMode(modes[nextIndex]);
+    setCollaborationMode(nextMode);
+    localStorage.setItem(`collaborationMode-last-${provider}`, nextMode);
+    if (selectedSession?.id) {
+      localStorage.setItem(`collaborationMode-${selectedSession.id}`, nextMode);
+    }
+  }, [getCollaborationModesForProvider, provider, selectedSession?.id]);
+
+  const togglePermissionMode = useCallback(() => {
+    const modes = getPermissionModesForProvider(provider);
+    const nextMode = getNextRoutinePermissionMode(permissionMode, modes);
+    selectPermissionMode(nextMode as PermissionMode);
   }, [permissionMode, provider, getPermissionModesForProvider, selectPermissionMode]);
 
   const availablePermissionModes = useMemo(
     () => getPermissionModesForProvider(provider),
     [getPermissionModesForProvider, provider],
   );
+  const availableCollaborationModes = useMemo(
+    () => getCollaborationModesForProvider(provider),
+    [getCollaborationModesForProvider, provider],
+  );
+  const currentCollaborationMode = availableCollaborationModes.length > 0
+    ? collaborationMode
+    : null;
 
   const resolvePermissionModeForProvider = useCallback((
     targetProvider: LLMProvider,
@@ -641,11 +734,14 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     setOpenCodeModel,
     permissionMode,
     setPermissionMode,
+    collaborationMode: currentCollaborationMode,
+    availableCollaborationModes,
+    selectCollaborationMode,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     availablePermissionModes,
     selectPermissionMode,
-    cyclePermissionMode,
+    togglePermissionMode,
     providerModelCatalog,
     providerModelCacheCatalog,
     providerModelsLoading,

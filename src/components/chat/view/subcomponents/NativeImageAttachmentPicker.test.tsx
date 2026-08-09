@@ -31,4 +31,6 @@ test('renders the real file input over the visible attachment control', () => {
   assert.match(html, /<input[^>]+type="file"/);
   assert.match(html, /<input[^>]+aria-label="Attach images"/);
   assert.doesNotMatch(html, /<button/);
+  assert.match(html, /lucide-plus/);
+  assert.doesNotMatch(html, /lucide-paperclip/);
 });

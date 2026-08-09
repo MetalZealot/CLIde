@@ -187,7 +187,10 @@ function mapCliOptionsToSDK(options = {}) {
     sdkOptions.cwd = cwd;
   }
 
-  if (permissionMode && permissionMode !== 'default') {
+  // Send native `default` explicitly: the composer labels it Ask Before Tools.
+  // Omitting it would inherit permissions.defaultMode from Claude settings and
+  // could silently run a more permissive mode than the picker displays.
+  if (permissionMode) {
     sdkOptions.permissionMode = permissionMode;
   }
 

@@ -179,7 +179,8 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
       cwd: fake.root,
       model: 'gpt-test',
       effort: 'high',
-      permissionMode: 'plan',
+      permissionMode: 'acceptEdits',
+      collaborationMode: 'plan',
       images: [{ path: imagePath }],
       files: [{ path: filePath, name: 'brief.pdf', mimeType: 'application/pdf' }],
     }, first);
@@ -192,7 +193,8 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     const firstCapture = JSON.parse(String(firstCaptureMessage.content).slice(8));
     assert.equal(firstCapture.thread.method, 'thread/start');
     assert.equal(firstCapture.thread.params.model, 'gpt-test');
-    assert.equal(firstCapture.thread.params.approvalPolicy, 'untrusted');
+    assert.equal(firstCapture.thread.params.approvalPolicy, 'never');
+    assert.equal(firstCapture.turn.approvalPolicy, 'never');
     assert.deepEqual(firstCapture.turn.input, [
       {
         type: 'text',
@@ -275,7 +277,8 @@ test('App Server resets Plan collaboration mode when the same thread resumes wit
       cwd: fake.root,
       model: 'gpt-plan',
       effort: 'high',
-      permissionMode: 'plan',
+      permissionMode: 'default',
+      collaborationMode: 'plan',
     }, plan);
 
     const planCaptureMessage = plan.messages.find((message) =>
@@ -289,6 +292,7 @@ test('App Server resets Plan collaboration mode when the same thread resumes wit
       providerSessionId: 'thread-1',
       cwd: fake.root,
       permissionMode: 'bypassPermissions',
+      collaborationMode: 'build',
     }, bypass);
 
     const bypassCaptureMessage = bypass.messages.find((message) =>
@@ -854,7 +858,15 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     delete process.env.CLIDE_CODEX_CHAT_TRANSPORT;
     assert.deepEqual(
       providerCapabilitiesService.getProviderCapabilities('codex').permissionModes,
-      ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+      ['default', 'acceptEdits', 'bypassPermissions'],
+    );
+    assert.deepEqual(
+      providerCapabilitiesService.getProviderCapabilities('codex').collaborationModes,
+      ['build', 'plan'],
+    );
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex').defaultCollaborationMode,
+      'build',
     );
     assert.equal(
       providerCapabilitiesService.getProviderCapabilities('codex').supportsPermissionRequests,
@@ -881,6 +893,14 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     assert.deepEqual(
       providerCapabilitiesService.getProviderCapabilities('codex').permissionModes,
       ['default', 'acceptEdits', 'bypassPermissions'],
+    );
+    assert.deepEqual(
+      providerCapabilitiesService.getProviderCapabilities('codex').collaborationModes,
+      [],
+    );
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex').defaultCollaborationMode,
+      null,
     );
     assert.equal(
       providerCapabilitiesService.getProviderCapabilities('codex').supportsPermissionRequests,
@@ -909,6 +929,8 @@ test('Codex startup fallback is reflected in actual transport and runtime capabi
 
     const capabilities = providerCapabilitiesService.getProviderCapabilities('codex');
     assert.equal(capabilities.supportsPermissionRequests, false);
+    assert.deepEqual(capabilities.collaborationModes, []);
+    assert.equal(capabilities.defaultCollaborationMode, null);
     assert.equal(capabilities.supportsRewind, false);
     assert.equal(capabilities.supportsFork, false);
     assert.equal(capabilities.chatTransport?.configured, 'app-server');

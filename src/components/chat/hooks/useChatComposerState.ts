@@ -25,6 +25,7 @@ import {
 import type {
   ChatAttachment,
   ChatMessage,
+  CollaborationMode,
   PendingPermissionRequest,
   PermissionMode,
   SessionEstablishedContext,
@@ -44,7 +45,8 @@ interface UseChatComposerStateArgs {
   currentSessionId: string | null;
   provider: LLMProvider;
   permissionMode: PermissionMode | string;
-  cyclePermissionMode: () => void;
+  collaborationMode: CollaborationMode | null;
+  togglePermissionMode: () => void;
   resolvePermissionModeForProvider: (provider: LLMProvider, requestedMode: PermissionMode | string) => PermissionMode;
   /**
    * Model every send and command carries: the open session's model when there
@@ -312,7 +314,8 @@ export function useChatComposerState({
   currentSessionId,
   provider,
   permissionMode,
-  cyclePermissionMode,
+  collaborationMode,
+  togglePermissionMode,
   resolvePermissionModeForProvider,
   currentProviderModel,
   currentProviderEffort,
@@ -350,6 +353,9 @@ export function useChatComposerState({
   const [fileErrors, setFileErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
+  // `/models` opens the composer's unified model/effort menu instead of a
+  // second picker with its own presentation and selection state.
+  const [modelMenuOpenRequest, setModelMenuOpenRequest] = useState(0);
   // Drives the /context modal's refresh button. Its own flag, separate from
   // `isLoading` (the turn's send/stream state) — a refresh is a single POST,
   // not a new turn.
@@ -410,10 +416,8 @@ export function useChatComposerState({
           break;
 
         case 'models':
-          setCommandModalPayload({
-            kind: 'models',
-            data: (data || {}) as ModelCommandData,
-          });
+          setCommandModalPayload(null);
+          setModelMenuOpenRequest((request) => request + 1);
           break;
 
         // `cost` is the pre-rename action name: a browser tab left open across
@@ -893,6 +897,7 @@ export function useChatComposerState({
       model,
       effort: currentProviderEffort,
       permissionMode: resolvePermissionModeForProvider(provider, permissionMode),
+      ...(collaborationMode ? { collaborationMode } : {}),
       toolsSettings,
       skipPermissions: toolsSettings?.skipPermissions || false,
       sessionSummary: getNotificationSessionSummary(selectedSession, currentInput),
@@ -901,6 +906,7 @@ export function useChatComposerState({
       ...(pendingRewind ? { rewindToMessageId: pendingRewind.anchorMessageId } : {}),
     };
   }, [
+    collaborationMode,
     currentProviderEffort,
     currentProviderModel,
     pendingRewind,
@@ -1459,7 +1465,7 @@ export function useChatComposerState({
 
       if (event.key === 'Tab' && !showFileDropdown && !showCommandMenu) {
         event.preventDefault();
-        cyclePermissionMode();
+        togglePermissionMode();
         return;
       }
 
@@ -1481,7 +1487,7 @@ export function useChatComposerState({
       }
     },
     [
-      cyclePermissionMode,
+      togglePermissionMode,
       handleCommandMenuKeyDown,
       enterToSend,
       handleFileMentionsKeyDown,
@@ -1688,6 +1694,7 @@ export function useChatComposerState({
     handleInputFocusChange,
     isInputFocused,
     commandModalPayload,
+    modelMenuOpenRequest,
     closeCommandModal,
     showUsageModal,
     showContextModal,

@@ -18,6 +18,9 @@ type ProviderCapabilities = {
   /** Permission modes the provider runtime understands, in cycle order. */
   permissionModes: string[];
   defaultPermissionMode: string;
+  /** Provider-neutral collaboration intents available independently of access policy. */
+  collaborationModes: string[];
+  defaultCollaborationMode: string | null;
   /** Whether image attachments can be included in a chat.send. */
   supportsImages: boolean;
   /** Whether general file attachments can be included in a chat.send. */
@@ -52,6 +55,8 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     provider: 'claude',
     permissionModes: ['default', 'auto', 'acceptEdits', 'bypassPermissions', 'plan'],
     defaultPermissionMode: 'default',
+    collaborationModes: [],
+    defaultCollaborationMode: null,
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
@@ -65,6 +70,8 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     provider: 'cursor',
     permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
     defaultPermissionMode: 'default',
+    collaborationModes: [],
+    defaultCollaborationMode: null,
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
@@ -78,6 +85,8 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     provider: 'codex',
     permissionModes: ['default', 'acceptEdits', 'bypassPermissions'],
     defaultPermissionMode: 'default',
+    collaborationModes: [],
+    defaultCollaborationMode: null,
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
@@ -94,6 +103,8 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     // (acceptEdits). See resolveOpenCodePermissionOptions in the OpenCode runtime adapter.
     permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
     defaultPermissionMode: 'default',
+    collaborationModes: [],
+    defaultCollaborationMode: null,
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
@@ -112,7 +123,8 @@ function withRuntimeCapabilities(capabilities: ProviderCapabilities): ProviderCa
   ) {
     return {
       ...capabilities,
-      permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+      collaborationModes: ['build', 'plan'],
+      defaultCollaborationMode: 'build',
       supportsPermissionRequests: true,
       supportsRewind: true,
       supportsFork: true,

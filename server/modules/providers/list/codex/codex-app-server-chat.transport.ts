@@ -111,6 +111,7 @@ type QueryCodexAppServerOptions = AnyRecord & {
   images?: unknown;
   files?: unknown;
   permissionMode?: string;
+  collaborationMode?: 'build' | 'plan';
   rewindToMessageId?: string;
 };
 
@@ -554,7 +555,11 @@ export class CodexAppServerChatTransport {
       options.sessionId,
       options.model,
     );
-    if (options.permissionMode === 'plan' && !resolvedModel) {
+    // `permissionMode: plan` is accepted as a compatibility bridge for a
+    // client bundle cached before collaboration became its own composer state.
+    const collaborationMode = options.collaborationMode
+      ?? (options.permissionMode === 'plan' ? 'plan' : 'build');
+    if (collaborationMode === 'plan' && !resolvedModel) {
       resolvedModel = (await providerModelsService.getProviderModels(PROVIDER)).models.DEFAULT;
     }
     const resolvedEffort = normalizeEffort(options.effort);
@@ -644,7 +649,9 @@ export class CodexAppServerChatTransport {
         model: resolvedModel,
         effort: resolvedEffort,
         collaborationMode: {
-          mode: options.permissionMode === 'plan' ? 'plan' : 'default',
+          // App Server calls normal execution "default"; CLIde calls the
+          // user-facing intent "build" so it cannot be confused with access defaults.
+          mode: collaborationMode === 'plan' ? 'plan' : 'default',
           settings: {
             model: resolvedModel,
             reasoning_effort: resolvedEffort ?? null,
