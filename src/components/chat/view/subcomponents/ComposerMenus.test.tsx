@@ -60,6 +60,7 @@ test('routine permission toggle includes provider Auto but excludes elevated and
 test('model trigger opens one menu containing reasoning and model choices', async () => {
   const effortSelections: string[] = [];
   const modelSelections: string[] = [];
+  let refreshes = 0;
   const host = await mount(
     <ComposerModelMenu
       effort="high"
@@ -70,8 +71,10 @@ test('model trigger opens one menu containing reasoning and model choices', asyn
         { value: 'model-a', label: 'Model A', description: 'A long model description' },
         { value: 'model-b', label: 'Model B', description: 'Another long model description' },
       ]}
-      onSelectModel={(value) => modelSelections.push(value)}
+      onSelectModel={async (value) => { modelSelections.push(value); }}
       modelsLoading={false}
+      modelsRefreshing={false}
+      onRefreshModels={async () => { refreshes += 1; }}
       openRequest={0}
     />,
   );
@@ -99,6 +102,10 @@ test('model trigger opens one menu containing reasoning and model choices', asyn
   assert.match(menu?.textContent || '', /Effort/);
   assert.match(menu?.textContent || '', /high/);
   assert.doesNotMatch(menu?.textContent || '', /long model description/);
+  const refreshButton = document.querySelector<HTMLButtonElement>('[aria-label="Refresh model list"]');
+  assert.ok(refreshButton);
+  await React.act(async () => refreshButton.click());
+  assert.equal(refreshes, 1);
   const menuRight = Number.parseFloat((menu as HTMLElement).style.right);
   const menuMaxWidth = Number.parseFloat((menu as HTMLElement).style.maxWidth);
   assert.ok(window.innerWidth - menuRight - menuMaxWidth >= 8, 'menu stays inside the left viewport edge');
@@ -134,6 +141,43 @@ test('model trigger opens one menu containing reasoning and model choices', asyn
   assert.ok(modelAButton);
   await React.act(async () => modelAButton.click());
   assert.deepEqual(modelSelections, ['model-a']);
+});
+
+test('model selection stays open and reports a failed session update', async () => {
+  const host = await mount(
+    <ComposerModelMenu
+      effort="default"
+      effortOptions={[]}
+      onSelectEffort={() => {}}
+      model="model-a"
+      modelOptions={[
+        { value: 'model-a', label: 'Model A' },
+        { value: 'model-b', label: 'Model B' },
+      ]}
+      onSelectModel={async () => {
+        throw new Error('Unable to change the active model for this session.');
+      }}
+      modelsLoading={false}
+      modelsRefreshing={false}
+      onRefreshModels={async () => {}}
+      openRequest={0}
+    />,
+  );
+
+  const trigger = host.querySelector<HTMLButtonElement>('button');
+  assert.ok(trigger);
+  await React.act(async () => trigger.click());
+  const modelBButton = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
+    .find((button) => button.textContent?.includes('Model B'));
+  assert.ok(modelBButton);
+
+  await React.act(async () => modelBButton.click());
+
+  assert.ok(document.querySelector('[role="menu"]'), 'failed selection leaves the menu open');
+  assert.match(
+    document.querySelector('[role="alert"]')?.textContent || '',
+    /Unable to change the active model for this session/,
+  );
 });
 
 test('permission trigger toggles routine access while the chevron opens every mode', async () => {

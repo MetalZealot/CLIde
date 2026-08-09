@@ -308,8 +308,6 @@
     "credits": "Usage credits",
     "creditsUsed": "{{used}} of {{limit}} used",
     "creditsLearnMore": "Learn more",
-    "creditsOff": "Credits are off — usage stops at your plan limit.",
-    "onCredits": "On credits",
-    "onCreditsTitle": "Plan limit reached — usage credits are covering this session ({{pct}}% of credit cap used)."
+    "creditsOff": "Credits are off — usage stops at your plan limit."
   }
 }

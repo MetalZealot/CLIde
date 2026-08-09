@@ -420,10 +420,7 @@ Custom commands can be created in:
 
   "/context": async (args, context) => {
     const provider = readModelProvider(context?.provider);
-
-    // Only Claude reports a context breakdown. Rather than hide the command per
-    // provider, say so plainly — the same way an unsupported provider usage
-    // response is handled.
+    // Only Claude reports a detailed context breakdown.
     if (provider !== "claude") {
       return {
         type: "builtin",

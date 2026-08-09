@@ -97,7 +97,6 @@ function ChatInterface({
     selectCollaborationMode,
     togglePermissionMode,
     providerModelCatalog,
-    providerModelCacheCatalog,
     providerModelsLoading,
     providerModelsRefreshing,
     hardRefreshProviderModels,
@@ -210,10 +209,10 @@ function ChatInterface({
     handleInputFocusChange,
     commandModalPayload,
     modelMenuOpenRequest,
+    usagePopoverRequest,
     closeCommandModal,
-    showUsageModal,
-    showContextModal,
-    refreshContextModal,
+    showContextPopover,
+    refreshContextPopover,
     isRefreshingContext,
   } = useChatComposerState({
     selectedProject,
@@ -276,11 +275,7 @@ function ChatInterface({
   }, [selectProviderModel, sessionStore]);
 
   const handleSelectComposerModel = useCallback(async (model: string) => {
-    try {
-      await handleSelectProviderModel(provider, model, currentSessionId || selectedSession?.id || null);
-    } catch (error) {
-      console.error('Error changing the active session model:', error);
-    }
+    await handleSelectProviderModel(provider, model, currentSessionId || selectedSession?.id || null);
   }, [currentSessionId, handleSelectProviderModel, provider, selectedSession?.id]);
 
   // Latest composer text, read from a ref so the realtime listener does not
@@ -483,7 +478,8 @@ function ChatInterface({
           <CompactionWarningBanner
             tokenBudget={tokenBudget}
             sessionId={currentSessionId || selectedSession?.id || null}
-            onShowContext={showContextModal}
+            provider={provider}
+            onShowContext={showContextPopover}
           />
 
           <ChatComposer
@@ -507,9 +503,14 @@ function ChatInterface({
           availableModelOptions={currentProviderModelOptions}
           onSelectModel={handleSelectComposerModel}
           modelsLoading={providerModelsLoading}
+          modelsRefreshing={providerModelsRefreshing}
+          onRefreshModels={hardRefreshProviderModels}
           modelMenuOpenRequest={modelMenuOpenRequest}
           tokenBudget={tokenBudget}
-          onShowContext={showContextModal}
+          usagePopoverRequest={usagePopoverRequest}
+          onShowContextBreakdown={showContextPopover}
+          onRefreshContextBreakdown={refreshContextPopover}
+          isRefreshingContextBreakdown={isRefreshingContext}
           provider={provider}
           hasInput={Boolean(input.trim())}
           onClearInput={handleClearInput}
@@ -579,16 +580,6 @@ function ChatInterface({
       <CommandResultModal
         payload={commandModalPayload}
         onClose={closeCommandModal}
-        providerModelCatalog={providerModelCatalog}
-        providerModelCacheCatalog={providerModelCacheCatalog}
-        providerModelsRefreshing={providerModelsRefreshing}
-        onHardRefreshProviderModels={hardRefreshProviderModels}
-        currentSessionId={currentSessionId || selectedSession?.id || null}
-        onShowUsage={showUsageModal}
-        onRefreshContext={refreshContextModal}
-        isRefreshingContext={isRefreshingContext}
-        isSessionProcessing={isProcessing}
-        onSelectProviderModel={handleSelectProviderModel}
       />
     </PermissionContext.Provider>
   );

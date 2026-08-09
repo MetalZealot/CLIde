@@ -147,8 +147,8 @@ and redaction behavior as the live stream.
 | Model catalog | `model/list`, provider capabilities, local cache | Reads `models_cache.json` with fallbacks | Codex models provider | Candidate: consume authoritative live catalog without losing fallback behavior |
 | Per-session effective model | Turn/transcript metadata | Implemented separately from global config defaults | Active-model service | Keep |
 | Account authentication state | `account/read` and auth notifications | Inferred from `auth.json`; login uses terminal flow | Codex auth provider + Settings | Candidate only with a complete native login/logout design |
-| Plan rate-limit windows | `account/rateLimits/read` | Implemented through a short-lived bundled App Server | Codex usage provider + shared usage UI | Keep |
-| Credits/reset balance and account activity | `account/usage/read` | Implemented where account/auth mode supports it | Codex usage provider + shared usage UI | Keep |
+| Plan rate-limit windows | `account/rateLimits/read` | Implemented through a short-lived bundled App Server | Codex usage provider + composer usage popover | Keep |
+| Credits/reset balance and account activity | `account/usage/read` | Implemented where account/auth mode supports it; account activity is an in-place drill-in beneath Weekly | Codex usage provider + composer usage popover | Keep |
 | API-key plan usage | Not available from the current account surface | Reports unsupported honestly | Usage provider | Keep |
 | Effective configuration and origins | `config/read` | Direct TOML/file interpretation only | Provider Settings | Candidate for a read-only cascade/policy view |
 | Managed requirements | `configRequirements/read` | Not exposed | Provider Settings/policy UI | Defer until effective-config viewing exists |

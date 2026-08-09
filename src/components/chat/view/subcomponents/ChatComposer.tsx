@@ -16,7 +16,11 @@ import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import { isTouchPrimaryDevice } from '../../../../utils/pointer';
-import type { PendingRewind, QueuedDraft } from '../../hooks/useChatComposerState';
+import type {
+  PendingRewind,
+  QueuedDraft,
+  UsagePopoverRequest,
+} from '../../hooks/useChatComposerState';
 import type { CollaborationMode, PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { ProviderModelOption } from '../../../../types/app';
 import {
@@ -29,7 +33,6 @@ import {
   PromptInputButton,
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
-import OnCreditsBadge from '../../../provider-usage/OnCreditsBadge';
 
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
@@ -80,12 +83,16 @@ interface ChatComposerProps {
   onSelectEffort: (effort: string) => void;
   model: string;
   availableModelOptions: ProviderModelOption[];
-  onSelectModel: (model: string) => void;
+  onSelectModel: (model: string) => Promise<void>;
   modelsLoading: boolean;
+  modelsRefreshing: boolean;
+  onRefreshModels: () => Promise<void>;
   modelMenuOpenRequest: number;
   tokenBudget: Record<string, unknown> | null;
-  /** Opens the context-window panel — what the ring is a gauge of. */
-  onShowContext: () => void;
+  usagePopoverRequest: UsagePopoverRequest;
+  onShowContextBreakdown: () => void;
+  onRefreshContextBreakdown: () => void;
+  isRefreshingContextBreakdown: boolean;
   provider?: string;
   hasInput: boolean;
   onClearInput: () => void;
@@ -151,9 +158,14 @@ export default function ChatComposer({
   availableModelOptions,
   onSelectModel,
   modelsLoading,
+  modelsRefreshing,
+  onRefreshModels,
   modelMenuOpenRequest,
   tokenBudget,
-  onShowContext,
+  usagePopoverRequest,
+  onShowContextBreakdown,
+  onRefreshContextBreakdown,
+  isRefreshingContextBreakdown,
   provider,
   hasInput,
   onClearInput,
@@ -415,6 +427,8 @@ export default function ChatComposer({
               modelOptions={availableModelOptions}
               onSelectModel={onSelectModel}
               modelsLoading={modelsLoading}
+              modelsRefreshing={modelsRefreshing}
+              onRefreshModels={onRefreshModels}
               openRequest={modelMenuOpenRequest}
             />
 
@@ -432,8 +446,6 @@ export default function ChatComposer({
             {onVoiceTranscript && voiceAvailable && (
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
             )}
-
-            <OnCreditsBadge provider={provider} />
 
             {hasInput && (
               <PromptInputButton
@@ -456,7 +468,15 @@ export default function ChatComposer({
               {submitHint}
             </div>
 
-            <TokenUsageSummary usage={tokenBudget} onClick={onShowContext} provider={provider} />
+            <TokenUsageSummary
+              usage={tokenBudget}
+              request={usagePopoverRequest}
+              onRequestBreakdown={onShowContextBreakdown}
+              onRefreshBreakdown={onRefreshContextBreakdown}
+              isRefreshingBreakdown={isRefreshingContextBreakdown}
+              canRefreshBreakdown={isLoading}
+              provider={provider}
+            />
 
             <PromptInputSubmit
               onClick={

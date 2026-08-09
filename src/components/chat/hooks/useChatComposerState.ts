@@ -30,7 +30,7 @@ import type {
   PermissionMode,
   SessionEstablishedContext,
 } from '../types/types';
-import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } from '../../../types/app';
+import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../utils/messageKeys';
 import type { SessionStore } from '../../../stores/useSessionStore';
@@ -98,36 +98,6 @@ interface CommandExecutionResult {
   hasBashCommands?: boolean;
   hasFileIncludes?: boolean;
 }
-
-export type ModelCommandData = {
-  current?: {
-    provider?: string;
-    providerLabel?: string;
-    model?: string;
-  };
-  available?: Partial<Record<LLMProvider, string[]>>;
-  availableModels?: string[];
-  availableOptions?: Array<{
-    value: string;
-    label?: string;
-    description?: string;
-  }>;
-  defaultModel?: string;
-  cache?: ProviderModelsCacheInfo;
-};
-
-export type UsageCommandData = {
-  tokenUsage?: {
-    used?: number;
-    total?: number;
-  };
-  tokenBreakdown?: {
-    input?: number;
-    output?: number;
-  };
-  provider?: string;
-  model?: string;
-};
 
 export type StatusCommandData = {
   version?: string;
@@ -206,12 +176,34 @@ export type ContextCommandData = {
   } | null;
 };
 
-export type CommandModalKind = 'help' | 'models' | 'usage' | 'status' | 'context';
+export type CommandModalKind = 'help' | 'status';
 
 export type CommandModalPayload = {
   kind: CommandModalKind;
-  data: HelpCommandData | ModelCommandData | UsageCommandData | StatusCommandData | ContextCommandData;
+  data: HelpCommandData | StatusCommandData;
 };
+
+export type UsagePopoverView = 'summary' | 'breakdown' | 'activity';
+
+export type UsagePopoverRequest = {
+  id: number;
+  view: UsagePopoverView;
+  /** Undefined while a requested Claude breakdown is still loading. */
+  context?: ContextCommandData;
+};
+
+export function resolveUsagePopoverView(
+  action: string | undefined,
+  provider: string,
+): UsagePopoverView | null {
+  if (action === 'usage' || action === 'cost') {
+    return provider === 'codex' ? 'activity' : 'summary';
+  }
+  if (action === 'context') {
+    return provider === 'claude' ? 'breakdown' : 'summary';
+  }
+  return null;
+}
 
 const createFakeSubmitEvent = () => {
   return { preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>;
@@ -356,6 +348,10 @@ export function useChatComposerState({
   // `/models` opens the composer's unified model/effort menu instead of a
   // second picker with its own presentation and selection state.
   const [modelMenuOpenRequest, setModelMenuOpenRequest] = useState(0);
+  const [usagePopoverRequest, setUsagePopoverRequest] = useState<UsagePopoverRequest>({
+    id: 0,
+    view: 'summary',
+  });
   // Drives the /context modal's refresh button. Its own flag, separate from
   // `isLoading` (the turn's send/stream state) — a refresh is a single POST,
   // not a new turn.
@@ -424,10 +420,11 @@ export function useChatComposerState({
         // the deploy still asks for it, and `/cost` survives as a command alias.
         case 'cost':
         case 'usage': {
-          setCommandModalPayload({
-            kind: 'usage',
-            data: (data || {}) as UsageCommandData,
-          });
+          setCommandModalPayload(null);
+          setUsagePopoverRequest((request) => ({
+            id: request.id + 1,
+            view: resolveUsagePopoverView(action, provider) ?? 'summary',
+          }));
           break;
         }
 
@@ -440,10 +437,12 @@ export function useChatComposerState({
         }
 
         case 'context': {
-          setCommandModalPayload({
-            kind: 'context',
-            data: (data || {}) as ContextCommandData,
-          });
+          setCommandModalPayload(null);
+          setUsagePopoverRequest((request) => ({
+            id: request.id + 1,
+            view: resolveUsagePopoverView(action, provider) ?? 'summary',
+            ...(provider === 'claude' ? { context: (data || {}) as ContextCommandData } : {}),
+          }));
           break;
         }
 
@@ -474,7 +473,7 @@ export function useChatComposerState({
           console.warn('Unknown built-in command action:', action);
       }
     },
-    [onFileOpen, onShowSettings, addMessage],
+    [onFileOpen, onShowSettings, addMessage, provider],
   );
 
   const closeCommandModal = useCallback(() => {
@@ -676,20 +675,13 @@ export function useChatComposerState({
     ],
   );
 
-  const showUsageModal = useCallback(() => {
-    executeCommand(
-      {
-        name: '/usage',
-        description: 'Show plan limits and session token usage',
-        namespace: 'builtin',
-        metadata: { type: 'builtin' },
-      } as SlashCommand,
-      '/usage',
-      { preserveInput: true },
-    );
-  }, [executeCommand]);
+  const showContextPopover = useCallback(() => {
+    if (provider !== 'claude') {
+      setUsagePopoverRequest((request) => ({ id: request.id + 1, view: 'summary' }));
+      return;
+    }
 
-  const showContextModal = useCallback(() => {
+    setUsagePopoverRequest((request) => ({ id: request.id + 1, view: 'breakdown' }));
     executeCommand(
       {
         name: '/context',
@@ -700,14 +692,14 @@ export function useChatComposerState({
       '/context',
       { preserveInput: true },
     );
-  }, [executeCommand]);
+  }, [executeCommand, provider]);
 
   // Manually re-fires the SDK's context reading (only possible mid-turn — see
   // docs/specs/2026-07-28-context-usage-live-refresh.md) and then
   // re-opens the modal so it renders whatever the refresh produced. A
   // "no live turn" response changes nothing server-side, so re-running is
   // still correct there — the modal just re-renders the same cached reading.
-  const refreshContextModal = useCallback(async () => {
+  const refreshContextPopover = useCallback(async () => {
     if (!selectedProject || !sessionKey) {
       return;
     }
@@ -724,8 +716,8 @@ export function useChatComposerState({
       setIsRefreshingContext(false);
     }
 
-    showContextModal();
-  }, [selectedProject, sessionKey, showContextModal]);
+    showContextPopover();
+  }, [selectedProject, sessionKey, showContextPopover]);
 
   const {
     slashCommands,
@@ -1695,10 +1687,10 @@ export function useChatComposerState({
     isInputFocused,
     commandModalPayload,
     modelMenuOpenRequest,
+    usagePopoverRequest,
     closeCommandModal,
-    showUsageModal,
-    showContextModal,
-    refreshContextModal,
+    showContextPopover,
+    refreshContextPopover,
     isRefreshingContext,
   };
 }

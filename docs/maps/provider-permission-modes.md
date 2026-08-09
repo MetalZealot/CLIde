@@ -1,10 +1,10 @@
 # Provider permission and mode surfaces
 
 Maps Claude and Codex permission concepts **by behaviour**, because similarly
-named modes are not equivalent. Surveyed 2026-07-25 against the official SDK and
-CLI documentation, `@anthropic-ai/claude-agent-sdk` 0.3.217, `@openai/codex-sdk`
-0.144.6, and CLIde's `main`. These surfaces move quickly — recheck the pinned
-versions before relying on a detail.
+named modes are not equivalent. The native survey used the 2026-07-25 official
+SDK/CLI documentation and protocol snapshots; CLIde's implementation mapping was
+revalidated on 2026-08-09 against the merged 1.37 source and Codex 0.146.0.
+These surfaces move quickly — recheck current versions before relying on a detail.
 
 Three findings that make the rest worth reading:
 
@@ -308,7 +308,7 @@ The normalized question model already captures:
 - multi-select capability;
 - expiry and auto-resolution.
 
-Codex 0.144.6 does not advertise a multi-select bit, so its questions default
+Codex 0.146.0 does not advertise a multi-select bit, so its questions default
 to one selection while still returning arrays on the wire.
 
 ## 5. Primary references

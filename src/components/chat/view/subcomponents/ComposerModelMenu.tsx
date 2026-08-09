@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Loader2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { ProviderModelOption } from '../../../../types/app';
@@ -22,8 +22,10 @@ interface ComposerModelMenuProps {
   onSelectEffort: (effort: string) => void;
   model: string;
   modelOptions: ProviderModelOption[];
-  onSelectModel: (model: string) => void;
+  onSelectModel: (model: string) => Promise<void>;
   modelsLoading: boolean;
+  modelsRefreshing: boolean;
+  onRefreshModels: () => Promise<void>;
   openRequest: number;
 }
 
@@ -35,10 +37,14 @@ export default function ComposerModelMenu({
   modelOptions,
   onSelectModel,
   modelsLoading,
+  modelsRefreshing,
+  onRefreshModels,
   openRequest,
 }: ComposerModelMenuProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
+  const [selectingModel, setSelectingModel] = useState<string | null>(null);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const effortTrackRef = useRef<HTMLDivElement | null>(null);
   const effortDragRef = useRef({ active: false, moved: false, startX: 0, lastValue: effort });
   const suppressEffortClickRef = useRef(false);
@@ -47,6 +53,7 @@ export default function ComposerModelMenu({
 
   useEffect(() => {
     if (openRequest > 0) {
+      setSelectionError(null);
       updateAnchor();
       setIsOpen(true);
     }
@@ -62,6 +69,20 @@ export default function ComposerModelMenu({
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
   const ariaLabel = t('composer.modelMenu', { defaultValue: 'Select model and reasoning effort' });
+  const handleSelectModel = useCallback(async (nextModel: string) => {
+    setSelectionError(null);
+    setSelectingModel(nextModel);
+    try {
+      await onSelectModel(nextModel);
+      setIsOpen(false);
+    } catch (error) {
+      setSelectionError(error instanceof Error
+        ? error.message
+        : t('composer.modelChangeFailed', { defaultValue: 'Unable to change the active model.' }));
+    } finally {
+      setSelectingModel(null);
+    }
+  }, [onSelectModel, t]);
   const selectEffortAt = useCallback((clientX: number) => {
     const rect = effortTrackRef.current?.getBoundingClientRect();
     if (!rect || rect.width <= 0 || resolvedEffortOptions.length === 0) return;
@@ -126,6 +147,7 @@ export default function ComposerModelMenu({
         ref={triggerRef}
         type="button"
         onClick={() => {
+          if (!isOpen) setSelectionError(null);
           updateAnchor();
           setIsOpen((current) => !current);
         }}
@@ -147,6 +169,21 @@ export default function ComposerModelMenu({
           <div className="w-52 max-w-full">
             {hasModelSection && (
               <div className="py-0.5">
+                <div className="flex items-center justify-between gap-2 px-2.5 pb-1 pt-0.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    {t('composer.models', { defaultValue: 'Models' })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { void onRefreshModels(); }}
+                    disabled={modelsRefreshing}
+                    className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    aria-label={t('composer.refreshModels', { defaultValue: 'Refresh model list' })}
+                    title={t('composer.refreshModels', { defaultValue: 'Refresh model list' })}
+                  >
+                    <RefreshCw className={modelsRefreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+                  </button>
+                </div>
                 {modelOptions.length === 0 && modelsLoading && (
                   <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
                     {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
@@ -157,12 +194,18 @@ export default function ComposerModelMenu({
                     key={option.value}
                     label={option.label || option.value}
                     isSelected={option.value === model}
-                    onSelect={() => {
-                      onSelectModel(option.value);
-                      setIsOpen(false);
-                    }}
+                    onSelect={() => { void handleSelectModel(option.value); }}
+                    disabled={selectingModel !== null}
+                    trailing={selectingModel === option.value
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : undefined}
                   />
                 ))}
+                {selectionError && (
+                  <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
+                    {selectionError}
+                  </p>
+                )}
               </div>
             )}
 

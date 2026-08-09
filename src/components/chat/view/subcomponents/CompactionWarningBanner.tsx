@@ -26,13 +26,15 @@ const readNumber = (value: unknown): number => {
 type CompactionWarningBannerProps = {
   tokenBudget: Record<string, unknown> | null;
   sessionId: string | null;
-  /** Opens the /context modal, which explains what is actually filling the window. */
+  provider?: string;
+  /** Opens the ring popover at the provider's available context detail. */
   onShowContext?: () => void;
 };
 
 export default function CompactionWarningBanner({
   tokenBudget,
   sessionId,
+  provider,
   onShowContext,
 }: CompactionWarningBannerProps) {
   const [visible, setVisible] = useState(false);
@@ -80,7 +82,11 @@ export default function CompactionWarningBanner({
         <p className="mt-0.5 text-muted-foreground">
           {compactsAutomatically
             ? `Auto-compact fires at ${threshold.toLocaleString()} tokens and discards older messages, replacing them with a summary.`
-            : `Auto-compact is off for this session, so it will hit the ${contextWindow.toLocaleString()}-token limit rather than being summarised.`}
+            : tokenBudget?.isAutoCompactEnabled === false
+              ? `Auto-compact is off for this session, so it will hit the ${contextWindow.toLocaleString()}-token limit rather than being summarised.`
+              : provider === 'codex'
+                ? 'Codex auto-compacts before its context limit; the runtime does not report the exact threshold here.'
+                : 'Auto-compact status is not reported for this session.'}
           {onShowContext && (
             <>
               {' '}
@@ -89,7 +95,7 @@ export default function CompactionWarningBanner({
                 onClick={onShowContext}
                 className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
               >
-                See what is filling it
+                {provider === 'claude' ? 'See what is filling it' : 'View usage'}
               </button>
               .
             </>

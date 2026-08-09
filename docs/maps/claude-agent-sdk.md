@@ -169,7 +169,7 @@ Two consequences are already user-visible:
 | Explicit fork | `forkSession` option and top-level `forkSession()` | Not exposed; capability service reports `supportsFork: false` | Sessions service + provider fork binding | Candidate |
 | Compaction | Auto-compact plus `/compact` | Partial: summaries are re-labelled as assistant text and referenced files are surfaced (ADR 0023); `compact_boundary` and `PreCompact`/`PostCompact` are unused | History parser + transcript divider | Candidate |
 | Context ceiling and auto-compact threshold | `getContextUsage()` | Implemented mid-turn, cached to disk, with a mirrored-registry fallback | `claude-context-usage.ts`, `claude-context-window.ts` | Keep |
-| Per-category context breakdown | `getContextUsage()` payload | Partial: the reading feeds the ring and `/context`; category detail is not fully surfaced | `/context` modal | Candidate |
+| Per-category context breakdown | `getContextUsage()` payload | Implemented from the saved last-turn reading; the composer usage popover drills into the itemized categories in place, and `/context` routes there | Composer usage popover | Keep |
 | Transcript retention | `cleanupPeriodDays` | Not exposed; directly affects CLIde's own session list | Provider settings | Candidate |
 | Session naming | `title` option, `-n/--name`, `renameSession` | App-owned summaries only | Sidebar/session routes | Keep current ownership |
 | App-owned starring | CLIde metadata | Implemented, starred-first ordering | Sessions repository | Keep |
@@ -190,7 +190,7 @@ redaction behavior as the live stream.
 | Account identity | `accountInfo()` (email, org, subscription) | Inferred from credentials files and `settings.json` | `claude-auth.provider.ts` + Settings | Candidate |
 | Installed/authenticated state | `claude --version`, credentials files | Implemented | `claude-auth.provider.ts` | Keep |
 | Login/logout | `claude auth`, `setup-token` | Terminal flow only | Settings | Defer pending a complete native design |
-| Plan rate limits and credits | `https://api.anthropic.com/api/oauth/usage` | Implemented as a fetch-on-open read | `claude-usage.provider.ts` + shared usage UI | Keep |
+| Plan rate limits and credits | `https://api.anthropic.com/api/oauth/usage` | Implemented as a cached read for the composer summary; the external action opens Claude's plan usage settings | `claude-usage.provider.ts` + composer usage popover | Keep |
 | Live rate-limit pushes | `rate_limit_event` stream message | **Not exposed** although it arrives unprompted mid-session | Live normalizer → usage UI | Integrate — free live updates, no extra requests |
 | Settings cascade (read) | `resolveSettings()` — effective, provenance, per-tier sources | Not exposed; the cascade is in force but invisible | `GET /api/providers/claude/settings` + provider settings screen | Integrate — cheapest high-value item |
 | Settings cascade (write) | `Options.settings` flag tier, JSONC edits | Not exposed | Provider settings screen | Defer to the settings spec |

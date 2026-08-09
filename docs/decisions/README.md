@@ -52,7 +52,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0012 — Codex rewind replaces a stable session; fork creates another](0012-codex-rewind-and-fork-session-identity.md)
 - [0013 — Abort is signal-first; the provider id is only the graceful tier](0013-abort-is-signal-first-not-provider-id-keyed.md)
 - [0014 — The context ring's ceiling is read from the SDK, not derived](0014-context-ceiling-from-sdk.md)
-- [0015 — The composer ring opens `/context`; `/cost` became `/usage`](0015-ring-opens-context-and-usage-rename.md)
+- [0015 — The composer ring opens `/context`; `/cost` became `/usage`](0015-ring-opens-context-and-usage-rename.md) *(superseded by 0032)*
 - [0016 — Projects group checkouts by repository; a project is not a directory](0016-repository-grouped-checkouts.md)
 - [0017 — A batch move preflights everything, then rolls back in reverse](0017-batch-move-preflight-then-rollback.md)
 - [0018 — Settings navigates by a history-backed drill-down stack, and each screen owns exactly one scroll container](0018-settings-drill-down-one-scroll-container.md)
@@ -69,3 +69,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0029 — A repository row's session view is per row, in memory, and loads before it filters](0029-per-row-session-views-load-before-they-filter.md)
 - [0030 — Sidebar activity is a section; search is persistent and Archive is in the footer](0030-sidebar-activity-persistent-search-footer-archive.md)
 - [0031 — Selection follows the theme; sidebar status uses symbols](0031-theme-relative-selection-and-symbolic-sidebar-status.md)
+- [0032 — The composer ring owns a summary-first usage popover](0032-summary-first-composer-usage-popover.md)

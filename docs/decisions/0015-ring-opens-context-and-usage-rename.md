@@ -1,7 +1,7 @@
 # 0015 — The composer ring opens `/context`; `/cost` became `/usage`
 
 - Date: 2026-07-27
-- Status: Accepted
+- Status: Superseded by 0032
 
 ## Decision
 

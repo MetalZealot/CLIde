@@ -11,6 +11,7 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [ ] **Claude composer `default` silently inherits `permissions.defaultMode`** (see `todo-done.md`, 2026-08-09, this commit). Upstream's `claude-runtime.provider.js` still assigns `sdkOptions.permissionMode` only when the selected value is not `default`, even though the composer sends that value explicitly. A user selecting Default can therefore run as `acceptEdits` from `settings.json` with no UI acknowledgement. CLIde now forwards native `default` and labels it Ask Before Tools. Upstream check 2026-08-09: confirmed in `upstream/main`; issue and PR searches for permission/default/settings inheritance found no relevant report. The adapter change is small and independently testable; the fork's broader composer-menu redesign need not travel with it. **Good standalone PR candidate.**
 - [ ] **Claude account reported "logged out" after an idle access token** (see
   `todo-done.md`, 2026-07-28) — verbatim upstream bug, but the diff needs re-siting: upstream
   still has the expiry check inline in `claude-auth.provider.ts` (`if (!expiresAt || Date.now() <

@@ -34,6 +34,12 @@ table mirrors the SDK's embedded model registry (no runtime accessor exists), so
 **refresh it on every SDK bump** — and note its arithmetic is calibrated against
 measurements in `scripts/verify-context-usage-sdk.ts`, not decoded. See ADR 0014.
 
+`TokenUsageSummary` owns the composer summary and its provider-specific drill-ins:
+Claude opens the saved per-category reading in-place, while Codex exposes account
+activity only when `account/usage/read` returned it. `/context`, `/usage`, and the
+near-compaction warning route into that popover through `UsagePopoverRequest`;
+`CommandResultModal` no longer owns Context or Usage views.
+
 ## Session identity and addressing
 
 Runtimes are addressed by the **app** session id, never the provider-native one.
@@ -75,6 +81,10 @@ The **catalog** (the static list of selectable models) is server-side and hardco
 `server/modules/providers/list/claude/claude-models.provider.ts`
 (`CLAUDE_FALLBACK_MODELS`). The frontend renders whatever `GET /:provider/models`
 returns.
+
+`ComposerModelMenu` is the only model/effort presentation. The `/models` command
+increments its `openRequest` instead of opening `CommandResultModal`, and the menu's
+refresh action reloads the provider catalog with `bypassCache=true`.
 
 **Per-session active-model tracking** — which model a given session is actually running,
 as opposed to the catalog — is its own subsystem: client `SessionSlot`, server

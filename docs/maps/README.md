@@ -9,7 +9,7 @@ CLIde or its provider runtimes change.
 |---|---|---|
 | [Code anchors](code-anchors.md) | Symbol-anchored map of the code worth not blind-reading; the areas where a wrong assumption is expensive | Moved out of the local `CLAUDE.md` 2026-08-04 |
 | [CLIde provider capability map](clide-provider-capability-map.md) | Canonical normalized behavior, implementation state, and provider/runtime bindings | Foundation baseline started 2026-07-30 |
-| [Provider permission and mode surfaces](provider-permission-modes.md) | How Claude and Codex permission concepts actually differ, and which CLIde mode names are false friends | Surveyed against SDK 0.3.217 / Codex 0.144.6 |
+| [Provider permission and mode surfaces](provider-permission-modes.md) | How Claude and Codex permission concepts differ and how CLIde exposes them | CLIde mapping revalidated 2026-08-09 against Codex 0.146.0 |
 | [Claude Code and Agent SDK map](claude-agent-sdk.md) | Claude-native SDK/CLI/control surface and CLIde destinations | Current through SDK 0.3.165 / runtime 2.1.220 |
 | [Claude upgrade ledger](claude-upgrade-ledger.md) | Compact audit decisions and verification history | Current through 2026-07-30 |
 | [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Current through 0.146.0 |

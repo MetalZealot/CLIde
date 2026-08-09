@@ -145,9 +145,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const [providerModelCatalog, setProviderModelCatalog] = useState<
     Partial<Record<LLMProvider, ProviderModelsDefinition>>
   >({});
-  const [providerModelCacheCatalog, setProviderModelCacheCatalog] = useState<
-    Partial<Record<LLMProvider, ProviderModelsCacheInfo>>
-  >({});
   const [providerModelsLoading, setProviderModelsLoading] = useState(true);
   const [providerModelsRefreshing, setProviderModelsRefreshing] = useState(false);
 
@@ -220,8 +217,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       }
 
       const nextCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>> = {};
-      const nextCacheCatalog: Partial<Record<LLMProvider, ProviderModelsCacheInfo>> = {};
-
       PROVIDERS.forEach((p, i) => {
         const entry = results[i];
         if (!entry) {
@@ -229,11 +224,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
         }
 
         nextCatalog[p] = entry.models;
-        nextCacheCatalog[p] = entry.cache;
       });
 
       setProviderModelCatalog(nextCatalog);
-      setProviderModelCacheCatalog(nextCacheCatalog);
     } catch (error) {
       console.error('Error loading provider models:', error);
     } finally {
@@ -743,7 +736,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     selectPermissionMode,
     togglePermissionMode,
     providerModelCatalog,
-    providerModelCacheCatalog,
     providerModelsLoading,
     providerModelsRefreshing,
     hardRefreshProviderModels: () => loadProviderModels({ bypassCache: true }),

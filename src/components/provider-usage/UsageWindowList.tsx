@@ -1,3 +1,4 @@
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Shimmer } from '../../shared/view/ui';
@@ -314,7 +315,15 @@ const formatTurnDuration = (seconds: number): string => {
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 };
 
-function UsageActivitySection({ activity }: { activity: ProviderUsageActivity }) {
+export function UsageActivitySection({
+  activity,
+  showDivider = true,
+  showHeading = true,
+}: {
+  activity: ProviderUsageActivity;
+  showDivider?: boolean;
+  showHeading?: boolean;
+}) {
   const { t } = useTranslation('common');
   const stats = [
     activity.lifetimeTokens === undefined ? null : {
@@ -344,17 +353,19 @@ function UsageActivitySection({ activity }: { activity: ProviderUsageActivity })
   const maxDailyTokens = Math.max(1, ...recentDaily.map((bucket) => bucket.tokens));
 
   return (
-    <div className="space-y-3 border-t border-border/60 pt-4">
-      <div>
-        <p className="text-sm font-medium text-foreground">
-          {t('planUsage.tokenActivity', { defaultValue: 'Token activity' })}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {t('planUsage.activityNotAllowance', {
-            defaultValue: 'Account activity — separate from plan limits.',
-          })}
-        </p>
-      </div>
+    <div className={cn('space-y-3', showDivider && 'border-t border-border/60 pt-4')}>
+      {showHeading && (
+        <div>
+          <p className="text-sm font-medium text-foreground">
+            {t('planUsage.tokenActivity', { defaultValue: 'Token activity' })}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t('planUsage.activityNotAllowance', {
+              defaultValue: 'Account activity — separate from plan limits.',
+            })}
+          </p>
+        </div>
+      )}
 
       {stats.length > 0 && (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
