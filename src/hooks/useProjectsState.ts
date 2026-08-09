@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 
 import { api } from '../utils/api';
@@ -12,6 +12,10 @@ import type {
 } from '../types/app';
 
 import type { SessionActivityMap } from './useSessionProtection';
+import {
+  createSidebarSessionSignals,
+  reduceSidebarSessionSignals,
+} from './sidebarSessionSignals';
 
 type UseProjectsStateArgs = {
   sessionId?: string;
@@ -403,12 +407,14 @@ export function useProjectsState({
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
-  // Two independent per-session sidebar signals, both read-aware (cleared on open):
-  // `attentionSessionIds` (amber) = a background session is blocked on you
-  // (pending permission/question); `unreadSessionIds` (green) = a background
-  // session produced output you haven't opened yet, no action required.
-  const [attentionSessionIds, setAttentionSessionIds] = useState<Set<string>>(new Set());
-  const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(new Set());
+  // Two independent per-session sidebar signals with different lifecycles:
+  // amber follows an unresolved permission/question request, while green is
+  // read-aware output and clears when the session opens.
+  const [{ attentionSessionIds, unreadSessionIds }, dispatchSessionSignal] = useReducer(
+    reduceSidebarSessionSignals,
+    undefined,
+    createSidebarSessionSignals,
+  );
   const [activeTab, setActiveTab] = useState<AppTab>(readPersistedTab);
 
   useEffect(() => {
@@ -480,32 +486,8 @@ export function useProjectsState({
       return;
     }
 
-    const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
-    if (targetSessionId === viewedSessionId) {
-      return;
-    }
-
-    setAttentionSessionIds((previous) => {
-      if (previous.has(targetSessionId)) {
-        return previous;
-      }
-
-      const next = new Set(previous);
-      next.add(targetSessionId);
-      return next;
-    });
-    // Amber supersedes green: a session that now needs action shouldn't also
-    // read as a plain unread update.
-    setUnreadSessionIds((previous) => {
-      if (!previous.has(targetSessionId)) {
-        return previous;
-      }
-
-      const next = new Set(previous);
-      next.delete(targetSessionId);
-      return next;
-    });
-  }, [sessionId]);
+    dispatchSessionSignal({ type: 'request_attention', sessionId: targetSessionId });
+  }, []);
 
   const markSessionUnread = useCallback((targetSessionId?: string | null) => {
     if (!targetSessionId) {
@@ -517,42 +499,38 @@ export function useProjectsState({
       return;
     }
 
-    setUnreadSessionIds((previous) => {
-      // Don't downgrade a needs-action session to plain unread.
-      if (previous.has(targetSessionId)) {
-        return previous;
-      }
-
-      const next = new Set(previous);
-      next.add(targetSessionId);
-      return next;
-    });
+    dispatchSessionSignal({ type: 'mark_unread', sessionId: targetSessionId });
   }, [sessionId]);
 
-  // Opening a session (or resolving its prompt) clears both signals.
-  const clearSessionAttention = useCallback((targetSessionId?: string | null) => {
+  const resolveSessionAttention = useCallback((
+    targetSessionId?: string | null,
+    markUnread = false,
+  ) => {
     if (!targetSessionId) {
       return;
     }
 
-    setAttentionSessionIds((previous) => {
-      if (!previous.has(targetSessionId)) {
-        return previous;
-      }
-
-      const next = new Set(previous);
-      next.delete(targetSessionId);
-      return next;
+    dispatchSessionSignal({
+      type: 'resolve_attention',
+      sessionId: targetSessionId,
+      markUnread,
     });
-    setUnreadSessionIds((previous) => {
-      if (!previous.has(targetSessionId)) {
-        return previous;
-      }
+  }, []);
 
-      const next = new Set(previous);
-      next.delete(targetSessionId);
-      return next;
-    });
+  const markSessionViewed = useCallback((targetSessionId?: string | null) => {
+    if (!targetSessionId) {
+      return;
+    }
+
+    dispatchSessionSignal({ type: 'view', sessionId: targetSessionId });
+  }, []);
+
+  const removeSessionSignals = useCallback((targetSessionId?: string | null) => {
+    if (!targetSessionId) {
+      return;
+    }
+
+    dispatchSessionSignal({ type: 'remove', sessionId: targetSessionId });
   }, []);
 
   const fetchProjects = useCallback(async ({ showLoadingState = true }: FetchProjectsOptions = {}) => {
@@ -755,18 +733,18 @@ export function useProjectsState({
         : null;
       const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
 
-      if (eventSessionId && eventSessionId !== viewedSessionId) {
+      if (eventSessionId) {
         if (event.kind === 'permission_request') {
-          // Blocked on the user → amber "needs action".
+          // Pending attention is request-aware rather than read-aware: keep it
+          // even while its session is open, until the prompt resolves.
           markSessionAttention(eventSessionId);
         } else if (event.kind === 'permission_cancelled') {
-          // Prompt withdrawn/answered: no longer blocked, but there was
-          // activity here — downgrade amber to green rather than leaving a
-          // stale needs-action highlight.
-          clearSessionAttention(eventSessionId);
-          markSessionUnread(eventSessionId);
+          // Prompt withdrawn/answered: clear yellow. If it happened in the
+          // background, retain a green unread signal for the resulting output.
+          resolveSessionAttention(eventSessionId, eventSessionId !== viewedSessionId);
         } else if (
-          event.kind !== 'chat_subscribed'
+          eventSessionId !== viewedSessionId
+          && event.kind !== 'chat_subscribed'
           && event.kind !== 'loading_progress'
           && event.kind !== 'session_upserted'
           && event.kind !== 'status'
@@ -893,7 +871,7 @@ export function useProjectsState({
     };
 
     return subscribe(handleEvent);
-  }, [markSessionAttention, markSessionUnread, clearSessionAttention, navigate, refreshProjectsSilently, sessionId, subscribe]);
+  }, [markSessionAttention, markSessionUnread, navigate, refreshProjectsSilently, resolveSessionAttention, sessionId, subscribe]);
 
   useEffect(() => {
     return () => {
@@ -905,8 +883,8 @@ export function useProjectsState({
   }, []);
 
   useEffect(() => {
-    clearSessionAttention(selectedSession?.id ?? sessionId ?? null);
-  }, [clearSessionAttention, selectedSession?.id, sessionId]);
+    markSessionViewed(selectedSession?.id ?? sessionId ?? null);
+  }, [markSessionViewed, selectedSession?.id, sessionId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -1053,7 +1031,7 @@ export function useProjectsState({
 
   const handleSessionSelect = useCallback(
     (session: ProjectSession) => {
-      clearSessionAttention(session.id);
+      markSessionViewed(session.id);
       setSelectedSession(session);
 
       if (activeTab === 'tasks' || activeTab === 'browser') {
@@ -1075,7 +1053,7 @@ export function useProjectsState({
 
       navigate(`/session/${session.id}`);
     },
-    [activeTab, clearSessionAttention, isMobile, navigate, selectedProject?.projectId],
+    [activeTab, isMobile, markSessionViewed, navigate, selectedProject?.projectId],
   );
 
   const handleNewSession = useCallback(
@@ -1095,7 +1073,7 @@ export function useProjectsState({
 
   const handleSessionDelete = useCallback(
     (sessionIdToDelete: string) => {
-      clearSessionAttention(sessionIdToDelete);
+      removeSessionSignals(sessionIdToDelete);
 
       if (selectedSession?.id === sessionIdToDelete) {
         setSelectedSession(null);
@@ -1106,7 +1084,7 @@ export function useProjectsState({
         prevProjects.map((project) => removeSessionFromProject(project, sessionIdToDelete)),
       );
     },
-    [clearSessionAttention, navigate, selectedSession?.id],
+    [navigate, removeSessionSignals, selectedSession?.id],
   );
 
   // Optimistic in-place patch of a session's starred flag. The sidebar controller

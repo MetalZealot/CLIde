@@ -13,11 +13,17 @@ import type {
   RepositoryViewOptions,
   SessionWithProvider,
 } from '../../types/types';
-import { getCheckoutRefLabel, getTaskIndicatorStatus, isDefaultRepositoryView } from '../../utils/utils';
+import {
+  getCheckoutRefLabel,
+  getTaskIndicatorStatus,
+  isDefaultRepositoryView,
+  resolveActivityState,
+} from '../../utils/utils';
 import { useLongPress } from '../../../../hooks/useLongPress';
 
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
+import SidebarStatusIndicator from './SidebarStatusIndicator';
 
 type SidebarRepositoryItemProps = {
   entry: RepositoryEntry;
@@ -189,12 +195,13 @@ export default function SidebarRepositoryItem({
   // ADR 0016: a branch and a checkout never share an icon. The subtitle is a
   // branch only on an unmerged row; on a merged one it counts worktrees.
   const RowSubtitleIcon = isMerged ? TreeDeciduous : GitBranch;
-  // Surface a collapsed row from its loaded sessions: amber if any child is
-  // blocked on the user, else green if any child has unread finished output.
-  // (Sessions not yet paginated in can't be mapped here; they light up once the
-  // row is expanded and their sessions load.)
-  const projectNeedsAttention = sessions.some(({ session }) => attentionSessionIds.has(session.id));
-  const projectHasUnread = sessions.some(({ session }) => unreadSessionIds.has(session.id));
+  // Roll up the same symbol and precedence as individual rows. Sessions not yet
+  // paginated in cannot be mapped here; they appear once loaded.
+  const projectActivityState = resolveActivityState({
+    isProcessing: sessions.some(({ session }) => activeSessions.has(session.id)),
+    needsAttention: sessions.some(({ session }) => attentionSessionIds.has(session.id)),
+    isUnread: sessions.some(({ session }) => unreadSessionIds.has(session.id)),
+  });
 
   const mobileRenameInputRef = useRef<HTMLInputElement>(null);
   const mobileViewMenuRef = useRef<HTMLDivElement>(null);
@@ -293,10 +300,7 @@ export default function SidebarRepositoryItem({
               // the top, so scrolled content cannot show through it.
               'long-pressable p-2 mx-3 my-0.5 rounded-lg transition-all duration-150',
               isContextActive && 'scale-[0.98] bg-accent/60',
-              isSelected && 'bg-primary/10',
-              projectNeedsAttention && !isSelected && 'bg-amber-500/10',
-              projectHasUnread && !isSelected && !projectNeedsAttention && 'bg-green-500/10',
-              !isSelected && !projectNeedsAttention && !projectHasUnread && 'active:bg-accent/50',
+              isSelected ? 'bg-primary/10' : 'active:bg-accent/50',
             )}
             onClick={toggleProject}
             {...longPress}
@@ -384,6 +388,9 @@ export default function SidebarRepositoryItem({
                   </>
                 ) : (
                   <>
+                    {projectActivityState && (
+                      <SidebarStatusIndicator status={projectActivityState} t={t} />
+                    )}
                     {showViewMenu && (
                       <div
                         ref={mobileViewMenuRef}
@@ -415,11 +422,6 @@ export default function SidebarRepositoryItem({
           className={cn(
             'hidden md:flex w-full justify-between p-2 h-auto font-normal hover:bg-accent/50',
             isSelected && 'bg-primary/10',
-            projectNeedsAttention && !isSelected && 'bg-amber-500/10 hover:bg-amber-500/20',
-            projectHasUnread &&
-              !isSelected &&
-              !projectNeedsAttention &&
-              'bg-green-500/10 hover:bg-green-500/20',
           )}
           onClick={selectAndToggleProject}
         >
@@ -502,6 +504,13 @@ export default function SidebarRepositoryItem({
               </>
             ) : (
               <>
+                {projectActivityState && (
+                  <SidebarStatusIndicator
+                    status={projectActivityState}
+                    t={t}
+                    className="transition-opacity duration-200 group-hover:opacity-0"
+                  />
+                )}
                 {/*
                   A div, not a button: the desktop header is itself a <button>,
                   so a nested one would be invalid markup. Same shape the rename

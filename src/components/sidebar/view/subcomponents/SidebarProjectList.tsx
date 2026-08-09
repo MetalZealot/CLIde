@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
-import { FolderPlus, Loader2, Pin } from 'lucide-react';
+import { FolderPlus, Pin } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type {
   ActivitySession,
+  ActivityState,
   ActivitySummary,
   CheckoutSession,
   MCPServerStatus,
@@ -21,6 +22,7 @@ import SidebarProjectsState from './SidebarProjectsState';
 import SidebarProjectPicker from './SidebarProjectPicker';
 import SidebarSectionHeader from './SidebarSectionHeader';
 import SidebarSessionItem from './SidebarSessionItem';
+import SidebarStatusIndicator from './SidebarStatusIndicator';
 
 export type SidebarProjectListProps = {
   projects: Project[];
@@ -246,6 +248,7 @@ export default function SidebarProjectList({
       session={session}
       projectLabel={repositoryName}
       branchLabel={branchLabel}
+      isSectionItem
       selectedSession={selectedSession}
       isProcessing={activeSessions.has(session.id)}
       needsAttention={attentionSessionIds.has(session.id)}
@@ -268,26 +271,15 @@ export default function SidebarProjectList({
 
   const showActivitySection = showProjects && activitySessions.length > 0;
   const showPinnedSection = showProjects && pinnedSessions.length > 0;
+  const activityStates: ActivityState[] = ['blocked', 'running', 'unread'];
   const activitySummaryNode = (
     <span className="ml-auto flex flex-shrink-0 items-center gap-2 normal-case tracking-normal">
-      {activitySummary.blocked > 0 && (
-        <span className="flex items-center gap-1 tabular-nums text-amber-600 dark:text-amber-400" title={t('projects.activityBlocked', 'Blocked')}>
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-          {activitySummary.blocked}
+      {activityStates.map((status) => activitySummary[status] > 0 && (
+        <span key={status} className="flex items-center gap-0.5 tabular-nums text-muted-foreground">
+          <SidebarStatusIndicator status={status} t={t} size="xs" />
+          {activitySummary[status]}
         </span>
-      )}
-      {activitySummary.unread > 0 && (
-        <span className="flex items-center gap-1 tabular-nums text-green-600 dark:text-green-400" title={t('projects.activityUnread', 'Unread finished')}>
-          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-          {activitySummary.unread}
-        </span>
-      )}
-      {activitySummary.running > 0 && (
-        <span className="flex items-center gap-1 tabular-nums text-muted-foreground" title={t('projects.activityRunning', 'Running')}>
-          <Loader2 className="h-2.5 w-2.5 animate-spin" />
-          {activitySummary.running}
-        </span>
-      )}
+      ))}
     </span>
   );
 

@@ -46,6 +46,11 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        status: {
+          attention: "hsl(var(--status-attention))",
+          unread: "hsl(var(--status-unread))",
+          running: "hsl(var(--status-running))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",

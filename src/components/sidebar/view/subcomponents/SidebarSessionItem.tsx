@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, GitBranch, Loader2, Pin, Trash2, X } from 'lucide-react';
+import { Check, Edit2, GitBranch, Pin, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Badge, Tooltip, buttonVariants, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
+import { Badge, buttonVariants, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
-import { createSessionViewModel } from '../../utils/utils';
+import { createSessionViewModel, resolveActivityState } from '../../utils/utils';
 import { useLongPress } from '../../../../hooks/useLongPress';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+
+import SidebarStatusIndicator from './SidebarStatusIndicator';
 
 type SidebarSessionItemProps = {
   project: Project;
@@ -16,13 +18,15 @@ type SidebarSessionItemProps = {
   selectedSession: ProjectSession | null;
   isProcessing: boolean;
   needsAttention: boolean;
-  /** Finished output the user hasn't opened yet (green); no action required. */
+  /** Output the user hasn't opened yet; no action required. */
   isUnread: boolean;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
   /** Shown under the session name in flat lists that mix projects. */
   projectLabel?: string;
+  /** Global Activity/Pinned rows align with repository headers, not nested sessions. */
+  isSectionItem?: boolean;
   /**
    * Checkout this session runs in, shown under the title when its repository
    * row merges several checkouts (ADR 0016). Null when there is nothing to
@@ -86,6 +90,7 @@ export default function SidebarSessionItem({
   editingSession,
   editingSessionName,
   projectLabel,
+  isSectionItem = false,
   branchLabel,
   onEditingSessionNameChange,
   onStartEditingSession,
@@ -125,10 +130,7 @@ export default function SidebarSessionItem({
   );
   // Stays on for as long as this row's menu is open.
   const isContextActive = isPressing || activeContextMenuKey === `session:${session.id}`;
-  // Needs-action (amber) is only meaningful when you're not already viewing it.
-  const needsAttentionHighlight = needsAttention && !isSelected;
-  // Unread (green) yields to needs-action and to an in-progress run.
-  const unreadHighlight = isUnread && !isSelected && !needsAttention && !isProcessing;
+  const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread });
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
   // would visually hide it. While editing, dismiss only when the user clicks outside
@@ -218,26 +220,14 @@ export default function SidebarSessionItem({
           <div
             ref={mobileRowRef}
             className={cn(
-              // No resting card: every reference client in `docs/ui ref/` shows
-              // a row's surface only while it is pressed, hovered, or current.
-              // A tint alone carries the status states — the border was what
-              // made a dense list read as a stack of boxes.
-              // Match the action row's left edge and keep its right gutter.
-              // The parent rail still makes these read as nested sessions.
-              'long-pressable p-2 ml-1 mr-3 my-0.5 rounded-md transition-all duration-150 relative',
+              // No resting card: the row surface belongs to interaction and
+              // selection; transient state has its own symbol slot.
+              // Global Activity/Pinned rows share repository headers' gutter;
+              // sessions beneath a repository remain visibly nested.
+              'long-pressable p-2 my-0.5 rounded-md transition-all duration-150 relative',
+              isSectionItem ? 'mx-3' : 'ml-1 mr-3',
               isContextActive && 'scale-[0.98] bg-accent/60',
-              // Single chain: a trailing fallback would win inside cn()
-              // (tailwind-merge keeps the last conflicting class) and erase the
-              // selected fill.
-              isSelected
-                ? 'bg-primary/10'
-                : needsAttentionHighlight
-                ? 'bg-amber-500/10'
-                : isProcessing
-                ? 'bg-muted/40'
-                : unreadHighlight
-                ? 'bg-green-500/10'
-                : 'active:bg-accent/50',
+              isSelected ? 'bg-primary/10' : 'active:bg-accent/50',
             )}
             onClick={selectMobileSession}
             {...longPress}
@@ -249,14 +239,8 @@ export default function SidebarSessionItem({
                     <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                   )}
                   <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
-                  {isProcessing ? (
-                    <span className="ml-auto flex-shrink-0">
-                      <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        </span>
-                      </Tooltip>
-                    </span>
+                  {activityState ? (
+                    <SidebarStatusIndicator status={activityState} t={t} className="ml-auto" />
                   ) : compactSessionAge && (
                     <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
                   )}
@@ -271,7 +255,7 @@ export default function SidebarSessionItem({
                     <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                   )}
                   {branchBadge}
-                  <span className="ml-auto flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                  <span className="ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center">
                     <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
                   </span>
                 </div>
@@ -286,17 +270,9 @@ export default function SidebarSessionItem({
           href={`/session/${session.id}`}
           className={cn(
             buttonVariants({ variant: 'ghost' }),
-            // Surface on hover or when current, never at rest — see the mobile
-            // row above for why the resting card and border are gone.
+            // Surface on hover or when current; status stays in its symbol slot.
             'h-auto w-full justify-start rounded-md p-2 text-left font-normal transition-all duration-150',
-            isSelected ? 'bg-primary/10' : null,
-            needsAttentionHighlight
-              ? 'bg-amber-500/10 hover:bg-amber-500/20'
-              : !isSelected && isProcessing
-                ? 'bg-muted/40 hover:bg-muted/50'
-                : unreadHighlight
-                  ? 'bg-green-500/10 hover:bg-green-500/20'
-                  : 'hover:bg-accent/50',
+            isSelected ? 'bg-primary/10' : 'hover:bg-accent/50',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
           // native right-click menu use the href to open a new tab/window.
@@ -313,19 +289,15 @@ export default function SidebarSessionItem({
                   <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                 )}
                 <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
-                {isProcessing ? (
-                  <span
+                {activityState ? (
+                  <SidebarStatusIndicator
+                    status={activityState}
+                    t={t}
                     className={cn(
-                      'ml-auto flex-shrink-0 transition-opacity duration-200',
+                      'ml-auto transition-opacity duration-200',
                       isEditing ? 'opacity-0' : 'group-hover:opacity-0',
                     )}
-                  >
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
+                  />
                 ) : compactSessionAge && (
                   <span
                     className={cn(
@@ -343,7 +315,7 @@ export default function SidebarSessionItem({
                   <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
                 )}
                 {branchBadge}
-                <span className="ml-auto flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                <span className="ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center">
                   <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
                 </span>
               </div>

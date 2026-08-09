@@ -16,6 +16,7 @@ import {
   isMainCheckout,
   mergeCheckoutSessions,
   repositoryEntryKey,
+  resolveActivityState,
 } from './utils';
 
 const CLOUDCLI_REPO = '/home/user/Projects/cloudcli/.git';
@@ -260,7 +261,7 @@ test('Pinned gathers across repositories, newest first, naming each one', () => 
   assert.equal(pinned[1].checkout.projectId, 'p-tts', 'selecting it must open its own checkout');
 });
 
-test('Activity copies sessions and orders blocked, unread, then running', () => {
+test('Activity copies sessions and orders blocked, running, then unread', () => {
   const entries = buildRepositoryEntries([mainCheckout, worktreeA, worktreeB, soloRepository]);
   const activeSessionIds = new Set(['s-main-old', 's-tts-new', 's-codex-mid']);
   const attentionSessionIds = new Set(['s-main-old']);
@@ -277,9 +278,9 @@ test('Activity copies sessions and orders blocked, unread, then running', () => 
     activity.map(({ session: item, activityState }) => [item.id, activityState]),
     [
       ['s-main-old', 'blocked'],
-      ['s-oney', 'unread'],
       ['s-tts-new', 'running'],
       ['s-codex-mid', 'running'],
+      ['s-oney', 'unread'],
     ],
   );
   assert.ok(
@@ -295,6 +296,13 @@ test('Activity assigns overlapping states to the highest urgency only', () => {
   const [activity] = collectActivitySessions(entries, sessionIds, sessionIds, sessionIds);
 
   assert.equal(activity.activityState, 'blocked');
+});
+
+test('sidebar status resolves blocked, then running, then unread', () => {
+  assert.equal(resolveActivityState({ isProcessing: true, needsAttention: true, isUnread: true }), 'blocked');
+  assert.equal(resolveActivityState({ isProcessing: true, needsAttention: false, isUnread: true }), 'running');
+  assert.equal(resolveActivityState({ isProcessing: false, needsAttention: false, isUnread: true }), 'unread');
+  assert.equal(resolveActivityState({ isProcessing: false, needsAttention: false, isUnread: false }), null);
 });
 
 test('search matches session names, not project names, paths, or branches', () => {

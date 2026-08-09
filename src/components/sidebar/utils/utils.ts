@@ -371,8 +371,28 @@ export const collectPinnedSessions = (entries: RepositoryEntry[]): PinnedSession
 
 const ACTIVITY_URGENCY: Record<ActivitySession['activityState'], number> = {
   blocked: 0,
-  unread: 1,
-  running: 2,
+  running: 1,
+  unread: 2,
+};
+
+/**
+ * One visual state for every sidebar surface. A prompt that needs the user is
+ * most urgent; otherwise a live run stays a spinner until it finishes, even if
+ * unseen transcript output has already marked it unread.
+ */
+export const resolveActivityState = ({
+  isProcessing,
+  needsAttention,
+  isUnread,
+}: {
+  isProcessing: boolean;
+  needsAttention: boolean;
+  isUnread: boolean;
+}): ActivitySession['activityState'] | null => {
+  if (needsAttention) return 'blocked';
+  if (isProcessing) return 'running';
+  if (isUnread) return 'unread';
+  return null;
 };
 
 /**
@@ -390,13 +410,11 @@ export const collectActivitySessions = (
     .flatMap((entry) =>
       mergeCheckoutSessions(entry).flatMap((checkoutSession) => {
         const sessionId = checkoutSession.session.id;
-        const activityState: ActivitySession['activityState'] | null = attentionSessionIds.has(sessionId)
-          ? 'blocked'
-          : unreadSessionIds.has(sessionId)
-            ? 'unread'
-            : activeSessionIds.has(sessionId)
-              ? 'running'
-              : null;
+        const activityState = resolveActivityState({
+          isProcessing: activeSessionIds.has(sessionId),
+          needsAttention: attentionSessionIds.has(sessionId),
+          isUnread: unreadSessionIds.has(sessionId),
+        });
 
         return activityState
           ? [{ ...checkoutSession, repositoryName: entry.displayName, activityState }]

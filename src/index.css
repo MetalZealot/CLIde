@@ -44,6 +44,11 @@
        stop hardcoding orange utility classes. */
     --warning: 32 95% 44%;
     --warning-foreground: 40 8% 98%;
+    /* Sidebar status is semantic and deliberately independent of `primary`,
+       which belongs to the active theme. */
+    --status-attention: 38 92% 44%;
+    --status-unread: 142 72% 35%;
+    --status-running: var(--muted-foreground);
     --border: 44 14% 87%;
     --input: 44 14% 87%;
     --ring: 221.2 83.2% 53.3%;
@@ -108,6 +113,9 @@
     --destructive-foreground: 40 8% 93%;
     --warning: 38 92% 58%;
     --warning-foreground: 36 25% 8%;
+    --status-attention: 43 96% 56%;
+    --status-unread: 142 69% 58%;
+    --status-running: var(--muted-foreground);
     --border: 0 0% 17%;
     --input: 0 0% 23%;
     --ring: 217.2 91.2% 59.8%;
