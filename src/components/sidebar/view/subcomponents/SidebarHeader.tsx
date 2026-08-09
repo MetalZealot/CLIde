@@ -95,7 +95,10 @@ export default function SidebarHeader({
         aria-label={t('tooltips.hideSidebar')}
         title={t('tooltips.hideSidebar')}
       >
-        <PanelLeftClose className={compact ? 'h-5 w-5' : 'h-3.5 w-3.5'} />
+        {/* Button applies [&_svg]:size-4. The mobile opener is a plain button
+            at 20px, so make this override explicit rather than letting the
+            shared default silently shrink the close glyph to 16px. */}
+        <PanelLeftClose className={compact ? '!h-5 !w-5' : 'h-3.5 w-3.5'} />
       </Button>
     );
   };
