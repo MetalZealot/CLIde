@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowDownIcon } from 'lucide-react';
 
@@ -19,6 +19,9 @@ import NewSessionLauncher from './subcomponents/NewSessionLauncher';
 import CompactionWarningBanner from './subcomponents/CompactionWarningBanner';
 import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
+
+/** How long the Stop button stays armed after the first Escape/tap before it resets. */
+const STOP_ARM_TIMEOUT_MS = 4000;
 
 function ChatInterface({
   projects,
@@ -325,14 +328,40 @@ function ChatInterface({
     probeConnection();
   }, [handleAbortSession, probeConnection]);
 
-  // Require two Escape presses in quick succession before aborting — a single stray
-  // Escape (e.g. dismissing an unrelated menu) shouldn't kill an in-flight response.
-  const lastEscapeAtRef = useRef(0);
-  const DOUBLE_ESCAPE_WINDOW_MS = 500;
+  // Stop takes two deliberate inputs — a single stray Escape (e.g. dismissing an
+  // unrelated menu) or a mis-tap shouldn't kill an in-flight response. The first
+  // input only arms the Stop button, which then shows its label and a live
+  // background; the second fires. Escape and tapping the button share the state,
+  // so arming with one and confirming with the other works.
+  const [isStopArmed, setIsStopArmed] = useState(false);
+  const stopArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const disarmStop = useCallback(() => {
+    if (stopArmTimerRef.current) {
+      clearTimeout(stopArmTimerRef.current);
+      stopArmTimerRef.current = null;
+    }
+    setIsStopArmed(false);
+  }, []);
+
+  const requestAbortSession = useCallback(() => {
+    if (stopArmTimerRef.current) {
+      disarmStop();
+      handleAbortSessionWithProbe();
+      return;
+    }
+    setIsStopArmed(true);
+    stopArmTimerRef.current = setTimeout(() => {
+      stopArmTimerRef.current = null;
+      setIsStopArmed(false);
+    }, STOP_ARM_TIMEOUT_MS);
+  }, [disarmStop, handleAbortSessionWithProbe]);
+
+  useEffect(() => () => disarmStop(), [disarmStop]);
 
   useEffect(() => {
     if (!canAbortSession) {
-      lastEscapeAtRef.current = 0;
+      disarmStop();
       return;
     }
 
@@ -342,21 +371,14 @@ function ChatInterface({
       }
 
       event.preventDefault();
-
-      const now = Date.now();
-      if (now - lastEscapeAtRef.current <= DOUBLE_ESCAPE_WINDOW_MS) {
-        lastEscapeAtRef.current = 0;
-        handleAbortSessionWithProbe();
-      } else {
-        lastEscapeAtRef.current = now;
-      }
+      requestAbortSession();
     };
 
     document.addEventListener('keydown', handleGlobalEscape, { capture: true });
     return () => {
       document.removeEventListener('keydown', handleGlobalEscape, { capture: true });
     };
-  }, [canAbortSession, handleAbortSessionWithProbe]);
+  }, [canAbortSession, disarmStop, requestAbortSession]);
 
   useEffect(() => {
     return () => {
@@ -471,7 +493,8 @@ function ChatInterface({
             handleGrantToolPermission={handleGrantToolPermission}
             activity={sessionActivity}
             isLoading={isProcessing}
-            onAbortSession={handleAbortSessionWithProbe}
+            onAbortSession={requestAbortSession}
+            isStopArmed={isStopArmed}
             permissionMode={permissionMode}
             availablePermissionModes={availablePermissionModes}
             onSelectPermissionMode={(mode) => selectPermissionMode(mode as PermissionMode)}

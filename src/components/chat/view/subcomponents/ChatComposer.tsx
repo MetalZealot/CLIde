@@ -72,6 +72,8 @@ interface ChatComposerProps {
   activity: SessionActivity | null;
   isLoading: boolean;
   onAbortSession: () => void;
+  /** True once the first Escape/tap has armed Stop; the next one aborts. */
+  isStopArmed?: boolean;
   permissionMode: PermissionMode | string;
   availablePermissionModes: (PermissionMode | string)[];
   onSelectPermissionMode: (mode: PermissionMode | string) => void;
@@ -147,6 +149,7 @@ export default function ChatComposer({
   activity,
   isLoading,
   onAbortSession,
+  isStopArmed = false,
   permissionMode,
   availablePermissionModes,
   onSelectPermissionMode,
@@ -275,19 +278,21 @@ export default function ChatComposer({
               'Enter for new line • Tab to change modes • / for slash commands',
           })
         : t('input.hintText.ctrlEnter');
-  const submitAriaLabel = canQueueDraft
-    ? hasQueuedDraft
-      ? t('input.queue.update', { defaultValue: 'Update queued message' })
-      : t('input.queue.sendNext', { defaultValue: 'Queue next message' })
-    : isLoading
-      ? t('claudeStatus.actions.working', { defaultValue: 'Working' })
-      : t('input.send');
+  const submitAriaLabel = disabled
+    ? t('input.selectProjectToSend', { defaultValue: 'Select a project to send' })
+    : canQueueDraft
+      ? hasQueuedDraft
+        ? t('input.queue.update', { defaultValue: 'Update queued message' })
+        : t('input.queue.sendNext', { defaultValue: 'Queue next message' })
+      : isLoading
+        ? t('claudeStatus.actions.working', { defaultValue: 'Working' })
+        : t('input.send');
 
   return (
     <div className="chat-composer-shell relative flex-shrink-0 px-2 pb-2 pt-0 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
       {pendingPermissionRequests.length === 0 && (
         <div className="mx-auto mb-2 max-w-[54.25rem]" style={{ visibility: activity ? 'visible' : 'hidden' }}>
-          <ActivityIndicator activity={activity} onAbort={onAbortSession} />
+          <ActivityIndicator activity={activity} onAbort={onAbortSession} isStopArmed={isStopArmed} />
         </div>
       )}
 
@@ -352,19 +357,14 @@ export default function ChatComposer({
           frequentCommands={frequentCommands}
         />
 
-        <fieldset
-          disabled={disabled}
-          className="m-0 min-w-0 border-0 p-0 disabled:cursor-not-allowed disabled:opacity-60"
+        <PromptInput
+          onSubmit={disabled
+            ? (event) => event.preventDefault()
+            : onSubmit as (event: FormEvent<HTMLFormElement>) => void}
+          status={isLoading ? 'streaming' : 'ready'}
+          className={isTextareaExpanded ? 'chat-input-expanded' : ''}
+          {...getRootProps()}
         >
-          <PromptInput
-            onSubmit={disabled
-              ? (event) => event.preventDefault()
-              : onSubmit as (event: FormEvent<HTMLFormElement>) => void}
-            status={isLoading ? 'streaming' : 'ready'}
-            aria-disabled={disabled}
-            className={isTextareaExpanded ? 'chat-input-expanded' : ''}
-            {...(disabled ? {} : getRootProps())}
-          >
           {isDragActive && (
             <div className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/50 bg-primary/15">
               <div className="rounded-xl border border-border/30 bg-card p-4 shadow-lg">
@@ -505,17 +505,19 @@ export default function ChatComposer({
                     : undefined
               }
               disabled={
-                isLoading
-                  ? !canQueueDraft
-                  : isRecording
-                    ? false
-                    : isTranscribing
-                      ? true
-                      : !input.trim() && attachedFiles.length === 0
+                disabled
+                  ? true
+                  : isLoading
+                    ? !canQueueDraft
+                    : isRecording
+                      ? false
+                      : isTranscribing
+                        ? true
+                        : !input.trim() && attachedFiles.length === 0
               }
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
-              className="h-10 w-10 sm:h-10 sm:w-10"
+              className="ml-1.5 h-10 w-10 sm:ml-2 sm:h-10 sm:w-10"
             >
               {isTranscribing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -525,8 +527,7 @@ export default function ChatComposer({
             </PromptInputSubmit>
           </div>
         </PromptInputFooter>
-          </PromptInput>
-        </fieldset>
+        </PromptInput>
       </div>}
     </div>
   );

@@ -8,6 +8,8 @@ import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
   onAbort?: () => void;
+  /** Armed by the first Escape/tap: the button shows its label and goes live. */
+  isStopArmed?: boolean;
 };
 
 const ACTION_KEYS = [
@@ -28,9 +30,11 @@ const EXIT_ANIMATION_MS = 220;
  * button lives here (not in the composer) so it stays reachable even while the user
  * is typing a follow-up — the composer's own button switches to queue mode then. The
  * button stays mounted (just invisible) when idle so the reserved gap keeps a
- * constant height between turns.
+ * constant height between turns. Stopping takes two inputs: `isStopArmed` (owned by
+ * ChatInterface, shared with the Escape handler) turns the icon-only button into a
+ * labelled, live-coloured one; the caller aborts on the next tap.
  */
-export default function ActivityIndicator({ activity, onAbort }: ActivityIndicatorProps) {
+export default function ActivityIndicator({ activity, onAbort, isStopArmed = false }: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');
   const [renderedActivity, setRenderedActivity] = useState<SessionActivity | null>(activity);
   const [isExiting, setIsExiting] = useState(false);
@@ -68,6 +72,10 @@ export default function ActivityIndicator({ activity, onAbort }: ActivityIndicat
     ? (renderedActivity.statusText || actionWords[Math.floor(elapsedSeconds / 4) % actionWords.length]).replace(/\.+$/, '')
     : '';
 
+  const stopLabel = isStopArmed
+    ? t('claudeStatus.stopConfirm', { defaultValue: 'Press again to stop' })
+    : t('claudeStatus.stop', { defaultValue: 'Stop' });
+
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   const elapsedLabel = minutes < 1
@@ -89,14 +97,16 @@ export default function ActivityIndicator({ activity, onAbort }: ActivityIndicat
             type="button"
             onClick={onAbort}
             disabled={!renderedActivity?.canInterrupt}
-            aria-label={t('claudeStatus.stop', { defaultValue: 'Stop' })}
-            title={t('claudeStatus.stop', { defaultValue: 'Stop' })}
-            className={`-my-1 ml-auto flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 font-medium text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground ${
-              renderedActivity?.canInterrupt ? '' : 'invisible'
-            }`}
+            aria-label={stopLabel}
+            title={stopLabel}
+            className={`-my-1 ml-auto flex h-7 shrink-0 items-center gap-1.5 rounded-md border font-medium shadow-sm transition-colors ${
+              isStopArmed
+                ? 'border-foreground bg-foreground pl-2.5 pr-2 text-background'
+                : 'border-border bg-background px-2 text-muted-foreground hover:bg-accent hover:text-foreground'
+            } ${renderedActivity?.canInterrupt ? '' : 'invisible'}`}
           >
+            {isStopArmed && t('claudeStatus.stop', { defaultValue: 'Stop' })}
             <SquareIcon className="h-3 w-3 fill-current" />
-            {t('claudeStatus.stop', { defaultValue: 'Stop' })}
           </button>
         )}
       </div>

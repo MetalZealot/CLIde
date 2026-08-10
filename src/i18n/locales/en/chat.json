@@ -146,6 +146,7 @@
     "attachFiles": "Attach files",
     "attachImages": "Attach images",
     "send": "Send",
+    "selectProjectToSend": "Select a project to send",
     "stop": "Stop",
     "hintText": {
       "ctrlEnter": "Ctrl+Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
@@ -344,6 +345,7 @@
       "startingNow": "Starting now"
     },
     "stop": "Stop",
+    "stopConfirm": "Press again to stop",
     "controls": {
       "stopGeneration": "Stop Generation",
       "pressEscToStop": "Press Esc anytime to stop"
