@@ -119,24 +119,6 @@
     "clearInput": "Очистить ввод",
     "scrollToBottom": "Прокрутить вниз"
   },
-  "providerSelection": {
-    "title": "Выберите вашего AI-ассистента",
-    "description": "Выберите провайдера для начала нового разговора",
-    "selectModel": "Выбрать модель",
-    "providerInfo": {
-      "anthropic": "от Anthropic",
-      "openai": "от OpenAI",
-      "cursorEditor": "AI редактор кода",
-      "google": "от Google"
-    },
-    "readyPrompt": {
-      "claude": "Готов использовать Claude с {{model}}. Начните вводить сообщение ниже.",
-      "cursor": "Готов использовать Cursor с {{model}}. Начните вводить сообщение ниже.",
-      "codex": "Готов использовать Codex с {{model}}. Начните вводить сообщение ниже.",
-      "default": "Выберите провайдера выше для начала"
-    },
-    "pressToSearch": "Нажмите <kbd>{{shortcut}}</kbd>, чтобы искать сессии, файлы и коммиты"
-  },
   "session": {
     "continue": {
       "title": "Продолжить разговор",
@@ -205,13 +187,7 @@
     "controls": {
       "stopGeneration": "Остановить генерацию",
       "pressEscToStop": "Нажмите Esc в любое время для остановки"
-    },
-    "providers": {
-      "assistant": "Ассистент"
     }
-  },
-  "projectSelection": {
-    "startChatWithProvider": "Выберите проект для начала чата с {{provider}}"
   },
   "tasks": {
     "nextTaskPrompt": "Начать следующую задачу"

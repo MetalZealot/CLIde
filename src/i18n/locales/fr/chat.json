@@ -120,25 +120,6 @@
     "clearInput": "Effacer la saisie",
     "scrollToBottom": "Défiler vers le bas"
   },
-  "providerSelection": {
-    "title": "Choisissez votre assistant IA",
-    "description": "Sélectionnez un fournisseur pour démarrer une nouvelle conversation",
-    "selectModel": "Sélectionner un modèle",
-    "providerInfo": {
-      "anthropic": "par Anthropic",
-      "openai": "par OpenAI",
-      "cursorEditor": "Éditeur de code IA",
-      "google": "par Google"
-    },
-    "readyPrompt": {
-      "claude": "Prêt à utiliser Claude avec {{model}}. Commencez à taper votre message ci-dessous.",
-      "cursor": "Prêt à utiliser Cursor avec {{model}}. Commencez à taper votre message ci-dessous.",
-      "codex": "Prêt à utiliser Codex avec {{model}}. Commencez à taper votre message ci-dessous.",
-      "opencode": "Prêt à utiliser OpenCode avec {{model}}. Commencez à taper votre message ci-dessous.",
-      "default": "Sélectionnez un fournisseur ci-dessus pour commencer"
-    },
-    "pressToSearch": "Appuyez sur <kbd>{{shortcut}}</kbd> pour rechercher sessions, fichiers et commits"
-  },
   "session": {
     "continue": {
       "title": "Continuer votre conversation",
@@ -207,13 +188,7 @@
     "controls": {
       "stopGeneration": "Arrêter la génération",
       "pressEscToStop": "Appuyez sur Échap à tout moment pour arrêter"
-    },
-    "providers": {
-      "assistant": "Assistant"
     }
-  },
-  "projectSelection": {
-    "startChatWithProvider": "Sélectionnez un projet pour commencer à chatter avec {{provider}}"
   },
   "tasks": {
     "nextTaskPrompt": "Commencer la prochaine tâche"

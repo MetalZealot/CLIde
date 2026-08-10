@@ -269,25 +269,6 @@
       }
     }
   },
-  "providerSelection": {
-    "title": "Choose Your AI Assistant",
-    "description": "Select a provider to start a new conversation",
-    "selectModel": "Select Model",
-    "providerInfo": {
-      "anthropic": "by Anthropic",
-      "openai": "by OpenAI",
-      "cursorEditor": "AI Code Editor",
-      "google": "by Google"
-    },
-    "readyPrompt": {
-      "claude": "Ready to use Claude with {{model}}. Start typing your message below.",
-      "cursor": "Ready to use Cursor with {{model}}. Start typing your message below.",
-      "codex": "Ready to use Codex with {{model}}. Start typing your message below.",
-      "opencode": "Ready to use OpenCode with {{model}}. Start typing your message below.",
-      "default": "Select a provider above to begin"
-    },
-    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
-  },
   "launcher": {
     "selectProject": "Select Project",
     "worktreeBranch": "Worktree/Branch",
@@ -366,13 +347,7 @@
     "controls": {
       "stopGeneration": "Stop Generation",
       "pressEscToStop": "Press Esc anytime to stop"
-    },
-    "providers": {
-      "assistant": "Assistant"
     }
-  },
-  "projectSelection": {
-    "startChatWithProvider": "Select a project to start chatting with {{provider}}"
   },
   "tasks": {
     "nextTaskPrompt": "Start the next task"

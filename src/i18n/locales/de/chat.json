@@ -119,24 +119,6 @@
     "clearInput": "Eingabe leeren",
     "scrollToBottom": "Nach unten scrollen"
   },
-  "providerSelection": {
-    "title": "KI-Assistent wählen",
-    "description": "Anbieter auswählen, um eine neue Unterhaltung zu starten",
-    "selectModel": "Modell auswählen",
-    "providerInfo": {
-      "anthropic": "von Anthropic",
-      "openai": "von OpenAI",
-      "cursorEditor": "KI-Code-Editor",
-      "google": "von Google"
-    },
-    "readyPrompt": {
-      "claude": "Bereit, Claude mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
-      "cursor": "Bereit, Cursor mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
-      "codex": "Bereit, Codex mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
-      "default": "Wähl oben einen Anbieter, um zu beginnen"
-    },
-    "pressToSearch": "Drücke <kbd>{{shortcut}}</kbd>, um Sitzungen, Dateien und Commits zu durchsuchen"
-  },
   "session": {
     "continue": {
       "title": "Unterhaltung fortsetzen",
@@ -205,13 +187,7 @@
     "controls": {
       "stopGeneration": "Generierung stoppen",
       "pressEscToStop": "Jederzeit Esc drücken, um zu stoppen"
-    },
-    "providers": {
-      "assistant": "Assistent"
     }
-  },
-  "projectSelection": {
-    "startChatWithProvider": "Wähl ein Projekt, um mit {{provider}} zu chatten"
   },
   "tasks": {
     "nextTaskPrompt": "Nächste Aufgabe starten"

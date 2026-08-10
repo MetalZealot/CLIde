@@ -119,24 +119,6 @@
     "clearInput": "Cancella input",
     "scrollToBottom": "Scorri in basso"
   },
-  "providerSelection": {
-    "title": "Scegli il tuo assistente AI",
-    "description": "Seleziona un provider per iniziare una nuova conversazione",
-    "selectModel": "Seleziona modello",
-    "providerInfo": {
-      "anthropic": "di Anthropic",
-      "openai": "di OpenAI",
-      "cursorEditor": "Editor codice AI",
-      "google": "di Google"
-    },
-    "readyPrompt": {
-      "claude": "Pronto a usare Claude con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
-      "cursor": "Pronto a usare Cursor con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
-      "codex": "Pronto a usare Codex con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
-      "default": "Seleziona un provider sopra per iniziare"
-    },
-    "pressToSearch": "Premi <kbd>{{shortcut}}</kbd> per cercare sessioni, file e commit"
-  },
   "session": {
     "continue": {
       "title": "Continua la tua conversazione",
@@ -205,13 +187,7 @@
     "controls": {
       "stopGeneration": "Interrompi generazione",
       "pressEscToStop": "Premi Esc in qualsiasi momento per interrompere"
-    },
-    "providers": {
-      "assistant": "Assistente"
     }
-  },
-  "projectSelection": {
-    "startChatWithProvider": "Seleziona un progetto per iniziare a chattare con {{provider}}"
   },
   "tasks": {
     "nextTaskPrompt": "Inizia l'attività successiva"
