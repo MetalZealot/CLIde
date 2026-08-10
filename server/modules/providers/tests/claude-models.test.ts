@@ -79,8 +79,8 @@ test('claude current active model matches transcript events by the provider sess
 
 test('claude current active model prefers the transcript when a session turn is newer than a stale popup pick', async () => {
   await withTempDir(async (dir) => {
-    // Popup pick of "default" recorded before the model was later changed (via
-    // fast mode / a Shell /model) to Opus, which the pick never learned about.
+    // Popup pick of Sonnet recorded before the model was later changed (via
+    // fast mode / a Shell /model) to Opus 4.8, which the pick never learned about.
     const jsonlPath = await writeSessionJsonl(dir, 'claude-opus-4-8', '2026-07-13T23:22:29.721Z');
 
     const provider = new ClaudeProviderModels({
@@ -88,11 +88,11 @@ test('claude current active model prefers the transcript when a session turn is 
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
           : null,
-      modelPickStore: createPickStore({ model: 'default', updatedAt: '2026-07-13T21:51:21.834Z' }),
+      modelPickStore: createPickStore({ model: 'sonnet', updatedAt: '2026-07-13T21:51:21.834Z' }),
     });
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
-    assert.equal(active.model, 'opus');
+    assert.equal(active.model, 'claude-opus-4-8');
   });
 });
 
@@ -167,6 +167,10 @@ test('claude current active model falls back to the catalog default without sess
     const provider = new ClaudeProviderModels({
       getSessionRow: () => null,
       modelPickStore: createPickStore(),
+      // Pinned at a path that does not exist: the catalog default now tracks
+      // the configured model, so without this the assertion would read the
+      // developer's own ~/.claude/settings.json.
+      claudeSettingsPath: path.join(dir, 'missing-settings.json'),
     });
 
     const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
@@ -174,13 +178,56 @@ test('claude current active model falls back to the catalog default without sess
   });
 });
 
-const findDefaultOption = (options: { value: string; description?: string }[]) => {
-  const option = options.find((candidate) => candidate.value === 'default');
-  assert.ok(option, 'catalog should contain a default option');
-  return option;
-};
+const findFlaggedDefault = (options: { value: string; isDefault?: boolean }[]) => (
+  options.filter((candidate) => candidate.isDefault)
+);
 
-test('claude default option description reports the model configured in claude settings', async () => {
+test('claude ignores a stored "default" pick and falls through to the transcript', async () => {
+  await withTempDir(async (dir) => {
+    // Recorded while the catalog still offered a Default row. The string names
+    // no model, so the session's real model is whatever the transcript says.
+    const jsonlPath = await writeSessionJsonl(dir, 'claude-sonnet-5', '2026-07-13T21:00:00.000Z');
+
+    const provider = new ClaudeProviderModels({
+      getSessionRow: (sessionId) =>
+        sessionId === APP_SESSION_ID
+          ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
+          : null,
+      modelPickStore: createPickStore({ model: 'default', updatedAt: '2026-07-13T23:59:00.000Z' }),
+    });
+
+    const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
+    assert.equal(active.model, 'sonnet');
+    assert.equal(active.source, 'transcript');
+  });
+});
+
+test('claude folds a stored pick for a removed row onto its successor', async () => {
+  await withTempDir(async (dir) => {
+    const provider = new ClaudeProviderModels({
+      getSessionRow: () => null,
+      modelPickStore: createPickStore({ model: 'opus[1m]', updatedAt: '2026-07-13T23:59:00.000Z' }),
+      claudeSettingsPath: path.join(dir, 'missing-settings.json'),
+    });
+
+    const active = await provider.getCurrentActiveModel(APP_SESSION_ID);
+    assert.equal(active.model, 'opus');
+    assert.equal(active.source, 'pick');
+  });
+});
+
+test('claude catalog offers no pseudo-model rows', () => {
+  const values = CLAUDE_FALLBACK_MODELS.OPTIONS.map((option) => option.value);
+
+  // "default" is not an alias Claude Code recognises: passing it makes the CLI
+  // fall back to its built-in Sonnet default and ignore the configured model.
+  assert.ok(!values.includes('default'));
+  // `[1m]` only means something where 1M is not already native, which is never
+  // the case for the first-party accounts this catalog serves.
+  assert.ok(values.every((value) => !value.includes('[1m]')));
+});
+
+test('claude catalog flags the model configured in claude settings as the default', async () => {
   await withTempDir(async (dir) => {
     const settingsPath = path.join(dir, 'settings.json');
     await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5[1m]' }), 'utf8');
@@ -188,26 +235,24 @@ test('claude default option description reports the model configured in claude s
     const provider = new ClaudeProviderModels({ claudeSettingsPath: settingsPath });
     const models = await provider.getSupportedModels();
 
-    const defaultOption = findDefaultOption(models.OPTIONS);
-    assert.match(defaultOption.description ?? '', /claude-fable-5\[1m\]/);
-    assert.doesNotMatch(defaultOption.description ?? '', /Sonnet 5/);
+    assert.equal(models.DEFAULT, 'fable');
+    assert.deepEqual(findFlaggedDefault(models.OPTIONS).map((option) => option.value), ['fable']);
   });
 });
 
-test('claude default option description stays neutral when no default model is configured', async () => {
+test('claude catalog flags nothing when no default model is configured', async () => {
   await withTempDir(async (dir) => {
     const provider = new ClaudeProviderModels({
       claudeSettingsPath: path.join(dir, 'missing-settings.json'),
     });
     const models = await provider.getSupportedModels();
 
-    const defaultOption = findDefaultOption(models.OPTIONS);
-    assert.doesNotMatch(defaultOption.description ?? '', /Sonnet 5/);
-    assert.match(defaultOption.description ?? '', /Claude Code default model/);
+    assert.equal(findFlaggedDefault(models.OPTIONS).length, 0);
+    assert.equal(models.DEFAULT, CLAUDE_FALLBACK_MODELS.DEFAULT);
   });
 });
 
-test('claude default option description prefers the ANTHROPIC_MODEL env override', async () => {
+test('claude catalog default prefers the ANTHROPIC_MODEL env override', async () => {
   await withTempDir(async (dir) => {
     const settingsPath = path.join(dir, 'settings.json');
     await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5[1m]' }), 'utf8');
@@ -218,8 +263,11 @@ test('claude default option description prefers the ANTHROPIC_MODEL env override
       const provider = new ClaudeProviderModels({ claudeSettingsPath: settingsPath });
       const models = await provider.getSupportedModels();
 
-      const defaultOption = findDefaultOption(models.OPTIONS);
-      assert.match(defaultOption.description ?? '', /claude-opus-4-8/);
+      assert.equal(models.DEFAULT, 'claude-opus-4-8');
+      assert.deepEqual(
+        findFlaggedDefault(models.OPTIONS).map((option) => option.value),
+        ['claude-opus-4-8'],
+      );
     } finally {
       if (previousEnv === undefined) {
         delete process.env.ANTHROPIC_MODEL;
@@ -238,8 +286,7 @@ test('claude supported models lookup does not mutate the shared fallback catalog
     const provider = new ClaudeProviderModels({ claudeSettingsPath: settingsPath });
     await provider.getSupportedModels();
 
-    const fallbackDefault = findDefaultOption(CLAUDE_FALLBACK_MODELS.OPTIONS);
-    assert.doesNotMatch(fallbackDefault.description ?? '', /claude-fable-5/);
+    assert.equal(findFlaggedDefault(CLAUDE_FALLBACK_MODELS.OPTIONS).length, 0);
   });
 });
 
@@ -248,14 +295,26 @@ test('claude model aliases resolve from full model ids', () => {
 
   assert.equal(resolveClaudeModelAlias('claude-fable-5', options), 'fable');
   assert.equal(resolveClaudeModelAlias('claude-opus-5', options), 'opus');
-  // Older transcripts still name the superseded ids.
-  assert.equal(resolveClaudeModelAlias('claude-opus-4-8', options), 'opus');
   assert.equal(resolveClaudeModelAlias('claude-haiku-4-5-20251001', options), 'haiku');
-  assert.equal(resolveClaudeModelAlias('claude-opus-5[1m]', options), 'opus[1m]');
   // Sonnet 5 is natively 1M and has no [1m] card, so it maps to plain Sonnet.
   assert.equal(resolveClaudeModelAlias('claude-sonnet-5', options), 'sonnet');
   // Values that already are picker aliases pass through unchanged.
   assert.equal(resolveClaudeModelAlias('opus', options), 'opus');
   // Unknown ids are surfaced as-is rather than hidden behind the default.
   assert.equal(resolveClaudeModelAlias('claude-zeta-9', options), 'claude-zeta-9');
+});
+
+test('claude legacy ids resolve to their own row, not the current generation', () => {
+  const options = CLAUDE_FALLBACK_MODELS.OPTIONS;
+
+  // The trap this guards: every one of these contains "opus", so a first-match
+  // loop over the catalog returns Opus 5 and the picker highlights the wrong
+  // model for a session that really ran on 4.8.
+  assert.equal(resolveClaudeModelAlias('claude-opus-4-8', options), 'claude-opus-4-8');
+  assert.equal(resolveClaudeModelAlias('claude-opus-4-8-20260101', options), 'claude-opus-4-8');
+  assert.equal(resolveClaudeModelAlias('claude-opus-4-7-fast', options), 'claude-opus-4-7');
+  assert.equal(resolveClaudeModelAlias('claude-sonnet-4-6-20251114', options), 'claude-sonnet-4-6');
+  // A dropped [1m] variant still belongs on its base model's row.
+  assert.equal(resolveClaudeModelAlias('claude-opus-5[1m]', options), 'opus');
+  assert.equal(resolveClaudeModelAlias('claude-opus-4-6[1m]', options), 'claude-opus-4-6');
 });

@@ -75,6 +75,18 @@ export type ProviderModelOption = {
   value: string;
   label: string;
   description?: string;
+  /**
+   * Superseded models the provider still accepts. Catalogs keep them out of
+   * the main list so a picker can file them behind one row instead of doubling
+   * its height; `undefined` means the option belongs in the primary list.
+   */
+  group?: 'legacy';
+  /**
+   * True for the one option that a session runs when no model is sent at all.
+   * Resolved per request from the provider's own configuration, so it is a
+   * property of the response rather than of the static catalog.
+   */
+  isDefault?: boolean;
   effort?: {
     default?: string;
     values: {

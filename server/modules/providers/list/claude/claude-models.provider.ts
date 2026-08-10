@@ -18,97 +18,97 @@ import type {
 } from '@/shared/types.js';
 import { buildDefaultProviderCurrentActiveModel } from '@/shared/utils.js';
 
+// Every effort-capable Claude model exposes the same five levels, so they share
+// one frozen block rather than repeating it per option. The catalog is only ever
+// serialised to JSON, so sharing the reference is safe.
+const CLAUDE_EFFORT_LEVELS: ProviderModelOption['effort'] = Object.freeze({
+  default: 'high',
+  values: Object.freeze([
+    { value: 'low' },
+    { value: 'medium' },
+    { value: 'high' },
+    { value: 'xhigh' },
+    { value: 'max' },
+  ]),
+}) as ProviderModelOption['effort'];
+
 // Labels carry the version number ("Opus 5", not "Opus") because the
 // composer picker renders the label alone — it never shows `description`
 // (ComposerModelMenu.tsx), so a bare family name leaves no way to
-// tell which generation you are picking. The `value` stays the floating alias,
-// so these labels need bumping by hand whenever Claude ships a new generation.
+// tell which generation you are picking. Current models use the floating alias
+// as their `value`, so these labels need bumping by hand whenever Claude ships
+// a new generation; legacy entries pin a concrete id, which is the point of them.
+//
+// There is deliberately no `[1m]` option for any model. The suffix opts into the
+// 1M-context beta, which only means something where 1M is not already native —
+// third-party platforms (Bedrock/Vertex/Foundry) and Pro-tier accounts. Talking
+// to api.anthropic.com above Pro, every model is natively 1M, Claude Code
+// suppresses its own "(1M context)" rows, and sending the suffix changes nothing
+// except billing the long-context premium under a separate usage key.
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
-    {
-      value: 'default',
-      label: 'Default (recommended)',
-      description: 'Use the Claude Code default model (set by your Claude settings or plan)',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
-    },
     {
       value: 'fable',
       label: 'Fable 5',
       description: 'Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
+      effort: CLAUDE_EFFORT_LEVELS,
     },
     {
-      value: "sonnet",
-      label: "Sonnet 5",
-      // Sonnet 5 is natively 1M, and unlike Opus it does not accept the `[1m]`
-      // suffix — so there is deliberately no "Sonnet (1M context)" card here.
-      description: "Best for everyday tasks · $3/$15 per Mtok",
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
+      value: 'sonnet',
+      label: 'Sonnet 5',
+      description: 'Best for everyday tasks · $3/$15 per Mtok',
+      effort: CLAUDE_EFFORT_LEVELS,
     },
     {
       value: 'opus',
       label: 'Opus 5',
-      description: 'Best for everyday, complex tasks · ~2× usage vs Sonnet',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: 'opus[1m]',
-      label: 'Opus 5 (1M context)',
       description: 'Best for everyday, complex tasks · $5/$25 per Mtok',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
+      effort: CLAUDE_EFFORT_LEVELS,
     },
     {
       value: 'haiku',
       label: 'Haiku 4.5',
       description: 'Fastest for quick answers · $1/$5 per Mtok',
     },
+    // Claude Code hides these behind its third-party menu branch, but they still
+    // run as themselves on a first-party account. Opus 4.1 and 4.0 are
+    // deliberately absent: the CLI's deprecation table remaps them to the latest
+    // Opus unless CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP is set, so a row for
+    // them would name a model the session would not actually use.
+    {
+      value: 'claude-opus-4-8',
+      label: 'Opus 4.8',
+      description: 'Previous Opus version',
+      group: 'legacy',
+      effort: CLAUDE_EFFORT_LEVELS,
+    },
+    {
+      value: 'claude-opus-4-7',
+      label: 'Opus 4.7',
+      description: 'Legacy',
+      group: 'legacy',
+      effort: CLAUDE_EFFORT_LEVELS,
+    },
+    {
+      value: 'claude-opus-4-6',
+      label: 'Opus 4.6',
+      description: 'Legacy',
+      group: 'legacy',
+      effort: CLAUDE_EFFORT_LEVELS,
+    },
+    {
+      value: 'claude-sonnet-4-6',
+      label: 'Sonnet 4.6',
+      description: 'Legacy',
+      group: 'legacy',
+      effort: CLAUDE_EFFORT_LEVELS,
+    },
   ],
-  DEFAULT: 'default',
+  // Only a display/seed fallback for when the configured default cannot be read;
+  // `getSupportedModels` replaces it with the real one. Claude Code's own
+  // built-in fallback is Sonnet, so this matches what an unconfigured machine
+  // would actually run.
+  DEFAULT: 'sonnet',
 };
 
 export const findClaudeModelOption = (model: string | undefined | null): ProviderModelOption | null => {
@@ -135,20 +135,25 @@ export const resolveClaudeModelAlias = (
     return normalized;
   }
 
-  const lowered = normalized.toLowerCase();
-  const wantsLongContext = lowered.includes('[1m]');
+  // The catalog offers no `[1m]` variants, so a transcript that recorded one
+  // still belongs on its base model's row rather than on no row at all.
+  const lowered = normalized.toLowerCase().replace(/\[1m\]/g, '');
+
+  // Longest match wins. `claude-opus-4-8-20260101` contains both `opus` and
+  // `claude-opus-4-8`, and only the second names the model that actually ran —
+  // a first-match loop would highlight Opus 5 for an Opus 4.8 session.
+  let best: string | null = null;
   for (const option of options) {
-    if (option.value === 'default') {
+    const family = option.value.toLowerCase();
+    if (!lowered.includes(family)) {
       continue;
     }
-
-    const family = option.value.replace(/\[1m\]$/, '');
-    if (lowered.includes(family) && option.value.endsWith('[1m]') === wantsLongContext) {
-      return option.value;
+    if (best === null || family.length > best.length) {
+      best = option.value;
     }
   }
 
-  return normalized;
+  return best ?? normalized;
 };
 /**
  * Decides whether a stored popup pick still represents the session, given when
@@ -364,21 +369,30 @@ export class ClaudeProviderModels implements IProviderModels {
     // const supportedModels = await queryInstance.supportedModels();
     // queryInstance.close();
     // return buildClaudeModelsDefinition(supportedModels);
+    // There is no "Default" row to describe any more — the catalog names the
+    // model that is actually the default and flags it, so the picker can badge
+    // a real option instead of offering a pseudo-model. Sending the literal
+    // string "default" was never a working alias: Claude Code does not
+    // recognise it and falls back to its built-in Sonnet default, ignoring the
+    // user's configured `model` entirely.
     const configuredDefaultModel = await this.readConfiguredDefaultModel();
     if (!configuredDefaultModel) {
       return CLAUDE_FALLBACK_MODELS;
     }
 
+    const defaultValue = resolveClaudeModelAlias(
+      configuredDefaultModel,
+      CLAUDE_FALLBACK_MODELS.OPTIONS,
+    );
+    if (!CLAUDE_FALLBACK_MODELS.OPTIONS.some((option) => option.value === defaultValue)) {
+      return CLAUDE_FALLBACK_MODELS;
+    }
+
     return {
-      ...CLAUDE_FALLBACK_MODELS,
       OPTIONS: CLAUDE_FALLBACK_MODELS.OPTIONS.map((option) =>
-        option.value === 'default'
-          ? {
-              ...option,
-              description: `Use the Claude Code default model (currently ${configuredDefaultModel}, from your Claude settings)`,
-            }
-          : option,
+        option.value === defaultValue ? { ...option, isDefault: true } : option,
       ),
+      DEFAULT: defaultValue,
     };
   }
 
@@ -391,7 +405,12 @@ export class ClaudeProviderModels implements IProviderModels {
     const changedModel = await readProviderSessionModelPick('claude', normalizedSessionId, {
       store: this.deps.modelPickStore,
     });
-    const hasPendingPick = changedModel.changed && Boolean(changedModel.model);
+    // Sessions picked before the "Default" row was removed still carry that
+    // literal, which never named a model. Treat it as no pick rather than
+    // rewriting the row: the session then falls through to its transcript,
+    // which is what actually ran.
+    const pickedModel = changedModel.model === 'default' ? null : changedModel.model;
+    const hasPendingPick = changedModel.changed && Boolean(pickedModel);
 
     let transcriptModel: ClaudeSessionTranscriptModel | null = null;
     try {
@@ -412,7 +431,14 @@ export class ClaudeProviderModels implements IProviderModels {
     // newer turn exists, the model may have changed by a path the cache never
     // saw (fast mode, a Shell /model), and the transcript is the ground truth.
     if (hasPendingPick && pickSupersedesTranscript(changedModel.updatedAt, transcriptModel?.timestamp)) {
-      return { model: changedModel.model as string, source: 'pick' };
+      // Normalised for the same reason as the transcript path: a pick recorded
+      // against a since-removed row (`opus[1m]`) still belongs on the row that
+      // supersedes it, or the picker highlights nothing.
+      const supportedModels = await this.getSupportedModels();
+      return {
+        model: resolveClaudeModelAlias(pickedModel as string, supportedModels.OPTIONS),
+        source: 'pick',
+      };
     }
 
     if (transcriptModel?.model) {

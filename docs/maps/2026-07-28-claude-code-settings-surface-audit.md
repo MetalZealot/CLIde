@@ -96,7 +96,7 @@ corresponding `settings.json` keys are **silently ignored** in CLIde:
 
 | settings.json key | Overridden by |
 |---|---|
-| `model` | the model picker (`sdkOptions.model`, defaulting to `CLAUDE_FALLBACK_MODELS.DEFAULT`) |
+| ~~`model`~~ | **Fixed 2026-08-10.** The runtime now omits `sdkOptions.model` when the user has made no explicit choice, so `model` from the cascade applies. It previously sent the literal string `"default"`, which is not an alias Claude Code accepts — the CLI fell back to its built-in Sonnet default and the configured model never took effect. The catalog reads the cascade to badge the real default, and Settings › Agents › `<provider>` › Default Model sets an in-app override. |
 | `effortLevel` | `resolveClaudeEffort` → `sdkOptions.effort` |
 | `permissions.defaultMode` | the composer's permission-mode control → `sdkOptions.permissionMode` |
 | `env` | `sdkOptions.env = { ...process.env }` |

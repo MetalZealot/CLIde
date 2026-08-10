@@ -53,7 +53,10 @@ export default function ComposerModelMenu({
 }: ComposerModelMenuProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
-  const [showProviders, setShowProviders] = useState(false);
+  // One popover, three panes. Providers and legacy models both drill in rather
+  // than extending the list, because this menu is opened from a phone-height
+  // composer and every extra row pushes the effort slider off screen.
+  const [view, setView] = useState<'models' | 'providers' | 'legacy'>('models');
   const [selectingModel, setSelectingModel] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const effortTrackRef = useRef<HTMLDivElement | null>(null);
@@ -61,14 +64,14 @@ export default function ComposerModelMenu({
   const suppressEffortClickRef = useRef(false);
   const close = useCallback(() => {
     setIsOpen(false);
-    setShowProviders(false);
+    setView('models');
   }, []);
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 14 * 16);
 
   useEffect(() => {
     if (openRequest > 0) {
       setSelectionError(null);
-      setShowProviders(false);
+      setView('models');
       updateAnchor();
       setIsOpen(true);
     }
@@ -81,14 +84,25 @@ export default function ComposerModelMenu({
   );
   const effortLabel = effort === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : effort;
   const modelLabel = modelOptions.find((option) => option.value === model)?.label || model;
+  const primaryModels = useMemo(
+    () => modelOptions.filter((option) => option.group !== 'legacy'),
+    [modelOptions],
+  );
+  const legacyModels = useMemo(
+    () => modelOptions.filter((option) => option.group === 'legacy'),
+    [modelOptions],
+  );
+  const selectedLegacyModel = legacyModels.find((option) => option.value === model) ?? null;
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
   const canSwitchProvider = Boolean(onSelectProvider) && providerOptions.length > 1;
   const ariaLabel = t('composer.modelMenu', { defaultValue: 'Select model and reasoning effort' });
   const providerAriaLabel = t('composer.providerMenu', { defaultValue: 'Select model provider' });
+  const legacyLabel = t('composer.legacyModels', { defaultValue: 'Legacy' });
+  const defaultBadgeLabel = t('composer.modelIsDefault', { defaultValue: 'Default' });
   const handleSelectProvider = useCallback((nextProvider: LLMProvider) => {
     setSelectionError(null);
-    setShowProviders(false);
+    setView('models');
     onSelectProvider?.(nextProvider);
   }, [onSelectProvider]);
   const handleSelectModel = useCallback(async (nextModel: string) => {
@@ -163,6 +177,38 @@ export default function ComposerModelMenu({
 
   if (!hasEffortSection && !hasModelSection && !canSwitchProvider) return null;
 
+  const renderModelItem = (option: ProviderModelOption) => (
+    <ComposerMenuItem
+      key={option.value}
+      label={option.isDefault ? (
+        <span className="flex items-baseline gap-1.5">
+          <span className="truncate">{option.label || option.value}</span>
+          <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-muted-foreground">
+            {defaultBadgeLabel}
+          </span>
+        </span>
+      ) : (option.label || option.value)}
+      isSelected={option.value === model}
+      onSelect={() => { void handleSelectModel(option.value); }}
+      disabled={selectingModel !== null}
+      trailing={selectingModel === option.value
+        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        : undefined}
+    />
+  );
+
+  const renderBackRow = (label: string, ariaText: string) => (
+    <button
+      type="button"
+      onClick={() => setView('models')}
+      className="flex w-full items-center gap-1 rounded-lg px-1.5 py-1 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+      aria-label={ariaText}
+    >
+      <ChevronLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+
   const triggerLabel = hasModelSection
     ? modelLabel
     : hasEffortSection
@@ -177,7 +223,7 @@ export default function ComposerModelMenu({
         onClick={() => {
           if (!isOpen) {
             setSelectionError(null);
-            setShowProviders(false);
+            setView('models');
           }
           updateAnchor();
           setIsOpen((current) => !current);
@@ -199,20 +245,15 @@ export default function ComposerModelMenu({
         <ComposerMenuSurface
           anchor={anchor}
           menuRef={menuRef}
-          ariaLabel={showProviders ? providerAriaLabel : ariaLabel}
+          ariaLabel={view === 'providers' ? providerAriaLabel : ariaLabel}
         >
           <div className="w-52 max-w-full">
-            {showProviders ? (
+            {view === 'providers' ? (
               <div className="py-0.5">
-                <button
-                  type="button"
-                  onClick={() => setShowProviders(false)}
-                  className="flex w-full items-center gap-1 rounded-lg px-1.5 py-1 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                  aria-label={t('composer.backToModels', { defaultValue: 'Back to models' })}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="truncate">{t('composer.provider', { defaultValue: 'Provider' })}</span>
-                </button>
+                {renderBackRow(
+                  t('composer.provider', { defaultValue: 'Provider' }),
+                  t('composer.backToModels', { defaultValue: 'Back to models' }),
+                )}
                 <ComposerMenuSeparator />
                 {providerOptions.map((option) => (
                   <ComposerMenuItem
@@ -223,13 +264,27 @@ export default function ComposerModelMenu({
                   />
                 ))}
               </div>
+            ) : view === 'legacy' ? (
+              <div className="py-0.5">
+                {renderBackRow(
+                  legacyLabel,
+                  t('composer.backToModels', { defaultValue: 'Back to models' }),
+                )}
+                <ComposerMenuSeparator />
+                {legacyModels.map(renderModelItem)}
+                {selectionError && (
+                  <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
+                    {selectionError}
+                  </p>
+                )}
+              </div>
             ) : (
               <>
               <div className="px-1 pb-1 pt-0.5">
                 {canSwitchProvider ? (
                   <button
                     type="button"
-                    onClick={() => setShowProviders(true)}
+                    onClick={() => setView('providers')}
                     aria-haspopup="menu"
                     aria-label={providerAriaLabel}
                     title={providerAriaLabel}
@@ -253,18 +308,25 @@ export default function ComposerModelMenu({
                       {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
                     </p>
                   )}
-                  {modelOptions.map((option) => (
-                    <ComposerMenuItem
-                      key={option.value}
-                      label={option.label || option.value}
-                      isSelected={option.value === model}
-                      onSelect={() => { void handleSelectModel(option.value); }}
-                      disabled={selectingModel !== null}
-                      trailing={selectingModel === option.value
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : undefined}
-                    />
-                  ))}
+                  {primaryModels.map(renderModelItem)}
+                  {legacyModels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setView('legacy')}
+                      aria-haspopup="menu"
+                      className="flex w-full items-center gap-1 rounded-lg px-2.5 py-1.5 text-left text-sm text-foreground/90 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        {legacyLabel}
+                        {selectedLegacyModel && (
+                          <span className="ml-1.5 text-xs text-muted-foreground">
+                            {selectedLegacyModel.label || selectedLegacyModel.value}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                    </button>
+                  )}
                   {selectionError && (
                     <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
                       {selectionError}

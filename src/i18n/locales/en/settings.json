@@ -4,7 +4,8 @@
     "permissions": "Permissions",
     "mcpServers": "MCP Servers",
     "skills": "Skills",
-    "appearance": "Appearance"
+    "appearance": "Appearance",
+    "defaultModel": "Default Model"
   },
   "account": {
     "title": "Account",
@@ -650,5 +651,12 @@
       }
     },
     "license": "Licensed under AGPL-3.0"
+  },
+  "defaultModel": {
+    "label": "Default model",
+    "description": "The model each new chat with this provider starts on. Changing the model inside a chat only affects that chat.",
+    "follow": "Provider default",
+    "followNamed": "Provider default ({{model}})",
+    "legacy": "Legacy"
   }
 }

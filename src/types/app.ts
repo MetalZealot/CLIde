@@ -4,6 +4,10 @@ export type ProviderModelOption = {
   value: string;
   label: string;
   description?: string;
+  /** Superseded models, filed behind a "Legacy" row instead of the main list. */
+  group?: 'legacy';
+  /** The option a session runs when no model is sent; badged in the picker. */
+  isDefault?: boolean;
   effort?: {
     default?: string;
     values: {

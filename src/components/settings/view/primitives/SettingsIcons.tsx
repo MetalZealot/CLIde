@@ -1,5 +1,6 @@
 import {
   Bell,
+  Brain,
   Code2,
   FileCode2,
   GitBranch,
@@ -62,4 +63,5 @@ export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?
   permissions: ShieldCheck,
   mcp: Server,
   skills: FileCode2,
+  defaultModel: Brain,
 };

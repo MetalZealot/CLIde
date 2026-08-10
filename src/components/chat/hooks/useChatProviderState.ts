@@ -16,9 +16,13 @@ import {
   toProviderEffortOptions,
 } from '../constants/providerEffort';
 import { getNextRoutinePermissionMode } from '../utils/chatPermissions';
+import { readProviderDefaultModel } from '../../../utils/providerDefaultModel';
 
 const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
-  claude: 'default',
+  // Must be a real alias. "default" was not one: Claude Code does not
+  // recognise it, so it silently ran the built-in Sonnet default instead of
+  // the model configured in the settings cascade.
+  claude: 'sonnet',
   cursor: 'gpt-5.3-codex',
   codex: 'gpt-5.4',
   opencode: 'anthropic/claude-sonnet-4-5',
@@ -326,6 +330,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     storageKey: string,
     current: string,
     def: ProviderModelsDefinition,
+    configuredDefault = '',
   ): string => {
     const stored = localStorage.getItem(storageKey);
     if (stored && def.OPTIONS.some((o) => o.value === stored)) {
@@ -333,6 +338,11 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     }
     if (current && def.OPTIONS.some((o) => o.value === current)) {
       return current;
+    }
+    // A default the user set in Settings outranks the catalog's own, which is
+    // only a suggestion from the provider.
+    if (configuredDefault && def.OPTIONS.some((o) => o.value === configuredDefault)) {
+      return configuredDefault;
     }
     return def.DEFAULT;
   };
@@ -409,7 +419,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     const claude = providerModelCatalog.claude;
     if (claude) {
-      const next = pickStoredOrCurrent('claude-model', claudeModel, claude);
+      const next = pickStoredOrCurrent('claude-model', claudeModel, claude, readProviderDefaultModel('claude'));
       if (next !== claudeModel) {
         setClaudeModel(next);
       }
@@ -422,7 +432,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     const cursor = providerModelCatalog.cursor;
     if (cursor) {
-      const next = pickStoredOrCurrent('cursor-model', cursorModel, cursor);
+      const next = pickStoredOrCurrent('cursor-model', cursorModel, cursor, readProviderDefaultModel('cursor'));
       if (next !== cursorModel) {
         setCursorModel(next);
       }
@@ -435,7 +445,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     const codex = providerModelCatalog.codex;
     if (codex) {
-      const next = pickStoredOrCurrent('codex-model', codexModel, codex);
+      const next = pickStoredOrCurrent('codex-model', codexModel, codex, readProviderDefaultModel('codex'));
       if (next !== codexModel) {
         setCodexModel(next);
       }
@@ -448,7 +458,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     const opencode = providerModelCatalog.opencode;
     if (opencode) {
-      const next = pickStoredOrCurrent('opencode-model', opencodeModel, opencode);
+      const next = pickStoredOrCurrent('opencode-model', opencodeModel, opencode, readProviderDefaultModel('opencode'));
       if (next !== opencodeModel) {
         setOpenCodeModel(next);
       }
@@ -655,11 +665,33 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, [provider, selectedSession?.__provider, selectedSession?.id]);
 
   /**
+   * Re-seeds a new chat from the default set in Settings, so that default beats
+   * the last-used model `selectProviderModel` records. Keyed on the session id
+   * rather than running continuously: it fires when a chat is opened or
+   * cleared, and never in between, so a model picked before the first send
+   * survives instead of snapping back.
+   */
+  useEffect(() => {
+    if (selectedSession?.id) {
+      return;
+    }
+
+    const configuredDefault = readProviderDefaultModel(provider);
+    const options = providerModelCatalog[provider]?.OPTIONS;
+    if (!configuredDefault || !options?.some((option) => option.value === configuredDefault)) {
+      return;
+    }
+
+    setStoredProviderModel(provider, configuredDefault);
+  }, [provider, providerModelCatalog, selectedSession?.id, setStoredProviderModel]);
+
+  /**
    * Applies a model choice.
    *
-   * The pick always becomes the per-provider default so the next new chat
-   * inherits it, and — when a session is open — is also recorded against that
-   * session so reopening it later restores this model.
+   * The pick becomes the per-provider last-used model so the next new chat
+   * inherits it when no default is configured, and — when a session is open —
+   * is also recorded against that session so reopening it later restores this
+   * model.
    */
   const selectProviderModel = useCallback(async (
     targetProvider: LLMProvider,

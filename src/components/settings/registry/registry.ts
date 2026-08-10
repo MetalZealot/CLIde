@@ -29,7 +29,8 @@ export type SettingsIconName =
   | 'providerOpenCode'
   | 'permissions'
   | 'mcp'
-  | 'skills';
+  | 'skills'
+  | 'defaultModel';
 
 export type SettingsGroupId = 'agents' | 'app' | 'extensions' | 'system';
 
@@ -72,7 +73,7 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
  */
 export type AgentProviderId = 'claude' | 'cursor' | 'codex' | 'opencode';
 
-export type AgentSubsystem = 'permissions' | 'mcp' | 'skills';
+export type AgentSubsystem = 'model' | 'permissions' | 'mcp' | 'skills';
 
 type AgentProviderDescriptor = {
   id: AgentProviderId;
@@ -87,15 +88,20 @@ type AgentProviderDescriptor = {
 };
 
 export const AGENT_PROVIDERS: AgentProviderDescriptor[] = [
-  { id: 'claude', icon: 'providerClaude', subsystems: ['permissions', 'mcp', 'skills'] },
-  { id: 'cursor', icon: 'providerCursor', subsystems: ['permissions', 'mcp', 'skills'] },
-  { id: 'codex', icon: 'providerCodex', subsystems: ['permissions', 'mcp', 'skills'] },
-  { id: 'opencode', icon: 'providerOpenCode', subsystems: ['mcp'] },
+  { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
+  { id: 'cursor', icon: 'providerCursor', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
+  { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
+  { id: 'opencode', icon: 'providerOpenCode', subsystems: ['model', 'mcp'] },
 ];
 
 export const AGENT_PROVIDER_IDS: AgentProviderId[] = AGENT_PROVIDERS.map((provider) => provider.id);
 
 const SUBSYSTEM_NODES: Record<AgentSubsystem, { labelKey: string; icon: SettingsIconName; keywords: string }> = {
+  model: {
+    labelKey: 'tabs.defaultModel',
+    icon: 'defaultModel',
+    keywords: 'default model new session opus sonnet haiku fable legacy picker',
+  },
   permissions: {
     labelKey: 'tabs.permissions',
     icon: 'permissions',

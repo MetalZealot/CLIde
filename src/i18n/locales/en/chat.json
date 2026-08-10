@@ -268,7 +268,9 @@
           "description": "Use OpenCode's read-only Plan agent"
         }
       }
-    }
+    },
+    "legacyModels": "Legacy",
+    "modelIsDefault": "Default"
   },
   "launcher": {
     "selectProject": "Select Project",

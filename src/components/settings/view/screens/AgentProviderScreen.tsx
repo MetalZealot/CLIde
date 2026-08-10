@@ -115,6 +115,28 @@ function PermissionsSubsystemRow({ provider, onOpenScreen }: Omit<SubsystemRowPr
 }
 
 /**
+ * No count or preview value here on purpose: reading it would mean fetching the
+ * provider's whole model catalog to render one row, and the destination screen
+ * fetches it anyway.
+ */
+function DefaultModelSubsystemRow({ provider, onOpenScreen }: Omit<SubsystemRowProps, 'projects'>) {
+  const { t } = useTranslation('settings');
+  const screen = getScreen(agentScreenId(provider, 'model'));
+
+  if (!screen) {
+    return null;
+  }
+
+  return (
+    <SettingsNavRow
+      label={t(screen.labelKey)}
+      icon={SETTINGS_ICONS[screen.icon]}
+      onClick={() => onOpenScreen(screen.id)}
+    />
+  );
+}
+
+/**
  * A provider's own screen: the account card, then one nav row per subsystem it
  * supports. This is what replaces the provider × category grid — the two tab
  * rows that used to sit above a nested scroller are now the root list and these
@@ -145,6 +167,9 @@ export default function AgentProviderScreen({
 
       {subsystems.length > 0 && (
         <SettingsGroup divided>
+          {subsystems.includes('model') && (
+            <DefaultModelSubsystemRow provider={provider} onOpenScreen={onOpenScreen} />
+          )}
           {subsystems.includes('permissions') && (
             <PermissionsSubsystemRow provider={provider} onOpenScreen={onOpenScreen} />
           )}

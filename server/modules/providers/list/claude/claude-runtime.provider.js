@@ -224,12 +224,24 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
 
-  sdkOptions.model = options.model || CLAUDE_FALLBACK_MODELS.DEFAULT;
+  // Leaving `model` unset is what makes Claude Code apply its own precedence:
+  // ANTHROPIC_MODEL, then `model` in the settings cascade, then the plan
+  // default. Sending a placeholder instead does not — "default" is not a real
+  // alias, so the CLI silently drops to its built-in Sonnet default and the
+  // user's configured model never takes effect.
+  // The literal is filtered here too, not just on the read path: a client that
+  // has not reloaded since the catalog changed can still send it.
+  if (options.model && options.model !== 'default') {
+    sdkOptions.model = options.model;
+  }
 
+  const effortModels = options.effortModels || CLAUDE_FALLBACK_MODELS;
   const resolvedEffort = resolveClaudeEffort(
-    sdkOptions.model,
+    // With no model of our own, the effort slider still has to resolve against
+    // something; the catalog's default is the model that will actually run.
+    sdkOptions.model || effortModels.DEFAULT,
     effort,
-    options.effortModels || CLAUDE_FALLBACK_MODELS,
+    effortModels,
   );
   if (resolvedEffort) {
     sdkOptions.effort = resolvedEffort;
