@@ -60,7 +60,6 @@ test('routine permission toggle includes provider Auto but excludes elevated and
 test('model trigger opens one menu containing reasoning and model choices', async () => {
   const effortSelections: string[] = [];
   const modelSelections: string[] = [];
-  let refreshes = 0;
   const host = await mount(
     <ComposerModelMenu
       effort="high"
@@ -73,9 +72,9 @@ test('model trigger opens one menu containing reasoning and model choices', asyn
       ]}
       onSelectModel={async (value) => { modelSelections.push(value); }}
       modelsLoading={false}
-      modelsRefreshing={false}
-      onRefreshModels={async () => { refreshes += 1; }}
       openRequest={0}
+      provider="claude"
+      providerLabel="Claude"
     />,
   );
 
@@ -102,10 +101,6 @@ test('model trigger opens one menu containing reasoning and model choices', asyn
   assert.match(menu?.textContent || '', /Effort/);
   assert.match(menu?.textContent || '', /high/);
   assert.doesNotMatch(menu?.textContent || '', /long model description/);
-  const refreshButton = document.querySelector<HTMLButtonElement>('[aria-label="Refresh model list"]');
-  assert.ok(refreshButton);
-  await React.act(async () => refreshButton.click());
-  assert.equal(refreshes, 1);
   const menuRight = Number.parseFloat((menu as HTMLElement).style.right);
   const menuMaxWidth = Number.parseFloat((menu as HTMLElement).style.maxWidth);
   assert.ok(window.innerWidth - menuRight - menuMaxWidth >= 8, 'menu stays inside the left viewport edge');
@@ -158,9 +153,9 @@ test('model selection stays open and reports a failed session update', async () 
         throw new Error('Unable to change the active model for this session.');
       }}
       modelsLoading={false}
-      modelsRefreshing={false}
-      onRefreshModels={async () => {}}
       openRequest={0}
+      provider="claude"
+      providerLabel="Claude"
     />,
   );
 
@@ -177,6 +172,75 @@ test('model selection stays open and reports a failed session update', async () 
   assert.match(
     document.querySelector('[role="alert"]')?.textContent || '',
     /Unable to change the active model for this session/,
+  );
+});
+
+const mountModelMenu = (overrides: Partial<React.ComponentProps<typeof ComposerModelMenu>> = {}) => mount(
+  <ComposerModelMenu
+    effort="default"
+    effortOptions={[]}
+    onSelectEffort={() => {}}
+    model="model-a"
+    modelOptions={[{ value: 'model-a', label: 'Model A' }]}
+    onSelectModel={async () => {}}
+    modelsLoading={false}
+    openRequest={0}
+    provider="claude"
+    providerLabel="Claude"
+    providerOptions={[
+      { value: 'claude', label: 'Claude' },
+      { value: 'codex', label: 'Codex' },
+      { value: 'cursor', label: 'Cursor' },
+      { value: 'opencode', label: 'OpenCode' },
+    ]}
+    {...overrides}
+  />,
+);
+
+test('a new chat can switch provider from the model menu', async () => {
+  const providerSelections: string[] = [];
+  const host = await mountModelMenu({ onSelectProvider: (next) => providerSelections.push(next) });
+
+  const trigger = host.querySelector<HTMLButtonElement>('button');
+  assert.ok(trigger);
+  await React.act(async () => trigger.click());
+
+  const providerRow = document.querySelector<HTMLButtonElement>('[role="menu"] [aria-label="Select model provider"]');
+  assert.ok(providerRow, 'the model menu heads with the provider');
+  assert.match(providerRow.textContent || '', /Claude/);
+  await React.act(async () => providerRow.click());
+
+  const menu = document.querySelector('[role="menu"]');
+  assert.match(menu?.textContent || '', /Codex/);
+  assert.match(menu?.textContent || '', /OpenCode/);
+  assert.doesNotMatch(menu?.textContent || '', /Model A/, 'the provider list replaces the model list');
+
+  const codexButton = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
+    .find((button) => button.textContent?.includes('Codex'));
+  assert.ok(codexButton);
+  await React.act(async () => codexButton.click());
+
+  assert.deepEqual(providerSelections, ['codex']);
+  assert.match(
+    document.querySelector('[role="menu"]')?.textContent || '',
+    /Model A/,
+    'picking a provider returns to the model list',
+  );
+});
+
+test('an established session shows its provider without offering a switch', async () => {
+  const host = await mountModelMenu({ onSelectProvider: null });
+
+  const trigger = host.querySelector<HTMLButtonElement>('button');
+  assert.ok(trigger);
+  await React.act(async () => trigger.click());
+
+  const menu = document.querySelector('[role="menu"]');
+  assert.match(menu?.textContent || '', /Claude/, 'the provider stays visible as a label');
+  assert.equal(
+    document.querySelector('[role="menu"] [aria-label="Select model provider"]'),
+    null,
+    'no provider switcher once the session exists',
   );
 });
 

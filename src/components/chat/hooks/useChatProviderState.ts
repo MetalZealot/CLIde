@@ -146,7 +146,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     Partial<Record<LLMProvider, ProviderModelsDefinition>>
   >({});
   const [providerModelsLoading, setProviderModelsLoading] = useState(true);
-  const [providerModelsRefreshing, setProviderModelsRefreshing] = useState(false);
 
   const providerModelsRequestIdRef = useRef(0);
 
@@ -173,6 +172,16 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     localStorage.setItem('opencode-model', model);
   }, []);
 
+  /**
+   * Switches the provider a *new* chat will start with. Persisted immediately
+   * because the session-creation path and the realtime message normalizer both
+   * read `selected-provider` from storage rather than this state.
+   */
+  const selectProvider = useCallback((nextProvider: LLMProvider) => {
+    setProvider(nextProvider);
+    localStorage.setItem('selected-provider', nextProvider);
+  }, []);
+
   const setStoredProviderEffort = useCallback((targetProvider: LLMProvider, effort: string) => {
     setProviderEfforts((previous) => (
       previous[targetProvider] === effort
@@ -182,27 +191,18 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     localStorage.setItem(`${targetProvider}-effort`, effort);
   }, []);
 
-  const loadProviderModels = useCallback(async (options: { bypassCache?: boolean } = {}) => {
+  // Single load per mount. There is deliberately no client-side hard refresh:
+  // Claude and Codex are never cached server-side, so their catalogs are already
+  // fetched live, and the two cached providers refresh on the next page load.
+  const loadProviderModels = useCallback(async () => {
     const requestId = providerModelsRequestIdRef.current + 1;
     providerModelsRequestIdRef.current = requestId;
-    const isHardRefresh = options.bypassCache === true;
-
-    if (isHardRefresh) {
-      setProviderModelsRefreshing(true);
-    } else {
-      setProviderModelsLoading(true);
-    }
+    setProviderModelsLoading(true);
 
     try {
       const results = await Promise.all(
         PROVIDERS.map(async (p) => {
-          const params = new URLSearchParams();
-          if (options.bypassCache) {
-            params.set('bypassCache', 'true');
-          }
-
-          const queryString = params.toString();
-          const response = await authenticatedFetch(`/api/providers/${p}/models${queryString ? `?${queryString}` : ''}`);
+          const response = await authenticatedFetch(`/api/providers/${p}/models`);
           const body = (await response.json()) as ProviderModelsApiResponse;
           if (!body.success || !body.data?.models || !body.data?.cache) {
             return null;
@@ -232,7 +232,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     } finally {
       if (providerModelsRequestIdRef.current === requestId) {
         setProviderModelsLoading(false);
-        setProviderModelsRefreshing(false);
       }
     }
   }, []);
@@ -713,6 +712,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   return {
     provider,
     setProvider,
+    selectProvider,
+    availableProviders: PROVIDERS,
     cursorModel,
     setCursorModel,
     claudeModel,
@@ -737,8 +738,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     togglePermissionMode,
     providerModelCatalog,
     providerModelsLoading,
-    providerModelsRefreshing,
-    hardRefreshProviderModels: () => loadProviderModels({ bypassCache: true }),
     selectProviderModel,
     setStoredProviderEffort,
     resolvePermissionModeForProvider,

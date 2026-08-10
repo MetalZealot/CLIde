@@ -22,7 +22,7 @@ import type {
   UsagePopoverRequest,
 } from '../../hooks/useChatComposerState';
 import type { CollaborationMode, PendingPermissionRequest, PermissionMode } from '../../types/types';
-import type { ProviderModelOption } from '../../../../types/app';
+import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import {
   PromptInput,
   PromptInputHeader,
@@ -79,6 +79,9 @@ interface ChatComposerProps {
   availableCollaborationModes: CollaborationMode[];
   onSelectCollaborationMode: (mode: CollaborationMode) => void;
   providerLabel: string;
+  providerOptions: { value: LLMProvider; label: string }[];
+  /** Null once the session exists — its provider can no longer change. */
+  onSelectProvider: ((provider: LLMProvider) => void) | null;
   effort: string;
   availableEffortOptions: NonNullable<ProviderModelOption['effort']>['values'];
   onSelectEffort: (effort: string) => void;
@@ -86,15 +89,13 @@ interface ChatComposerProps {
   availableModelOptions: ProviderModelOption[];
   onSelectModel: (model: string) => Promise<void>;
   modelsLoading: boolean;
-  modelsRefreshing: boolean;
-  onRefreshModels: () => Promise<void>;
   modelMenuOpenRequest: number;
   tokenBudget: Record<string, unknown> | null;
   usagePopoverRequest: UsagePopoverRequest;
   onShowContextBreakdown: () => void;
   onRefreshContextBreakdown: () => void;
   isRefreshingContextBreakdown: boolean;
-  provider?: string;
+  provider: LLMProvider;
   hasInput: boolean;
   onClearInput: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
@@ -153,6 +154,8 @@ export default function ChatComposer({
   availableCollaborationModes,
   onSelectCollaborationMode,
   providerLabel,
+  providerOptions,
+  onSelectProvider,
   effort,
   availableEffortOptions,
   onSelectEffort,
@@ -160,8 +163,6 @@ export default function ChatComposer({
   availableModelOptions,
   onSelectModel,
   modelsLoading,
-  modelsRefreshing,
-  onRefreshModels,
   modelMenuOpenRequest,
   tokenBudget,
   usagePopoverRequest,
@@ -436,9 +437,11 @@ export default function ChatComposer({
               modelOptions={availableModelOptions}
               onSelectModel={onSelectModel}
               modelsLoading={modelsLoading}
-              modelsRefreshing={modelsRefreshing}
-              onRefreshModels={onRefreshModels}
               openRequest={modelMenuOpenRequest}
+              provider={provider}
+              providerLabel={providerLabel}
+              providerOptions={providerOptions}
+              onSelectProvider={onSelectProvider}
             />
 
             <ComposerPermissionMenu

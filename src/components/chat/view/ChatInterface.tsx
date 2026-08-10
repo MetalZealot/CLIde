@@ -6,6 +6,7 @@ import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import type { ChatInterfaceProps, PermissionMode } from '../types/types';
+import type { LLMProvider } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
@@ -79,6 +80,8 @@ function ChatInterface({
 
   const {
     provider,
+    selectProvider,
+    availableProviders,
     currentProviderEffort,
     currentProviderEffortOptions,
     currentProviderModel,
@@ -93,8 +96,6 @@ function ChatInterface({
     selectCollaborationMode,
     togglePermissionMode,
     providerModelsLoading,
-    providerModelsRefreshing,
-    hardRefreshProviderModels,
     selectProviderModel,
     setStoredProviderEffort,
     resolvePermissionModeForProvider,
@@ -368,14 +369,18 @@ function ChatInterface({
     handlePermissionDecision,
   }), [pendingPermissionRequests, handlePermissionDecision]);
 
-  const selectedProviderLabel =
-    provider === 'cursor'
-      ? t('messageTypes.cursor')
-      : provider === 'codex'
-        ? t('messageTypes.codex')
-        : provider === 'opencode'
-            ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-          : t('messageTypes.claude');
+  const getProviderLabel = useCallback(
+    (targetProvider: LLMProvider) => t(`messageTypes.${targetProvider}`, { defaultValue: targetProvider }),
+    [t],
+  );
+  const selectedProviderLabel = getProviderLabel(provider);
+  const providerOptions = useMemo(
+    () => availableProviders.map((value) => ({ value, label: getProviderLabel(value) })),
+    [availableProviders, getProviderLabel],
+  );
+  // A session belongs to the runtime that started it, so the provider can only
+  // be chosen while the chat is still brand new.
+  const canSelectProvider = !selectedSession && !currentSessionId;
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
@@ -474,6 +479,8 @@ function ChatInterface({
             availableCollaborationModes={availableCollaborationModes}
             onSelectCollaborationMode={selectCollaborationMode}
             providerLabel={selectedProviderLabel}
+            providerOptions={providerOptions}
+            onSelectProvider={canSelectProvider ? selectProvider : null}
             effort={currentProviderEffort}
             availableEffortOptions={currentProviderEffortOptions}
             onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
@@ -481,8 +488,6 @@ function ChatInterface({
             availableModelOptions={currentProviderModelOptions}
             onSelectModel={handleSelectComposerModel}
             modelsLoading={providerModelsLoading}
-            modelsRefreshing={providerModelsRefreshing}
-            onRefreshModels={hardRefreshProviderModels}
             modelMenuOpenRequest={modelMenuOpenRequest}
             tokenBudget={tokenBudget}
             usagePopoverRequest={usagePopoverRequest}

@@ -48,6 +48,7 @@ main checkout only).
 
 This section is the complete outstanding model-picker list (2026-07-13 and 2026-07-16 reviews).
 
+- [~] **Provider row in the model menu.** `236ea5d` dropped the old provider chooser with `ProviderSelectionEmptyState`; the composer menu now heads with the provider name, opening a provider list only while the chat is brand new (`ComposerModelMenu.tsx`). The Refresh button went with it — Claude and Codex are in `UNCACHED_PROVIDERS`, so it refetched nothing. Awaiting live verification. **S**
 - [ ] **#8 PRIORITY — live-verify the per-session model stack** (`8771eea` + `5d9da84`). Three tests: (a) leak — A on Fable, B picks Haiku without sending, back to A must still send Fable; (b) stale-pick resume — popup pick X, then change via Shell `/model`, the newer choice must win; (c) fresh-session popup/header agreement. **S to run**
 - [ ] **#15 — `currentProviderModel` is a second, unmaintained copy of the session's model.** `useChatProviderState.ts` reads `sessionModel ?? providerModels[provider]`; its comment claiming sessions show what they run with **is false**. `sessionModel` is written only by a popup pick, never read from the session, never cleared on switch. `slot.model` is the real value. **S/M**
 - [ ] #2 — Shell `/model` stdout regex over-captures: picking Default shows the raw sentence "Default (recommended)" with no card highlight until the next turn. The `(.+?)\.?$` capture in `claude-models.provider.ts` takes too much. **S**

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Loader2, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import type { ProviderModelOption } from '../../../../types/app';
+import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import { DEFAULT_EFFORT_VALUE } from '../../constants/providerEffort';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 
@@ -15,6 +15,7 @@ import {
 } from './ComposerMenuPrimitives';
 
 type EffortOption = NonNullable<ProviderModelOption['effort']>['values'][number];
+type ProviderOption = { value: LLMProvider; label: string };
 
 interface ComposerModelMenuProps {
   effort: string;
@@ -24,9 +25,16 @@ interface ComposerModelMenuProps {
   modelOptions: ProviderModelOption[];
   onSelectModel: (model: string) => Promise<void>;
   modelsLoading: boolean;
-  modelsRefreshing: boolean;
-  onRefreshModels: () => Promise<void>;
   openRequest: number;
+  provider: LLMProvider;
+  providerLabel: string;
+  providerOptions?: ProviderOption[];
+  /**
+   * Omitted once the session exists: a session belongs to the runtime that
+   * started it, so the provider row becomes a static label there and only a
+   * brand-new chat can still switch.
+   */
+  onSelectProvider?: ((provider: LLMProvider) => void) | null;
 }
 
 export default function ComposerModelMenu({
@@ -37,23 +45,30 @@ export default function ComposerModelMenu({
   modelOptions,
   onSelectModel,
   modelsLoading,
-  modelsRefreshing,
-  onRefreshModels,
   openRequest,
+  provider,
+  providerLabel,
+  providerOptions = [],
+  onSelectProvider = null,
 }: ComposerModelMenuProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
+  const [showProviders, setShowProviders] = useState(false);
   const [selectingModel, setSelectingModel] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const effortTrackRef = useRef<HTMLDivElement | null>(null);
   const effortDragRef = useRef({ active: false, moved: false, startX: 0, lastValue: effort });
   const suppressEffortClickRef = useRef(false);
-  const close = useCallback(() => setIsOpen(false), []);
+  const close = useCallback(() => {
+    setIsOpen(false);
+    setShowProviders(false);
+  }, []);
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 14 * 16);
 
   useEffect(() => {
     if (openRequest > 0) {
       setSelectionError(null);
+      setShowProviders(false);
       updateAnchor();
       setIsOpen(true);
     }
@@ -68,7 +83,14 @@ export default function ComposerModelMenu({
   const modelLabel = modelOptions.find((option) => option.value === model)?.label || model;
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
+  const canSwitchProvider = Boolean(onSelectProvider) && providerOptions.length > 1;
   const ariaLabel = t('composer.modelMenu', { defaultValue: 'Select model and reasoning effort' });
+  const providerAriaLabel = t('composer.providerMenu', { defaultValue: 'Select model provider' });
+  const handleSelectProvider = useCallback((nextProvider: LLMProvider) => {
+    setSelectionError(null);
+    setShowProviders(false);
+    onSelectProvider?.(nextProvider);
+  }, [onSelectProvider]);
   const handleSelectModel = useCallback(async (nextModel: string) => {
     setSelectionError(null);
     setSelectingModel(nextModel);
@@ -139,7 +161,13 @@ export default function ComposerModelMenu({
     effortDragRef.current.moved = false;
   }, []);
 
-  if (!hasEffortSection && !hasModelSection) return null;
+  if (!hasEffortSection && !hasModelSection && !canSwitchProvider) return null;
+
+  const triggerLabel = hasModelSection
+    ? modelLabel
+    : hasEffortSection
+      ? effortLabel
+      : providerLabel;
 
   return (
     <>
@@ -147,7 +175,10 @@ export default function ComposerModelMenu({
         ref={triggerRef}
         type="button"
         onClick={() => {
-          if (!isOpen) setSelectionError(null);
+          if (!isOpen) {
+            setSelectionError(null);
+            setShowProviders(false);
+          }
           updateAnchor();
           setIsOpen((current) => !current);
         }}
@@ -157,7 +188,7 @@ export default function ComposerModelMenu({
         aria-label={ariaLabel}
         title={ariaLabel}
       >
-        <span className="truncate">{hasModelSection ? modelLabel : effortLabel}</span>
+        <span className="truncate">{triggerLabel}</span>
         {hasModelSection && hasEffortSection && (
           <span className="shrink-0 capitalize text-muted-foreground">{effortLabel}</span>
         )}
@@ -165,98 +196,133 @@ export default function ComposerModelMenu({
       </button>
 
       {isOpen && anchor && createPortal(
-        <ComposerMenuSurface anchor={anchor} menuRef={menuRef} ariaLabel={ariaLabel}>
+        <ComposerMenuSurface
+          anchor={anchor}
+          menuRef={menuRef}
+          ariaLabel={showProviders ? providerAriaLabel : ariaLabel}
+        >
           <div className="w-52 max-w-full">
-            {hasModelSection && (
+            {showProviders ? (
               <div className="py-0.5">
-                <div className="flex items-center justify-between gap-2 px-2.5 pb-1 pt-0.5">
-                  <span className="text-[11px] font-medium text-muted-foreground">
-                    {t('composer.models', { defaultValue: 'Models' })}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => { void onRefreshModels(); }}
-                    disabled={modelsRefreshing}
-                    className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                    aria-label={t('composer.refreshModels', { defaultValue: 'Refresh model list' })}
-                    title={t('composer.refreshModels', { defaultValue: 'Refresh model list' })}
-                  >
-                    <RefreshCw className={modelsRefreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-                  </button>
-                </div>
-                {modelOptions.length === 0 && modelsLoading && (
-                  <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
-                    {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
-                  </p>
-                )}
-                {modelOptions.map((option) => (
+                <button
+                  type="button"
+                  onClick={() => setShowProviders(false)}
+                  className="flex w-full items-center gap-1 rounded-lg px-1.5 py-1 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                  aria-label={t('composer.backToModels', { defaultValue: 'Back to models' })}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="truncate">{t('composer.provider', { defaultValue: 'Provider' })}</span>
+                </button>
+                <ComposerMenuSeparator />
+                {providerOptions.map((option) => (
                   <ComposerMenuItem
                     key={option.value}
-                    label={option.label || option.value}
-                    isSelected={option.value === model}
-                    onSelect={() => { void handleSelectModel(option.value); }}
-                    disabled={selectingModel !== null}
-                    trailing={selectingModel === option.value
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : undefined}
+                    label={option.label}
+                    isSelected={option.value === provider}
+                    onSelect={() => handleSelectProvider(option.value)}
                   />
                 ))}
-                {selectionError && (
-                  <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
-                    {selectionError}
-                  </p>
+              </div>
+            ) : (
+              <>
+              <div className="px-1 pb-1 pt-0.5">
+                {canSwitchProvider ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowProviders(true)}
+                    aria-haspopup="menu"
+                    aria-label={providerAriaLabel}
+                    title={providerAriaLabel}
+                    className="flex w-full items-center gap-1 rounded-lg px-1.5 py-1 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                  >
+                    <span className="truncate">{providerLabel}</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  </button>
+                ) : (
+                  <span className="block truncate px-1.5 py-1 text-sm font-medium text-muted-foreground">
+                    {providerLabel}
+                  </span>
                 )}
               </div>
-            )}
+              <ComposerMenuSeparator />
 
-            {hasEffortSection && (
-              <>
-                {hasModelSection && <ComposerMenuSeparator />}
-                <div className="px-2 pb-1.5 pt-1" role="group" aria-label={t('composer.reasoning', { defaultValue: 'Reasoning' })}>
-                  <div className="mb-1.5 flex items-center justify-between gap-3 px-0.5 text-xs">
-                    <span className="text-muted-foreground">
-                      {t('composer.effort', { defaultValue: 'Effort' })}
-                    </span>
-                    <span className="font-medium capitalize text-foreground">{effortLabel}</span>
-                  </div>
-                  <div
-                    ref={effortTrackRef}
-                    role="radiogroup"
-                    aria-label={t('composer.reasoning', { defaultValue: 'Reasoning' })}
-                    className="grid h-8 cursor-ew-resize touch-none select-none rounded-lg bg-muted/70 p-0.5"
-                    style={{ gridTemplateColumns: `repeat(${resolvedEffortOptions.length}, minmax(0, 1fr))` }}
-                    onPointerDown={handleEffortPointerDown}
-                    onPointerMove={handleEffortPointerMove}
-                    onPointerUp={handleEffortPointerUp}
-                    onPointerCancel={handleEffortPointerCancel}
-                  >
-                    {resolvedEffortOptions.map((option) => {
-                      const label = option.value === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : option.value;
-                      const isSelected = option.value === effort;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          role="radio"
-                          aria-checked={isSelected}
-                          aria-label={label}
-                          title={option.description || label}
-                          onClick={() => {
-                            if (suppressEffortClickRef.current) return;
-                            effortDragRef.current.lastValue = option.value;
-                            onSelectEffort(option.value);
-                          }}
-                          className="group flex min-w-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          <span className={isSelected
-                            ? 'h-6 w-6 rounded-md border border-border bg-background shadow-sm'
-                            : 'h-1 w-1 rounded-full bg-muted-foreground/45 transition-colors group-hover:bg-muted-foreground'}
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
+              {hasModelSection && (
+                <div className="py-0.5">
+                  {modelOptions.length === 0 && modelsLoading && (
+                    <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
+                      {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
+                    </p>
+                  )}
+                  {modelOptions.map((option) => (
+                    <ComposerMenuItem
+                      key={option.value}
+                      label={option.label || option.value}
+                      isSelected={option.value === model}
+                      onSelect={() => { void handleSelectModel(option.value); }}
+                      disabled={selectingModel !== null}
+                      trailing={selectingModel === option.value
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : undefined}
+                    />
+                  ))}
+                  {selectionError && (
+                    <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
+                      {selectionError}
+                    </p>
+                  )}
                 </div>
+              )}
+
+              {hasEffortSection && (
+                <>
+                  {hasModelSection && <ComposerMenuSeparator />}
+                  <div className="px-2 pb-1.5 pt-1" role="group" aria-label={t('composer.reasoning', { defaultValue: 'Reasoning' })}>
+                    <div className="mb-1.5 flex items-center justify-between gap-3 px-0.5 text-xs">
+                      <span className="text-muted-foreground">
+                        {t('composer.effort', { defaultValue: 'Effort' })}
+                      </span>
+                      <span className="font-medium capitalize text-foreground">{effortLabel}</span>
+                    </div>
+                    <div
+                      ref={effortTrackRef}
+                      role="radiogroup"
+                      aria-label={t('composer.reasoning', { defaultValue: 'Reasoning' })}
+                      className="grid h-8 cursor-ew-resize touch-none select-none rounded-lg bg-muted/70 p-0.5"
+                      style={{ gridTemplateColumns: `repeat(${resolvedEffortOptions.length}, minmax(0, 1fr))` }}
+                      onPointerDown={handleEffortPointerDown}
+                      onPointerMove={handleEffortPointerMove}
+                      onPointerUp={handleEffortPointerUp}
+                      onPointerCancel={handleEffortPointerCancel}
+                    >
+                      {resolvedEffortOptions.map((option) => {
+                        const label = option.value === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : option.value;
+                        const isSelected = option.value === effort;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            aria-label={label}
+                            title={option.description || label}
+                            onClick={() => {
+                              if (suppressEffortClickRef.current) return;
+                              effortDragRef.current.lastValue = option.value;
+                              onSelectEffort(option.value);
+                            }}
+                            className="group flex min-w-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <span className={isSelected
+                              ? 'h-6 w-6 rounded-md border border-border bg-background shadow-sm'
+                              : 'h-1 w-1 rounded-full bg-muted-foreground/45 transition-colors group-hover:bg-muted-foreground'}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
               </>
             )}
           </div>
