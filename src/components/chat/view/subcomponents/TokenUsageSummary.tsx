@@ -299,6 +299,7 @@ export default function TokenUsageSummary({
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 19 * 16);
   const usageProvider = toUsageProvider(provider);
   const planUsage = useProviderUsage(usageProvider);
+  const refreshPlanUsageIfStale = planUsage.refreshIfStale;
 
   useEffect(() => {
     if (request.id <= handledRequestId.current) return;
@@ -313,7 +314,8 @@ export default function TokenUsageSummary({
     }
     updateAnchor();
     setIsOpen(true);
-  }, [request, updateAnchor]);
+    refreshPlanUsageIfStale();
+  }, [request, updateAnchor, refreshPlanUsageIfStale]);
   const breakdown =
     usage?.breakdown && typeof usage.breakdown === 'object'
       ? usage.breakdown as Record<string, unknown>
@@ -385,6 +387,7 @@ export default function TokenUsageSummary({
           setView('summary');
           updateAnchor();
           setIsOpen(true);
+          refreshPlanUsageIfStale();
         }}
         className="inline-flex h-8 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         title={accessibleTitle}
@@ -481,6 +484,14 @@ export default function TokenUsageSummary({
                     </span>
                   </div>
                 </section>
+              )}
+
+              {providerUsage?.stale && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {t('planUsage.stale', {
+                    defaultValue: 'Showing cached data — the last refresh failed.',
+                  })}
+                </p>
               )}
 
               {!providerUsage && planUsage.loading && (

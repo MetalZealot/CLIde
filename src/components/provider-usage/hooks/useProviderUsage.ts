@@ -56,14 +56,24 @@ type UseProviderUsageOptions = {
 
 /**
  * Loads plan rate-limit usage for a provider: once on mount (respecting the
- * shared client cache) plus on-demand via `refresh()`, which bypasses caching.
- * Pass `provider: null` (or `enabled: false`) to disable entirely.
+ * shared client cache), on-demand via `refresh()`, which bypasses caching, and
+ * via `refreshIfStale()`, which re-fetches only past the cache TTL. Pass
+ * `provider: null` (or `enabled: false`) to disable entirely.
  */
 export function useProviderUsage(
   provider: LLMProvider | null,
   { enabled = true }: UseProviderUsageOptions = {},
 ) {
   const [state, setState] = useState<UsageFetchState>({ usage: null, loading: false, error: null });
+
+  const isCacheFresh = useCallback(() => {
+    if (!provider) {
+      return true;
+    }
+
+    const cached = usageCache.get(provider);
+    return Boolean(cached && Date.now() - cached.fetchedAtMs < CLIENT_CACHE_TTL_MS);
+  }, [provider]);
 
   const load = useCallback(async (refresh: boolean) => {
     if (!provider) {
@@ -95,15 +105,28 @@ export function useProviderUsage(
     }
 
     void load(false);
-  }, [provider, enabled, load]);
+  }, [provider, enabled, isCacheFresh, load]);
 
   const refresh = useCallback(() => {
     void load(true);
   }, [load]);
 
+  // The mount fetch is the only automatic one, and this app is a long-lived PWA
+  // whose composer never remounts — so without this the bars keep showing the
+  // numbers from whenever the tab was opened, possibly days ago. Surfaces that
+  // open on demand call this each time they open; the shared TTL keeps it to at
+  // most one request a minute.
+  const refreshIfStale = useCallback(() => {
+    if (!provider || isCacheFresh()) {
+      return;
+    }
+
+    void load(false);
+  }, [provider, isCacheFresh, load]);
+
   // A settings/provider switch can reuse the same hook instance. Never expose
   // the previous provider's cached bars while the new request is starting.
   const usage = state.usage?.provider === provider ? state.usage : null;
 
-  return { ...state, usage, refresh };
+  return { ...state, usage, refresh, refreshIfStale };
 }
