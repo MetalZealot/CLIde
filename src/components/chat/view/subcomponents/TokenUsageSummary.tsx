@@ -20,6 +20,7 @@ import type {
   UsagePopoverView,
 } from '../../hooks/useChatComposerState';
 
+import { ComposerMenuSurface } from './ComposerMenuPrimitives';
 import ContextBreakdownView from './ContextBreakdownView';
 
 type TokenUsageSummaryProps = {
@@ -406,22 +407,18 @@ export default function TokenUsageSummary({
         <span className="hidden font-medium text-foreground md:inline">{formatTokenCount(usedTokens)}</span>
       </button>
       {isOpen && anchor && createPortal(
-        <div
+        <ComposerMenuSurface
           id={popoverId}
-          ref={menuRef}
+          anchor={anchor}
+          menuRef={menuRef}
           role="dialog"
-          aria-label={view === 'summary'
+          fillAnchorWidth
+          className="px-4 py-3"
+          ariaLabel={view === 'summary'
             ? 'Session and plan usage'
             : view === 'breakdown'
               ? 'Session breakdown'
               : 'Usage activity'}
-          className="fixed z-[100] overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover px-4 py-3 text-popover-foreground shadow-xl"
-          style={{
-            right: anchor.right,
-            bottom: anchor.bottom,
-            width: anchor.maxWidth,
-            maxHeight: anchor.maxHeight,
-          }}
         >
           <div className="mb-3 text-[11px] font-medium text-muted-foreground">
             Context &amp; Usage
@@ -550,7 +547,7 @@ export default function TokenUsageSummary({
               )}
             </div>
           )}
-        </div>,
+        </ComposerMenuSurface>,
         document.body,
       )}
     </>

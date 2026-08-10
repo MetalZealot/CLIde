@@ -4,29 +4,47 @@ import { Check } from 'lucide-react';
 import { cn } from '../../../../lib/utils';
 import type { ComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 
+/**
+ * The one popover surface every composer control renders into. `role="dialog"` and
+ * `fillAnchorWidth` exist for the usage popover, which is a reading surface rather
+ * than a list and wants a stable width instead of shrinking to its content.
+ */
 export function ComposerMenuSurface({
   anchor,
   menuRef,
   ariaLabel,
   children,
+  id,
+  role = 'menu',
+  className,
+  fillAnchorWidth = false,
 }: {
   anchor: ComposerMenuAnchor;
   menuRef: Ref<HTMLDivElement>;
   ariaLabel: string;
   children: ReactNode;
+  id?: string;
+  role?: 'menu' | 'dialog';
+  className?: string;
+  fillAnchorWidth?: boolean;
 }) {
   return (
     <div
+      id={id}
       ref={menuRef}
-      role="menu"
+      role={role}
       aria-label={ariaLabel}
-      className="fixed z-[100] overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl"
+      className={cn(
+        'fixed z-[100] overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl',
+        className,
+      )}
       style={{
         right: anchor.right,
         bottom: anchor.bottom,
-        minWidth: Math.min(12 * 16, anchor.maxWidth),
         maxHeight: anchor.maxHeight,
-        maxWidth: anchor.maxWidth,
+        ...(fillAnchorWidth
+          ? { width: anchor.maxWidth }
+          : { minWidth: Math.min(12 * 16, anchor.maxWidth), maxWidth: anchor.maxWidth }),
       }}
     >
       {children}
