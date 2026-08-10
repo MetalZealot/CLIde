@@ -112,7 +112,7 @@ export default function SidebarSessionItem({
   // line of its own, so a merged repository row is no taller per session.
   const branchBadge = branchLabel ? (
     <span
-      className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground/70"
+      className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
       title={branchLabel}
     >
       <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
@@ -227,9 +227,9 @@ export default function SidebarSessionItem({
               // Matches the repository header's px-3 so labels down the whole
               // sidebar share one text edge instead of two by a few pixels.
               'long-pressable my-0.5 rounded-md px-3 py-2 transition-all duration-150 relative',
-              isSectionItem ? 'mx-3' : 'ml-1 mr-3',
+              isSectionItem ? 'mx-3' : 'ml-2 mr-3',
               isContextActive && 'scale-[0.98] bg-accent/60',
-              isSelected ? 'bg-primary/10' : 'active:bg-accent/50',
+              isSelected ? 'bg-primary/15' : 'active:bg-accent/50',
             )}
             onClick={selectMobileSession}
             {...longPress}
@@ -240,11 +240,21 @@ export default function SidebarSessionItem({
                   {isStarred && (
                     <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                   )}
-                  <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
+                  <div
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-sm text-foreground',
+                      // Weight is the scarcest signal in a 30-row list, so it
+                      // marks state only. Level is carried by the repository
+                      // row's `font-medium` and by the rail's indent.
+                      isUnread ? 'font-medium' : 'font-normal',
+                    )}
+                  >
+                    {sessionView.sessionName}
+                  </div>
                   {activityState ? (
                     <SidebarStatusIndicator status={activityState} t={t} className="ml-auto" />
                   ) : compactSessionAge && (
-                    <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                    <span className="ml-auto flex-shrink-0 text-xs text-muted-foreground">{compactSessionAge}</span>
                   )}
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5">
@@ -254,7 +264,7 @@ export default function SidebarSessionItem({
                     </Badge>
                   )}
                   {projectLabel && (
-                    <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">{projectLabel}</span>
                   )}
                   {branchBadge}
                   <span className="ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center">
@@ -274,7 +284,7 @@ export default function SidebarSessionItem({
             buttonVariants({ variant: 'ghost' }),
             // Surface on hover or when current; status stays in its symbol slot.
             'h-auto w-full justify-start rounded-md px-3 py-2 text-left font-normal transition-all duration-150',
-            isSelected ? 'bg-primary/10' : 'hover:bg-accent/50',
+            isSelected ? 'bg-primary/15' : 'hover:bg-accent/50',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
           // native right-click menu use the href to open a new tab/window.
@@ -290,7 +300,17 @@ export default function SidebarSessionItem({
                 {isStarred && (
                   <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                 )}
-                <div className="min-w-0 flex-1 truncate text-sm font-normal text-foreground">{sessionView.sessionName}</div>
+                <div
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-sm text-foreground',
+                      // Weight is the scarcest signal in a 30-row list, so it
+                      // marks state only. Level is carried by the repository
+                      // row's `font-medium` and by the rail's indent.
+                      isUnread ? 'font-medium' : 'font-normal',
+                    )}
+                  >
+                    {sessionView.sessionName}
+                  </div>
                 {activityState ? (
                   <SidebarStatusIndicator
                     status={activityState}
@@ -303,7 +323,7 @@ export default function SidebarSessionItem({
                 ) : compactSessionAge && (
                   <span
                     className={cn(
-                      'ml-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
+                      'ml-auto flex-shrink-0 text-xs text-muted-foreground transition-opacity duration-200',
                       isEditing ? 'opacity-0' : 'group-hover:opacity-0',
                     )}
                   >
@@ -314,7 +334,7 @@ export default function SidebarSessionItem({
               <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
                 {projectLabel && (
-                  <span className="min-w-0 truncate text-[11px] text-muted-foreground/70">{projectLabel}</span>
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">{projectLabel}</span>
                 )}
                 {branchBadge}
                 <span className="ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center">

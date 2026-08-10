@@ -318,7 +318,7 @@ export default function SidebarRepositoryItem({
               // not a colour is set, so adding one never shifts the text.
               'long-pressable relative overflow-hidden mx-3 my-0.5 rounded-lg px-3 py-2 transition-all duration-150',
               isContextActive && 'scale-[0.98] bg-accent/60',
-              isSelected ? 'bg-primary/10' : 'active:bg-accent/50',
+              isSelected ? 'bg-primary/15' : 'active:bg-accent/50',
             )}
             onClick={toggleProject}
             {...longPress}
@@ -357,7 +357,7 @@ export default function SidebarRepositoryItem({
                     <>
                       <div className="flex min-w-0 flex-1 items-center justify-between">
                         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                          <h3 className="truncate text-sm font-normal text-foreground">{entry.displayName}</h3>
+                          <h3 className="truncate text-sm font-medium text-foreground">{entry.displayName}</h3>
                         </div>
                         {tasksEnabled && (
                           <TaskIndicator
@@ -428,7 +428,7 @@ export default function SidebarRepositoryItem({
           variant="ghost"
           className={cn(
             'hidden md:flex relative overflow-hidden w-full justify-between px-3 py-2 h-auto font-normal hover:bg-accent/50',
-            isSelected && 'bg-primary/10',
+            isSelected && 'bg-primary/15',
           )}
           onClick={selectAndToggleProject}
         >
@@ -459,7 +459,7 @@ export default function SidebarRepositoryItem({
                 </div>
               ) : (
                 <div>
-                  <div className="truncate text-sm font-normal text-foreground" title={entry.displayName}>
+                  <div className="truncate text-sm font-medium text-foreground" title={entry.displayName}>
                     {entry.displayName}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -559,7 +559,10 @@ export default function SidebarRepositoryItem({
             label={t('sessions.title')}
             icon={MessageSquare}
             summary={(
-              <span className="ml-auto flex items-center gap-1 normal-case tracking-normal">
+              // -my-1 keeps these 24px controls from growing the section
+              // header's 16px box; the touch target stays 24px, the layout
+              // height matches Pinned and Projects.
+              <span className="-my-1 ml-auto flex items-center gap-1 normal-case tracking-normal">
                 {onOpenViewMenu && (
                   <button
                     ref={viewMenuRef}
@@ -590,6 +593,7 @@ export default function SidebarRepositoryItem({
 
       <SidebarProjectSessions
         entry={entry}
+        accentColor={accentColor}
         isExpanded={isExpanded}
         sessions={sessions}
         selectedSession={selectedSession}

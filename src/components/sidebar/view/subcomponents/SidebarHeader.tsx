@@ -83,23 +83,31 @@ export default function SidebarHeader({
     </div>
   );
 
-  /** Compact global actions shared by the desktop sidebar and mobile drawer. */
+  /**
+   * Global actions in the header.
+   *
+   * New Chat is desktop-only here. On a phone the header is the far corner of
+   * a full-height drawer, so the sidebar's highest-frequency action lives in
+   * the footer row instead, which is already in the thumb zone — see
+   * `SidebarFooter`. It is an in-flow row rather than a floating pill
+   * deliberately (the reasoning in ADR 0005 applies): a `fixed` control would
+   * sit on top of the list's own last action.
+   */
   const renderHeaderTools = (compact: boolean) => {
     return (
       <div className="flex items-center gap-0.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(
-            'rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground',
-            compact ? 'h-8 w-8 active:scale-95' : 'h-7 w-7',
-          )}
-          onClick={onOpenNewSession}
-          aria-label={t('sessions.newSession')}
-          title={t('sessions.newSession')}
-        >
-          <MessageSquarePlus strokeWidth={1.5} className={compact ? '!h-5 !w-5' : 'h-3.5 w-3.5'} />
-        </Button>
+        {!compact && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+            onClick={onOpenNewSession}
+            aria-label={t('sessions.newSession')}
+            title={t('sessions.newSession')}
+          >
+            <MessageSquarePlus strokeWidth={1.5} className="h-3.5 w-3.5" />
+          </Button>
+        )}
 
         <Button
           variant="ghost"

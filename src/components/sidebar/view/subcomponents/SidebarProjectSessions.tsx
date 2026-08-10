@@ -5,11 +5,14 @@ import type { SessionActivityMap } from '../../../../hooks/useSessionProtection'
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { CheckoutSession, RepositoryEntry, SessionWithProvider } from '../../types/types';
 import { SESSION_PAGE_SIZE } from '../../hooks/useSidebarController';
+import { projectAccentColorValue, type ProjectAccentColor } from '../../utils/accentColors';
 
 import SidebarSessionItem from './SidebarSessionItem';
 
 type SidebarProjectSessionsProps = {
   entry: RepositoryEntry;
+  /** Lets the rail continue the repository row's highlight strip. */
+  accentColor: ProjectAccentColor | null;
   isExpanded: boolean;
   sessions: CheckoutSession[];
   selectedSession: ProjectSession | null;
@@ -47,7 +50,7 @@ function SessionListSkeleton() {
   return (
     <>
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="rounded-md p-2">
+        <div key={index} className="my-0.5 rounded-md py-2 pl-5 pr-3">
           <div className="flex items-start gap-2">
             <div className="mt-0.5 h-3 w-3 animate-pulse rounded-full bg-muted" />
             <div className="flex-1 space-y-1">
@@ -71,6 +74,7 @@ function SessionListSkeleton() {
  */
 export default function SidebarProjectSessions({
   entry,
+  accentColor,
   isExpanded,
   sessions,
   selectedSession,
@@ -114,15 +118,24 @@ export default function SidebarProjectSessions({
   // the row back to its first page, so opening it is not a one-way door.
   const canShowLess = !canShowMore && visibleSessionCount > SESSION_PAGE_SIZE;
 
-  // The rail marks the list as belonging to the row above it, and that is all
-  // the indent it needs: each session already carries a provider logo, which
-  // sets its text in from the left on its own.
+  // The rail is deliberately the same width and x-position as the repository
+  // row's accent strip (`w-1` inside an `mx-3` row), so an open project and its
+  // sessions read as one spine instead of two unrelated verticals 4px apart.
+  // It carries the project's colour for the same reason — that, rather than a
+  // background tint, is what marks the row as expanded.
+  //
+  // No `space-y` here: rows own their spacing through `my-0.5`, and adding 4px
+  // on top of it made this list twice as airy as the identical-looking Pinned
+  // list above it.
   return (
-    <div className="ml-2 space-y-1 border-l border-border pl-1">
+    <div
+      className="ml-3 border-l-4 border-border"
+      style={accentColor ? { borderColor: projectAccentColorValue(accentColor) } : undefined}
+    >
       {!initialSessionsLoaded ? (
         <SessionListSkeleton />
       ) : !hasSessions ? (
-        <div className="px-3 py-2 text-left">
+        <div className="py-2 pl-5 pr-3 text-left">
           <p className="text-xs text-muted-foreground">{t('sessions.noSessions')}</p>
         </div>
       ) : (
@@ -162,10 +175,10 @@ export default function SidebarProjectSessions({
             <Button
               variant="ghost"
               size="sm"
-              // pl-4 lands on the session labels' text edge (their ml-1 plus
+              // pl-5 lands on the session labels' text edge (their ml-2 plus
               // px-3), so this reads as part of the list rather than a control
               // hanging off it.
-              className="h-7 w-full justify-start pl-4 pr-3 text-xs text-muted-foreground hover:text-foreground"
+              className="my-0.5 h-7 w-full justify-start pl-5 pr-3 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => (canShowMore ? onShowAllSessions(entry) : onCollapseSessions(entry))}
               disabled={isLoadingMoreSessions}
             >

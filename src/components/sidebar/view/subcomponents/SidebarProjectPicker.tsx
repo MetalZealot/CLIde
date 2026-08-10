@@ -6,6 +6,8 @@ import { ContextMenuOverlay, anchorFromElement } from '../../../../shared/view/u
 import { cn } from '../../../../lib/utils';
 import type { RepositoryEntry } from '../../types/types';
 
+import { SIDEBAR_SECTION_HEADER_CLASS } from './SidebarSectionHeader';
+
 type SidebarProjectPickerProps = {
   entries: RepositoryEntry[];
   selectedEntryKey: string | null;
@@ -70,8 +72,12 @@ export default function SidebarProjectPicker({ entries, selectedEntryKey, onSele
         disabled={entries.length === 0}
         onClick={() => setIsOpen((current) => !current)}
         className={cn(
-          'flex min-h-11 w-full items-center gap-1.5 px-3 md:min-h-0 md:px-2 md:pb-1 md:pt-2',
-          'text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70',
+          // Shares the section-label metrics rather than restating them. The
+          // old `min-h-11` bought a 44px touch target at the cost of making
+          // this header visibly unlike Pinned and Sessions; the padded box is
+          // still ~30px tall and full-width, which clears WCAG 2.5.8's 24px
+          // floor on the axis that is actually tight.
+          SIDEBAR_SECTION_HEADER_CLASS,
           'transition-colors hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground/70',
         )}
       >
