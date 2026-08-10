@@ -187,6 +187,8 @@ export function useSidebarController({
   const [isArchivedSessionsLoading, setIsArchivedSessionsLoading] = useState(false);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [loadingMoreProjects, setLoadingMoreProjects] = useState<Set<string>>(new Set());
+  // Projects whose next session page is already being fetched.
+  const inFlightSessionPagesRef = useRef<Set<string>>(new Set());
   const searchSeqRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const onRefreshRef = useRef(onRefresh);
@@ -520,21 +522,26 @@ export function useSidebarController({
       return;
     }
 
-    let shouldLoad = false;
+    // The in-flight guard is a ref, not the state set: React only runs a state
+    // updater eagerly when nothing else is queued on that fiber, so reading the
+    // decision out of the updater loses the race under a burst of pages — the
+    // call returns early *after* the updater has marked the row as loading, and
+    // nothing ever clears it. That left the row stuck on "Loading sessions..."
+    // with its own "show less" out of reach.
+    if (inFlightSessionPagesRef.current.has(projectId)) {
+      return;
+    }
+
+    inFlightSessionPagesRef.current.add(projectId);
     setLoadingMoreProjects((previous) => {
       if (previous.has(projectId)) {
         return previous;
       }
 
-      shouldLoad = true;
       const next = new Set(previous);
       next.add(projectId);
       return next;
     });
-
-    if (!shouldLoad) {
-      return;
-    }
 
     try {
       await onLoadMoreSessions(projectId);
@@ -542,6 +549,7 @@ export function useSidebarController({
       console.error('[Sidebar] Failed to load more sessions:', error);
       alert(t('messages.refreshError'));
     } finally {
+      inFlightSessionPagesRef.current.delete(projectId);
       setLoadingMoreProjects((previous) => {
         const next = new Set(previous);
         next.delete(projectId);
