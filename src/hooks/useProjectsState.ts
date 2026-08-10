@@ -10,6 +10,10 @@ import type {
   Project,
   ProjectSession,
 } from '../types/app';
+import type {
+  CreateWorktreeOptions,
+  CreateWorktreeOutcome,
+} from '../components/sidebar/types/types';
 
 import type { SessionActivityMap } from './useSessionProtection';
 import {
@@ -533,7 +537,7 @@ export function useProjectsState({
     dispatchSessionSignal({ type: 'remove', sessionId: targetSessionId });
   }, []);
 
-  const fetchProjects = useCallback(async ({ showLoadingState = true }: FetchProjectsOptions = {}) => {
+  const fetchProjects = useCallback(async ({ showLoadingState = true }: FetchProjectsOptions = {}): Promise<Project[]> => {
     try {
       if (showLoadingState) {
         setIsLoadingProjects(true);
@@ -553,8 +557,10 @@ export function useProjectsState({
           ? mergedProjects
           : prevProjects;
       });
+      return projectData;
     } catch (error) {
       console.error('Error fetching projects:', error);
+      return projectsRef.current;
     } finally {
       if (showLoadingState) {
         setIsLoadingProjects(false);
@@ -564,8 +570,55 @@ export function useProjectsState({
 
   const refreshProjectsSilently = useCallback(async () => {
     // Keep chat view stable while still syncing sidebar/session metadata in background.
-    await fetchProjects({ showLoadingState: false });
+    return fetchProjects({ showLoadingState: false });
   }, [fetchProjects]);
+
+  /**
+   * Creates and registers a linked worktree, then resolves the returned project
+   * against the refreshed project list so every caller receives the canonical
+   * repository/branch metadata used by the launcher and sidebar.
+   */
+  const createWorktree = useCallback(
+    async (options: CreateWorktreeOptions): Promise<CreateWorktreeOutcome> => {
+      const response = await api.createWorktree(options.projectId, {
+        branch: options.branch,
+        path: options.worktreePath ?? null,
+        baseRef: options.baseRef ?? null,
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string | { message?: string; details?: string };
+        };
+        const error = data.error;
+        throw new Error(
+          typeof error === 'string'
+            ? error
+            : error?.details || error?.message || 'Failed to create worktree',
+        );
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        data?: {
+          worktreePath?: string;
+          project?: Project | null;
+          registrationError?: string | null;
+        };
+      };
+      const refreshedProjects = await refreshProjectsSilently();
+      const returnedProject = payload.data?.project ?? null;
+      const canonicalProject = returnedProject
+        ? refreshedProjects.find((project) => project.projectId === returnedProject.projectId) ?? returnedProject
+        : null;
+
+      return {
+        worktreePath: payload.data?.worktreePath ?? '',
+        project: canonicalProject,
+        registrationError: payload.data?.registrationError ?? null,
+      };
+    },
+    [refreshProjectsSilently],
+  );
 
   const registerOptimisticSession = useCallback(({
     sessionId: newSessionId,
@@ -696,13 +749,6 @@ export function useProjectsState({
 
     void hydrateProjectTaskMaster(selectedProject.projectId);
   }, [hydrateProjectTaskMaster, selectedProject?.projectId]);
-
-  // Auto-select the project when there is only one, so the user lands on the new session page
-  useEffect(() => {
-    if (!isLoadingProjects && projects.length === 1 && !selectedProject && !sessionId) {
-      setSelectedProject(projects[0]);
-    }
-  }, [isLoadingProjects, projects, selectedProject, sessionId]);
 
   // Realtime sidebar updates. The backend pushes per-session deltas
   // (`session_upserted`) instead of full project snapshots, so each event is
@@ -1071,6 +1117,18 @@ export function useProjectsState({
     [isMobile, navigate],
   );
 
+  const handleOpenNewSession = useCallback(() => {
+    setSelectedProject(null);
+    setSelectedSession(null);
+    setActiveTab('chat');
+    setNewSessionTrigger((previous) => previous + 1);
+    navigate('/');
+
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  }, [isMobile, navigate]);
+
   const handleSessionDelete = useCallback(
     (sessionIdToDelete: string) => {
       removeSessionSignals(sessionIdToDelete);
@@ -1219,7 +1277,9 @@ export function useProjectsState({
       unreadSessionIds,
       onProjectSelect: handleProjectSelect,
       onSessionSelect: handleSessionSelect,
+      onOpenNewSession: handleOpenNewSession,
       onNewSession: handleNewSession,
+      onCreateWorktree: createWorktree,
       onSessionDelete: handleSessionDelete,
       onSessionStarPatch: handleSessionStarPatch,
       onLoadMoreSessions: loadMoreProjectSessions,
@@ -1236,7 +1296,9 @@ export function useProjectsState({
     [
       attentionSessionIds,
       unreadSessionIds,
+      handleOpenNewSession,
       handleNewSession,
+      createWorktree,
       handleProjectDelete,
       handleProjectSelect,
       handleSessionDelete,
@@ -1281,6 +1343,7 @@ export function useProjectsState({
     handleProjectSelect,
     handleSessionSelect,
     handleNewSession,
+    createWorktree,
     handleSessionDelete,
     loadMoreProjectSessions,
     handleProjectDelete,

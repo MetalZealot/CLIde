@@ -62,6 +62,7 @@ function AppContentInner() {
   } = useSessionProtection();
 
   const {
+    projects,
     selectedProject,
     selectedSession,
     activeTab,
@@ -77,6 +78,7 @@ function AppContentInner() {
     registerOptimisticSession,
     sidebarSharedProps,
     handleNewSession,
+    createWorktree,
     handleProjectSelect,
   } = useProjectsState({
     sessionId,
@@ -145,7 +147,9 @@ function AppContentInner() {
 
   usePaletteOpsRegister({
     openSettings,
-    refreshProjects: refreshProjectsSilently,
+    refreshProjects: async () => {
+      await refreshProjectsSilently();
+    },
   });
 
   useEffect(() => {
@@ -220,6 +224,7 @@ function AppContentInner() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <MainContent
+          projects={projects}
           selectedProject={selectedProject}
           selectedSession={selectedSession}
           activeTab={activeTab}
@@ -243,7 +248,9 @@ function AppContentInner() {
           externalMessageUpdate={externalMessageUpdate}
           newSessionTrigger={newSessionTrigger}
           onProjectSelect={handleProjectSelect}
-          onProjectsRefresh={() => void refreshProjectsSilently()}
+          onNewSessionTarget={handleNewSession}
+          onCreateWorktree={createWorktree}
+          onProjectsRefresh={refreshProjectsSilently}
         />
       </div>
 

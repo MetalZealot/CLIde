@@ -1,4 +1,4 @@
-import { MessageSquare, Search, X, PanelLeftClose } from 'lucide-react';
+import { MessageSquare, MessageSquarePlus, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, Input } from '../../../../shared/view/ui';
@@ -22,6 +22,7 @@ type SidebarHeaderProps = {
   searchMode: SidebarSearchMode;
   onSearchModeChange: (mode: SidebarSearchMode) => void;
   onCollapseSidebar: () => void;
+  onOpenNewSession: () => void;
   t: TFunction;
 };
 
@@ -34,6 +35,7 @@ export default function SidebarHeader({
   searchMode,
   onSearchModeChange,
   onCollapseSidebar,
+  onOpenNewSession,
   t,
 }: SidebarHeaderProps) {
   // Every mode searches sessions now — the sidebar's short list of
@@ -81,25 +83,41 @@ export default function SidebarHeader({
     </div>
   );
 
-  /** The title row keeps one structural control: collapse/close Sidebar. */
+  /** Compact global actions shared by the desktop sidebar and mobile drawer. */
   const renderHeaderTools = (compact: boolean) => {
     return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn(
-          'rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground',
-          compact ? 'h-8 w-8 active:scale-95' : 'h-7 w-7',
-        )}
-        onClick={onCollapseSidebar}
-        aria-label={t('tooltips.hideSidebar')}
-        title={t('tooltips.hideSidebar')}
-      >
-        {/* Button applies [&_svg]:size-4. The mobile opener is a plain button
-            at 20px, so make this override explicit rather than letting the
-            shared default silently shrink the close glyph to 16px. */}
-        <PanelLeftClose strokeWidth={1.5} className={compact ? '!h-5 !w-5' : 'h-3.5 w-3.5'} />
-      </Button>
+      <div className="flex items-center gap-0.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground',
+            compact ? 'h-8 w-8 active:scale-95' : 'h-7 w-7',
+          )}
+          onClick={onOpenNewSession}
+          aria-label={t('sessions.newSession')}
+          title={t('sessions.newSession')}
+        >
+          <MessageSquarePlus strokeWidth={1.5} className={compact ? '!h-5 !w-5' : 'h-3.5 w-3.5'} />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground',
+            compact ? 'h-8 w-8 active:scale-95' : 'h-7 w-7',
+          )}
+          onClick={onCollapseSidebar}
+          aria-label={t('tooltips.hideSidebar')}
+          title={t('tooltips.hideSidebar')}
+        >
+          {/* Button applies [&_svg]:size-4. The mobile opener is a plain button
+              at 20px, so make this override explicit rather than letting the
+              shared default silently shrink the close glyph to 16px. */}
+          <PanelLeftClose strokeWidth={1.5} className={compact ? '!h-5 !w-5' : 'h-3.5 w-3.5'} />
+        </Button>
+      </div>
     );
   };
 

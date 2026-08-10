@@ -7,6 +7,10 @@ import type {
   SessionActivityMap,
 } from '../../../hooks/useSessionProtection';
 import type { SessionEstablishedContext, SessionNavigationOptions } from '../../chat/types/types';
+import type {
+  CreateWorktreeOptions,
+  CreateWorktreeOutcome,
+} from '../../sidebar/types/types';
 
 export type TaskMasterTask = {
   id: string | number;
@@ -38,6 +42,7 @@ export type PrdFile = {
 };
 
 export type MainContentProps = {
+  projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   activeTab: AppTab;
@@ -58,8 +63,11 @@ export type MainContentProps = {
   newSessionTrigger: number;
   /** Switches the app to another project. */
   onProjectSelect: (project: Project) => void;
+  /** Selects a checkout as the target of a fresh chat and resets chat-local state. */
+  onNewSessionTarget: (project: Project) => void;
+  onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   /** Silently re-syncs the sidebar project list. */
-  onProjectsRefresh: () => void;
+  onProjectsRefresh: () => Promise<Project[]>;
 };
 
 export type MainContentHeaderProps = {

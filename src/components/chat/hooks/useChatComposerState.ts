@@ -369,6 +369,7 @@ export function useChatComposerState({
   >(null);
   const inputValueRef = useRef(input);
   const selectedProjectId = selectedProject?.projectId;
+  const previousSelectedProjectIdRef = useRef(selectedProjectId);
   // Prefer the stable backend-allocated id (selectedSession.id) but fall back
   // to currentSessionId for a just-established session that hasn't been
   // handed back to the parent's `selectedSession` prop yet.
@@ -1338,6 +1339,20 @@ export function useChatComposerState({
   useEffect(() => {
     inputValueRef.current = input;
   }, [input]);
+
+  useEffect(() => {
+    const previousProjectId = previousSelectedProjectIdRef.current;
+    previousSelectedProjectIdRef.current = selectedProjectId;
+    if (!previousProjectId || !selectedProjectId || previousProjectId === selectedProjectId) {
+      return;
+    }
+
+    // Text drafts are intentionally per checkout and are restored below. File
+    // objects are transient, so never carry them silently into another target.
+    setAttachedFiles([]);
+    setUploadingFiles(new Map());
+    setFileErrors(new Map());
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (!selectedProjectId) {

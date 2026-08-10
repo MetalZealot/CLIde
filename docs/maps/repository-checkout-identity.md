@@ -34,7 +34,17 @@ projects sharing `git rev-parse --git-common-dir` appear as one repository row;
 their sessions are merged and retain checkout labels. A linked worktree still
 registers as its own stored project, but no longer becomes an unrelated
 top-level sidebar entry. The Projects picker also scopes repository rows rather
-than raw checkouts, while Activity and Pinned remain global navigation.
+than raw checkouts, while Activity and Pinned remain global navigation. Each
+expanded repository has a sticky Sessions subheader whose create menu starts a
+session in its lead checkout or creates a worktree and opens the resulting
+checkout as a new session target; its adjacent menu owns session sorting and
+worktree filtering.
+
+**The New Session launcher uses the same repository grouping.** Its Project
+choice resolves to the repository's main checkout when that checkout is
+registered, while its Worktree choice names every registered checkout by its
+actual branch or detached-HEAD label. Project and worktree creation reuse the
+sidebar workflows; the selected checkout remains the session's `project_path`.
 
 ## Identity rules (ADR 0016)
 

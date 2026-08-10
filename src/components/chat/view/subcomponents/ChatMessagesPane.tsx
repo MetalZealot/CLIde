@@ -3,17 +3,12 @@ import { memo, useCallback, useMemo } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import type { ChatMessage } from '../../types/types';
-import type {
-  Project,
-  ProjectSession,
-  LLMProvider,
-  ProviderModelsDefinition,
-} from '../../../../types/app';
+import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
+import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { groupConsecutiveTools, isToolGroupItem } from '../../utils/toolGrouping';
 
 import MessageComponent from './MessageComponent';
-import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
 import ToolGroupContainer from './ToolGroupContainer';
 import ChatExportMenu from './ChatExportMenu';
 
@@ -27,18 +22,6 @@ interface ChatMessagesPaneProps {
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
   provider: LLMProvider;
-  setProvider: (provider: LLMProvider) => void;
-  textareaRef: RefObject<HTMLTextAreaElement>;
-  claudeModel: string;
-  setClaudeModel: (model: string) => void;
-  cursorModel: string;
-  setCursorModel: (model: string) => void;
-  codexModel: string;
-  setCodexModel: (model: string) => void;
-  opencodeModel: string;
-  setOpenCodeModel: (model: string) => void;
-  providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
-  providerModelsLoading: boolean;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -52,10 +35,12 @@ interface ChatMessagesPaneProps {
   createDiff: any;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
-  onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
+  onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => {
+    success: boolean;
+  };
   showRawParameters?: boolean;
   showThinking?: boolean;
-  selectedProject: Project;
+  selectedProject: Project | null;
   onEditMessage?: (message: ChatMessage) => void;
   canEditMessage?: boolean;
   /** Base transcript uuid of the message loaded in the rewind-edit composer. */
@@ -71,18 +56,6 @@ function ChatMessagesPane({
   selectedSession,
   currentSessionId,
   provider,
-  setProvider,
-  textareaRef,
-  claudeModel,
-  setClaudeModel,
-  cursorModel,
-  setCursorModel,
-  codexModel,
-  setCodexModel,
-  opencodeModel,
-  setOpenCodeModel,
-  providerModelCatalog,
-  providerModelsLoading,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
@@ -105,6 +78,9 @@ function ChatMessagesPane({
   rewindEditTargetUuid = null,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
+  const nextTaskPrompt = t('tasks.nextTaskPrompt', {
+    defaultValue: 'Start the next task',
+  });
   const groupedVisibleMessages = useMemo(
     () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
     [visibleMessages, showThinking],
@@ -140,8 +116,7 @@ function ChatMessagesPane({
   }, [groupedVisibleMessages]);
 
   const getMessageKey = useCallback(
-    (message: ChatMessage) =>
-      messageKeyMap.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
+    (message: ChatMessage) => messageKeyMap.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
     [messageKeyMap],
   );
 
@@ -160,7 +135,9 @@ function ChatMessagesPane({
       )}
       <div
         ref={messagesContentRef}
-        className="mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4"
+        className={`mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4 ${
+          chatMessages.length === 0 && (selectedSession || currentSessionId) ? 'h-full' : ''
+        }`}
       >
       {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
         <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
@@ -170,27 +147,26 @@ function ChatMessagesPane({
           </div>
         </div>
       ) : chatMessages.length === 0 ? (
-        <ProviderSelectionEmptyState
-          selectedSession={selectedSession}
-          currentSessionId={currentSessionId}
-          provider={provider}
-          setProvider={setProvider}
-          textareaRef={textareaRef}
-          claudeModel={claudeModel}
-          setClaudeModel={setClaudeModel}
-          cursorModel={cursorModel}
-          setCursorModel={setCursorModel}
-          codexModel={codexModel}
-          setCodexModel={setCodexModel}
-          opencodeModel={opencodeModel}
-          setOpenCodeModel={setOpenCodeModel}
-          providerModelCatalog={providerModelCatalog}
-          providerModelsLoading={providerModelsLoading}
-          tasksEnabled={tasksEnabled}
-          isTaskMasterInstalled={isTaskMasterInstalled}
-          onShowAllTasks={onShowAllTasks}
-          setInput={setInput}
-        />
+        !selectedSession && !currentSessionId ? null : (
+          <div className="flex h-full items-center justify-center">
+            <div className="max-w-[34.25rem] px-6 text-center">
+              <p className="mb-1.5 text-lg font-semibold text-foreground">
+                {t('session.continue.title')}
+              </p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {t('session.continue.description')}
+              </p>
+              {tasksEnabled && isTaskMasterInstalled && (
+                <div className="mt-5">
+                  <NextTaskBanner
+                    onStartTask={() => setInput(nextTaskPrompt)}
+                    onShowAllTasks={onShowAllTasks}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )
       ) : (
         <>
           {(hasMoreMessages || chatMessages.length > visibleMessageCount) && (
@@ -236,7 +212,7 @@ function ChatMessagesPane({
                     onGrantToolPermission={onGrantToolPermission}
                     showRawParameters={showRawParameters}
                     showThinking={showThinking}
-                    selectedProject={selectedProject}
+                    selectedProject={selectedProject as Project}
                     provider={provider}
                   />
                 );
@@ -256,7 +232,7 @@ function ChatMessagesPane({
                   onGrantToolPermission={onGrantToolPermission}
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
-                  selectedProject={selectedProject}
+                  selectedProject={selectedProject as Project}
                   provider={provider}
                   onEditMessage={onEditMessage}
                   canEditMessage={canEditMessage}

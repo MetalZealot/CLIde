@@ -19,8 +19,8 @@ import type {
 import { buildDefaultProviderCurrentActiveModel } from '@/shared/utils.js';
 
 // Labels carry the version number ("Opus 5", not "Opus") because the
-// new-session picker renders the label alone — it never shows `description`
-// (ProviderSelectionEmptyState.tsx), so a bare family name leaves no way to
+// composer picker renders the label alone — it never shows `description`
+// (ComposerModelMenu.tsx), so a bare family name leaves no way to
 // tell which generation you are picking. The `value` stays the floating alias,
 // so these labels need bumping by hand whenever Claude ships a new generation.
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {

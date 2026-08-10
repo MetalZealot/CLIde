@@ -62,6 +62,7 @@ interface SlashCommand {
 }
 
 interface ChatComposerProps {
+  disabled?: boolean;
   pendingPermissionRequests: PendingPermissionRequest[];
   handlePermissionDecision: (
     requestIds: string | string[],
@@ -138,6 +139,7 @@ interface ChatComposerProps {
 }
 
 export default function ChatComposer({
+  disabled = false,
   pendingPermissionRequests,
   handlePermissionDecision,
   handleGrantToolPermission,
@@ -349,12 +351,19 @@ export default function ChatComposer({
           frequentCommands={frequentCommands}
         />
 
-        <PromptInput
-          onSubmit={onSubmit as (event: FormEvent<HTMLFormElement>) => void}
-          status={isLoading ? 'streaming' : 'ready'}
-          className={isTextareaExpanded ? 'chat-input-expanded' : ''}
-          {...getRootProps()}
+        <fieldset
+          disabled={disabled}
+          className="m-0 min-w-0 border-0 p-0 disabled:cursor-not-allowed disabled:opacity-60"
         >
+          <PromptInput
+            onSubmit={disabled
+              ? (event) => event.preventDefault()
+              : onSubmit as (event: FormEvent<HTMLFormElement>) => void}
+            status={isLoading ? 'streaming' : 'ready'}
+            aria-disabled={disabled}
+            className={isTextareaExpanded ? 'chat-input-expanded' : ''}
+            {...(disabled ? {} : getRootProps())}
+          >
           {isDragActive && (
             <div className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/50 bg-primary/15">
               <div className="rounded-xl border border-border/30 bg-card p-4 shadow-lg">
@@ -513,7 +522,8 @@ export default function ChatComposer({
             </PromptInputSubmit>
           </div>
         </PromptInputFooter>
-      </PromptInput>
+          </PromptInput>
+        </fieldset>
       </div>}
     </div>
   );

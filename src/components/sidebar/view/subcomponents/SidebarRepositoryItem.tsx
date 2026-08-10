@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, ListFilter, TreeDeciduous, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, ListFilter, Plus, TreeDeciduous, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -23,6 +23,7 @@ import { useLongPress } from '../../../../hooks/useLongPress';
 
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
+import SidebarSectionHeader from './SidebarSectionHeader';
 import SidebarStatusIndicator from './SidebarStatusIndicator';
 
 type SidebarRepositoryItemProps = {
@@ -61,9 +62,7 @@ type SidebarRepositoryItemProps = {
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
-  onNewSession: (project: Project) => void;
-  onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
-  onNewWorktree?: (entry: RepositoryEntry) => void;
+  onOpenCreateMenu: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   /** How this row is currently sorted and filtered. */
   viewOptions: RepositoryViewOptions;
   onOpenViewMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
@@ -153,9 +152,7 @@ export default function SidebarRepositoryItem({
   activeSessions,
   unreadSessionIds,
   attentionSessionIds,
-  onNewSession,
-  onNewSessionMenu,
-  onNewWorktree,
+  onOpenCreateMenu,
   viewOptions,
   onOpenViewMenu,
   onEditingSessionNameChange,
@@ -204,14 +201,13 @@ export default function SidebarRepositoryItem({
   });
 
   const mobileRenameInputRef = useRef<HTMLInputElement>(null);
-  const mobileViewMenuRef = useRef<HTMLDivElement>(null);
-  const desktopViewMenuRef = useRef<HTMLDivElement>(null);
+  const viewMenuRef = useRef<HTMLButtonElement>(null);
+  const createMenuRef = useRef<HTMLButtonElement>(null);
 
   /**
-   * The control lives in the header rather than beside New Session because the
-   * header is what stays on screen: it is all that remains when the row is
-   * collapsed, and it sticks to the top while a long list scrolls under it —
-   * which is exactly when a forgotten filter needs to keep announcing itself.
+   * Session-scoped controls live together in the Sessions subheader. That
+   * subheader shares the project's sticky wrapper, so the controls stay tied to
+   * the repository they act on while its session list scrolls underneath.
    */
   const openViewMenu = (element: HTMLElement | null) => {
     const rect = element?.getBoundingClientRect();
@@ -221,18 +217,16 @@ export default function SidebarRepositoryItem({
     );
   };
 
-  /**
-   * Shown once the row is open and its sessions are on screen: there is nothing
-   * to sort while the list is shut, and an always-present control on every row
-   * is clutter on a sidebar that is mostly collapsed rows.
-   *
-   * A row you filtered and then collapsed keeps it, lit — with the list hidden
-   * the control is the only thing left saying the row is not showing everything.
-   */
-  const showViewMenu = Boolean(onOpenViewMenu) && (isExpanded || hasCustomView);
+  const openCreateMenu = (element: HTMLElement | null) => {
+    const rect = element?.getBoundingClientRect();
+    onOpenCreateMenu(
+      entry,
+      anchorFromElement(element, { x: rect?.left ?? 0, y: rect?.bottom ?? 0 }),
+    );
+  };
 
   const viewMenuClasses = cn(
-    'flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded transition-all duration-200',
+    'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded transition-all duration-200',
     hasCustomView ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-accent',
   );
 
@@ -391,18 +385,6 @@ export default function SidebarRepositoryItem({
                     {projectActivityState && (
                       <SidebarStatusIndicator status={projectActivityState} t={t} />
                     )}
-                    {showViewMenu && (
-                      <div
-                        ref={mobileViewMenuRef}
-                        className={viewMenuClasses}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openViewMenu(mobileViewMenuRef.current);
-                        }}
-                      >
-                        <ListFilter className="h-3.5 w-3.5" />
-                      </div>
-                    )}
                     <div className="flex h-6 w-6 items-center justify-center">
                       {isExpanded ? (
                         <ChevronDown className="h-3 w-3 text-muted-foreground" />
@@ -516,19 +498,6 @@ export default function SidebarRepositoryItem({
                   so a nested one would be invalid markup. Same shape the rename
                   and delete controls beside it already use.
                 */}
-                {showViewMenu && (
-                  <div
-                    ref={desktopViewMenuRef}
-                    className={viewMenuClasses}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openViewMenu(desktopViewMenuRef.current);
-                    }}
-                    title={t('sessionView.title', 'Sort and filter sessions')}
-                  >
-                    <ListFilter className="h-3.5 w-3.5" />
-                  </div>
-                )}
                 <div
                   className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
                   onClick={(event) => {
@@ -558,6 +527,38 @@ export default function SidebarRepositoryItem({
             )}
           </div>
         </Button>
+
+        {isExpanded && !isEditing && (
+          <SidebarSectionHeader
+            label={t('sessions.title')}
+            summary={(
+              <span className="ml-auto flex items-center gap-1 normal-case tracking-normal">
+                {onOpenViewMenu && (
+                  <button
+                    ref={viewMenuRef}
+                    type="button"
+                    className={viewMenuClasses}
+                    onClick={() => openViewMenu(viewMenuRef.current)}
+                    title={t('sessionView.title', 'Sort and filter sessions')}
+                    aria-label={t('sessionView.title', 'Sort and filter sessions')}
+                  >
+                    <ListFilter className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  ref={createMenuRef}
+                  type="button"
+                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent"
+                  onClick={() => openCreateMenu(createMenuRef.current)}
+                  title={t('projects.createMenu', 'Create in project')}
+                  aria-label={t('projects.createMenu', 'Create in project')}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            )}
+          />
+        )}
       </div>
 
       <SidebarProjectSessions
@@ -584,9 +585,6 @@ export default function SidebarRepositoryItem({
         visibleSessionCount={visibleSessionCount}
         onShowAllSessions={onShowAllSessions}
         onCollapseSessions={onCollapseSessions}
-        onNewSession={onNewSession}
-        onNewSessionMenu={onNewSessionMenu}
-        onNewWorktree={onNewWorktree}
         onLongPressSessionMenu={onLongPressSessionMenu}
         activeContextMenuKey={activeContextMenuKey}
         t={t}

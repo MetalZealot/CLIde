@@ -1,12 +1,9 @@
-import { useRef } from 'react';
-import { MessageSquare, TreeDeciduous } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button, anchorFromElement } from '../../../../shared/view/ui';
+import { Button, type ContextMenuAnchor } from '../../../../shared/view/ui';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { CheckoutSession, RepositoryEntry, SessionWithProvider } from '../../types/types';
-import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 import { SESSION_PAGE_SIZE } from '../../hooks/useSidebarController';
 
 import SidebarSessionItem from './SidebarSessionItem';
@@ -41,11 +38,6 @@ type SidebarProjectSessionsProps = {
   visibleSessionCount: number;
   onShowAllSessions: (entry: RepositoryEntry) => void;
   onCollapseSessions: (entry: RepositoryEntry) => void;
-  onNewSession: (project: Project) => void;
-  /** Asks which worktree to start in; only reached when there is a choice. */
-  onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
-  /** Opens the worktree manager with its create form already open. */
-  onNewWorktree?: (entry: RepositoryEntry) => void;
   onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
   t: TFunction;
@@ -101,24 +93,15 @@ export default function SidebarProjectSessions({
   visibleSessionCount,
   onShowAllSessions,
   onCollapseSessions,
-  onNewSession,
-  onNewSessionMenu,
-  onNewWorktree,
   onLongPressSessionMenu,
   activeContextMenuKey,
   t,
 }: SidebarProjectSessionsProps) {
-  const mobileNewSessionRef = useRef<HTMLButtonElement>(null);
-  const desktopNewSessionRef = useRef<HTMLButtonElement>(null);
-
   if (!isExpanded) {
     return null;
   }
 
   const hasSessions = sessions.length > 0;
-  // A plain folder has no repository to add a worktree to, and the create form
-  // would only fail server-side with "Not a git repository".
-  const canAddWorktree = Boolean(entry.repositoryId) && Boolean(onNewWorktree);
   const visibleSessions = sessions.slice(0, visibleSessionCount);
   // More to show if this row is holding sessions back, or if the server still
   // has some it has not sent.
@@ -131,79 +114,11 @@ export default function SidebarProjectSessions({
   // the row back to its first page, so opening it is not a one-way door.
   const canShowLess = !canShowMore && visibleSessionCount > SESSION_PAGE_SIZE;
 
-  /**
-   * A new session has to land in exactly one worktree, so when the row covers
-   * several the button asks which — picking for them would silently run the
-   * session against the wrong branch. With one worktree there is no question to
-   * put, so it starts straight away.
-   */
-  const startNewSession = (anchorElement: HTMLElement | null) => {
-    if (entry.checkouts.length > 1 && onNewSessionMenu) {
-      const rect = anchorElement?.getBoundingClientRect();
-      onNewSessionMenu(entry, anchorFromElement(anchorElement, { x: rect?.left ?? 0, y: rect?.bottom ?? 0 }));
-      return;
-    }
-
-    onProjectSelect(entry.leadCheckout);
-    onNewSession(entry.leadCheckout);
-  };
-
   // The rail marks the list as belonging to the row above it, and that is all
   // the indent it needs: each session already carries a provider logo, which
   // sets its text in from the left on its own.
   return (
     <div className="ml-2 space-y-1 border-l border-border pl-1">
-      {/*
-        Both actions share the width the single New Session button used to take.
-        Filtering moved up into the row's header, so nothing here had to be
-        condensed to make room; the two split the row evenly and the difference
-        between them is weight, not size — starting a session is the ordinary
-        act, adding a worktree the occasional one.
-      */}
-      <div className="flex gap-1 pb-1 pl-1 pr-3 pt-1 md:hidden">
-        <button
-          ref={mobileNewSessionRef}
-          className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
-          onClick={() => startNewSession(mobileNewSessionRef.current)}
-        >
-          <MessageSquare className="h-3 w-3 flex-shrink-0" />
-          <span className="truncate">{t('sessions.newSession')}</span>
-        </button>
-        {canAddWorktree && (
-          <button
-            className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium text-foreground transition-all duration-150 active:scale-[0.98] active:bg-accent/50"
-            onClick={() => onNewWorktree?.(entry)}
-          >
-            <TreeDeciduous className="h-3 w-3 flex-shrink-0" />
-            <span className="truncate">{t('worktrees.new')}</span>
-          </button>
-        )}
-      </div>
-
-      <div className="hidden gap-1 md:flex">
-        <Button
-          ref={desktopNewSessionRef}
-          variant="default"
-          size="sm"
-          className="h-8 flex-1 justify-start gap-1.5 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          onClick={() => startNewSession(desktopNewSessionRef.current)}
-        >
-          <MessageSquare className="h-3 w-3 flex-shrink-0" />
-          <span className="truncate">{t('sessions.newSession')}</span>
-        </Button>
-        {canAddWorktree && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 flex-1 justify-start gap-1.5 text-xs font-medium"
-            onClick={() => onNewWorktree?.(entry)}
-          >
-            <TreeDeciduous className="h-3 w-3 flex-shrink-0" />
-            <span className="truncate">{t('worktrees.new')}</span>
-          </Button>
-        )}
-      </div>
-
       {!initialSessionsLoaded ? (
         <SessionListSkeleton />
       ) : !hasSessions ? (

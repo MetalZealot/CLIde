@@ -285,6 +285,15 @@
     },
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
   },
+  "launcher": {
+    "selectProject": "Select Project",
+    "worktreeBranch": "Worktree/Branch",
+    "chooseProject": "Choose a project",
+    "chooseWorktree": "Choose a worktree or branch",
+    "newProject": "New Project…",
+    "newWorktree": "New Worktree…",
+    "composerPlaceholder": "Choose a project to start…"
+  },
   "session": {
     "continue": {
       "title": "Continue your conversation",

@@ -13,9 +13,9 @@ import { getCheckoutRefLabel, isMainCheckout } from '../../utils/utils';
 type WorktreeManagerModalProps = {
   entry: RepositoryEntry;
   onClose: () => void;
-  onRenameWorktree: (projectId: string, displayName: string) => Promise<void> | void;
-  onArchiveWorktree: (project: Project) => void;
-  onRemoveWorktree: (project: Project) => void;
+  onRenameWorktree?: (projectId: string, displayName: string) => Promise<void> | void;
+  onArchiveWorktree?: (project: Project) => void;
+  onRemoveWorktree?: (project: Project) => void;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   onOpenWorktree: (project: Project) => void;
   /**
@@ -24,6 +24,8 @@ type WorktreeManagerModalProps = {
    * than on the list with the form still shut.
    */
   startInCreate?: boolean;
+  /** Reuses only the existing creation workflow from the New Session launcher. */
+  creationOnly?: boolean;
   t: TFunction;
 };
 
@@ -51,11 +53,12 @@ export default function WorktreeManagerModal({
   onCreateWorktree,
   onOpenWorktree,
   startInCreate = false,
+  creationOnly = false,
   t,
 }: WorktreeManagerModalProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
-  const [isCreating, setIsCreating] = useState(startInCreate);
+  const [isCreating, setIsCreating] = useState(startInCreate || creationOnly);
   const [newBranch, setNewBranch] = useState('');
   const [baseRef, setBaseRef] = useState<string>(CURRENT_HEAD);
   const [localBranches, setLocalBranches] = useState<string[]>([]);
@@ -129,7 +132,7 @@ export default function WorktreeManagerModal({
 
     const projectId = editingProjectId;
     setEditingProjectId(null);
-    await onRenameWorktree(projectId, editingName);
+    await onRenameWorktree?.(projectId, editingName);
   };
 
   const submitNewWorktree = async () => {
@@ -150,7 +153,9 @@ export default function WorktreeManagerModal({
       });
 
       setNewBranch('');
-      setIsCreating(false);
+      if (!creationOnly) {
+        setIsCreating(false);
+      }
 
       // The tree exists either way. When CLIde could not adopt it the modal
       // stays open holding the path, because that path is the only way back to
@@ -264,7 +269,7 @@ export default function WorktreeManagerModal({
               <button
                 type="button"
                 className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                onClick={() => onArchiveWorktree(project)}
+                onClick={() => onArchiveWorktree?.(project)}
                 title={t('actions.archive', 'Archive')}
               >
                 <Archive className="h-3.5 w-3.5" />
@@ -272,7 +277,7 @@ export default function WorktreeManagerModal({
               <button
                 type="button"
                 className="flex h-8 w-8 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                onClick={() => onRemoveWorktree(project)}
+                onClick={() => onRemoveWorktree?.(project)}
                 title={t('worktrees.remove', 'Remove from CLIde')}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -304,7 +309,9 @@ export default function WorktreeManagerModal({
         >
           <div className="min-w-0">
             <h2 className="truncate text-base font-semibold text-foreground">
-              {t('worktrees.title', 'Worktrees')}
+              {creationOnly
+                ? t('worktrees.create', 'Create worktree')
+                : t('worktrees.title', 'Worktrees')}
             </h2>
             <p className="truncate text-xs text-muted-foreground">{entry.displayName}</p>
           </div>
@@ -319,7 +326,7 @@ export default function WorktreeManagerModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <ul>{entry.checkouts.map(renderWorktree)}</ul>
+          {!creationOnly && <ul>{entry.checkouts.map(renderWorktree)}</ul>}
 
           {/*
             Not an error — the worktree was created. It is a loose end, and it
@@ -360,7 +367,11 @@ export default function WorktreeManagerModal({
                   }
                   if (event.key === 'Escape') {
                     event.stopPropagation();
-                    setIsCreating(false);
+                    if (creationOnly) {
+                      onClose();
+                    } else {
+                      setIsCreating(false);
+                    }
                   }
                 }}
                 placeholder={t('worktrees.branchPlaceholder', 'feature/my-change')}
@@ -431,8 +442,12 @@ export default function WorktreeManagerModal({
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setIsCreating(false);
-                    setCreateError(null);
+                    if (creationOnly) {
+                      onClose();
+                    } else {
+                      setIsCreating(false);
+                      setCreateError(null);
+                    }
                   }}
                 >
                   {t('actions.cancel')}
@@ -451,12 +466,14 @@ export default function WorktreeManagerModal({
           )}
         </div>
 
-        <p className="border-t border-border bg-muted/30 p-3 pb-safe-area-inset-bottom text-xs text-muted-foreground">
-          {t(
-            'worktrees.scopeNotice',
-            'Archive and Remove only change what CLIde tracks. The worktree stays on disk — use `git worktree remove` to delete it.',
-          )}
-        </p>
+        {!creationOnly && (
+          <p className="border-t border-border bg-muted/30 p-3 pb-safe-area-inset-bottom text-xs text-muted-foreground">
+            {t(
+              'worktrees.scopeNotice',
+              'Archive and Remove only change what CLIde tracks. The worktree stays on disk — use `git worktree remove` to delete it.',
+            )}
+          </p>
+        )}
       </div>
     </div>,
     document.body,

@@ -1,4 +1,5 @@
 import { api, getStoredAuthToken } from '../../../utils/api';
+import type { Project } from '../../../types/app';
 import type {
   BrowseFilesystemResponse,
   CloneProgressEvent,
@@ -144,7 +145,7 @@ export const cloneWorkspaceWithProgress = (
   params: CloneWorkspaceParams,
   handlers: CloneProgressHandlers,
 ) =>
-  new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
+  new Promise<Project | undefined>((resolve, reject) => {
     const query = buildCloneProgressQuery(params);
     const eventSource = new EventSource(`/api/projects/clone-progress?${query}`);
     let settled = false;

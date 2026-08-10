@@ -1,5 +1,9 @@
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type {
+  CreateWorktreeOptions,
+  CreateWorktreeOutcome,
+} from '../../sidebar/types/types';
+import type {
   MarkSessionIdle,
   MarkSessionProcessing,
   SessionActivityMap,
@@ -156,6 +160,7 @@ export type SessionEstablishedContext = {
 };
 
 export interface ChatInterfaceProps {
+  projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   ws: WebSocket | null;
@@ -176,4 +181,7 @@ export interface ChatInterfaceProps {
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
   onShowAllTasks?: (() => void) | null;
+  onNewSessionTarget: (project: Project) => void;
+  onProjectsRefresh: () => Promise<Project[]>;
+  onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
 }

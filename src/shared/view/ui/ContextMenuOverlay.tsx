@@ -35,7 +35,12 @@ export function anchorFromElement(
     : { top: fallback.y, bottom: fallback.y, left: fallback.x };
 }
 
-function calculateAnchoredPosition(anchor: ContextMenuAnchor, menuWidth: number, menuHeight: number) {
+function calculateAnchoredPosition(
+  anchor: ContextMenuAnchor,
+  menuWidth: number,
+  menuHeight: number,
+  placement: 'auto' | 'above',
+) {
   // Prefer just below the row; flip to just above it when the row sits low
   // enough that a downward menu would run off the bottom. Either way the menu
   // touches the row it belongs to instead of floating off on its own.
@@ -43,7 +48,7 @@ function calculateAnchoredPosition(anchor: ContextMenuAnchor, menuWidth: number,
   const spaceAbove = anchor.top - ANCHOR_GAP - VIEWPORT_PADDING;
 
   const top =
-    menuHeight <= spaceBelow || spaceBelow >= spaceAbove
+    placement !== 'above' && (menuHeight <= spaceBelow || spaceBelow >= spaceAbove)
       ? Math.min(anchor.bottom + ANCHOR_GAP, window.innerHeight - menuHeight - VIEWPORT_PADDING)
       : anchor.top - ANCHOR_GAP - menuHeight;
 
@@ -129,6 +134,8 @@ type ContextMenuOverlayProps = {
   className?: string;
   /** Change this when the menu's contents change size, to force a re-measure. */
   measureKey?: string | number;
+  /** Keep the menu on the row's upper side instead of choosing by available space. */
+  placement?: 'auto' | 'above';
 };
 
 /**
@@ -145,6 +152,7 @@ export default function ContextMenuOverlay({
   ariaLabel,
   className,
   measureKey,
+  placement = 'auto',
 }: ContextMenuOverlayProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -160,8 +168,8 @@ export default function ContextMenuOverlay({
     // offsetWidth/Height, not getBoundingClientRect: the menu's `zoom-in-95`
     // enter animation has it scaled to 0.95 at this point, and a rect 5% short
     // pushed the flipped-above placement down onto the row it belongs to.
-    setPosition(calculateAnchoredPosition(anchor, menuElement.offsetWidth, menuElement.offsetHeight));
-  }, [anchor, measureKey]);
+    setPosition(calculateAnchoredPosition(anchor, menuElement.offsetWidth, menuElement.offsetHeight, placement));
+  }, [anchor, measureKey, placement]);
 
   // An outside press dismisses on touchstart/mousedown rather than click, so
   // the menu is gone the instant the screen is touched. The shield keeps the
@@ -264,6 +272,11 @@ export default function ContextMenuOverlay({
           position: 'absolute',
           left: position?.x ?? 0,
           top: position?.y ?? 0,
+          // A forced-above menu scrolls within the space above its row instead
+          // of growing through the row and over the surface beneath it.
+          maxHeight: placement === 'above'
+            ? Math.max(0, anchor.top - ANCHOR_GAP - VIEWPORT_PADDING)
+            : undefined,
           // Hidden for the single layout pass that measures it.
           visibility: position ? 'visible' : 'hidden',
         }}

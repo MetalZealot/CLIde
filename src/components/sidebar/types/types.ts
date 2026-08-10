@@ -148,7 +148,10 @@ export type SidebarProps = {
   unreadSessionIds: ReadonlySet<string>;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
+  /** Opens the neutral launcher without preselecting a project. */
+  onOpenNewSession: () => void;
   onNewSession: (project: Project) => void;
+  onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   onSessionDelete?: (sessionId: string) => void;
   // Optimistic in-place patch of a session's starred flag (see useProjectsState).
   onSessionStarPatch?: (sessionId: string, isStarred: boolean) => void;

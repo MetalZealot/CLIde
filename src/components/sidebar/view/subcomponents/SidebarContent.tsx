@@ -133,6 +133,7 @@ type SidebarContentProps = {
   // server couldn't resolve it). Consumers must handle the null case.
   onConversationResultClick: (projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => void;
   onCollapseSidebar: () => void;
+  onOpenNewSession: () => void;
   updateAvailable: boolean;
   restartRequired: boolean;
   releaseInfo: ReleaseInfo | null;
@@ -165,6 +166,7 @@ export default function SidebarContent({
   onDeleteArchivedSession,
   onConversationResultClick,
   onCollapseSidebar,
+  onOpenNewSession,
   updateAvailable,
   restartRequired,
   releaseInfo,
@@ -197,6 +199,7 @@ export default function SidebarContent({
         searchMode={searchMode}
         onSearchModeChange={onSearchModeChange}
         onCollapseSidebar={onCollapseSidebar}
+        onOpenNewSession={onOpenNewSession}
         t={t}
       />
 

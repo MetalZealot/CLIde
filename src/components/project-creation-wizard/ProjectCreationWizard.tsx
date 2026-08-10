@@ -1,6 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { FolderPlus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
+import type { Project } from '../../types/app';
+
 import ErrorBanner from './components/ErrorBanner';
 import StepConfiguration from './components/StepConfiguration';
 import StepReview from './components/StepReview';
@@ -13,7 +16,7 @@ import type { TokenMode, WizardFormState, WizardStep } from './types';
 
 type ProjectCreationWizardProps = {
   onClose: () => void;
-  onProjectCreated?: (project?: Record<string, unknown>) => void;
+  onProjectCreated?: (project?: Project) => Promise<void> | void;
 };
 
 const initialFormState: WizardFormState = {
@@ -102,7 +105,7 @@ export default function ProjectCreationWizard({
           },
         );
 
-        onProjectCreated?.(project);
+        await onProjectCreated?.(project);
         onClose();
         return;
       }
@@ -111,7 +114,7 @@ export default function ProjectCreationWizard({
         path: formState.workspacePath.trim(),
       });
 
-      onProjectCreated?.(project);
+      await onProjectCreated?.(project);
       onClose();
     } catch (createError) {
       const errorMessage =

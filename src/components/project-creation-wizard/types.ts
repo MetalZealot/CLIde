@@ -1,3 +1,5 @@
+import type { Project } from '../../types/app';
+
 export type WizardStep = 1 | 2;
 
 export type TokenMode = 'stored' | 'new' | 'none';
@@ -45,7 +47,7 @@ export type CreateProjectApiError = {
 
 export type CreateProjectResponse = {
   success?: boolean;
-  project?: Record<string, unknown>;
+  project?: Project;
   error?: string | CreateProjectApiError;
   details?: string;
   message?: string;
@@ -54,7 +56,7 @@ export type CreateProjectResponse = {
 export type CloneProgressEvent = {
   type?: string;
   message?: string;
-  project?: Record<string, unknown>;
+  project?: Project;
 };
 
 export type WizardFormState = {

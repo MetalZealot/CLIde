@@ -9,8 +9,6 @@ import type {
   ActivitySummary,
   ArchivedProjectListItem,
   ArchivedSessionListItem,
-  CreateWorktreeOptions,
-  CreateWorktreeOutcome,
   DeleteProjectConfirmation,
   ProjectSortOrder,
   RepositoryEntry,
@@ -1123,54 +1121,6 @@ export function useSidebarController({
     [onRefresh, t],
   );
 
-  /**
-   * Adds a worktree to a repository: git creates the tree, the server registers
-   * it, and the refresh brings it into the row it belongs to.
-   *
-   * The two steps come back separately, because the tree exists on disk as soon
-   * as git succeeds. A thrown error therefore means *no worktree was created*;
-   * a returned `registrationError` means one was, and CLIde could not adopt it.
-   */
-  const createWorktree = useCallback(
-    async (options: CreateWorktreeOptions): Promise<CreateWorktreeOutcome> => {
-      const response = await api.createWorktree(options.projectId, {
-        branch: options.branch,
-        path: options.worktreePath ?? null,
-        baseRef: options.baseRef ?? null,
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as {
-          error?: string | { message?: string; details?: string };
-        };
-        const err = data.error;
-        // git's own refusal is carried in `details` and is the actionable part.
-        const message =
-          typeof err === 'string'
-            ? err
-            : err?.details || err?.message || t('messages.createWorktreeFailed', 'Failed to create worktree');
-        throw new Error(message);
-      }
-
-      const payload = (await response.json().catch(() => ({}))) as {
-        data?: {
-          worktreePath?: string;
-          project?: Project | null;
-          registrationError?: string | null;
-        };
-      };
-
-      await onRefresh?.();
-
-      return {
-        worktreePath: payload.data?.worktreePath ?? '',
-        project: payload.data?.project ?? null,
-        registrationError: payload.data?.registrationError ?? null,
-      };
-    },
-    [onRefresh, t],
-  );
-
   const handleProjectSelect = useCallback(
     (project: Project) => {
       setProjectFilterKey((currentKey) =>
@@ -1348,7 +1298,6 @@ export function useSidebarController({
     requestRepositoryDelete,
     archiveProjects,
     renameProjectDirect,
-    createWorktree,
     confirmDeleteProject,
     handleProjectSelect,
     openArchivedSession,

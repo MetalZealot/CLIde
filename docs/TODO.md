@@ -89,7 +89,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [~] **Rewind via the transcript.** Phase A (conversation-only) shipped and live-verified 2026-07-22 (`daea812`…`845ed24`), ADR 0007. `enableFileCheckpointing` is on so checkpoints accumulate for Phase B — file-state rewind — which is the remaining half. **L**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [ ] Landing page on entry — currently a blank page. Recent conversations with last-messaged time, token count, project, model. **M**
 - [ ] **Scheduled messages.** When usage runs out you often want work to resume the moment it resets, mid-task. A "schedule send" in the composer; also useful for follow-ups. **M/L**
 - [ ] **Background-session notifications** — in-app banner plus header roll-up dot, and stop the redundant OS notification while you're looking at the session. [Plan](plans/background-session-notifications.md). **M**
 - [ ] Voice Settings: the Base URL field is editable but the server ignores any client value (`resolveConfig` always uses `ENV.baseUrl`). Hide it, or make it a read-only "configured on server" indicator driven off `/api/voice/health`. Provider-agnostic, so it stays correct for OpenAI/Groq users. **S**

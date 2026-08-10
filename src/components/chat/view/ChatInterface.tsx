@@ -5,7 +5,7 @@ import { ArrowDownIcon } from 'lucide-react';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
-import type { ChatInterfaceProps, PermissionMode, Provider  } from '../types/types';
+import type { ChatInterfaceProps, PermissionMode } from '../types/types';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
@@ -14,11 +14,13 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
+import NewSessionLauncher from './subcomponents/NewSessionLauncher';
 import CompactionWarningBanner from './subcomponents/CompactionWarningBanner';
 import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
 
 function ChatInterface({
+  projects,
   selectedProject,
   selectedSession,
   ws,
@@ -38,6 +40,9 @@ function ChatInterface({
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
+  onNewSessionTarget,
+  onProjectsRefresh,
+  onCreateWorktree,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
@@ -74,19 +79,10 @@ function ChatInterface({
 
   const {
     provider,
-    setProvider,
-    cursorModel,
-    setCursorModel,
-    claudeModel,
-    setClaudeModel,
-    codexModel,
-    setCodexModel,
     currentProviderEffort,
     currentProviderEffortOptions,
     currentProviderModel,
     currentProviderModelOptions,
-    opencodeModel,
-    setOpenCodeModel,
     permissionMode,
     collaborationMode,
     pendingPermissionRequests,
@@ -96,7 +92,6 @@ function ChatInterface({
     selectPermissionMode,
     selectCollaborationMode,
     togglePermissionMode,
-    providerModelCatalog,
     providerModelsLoading,
     providerModelsRefreshing,
     hardRefreshProviderModels,
@@ -373,11 +368,6 @@ function ChatInterface({
     handlePermissionDecision,
   }), [pendingPermissionRequests, handlePermissionDecision]);
 
-  // Mirrors ChatComposer's own visibility check so the message pane can
-  // reserve enough bottom space to keep the floating status tab from
-  // overlapping the last message.
-  const hasActivityIndicator = Boolean(sessionActivity && pendingPermissionRequests.length === 0);
-
   const selectedProviderLabel =
     provider === 'cursor'
       ? t('messageTypes.cursor')
@@ -386,21 +376,6 @@ function ChatInterface({
         : provider === 'opencode'
             ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
           : t('messageTypes.claude');
-
-  if (!selectedProject) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <p className="text-sm">
-            {t('projectSelection.startChatWithProvider', {
-              provider: selectedProviderLabel,
-              defaultValue: 'Select a project to start chatting with {{provider}}',
-            })}
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
@@ -414,18 +389,6 @@ function ChatInterface({
           selectedSession={selectedSession}
           currentSessionId={currentSessionId}
           provider={provider}
-          setProvider={(nextProvider) => setProvider(nextProvider as Provider)}
-          textareaRef={textareaRef}
-          claudeModel={claudeModel}
-          setClaudeModel={setClaudeModel}
-          cursorModel={cursorModel}
-          setCursorModel={setCursorModel}
-          codexModel={codexModel}
-          setCodexModel={setCodexModel}
-          opencodeModel={opencodeModel}
-          setOpenCodeModel={setOpenCodeModel}
-          providerModelCatalog={providerModelCatalog}
-          providerModelsLoading={providerModelsLoading}
           tasksEnabled={tasksEnabled}
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}
@@ -482,82 +445,101 @@ function ChatInterface({
             onShowContext={showContextPopover}
           />
 
+          {!selectedSession && !currentSessionId && (
+            <NewSessionLauncher
+              projects={projects}
+              selectedProject={selectedProject}
+              onTargetSelect={onNewSessionTarget}
+              onProjectsRefresh={onProjectsRefresh}
+              onCreateWorktree={onCreateWorktree}
+              tasksEnabled={tasksEnabled}
+              isTaskMasterInstalled={isTaskMasterInstalled}
+              onShowAllTasks={onShowAllTasks}
+              setInput={setInput}
+            />
+          )}
+
           <ChatComposer
-          pendingPermissionRequests={pendingPermissionRequests}
-          handlePermissionDecision={handlePermissionDecision}
-          handleGrantToolPermission={handleGrantToolPermission}
-          activity={sessionActivity}
-          isLoading={isProcessing}
-          onAbortSession={handleAbortSessionWithProbe}
-          permissionMode={permissionMode}
-          availablePermissionModes={availablePermissionModes}
-          onSelectPermissionMode={(mode) => selectPermissionMode(mode as PermissionMode)}
-          collaborationMode={collaborationMode}
-          availableCollaborationModes={availableCollaborationModes}
-          onSelectCollaborationMode={selectCollaborationMode}
-          providerLabel={selectedProviderLabel}
-          effort={currentProviderEffort}
-          availableEffortOptions={currentProviderEffortOptions}
-          onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
-          model={currentProviderModel}
-          availableModelOptions={currentProviderModelOptions}
-          onSelectModel={handleSelectComposerModel}
-          modelsLoading={providerModelsLoading}
-          modelsRefreshing={providerModelsRefreshing}
-          onRefreshModels={hardRefreshProviderModels}
-          modelMenuOpenRequest={modelMenuOpenRequest}
-          tokenBudget={tokenBudget}
-          usagePopoverRequest={usagePopoverRequest}
-          onShowContextBreakdown={showContextPopover}
-          onRefreshContextBreakdown={refreshContextPopover}
-          isRefreshingContextBreakdown={isRefreshingContext}
-          provider={provider}
-          hasInput={Boolean(input.trim())}
-          onClearInput={handleClearInput}
-          onSubmit={handleSubmit}
-          isDragActive={isDragActive}
-          queuedDraft={queuedDraft}
-          onEditQueuedDraft={editQueuedDraft}
-          onDeleteQueuedDraft={deleteQueuedDraft}
-          pendingRewind={pendingRewind}
-          onCancelRewindEdit={cancelRewindEdit}
-          attachedFiles={attachedFiles}
-          onRemoveAttachment={(index) =>
-            setAttachedFiles((previous) =>
-              previous.filter((_, currentIndex) => currentIndex !== index),
-            )
-          }
-          uploadingFiles={uploadingFiles}
-          fileErrors={fileErrors}
-          showFileDropdown={showFileDropdown}
-          filteredFiles={filteredFiles}
-          selectedFileIndex={selectedFileIndex}
-          onSelectFile={selectFile}
-          filteredCommands={filteredCommands}
-          selectedCommandIndex={selectedCommandIndex}
-          onCommandSelect={handleCommandSelect}
-          onCloseCommandMenu={resetCommandMenuState}
-          isCommandMenuOpen={showCommandMenu}
-          frequentCommands={commandQuery ? [] : frequentCommands}
-          getRootProps={getRootProps as (...args: unknown[]) => Record<string, unknown>}
-          getInputProps={getInputProps as (...args: unknown[]) => Record<string, unknown>}
-          inputHighlightRef={inputHighlightRef}
-          renderInputWithMentions={renderInputWithMentions}
-          textareaRef={textareaRef}
-          input={input}
-          onVoiceTranscript={handleVoiceTranscript}
-          onInputChange={handleInputChange}
-          onTextareaClick={handleTextareaClick}
-          onTextareaKeyDown={handleKeyDown}
-          onTextareaPaste={handlePaste}
-          onTextareaScrollSync={syncInputOverlayScroll}
-          onTextareaInput={handleTextareaInput}
-          onInputFocusChange={handleInputFocusChange}
-          placeholder={t('input.placeholder', { provider: selectedProviderLabel })}
-          isTextareaExpanded={isTextareaExpanded}
-          sendByCtrlEnter={sendByCtrlEnter}
-          enterToSend={enterToSend}
-        />
+            disabled={!selectedProject}
+            pendingPermissionRequests={pendingPermissionRequests}
+            handlePermissionDecision={handlePermissionDecision}
+            handleGrantToolPermission={handleGrantToolPermission}
+            activity={sessionActivity}
+            isLoading={isProcessing}
+            onAbortSession={handleAbortSessionWithProbe}
+            permissionMode={permissionMode}
+            availablePermissionModes={availablePermissionModes}
+            onSelectPermissionMode={(mode) => selectPermissionMode(mode as PermissionMode)}
+            collaborationMode={collaborationMode}
+            availableCollaborationModes={availableCollaborationModes}
+            onSelectCollaborationMode={selectCollaborationMode}
+            providerLabel={selectedProviderLabel}
+            effort={currentProviderEffort}
+            availableEffortOptions={currentProviderEffortOptions}
+            onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
+            model={currentProviderModel}
+            availableModelOptions={currentProviderModelOptions}
+            onSelectModel={handleSelectComposerModel}
+            modelsLoading={providerModelsLoading}
+            modelsRefreshing={providerModelsRefreshing}
+            onRefreshModels={hardRefreshProviderModels}
+            modelMenuOpenRequest={modelMenuOpenRequest}
+            tokenBudget={tokenBudget}
+            usagePopoverRequest={usagePopoverRequest}
+            onShowContextBreakdown={showContextPopover}
+            onRefreshContextBreakdown={refreshContextPopover}
+            isRefreshingContextBreakdown={isRefreshingContext}
+            provider={provider}
+            hasInput={Boolean(input.trim())}
+            onClearInput={handleClearInput}
+            onSubmit={handleSubmit}
+            isDragActive={isDragActive}
+            queuedDraft={queuedDraft}
+            onEditQueuedDraft={editQueuedDraft}
+            onDeleteQueuedDraft={deleteQueuedDraft}
+            pendingRewind={pendingRewind}
+            onCancelRewindEdit={cancelRewindEdit}
+            attachedFiles={attachedFiles}
+            onRemoveAttachment={(index) =>
+              setAttachedFiles((previous) => previous.filter((_, currentIndex) => currentIndex !== index))
+            }
+            uploadingFiles={uploadingFiles}
+            fileErrors={fileErrors}
+            showFileDropdown={showFileDropdown}
+            filteredFiles={filteredFiles}
+            selectedFileIndex={selectedFileIndex}
+            onSelectFile={selectFile}
+            filteredCommands={filteredCommands}
+            selectedCommandIndex={selectedCommandIndex}
+            onCommandSelect={handleCommandSelect}
+            onCloseCommandMenu={resetCommandMenuState}
+            isCommandMenuOpen={showCommandMenu}
+            frequentCommands={commandQuery ? [] : frequentCommands}
+            getRootProps={getRootProps as (...args: unknown[]) => Record<string, unknown>}
+            getInputProps={getInputProps as (...args: unknown[]) => Record<string, unknown>}
+            inputHighlightRef={inputHighlightRef}
+            renderInputWithMentions={renderInputWithMentions}
+            textareaRef={textareaRef}
+            input={input}
+            onVoiceTranscript={handleVoiceTranscript}
+            onInputChange={handleInputChange}
+            onTextareaClick={handleTextareaClick}
+            onTextareaKeyDown={handleKeyDown}
+            onTextareaPaste={handlePaste}
+            onTextareaScrollSync={syncInputOverlayScroll}
+            onTextareaInput={handleTextareaInput}
+            onInputFocusChange={handleInputFocusChange}
+            placeholder={
+              selectedProject
+                ? t('input.placeholder', { provider: selectedProviderLabel })
+                : t('launcher.composerPlaceholder', {
+                    defaultValue: 'Choose a project to start…',
+                  })
+            }
+            isTextareaExpanded={isTextareaExpanded}
+            sendByCtrlEnter={sendByCtrlEnter}
+            enterToSend={enterToSend}
+          />
         </div>
       </div>
 

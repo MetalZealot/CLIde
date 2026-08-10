@@ -20,6 +20,7 @@ import { TaskMasterPanel } from '../../task-master';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
+import MobileMenuButton from './subcomponents/MobileMenuButton';
 import ErrorBoundary from './ErrorBoundary';
 
 type TaskMasterContextValue = {
@@ -34,6 +35,7 @@ type TasksSettingsContextValue = {
 };
 
 function MainContent({
+  projects,
   selectedProject,
   selectedSession,
   activeTab,
@@ -53,6 +55,8 @@ function MainContent({
   externalMessageUpdate,
   newSessionTrigger,
   onProjectSelect,
+  onNewSessionTarget,
+  onCreateWorktree,
   onProjectsRefresh,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
@@ -139,28 +143,31 @@ function MainContent({
     return <MainContentStateView mode="loading" isMobile={isMobile} onMenuClick={onMenuClick} />;
   }
 
-  if (!selectedProject) {
-    return <MainContentStateView mode="empty" isMobile={isMobile} onMenuClick={onMenuClick} />;
-  }
-
   return (
     <div className="flex h-full flex-col">
-      <MainContentHeader
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        selectedProject={selectedProject}
-        selectedSession={selectedSession}
-        shouldShowTasksTab={shouldShowTasksTab}
-        shouldShowBrowserTab={shouldShowBrowserTab}
-        isMobile={isMobile}
-        onMenuClick={onMenuClick}
-      />
+      {selectedProject ? (
+        <MainContentHeader
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          selectedProject={selectedProject}
+          selectedSession={selectedSession}
+          shouldShowTasksTab={shouldShowTasksTab}
+          shouldShowBrowserTab={shouldShowBrowserTab}
+          isMobile={isMobile}
+          onMenuClick={onMenuClick}
+        />
+      ) : isMobile ? (
+        <div className="pwa-header-safe flex-shrink-0 border-b border-border/50 bg-background/80 p-2 sm:p-3">
+          <MobileMenuButton onMenuClick={onMenuClick} compact />
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className={`flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
-          <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
+          <div className={`h-full ${activeTab === 'chat' || !selectedProject ? 'block' : 'hidden'}`}>
             <ErrorBoundary showDetails>
               <ChatInterface
+                projects={projects}
                 selectedProject={selectedProject}
                 selectedSession={selectedSession}
                 ws={ws}
@@ -180,11 +187,14 @@ function MainContent({
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
                 onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
+                onNewSessionTarget={onNewSessionTarget}
+                onProjectsRefresh={onProjectsRefresh}
+                onCreateWorktree={onCreateWorktree}
               />
             </ErrorBoundary>
           </div>
 
-          {activeTab === 'files' && (
+          {selectedProject && activeTab === 'files' && (
             <div className="h-full overflow-hidden">
               <FileTree
                 selectedProject={selectedProject}
@@ -196,7 +206,7 @@ function MainContent({
             </div>
           )}
 
-          {activeTab === 'shell' && (
+          {selectedProject && activeTab === 'shell' && (
             <div className="h-full w-full overflow-hidden">
               <StandaloneShell
                 project={selectedProject}
@@ -207,7 +217,7 @@ function MainContent({
             </div>
           )}
 
-          {activeTab === 'git' && (
+          {selectedProject && activeTab === 'git' && (
             <div className="h-full overflow-hidden">
               <GitPanel
                 selectedProject={selectedProject}
@@ -219,15 +229,15 @@ function MainContent({
             </div>
           )}
 
-          {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
+          {selectedProject && shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
 
-          {shouldShowBrowserTab && activeTab === 'browser' && (
+          {selectedProject && shouldShowBrowserTab && activeTab === 'browser' && (
             <div className="h-full overflow-hidden">
               <BrowserUsePanel isVisible={activeTab === 'browser'} onShowSettings={onShowSettings} />
             </div>
           )}
 
-          {activeTab.startsWith('plugin:') && (
+          {selectedProject && activeTab.startsWith('plugin:') && (
             <div className="h-full overflow-hidden">
               <PluginTabContent
                 pluginName={activeTab.replace('plugin:', '')}
@@ -238,19 +248,21 @@ function MainContent({
           )}
         </div>
 
-        <EditorSidebar
-          editingFile={editingFile}
-          isMobile={isMobile}
-          editorExpanded={editorExpanded}
-          editorWidth={editorWidth}
-          hasManualWidth={hasManualWidth}
-          resizeHandleRef={resizeHandleRef}
-          onResizeStart={handleResizeStart}
-          onCloseEditor={handleCloseEditor}
-          onToggleEditorExpand={handleToggleEditorExpand}
-          projectPath={selectedProject.path}
-          fillSpace={activeTab === 'files'}
-        />
+        {selectedProject && (
+          <EditorSidebar
+            editingFile={editingFile}
+            isMobile={isMobile}
+            editorExpanded={editorExpanded}
+            editorWidth={editorWidth}
+            hasManualWidth={hasManualWidth}
+            resizeHandleRef={resizeHandleRef}
+            onResizeStart={handleResizeStart}
+            onCloseEditor={handleCloseEditor}
+            onToggleEditorExpand={handleToggleEditorExpand}
+            projectPath={selectedProject.path}
+            fillSpace={activeTab === 'files'}
+          />
+        )}
       </div>
     </div>
   );

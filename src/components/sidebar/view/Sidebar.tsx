@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, GitBranch, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
+import { Archive, Copy, MessageSquare, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -17,7 +17,7 @@ import type {
   SessionWithProvider,
 } from '../types/types';
 import type { ContextMenuAnchor } from '../../../shared/view/ui';
-import { getCheckoutRefLabel, getSessionName } from '../utils/utils';
+import { getSessionName } from '../utils/utils';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
@@ -42,7 +42,9 @@ function Sidebar({
   unreadSessionIds,
   onProjectSelect,
   onSessionSelect,
+  onOpenNewSession,
   onNewSession,
+  onCreateWorktree,
   onSessionDelete,
   onSessionStarPatch,
   onLoadMoreSessions,
@@ -129,7 +131,6 @@ function Sidebar({
     requestRepositoryDelete,
     archiveProjects,
     renameProjectDirect,
-    createWorktree,
     confirmDeleteProject,
     handleProjectSelect,
     openArchivedSession,
@@ -187,13 +188,11 @@ function Sidebar({
     // manager. Not a worktree picker — that step used to stand between the user
     // and every action on the row.
     | { kind: 'repository'; entry: RepositoryEntry; anchor: ContextMenuAnchor }
-    // Which worktree a new session should start in, asked only when the row
-    // covers more than one (ADR 0016).
-    | { kind: 'new-session'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
+    | { kind: 'create'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
   const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
   // `mode` decides whether the manager opens on its list or its create form.
   const [worktreeManager, setWorktreeManager] = useState<
-    { entry: RepositoryEntry; mode: 'manage' | 'create' } | null
+    { entry: RepositoryEntry; mode: 'manage' | 'create'; openCreatedInNewSession: boolean } | null
   >(null);
   const [viewMenu, setViewMenu] = useState<
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
@@ -207,8 +206,8 @@ function Sidebar({
     setContextMenu({ kind: 'repository', entry, anchor });
   };
 
-  const handleNewSessionMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
-    setContextMenu({ kind: 'new-session', entry, anchor });
+  const handleCreateMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
+    setContextMenu({ kind: 'create', entry, anchor });
   };
 
   /**
@@ -234,7 +233,9 @@ function Sidebar({
   const activeContextMenuKey = contextMenu
     ? contextMenu.kind === 'session'
       ? `session:${contextMenu.session.id}`
-      : `project:${contextMenu.entry.key}`
+      : contextMenu.kind === 'repository'
+        ? `project:${contextMenu.entry.key}`
+        : null
     : null;
 
   const contextMenuItems = useMemo<SidebarContextMenuItem[]>(() => {
@@ -296,19 +297,30 @@ function Sidebar({
       ];
     }
 
-    if (contextMenu.kind === 'new-session') {
+    if (contextMenu.kind === 'create') {
       const { entry } = contextMenu;
-      return entry.checkouts.map((checkout) => ({
-        key: `checkout:${checkout.projectId}`,
-        // The branch is what tells two worktrees of one repository apart; the
-        // directory name is the fallback when HEAD is detached or unreadable.
-        label: getCheckoutRefLabel(checkout) ?? checkout.displayName ?? checkout.projectId,
-        icon: GitBranch,
-        onSelect: () => {
-          handleProjectSelect(checkout);
-          onNewSession(checkout);
+      return [
+        {
+          key: 'new-session',
+          label: t('sessions.newSession'),
+          icon: MessageSquare,
+          onSelect: () => onNewSession(entry.leadCheckout),
         },
-      }));
+        ...(entry.repositoryId
+          ? [
+              {
+                key: 'new-worktree',
+                label: t('worktrees.new', 'New Worktree'),
+                icon: TreeDeciduous,
+                onSelect: () => setWorktreeManager({
+                  entry,
+                  mode: 'create',
+                  openCreatedInNewSession: true,
+                }),
+              },
+            ]
+          : []),
+      ];
     }
 
     const { entry } = contextMenu;
@@ -330,7 +342,11 @@ function Sidebar({
               key: 'worktrees',
               label: t('worktrees.title', 'Worktrees'),
               icon: TreeDeciduous,
-              onSelect: () => setWorktreeManager({ entry, mode: 'manage' }),
+              onSelect: () => setWorktreeManager({
+                entry,
+                mode: 'manage',
+                openCreatedInNewSession: false,
+              }),
             },
           ]
         : []),
@@ -403,9 +419,7 @@ function Sidebar({
     getVisibleSessionCount,
     onShowAllSessions: showAllSessions,
     onCollapseSessions: collapseSessions,
-    onNewSession,
-    onNewSessionMenu: handleNewSessionMenu,
-    onNewWorktree: (entry: RepositoryEntry) => setWorktreeManager({ entry, mode: 'create' }),
+    onOpenCreateMenu: handleCreateMenu,
     getRepositoryView,
     onOpenViewMenu: (entry: RepositoryEntry, anchor: ContextMenuAnchor) =>
       setViewMenu({ entry, anchor }),
@@ -457,8 +471,8 @@ function Sidebar({
             onRenameWorktree={renameProjectDirect}
             onArchiveWorktree={(project) => archiveProjects([project])}
             onRemoveWorktree={requestProjectDelete}
-            onCreateWorktree={createWorktree}
-            onOpenWorktree={handleProjectSelect}
+            onCreateWorktree={onCreateWorktree}
+            onOpenWorktree={worktreeManager.openCreatedInNewSession ? onNewSession : handleProjectSelect}
             startInCreate={worktreeManager.mode === 'create'}
             t={t}
           />
@@ -557,6 +571,7 @@ function Sidebar({
               }
             }}
             onCollapseSidebar={isMobile && onCloseSidebar ? onCloseSidebar : handleCollapseSidebar}
+            onOpenNewSession={onOpenNewSession}
             updateAvailable={updateAvailable}
             restartRequired={restartRequired}
             releaseInfo={releaseInfo}

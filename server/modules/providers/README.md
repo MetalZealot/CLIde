@@ -102,7 +102,7 @@ import the service from `server/modules/providers/index.ts`.
 - Update `server/index.ts` if the provider needs runtime boot or shutdown wiring.
 - Update the `PROVIDER_ORDER` list in `public/api-docs.html` if the provider should appear in the public API docs.
 - Update `src/components/chat/hooks/useChatProviderState.ts` and
-  `src/components/chat/view/subcomponents/ProviderSelectionEmptyState.tsx` if
+  `src/components/chat/view/subcomponents/ComposerModelMenu.tsx` if
   the provider should be selectable in chat.
 - Update `src/components/provider-auth/view/ProviderLoginModal.tsx` if the
   provider has a login/setup flow.
@@ -228,7 +228,7 @@ If the provider is visible in the UI, update:
 
 - provider model fallback files under `server/modules/providers/list/<provider>/`
 - `src/components/chat/hooks/useChatProviderState.ts`
-- `src/components/chat/view/subcomponents/ProviderSelectionEmptyState.tsx`
+- `src/components/chat/view/subcomponents/ComposerModelMenu.tsx`
 - `src/components/provider-auth/view/ProviderLoginModal.tsx`
 - `src/components/mcp/constants.ts`
 
@@ -376,5 +376,4 @@ alongside the implementation.
 - Forgetting that Claude plugin skills are discovered differently from normal
   user/project skill folders.
 - Assuming one provider's MCP config file format works for the others.
-
 

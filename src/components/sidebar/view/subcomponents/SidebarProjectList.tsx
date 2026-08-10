@@ -80,9 +80,7 @@ export type SidebarProjectListProps = {
     sessionTitle: string,
     provider: LLMProvider,
   ) => void;
-  onNewSession: (project: Project) => void;
-  onNewSessionMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
-  onNewWorktree?: (entry: RepositoryEntry) => void;
+  onOpenCreateMenu: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   getRepositoryView: (entryKey: string) => RepositoryViewOptions;
   onOpenViewMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onEditingSessionNameChange: (value: string) => void;
@@ -143,9 +141,7 @@ export default function SidebarProjectList({
   onDeleteRepository,
   onSessionSelect,
   onDeleteSession,
-  onNewSession,
-  onNewSessionMenu,
-  onNewWorktree,
+  onOpenCreateMenu,
   getRepositoryView,
   onOpenViewMenu,
   onEditingSessionNameChange,
@@ -221,9 +217,7 @@ export default function SidebarProjectList({
       activeSessions={activeSessions}
       attentionSessionIds={attentionSessionIds}
       unreadSessionIds={unreadSessionIds}
-      onNewSession={onNewSession}
-      onNewSessionMenu={onNewSessionMenu}
-      onNewWorktree={onNewWorktree}
+      onOpenCreateMenu={onOpenCreateMenu}
       viewOptions={getRepositoryView(entry.key)}
       onOpenViewMenu={onOpenViewMenu}
       onEditingSessionNameChange={onEditingSessionNameChange}
