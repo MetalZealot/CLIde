@@ -16,6 +16,12 @@
  *    so `IS_PLATFORM` resolves to `false`, matching a self-hosted build.
  * 2. A DOM. `react-dom/client`, `localStorage`, and `window` events are all
  *    load-bearing for the components under test.
+ * 3. A predictable locale. Components deliberately call `Intl` with `undefined`
+ *    so users get their own formatting, but that makes assertions depend on the
+ *    machine: this Pi is `en_GB`, which renders USD as `US$0.00` and compact
+ *    millions as `1.25m`, failing `TokenUsageSummary` tests written against
+ *    `en-US`. Node fixes ICU's default at startup, so an env var set from here
+ *    is already too late — the constructors are pinned instead.
  */
 import { registerHooks } from 'node:module';
 
@@ -46,6 +52,38 @@ registerHooks({
     return { ...result, source: `import.meta.env ??= {};\n${source}` };
   },
 });
+
+const TEST_LOCALE = 'en-US';
+
+// `Intl.NumberFormat` and `Intl.DateTimeFormat` are callable with and without
+// `new`, so both traps are needed; everything else forwards untouched. An
+// explicit locale passed by a caller still wins.
+type LocaleAwareCtor = typeof Intl.NumberFormat | typeof Intl.DateTimeFormat;
+
+const pinDefaultLocale = <T extends LocaleAwareCtor>(Ctor: T): T => new Proxy(Ctor, {
+  construct: (target, [locales, options]: [Intl.LocalesArgument?, object?]) =>
+    Reflect.construct(target, [locales ?? TEST_LOCALE, options]),
+  apply: (target, thisArg, [locales, options]: [Intl.LocalesArgument?, object?]) =>
+    Reflect.apply(target as (...args: unknown[]) => unknown, thisArg, [locales ?? TEST_LOCALE, options]),
+}) as T;
+
+Intl.NumberFormat = pinDefaultLocale(Intl.NumberFormat);
+Intl.DateTimeFormat = pinDefaultLocale(Intl.DateTimeFormat);
+
+// `toLocaleString` reaches ICU's default directly rather than through the
+// constructors above, so a `de-DE` machine would still see `117.721`.
+type LocaleStringHost = { toLocaleString: (...args: unknown[]) => string };
+
+const pinToLocaleString = (proto: LocaleStringHost) => {
+  const original = proto.toLocaleString;
+  proto.toLocaleString = function toLocaleString(this: unknown, ...args: unknown[]) {
+    const [locales, options] = args;
+    return original.call(this, locales ?? TEST_LOCALE, options);
+  };
+};
+
+pinToLocaleString(Number.prototype as unknown as LocaleStringHost);
+pinToLocaleString(Date.prototype as unknown as LocaleStringHost);
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {
   url: 'http://localhost:3001/',
