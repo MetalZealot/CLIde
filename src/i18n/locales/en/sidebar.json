@@ -17,6 +17,8 @@
     "allProjects": "All projects",
     "chooseProject": "Choose project",
     "createMenu": "Create in project",
+    "customizeColor": "Highlight colour",
+    "customizeColorNone": "No highlight",
     "untitledSession": "Untitled Session",
     "newSession": "New Session",
     "codexSession": "Codex Session",
@@ -83,6 +85,7 @@
     "delete": "Delete",
     "archive": "Archive",
     "rename": "Rename",
+    "customize": "Customize",
     "copySessionId": "Copy session ID"
   },
   "branding": {

@@ -174,7 +174,7 @@ export default function SidebarSessionItem({
         {isEditing ? (
           <div
             ref={mobileEditRef}
-            className="my-0.5 ml-1 mr-3 flex items-center gap-1 rounded-md border border-primary/50 bg-card p-2"
+            className="my-0.5 ml-1 mr-3 flex items-center gap-1 rounded-md border border-primary/50 bg-card px-3 py-2"
           >
             <input
               type="text"
@@ -224,7 +224,9 @@ export default function SidebarSessionItem({
               // selection; transient state has its own symbol slot.
               // Global Activity/Pinned rows share repository headers' gutter;
               // sessions beneath a repository remain visibly nested.
-              'long-pressable p-2 my-0.5 rounded-md transition-all duration-150 relative',
+              // Matches the repository header's px-3 so labels down the whole
+              // sidebar share one text edge instead of two by a few pixels.
+              'long-pressable my-0.5 rounded-md px-3 py-2 transition-all duration-150 relative',
               isSectionItem ? 'mx-3' : 'ml-1 mr-3',
               isContextActive && 'scale-[0.98] bg-accent/60',
               isSelected ? 'bg-primary/10' : 'active:bg-accent/50',
@@ -271,7 +273,7 @@ export default function SidebarSessionItem({
           className={cn(
             buttonVariants({ variant: 'ghost' }),
             // Surface on hover or when current; status stays in its symbol slot.
-            'h-auto w-full justify-start rounded-md p-2 text-left font-normal transition-all duration-150',
+            'h-auto w-full justify-start rounded-md px-3 py-2 text-left font-normal transition-all duration-150',
             isSelected ? 'bg-primary/10' : 'hover:bg-accent/50',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the

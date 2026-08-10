@@ -853,6 +853,8 @@ export type ProjectRepositoryRow = {
   custom_project_name: string | null;
   isStarred: number;
   isArchived: number;
+  /** Palette token for the sidebar highlight, or null for no highlight. */
+  accent_color: string | null;
 };
 
 /**

@@ -241,6 +241,19 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
   }
 };
 
+/**
+ * Add the project highlight colour column.
+ *
+ * Runs as its own step after the rebuild above rather than only alongside the
+ * other `addColumnToTableIfNotExists` calls, because that rebuild recreates
+ * `projects` from an explicit column list and would otherwise silently drop
+ * this column on any database old enough to take that path.
+ */
+const addProjectAccentColorColumn = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'projects').map((column) => column.name);
+  addColumnToTableIfNotExists(db, 'projects', columnNames, 'accent_color', 'TEXT DEFAULT NULL');
+};
+
 const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
   const hasSessions = tableExists(db, 'sessions');
   if (!hasSessions) {
@@ -558,6 +571,7 @@ export const runMigrations = (db: Database) => {
 
     db.exec(PROJECTS_TABLE_SCHEMA_SQL);
     rebuildProjectsTableWithPrimaryKeySchema(db);
+    addProjectAccentColorColumn(db);
 
     migrateLegacyWorkspaceTableIntoProjects(db);
     rebuildSessionsTableWithProjectSchema(db);

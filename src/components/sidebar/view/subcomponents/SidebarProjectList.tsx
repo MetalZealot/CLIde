@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { FolderPlus, Pin } from 'lucide-react';
+import { Activity, FolderPlus, Pin } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
@@ -288,6 +288,7 @@ export default function SidebarProjectList({
         <>
           <SidebarSectionHeader
             label={t('projects.activity')}
+            icon={Activity}
             summary={activitySummaryNode}
             isCollapsed={isActivitySectionCollapsed}
             onToggle={onToggleActivitySection}

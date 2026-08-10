@@ -178,6 +178,13 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ displayName }),
     }),
+  // `accentColor` is a palette token from sidebar/utils/accentColors.ts, or
+  // null to clear the highlight. The server rejects anything else with a 400.
+  setProjectAccentColor: (projectId, accentColor) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/accent-color`, {
+      method: 'PUT',
+      body: JSON.stringify({ accentColor }),
+    }),
   restoreProject: (projectId) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/restore`, {
       method: 'POST',

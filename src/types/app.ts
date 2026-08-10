@@ -69,6 +69,11 @@ export interface Project {
   fullPath: string;
   path?: string;
   isStarred?: boolean;
+  /**
+   * Palette token for the sidebar highlight strip, or null/absent for none.
+   * Validated against the palette on read — see `sidebar/utils/accentColors.ts`.
+   */
+  accentColor?: string | null;
   sessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
   taskmaster?: ProjectTaskmasterInfo;

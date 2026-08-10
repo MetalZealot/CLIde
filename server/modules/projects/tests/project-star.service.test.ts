@@ -11,6 +11,7 @@ type ProjectRow = {
   custom_project_name: string | null;
   isStarred: number;
   isArchived: number;
+  accent_color: string | null;
 };
 
 test('toggleProjectStar throws when projectId is missing', () => {
@@ -54,6 +55,7 @@ test('toggleProjectStar flips star state and persists it', () => {
         custom_project_name: 'project-1',
         isStarred: 0,
         isArchived: 0,
+        accent_color: null,
       }) as ProjectRow;
     projectsDb.updateProjectIsStarredById = (projectId: string, isStarred: boolean) => {
       capturedProjectId = projectId;

@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { createProject, updateProjectDisplayName, type ProjectApiView } from '@/modules/projects/services/project-management.service.js';
+import { createProject, updateProjectAccentColor, updateProjectDisplayName, type ProjectApiView } from '@/modules/projects/services/project-management.service.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
@@ -239,6 +239,21 @@ router.put('/:projectId/rename', (req, res) => {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to rename project' });
   }
 });
+
+/**
+ * Sets the sidebar highlight colour. `asyncHandler` reports the service's
+ * `AppError` as a 400 for an unknown palette token, rather than the 500 the
+ * older hand-rolled rename handler above would give.
+ */
+router.put(
+  '/:projectId/accent-color',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const { accentColor } = req.body as { accentColor?: unknown };
+    updateProjectAccentColor(projectId, accentColor);
+    res.json({ success: true });
+  }),
+);
 
 router.post(
   '/:projectId/toggle-star',

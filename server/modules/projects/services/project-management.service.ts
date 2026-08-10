@@ -7,6 +7,7 @@ import type {
   ProjectRepositoryRow,
   WorkspacePathValidationResult,
 } from '@/shared/types.js';
+import { parseProjectAccentColor } from '@/shared/project-accent-colors.js';
 import { AppError, normalizeProjectPath, validateWorkspacePath } from '@/shared/utils.js';
 
 type CreateProjectInput = {
@@ -27,6 +28,7 @@ export type ProjectApiView = {
   fullPath: string;
   displayName: string;
   customName: string | null;
+  accentColor: string | null;
   isArchived: boolean;
   isStarred: boolean;
   sessions: [];
@@ -75,6 +77,7 @@ function mapProjectRowToApiView(projectRow: ProjectRepositoryRow): ProjectApiVie
     fullPath: projectRow.project_path,
     displayName: resolveDisplayName(projectRow.custom_project_name, projectRow.project_path),
     customName: projectRow.custom_project_name,
+    accentColor: projectRow.accent_color,
     isArchived: Boolean(projectRow.isArchived),
     isStarred: Boolean(projectRow.isStarred),
     sessions: [],
@@ -141,4 +144,23 @@ export async function createProject(
 export function updateProjectDisplayName(projectId: string, newDisplayName: unknown): void {
   const trimmed = typeof newDisplayName === 'string' ? newDisplayName.trim() : '';
   projectsDb.updateCustomProjectNameById(projectId, trimmed.length > 0 ? trimmed : null);
+}
+
+/**
+ * Sets `projects.accent_color` for the given `projectId`, or clears it when the
+ * request carries no colour. Rejects anything outside the palette so the
+ * sidebar never has to render a token it does not know.
+ */
+export function updateProjectAccentColor(projectId: string, accentColor: unknown): void {
+  let parsedAccentColor: string | null;
+  try {
+    parsedAccentColor = parseProjectAccentColor(accentColor);
+  } catch (error) {
+    throw new AppError(error instanceof Error ? error.message : 'Invalid accent colour', {
+      code: 'PROJECT_ACCENT_COLOR_UNKNOWN',
+      statusCode: 400,
+    });
+  }
+
+  projectsDb.updateProjectAccentColorById(projectId, parsedAccentColor);
 }

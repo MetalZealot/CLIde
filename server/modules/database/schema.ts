@@ -92,7 +92,11 @@ CREATE TABLE IF NOT EXISTS projects (
     project_path TEXT NOT NULL UNIQUE,
     custom_project_name TEXT DEFAULT NULL,
     isStarred BOOLEAN DEFAULT 0,
-    isArchived BOOLEAN DEFAULT 0
+    isArchived BOOLEAN DEFAULT 0,
+    -- Palette token, never a raw colour: the sidebar resolves it through theme
+    -- CSS variables so one project reads the same in light and dark. See
+    -- PROJECT_ACCENT_COLORS in server/shared/project-accent-colors.ts.
+    accent_color TEXT DEFAULT NULL
 );
 `;
 

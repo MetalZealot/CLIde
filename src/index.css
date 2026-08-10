@@ -49,6 +49,18 @@
     --status-attention: 38 92% 44%;
     --status-unread: 142 72% 35%;
     --status-running: var(--muted-foreground);
+    /* Project highlight palette. Each project stores a token, not a colour, so
+       the same project reads at a consistent weight against both backgrounds —
+       a single user-picked hex can only satisfy one theme. Tuned darker here
+       to hold their own against the light background. */
+    --project-accent-rose: 347 77% 50%;
+    --project-accent-amber: 32 95% 44%;
+    --project-accent-lime: 85 78% 32%;
+    --project-accent-emerald: 160 84% 30%;
+    --project-accent-cyan: 192 91% 36%;
+    --project-accent-blue: 221 83% 53%;
+    --project-accent-violet: 262 83% 58%;
+    --project-accent-magenta: 292 76% 45%;
     --border: 44 14% 87%;
     --input: 44 14% 87%;
     --ring: 221.2 83.2% 53.3%;
@@ -116,6 +128,16 @@
     --status-attention: 43 96% 56%;
     --status-unread: 142 69% 58%;
     --status-running: var(--muted-foreground);
+    /* Lighter and less saturated than the light-theme pairs above: on the dark
+       background a fully saturated strip glows rather than labels. */
+    --project-accent-rose: 350 89% 65%;
+    --project-accent-amber: 38 92% 58%;
+    --project-accent-lime: 82 70% 55%;
+    --project-accent-emerald: 158 64% 52%;
+    --project-accent-cyan: 188 86% 53%;
+    --project-accent-blue: 217 91% 65%;
+    --project-accent-violet: 258 90% 71%;
+    --project-accent-magenta: 292 84% 68%;
     --border: 0 0% 17%;
     --input: 0 0% 23%;
     --ring: 217.2 91.2% 59.8%;

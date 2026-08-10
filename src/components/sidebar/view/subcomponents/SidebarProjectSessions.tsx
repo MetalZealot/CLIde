@@ -162,7 +162,10 @@ export default function SidebarProjectSessions({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-full justify-start px-2 text-xs text-muted-foreground hover:text-foreground"
+              // pl-4 lands on the session labels' text edge (their ml-1 plus
+              // px-3), so this reads as part of the list rather than a control
+              // hanging off it.
+              className="h-7 w-full justify-start pl-4 pr-3 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => (canShowMore ? onShowAllSessions(entry) : onCollapseSessions(entry))}
               disabled={isLoadingMoreSessions}
             >

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, MessageSquare, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
+import { Archive, Copy, MessageSquare, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -18,12 +18,14 @@ import type {
 } from '../types/types';
 import type { ContextMenuAnchor } from '../../../shared/view/ui';
 import { getSessionName } from '../utils/utils';
+import { readProjectAccentColor, type ProjectAccentColor } from '../utils/accentColors';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
 import SidebarContextMenu, { type SidebarContextMenuItem } from './subcomponents/SidebarContextMenu';
+import SidebarAccentColorMenu from './subcomponents/SidebarAccentColorMenu';
 import SidebarSessionViewMenu from './subcomponents/SidebarSessionViewMenu';
 import WorktreeManagerModal from './subcomponents/WorktreeManagerModal';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
@@ -131,6 +133,7 @@ function Sidebar({
     requestRepositoryDelete,
     archiveProjects,
     renameProjectDirect,
+    setProjectAccentColor,
     confirmDeleteProject,
     handleProjectSelect,
     openArchivedSession,
@@ -197,6 +200,12 @@ function Sidebar({
   const [viewMenu, setViewMenu] = useState<
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
   >(null);
+  // The highlight-colour picker, opened from Customize. It reuses the anchor the
+  // project menu was opened at, so it appears where that menu just was rather
+  // than jumping to a different part of the row.
+  const [accentColorMenu, setAccentColorMenu] = useState<
+    { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
+  >(null);
 
   const handleLongPressSessionMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'session', session, anchor });
@@ -226,6 +235,12 @@ function Sidebar({
    */
   const activeViewMenuEntry = viewMenu
     ? repositoryEntries.find((entry) => entry.key === viewMenu.entry.key) ?? null
+    : null;
+
+  // Follows the live entry as well, so the swatch check mark moves to the
+  // colour just picked instead of the one the menu opened with.
+  const activeAccentColorMenuEntry = accentColorMenu
+    ? repositoryEntries.find((entry) => entry.key === accentColorMenu.entry.key) ?? null
     : null;
 
   // Lets the row that owns the open menu stay highlighted, so it's clear which
@@ -332,6 +347,14 @@ function Sidebar({
         label: t('actions.rename'),
         icon: Pencil,
         onSelect: () => startEditing(entry.leadCheckout),
+      },
+      {
+        // Customization follows rename's rule and targets the lead checkout, so
+        // one repository row carries one identity however many worktrees it has.
+        key: 'customize',
+        label: t('actions.customize', 'Customize'),
+        icon: Palette,
+        onSelect: () => setAccentColorMenu({ entry, anchor: contextMenu.anchor }),
       },
       // Offered only for an actual git checkout root. A plain folder project has
       // no repository to add a worktree to, and the manager's create form would
@@ -460,6 +483,22 @@ function Sidebar({
             onChange={(options) => setRepositoryView(activeViewMenuEntry.key, options)}
             onReset={() => resetRepositoryView(activeViewMenuEntry.key)}
             onClose={() => setViewMenu(null)}
+            t={t}
+          />
+        )}
+
+        {activeAccentColorMenuEntry && accentColorMenu && (
+          <SidebarAccentColorMenu
+            anchor={accentColorMenu.anchor}
+            accentColor={readProjectAccentColor(activeAccentColorMenuEntry.leadCheckout.accentColor)}
+            onSelect={(nextAccentColor: ProjectAccentColor | null) =>
+              setProjectAccentColor(
+                activeAccentColorMenuEntry.leadCheckout.projectId,
+                nextAccentColor,
+                readProjectAccentColor(activeAccentColorMenuEntry.leadCheckout.accentColor),
+              )
+            }
+            onClose={() => setAccentColorMenu(null)}
             t={t}
           />
         )}

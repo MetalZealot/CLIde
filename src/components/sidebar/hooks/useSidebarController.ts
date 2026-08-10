@@ -632,9 +632,47 @@ export function useSidebarController({
     });
   }, []);
 
+  /**
+   * Accent-colour picks applied before the server has echoed them back.
+   *
+   * `projects` is owned by the caller and refetched wholesale, and a full
+   * refresh for a colour pick is far too heavy a price for what should feel
+   * instant. Overriding here rather than at the row means every derived
+   * structure — picker entries, repository entries, the filtered list — sees
+   * the same value from one insertion point.
+   */
+  const [accentColorOverrides, setAccentColorOverrides] = useState<Record<string, string | null>>({});
+
+  // Drop an override once a refresh carries the same value back, so a colour
+  // changed on another device is not masked indefinitely by a stale local pick.
+  useEffect(() => {
+    setAccentColorOverrides((currentOverrides) => {
+      const unreconciled = Object.entries(currentOverrides).filter(([projectId, accentColor]) => {
+        const project = projects.find((candidate) => candidate.projectId === projectId);
+        return !project || (project.accentColor ?? null) !== accentColor;
+      });
+
+      return unreconciled.length === Object.keys(currentOverrides).length
+        ? currentOverrides
+        : Object.fromEntries(unreconciled);
+    });
+  }, [projects]);
+
+  const projectsWithAccentOverrides = useMemo(() => {
+    if (Object.keys(accentColorOverrides).length === 0) {
+      return projects;
+    }
+
+    return projects.map((project) =>
+      project.projectId in accentColorOverrides
+        ? { ...project, accentColor: accentColorOverrides[project.projectId] }
+        : project,
+    );
+  }, [accentColorOverrides, projects]);
+
   const sortedProjects = useMemo(
-    () => sortProjects(projects, projectSortOrder),
-    [projectSortOrder, projects],
+    () => sortProjects(projectsWithAccentOverrides, projectSortOrder),
+    [projectSortOrder, projectsWithAccentOverrides],
   );
 
   const filteredProjects = useMemo(
@@ -1129,6 +1167,40 @@ export function useSidebarController({
     [onRefresh, t],
   );
 
+  /**
+   * Sets a project's highlight colour, or clears it with null.
+   *
+   * Optimistic and deliberately without a refresh: the strip repaints from the
+   * override immediately, and a failure puts the previous colour back rather
+   * than leaving the row showing a colour that was never saved.
+   */
+  const setProjectAccentColor = useCallback(
+    (projectId: string, accentColor: string | null, previousAccentColor: string | null) => {
+      setAccentColorOverrides((currentOverrides) => ({
+        ...currentOverrides,
+        [projectId]: accentColor,
+      }));
+
+      const run = async () => {
+        try {
+          const response = await api.setProjectAccentColor(projectId, accentColor);
+          if (!response.ok) {
+            throw new Error(`Accent colour update failed with status ${response.status}`);
+          }
+        } catch (error) {
+          console.error('[Sidebar] Failed to set project accent colour:', error);
+          setAccentColorOverrides((currentOverrides) => ({
+            ...currentOverrides,
+            [projectId]: previousAccentColor,
+          }));
+        }
+      };
+
+      void run();
+    },
+    [],
+  );
+
   const handleProjectSelect = useCallback(
     (project: Project) => {
       setProjectFilterKey((currentKey) =>
@@ -1306,6 +1378,7 @@ export function useSidebarController({
     requestRepositoryDelete,
     archiveProjects,
     renameProjectDirect,
+    setProjectAccentColor,
     confirmDeleteProject,
     handleProjectSelect,
     openArchivedSession,

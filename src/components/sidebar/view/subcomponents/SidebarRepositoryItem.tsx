@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, ListFilter, Plus, TreeDeciduous, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, ListFilter, MessageSquare, Plus, TreeDeciduous, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
@@ -20,6 +20,7 @@ import {
   resolveActivityState,
 } from '../../utils/utils';
 import { useLongPress } from '../../../../hooks/useLongPress';
+import { projectAccentColorValue, readProjectAccentColor } from '../../utils/accentColors';
 
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
@@ -174,6 +175,10 @@ export default function SidebarRepositoryItem({
     (checkout) => selectedProject?.projectId === checkout.projectId,
   );
   const isEditing = editingProject === project.projectId;
+  // The highlight belongs to the lead checkout, the same target rename and the
+  // Customize menu act on, so a merged row shows one colour rather than one per
+  // worktree. Unknown tokens resolve to null and simply draw no strip.
+  const accentColor = readProjectAccentColor(project.accentColor);
   // Drives the header control's lit state, so a row you filtered and navigated
   // away from still says so when you come back to it.
   const hasCustomView = !isDefaultRepositoryView(viewOptions);
@@ -267,6 +272,22 @@ export default function SidebarRepositoryItem({
     onSaveProjectName(project.projectId);
   };
 
+  /**
+   * The customization highlight: a strip down the row's leading edge.
+   *
+   * Clipped by the row's own `overflow-hidden`, so it picks up whatever corner
+   * radius that row has instead of hardcoding one per breakpoint. Kept out of
+   * the sticky wrapper deliberately — that wrapper also holds the Sessions
+   * subheader, and the strip marks the project, not its session list.
+   */
+  const accentStrip = accentColor && (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-y-0 left-0 w-1"
+      style={{ backgroundColor: projectAccentColorValue(accentColor) }}
+    />
+  );
+
   const selectAndToggleProject = () => {
     if (selectedProject?.projectId !== project.projectId) {
       onProjectSelect(project);
@@ -292,13 +313,17 @@ export default function SidebarRepositoryItem({
               // No resting card — see SidebarSessionItem for the reasoning.
               // The row keeps an opaque background only while it is stuck to
               // the top, so scrolled content cannot show through it.
-              'long-pressable p-2 mx-3 my-0.5 rounded-lg transition-all duration-150',
+              // px-3 rather than p-2: the leading edge carries the accent strip,
+              // and 8px left the label almost touching it. Applied whether or
+              // not a colour is set, so adding one never shifts the text.
+              'long-pressable relative overflow-hidden mx-3 my-0.5 rounded-lg px-3 py-2 transition-all duration-150',
               isContextActive && 'scale-[0.98] bg-accent/60',
               isSelected ? 'bg-primary/10' : 'active:bg-accent/50',
             )}
             onClick={toggleProject}
             {...longPress}
           >
+            {accentStrip}
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <div className="min-w-0 flex-1">
@@ -402,11 +427,12 @@ export default function SidebarRepositoryItem({
         <Button
           variant="ghost"
           className={cn(
-            'hidden md:flex w-full justify-between p-2 h-auto font-normal hover:bg-accent/50',
+            'hidden md:flex relative overflow-hidden w-full justify-between px-3 py-2 h-auto font-normal hover:bg-accent/50',
             isSelected && 'bg-primary/10',
           )}
           onClick={selectAndToggleProject}
         >
+          {accentStrip}
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="min-w-0 flex-1 text-left">
               {isEditing ? (
@@ -531,6 +557,7 @@ export default function SidebarRepositoryItem({
         {isExpanded && !isEditing && (
           <SidebarSectionHeader
             label={t('sessions.title')}
+            icon={MessageSquare}
             summary={(
               <span className="ml-auto flex items-center gap-1 normal-case tracking-normal">
                 {onOpenViewMenu && (
