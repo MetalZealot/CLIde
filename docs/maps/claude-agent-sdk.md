@@ -123,7 +123,7 @@ Two consequences are already user-visible:
   CLIde, `cyclePermissionMode` (`useChatComposerState.ts`) only mutates local
   React state; the value is serialized into the outgoing payload at send time and
   baked into `sdkOptions.permissionMode` at query construction
-  (`claude-sdk.js:183-195`). A mid-task flip lands on the *next* message. The same
+  (`claude-runtime.provider.js`). A mid-task flip lands on the *next* message. The same
   shape blocks live model switching.
 - **Context usage is a mid-turn-only reading.** `getContextUsage()` answers only
   while a turn is streaming — at the terminal `result` the transport is already
@@ -164,7 +164,7 @@ Two consequences are already user-visible:
 | Discovery and history | `~/.claude/projects/**/*.jsonl` | Implemented by filesystem watching and hand-parsed JSONL | `claude-session-synchronizer.provider.ts`, `claude-sessions.provider.ts` | Compatibility watch |
 | Native session functions | `listSessions`, `getSessionInfo`, `getSessionMessages`, `renameSession`, `deleteSession`, `tagSession`, `importSessionToStore`, `foldSessionSummary` | Not used | Claude sessions provider (internal delegation only) | Defer; wholesale replacement would fight the multi-provider model |
 | Subagent transcripts | `listSubagents`, `getSubagentMessages`, nested `subagents/agent-*.jsonl` | Partial: `subagentTools` and `parent_tool_use_id` grouping exist; no agent view, orphaned files on force-delete | Provider-neutral agent activity model | Defer; tracked in `TODO.md` |
-| Conversation rewind | `resumeSessionAt` + transcript anchor resolution | Implemented; transcript becomes a tree and readers follow the active parent chain | `claude-rewind.util.ts` + `claude-sdk.js` | Keep (ADR 0007) |
+| Conversation rewind | `resumeSessionAt` + transcript anchor resolution | Implemented; transcript becomes a tree and readers follow the active parent chain | `claude-rewind.util.ts` + `claude-runtime.provider.js` | Keep (ADR 0007) |
 | File checkpoints | `enableFileCheckpointing` | **Half-wired:** snapshots are written every run, `rewindFiles()` is never called | Rewind UI + control channel | Integrate — the expensive half is already paid for |
 | Explicit fork | `forkSession` option and top-level `forkSession()` | Not exposed; capability service reports `supportsFork: false` | Sessions service + provider fork binding | Candidate |
 | Compaction | Auto-compact plus `/compact` | Partial: summaries are re-labelled as assistant text and referenced files are surfaced (ADR 0023); `compact_boundary` and `PreCompact`/`PostCompact` are unused | History parser + transcript divider | Candidate |
@@ -173,7 +173,7 @@ Two consequences are already user-visible:
 | Transcript retention | `cleanupPeriodDays` | Not exposed; directly affects CLIde's own session list | Provider settings | Candidate |
 | Session naming | `title` option, `-n/--name`, `renameSession` | App-owned summaries only | Sidebar/session routes | Keep current ownership |
 | App-owned starring | CLIde metadata | Implemented, starred-first ordering | Sessions repository | Keep |
-| Ephemeral runs | `persistSession: false` | Implemented for the commit-message generator | `claude-sdk.js` | Keep |
+| Ephemeral runs | `persistSession: false` | Implemented for the commit-message generator | `claude-runtime.provider.js` | Keep |
 
 Live and reloaded history must remain equivalent. Any new message kind is
 incomplete until the JSONL parser preserves the same meaning, identity, and
@@ -209,7 +209,7 @@ be decorative.
 | Capability | Upstream surface | CLIde today | Integration destination | Disposition |
 |---|---|---|---|---|
 | MCP configuration | `~/.claude.json`, `.mcp.json`, `claude mcp` | Implemented: user/local/project scopes, stdio/http/sse | `claude-mcp.provider.ts` + shared MCP services | Keep |
-| MCP servers passed to a turn | `mcpServers` option | Implemented by hand-reading `~/.claude.json` and merging project entries | `loadMcpConfig` in `claude-sdk.js` | Compatibility watch — duplicates the CLI's own resolution |
+| MCP servers passed to a turn | `mcpServers` option | Implemented by hand-reading `~/.claude.json` and merging project entries | `loadMcpConfig` in `claude-runtime.provider.js` | Compatibility watch — duplicates the CLI's own resolution |
 | MCP runtime state | `mcpServerStatus()`, `reconnectMcpServer()`, `toggleMcpServer()`, `setMcpServers()` | Not exposed | Shared MCP runtime/status contract | Candidate |
 | MCP gating keys | `enabledMcpjsonServers`, `disabledMcpjsonServers`, `enableAllProjectMcpServers` | Not exposed | MCP settings | Candidate with the settings viewer |
 | In-process MCP servers | `createSdkMcpServer()`, `tool()` | Not used | Exposing CLIde's own actions as tools | Defer |
@@ -241,7 +241,7 @@ be decorative.
 `normalizeMessage` (`claude-sessions.provider.ts:493`) acts on the assistant and
 user message shapes — text, `thinking`, `tool_use`, `tool_result`, base64 image
 blocks — plus transcript-only concerns: compact summaries, local-command rows and
-their stdout, and `<synthetic>` notices. `claude-sdk.js` reads `session_id` off
+their stdout, and `<synthetic>` notices. `claude-runtime.provider.js` reads `session_id` off
 any frame and per-step usage off assistant frames, and uses `result` only as an
 exclusion so the cumulative turn total never drives the ring.
 

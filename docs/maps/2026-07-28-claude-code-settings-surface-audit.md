@@ -35,7 +35,7 @@ Both were cross-checked; the binary's schema is a small superset (it carries
 ## Headline finding
 
 **CLIde already inherits `~/.claude/settings.json` in every session.**
-`server/claude-sdk.js:233` sets:
+`claude-runtime.provider.js` sets:
 
 ```js
 sdkOptions.settingSources = ['project', 'user', 'local'];
@@ -82,7 +82,7 @@ it should map to `permissions.allow`/`deny` but does not:
 - It writes `localStorage['claude-settings']` → `{ allowedTools, disallowedTools,
   skipPermissions }`.
 - Those become `sdkOptions.allowedTools` / `disallowedTools` / a
-  `permissionMode: 'bypassPermissions'` flip (`claude-sdk.js:187–215`).
+  `permissionMode: 'bypassPermissions'` flip (`claude-runtime.provider.js`).
 
 Meanwhile `permissions.allow`/`deny` from `settings.json` are *also* in force via
 `settingSources`. **Two parallel permission systems, neither aware of the other,

@@ -26,7 +26,7 @@ Codex has its own shared helper, `extractCodexContextTokenUsage`
 
 The **denominator** has two sources, in this order: the SDK's own `getContextUsage()`
 reading, cached per session by `claude-context-usage.ts` (authoritative — also carries
-`autoCompactThreshold`; only answerable *mid-turn*, so `claude-sdk.js` fires it once per
+`autoCompactThreshold`; only answerable *mid-turn*, so `claude-runtime.provider.js` fires it once per
 turn without awaiting), then `resolveClaudeContextCeiling`
 (`claude-context-window.ts`) as the fallback for history reads and post-restart
 sessions. `CONTEXT_WINDOW` outranks both. The fallback's `CLAUDE_MODEL_CONTEXT_SPECS`
@@ -83,8 +83,12 @@ The **catalog** (the static list of selectable models) is server-side and hardco
 returns.
 
 `ComposerModelMenu` is the only model/effort presentation. The `/models` command
-increments its `openRequest` instead of opening `CommandResultModal`, and the menu's
-refresh action reloads the provider catalog with `bypassCache=true`.
+increments its `openRequest` instead of opening `CommandResultModal`. The menu heads
+with the provider name and opens a provider list **only while the chat is brand new**
+(`canSelectProvider` in `ChatInterface`) — a session belongs to the runtime that
+started it. There is no catalog-refresh action: Claude and Codex are in
+`UNCACHED_PROVIDERS` (`provider-models.service.ts`), so it refetched nothing. The
+server still accepts `?bypassCache=`; no client sends it.
 
 **Per-session active-model tracking** — which model a given session is actually running,
 as opposed to the catalog — is its own subsystem: client `SessionSlot`, server
@@ -113,7 +117,28 @@ the same function — fix both in one pass.
   `{ handlers, isPressing }`; rows recess off `isPressing`, **not** CSS `:active`, which
   is unreliable on touch (ADR 0009). Context menu is `SidebarContextMenu`. Starred-first
   ordering is `compareSessionsStarredFirst` (`src/components/sidebar/utils/utils.ts`),
-  applied on every session-list surface.
+  reached through `getAllSessions`, so every project session list inherits it — sort
+  there, not at a call site. The two lists that map sessions directly
+  (`SidebarContent`: conversation search, archived groups) are server-ordered
+  `isStarred DESC` and deliberately excluded.
+- **Sidebar status is symbols, not row tint** (ADR 0031). `ActivityState` is
+  `'blocked' | 'unread' | 'running'`; `SidebarStatusIndicator` is the single renderer,
+  and the only three semantic colours are `status-attention` / `status-unread` /
+  `status-running` in `tailwind.config.js`. It takes `t` as a **prop** rather than
+  calling `useTranslation`, so grepping for that hook wrongly suggests it is
+  un-translated. Selection stays `primary` — theme-relative, a separate visual channel.
+- **The two signals have different lifecycles** — `reduceSidebarSessionSignals`
+  (`src/hooks/sidebarSessionSignals.ts`). Attention follows the *request* lifecycle,
+  unread follows the *viewing* one, so opening a session clears unread but never
+  clears an unresolved attention signal. `collectActivitySessions` copies these above
+  Pinned without removing the rows from their repositories (ADR 0030).
+- **Every composer popover shares one anchor and one surface.** `useComposerMenuAnchor`
+  owns above-trigger placement, outside-pointer and Escape dismissal, and reflow;
+  `ComposerMenuPrimitives` owns the surface, heading, separator, and item. The three
+  consumers are `ComposerModelMenu`, `ComposerPermissionMenu`, and `TokenUsageSummary`.
+  Add a fourth popover by reusing both, not by re-deriving `getBoundingClientRect`
+  maths. (`MessageCopyControl` positions itself independently — different placement
+  semantics, deliberately not a consumer.)
 - **Biggest state hooks — reach for these by name** rather than grepping cold:
   `useChatComposerState`, `useProjectsState`, `useSidebarController`,
   `useChatSessionState`, `useSessionStore`, `useGitPanelController`.
