@@ -1,4 +1,4 @@
-import { Archive, Settings, ArrowUpCircle, AlertTriangle, MessageSquarePlus } from 'lucide-react';
+import { Archive, Settings, ArrowUpCircle, AlertTriangle } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { IS_PLATFORM } from '../../../../constants/config';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
@@ -13,7 +13,6 @@ type SidebarFooterProps = {
   currentVersion: string;
   onShowVersionModal: () => void;
   onShowSettings: () => void;
-  onOpenNewSession: () => void;
   isArchiveOpen: boolean;
   onShowArchive: () => void;
   t: TFunction;
@@ -27,7 +26,6 @@ export default function SidebarFooter({
   currentVersion,
   onShowVersionModal,
   onShowSettings,
-  onOpenNewSession,
   isArchiveOpen,
   onShowArchive,
   t,
@@ -98,7 +96,7 @@ export default function SidebarFooter({
         </>
       )}
 
-      {/* Settings + Archive, and on mobile the primary action */}
+      {/* Settings + Archive */}
       <div className="nav-divider" />
 
       <div className="px-2 py-1.5">
@@ -109,24 +107,6 @@ export default function SidebarFooter({
           >
             <Settings className="h-3.5 w-3.5" />
             <span className="text-sm">{t('actions.settings')}</span>
-          </button>
-
-          {/*
-            New Chat lives here on mobile rather than in the header: the drawer
-            is full-height, so the header is the one corner a thumb cannot
-            reach. It is a filled pill because it is the only primary action in
-            the sidebar, and an ordinary row in this flex line rather than a
-            floating button, so it never covers the list above it.
-          */}
-          <button
-            type="button"
-            onClick={onOpenNewSession}
-            aria-label={t('sessions.newSession')}
-            title={t('sessions.newSession')}
-            className="flex h-8 flex-shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-transform active:scale-95 md:hidden"
-          >
-            <MessageSquarePlus strokeWidth={1.75} className="h-4 w-4" />
-            <span>{t('sessions.newSession')}</span>
           </button>
           <button
             type="button"

@@ -118,18 +118,23 @@ export default function SidebarProjectSessions({
   // the row back to its first page, so opening it is not a one-way door.
   const canShowLess = !canShowMore && visibleSessionCount > SESSION_PAGE_SIZE;
 
-  // The rail is deliberately the same width and x-position as the repository
-  // row's accent strip (`w-1` inside an `mx-3` row), so an open project and its
-  // sessions read as one spine instead of two unrelated verticals 4px apart.
-  // It carries the project's colour for the same reason — that, rather than a
-  // background tint, is what marks the row as expanded.
+  // The rail starts at the same x as the repository row's accent strip (`w-1`
+  // inside an `mx-3` row), so an open project and its sessions read as one
+  // spine rather than two unrelated verticals. It carries the project's colour
+  // for the same reason — that, rather than a background tint, is what marks
+  // the row as expanded.
+  //
+  // Narrower than the strip on purpose: at a matching 4px it ran the full
+  // height of the list and read as a second UI element competing with the
+  // rows. The `pl-0.5` makes up the 2px it gives back, so the session labels'
+  // text edge does not move.
   //
   // No `space-y` here: rows own their spacing through `my-0.5`, and adding 4px
   // on top of it made this list twice as airy as the identical-looking Pinned
   // list above it.
   return (
     <div
-      className="ml-3 border-l-4 border-border"
+      className="ml-3 border-l-2 border-border pl-0.5"
       style={accentColor ? { borderColor: projectAccentColorValue(accentColor) } : undefined}
     >
       {!initialSessionsLoaded ? (

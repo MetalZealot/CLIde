@@ -558,6 +558,7 @@ export default function SidebarRepositoryItem({
           <SidebarSectionHeader
             label={t('sessions.title')}
             icon={MessageSquare}
+            isNested
             summary={(
               // -my-1 keeps these 24px controls from growing the section
               // header's 16px box; the touch target stays 24px, the layout

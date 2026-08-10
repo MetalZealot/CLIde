@@ -6,7 +6,7 @@ import { ContextMenuOverlay, anchorFromElement } from '../../../../shared/view/u
 import { cn } from '../../../../lib/utils';
 import type { RepositoryEntry } from '../../types/types';
 
-import { SIDEBAR_SECTION_HEADER_CLASS } from './SidebarSectionHeader';
+import { SIDEBAR_SECTION_HEADER_CLASS } from './sectionHeaderStyles';
 
 type SidebarProjectPickerProps = {
   entries: RepositoryEntry[];
