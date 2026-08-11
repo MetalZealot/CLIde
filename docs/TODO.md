@@ -40,8 +40,6 @@ main checkout only).
 ## Mobile UX polish
 
 - [ ] **Move the top tab strip to a bottom nav** — core tabs go in a bottom bar, design decided 2026-07-22 (ADR 0005). Supersedes the old "plugin buttons cramp the conversation title" item. **M**
-- [~] **Sidebar hierarchy pass** — in progress on `feat/sidebar-hierarchy`. One section-label metric instead of three (Pinned 16px / Projects 44px / Sessions 24px), one row rhythm, a nesting indent on a rail continuing the accent strip, one metadata size, project titles at 500, and New Session as a floating square button on mobile. **M**
-- [~] **Sidebar footer is an account row** — on `feat/sidebar-hierarchy`. Settings and Archive left the footer for a menu under a new account button; the footer's other half is New Session on mobile. Adds a real Account screen (name, picture, password) on `PATCH /api/auth/profile` + `POST /api/auth/password`, and a `users.avatar` column. **M**
 - [ ] Kebab menu: add "Copy session ID" for the **current** session. The long-press sidebar menu covers other sessions; copying the id of the chat you're in still means hunting for it. **S**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client**. Opening deliberately preserves unresolved attention; it clears only when this client receives `permission_cancelled` or the session is removed. Acceptable for now. **S**
