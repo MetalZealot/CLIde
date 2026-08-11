@@ -584,7 +584,7 @@ export default function SidebarContent({
           onClick={onOpenNewSession}
           aria-label={t('sessions.newSession')}
           title={t('sessions.newSession')}
-          className="absolute bottom-4 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform active:scale-95 md:hidden"
+          className="absolute bottom-4 right-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform active:scale-95 md:hidden"
         >
           <MessageSquarePlus strokeWidth={1.75} className="!h-6 !w-6" />
         </button>

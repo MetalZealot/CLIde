@@ -87,11 +87,9 @@ export default function SidebarHeader({
    * Global actions in the header.
    *
    * New Chat is desktop-only here. On a phone the header is the far corner of
-   * a full-height drawer, so the sidebar's highest-frequency action lives in
-   * the footer row instead, which is already in the thumb zone — see
-   * `SidebarFooter`. It is an in-flow row rather than a floating pill
-   * deliberately (the reasoning in ADR 0005 applies): a `fixed` control would
-   * sit on top of the list's own last action.
+   * a full-height drawer, so the sidebar's highest-frequency action floats over
+   * the bottom of the list instead, inside the thumb zone — see
+   * `SidebarContent`.
    */
   const renderHeaderTools = (compact: boolean) => {
     return (
