@@ -11,7 +11,10 @@ import {
 } from '../../../utils/api';
 import { AUTH_ERROR_MESSAGES, AUTH_TOKEN_STORAGE_KEY } from '../constants';
 import type {
+  ApiErrorPayload,
+  AuthActionResult,
   AuthContextValue,
+  AuthProfileChanges,
   AuthProviderProps,
   AuthSessionPayload,
   AuthStatusPayload,
@@ -373,6 +376,55 @@ export function AuthProvider({ children }: AuthProviderProps) {
     clearSession();
   }, [clearSession]);
 
+  /**
+   * Applies a name and/or picture change, then adopts the row the server
+   * actually stored rather than the values sent. A rename can be normalised
+   * (trimmed) or refused, and every surface reading `user` should show the
+   * truth either way.
+   */
+  const updateProfile = useCallback(async (changes: AuthProfileChanges): Promise<AuthActionResult> => {
+    try {
+      const response = await api.auth.updateProfile(changes);
+      // The route returns the stored row on success and an error body on
+      // failure, so this parses as both rather than guessing from the status.
+      const data = await parseJsonSafely<AuthUserPayload & ApiErrorPayload>(response);
+
+      if (!response.ok || !data?.user) {
+        return { success: false, error: resolveApiErrorMessage(data, AUTH_ERROR_MESSAGES.networkError) };
+      }
+
+      setUser(data.user);
+      return { success: true };
+    } catch (caughtError) {
+      console.error('Profile update error:', caughtError);
+      return { success: false, error: AUTH_ERROR_MESSAGES.networkError };
+    }
+  }, []);
+
+  /**
+   * Does not touch the stored token. The server keeps no revocation list, so
+   * the existing session stays valid — pretending otherwise by logging the user
+   * out here would imply a guarantee the backend cannot make.
+   */
+  const changePassword = useCallback(async (
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<AuthActionResult> => {
+    try {
+      const response = await api.auth.changePassword(currentPassword, newPassword);
+      const data = await parseJsonSafely<ApiErrorPayload>(response);
+
+      if (!response.ok) {
+        return { success: false, error: resolveApiErrorMessage(data, AUTH_ERROR_MESSAGES.networkError) };
+      }
+
+      return { success: true };
+    } catch (caughtError) {
+      console.error('Password change error:', caughtError);
+      return { success: false, error: AUTH_ERROR_MESSAGES.networkError };
+    }
+  }, []);
+
   const contextValue = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -384,9 +436,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       login,
       register,
       logout,
+      updateProfile,
+      changePassword,
       refreshOnboardingStatus,
     }),
     [
+      changePassword,
       error,
       hasCompletedOnboarding,
       isLoading,
@@ -396,6 +451,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       refreshOnboardingStatus,
       register,
       token,
+      updateProfile,
       user,
     ],
   );

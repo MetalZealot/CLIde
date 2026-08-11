@@ -1,6 +1,7 @@
 import {
   Bell,
   Brain,
+  CircleUser,
   Code2,
   FileCode2,
   GitBranch,
@@ -56,6 +57,7 @@ export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?
   tasks: ListChecks,
   credentials: KeyRound,
   about: Info,
+  account: CircleUser,
   providerClaude: providerLogo('claude'),
   providerCursor: providerLogo('cursor'),
   providerCodex: providerLogo('codex'),

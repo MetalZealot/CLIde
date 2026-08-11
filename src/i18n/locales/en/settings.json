@@ -104,7 +104,8 @@
     "notifications": "Notifications",
     "plugins": "Plugins",
     "about": "About",
-    "credentials": "Credentials"
+    "credentials": "Credentials",
+    "account": "Account"
   },
   "notifications": {
     "description": "Control which notification events you receive.",
@@ -658,5 +659,33 @@
     "follow": "Provider default",
     "followNamed": "Provider default ({{model}})",
     "legacy": "Legacy"
+  },
+  "accountScreen": {
+    "picture": {
+      "title": "Picture",
+      "description": "Shown beside your name in the sidebar. Resized to a small square before it is saved.",
+      "change": "Change picture",
+      "remove": "Remove",
+      "saved": "Picture updated.",
+      "removed": "Picture removed.",
+      "failed": "That image could not be used."
+    },
+    "username": {
+      "title": "Name",
+      "label": "Username",
+      "help": "At least 3 characters. This is the name you sign in with.",
+      "saved": "Name updated."
+    },
+    "password": {
+      "title": "Password",
+      "description": "Changing your password does not sign you out on other devices.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Confirm new password",
+      "help": "At least 6 characters.",
+      "save": "Change password",
+      "saved": "Password changed.",
+      "mismatch": "The new passwords do not match."
+    }
   }
 }

@@ -23,6 +23,7 @@ export type SettingsIconName =
   | 'tasks'
   | 'credentials'
   | 'about'
+  | 'account'
   | 'providerClaude'
   | 'providerCursor'
   | 'providerCodex'
@@ -227,6 +228,14 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
     icon: 'tasks',
     group: 'extensions',
     keywords: 'tasks taskmaster',
+  },
+  {
+    kind: 'screen',
+    id: 'account',
+    labelKey: 'mainTabs.account',
+    icon: 'account',
+    group: 'system',
+    keywords: 'account profile username password avatar picture display name',
   },
   {
     kind: 'screen',

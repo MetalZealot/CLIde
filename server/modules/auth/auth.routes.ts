@@ -53,5 +53,29 @@ export function createAuthRouter(
     res.json(service.logout());
   });
 
+  router.patch('/profile', authenticateToken, (req, res, next) => {
+    try {
+      const body = req.body as { username?: unknown; avatar?: unknown };
+      res.json(service.updateProfile((req as AuthenticatedRequest).user, body));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/password', authenticateToken, async (req, res, next) => {
+    try {
+      const body = req.body as { currentPassword?: unknown; newPassword?: unknown };
+      res.json(
+        await service.changePassword(
+          (req as AuthenticatedRequest).user,
+          body.currentPassword,
+          body.newPassword,
+        ),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }

@@ -11,6 +11,7 @@ import { useWebPush } from '../../../hooks/useWebPush';
 import type { SettingsProps } from '../types/types';
 
 import AboutScreen from './screens/AboutScreen';
+import AccountScreen from './screens/AccountScreen';
 import AgentMcpScreen from './screens/AgentMcpScreen';
 import AgentDefaultModelScreen from './screens/AgentDefaultModelScreen';
 import AgentPermissionsScreen from './screens/AgentPermissionsScreen';
@@ -294,6 +295,9 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
 
       case 'tasks':
         return <ExtensionsTasksScreen />;
+
+      case 'account':
+        return <AccountScreen />;
 
       case 'credentials':
         return <CredentialsScreen />;

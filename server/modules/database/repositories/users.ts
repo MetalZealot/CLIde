@@ -18,9 +18,15 @@ type UserRow = {
   git_name: string | null;
   git_email: string | null;
   has_completed_onboarding: number;
+  avatar: string | null;
 };
 
-type UserPublicRow = Pick<UserRow, 'id' | 'username' | 'created_at' | 'last_login'>;
+/**
+ * What callers outside auth may see. `avatar` is included because every surface
+ * that shows the username also shows the picture beside it — leaving it out
+ * would mean a second round trip on every render of the sidebar footer.
+ */
+type UserPublicRow = Pick<UserRow, 'id' | 'username' | 'created_at' | 'last_login' | 'avatar'>;
 
 type UserGitConfig = {
   git_name: string | null;
@@ -84,7 +90,7 @@ export const userDb = {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE id = ? AND is_active = 1'
+        'SELECT id, username, created_at, last_login, avatar FROM users WHERE id = ? AND is_active = 1'
       )
       .get(userId) as UserPublicRow | undefined;
   },
@@ -94,7 +100,7 @@ export const userDb = {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE is_active = 1 LIMIT 1'
+        'SELECT id, username, created_at, last_login, avatar FROM users WHERE is_active = 1 LIMIT 1'
       )
       .get() as UserPublicRow | undefined;
   },
@@ -119,6 +125,41 @@ export const userDb = {
     return db
       .prepare('SELECT git_name, git_email FROM users WHERE id = ?')
       .get(userId) as UserGitConfig | undefined;
+  },
+
+  /**
+   * Renames the account. Lets SQLite's UNIQUE constraint reject a taken name
+   * rather than checking first — a read-then-write would be a race even here,
+   * and the service already maps the constraint error to a 409.
+   */
+  updateUsername(userId: number, username: string): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET username = ? WHERE id = ?').run(username, userId);
+  },
+
+  /** Stores the account picture, or clears it with null. */
+  updateAvatar(userId: number, avatar: string | null): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatar, userId);
+  },
+
+  /**
+   * The stored bcrypt hash, so a password change can verify the current one.
+   * Separate from `getUserById` on purpose: that row is handed to route
+   * responses, and the hash must never ride along.
+   */
+  getPasswordHashById(userId: number): string | undefined {
+    const db = getConnection();
+    const row = db
+      .prepare('SELECT password_hash FROM users WHERE id = ? AND is_active = 1')
+      .get(userId) as { password_hash: string } | undefined;
+    return row?.password_hash;
+  },
+
+  /** Replaces the stored password hash. */
+  updatePasswordHash(userId: number, passwordHash: string): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
   },
 
   /** Marks onboarding as complete for the given user. */

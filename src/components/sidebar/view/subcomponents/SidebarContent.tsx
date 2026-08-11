@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Archive, Folder, MessageSquare, MessageSquarePlus, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Archive, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ScrollArea } from '../../../../shared/view/ui';
@@ -140,7 +140,7 @@ type SidebarContentProps = {
   latestVersion: string | null;
   currentVersion: string;
   onShowVersionModal: () => void;
-  onShowSettings: () => void;
+  onShowSettings: (screenId?: string) => void;
   projectListProps: SidebarProjectListProps;
   t: TFunction;
 };
@@ -203,7 +203,6 @@ export default function SidebarContent({
         t={t}
       />
 
-      <div className="relative flex min-h-0 flex-1 flex-col">
       <ScrollArea className="min-h-0 flex-1 overflow-y-auto overscroll-contain md:px-1.5 md:py-2">
         {showConversationSearch ? (
           isSearching && !hasPartialResults ? (
@@ -560,36 +559,7 @@ export default function SidebarContent({
           <SidebarProjectList {...projectListProps} />
         )}
 
-        {/*
-          Scroll clearance for the floating button below, so the list's own last
-          row can always be brought out from under it.
-        */}
-        <div aria-hidden className="h-24 md:hidden" />
       </ScrollArea>
-
-      {/*
-        New Session floats over the list on mobile rather than sitting in the
-        header. The drawer is full-height, so the header is the one corner a
-        thumb cannot reach.
-
-        `absolute` within this wrapper, never `fixed`: it stays inside the
-        sidebar's own box, so it cannot outlive the drawer or need viewport
-        inset overrides in the standalone PWA (ADR 0010). Hidden while renaming
-        for the same reason the footer is — the keyboard is up and the field it
-        would cover is the one being edited.
-      */}
-      {!isRenamingOnMobile && (
-        <button
-          type="button"
-          onClick={onOpenNewSession}
-          aria-label={t('sessions.newSession')}
-          title={t('sessions.newSession')}
-          className="absolute bottom-4 right-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-transform active:scale-95 md:hidden"
-        >
-          <MessageSquarePlus strokeWidth={1.75} className="!h-6 !w-6" />
-        </button>
-      )}
-      </div>
 
       {!isRenamingOnMobile && (
         <SidebarFooter
@@ -602,6 +572,7 @@ export default function SidebarContent({
           onShowSettings={onShowSettings}
           isArchiveOpen={searchMode === 'archived'}
           onShowArchive={() => onSearchModeChange(searchMode === 'archived' ? 'projects' : 'archived')}
+          onOpenNewSession={onOpenNewSession}
           t={t}
         />
       )}

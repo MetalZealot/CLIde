@@ -146,6 +146,18 @@ export const api = {
     refresh: () => authenticatedFetch('/api/auth/refresh', { method: 'POST' }),
     user: () => authenticatedFetch('/api/auth/user'),
     logout: () => authenticatedFetch('/api/auth/logout', { method: 'POST' }),
+    // Send only the fields being changed: the server treats an absent key as
+    // "leave it" and an explicit `avatar: null` as "remove the picture".
+    updateProfile: (changes) => authenticatedFetch('/api/auth/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(changes),
+    }),
+    changePassword: (currentPassword, newPassword) => authenticatedFetch('/api/auth/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
   },
 
   // Protected endpoints

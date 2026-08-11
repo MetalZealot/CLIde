@@ -86,7 +86,10 @@
     "archive": "Archive",
     "rename": "Rename",
     "customize": "Customize",
-    "copySessionId": "Copy session ID"
+    "copySessionId": "Copy session ID",
+    "account": "Account",
+    "accountMenu": "Account menu",
+    "logOut": "Log out"
   },
   "branding": {
     "openSource": "Open Source"

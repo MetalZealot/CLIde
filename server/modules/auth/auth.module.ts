@@ -23,6 +23,11 @@ const authService = createAuthService({
     createUser: (username, passwordHash) => userDb.createUser(username, passwordHash),
     getUserByUsername: (username) => userDb.getUserByUsername(username),
     updateLastLogin: (userId) => userDb.updateLastLogin(userId),
+    getUserById: (userId) => userDb.getUserById(userId),
+    updateUsername: (userId, username) => userDb.updateUsername(userId, username),
+    updateAvatar: (userId, avatar) => userDb.updateAvatar(userId, avatar),
+    getPasswordHashById: (userId) => userDb.getPasswordHashById(userId),
+    updatePasswordHash: (userId, passwordHash) => userDb.updatePasswordHash(userId, passwordHash),
   },
   transaction: {
     begin: () => databaseConnection.prepare('BEGIN').run(),

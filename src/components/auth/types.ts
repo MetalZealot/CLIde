@@ -3,7 +3,18 @@ import type { ReactNode } from 'react';
 export type AuthUser = {
   id?: number | string;
   username: string;
+  /** A small square image data URL, or null when the account has no picture. */
+  avatar?: string | null;
   [key: string]: unknown;
+};
+
+/**
+ * Only the fields being changed. An absent key leaves that field alone;
+ * `avatar: null` removes the picture.
+ */
+export type AuthProfileChanges = {
+  username?: string;
+  avatar?: string | null;
 };
 
 export type AuthActionResult = { success: true } | { success: false; error: string };
@@ -42,6 +53,8 @@ export type AuthContextValue = {
   login: (username: string, password: string) => Promise<AuthActionResult>;
   register: (username: string, password: string) => Promise<AuthActionResult>;
   logout: () => void;
+  updateProfile: (changes: AuthProfileChanges) => Promise<AuthActionResult>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<AuthActionResult>;
   refreshOnboardingStatus: () => Promise<void>;
 };
 

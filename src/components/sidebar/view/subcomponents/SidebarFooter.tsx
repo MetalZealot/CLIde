@@ -1,7 +1,9 @@
-import { Archive, Settings, ArrowUpCircle, AlertTriangle } from 'lucide-react';
+import { ArrowUpCircle, AlertTriangle, MessageSquarePlus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { IS_PLATFORM } from '../../../../constants/config';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
+
+import SidebarAccountMenu from './SidebarAccountMenu';
 
 const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
 
@@ -12,9 +14,10 @@ type SidebarFooterProps = {
   latestVersion: string | null;
   currentVersion: string;
   onShowVersionModal: () => void;
-  onShowSettings: () => void;
+  onShowSettings: (screenId?: string) => void;
   isArchiveOpen: boolean;
   onShowArchive: () => void;
+  onOpenNewSession: () => void;
   t: TFunction;
 };
 
@@ -28,6 +31,7 @@ export default function SidebarFooter({
   onShowSettings,
   isArchiveOpen,
   onShowArchive,
+  onOpenNewSession,
   t,
 }: SidebarFooterProps) {
   return (
@@ -96,33 +100,34 @@ export default function SidebarFooter({
         </>
       )}
 
-      {/* Settings + Archive */}
+      {/*
+        Who you are on the left, the one high-frequency action on the right.
+
+        New Session is mobile-only here: on desktop it stays in the header,
+        which a pointer reaches as easily as anything else. On a phone the
+        sidebar is a full-height drawer, so the header is the one corner a thumb
+        cannot get to and this row is the one it can. Everything that used to
+        live along this row is now inside the account menu.
+      */}
       <div className="nav-divider" />
 
-      <div className="px-2 py-1.5">
-        <div className="flex items-center gap-1">
-          <button
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
-            onClick={onShowSettings}
-          >
-            <Settings className="h-3.5 w-3.5" />
-            <span className="text-sm">{t('actions.settings')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onShowArchive}
-            aria-pressed={isArchiveOpen}
-            aria-label={t('actions.archive', 'Archive')}
-            title={t('actions.archive', 'Archive')}
-            className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors ${
-              isArchiveOpen
-                ? 'bg-muted/60 text-foreground'
-                : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-            }`}
-          >
-            <Archive className="h-3.5 w-3.5" />
-          </button>
-        </div>
+      <div className="flex items-center gap-2 px-2 py-1.5">
+        <SidebarAccountMenu
+          onShowSettings={onShowSettings}
+          isArchiveOpen={isArchiveOpen}
+          onShowArchive={onShowArchive}
+          t={t}
+        />
+
+        <button
+          type="button"
+          onClick={onOpenNewSession}
+          aria-label={t('sessions.newSession')}
+          title={t('sessions.newSession')}
+          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm transition-transform active:scale-95 md:hidden"
+        >
+          <MessageSquarePlus strokeWidth={1.75} className="!h-5 !w-5" />
+        </button>
       </div>
 
       {/* Desktop version brand line (OSS mode only) */}

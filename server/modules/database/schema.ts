@@ -8,7 +8,12 @@ CREATE TABLE IF NOT EXISTS users (
     is_active BOOLEAN DEFAULT 1,
     git_name TEXT,
     git_email TEXT,
-    has_completed_onboarding BOOLEAN DEFAULT 0
+    has_completed_onboarding BOOLEAN DEFAULT 0,
+    -- A small square data URL, not a file path: the account picture is the only
+    -- user-supplied binary in the app, and a column keeps it inside the one
+    -- file that already gets backed up. The client downscales before upload and
+    -- the route caps the length, so this stays kilobytes.
+    avatar TEXT
 );
 `;
 
