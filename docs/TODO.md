@@ -3,7 +3,6 @@
 `- [ ]` open, `- [~]` partly done, `- [x]` done (move to [`todo-done.md`](todo-done.md) once verified).
 `[x]` means merged, which is not the same as live-verified on the production port.
 Sizes: **S** small/frontend-only, **M** medium, **L** large/needs design, **?** unknown until investigated.
-When a session claims an item on a topic branch, tag it `— in progress on <branch>` and commit so other sessions see the claim.
 
 **An item is one line: what the work is, plus a pointer.** The detail lives in its plan
 ([board](plans/README.md)), its map, its ADR, or its commit — not here. 400 characters is
@@ -26,7 +25,7 @@ main checkout only).
 - [ ] **Composer attachments silently reject oversized or wrong-type files.** No `onDropRejected`, and `imageErrors` renders only on accepted cards. Add rejection feedback without regressing the native Android picker path. [upstreamable] **S**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
-- [~] **Chat scroll-up pagination.** The accepted improvement merged (`12ede24`); branch retired 2026-08-04. Residual: the provider logo can still flash, and reaching the roof mid-load can still move the viewport. **Don't call pagination fixed.** Any fix needs a hands-on touch test on the real PWA — the headless harness gave a false PASS on a regression. **M/?**
+- [~] **Chat scroll-up pagination.** Merged `12ede24`; branch retired 2026-08-04. Re-verified on the PWA 2026-08-11: the provider-logo flash is **gone**, viewport jump at the roof is reduced but still there. Target is smooth enough that no "Load All" button is wanted. Needs a hands-on touch test — the headless harness gave a false PASS once. **M/?**
 - [ ] **A failed commit is completely silent.** Leading suspect is a `commit-msg` hook rejection leaving the index staged. Mechanism and the surrounding status-contract gaps: [the Git truth map](maps/repository-checkout-identity.md); it is Phase 0 item 1 of [the Source Control plan](plans/source-control-truthfulness.md) and blocks everything else there. [upstreamable] **S**
 - [ ] Sidebar session names sometimes don't match those shown under `claude /resume`. **?**
 - [ ] Shell view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**
@@ -34,14 +33,13 @@ main checkout only).
 - [ ] **Duplicate-session double-send:** pressing send twice on a brand-new chat creates two sessions running the same message. `handleSubmit` (`useChatComposerState.ts`) awaits `POST /api/providers/sessions` before anything visible happens — no optimistic append, no processing state, and **no in-flight guard**. Observed 2026-07-16, two JSONLs 250 ms apart. **S/M**
 - [ ] **Project force-delete orphans subagent transcripts on disk.** It unlinks each session's top-level `<slug>/<session-id>.jsonl`, but nested `<slug>/<session-id>/subagents/agent-*.jsonl` were never session rows, so they survive and keep the whole `<slug>/` tree alive against the non-recursive prune. Pre-existing, not caused by `0a738ae`. **S/M**
 - [ ] **Browser MCP hardening** — snapshot-first, reference-based automation replacing selector and coordinate targeting. [Plan](plans/browser-mcp-hardening.md). **L**
-- [~] **Plan windows in the usage popover never refreshed after page load** — `useProviderUsage` only fetched on mount, and this PWA's composer never remounts, so the 5-hour bar showed hours-old numbers. Now re-fetches on each popover open past the 60s cache TTL, and surfaces the server's `stale` flag. Awaiting user verification on 3001. **S**
+- [ ] **The desktop row kebab overlaps the row's timestamp and provider logo.** `RowActionsTrigger` (`db5a92f`) renders on top of the right-hand metadata instead of displacing or hiding it while hovered. Found during live verification 2026-08-11. **S**
 - [ ] **The usage popover is not translated.** `ContextBreakdownView` has no `useTranslation` at all (~12 visible strings: section titles, "Reserved", "Not counted — loaded on demand"), and `TokenUsageSummary` mixes `t()` with hardcoded English ("Context & Usage", "Session", window labels, "Resets at"). Every other chat surface is translated; ADR 0032 shipped it ahead of its keys. **S**
 
 ## Mobile UX polish
 
 - [ ] **Move the top tab strip to a bottom nav** — core tabs go in a bottom bar, design decided 2026-07-22 (ADR 0005). Supersedes the old "plugin buttons cramp the conversation title" item. **M**
 - [ ] Kebab menu: add "Copy session ID" for the **current** session. The long-press sidebar menu covers other sessions; copying the id of the chat you're in still means hunting for it. **S**
-- [~] **Sidebar row actions reachable on desktop.** The row menus were long-press-only, so desktop had no entry point. Hover/focus kebab (`RowActionsTrigger`) on session and repository rows feeds the existing menu builder; right-click is repository-only, since the session row's native menu is how you open a session in a new tab. Awaiting live verification on 3001. **M**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client**. Opening deliberately preserves unresolved attention; it clears only when this client receives `permission_cancelled` or the session is removed. Acceptable for now. **S**
 - [ ] Tool-call copy button placement on mobile: always-visible since `05b176b`, but it spans the whole right edge of the tool row, which is heavy. Compact or fold into a row action; keep hover-reveal on desktop. **S/M — design decision first**
@@ -65,7 +63,6 @@ Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md
 
 This section is the complete outstanding model-picker list (2026-07-13 and 2026-07-16 reviews).
 
-- [~] **Provider row in the model menu.** `236ea5d` dropped the old provider chooser with `ProviderSelectionEmptyState`; the composer menu now heads with the provider name, opening a provider list only while the chat is brand new (`ComposerModelMenu.tsx`). The Refresh button went with it — Claude and Codex are in `UNCACHED_PROVIDERS`, so it refetched nothing. Awaiting live verification. **S**
 - [ ] **#8 PRIORITY — live-verify the per-session model stack** (`8771eea` + `5d9da84`). Three tests: (a) leak — A on Fable, B picks Haiku without sending, back to A must still send Fable; (b) stale-pick resume — popup pick X, then change via Shell `/model`, the newer choice must win; (c) fresh-session popup/header agreement. **S to run**
 - [ ] **#15 — two independent caches of `/active-model`.** The original "unmaintained copy" is fixed. But `useSessionStore.slot.model` (TTL-cached, read at send) and `useChatProviderState.sessionModel` (uncached, read for display) still fetch and normalise that endpoint separately, so display and send can disagree. Collapse onto one owner. **M — verify with #8**
 - [ ] #2 — Shell `/model` stdout regex over-captures: a Default pick in the CLI's own picker shows the raw sentence "Default (recommended)" with no card highlight until the next turn. The `(.+?)\.?$` capture in `claude-models.provider.ts` takes too much. **S**
@@ -75,8 +72,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [x] #9 — "Default" pick semantics: decided by deleting the row. `default` was never an alias Claude Code accepts, so it ran the built-in Sonnet default and ignored the configured `model`; the runtime now omits `model` and the catalog badges the real default instead.
 - [ ] #10 — housekeeping: `pickSupersedesTranscript` lives in `claude-models.provider.ts` but is imported by the provider-agnostic `provider-models.service.ts`. The function is generic; move it. **S**
 - [ ] #11 — upstreaming opportunity: upstream issue #981 and PR #996 hit the same bug family as the `85ddd7e`/`5d9da84`/`8771eea` stack. Consider a PR — needs Grayson's go-ahead. **S**
-- [~] #13 — legacy models: reversed on 2026-08-10 (Grayson's call). Opus 4.8/4.7/4.6 and Sonnet 4.6 are in the catalog behind a "Legacy" submenu; Opus 4.1/4.0 stay out because the CLI remaps them. The alias-resolution trap is fixed — longest family match wins. Awaiting live verification.
-- [~] **Per-provider default model.** Settings › Agents › <provider> › Default Model seeds each new chat; `<provider>-default-model` outranks the last-used `<provider>-model`. Closes the `model` row of the [settings surface audit](maps/2026-07-28-claude-code-settings-surface-audit.md)'s override trap. Awaiting live verification. **S**
 
 ## Shell sync
 
@@ -87,7 +82,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [ ] **Typography overhaul** — self-hosted Figtree + Iosevka, removing Merriweather and the Google Fonts CDN. [Plan](plans/typography-system.md). **M**
 - [ ] Colour picker for accent colour; maybe a slight background hue shift. Light and dark variants. **M**
 - [ ] Optional presets matching model-provider branding (Anthropic, OpenAI, Google). **S once the picker exists**
-- [~] **Customize a project: highlight strip** — palette token on the project row (`projects.accent_color`), picked from Customize in the project menu, resolved through per-theme CSS variables so it reads in both. Awaiting production restart verification.
 - [ ] **Custom project icon**, second half of Customize after the colour strip. Pick an image from the project (or upload) via a modal reusing `useFileTreeData` + `isImageFile`, not a Files-tab detour — the tab has no pick mode and the cross-tab return trip is the real cost. Store a downscaled data URI on the project row, path as provenance only: a file in the repo breaks on worktrees. **M**
 
 ## Features (bigger ideas)
@@ -97,7 +91,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [ ] **Claude Code settings are almost entirely unreachable from CLIde** — ~140 settings-cascade keys, `/config` exposes ~50, CLIde exposes zero. The plumbing already exists: `settingSources` means `~/.claude/settings.json` is already in force in every session. Inventory: [the settings audit map](maps/2026-07-28-claude-code-settings-surface-audit.md). **L**
 - [~] **Source Control: manage worktrees and integrate branches without leaving CLIde.** Identity and grouping shipped (ADRs 0016, 0028, 0029); truthfulness and lifecycle remain. [Plan](plans/source-control-truthfulness.md). **L**
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
-- [~] **Codex plan usage: limit windows, credit/reset balance, account activity** — merged (`25952ea`) via the app-server's `account/rateLimits/read` and `account/usage/read`. Provider-neutral types keep Claude's spend/cap behaviour; API-key auth reports unsupported cleanly. Awaiting production restart verification. **M**
 - [ ] **Subagent tracking in the UI.** Claude writes subagent transcripts to `<slug>/<session-id>/subagents/agent-<id>.jsonl`; the synchronizer *deliberately* skips them (`isSubagentTranscript`) so a spawned agent never becomes its own sidebar session. Within a session they're grouped under the parent via `parent_tool_use_id`. **M/L**
 - [ ] **Does usage tracking count subagent tokens?** Answered — two systems, two behaviours. Plan-window % and credits come live from Anthropic's OAuth endpoint and **already include** agent tokens. The per-session context ring skips `isSidechain` rows by design. Remaining work is deciding whether to surface that difference. **S — decision**
 - [ ] **Compaction is inherited but unsurfaced** — no `/compact`, no auto-compact signal, no boundary marker. The SDK already reads `autoCompactEnabled`/`autoCompactWindow` via `settingSources`, and CLIde already renders compaction summaries. What's missing is the command and the visible boundary. **M**
