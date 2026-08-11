@@ -41,10 +41,25 @@ main checkout only).
 
 - [ ] **Move the top tab strip to a bottom nav** — core tabs go in a bottom bar, design decided 2026-07-22 (ADR 0005). Supersedes the old "plugin buttons cramp the conversation title" item. **M**
 - [ ] Kebab menu: add "Copy session ID" for the **current** session. The long-press sidebar menu covers other sessions; copying the id of the chat you're in still means hunting for it. **S**
+- [~] **Sidebar row actions reachable on desktop.** The row menus were long-press-only, so desktop had no entry point. Hover/focus kebab (`RowActionsTrigger`) on session and repository rows feeds the existing menu builder; right-click is repository-only, since the session row's native menu is how you open a session in a new tab. Awaiting live verification on 3001. **M**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client**. Opening deliberately preserves unresolved attention; it clears only when this client receives `permission_cancelled` or the session is removed. Acceptable for now. **S**
 - [ ] Tool-call copy button placement on mobile: always-visible since `05b176b`, but it spans the whole right edge of the tool row, which is heavy. Compact or fold into a row action; keep hover-reveal on desktop. **S/M — design decision first**
 - [ ] **Git branch picker: label branches by remote (origin/ vs upstream/), grouped per remote.** Tier 1 (compact header dropdown) is done. Blocked on the structured-refs work in [the Source Control plan](plans/source-control-truthfulness.md), since the API currently strips remote namespaces. **M**
+
+## Sidebar information architecture
+
+Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md). Decide the tier before designing the control.
+
+- [ ] **Adopt a tier-1 budget, or decide not to.** The map names three tiers; nothing yet says the permanent tier is fixed-size, so every new control still only has to clear "is this useful?" — which it always does. If adopted, it's an ADR. **S — decision, blocks the three below**
+- [ ] **Archive is a body mode entered from the account menu** — a view of your sessions sitting next to Log out. ADR 0030 put it in the footer beside Settings; the account-menu consolidation fixed the footer and left Archive homeless. Candidates: a mode alongside the search field, or a row in the project list. **S/M — design decision first**
+- [ ] **Activity and Pinned look identical and behave oppositely** — Activity copies a session while leaving it in its repository row, Pinned moves it and subtracts it from the row's count. Both render as `SidebarSectionHeader` + flat rows. Needs one cue, not a third section. **S**
+- [ ] **Three entry points for New Session, one of them scoped.** Header (global, desktop), footer (global, mobile), per-row `+` (scoped to that repository). Nothing marks which is which. **S**
+- [ ] **A repository row tap does different things per breakpoint** — mobile `onClick` only expands, desktop also selects the project (`SidebarRepositoryItem`, `toggleProject` vs `selectAndToggleProject`). No comment says why. Either is defensible; the divergence being undocumented is not. Parity table: [the sidebar map](maps/sidebar-surface.md). **S**
+- [ ] **The version is unreachable on mobile** — the OSS/version line is `hidden md:block` in the footer, and the version modal only opens from the update banner. A phone with no update pending can't see what it's running. **S**
+- [ ] **Session count reads "3 sessions" on mobile and "3" on desktop** from the same `getSessionCountDisplay`. Pick one. **S**
+- [ ] **Archive row actions are 28px at both breakpoints** — restore and delete are `h-7 w-7` in the shared archive tree, against 44px targets everywhere else on mobile, and they're the archive's only affordances. The shared-component risk the [parity table](maps/sidebar-surface.md) describes. **S**
+- [ ] **Should the repository row carry a TaskMaster indicator at all?** `TaskIndicator` rendered nowhere for its whole life (`md:hidden` parent, `md:inline-flex` child) and the dead prop chain is gone; `getTaskIndicatorStatus` and the component remain. Restoring it means spending a tier-1 slot, so it waits on the budget item. **S**
 
 ## Model picker follow-ups
 
