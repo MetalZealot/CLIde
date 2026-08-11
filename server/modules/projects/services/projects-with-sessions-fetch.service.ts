@@ -8,6 +8,7 @@ import type { RealtimeClientConnection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
 import { readCheckoutIdentity, type CheckoutIdentity } from './repository-identity.service.js';
+import { discoverUnregisteredCheckouts } from './worktree-inventory.service.js';
 
 type SessionSummary = {
   id: string;
@@ -45,6 +46,12 @@ export type ProjectListItem = {
   repositoryId: string | null;
   branch: string | null;
   detachedHead: string | null;
+  /**
+   * A worktree found on disk that has no project row. It is derived per
+   * request, never stored, so its `projectId` is synthetic and no
+   * project-scoped operation may be addressed to it until the user adopts it.
+   */
+  isDiscovered?: boolean;
 };
 
 // The archive is a flat historical view, so it carries no repository grouping.
@@ -224,6 +231,87 @@ async function readCheckoutIdentities(
 }
 
 /**
+ * Marks a list entry that exists only for this response. Nothing persistent may
+ * be keyed by it, and the client uses the prefix to keep project-scoped actions
+ * away from a checkout that has no row to act on.
+ */
+export const DISCOVERED_PROJECT_ID_PREFIX = 'discovered:';
+
+/**
+ * Worktrees of the already-listed repositories that have no project row.
+ *
+ * Probing is one `git worktree list` per repository rather than per project,
+ * since any checkout reports the whole repository. Identity for each discovery
+ * then goes through `readCheckoutIdentity` rather than being derived from the
+ * porcelain output, so its `repositoryId` is produced by the same code that
+ * produced the registered rows' — which is what makes the client's grouping
+ * join work at all.
+ */
+async function readDiscoveredCheckouts(
+  registeredPaths: string[],
+  checkoutIdentities: Map<string, CheckoutIdentity>,
+): Promise<ProjectListItem[]> {
+  const probePathByRepository = new Map<string, string>();
+  for (const projectPath of registeredPaths) {
+    const repositoryId = checkoutIdentities.get(projectPath)?.repositoryId;
+    if (!repositoryId || probePathByRepository.has(repositoryId)) {
+      continue;
+    }
+    probePathByRepository.set(repositoryId, projectPath);
+  }
+
+  if (probePathByRepository.size === 0) {
+    return [];
+  }
+
+  const entries = await discoverUnregisteredCheckouts({
+    repositoryProbePaths: [...probePathByRepository.values()],
+    // Archived rows count: `getProjectPath` deliberately ignores `isArchived`.
+    isRegistered: (checkoutPath) => Boolean(projectsDb.getProjectPath(checkoutPath)),
+  });
+
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const identities = await readCheckoutIdentities(entries.map((entry) => entry.path));
+
+  const discovered: ProjectListItem[] = [];
+  for (const entry of entries) {
+    const identity = identities.get(entry.path) ?? NO_CHECKOUT_IDENTITY;
+    // No identity means git stopped agreeing this is a checkout between the two
+    // calls. Listing it ungrouped would strand a row nothing can adopt, so drop it.
+    if (!identity.repositoryId) {
+      continue;
+    }
+
+    discovered.push({
+      projectId: `${DISCOVERED_PROJECT_ID_PREFIX}${entry.path}`,
+      path: entry.path,
+      // Deliberately the directory name, not `generateDisplayName`: every
+      // checkout of one repository shares its `package.json`, so the derived
+      // name is identical for all of them and tells the user nothing. This also
+      // matches the name `createProject` stores when the checkout is adopted.
+      displayName: path.basename(entry.path) || entry.path,
+      fullPath: entry.path,
+      isStarred: false,
+      accentColor: null,
+      sessions: [],
+      sessionMeta: {
+        hasMore: false,
+        total: 0,
+      },
+      repositoryId: identity.repositoryId,
+      branch: identity.branch,
+      detachedHead: identity.detachedHead,
+      isDiscovered: true,
+    });
+  }
+
+  return discovered;
+}
+
+/**
  * Reads all projects from DB and returns normalized session summaries.
  */
 export async function getProjectsWithSessions(
@@ -288,6 +376,13 @@ export async function getProjectsWithSessions(
       detachedHead: checkoutIdentity.detachedHead,
     });
   }
+
+  projects.push(
+    ...(await readDiscoveredCheckouts(
+      projectRows.map((row) => row.project_path),
+      checkoutIdentities,
+    )),
+  );
 
   broadcastProgress({
     phase: 'complete',

@@ -620,6 +620,43 @@ export function useProjectsState({
     [refreshProjectsSilently],
   );
 
+  /**
+   * Registers a checkout the projects API discovered on disk.
+   *
+   * Discovery is derived per request and writes nothing, so a discovered
+   * checkout has a synthetic `projectId` and cannot be starred, renamed, or
+   * opened until it has a row. This is the one call that gives it one — the
+   * same `create-project` endpoint used to add any directory, pointed at a path
+   * the user did not have to know.
+   */
+  const adoptCheckout = useCallback(
+    async (checkoutPath: string): Promise<Project | null> => {
+      const response = await api.createProject({ path: checkoutPath });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string | { message?: string; details?: string };
+        };
+        const error = data.error;
+        throw new Error(
+          typeof error === 'string'
+            ? error
+            : error?.details || error?.message || 'Failed to add worktree',
+        );
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as { project?: Project | null };
+      const refreshedProjects = await refreshProjectsSilently();
+      const returnedProject = payload.project ?? null;
+
+      return returnedProject
+        ? refreshedProjects.find((project) => project.projectId === returnedProject.projectId)
+          ?? returnedProject
+        : null;
+    },
+    [refreshProjectsSilently],
+  );
+
   const registerOptimisticSession = useCallback(({
     sessionId: newSessionId,
     provider,
@@ -1280,6 +1317,7 @@ export function useProjectsState({
       onOpenNewSession: handleOpenNewSession,
       onNewSession: handleNewSession,
       onCreateWorktree: createWorktree,
+      onAdoptCheckout: adoptCheckout,
       onSessionDelete: handleSessionDelete,
       onSessionStarPatch: handleSessionStarPatch,
       onLoadMoreSessions: loadMoreProjectSessions,
@@ -1299,6 +1337,7 @@ export function useProjectsState({
       handleOpenNewSession,
       handleNewSession,
       createWorktree,
+      adoptCheckout,
       handleProjectDelete,
       handleProjectSelect,
       handleSessionDelete,

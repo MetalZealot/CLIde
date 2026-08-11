@@ -6,7 +6,7 @@ import { ContextMenuOverlay, type ContextMenuAnchor } from '../../../../shared/v
 import { cn } from '../../../../lib/utils';
 import type { Project } from '../../../../types/app';
 import type { RepositoryEntry, RepositoryViewOptions, SessionSortKey } from '../../types/types';
-import { getCheckoutRefLabel, isDefaultRepositoryView } from '../../utils/utils';
+import { getCheckoutRefLabel, isDefaultRepositoryView, isDiscoveredCheckout } from '../../utils/utils';
 
 type SidebarSessionViewMenuProps = {
   entry: RepositoryEntry;
@@ -77,7 +77,15 @@ export default function SidebarSessionViewMenu({
   onClose,
   t,
 }: SidebarSessionViewMenuProps) {
-  const isMerged = entry.checkouts.length > 1;
+  /**
+   * Only registered checkouts can be filtered on. A discovered one owns no
+   * sessions, so listing it would offer a filter that hides nothing while
+   * inflating the count that decides when "all worktrees" collapses to "no
+   * filter" — and a row whose second checkout is merely discovered is not a
+   * merged row as far as *sessions* are concerned.
+   */
+  const filterableCheckouts = entry.checkouts.filter((checkout) => !isDiscoveredCheckout(checkout));
+  const isMerged = filterableCheckouts.length > 1;
   const isCustomized = !isDefaultRepositoryView(options);
 
   const sortChoices: Array<{ key: SessionSortKey; label: string; icon: LucideIcon }> = [
@@ -116,12 +124,12 @@ export default function SidebarSessionViewMenu({
    * highlight honest rather than lit for a filter that hides nothing.
    */
   const toggleWorktree = (projectId: string) => {
-    const current = options.worktreeProjectIds ?? entry.checkouts.map((checkout) => checkout.projectId);
+    const current = options.worktreeProjectIds ?? filterableCheckouts.map((checkout) => checkout.projectId);
     const next = current.includes(projectId)
       ? current.filter((id) => id !== projectId)
       : [...current, projectId];
 
-    if (next.length === 0 || next.length === entry.checkouts.length) {
+    if (next.length === 0 || next.length === filterableCheckouts.length) {
       onChange({ ...options, worktreeProjectIds: next.length === 0 ? next : null });
       return;
     }
@@ -152,7 +160,7 @@ export default function SidebarSessionViewMenu({
         <>
           <div className="my-1 border-t border-border" />
           <MenuSectionLabel label={t('sessionView.filterByWorktree', 'Filter by worktree')} />
-          {entry.checkouts.map((checkout) => (
+          {filterableCheckouts.map((checkout) => (
             <MenuChoice
               key={checkout.projectId}
               label={worktreeLabel(checkout)}

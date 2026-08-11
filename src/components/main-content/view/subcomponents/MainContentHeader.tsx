@@ -9,6 +9,7 @@ export default function MainContentHeader({
   setActiveTab,
   selectedProject,
   selectedSession,
+  checkoutLabel,
   shouldShowTasksTab,
   shouldShowBrowserTab,
   isMobile,
@@ -43,6 +44,7 @@ export default function MainContentHeader({
             activeTab={activeTab}
             selectedProject={selectedProject}
             selectedSession={selectedSession}
+            checkoutLabel={checkoutLabel}
             shouldShowTasksTab={shouldShowTasksTab}
           />
         </div>

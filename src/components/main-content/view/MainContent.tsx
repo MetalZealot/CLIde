@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
@@ -17,6 +17,7 @@ import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
 import type { Project } from '../../../types/app';
 import { TaskMasterPanel } from '../../task-master';
+import { getCheckoutContextLabel } from '../../sidebar/utils/utils';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
@@ -89,6 +90,13 @@ function MainContent({
   // real project files before opening them in the in-app editor.
   const resolvedFileOpen = useFileOpenResolver(selectedProject, handleFileOpen);
 
+  // Which working tree the header is describing. Null unless the repository has
+  // more than one checkout, in which case the project name alone is ambiguous.
+  const checkoutLabel = useMemo(
+    () => getCheckoutContextLabel(selectedProject, projects),
+    [selectedProject, projects],
+  );
+
   useEffect(() => {
     // Identify projects by DB `projectId`; the TaskMaster context uses the
     // same identifier to key its internal maps.
@@ -151,6 +159,7 @@ function MainContent({
           setActiveTab={setActiveTab}
           selectedProject={selectedProject}
           selectedSession={selectedSession}
+          checkoutLabel={checkoutLabel}
           shouldShowTasksTab={shouldShowTasksTab}
           shouldShowBrowserTab={shouldShowBrowserTab}
           isMobile={isMobile}

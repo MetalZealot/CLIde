@@ -47,6 +47,7 @@ function Sidebar({
   onOpenNewSession,
   onNewSession,
   onCreateWorktree,
+  onAdoptCheckout,
   onSessionDelete,
   onSessionStarPatch,
   onLoadMoreSessions,
@@ -511,6 +512,7 @@ function Sidebar({
             onArchiveWorktree={(project) => archiveProjects([project])}
             onRemoveWorktree={requestProjectDelete}
             onCreateWorktree={onCreateWorktree}
+            onAdoptCheckout={onAdoptCheckout}
             onOpenWorktree={worktreeManager.openCreatedInNewSession ? onNewSession : handleProjectSelect}
             startInCreate={worktreeManager.mode === 'create'}
             t={t}

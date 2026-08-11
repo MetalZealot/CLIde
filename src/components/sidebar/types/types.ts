@@ -152,6 +152,12 @@ export type SidebarProps = {
   onOpenNewSession: () => void;
   onNewSession: (project: Project) => void;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
+  /**
+   * Registers a checkout the projects API discovered on disk, resolving to the
+   * project row it now has. Discovered checkouts carry a synthetic id, so this
+   * is what every other project-scoped action has to wait for.
+   */
+  onAdoptCheckout?: (checkoutPath: string) => Promise<Project | null>;
   onSessionDelete?: (sessionId: string) => void;
   // Optimistic in-place patch of a session's starred flag (see useProjectsState).
   onSessionStarPatch?: (sessionId: string, isStarred: boolean) => void;

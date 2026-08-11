@@ -75,6 +75,12 @@ export type MainContentHeaderProps = {
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   selectedProject: Project;
   selectedSession: ProjectSession | null;
+  /**
+   * Names the checkout when the repository has more than one, so the header
+   * says which working tree it is showing. Null when the project name already
+   * answers that — see `getCheckoutContextLabel`.
+   */
+  checkoutLabel: string | null;
   shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
   isMobile: boolean;
