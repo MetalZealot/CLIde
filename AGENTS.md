@@ -16,9 +16,9 @@ Before changing code:
 
 1. Run `git status --short`, inspect active worktrees/branches when relevant, and
    preserve unrelated user changes.
-2. Read the relevant open item in `docs/TODO.md`.  It is the tracked backlog and the
-   coordination board for concurrent work.  Claim an item before you touch it.  Items
-   are one line and point elsewhere; follow the pointer only for the item you claimed.
+2. Read the relevant open item in `docs/TODO.md`.  It is the tracked backlog.  Items
+   are one line and point elsewhere; follow the pointer only for the item you are
+   working on.  Read the section you need, not the whole file — it is 23 KB.
 3. Read relevant ADRs in `docs/decisions/` — especially before "fixing" anything that
    looks odd but deliberate.
 4. Load the task-specific context below.
@@ -39,6 +39,18 @@ only once an index says it is the one you need; never read a directory to find o
 | Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
 | Multi-session work with phases | its plan in `docs/plans/` — the board in that README first |
+
+## Glossary
+
+- **`session_id`** is the id CLIde mints and owns: stable across resume and fork, and
+  **the only id a runtime is addressed by**.  **`provider_session_id`** is the
+  provider's own on-disk id for the same conversation — a lookup key, never an
+  address.  Confusing them caused three separate v1.37 merge defects; before passing
+  an id to a runtime, confirm which one you hold (`docs/maps/code-anchors.md`).
+- **"default"** — never write it bare.  It can mean the model Anthropic recommends,
+  Claude Code's fallback, the last model picked, or CLIde's stored preference.  Name
+  which.  ADRs 0003 and 0025 fix the behaviour; this fixes the vocabulary.
+- **"done"** — merged is not verified.  Say which.
 
 ## Architecture and compatibility
 
@@ -126,9 +138,11 @@ behaviour stays behind adapter interfaces.
   publishing `main` afterwards needs `--force-with-lease`.
 - Conventional commits are enforced by commitlint; eslint runs on staged files.  Make
   self-contained commits only after appropriate verification.
-- For parallel work, claim the `docs/TODO.md` item and create a worktree/topic branch
-  from `main`, then merge it back.  **Never switch branches in the main checkout** while
-  a service or dev server runs from it.
+- Work on `main` by default.  Create a worktree/topic branch only for genuinely
+  parallel or risky work, and only when the maintainer asks or agrees.  **Never switch
+  branches in the main checkout** while a service or dev server runs from it.
+- Merge a branch back and delete it as soon as its work lands; stale worktrees are the
+  maintainer's overhead.
 - A worktree has no `node_modules`; link the main checkout's rather than running a
   second install.  **Never share the tsc/eslint caches across checkouts** — if a
   worktree's `.cache/tsbuildinfo/*.tsbuildinfo` is linked to another checkout's, tsc
