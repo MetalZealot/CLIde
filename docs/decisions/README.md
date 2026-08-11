@@ -70,3 +70,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0030 — Sidebar activity is a section; search is persistent and Archive is in the footer](0030-sidebar-activity-persistent-search-footer-archive.md)
 - [0031 — Selection follows the theme; sidebar status uses symbols](0031-theme-relative-selection-and-symbolic-sidebar-status.md)
 - [0032 — The composer ring owns a summary-first usage popover](0032-summary-first-composer-usage-popover.md)
+- [0033 — A worktree with no project row is listed, not registered](0033-discovered-checkouts-are-derived-not-stored.md)

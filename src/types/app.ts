@@ -88,6 +88,13 @@ export interface Project {
   repositoryId?: string | null;
   branch?: string | null;
   detachedHead?: string | null;
+  /**
+   * A worktree the projects API found on disk that has no project row yet. Its
+   * `projectId` is synthetic and exists only for this response, so it must
+   * never be the target of a project-scoped call — selecting it registers it
+   * first and acts on the row that comes back.
+   */
+  isDiscovered?: boolean;
   [key: string]: unknown;
 }
 

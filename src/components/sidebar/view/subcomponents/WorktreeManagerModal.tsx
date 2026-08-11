@@ -8,7 +8,7 @@ import { cn } from '../../../../lib/utils';
 import { api } from '../../../../utils/api';
 import type { Project } from '../../../../types/app';
 import type { CreateWorktreeOptions, CreateWorktreeOutcome, RepositoryEntry } from '../../types/types';
-import { getCheckoutRefLabel, isMainCheckout } from '../../utils/utils';
+import { getCheckoutRefLabel, isDiscoveredCheckout, isMainCheckout } from '../../utils/utils';
 
 type WorktreeManagerModalProps = {
   entry: RepositoryEntry;
@@ -17,6 +17,8 @@ type WorktreeManagerModalProps = {
   onArchiveWorktree?: (project: Project) => void;
   onRemoveWorktree?: (project: Project) => void;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
+  /** Gives a discovered checkout a project row; see `isDiscoveredCheckout`. */
+  onAdoptCheckout?: (checkoutPath: string) => Promise<Project | null>;
   onOpenWorktree: (project: Project) => void;
   /**
    * Opens straight into the create form. Set when the row's New Worktree
@@ -51,6 +53,7 @@ export default function WorktreeManagerModal({
   onArchiveWorktree,
   onRemoveWorktree,
   onCreateWorktree,
+  onAdoptCheckout,
   onOpenWorktree,
   startInCreate = false,
   creationOnly = false,
@@ -66,6 +69,8 @@ export default function WorktreeManagerModal({
   const [createError, setCreateError] = useState<string | null>(null);
   const [orphanWarning, setOrphanWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [adoptingPath, setAdoptingPath] = useState<string | null>(null);
+  const [adoptError, setAdoptError] = useState<string | null>(null);
   const newBranchInputRef = useRef<HTMLInputElement>(null);
 
   const leadProjectId = entry.leadCheckout.projectId;
@@ -185,7 +190,93 @@ export default function WorktreeManagerModal({
     }
   };
 
+  /**
+   * Gives a discovered checkout a project row. The refreshed list arrives
+   * through `entry`, so this row turns into an ordinary one on its own — there
+   * is nothing to close or navigate to.
+   */
+  const adoptCheckout = async (project: Project) => {
+    if (!onAdoptCheckout) {
+      return;
+    }
+
+    setAdoptingPath(project.fullPath);
+    setAdoptError(null);
+
+    try {
+      await onAdoptCheckout(project.fullPath);
+    } catch (error) {
+      setAdoptError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAdoptingPath(null);
+    }
+  };
+
+  /**
+   * A worktree git knows about that CLIde has no row for — created from a
+   * terminal, a script, or an agent session rather than through this panel.
+   * It is listed so it can be reached at all, but until it is adopted the only
+   * action it can carry is adoption: its id is synthetic, so rename, archive
+   * and remove have nothing to address.
+   */
+  const renderDiscoveredWorktree = (project: Project) => {
+    const refLabel = getCheckoutRefLabel(project);
+    const isAdopting = adoptingPath === project.fullPath;
+
+    return (
+      <li key={project.projectId} className="border-b border-border/60 last:border-b-0">
+        <div className="flex items-center gap-2 p-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-sm text-muted-foreground">
+                {project.displayName}
+              </span>
+              <span
+                title={t('worktrees.discoveredHint', 'Found on disk, not added to CLIde yet.')}
+                className="flex-shrink-0 rounded-full border border-dashed border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+              >
+                {t('worktrees.notAdded', 'not added')}
+              </span>
+            </div>
+            <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              {refLabel && (
+                <>
+                  <GitBranch className="h-3 w-3 flex-shrink-0 opacity-70" />
+                  <span className="truncate">{refLabel}</span>
+                  <span aria-hidden className="opacity-40">·</span>
+                </>
+              )}
+              <span className="truncate opacity-70" title={project.fullPath}>
+                {project.fullPath}
+              </span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="flex-shrink-0"
+            disabled={isAdopting || !onAdoptCheckout}
+            onClick={() => void adoptCheckout(project)}
+          >
+            {isAdopting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
+            <span className="ml-1">{t('worktrees.add', 'Add')}</span>
+          </Button>
+        </div>
+      </li>
+    );
+  };
+
   const renderWorktree = (project: Project) => {
+    if (isDiscoveredCheckout(project)) {
+      return renderDiscoveredWorktree(project);
+    }
+
     const refLabel = getCheckoutRefLabel(project);
     const isEditing = editingProjectId === project.projectId;
     const isMain = isMainCheckout(project);
@@ -327,6 +418,13 @@ export default function WorktreeManagerModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {!creationOnly && <ul>{entry.checkouts.map(renderWorktree)}</ul>}
+
+          {adoptError && (
+            <div className="flex items-start gap-2 border-b border-border/60 bg-red-50 p-3 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+              <span className="min-w-0 break-words">{adoptError}</span>
+            </div>
+          )}
 
           {/*
             Not an error — the worktree was created. It is a loose end, and it

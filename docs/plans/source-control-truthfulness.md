@@ -6,7 +6,8 @@
 - Context: [repository and checkout identity, and the current truth gaps](../maps/repository-checkout-identity.md)
   · ADRs [0016](../decisions/0016-repository-grouped-checkouts.md),
   [0028](../decisions/0028-worktree-creation-precedes-phase-0.md),
-  [0029](../decisions/0029-per-row-session-views-load-before-they-filter.md)
+  [0029](../decisions/0029-per-row-session-views-load-before-they-filter.md),
+  [0033](../decisions/0033-discovered-checkouts-are-derived-not-stored.md)
   · TODO items: Source Control worktrees and branch integration; Git branch remote
   labels; Git branch-switcher safety; silent commit failures
 
@@ -57,10 +58,9 @@ layout, and standalone tab.
         records why the additive half was allowed to precede Phase 0.
   - [ ] Structured local/remote refs replacing the branch string arrays,
         preserving remote namespaces.
-  - [ ] Inventory main, linked, locked, detached, and prunable worktrees from
-        `git worktree list --porcelain`. The sidebar currently infers checkouts
-        from registered projects, so a worktree created outside CLIde is invisible
-        until someone starts a session in it.
+  - [x] Inventory worktrees from `git worktree list --porcelain`, so one created
+        outside CLIde is listed rather than invisible — ADR 0033. Locked and
+        prunable are parsed but not shown.
   - [ ] Per checkout: branch, tracking ref, dirty/conflict/operation state, last
         activity, and occupancy CLIde can prove (agent, terminal, dev service,
         branch test, serving).

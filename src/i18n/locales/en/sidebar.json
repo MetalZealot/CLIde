@@ -170,6 +170,9 @@
   "worktrees": {
     "title": "Worktrees",
     "main": "main",
+    "notAdded": "not added",
+    "add": "Add",
+    "discoveredHint": "Found on disk, not added to CLIde yet.",
     "new": "New Worktree",
     "create": "Create worktree",
     "remove": "Remove from CLIde",

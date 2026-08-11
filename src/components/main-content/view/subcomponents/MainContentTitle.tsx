@@ -8,6 +8,8 @@ type MainContentTitleProps = {
   activeTab: AppTab;
   selectedProject: Project;
   selectedSession: ProjectSession | null;
+  /** `<checkout> · <branch>` when the repository has several checkouts, else null. */
+  checkoutLabel: string | null;
   shouldShowTasksTab: boolean;
 };
 
@@ -47,6 +49,7 @@ export default function MainContentTitle({
   activeTab,
   selectedProject,
   selectedSession,
+  checkoutLabel,
   shouldShowTasksTab,
 }: MainContentTitleProps) {
   const { t } = useTranslation();
@@ -55,6 +58,11 @@ export default function MainContentTitle({
   const pluginDisplayName = activeTab.startsWith('plugin:')
     ? plugins.find((p) => p.name === activeTab.replace('plugin:', ''))?.displayName
     : undefined;
+
+  // One sidebar row can cover several working trees (ADR 0016), so the project
+  // name on its own does not say which one this is. The checkout label answers
+  // that, and is absent for the ordinary single-checkout project.
+  const subtitle = checkoutLabel ?? selectedProject.displayName;
 
   const showSessionIcon = activeTab === 'chat' && Boolean(selectedSession);
   const showChatNewSession = activeTab === 'chat' && !selectedSession;
@@ -73,19 +81,19 @@ export default function MainContentTitle({
             <h2 title={getSessionTitle(selectedSession)} className="truncate text-sm font-semibold leading-tight text-foreground">
               {getSessionTitle(selectedSession)}
             </h2>
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <div className="truncate text-[11px] leading-tight text-muted-foreground">{subtitle}</div>
           </div>
         ) : showChatNewSession ? (
           <div className="min-w-0">
             <h2 className="text-base font-semibold leading-tight text-foreground">{t('mainContent.newSession')}</h2>
-            <div className="truncate text-xs leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <div className="truncate text-xs leading-tight text-muted-foreground">{subtitle}</div>
           </div>
         ) : (
           <div className="min-w-0">
             <h2 className="text-sm font-semibold leading-tight text-foreground">
               {getTabTitle(activeTab, shouldShowTasksTab, t, pluginDisplayName)}
             </h2>
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <div className="truncate text-[11px] leading-tight text-muted-foreground">{subtitle}</div>
           </div>
         )}
       </div>

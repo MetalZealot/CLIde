@@ -192,6 +192,12 @@ const deriveMainCheckoutPath = (repositoryId: string): string | null => {
   return withoutGitSuffix === repositoryId ? null : withoutGitSuffix;
 };
 
+/**
+ * True for a checkout the projects API derived from `git worktree list` rather
+ * than from a project row.
+ */
+export const isDiscoveredCheckout = (project: Project): boolean => project.isDiscovered === true;
+
 /** True when this project is its repository's main checkout, not a linked worktree. */
 export const isMainCheckout = (project: Project): boolean => {
   const repositoryId = typeof project.repositoryId === 'string' ? project.repositoryId : null;
@@ -201,6 +207,25 @@ export const isMainCheckout = (project: Project): boolean => {
 
   const mainPath = deriveMainCheckoutPath(repositoryId);
   return mainPath !== null && (project.fullPath === mainPath || project.path === mainPath);
+};
+
+/**
+ * Which checkout leads its repository's row.
+ *
+ * Registered checkouts always outrank discovered ones, whatever git says about
+ * which is the main worktree: the lead is the target of every repository-scoped
+ * action (rename, accent colour, TaskMaster), and a discovered checkout's
+ * `projectId` is synthetic, so addressing one would 404. Main-before-linked
+ * decides the rest, and the sort is stable, so anything past that keeps the
+ * order the caller established.
+ */
+const compareCheckoutsForLead = (a: Project, b: Project): number => {
+  const registration = Number(isDiscoveredCheckout(a)) - Number(isDiscoveredCheckout(b));
+  if (registration !== 0) {
+    return registration;
+  }
+
+  return Number(isMainCheckout(b)) - Number(isMainCheckout(a));
 };
 
 /**
@@ -247,6 +272,45 @@ const deriveRepositoryName = (repositoryId: string, checkouts: Project[]): strin
 };
 
 /**
+ * How a header names the checkout it is showing, or null when saying so would
+ * be noise.
+ *
+ * A single-checkout project is its own repository, so its name already answers
+ * the question and the label stays out of the way. Once the repository has more
+ * than one checkout — registered or merely discovered — the project name alone
+ * is ambiguous, because one sidebar row now covers several working trees, and
+ * the branch is what tells them apart.
+ *
+ * Counts by `repositoryEntryKey` rather than building the grouped entries, so
+ * it stays cheap enough to call on every render of the header.
+ */
+export const getCheckoutContextLabel = (
+  selectedProject: Project | null | undefined,
+  projects: Project[],
+): string | null => {
+  if (!selectedProject) {
+    return null;
+  }
+
+  const key = repositoryEntryKey(selectedProject);
+  let checkoutCount = 0;
+  for (const project of projects) {
+    if (repositoryEntryKey(project) === key) {
+      checkoutCount += 1;
+    }
+  }
+
+  if (checkoutCount < 2) {
+    return null;
+  }
+
+  const refLabel = getCheckoutRefLabel(selectedProject);
+  const checkoutName = selectedProject.displayName || selectedProject.projectId;
+
+  return refLabel ? `${checkoutName} · ${refLabel}` : checkoutName;
+};
+
+/**
  * Collapses an already-sorted, already-filtered project list into one row per
  * repository (ADR 0016).
  *
@@ -278,9 +342,7 @@ export const buildRepositoryEntries = (projects: Project[]): RepositoryEntry[] =
     }
     emitted.add(key);
 
-    const checkouts = [...(checkoutsByKey.get(key) ?? [project])].sort(
-      (a, b) => Number(isMainCheckout(b)) - Number(isMainCheckout(a)),
-    );
+    const checkouts = [...(checkoutsByKey.get(key) ?? [project])].sort(compareCheckoutsForLead);
     const leadCheckout = checkouts[0];
     const repositoryId =
       typeof leadCheckout.repositoryId === 'string' && leadCheckout.repositoryId.length > 0

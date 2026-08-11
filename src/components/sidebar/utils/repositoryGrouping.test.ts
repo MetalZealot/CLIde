@@ -11,6 +11,7 @@ import {
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
   filterProjectsByRepositoryEntry,
   filterProjectsBySessionTitle,
+  getCheckoutContextLabel,
   getUnpinnedCheckoutSessions,
   isDefaultRepositoryView,
   isMainCheckout,
@@ -429,5 +430,81 @@ test('a worktree filter keeps only the checkouts it names', () => {
   assert.equal(
     isDefaultRepositoryView({ sort: 'recent', worktreeProjectIds: ['p-codex'] }),
     false,
+  );
+});
+
+const discoveredMainCheckout = project({
+  projectId: 'discovered:/home/user/Projects/cloudcli',
+  displayName: 'cloudcli',
+  fullPath: '/home/user/Projects/cloudcli',
+  repositoryId: CLOUDCLI_REPO,
+  branch: 'main',
+  isDiscovered: true,
+});
+
+const discoveredWorktree = project({
+  projectId: 'discovered:/home/user/Projects/cloudcli-wt-hierarchy',
+  displayName: 'cloudcli-wt-hierarchy',
+  fullPath: '/home/user/Projects/cloudcli-wt-hierarchy',
+  repositoryId: CLOUDCLI_REPO,
+  branch: 'feat/sidebar-hierarchy',
+  isDiscovered: true,
+});
+
+test('a discovered worktree joins its repository row', () => {
+  const entries = buildRepositoryEntries([mainCheckout, discoveredWorktree]);
+
+  assert.equal(entries.length, 1);
+  assert.deepEqual(
+    entries[0].checkouts.map((checkout) => checkout.projectId),
+    ['p-main', 'discovered:/home/user/Projects/cloudcli-wt-hierarchy'],
+  );
+});
+
+test('a discovered checkout never leads its row, even when it is the main worktree', () => {
+  // Registering only a worktree leaves the main checkout to be discovered. Git
+  // calls it the main worktree, but it has no row, so every repository-scoped
+  // action would 404 against its synthetic id.
+  const entries = buildRepositoryEntries([worktreeA, discoveredMainCheckout]);
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].leadCheckout.projectId, 'p-tts');
+  assert.equal(isMainCheckout(discoveredMainCheckout), true);
+});
+
+test('a registered main checkout still leads once discoveries are present', () => {
+  const entries = buildRepositoryEntries([worktreeA, mainCheckout, discoveredWorktree]);
+
+  assert.equal(entries[0].leadCheckout.projectId, 'p-main');
+});
+
+test('the checkout label names a working tree only when the row covers several', () => {
+  // One checkout: the project name already says which tree this is.
+  assert.equal(getCheckoutContextLabel(soloRepository, [soloRepository, plainFolder]), null);
+  assert.equal(getCheckoutContextLabel(plainFolder, [soloRepository, plainFolder]), null);
+
+  assert.equal(
+    getCheckoutContextLabel(worktreeA, [mainCheckout, worktreeA]),
+    'cloudcli-wt-tts · feature/tts-and-stt',
+  );
+  // A discovered sibling makes the row ambiguous just as a registered one does.
+  assert.equal(
+    getCheckoutContextLabel(mainCheckout, [mainCheckout, discoveredWorktree]),
+    'cloudcli · main',
+  );
+});
+
+test('a detached checkout is labelled by its commit, never as a branch', () => {
+  const detached = project({
+    projectId: 'p-detached',
+    displayName: 'cloudcli-wt-detached',
+    fullPath: '/home/user/Projects/cloudcli-wt-detached',
+    repositoryId: CLOUDCLI_REPO,
+    detachedHead: 'c496391',
+  });
+
+  assert.equal(
+    getCheckoutContextLabel(detached, [mainCheckout, detached]),
+    'cloudcli-wt-detached · detached @ c496391',
   );
 });

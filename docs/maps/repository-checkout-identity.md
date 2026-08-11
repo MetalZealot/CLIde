@@ -40,6 +40,14 @@ session in its lead checkout or creates a worktree and opens the resulting
 checkout as a new session target; its adjacent menu owns session sorting and
 worktree filtering.
 
+**A repository row also covers checkouts that have no project row.** The project
+list runs `git worktree list --porcelain` once per repository and appends any
+worktree it finds without one, marked `isDiscovered` and carrying a synthetic
+`discovered:<path>` id (ADR 0033). These hold no sessions, never lead their row,
+and never appear in the per-worktree session filter; the Worktrees panel offers
+one Add action, which registers the path through `create-project`. Paths with an
+archived row are excluded.
+
 **The New Session launcher uses the same repository grouping.** Its Project
 choice resolves to the repository's main checkout when that checkout is
 registered, while its Worktree choice names every registered checkout by its
