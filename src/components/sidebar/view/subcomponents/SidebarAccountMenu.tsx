@@ -1,5 +1,5 @@
 import { useRef, useState, type ComponentType } from 'react';
-import { Archive, ChevronUp, CircleUser, LogOut, Settings } from 'lucide-react';
+import { Archive, CircleUser, LogOut, Settings } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { useAuth } from '../../../auth';
@@ -84,16 +84,10 @@ export default function SidebarAccountMenu({
         aria-expanded={isOpen}
         aria-label={t('actions.accountMenu', 'Account menu')}
         onClick={() => setIsOpen((current) => !current)}
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/60 active:bg-accent/60"
+        className="flex max-w-full min-w-0 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/60 active:bg-accent/60"
       >
         <AccountAvatar avatar={user?.avatar} username={username} className="h-7 w-7 text-xs" />
-        <span className="min-w-0 flex-1 truncate text-sm text-foreground">{username}</span>
-        <ChevronUp
-          className={cn(
-            'h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform',
-            isOpen && 'rotate-180',
-          )}
-        />
+        <span className="min-w-0 truncate text-sm text-foreground">{username}</span>
       </button>
 
       {isOpen && buttonRef.current && (

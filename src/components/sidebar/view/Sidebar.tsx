@@ -8,10 +8,8 @@ import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
 import type {
-  MCPServerStatus,
   RepositoryEntry,
   SidebarProps,
   SessionWithProvider,
@@ -32,7 +30,6 @@ import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList
 
 type TaskMasterSidebarContext = {
   setCurrentProject: (project: Project) => void;
-  mcpServerStatus: MCPServerStatus;
 };
 
 function Sidebar({
@@ -70,8 +67,7 @@ function Sidebar({
   );
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible } = preferences;
-  const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
-  const { tasksEnabled } = useTasksSettings();
+  const { setCurrentProject } = useTaskMaster() as TaskMasterSidebarContext;
   const paletteOps = usePaletteOps();
 
   const {
@@ -208,11 +204,13 @@ function Sidebar({
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
   >(null);
 
-  const handleLongPressSessionMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
+  // Long-press, the row's kebab, and right-click all land here: the anchor is
+  // the only thing that differs, so every entry point shares one menu.
+  const handleSessionActionsMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'session', session, anchor });
   };
 
-  const handleLongPressProjectMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
+  const handleProjectActionsMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'repository', entry, anchor });
   };
 
@@ -254,6 +252,16 @@ function Sidebar({
         : null
     : null;
 
+  // Names the menu after the row it acts on, so a screen reader announces which
+  // of many identical-sounding menus just opened.
+  const contextMenuAriaLabel = contextMenu
+    ? contextMenu.kind === 'session'
+      ? t('actions.rowActions', 'Actions for {{name}}', { name: getSessionName(contextMenu.session, t) })
+      : contextMenu.kind === 'create'
+        ? t('projects.createMenu', 'Create in project')
+        : t('actions.rowActions', 'Actions for {{name}}', { name: contextMenu.entry.displayName })
+    : undefined;
+
   const contextMenuItems = useMemo<SidebarContextMenuItem[]>(() => {
     if (!contextMenu) {
       return [];
@@ -290,6 +298,9 @@ function Sidebar({
           },
         },
         {
+          // Splits the reversible edits above from the ones that remove the
+          // session from the list.
+          showDividerBefore: true,
           key: 'archive',
           label: t('actions.archive', 'Archive'),
           icon: Archive,
@@ -377,6 +388,7 @@ function Sidebar({
       {
         // Reversible from the Archive view, so it needs no confirmation of its
         // own — unlike Delete, which opens the modal.
+        showDividerBefore: true,
         key: 'archive',
         label: t('actions.archive', 'Archive'),
         icon: Archive,
@@ -419,8 +431,6 @@ function Sidebar({
     editingSession,
     editingSessionName,
     deletingProjects,
-    tasksEnabled,
-    mcpServerStatus,
     getRepositorySessions,
     loadingMoreProjects,
     activeSessions,
@@ -432,14 +442,11 @@ function Sidebar({
     onEditingNameChange: setEditingName,
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
-    onStartEditingProject: startEditing,
     onCancelEditingProject: cancelEditing,
     onSaveProjectName: (projectName) => {
       void saveProjectName(projectName);
     },
-    onDeleteRepository: requestRepositoryDelete,
     onSessionSelect: handleSessionClick,
-    onDeleteSession: showDeleteSessionConfirmation,
     getVisibleSessionCount,
     onShowAllSessions: showAllSessions,
     onCollapseSessions: collapseSessions,
@@ -449,10 +456,6 @@ function Sidebar({
       setViewMenu({ entry, anchor }),
     onCreateProject: () => setShowNewProject(true),
     onEditingSessionNameChange: setEditingSessionName,
-    onStartEditingSession: (sessionId, initialName) => {
-      setEditingSession(sessionId);
-      setEditingSessionName(initialName);
-    },
     onCancelEditingSession: () => {
       setEditingSession(null);
       setEditingSessionName('');
@@ -460,8 +463,8 @@ function Sidebar({
     onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => {
       void updateSessionSummary(projectName, sessionId, summary, provider);
     },
-    onLongPressProjectMenu: handleLongPressProjectMenu,
-    onLongPressSessionMenu: handleLongPressSessionMenu,
+    onOpenProjectActionsMenu: handleProjectActionsMenu,
+    onOpenSessionActionsMenu: handleSessionActionsMenu,
     activeContextMenuKey,
     t,
   };
@@ -472,6 +475,7 @@ function Sidebar({
           <SidebarContextMenu
             anchor={contextMenu.anchor}
             items={contextMenuItems}
+            ariaLabel={contextMenuAriaLabel}
             onClose={() => setContextMenu(null)}
           />
         )}

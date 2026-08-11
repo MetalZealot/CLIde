@@ -87,6 +87,7 @@
     "rename": "Rename",
     "customize": "Customize",
     "copySessionId": "Copy session ID",
+    "rowActions": "Actions for {{name}}",
     "account": "Account",
     "accountMenu": "Account menu",
     "logOut": "Log out"

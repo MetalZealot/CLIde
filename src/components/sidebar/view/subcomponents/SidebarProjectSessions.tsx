@@ -26,22 +26,15 @@ type SidebarProjectSessionsProps = {
   editingSession: string | null;
   editingSessionName: string;
   onEditingSessionNameChange: (value: string) => void;
-  onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
-  onDeleteSession: (
-    projectName: string,
-    sessionId: string,
-    sessionTitle: string,
-    provider: LLMProvider,
-  ) => void;
   /** How many of `sessions` to render before the "show more" control. */
   visibleSessionCount: number;
   onShowAllSessions: (entry: RepositoryEntry) => void;
   onCollapseSessions: (entry: RepositoryEntry) => void;
-  onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  onOpenSessionActionsMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
   t: TFunction;
 };
@@ -88,16 +81,14 @@ export default function SidebarProjectSessions({
   editingSession,
   editingSessionName,
   onEditingSessionNameChange,
-  onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
   onProjectSelect,
   onSessionSelect,
-  onDeleteSession,
   visibleSessionCount,
   onShowAllSessions,
   onCollapseSessions,
-  onLongPressSessionMenu,
+  onOpenSessionActionsMenu,
   activeContextMenuKey,
   t,
 }: SidebarProjectSessionsProps) {
@@ -159,13 +150,11 @@ export default function SidebarProjectSessions({
               editingSession={editingSession}
               editingSessionName={editingSessionName}
               onEditingSessionNameChange={onEditingSessionNameChange}
-              onStartEditingSession={onStartEditingSession}
               onCancelEditingSession={onCancelEditingSession}
               onSaveEditingSession={onSaveEditingSession}
               onProjectSelect={onProjectSelect}
               onSessionSelect={onSessionSelect}
-              onDeleteSession={onDeleteSession}
-              onLongPressMenu={onLongPressSessionMenu}
+              onOpenActionsMenu={onOpenSessionActionsMenu}
               activeContextMenuKey={activeContextMenuKey}
               t={t}
             />

@@ -1,8 +1,14 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, GitBranch, Pin, Trash2, X } from 'lucide-react';
+import { Check, GitBranch, Pin, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Badge, buttonVariants, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
+import {
+  Badge,
+  buttonVariants,
+  anchorFromElement,
+  RowActionsTrigger,
+  type ContextMenuAnchor,
+} from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
@@ -34,19 +40,15 @@ type SidebarSessionItemProps = {
    */
   branchLabel?: string | null;
   onEditingSessionNameChange: (value: string) => void;
-  onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
-  onDeleteSession: (
-    projectName: string,
-    sessionId: string,
-    sessionTitle: string,
-    provider: LLMProvider,
-  ) => void;
-  /** Opens the mobile long-press action menu, anchored to this row. */
-  onLongPressMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  /**
+   * Opens this row's action menu, anchored to the row (long-press) or to the
+   * kebab that was clicked. One menu, several ways in.
+   */
+  onOpenActionsMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
   t: TFunction;
 };
@@ -93,13 +95,11 @@ export default function SidebarSessionItem({
   isSectionItem = false,
   branchLabel,
   onEditingSessionNameChange,
-  onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
   onProjectSelect,
   onSessionSelect,
-  onDeleteSession,
-  onLongPressMenu,
+  onOpenActionsMenu,
   activeContextMenuKey,
   t,
 }: SidebarSessionItemProps) {
@@ -125,11 +125,12 @@ export default function SidebarSessionItem({
   // the session it acts on.
   const mobileRowRef = useRef<HTMLDivElement>(null);
   const { handlers: longPress, isPressing } = useLongPress(
-    (coords) => onLongPressMenu?.(session, anchorFromElement(mobileRowRef.current, coords)),
-    { disabled: !onLongPressMenu },
+    (coords) => onOpenActionsMenu?.(session, anchorFromElement(mobileRowRef.current, coords)),
+    { disabled: !onOpenActionsMenu },
   );
+  const isMenuOpen = activeContextMenuKey === `session:${session.id}`;
   // Stays on for as long as this row's menu is open.
-  const isContextActive = isPressing || activeContextMenuKey === `session:${session.id}`;
+  const isContextActive = isPressing || isMenuOpen;
   const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread });
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
@@ -162,10 +163,6 @@ export default function SidebarSessionItem({
 
   const saveEditedSession = () => {
     onSaveEditingSession(project.projectId, session.id, editingSessionName, session.__provider);
-  };
-
-  const requestDeleteSession = () => {
-    onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
 
   return (
@@ -345,12 +342,14 @@ export default function SidebarSessionItem({
           </div>
         </a>
 
+        {/*
+          No opacity on this container: the kebab owns its own hover/focus
+          reveal, and a parent stuck at `opacity-0` would swallow the
+          `focus-visible` escape that keeps it reachable from the keyboard.
+        */}
         <div
           ref={editingContainerRef}
-          className={cn(
-            'absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1 transition-all duration-200',
-            isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
-          )}
+          className="absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1"
         >
             {isEditing ? (
               <>
@@ -392,30 +391,13 @@ export default function SidebarSessionItem({
                 </button>
               </>
             ) : (
-              <>
-                <button
-                  className="flex h-6 w-6 items-center justify-center rounded bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onStartEditingSession(session.id, sessionView.sessionName);
-                  }}
-                  title={t('tooltips.editSessionName')}
-                >
-                  <Edit2 className="h-3 w-3 text-gray-600 dark:text-gray-400" />
-                </button>
-                {!isProcessing && (
-                  <button
-                    className="flex h-6 w-6 items-center justify-center rounded bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      requestDeleteSession();
-                    }}
-                    title={t('tooltips.deleteSessionOptions', 'Archive or permanently delete this session')}
-                  >
-                    <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
-                  </button>
-                )}
-              </>
+              onOpenActionsMenu && (
+                <RowActionsTrigger
+                  label={t('actions.rowActions', 'Actions for {{name}}', { name: sessionView.sessionName })}
+                  isOpen={isMenuOpen}
+                  onOpen={(anchor) => onOpenActionsMenu(session, anchor)}
+                />
+              )
             )}
           </div>
       </div>

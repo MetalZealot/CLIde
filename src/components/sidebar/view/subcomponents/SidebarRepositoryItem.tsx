@@ -1,28 +1,30 @@
-import { useEffect, useRef } from 'react';
-import { Check, ChevronDown, ChevronRight, Edit3, GitBranch, ListFilter, MessageSquare, Plus, TreeDeciduous, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
+import { Check, ChevronDown, ChevronRight, GitBranch, ListFilter, MessageSquare, Plus, TreeDeciduous, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
+import {
+  Button,
+  anchorFromElement,
+  RowActionsTrigger,
+  type ContextMenuAnchor,
+} from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type {
   CheckoutSession,
-  MCPServerStatus,
   RepositoryEntry,
   RepositoryViewOptions,
   SessionWithProvider,
 } from '../../types/types';
 import {
   getCheckoutRefLabel,
-  getTaskIndicatorStatus,
   isDefaultRepositoryView,
   resolveActivityState,
 } from '../../utils/utils';
 import { useLongPress } from '../../../../hooks/useLongPress';
 import { projectAccentColorValue, readProjectAccentColor } from '../../utils/accentColors';
 
-import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
 import SidebarSectionHeader from './SidebarSectionHeader';
 import SidebarStatusIndicator from './SidebarStatusIndicator';
@@ -41,22 +43,12 @@ type SidebarRepositoryItemProps = {
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
-  tasksEnabled: boolean;
-  mcpServerStatus: MCPServerStatus;
   onEditingNameChange: (name: string) => void;
   onToggleProject: (entryKey: string) => void;
   onProjectSelect: (project: Project) => void;
-  onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
-  onDeleteRepository: (entry: RepositoryEntry) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
-  onDeleteSession: (
-    projectName: string,
-    sessionId: string,
-    sessionTitle: string,
-    provider: LLMProvider,
-  ) => void;
   visibleSessionCount: number;
   onShowAllSessions: (entry: RepositoryEntry) => void;
   onCollapseSessions: (entry: RepositoryEntry) => void;
@@ -68,11 +60,14 @@ type SidebarRepositoryItemProps = {
   viewOptions: RepositoryViewOptions;
   onOpenViewMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onEditingSessionNameChange: (value: string) => void;
-  onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
-  onLongPressProjectMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
-  onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  /**
+   * Opens this repository row's action menu, anchored to the row (long-press),
+   * to its kebab, or to the cursor (right-click). One menu, several ways in.
+   */
+  onOpenProjectActionsMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
+  onOpenSessionActionsMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
   t: TFunction;
 };
@@ -136,17 +131,12 @@ export default function SidebarRepositoryItem({
   currentTime,
   editingSession,
   editingSessionName,
-  tasksEnabled,
-  mcpServerStatus,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
-  onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
-  onDeleteRepository,
   onSessionSelect,
-  onDeleteSession,
   visibleSessionCount,
   onShowAllSessions,
   onCollapseSessions,
@@ -157,11 +147,10 @@ export default function SidebarRepositoryItem({
   viewOptions,
   onOpenViewMenu,
   onEditingSessionNameChange,
-  onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
-  onLongPressProjectMenu,
-  onLongPressSessionMenu,
+  onOpenProjectActionsMenu,
+  onOpenSessionActionsMenu,
   activeContextMenuKey,
   t,
 }: SidebarRepositoryItemProps) {
@@ -184,7 +173,6 @@ export default function SidebarRepositoryItem({
   const hasCustomView = !isDefaultRepositoryView(viewOptions);
   const totalSessionCount = getSessionCountDisplay(entry, sessions, hasCustomView);
   const sessionCountLabel = `${totalSessionCount} session${totalSessionCount === 1 ? '' : 's'}`;
-  const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
   // A merged row names its checkouts instead of a branch: it has several, and
   // each session below already carries the one it belongs to.
   const rowSubtitle = isMerged
@@ -262,11 +250,28 @@ export default function SidebarRepositoryItem({
   // the repository it acts on.
   const mobileRowRef = useRef<HTMLDivElement>(null);
   const { handlers: longPress, isPressing } = useLongPress(
-    (coords) => onLongPressProjectMenu?.(entry, anchorFromElement(mobileRowRef.current, coords)),
-    { disabled: !onLongPressProjectMenu },
+    (coords) => onOpenProjectActionsMenu?.(entry, anchorFromElement(mobileRowRef.current, coords)),
+    { disabled: !onOpenProjectActionsMenu },
   );
+  const isMenuOpen = activeContextMenuKey === `project:${entry.key}`;
   // Stays on for as long as this row's menu is open.
-  const isContextActive = isPressing || activeContextMenuKey === `project:${entry.key}`;
+  const isContextActive = isPressing || isMenuOpen;
+
+  // Right-click anchors to the cursor. Free on this row, unlike the session row
+  // beneath it: that one is a real <a href>, where taking over the context menu
+  // would cost the native "Open in new tab".
+  const openProjectMenuAtCursor = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!onOpenProjectActionsMenu) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    onOpenProjectActionsMenu(entry, {
+      top: event.clientY,
+      bottom: event.clientY,
+      left: event.clientX,
+    });
+  };
 
   const saveProjectName = () => {
     onSaveProjectName(project.projectId);
@@ -355,17 +360,8 @@ export default function SidebarRepositoryItem({
                     />
                   ) : (
                     <>
-                      <div className="flex min-w-0 flex-1 items-center justify-between">
-                        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                          <h3 className="truncate text-sm font-medium text-foreground">{entry.displayName}</h3>
-                        </div>
-                        {tasksEnabled && (
-                          <TaskIndicator
-                            status={taskStatus}
-                            size="xs"
-                            className="ml-2 hidden flex-shrink-0 md:inline-flex"
-                          />
-                        )}
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                        <h3 className="truncate text-sm font-medium text-foreground">{entry.displayName}</h3>
                       </div>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <span className="flex-shrink-0">{sessionCountLabel}</span>
@@ -431,6 +427,7 @@ export default function SidebarRepositoryItem({
             isSelected && 'bg-primary/15',
           )}
           onClick={selectAndToggleProject}
+          onContextMenu={openProjectMenuAtCursor}
         >
           {accentStrip}
           <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -520,30 +517,18 @@ export default function SidebarRepositoryItem({
                   />
                 )}
                 {/*
-                  A div, not a button: the desktop header is itself a <button>,
-                  so a nested one would be invalid markup. Same shape the rename
-                  and delete controls beside it already use.
+                  `as="div"`: the desktop header is itself a <button>, so a
+                  nested one would be invalid markup — the same reason the
+                  rename and delete controls this replaces were divs.
                 */}
-                <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onStartEditingProject(project);
-                  }}
-                  title={t('tooltips.renameProject')}
-                >
-                  <Edit3 className="h-3 w-3" />
-                </div>
-                <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteRepository(entry);
-                  }}
-                  title={t('tooltips.deleteProject')}
-                >
-                  <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
-                </div>
+                {onOpenProjectActionsMenu && (
+                  <RowActionsTrigger
+                    as="div"
+                    label={t('actions.rowActions', 'Actions for {{name}}', { name: entry.displayName })}
+                    isOpen={isMenuOpen}
+                    onOpen={(anchor) => onOpenProjectActionsMenu(entry, anchor)}
+                  />
+                )}
                 {isExpanded ? (
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
                 ) : (
@@ -608,16 +593,14 @@ export default function SidebarRepositoryItem({
         editingSession={editingSession}
         editingSessionName={editingSessionName}
         onEditingSessionNameChange={onEditingSessionNameChange}
-        onStartEditingSession={onStartEditingSession}
         onCancelEditingSession={onCancelEditingSession}
         onSaveEditingSession={onSaveEditingSession}
         onProjectSelect={onProjectSelect}
         onSessionSelect={onSessionSelect}
-        onDeleteSession={onDeleteSession}
         visibleSessionCount={visibleSessionCount}
         onShowAllSessions={onShowAllSessions}
         onCollapseSessions={onCollapseSessions}
-        onLongPressSessionMenu={onLongPressSessionMenu}
+        onOpenSessionActionsMenu={onOpenSessionActionsMenu}
         activeContextMenuKey={activeContextMenuKey}
         t={t}
       />

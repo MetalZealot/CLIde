@@ -111,7 +111,7 @@ export default function SidebarFooter({
       */}
       <div className="nav-divider" />
 
-      <div className="flex items-center gap-2 px-2 py-1.5">
+      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
         <SidebarAccountMenu
           onShowSettings={onShowSettings}
           isArchiveOpen={isArchiveOpen}

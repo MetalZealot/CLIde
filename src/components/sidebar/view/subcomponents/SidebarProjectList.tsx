@@ -9,7 +9,6 @@ import type {
   ActivityState,
   ActivitySummary,
   CheckoutSession,
-  MCPServerStatus,
   PinnedSession,
   RepositoryEntry,
   RepositoryViewOptions,
@@ -55,8 +54,6 @@ export type SidebarProjectListProps = {
   editingSession: string | null;
   editingSessionName: string;
   deletingProjects: Set<string>;
-  tasksEnabled: boolean;
-  mcpServerStatus: MCPServerStatus;
   getRepositorySessions: (entry: RepositoryEntry) => CheckoutSession[];
   getVisibleSessionCount: (entryKey: string) => number;
   onShowAllSessions: (entry: RepositoryEntry) => void;
@@ -69,27 +66,18 @@ export type SidebarProjectListProps = {
   onEditingNameChange: (value: string) => void;
   onToggleProject: (entryKey: string) => void;
   onProjectSelect: (project: Project) => void;
-  onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
-  onDeleteRepository: (entry: RepositoryEntry) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
-  onDeleteSession: (
-    projectName: string,
-    sessionId: string,
-    sessionTitle: string,
-    provider: LLMProvider,
-  ) => void;
   onOpenCreateMenu: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   getRepositoryView: (entryKey: string) => RepositoryViewOptions;
   onOpenViewMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onEditingSessionNameChange: (value: string) => void;
-  onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onCreateProject: () => void;
-  onLongPressProjectMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
-  onLongPressSessionMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  onOpenProjectActionsMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
+  onOpenSessionActionsMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   /** `project:<entryKey>` / `session:<sessionId>` of the row whose menu is open. */
   activeContextMenuKey?: string | null;
   t: TFunction;
@@ -121,8 +109,6 @@ export default function SidebarProjectList({
   editingSession,
   editingSessionName,
   deletingProjects,
-  tasksEnabled,
-  mcpServerStatus,
   getRepositorySessions,
   getVisibleSessionCount,
   onShowAllSessions,
@@ -135,22 +121,18 @@ export default function SidebarProjectList({
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
-  onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
-  onDeleteRepository,
   onSessionSelect,
-  onDeleteSession,
   onOpenCreateMenu,
   getRepositoryView,
   onOpenViewMenu,
   onEditingSessionNameChange,
-  onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
   onCreateProject,
-  onLongPressProjectMenu,
-  onLongPressSessionMenu,
+  onOpenProjectActionsMenu,
+  onOpenSessionActionsMenu,
   activeContextMenuKey,
   t,
 }: SidebarProjectListProps) {
@@ -200,17 +182,12 @@ export default function SidebarProjectList({
       currentTime={currentTime}
       editingSession={editingSession}
       editingSessionName={editingSessionName}
-      tasksEnabled={tasksEnabled}
-      mcpServerStatus={mcpServerStatus}
       onEditingNameChange={onEditingNameChange}
       onToggleProject={onToggleProject}
       onProjectSelect={onProjectSelect}
-      onStartEditingProject={onStartEditingProject}
       onCancelEditingProject={onCancelEditingProject}
       onSaveProjectName={onSaveProjectName}
-      onDeleteRepository={onDeleteRepository}
       onSessionSelect={onSessionSelect}
-      onDeleteSession={onDeleteSession}
       visibleSessionCount={getVisibleSessionCount(entry.key)}
       onShowAllSessions={onShowAllSessions}
       onCollapseSessions={onCollapseSessions}
@@ -221,11 +198,10 @@ export default function SidebarProjectList({
       viewOptions={getRepositoryView(entry.key)}
       onOpenViewMenu={onOpenViewMenu}
       onEditingSessionNameChange={onEditingSessionNameChange}
-      onStartEditingSession={onStartEditingSession}
       onCancelEditingSession={onCancelEditingSession}
       onSaveEditingSession={onSaveEditingSession}
-      onLongPressProjectMenu={onLongPressProjectMenu}
-      onLongPressSessionMenu={onLongPressSessionMenu}
+      onOpenProjectActionsMenu={onOpenProjectActionsMenu}
+      onOpenSessionActionsMenu={onOpenSessionActionsMenu}
       activeContextMenuKey={activeContextMenuKey}
       t={t}
     />
@@ -251,13 +227,11 @@ export default function SidebarProjectList({
       editingSession={editingSession}
       editingSessionName={editingSessionName}
       onEditingSessionNameChange={onEditingSessionNameChange}
-      onStartEditingSession={onStartEditingSession}
       onCancelEditingSession={onCancelEditingSession}
       onSaveEditingSession={onSaveEditingSession}
       onProjectSelect={onProjectSelect}
       onSessionSelect={onSessionSelect}
-      onDeleteSession={onDeleteSession}
-      onLongPressMenu={onLongPressSessionMenu}
+      onOpenActionsMenu={onOpenSessionActionsMenu}
       activeContextMenuKey={activeContextMenuKey}
       t={t}
     />

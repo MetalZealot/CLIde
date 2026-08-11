@@ -12,6 +12,7 @@ export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, Command
 export { default as DarkModeToggle } from './DarkModeToggle';
 export { Dialog, DialogTrigger, DialogContent, DialogTitle } from './Dialog';
 export { Input } from './Input';
+export { default as RowActionsTrigger } from './RowActionsTrigger';
 export { ScrollArea } from './ScrollArea';
 export { Reasoning, ReasoningTrigger, ReasoningContent, useReasoning } from './Reasoning';
 export { Shimmer } from './Shimmer';
