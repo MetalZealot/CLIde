@@ -471,9 +471,13 @@ export default function ChatComposer({
 
           </PromptInputTools>
 
-          <div className="flex min-w-0 shrink-0 items-center gap-0.5 sm:gap-1">
+          <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
+            {/* The hint is the only part of this row allowed to shrink: the tools,
+                ring, and Send are all shrink-0, so without this the row overflows
+                and pushes Send past the composer edge once the clear button
+                mounts. */}
             <div
-              className={`hidden text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
+              className={`hidden min-w-0 truncate text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
                 input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
               }`}
             >

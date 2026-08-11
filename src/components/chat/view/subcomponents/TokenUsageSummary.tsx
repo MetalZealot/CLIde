@@ -389,7 +389,7 @@ export default function TokenUsageSummary({
           setIsOpen(true);
           refreshPlanUsageIfStale();
         }}
-        className="inline-flex h-8 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         title={accessibleTitle}
         aria-label={creditMarkerVisible ? 'Show usage; credits available' : 'Show usage'}
         aria-haspopup="dialog"
