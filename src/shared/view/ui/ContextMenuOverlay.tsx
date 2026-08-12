@@ -124,6 +124,13 @@ function swallowNextClick() {
 
 type ContextMenuOverlayProps = {
   anchor: ContextMenuAnchor;
+  /**
+   * Trigger element, re-measured whenever the viewport resizes. Supply it when
+   * opening the menu can itself move the trigger — dismissing the mobile
+   * keyboard grows the layout viewport, and the menu must follow the button
+   * down instead of staying where it was measured.
+   */
+  anchorElement?: Element | null;
   /** Called on outside press, Escape, or a chosen action. */
   onDismiss: () => void;
   children: ReactNode;
@@ -144,6 +151,7 @@ type ContextMenuOverlayProps = {
  */
 export default function ContextMenuOverlay({
   anchor,
+  anchorElement,
   onDismiss,
   children,
   ariaLabel,
@@ -153,6 +161,38 @@ export default function ContextMenuOverlay({
 }: ContextMenuOverlayProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [liveAnchor, setLiveAnchor] = useState(anchor);
+
+  useLayoutEffect(() => {
+    setLiveAnchor(anchor);
+  }, [anchor]);
+
+  useEffect(() => {
+    if (!anchorElement) {
+      return;
+    }
+
+    const remeasure = () => {
+      const rect = anchorElement.getBoundingClientRect();
+      if (rect.height <= 0) {
+        return;
+      }
+      setLiveAnchor((previous) =>
+        previous.top === rect.top && previous.bottom === rect.bottom && previous.left === rect.left
+          ? previous
+          : { top: rect.top, bottom: rect.bottom, left: rect.left },
+      );
+    };
+
+    const viewport = window.visualViewport;
+    window.addEventListener('resize', remeasure);
+    viewport?.addEventListener('resize', remeasure);
+
+    return () => {
+      window.removeEventListener('resize', remeasure);
+      viewport?.removeEventListener('resize', remeasure);
+    };
+  }, [anchorElement]);
 
   // Position against the menu's real size (height varies with the action list),
   // before paint, so it never shows at the wrong spot first.
@@ -165,8 +205,8 @@ export default function ContextMenuOverlay({
     // offsetWidth/Height, not getBoundingClientRect: the `zoom-in-95` enter
     // animation has it scaled to 0.95 here, and a rect 5% short pushed the
     // flipped-above placement onto the row.
-    setPosition(calculateAnchoredPosition(anchor, menuElement.offsetWidth, menuElement.offsetHeight, placement));
-  }, [anchor, measureKey, placement]);
+    setPosition(calculateAnchoredPosition(liveAnchor, menuElement.offsetWidth, menuElement.offsetHeight, placement));
+  }, [liveAnchor, measureKey, placement]);
 
   // An outside press dismisses on touchstart/mousedown rather than click, so the
   // menu is gone the instant the screen is touched. The shield keeps the rest of
@@ -271,7 +311,7 @@ export default function ContextMenuOverlay({
           // A forced-above menu scrolls within the space above its row rather
           // than growing through it.
           maxHeight: placement === 'above'
-            ? Math.max(0, anchor.top - ANCHOR_GAP - VIEWPORT_PADDING)
+            ? Math.max(0, liveAnchor.top - ANCHOR_GAP - VIEWPORT_PADDING)
             : undefined,
           // Hidden for the single layout pass that measures it.
           visibility: position ? 'visible' : 'hidden',
