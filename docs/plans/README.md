@@ -9,7 +9,6 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 
 | Plan | Status | Next |
 |---|---|---|
-| [Codex 0.147 and managed native runtime](codex-0-147-managed-native-runtime.md) | 6/7 | Phase 7: align the managed-runtime decisions, maps, and backlog with reality |
 | [Post-v1.37 ADR reassessment](post-v1-37-adr-reassessment.md) | 0/2 | Decide ADR 0016 — build Phase 0 or supersede it. **Blocks the plan below.** |
 | [Source Control truthfulness](source-control-truthfulness.md) | 1/4 | Phase 0: make server-side Git failures visible in the UI |
 | [WebSocket liveness](websocket-liveness.md) | not started | Baseline the integrated gateway; decide any-frame vs matched echo |

@@ -168,9 +168,9 @@ Unsupported behavior is explicit. Generic UI must hide it, disable it with an
 explanation, or provide a clean no-op only where a no-op is truthful. Providers
 must not implement fake methods solely to satisfy an interface.
 
-## 5. Native runtime contract direction
+## 5. Native runtime contract
 
-Every provider needs deterministic installation detection, resolution, and
+Every provider needs deterministic installation discovery, selection, and
 compatibility diagnostics for these purposes:
 
 - interactive Chat;
@@ -180,20 +180,24 @@ compatibility diagnostics for these purposes:
 - authentication;
 - Shell.
 
-Resolution order is:
+Discovery may inspect trusted configuration, the production service `PATH`, known
+installer locations, and a bundled runtime, but discovery never changes the active
+selection. A new selection store may seed an explicit bundled choice; after that,
+the approved installation is identified by its opaque id, real path, and executable
+fingerprint rather than by version alone. If it disappears, changes identity, or
+fails compatibility, the provider is unavailable until an explicit selection or
+rollback succeeds — there is no silent fallback.
 
-1. trusted server-configured path;
-2. executable visible to the production service `PATH`;
-3. documented platform installer location;
-4. explicitly enabled bundled fallback.
+The resolved record identifies invoked path, real path, version, source,
+configuration root, supported surfaces, and compatibility state. Browser input
+never supplies arbitrary executable paths. Every provider facet uses the same
+active installation unless a documented provider exception says otherwise.
 
-The resolved record must identify invoked path, real path, version, source,
-configuration root, supported surfaces, and compatibility state. Client input
-must never supply arbitrary executable paths.
-
-All facets should use one installation by default. Any exception must be
-deliberate and visible in diagnostics. Never infer the service runtime from an
-interactive SSH shell alone.
+Codex implements this contract now. A promotion must pass the consumed App Server
+compatibility check; short-lived facets use the new selection on their next launch,
+while a long-lived App Server records the pending change and recycles only after its
+active turn becomes idle. Diagnostics expose active, live-process, pending, and
+previous selections without treating an interactive SSH shell as service truth.
 
 ## 6. Capability conformance
 
@@ -215,8 +219,8 @@ effective binding at runtime.
 ## 7. Current high-priority gaps
 
 - Live runtime dispatch is not registry-owned.
-- Native runtime resolution and one-installation diagnostics are not
-  implemented.
+- Managed native-runtime selection is implemented for Codex, not yet for the other
+  external-runtime providers.
 - The frontend provider catalogue still contains hardcoded provider knowledge.
 - Some declared capability flags are not consistently consumed by generic UI.
 - Cursor advertises permission modes its runtime adapter does not fully map.
@@ -239,7 +243,7 @@ Read only the material needed for the task:
 | Session identity, rewind, or fork | ADRs 0003, 0007, 0008, 0012 + map identity section |
 | Abort, replay, or completion | ADR 0013 + Section 30.3–30.6 of the historical spec |
 | Permissions or Plan | Provider permission-mode map + canonical access binding |
-| Native executable/runtime source | Section 31 of the historical spec until extracted into code |
+| Native executable/runtime source | Section 5 here + the provider-native map + ADR 0034 for Codex |
 | Why an alternative was rejected | Routed section of the historical spec or relevant ADR |
 | New provider | This contract + map schema + provider module guide |
 

@@ -4,7 +4,7 @@
 
 **Started:** 2026-07-30
 
-**Last source audit:** CLIde `main` at `935c629`
+**Last source audit:** 2026-08-12, Codex managed-runtime branch through `b0d4f54`
 
 **Architecture contract:** [Current provider architecture contract](CLIde_Provider_Architecture_Current_Contract.md)
 
@@ -82,13 +82,13 @@ does not claim that provider-native conversations are interchangeable.
 
 ## 3. Current runtime profiles
 
-This snapshot is time-specific. Runtime diagnostics must eventually replace
-manual assumptions.
+This snapshot is time-specific. Codex now reports its selection from persistent
+runtime state; the other providers still depend on manual assumptions.
 
 | Provider | Interactive profile | Other relevant profiles | Current availability note |
 |---|---|---|---|
 | Claude | Agent SDK spawns a standalone Claude Code per turn | Separate Claude Shell; SDK control surface | Pinned SDK 0.3.165 bundles runtime 2.1.165; the runtime actually spawned is whatever `PATH` resolves (2.1.220 observed) |
-| Codex | Long-lived bundled App Server by default; bundled SDK fallback | SDK jobs, disposable usage App Server, separate standalone Shell | Bundled and standalone 0.146.0 were observed |
+| Codex | Long-lived App Server from the approved installation; explicit SDK escape hatch or initialization-only fallback | SDK jobs, disposable reads, Shell, models, auth, and usage all resolve the same approved installation | Bundled and standalone 0.147.0 installations are distinct by path; new stores select bundled until promotion |
 | Cursor | External `cursor-agent` process | Native model/config/session stores | No installation detected in the audited service environment |
 | OpenCode | External `opencode run` process | Native model command and shared SQLite history | No installation detected in the audited service environment |
 
@@ -177,7 +177,7 @@ per turn instead of holding a streaming-input session.
 | `mcp.config.write` | Add/update/remove MCP configuration | E | E | E | E |
 | `skills.discovery` | Discover normalized provider-visible skills | E | E | E | E |
 | `skills.install` | Install/remove user-scoped skills through provider conventions | E | E | E | E |
-| `runtime.diagnostics` | Report configured/effective executable, version, health, and compatibility | G | G | G | G |
+| `runtime.diagnostics` | Report configured/effective executable, version, health, and compatibility | G | E | G | G |
 
 Configuration support does not imply runtime MCP health, OAuth state, active
 tools/resources, or reload controls. Those are separate future capabilities.
@@ -204,6 +204,7 @@ universal configuration object.
 | Provider registry and facets | `server/modules/providers/provider.registry.ts`, `server/shared/interfaces.ts` |
 | Static/dynamic capability declaration | `server/modules/providers/services/provider-capabilities.service.ts` |
 | Provider-native adapters | `server/modules/providers/list/<provider>/` |
+| Managed runtime discovery, approval, compatibility, and selection | `server/modules/providers/services/provider-native-runtime.service.ts`, provider descriptor, authenticated provider routes, and account-card UI |
 | Live runtime entrypoints (registry migration completed by upstream v1.37) | `server/modules/providers/list/<provider>/<provider>-runtime.provider.js` for `claude`, `codex`, `cursor`, `opencode` |
 | Stable run ownership and normalized writing | WebSocket gateway, `chatRunRegistry`, `ChatSessionWriter` |
 | Interactive request normalization | `interactive-request-registry.service.ts`, shared request types, Chat request UI |
@@ -231,7 +232,7 @@ universal configuration object.
 4. Make generic UI consistently consume image, abort, interactive-request, and
    usage capabilities.
 5. Fix or stop advertising Cursor permission-mode mappings.
-6. Implement native-runtime resolution and sanitized compatibility diagnostics.
+6. Extend managed native-runtime selection beyond Codex where another provider needs it.
 7. Represent provider defaults, session requested state, and effective state
    separately.
 8. Generate or validate mechanical tables in this document from typed code.

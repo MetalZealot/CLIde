@@ -78,3 +78,39 @@ Each stable upgrade records:
 - **Production state checked 2026-07-30:** the running App Server reports
   `codex-cli 0.146.0` and port 3001 returns HTTP 200. Post-restart installed-app
   new-chat and resumed-chat smoke remains to be recorded.
+
+## 0.147.0 — 2026-08-12
+
+- **From/to:** exact SDK/bundled CLI 0.146.0 to 0.147.0; bundled and standalone
+  targets both report 0.147.0 but remain distinct installations by path.
+- **Sources:** [release](https://github.com/openai/codex/releases/tag/rust-v0.147.0),
+  [compare](https://github.com/openai/codex/compare/rust-v0.146.0...rust-v0.147.0),
+  [tagged SDK](https://github.com/openai/codex/tree/rust-v0.147.0/sdk/typescript),
+  [tagged protocol](https://github.com/openai/codex/tree/rust-v0.147.0/codex-rs/app-server-protocol),
+  generated default/experimental bindings, and official docs.
+- **SDK/CLI:** the pair and platform packages are pinned to 0.147.0. The CLI
+  adds portable plugin/search and `--approve-for-me` surfaces, import/sync work,
+  and removes `codex exec --full-auto`; CLIde retains explicit user review and
+  explicit sandbox/approval mappings.
+- **App Server:** default client requests increased from 93 to 98 and
+  experimental requests from 130 to 136; server requests and notifications
+  remain 10/11 and 72. Structured questions add consumed `isBlocking` timing;
+  persistent ordered sections replace native pinning as the current metadata
+  opportunity. MCP 2026-07-28 and plugin/import surfaces remain watches or
+  deferred work.
+- **Integrated:** Codex handles zero-time auto-resolution locally without
+  changing Claude's shared no-timer contract; MCP edits preserve unknown native
+  keys; one compatibility checker guards the committed protocol and promotion;
+  one approved installation supplies Chat, Shell, jobs, models, auth, and usage.
+- **CLIde commits:** `56bf5bf` (pin and question semantics), `2a4a727` (MCP
+  preservation), `3c932a9` (compatibility guard), `c0b8d5a` (managed resolver),
+  and `b0d4f54` (selection UI and routes).
+- **Automated verification:** focused compatibility/runtime/UI coverage, full
+  server and client suites, typecheck, lint, and client/server builds passed
+  during the phased rollout.
+- **Isolated live evidence:** on 3002, new/resumed Chat passed after the pin;
+  Chat, Shell, model list, and account usage resolved the same executable; Check,
+  Use, mid-turn idle promotion, and Roll back changed selection without
+  interrupting the running turn.
+- **Production state:** port 3001 was intentionally untouched; branch-server
+  evidence is not production acceptance.

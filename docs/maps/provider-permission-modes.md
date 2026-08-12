@@ -3,7 +3,7 @@
 Maps Claude and Codex permission concepts **by behaviour**, because similarly
 named modes are not equivalent. The native survey used the 2026-07-25 official
 SDK/CLI documentation and protocol snapshots; CLIde's implementation mapping was
-revalidated on 2026-08-09 against the merged 1.37 source and Codex 0.146.0.
+revalidated on 2026-08-12 against the merged 1.37 source and Codex 0.147.0.
 These surfaces move quickly — recheck current versions before relying on a detail.
 
 Three findings that make the rest worth reading:
@@ -231,7 +231,8 @@ Consequences:
 - App Server Plan/Build is selected independently beneath those access presets;
   Build is translated to native collaboration mode `default` on every turn.
 - App Server currently sets `approvalsReviewer: 'user'` explicitly; Codex
-  automatic review is not exposed.
+  automatic review is not exposed, including 0.147's `--approve-for-me` CLI
+  surface.
 - The SDK fallback cannot display the prompts produced by `untrusted`, so the
   transport capability changes the effective UX of the same selected mode.
 
@@ -308,8 +309,13 @@ The normalized question model already captures:
 - multi-select capability;
 - expiry and auto-resolution.
 
-Codex 0.146.0 does not advertise a multi-select bit, so its questions default
-to one selection while still returning arrays on the wire.
+Codex 0.147.0 does not advertise a multi-select bit, so its questions default
+to one selection while still returning arrays on the wire. Its new
+`isBlocking` field controls expiry: blocking questions wait indefinitely;
+non-blocking questions use `autoResolutionMs`, with null mapped to 120 seconds
+and zero answered immediately by the Codex transport. Older runtimes without
+the field keep the pre-0.147 timeout behavior; Claude's shared zero-timeout
+contract still means no timer.
 
 ## 5. Primary references
 
@@ -331,4 +337,4 @@ Related CLIde records:
 
 - `docs/maps/claude-agent-sdk.md`
 - `docs/maps/codex-cli-sdk-app-server.md`
-- `docs/decisions/0011-codex-app-server-chat-transport.md`
+- `docs/decisions/0034-codex-managed-native-runtime.md`

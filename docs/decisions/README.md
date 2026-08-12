@@ -48,7 +48,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0008 — Superseded provider ids are tombstoned, not deleted](0008-superseded-provider-id-tombstones.md)
 - [0009 — Long-press menus: one shared overlay, and touch belongs to `useLongPress`](0009-context-menu-overlay-touch-ownership.md)
 - [0010 — Viewport-positioned overlays set inset inline, never via `inset-0`](0010-pwa-mode-fixed-inset-override.md)
-- [0011 — Codex App Server is the opt-in interactive Chat transport](0011-codex-app-server-chat-transport.md)
+- [0011 — Codex App Server is the opt-in interactive Chat transport](0011-codex-app-server-chat-transport.md) *(superseded by 0034)*
 - [0012 — Codex rewind replaces a stable session; fork creates another](0012-codex-rewind-and-fork-session-identity.md)
 - [0013 — Abort is signal-first; the provider id is only the graceful tier](0013-abort-is-signal-first-not-provider-id-keyed.md)
 - [0014 — The context ring's ceiling is read from the SDK, not derived](0014-context-ceiling-from-sdk.md)
@@ -71,3 +71,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0031 — Selection follows the theme; sidebar status uses symbols](0031-theme-relative-selection-and-symbolic-sidebar-status.md)
 - [0032 — The composer ring owns a summary-first usage popover](0032-summary-first-composer-usage-popover.md)
 - [0033 — A worktree with no project row is listed, not registered](0033-discovered-checkouts-are-derived-not-stored.md)
+- [0034 — Codex uses one explicitly approved native runtime](0034-codex-managed-native-runtime.md)

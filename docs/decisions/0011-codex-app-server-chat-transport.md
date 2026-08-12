@@ -1,7 +1,7 @@
 # 0011 — Codex App Server is the opt-in interactive Chat transport
 
 - Date: 2026-07-25
-- Status: Accepted
+- Status: Superseded by 0034
 
 ## Decision
 
