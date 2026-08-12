@@ -192,7 +192,7 @@ New Codex work should land at the narrowest owning boundary:
 | SDK fallback and non-interactive turn normalization | `server/modules/providers/list/codex/codex-runtime.provider.js` |
 | Transport selection, versions, and health | `server/modules/providers/list/codex/codex-chat-transport-state.ts` |
 | Curated consumed protocol | `server/modules/providers/list/codex/codex-app-server.protocol.ts` |
-| Generated contract guard | `server/modules/providers/tests/codex-app-server-protocol-drift.test.ts` |
+| Generated contract guard | `codex-app-server-compatibility.ts`, covered by `server/modules/providers/tests/codex-app-server-protocol-drift.test.ts` |
 | Capability flags | `server/modules/providers/services/provider-capabilities.service.ts` |
 | Session discovery and watcher ingestion | `server/modules/providers/list/codex/codex-session-synchronizer.provider.ts` |
 | History and transcript normalization | `server/modules/providers/list/codex/codex-sessions.provider.ts` |

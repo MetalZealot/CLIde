@@ -1,7 +1,7 @@
 # Codex 0.147, then a managed native runtime
 
-- Status: 3/7
-- Next: Phase 4 — extract one reusable native-runtime compatibility check
+- Status: 4/7
+- Next: Phase 5 — resolve and select one managed native runtime for every Codex facet
 - Context: [Codex surface map](../maps/codex-cli-sdk-app-server.md), [upgrade ledger](../maps/codex-upgrade-ledger.md), [chat transport map](../maps/2026-07-25-codex-chat-transport-architecture.md), [provider contract §5](../maps/CLIde_Provider_Architecture_Current_Contract.md), ADR 0011. Claude's runtime/SDK pairing stays out of scope — it belongs to the "Recurring provider SDK/CLI update process" item in `TODO.md`.
 
 This branch pins the bundled runtime to 0.147.0; `main` is still 0.146.0. App Server
@@ -42,11 +42,11 @@ rather than a version anyone chose.
   through list → edit → native re-read. Claude, Cursor and OpenCode still rebuild
   their records the old way; that is a `TODO.md` item, not a phase here.
 
-- [ ] 4. **One reusable compatibility check.** `codex-app-server-protocol-drift.test.ts`
-  already generates the experimental bindings into a temp dir and asserts CLIde's
-  required methods and fields. Extract that into a checker taking an executable path
-  and returning `compatible | incompatible | check_failed`; the test becomes its first
-  caller. Do not write a second implementation for Phase 6.
+- [x] 4. **One reusable compatibility check** — `3c932a9`.
+  `checkCodexAppServerCompatibility` takes any Codex executable, native binary or JS
+  launcher, and the drift test is its first caller. Phase 6 must reuse it rather than
+  write a second implementation, and should surface the first failing method or field
+  — today the result says only that something is missing.
 
 - [ ] 5. **Managed runtime resolution, provider-generic, Codex first.** A shared
   resolver plus a per-provider descriptor — not a Codex-shaped module retrofitted
