@@ -11,19 +11,30 @@ import CodexNativeRuntimeRow from './CodexNativeRuntimeRow';
 
 const bundledId = 'runtime_111111111111111111111111';
 const candidateId = 'runtime_222222222222222222222222';
+const alternateId = 'runtime_333333333333333333333333';
+const bundledPath = '~/Projects/CLIde/node_modules/@openai/codex/vendor/bin/codex';
+const candidatePath = '~/.codex/packages/standalone/releases/0.147.0-arm64/bin/codex';
+const alternatePath = '~/.local/node_modules/@openai/codex/bin/codex';
 const installations = [
   {
     id: bundledId,
     version: '0.147.0',
-    displayPath: '~/Projects/CLIde/node_modules/@openai/codex/vendor/codex',
+    displayPath: bundledPath,
     sources: ['bundled'],
     bundled: true,
   },
   {
     id: candidateId,
     version: '0.147.0',
-    displayPath: '~/.local/lib/node_modules/@openai/codex/vendor/codex',
+    displayPath: candidatePath,
     sources: ['path'],
+    bundled: false,
+  },
+  {
+    id: alternateId,
+    version: '0.147.0',
+    displayPath: alternatePath,
+    sources: ['known'],
     bundled: false,
   },
 ];
@@ -69,6 +80,12 @@ const findButton = (host: HTMLElement, label: string): HTMLButtonElement => {
   return button;
 };
 
+const installationRow = (host: HTMLElement, fullPath: string): HTMLElement => {
+  const pathButton = host.querySelector<HTMLButtonElement>(`button[title="${fullPath}"]`);
+  assert.ok(pathButton?.parentElement);
+  return pathButton.parentElement;
+};
+
 test('Codex runtime row uses paths as identity and gates Use behind Check', async () => {
   let activeInstallationId = bundledId;
   let previousInstallationId: string | null = null;
@@ -88,8 +105,9 @@ test('Codex runtime row uses paths as identity and gates Use behind Check', asyn
     const url = String(input);
     let data: unknown;
     if (url.endsWith('/check')) {
+      const body = JSON.parse(String(init?.body)) as { installationId: string };
       data = {
-        installationId: candidateId,
+        installationId: body.installationId,
         compatibility: 'compatible',
         detail: null,
       };
@@ -114,22 +132,32 @@ test('Codex runtime row uses paths as identity and gates Use behind Check', asyn
   await React.act(async () => root?.render(<CodexNativeRuntimeRow />));
   await flush();
 
-  assert.match(container.textContent ?? '', /Projects\/CLIde\/node_modules/);
-  assert.match(container.textContent ?? '', /.local\/lib\/node_modules/);
-  const useButton = findButton(container, 'Use');
-  assert.equal(useButton.disabled, true);
+  assert.doesNotMatch(container.textContent ?? '', /Projects\/CLIde/);
+  assert.match(container.textContent ?? '', /…\/node_modules\/…\/bin\/codex/);
+  assert.match(container.textContent ?? '', /…\/standalone\/releases\/…\/bin\/codex/);
+  const candidateRow = installationRow(container, candidatePath);
+  const alternateRow = installationRow(container, alternatePath);
+  assert.equal(findButton(candidateRow, 'Use').disabled, true);
+  assert.equal(findButton(alternateRow, 'Use').disabled, true);
 
-  await React.act(async () => findButton(container as HTMLDivElement, 'Check').click());
+  await React.act(async () => findButton(alternateRow, 'Check').click());
   await flush();
-  assert.match(container.textContent ?? '', /Structural check passed/);
-  assert.equal(findButton(container, 'Use').disabled, false);
+  assert.match(alternateRow.textContent ?? '', /Structural check passed/);
+  assert.doesNotMatch(candidateRow.textContent ?? '', /Structural check passed/);
+  assert.equal(findButton(candidateRow, 'Use').disabled, true);
+  assert.equal(findButton(alternateRow, 'Use').disabled, false);
 
-  await React.act(async () => findButton(container as HTMLDivElement, 'Use').click());
+  const candidatePathButton = candidateRow.querySelector<HTMLButtonElement>(`button[title="${candidatePath}"]`);
+  assert.ok(candidatePathButton);
+  await React.act(async () => candidatePathButton.click());
+  assert.match(candidateRow.textContent ?? '', /.codex\/packages\/standalone/);
+
+  await React.act(async () => findButton(alternateRow, 'Use').click());
   await flush();
-  assert.deepEqual(selectionRequests, [candidateId]);
+  assert.deepEqual(selectionRequests, [alternateId]);
   assert.match(container.textContent ?? '', /switch after current turn/);
 
   await React.act(async () => findButton(container as HTMLDivElement, 'Roll back').click());
   await flush();
-  assert.deepEqual(selectionRequests, [candidateId, bundledId]);
+  assert.deepEqual(selectionRequests, [alternateId, bundledId]);
 });

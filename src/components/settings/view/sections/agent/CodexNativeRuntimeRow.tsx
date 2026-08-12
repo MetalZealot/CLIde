@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge, Button } from '../../../../../shared/view/ui';
@@ -44,12 +44,26 @@ const readResponse = async <T,>(response: Response): Promise<T> => {
   return body.data;
 };
 
+const compactRuntimePath = (displayPath: string): string => {
+  const normalized = displayPath.replace(/\\/g, '/');
+  const binSuffix = normalized.match(/\/bin\/[^/]+$/)?.[0] ?? '';
+  const marker = ['/standalone/releases/', '/node_modules/']
+    .find((candidate) => normalized.includes(candidate));
+  return marker && binSuffix ? `…${marker}…${binSuffix}` : displayPath;
+};
+
+type BusyAction = {
+  action: 'check' | 'use' | 'rollback';
+  installationId: string;
+};
+
 export default function CodexNativeRuntimeRow() {
   const { t } = useTranslation('settings');
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
-  const [check, setCheck] = useState<RuntimeCheck | null>(null);
-  const [busy, setBusy] = useState<'check' | 'use' | 'rollback' | null>(null);
+  const [checks, setChecks] = useState<Record<string, RuntimeCheck>>({});
+  const [busy, setBusy] = useState<BusyAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedPathId, setExpandedPathId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,22 +82,16 @@ export default function CodexNativeRuntimeRow() {
     };
   }, []);
 
-  const candidate = useMemo(() => status?.installations.find((installation) => (
-    installation.id !== status.activeInstallationId && !installation.bundled
-  )) ?? status?.installations.find((installation) => (
-    installation.id !== status.activeInstallationId
-  )) ?? null, [status]);
-
-  const runCheck = async () => {
-    if (!candidate) return;
-    setBusy('check');
+  const runCheck = async (installation: RuntimeInstallation) => {
+    setBusy({ action: 'check', installationId: installation.id });
     setError(null);
     try {
       const response = await authenticatedFetch('/api/providers/codex/runtime/check', {
         method: 'POST',
-        body: JSON.stringify({ installationId: candidate.id }),
+        body: JSON.stringify({ installationId: installation.id }),
       });
-      setCheck(await readResponse<RuntimeCheck>(response));
+      const result = await readResponse<RuntimeCheck>(response);
+      setChecks((current) => ({ ...current, [installation.id]: result }));
     } catch (checkError) {
       setError(checkError instanceof Error ? checkError.message : String(checkError));
     } finally {
@@ -92,7 +100,7 @@ export default function CodexNativeRuntimeRow() {
   };
 
   const select = async (installationId: string, action: 'use' | 'rollback') => {
-    setBusy(action);
+    setBusy({ action, installationId });
     setError(null);
     try {
       const response = await authenticatedFetch('/api/providers/codex/runtime/selection', {
@@ -100,7 +108,7 @@ export default function CodexNativeRuntimeRow() {
         body: JSON.stringify({ installationId }),
       });
       setStatus(await readResponse<RuntimeStatus>(response));
-      setCheck(null);
+      setChecks({});
     } catch (selectionError) {
       setError(selectionError instanceof Error ? selectionError.message : String(selectionError));
     } finally {
@@ -112,20 +120,7 @@ export default function CodexNativeRuntimeRow() {
     return error ? <div className="px-4 py-3 text-xs text-destructive">{error}</div> : null;
   }
 
-  const checkedCandidate = Boolean(
-    candidate
-    && check?.installationId === candidate.id
-    && check.compatibility === 'compatible',
-  );
-  const checkMessage = check
-    ? check.compatibility === 'compatible'
-      ? t('agents.codexRuntime.checkPassed')
-      : t('agents.codexRuntime.checkFailed', {
-          detail: check.detail || check.compatibility,
-        })
-    : null;
-  const failureMessage = status.activeError || error
-    || (check?.compatibility !== 'compatible' ? checkMessage : null);
+  const failureMessage = status.activeError || error;
 
   return (
     <SettingsRow
@@ -136,15 +131,25 @@ export default function CodexNativeRuntimeRow() {
       <div className="space-y-3">
         <div className="space-y-2">
           {status.installations.map((installation) => {
-            const isCandidate = candidate?.id === installation.id;
+            const isActive = installation.id === status.activeInstallationId;
+            const check = checks[installation.id];
+            const checked = check?.compatibility === 'compatible';
+            const pathExpanded = expandedPathId === installation.id;
+            const checkMessage = check
+              ? checked
+                ? t('agents.codexRuntime.checkPassed')
+                : t('agents.codexRuntime.checkFailed', {
+                    detail: check.detail || check.compatibility,
+                  })
+              : null;
             return (
               <div key={installation.id} className="min-w-0 rounded-md bg-muted/50 px-3 py-2">
                 <div className="flex flex-wrap items-center gap-1.5 text-xs">
                   <span className="font-medium text-foreground">{installation.version}</span>
-                  {installation.id === status.activeInstallationId && (
+                  {isActive && (
                     <Badge variant="secondary">{t('agents.codexRuntime.active')}</Badge>
                   )}
-                  {isCandidate && <Badge variant="outline">{t('agents.codexRuntime.candidate')}</Badge>}
+                  {!isActive && <Badge variant="outline">{t('agents.codexRuntime.candidate')}</Badge>}
                   {installation.id === status.previousInstallationId && (
                     <Badge variant="outline">{t('agents.codexRuntime.previous')}</Badge>
                   )}
@@ -153,9 +158,52 @@ export default function CodexNativeRuntimeRow() {
                     <Badge variant="outline">{t('agents.codexRuntime.live')}</Badge>
                   )}
                 </div>
-                <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                  {installation.displayPath}
-                </div>
+                <button
+                  type="button"
+                  className="mt-1 block max-w-full text-left font-mono text-xs text-muted-foreground"
+                  title={installation.displayPath}
+                  aria-expanded={pathExpanded}
+                  onClick={() => setExpandedPathId(pathExpanded ? null : installation.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setExpandedPathId(pathExpanded ? null : installation.id);
+                  }}
+                >
+                  <span className={pathExpanded ? 'break-all' : 'block truncate'}>
+                    {pathExpanded ? installation.displayPath : compactRuntimePath(installation.displayPath)}
+                  </span>
+                </button>
+
+                {!isActive && (
+                  <div className="mt-2 space-y-2">
+                    {checkMessage && (
+                      <div className={checked ? 'text-xs text-primary' : 'text-xs text-destructive'}>
+                        {checkMessage}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busy !== null}
+                        onClick={() => void runCheck(installation)}
+                      >
+                        {busy?.action === 'check' && busy.installationId === installation.id
+                          ? t('agents.codexRuntime.checking')
+                          : t('agents.codexRuntime.check')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!checked || busy !== null}
+                        onClick={() => void select(installation.id, 'use')}
+                      >
+                        {t('agents.codexRuntime.use')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -167,24 +215,13 @@ export default function CodexNativeRuntimeRow() {
           {status.updatePending ? ` · ${t('agents.codexRuntime.updatePending')}` : ''}
         </div>
 
-        {(failureMessage || checkMessage) && (
-          <div className={failureMessage ? 'text-xs text-destructive' : 'text-xs text-primary'}>
-            {failureMessage || checkMessage}
+        {failureMessage && (
+          <div className="text-xs text-destructive">
+            {failureMessage}
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={!candidate || busy !== null} onClick={runCheck}>
-            {busy === 'check' ? t('agents.codexRuntime.checking') : t('agents.codexRuntime.check')}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={!candidate || !checkedCandidate || busy !== null}
-            onClick={() => candidate && void select(candidate.id, 'use')}
-          >
-            {t('agents.codexRuntime.use')}
-          </Button>
+        <div>
           <Button
             type="button"
             variant="outline"
