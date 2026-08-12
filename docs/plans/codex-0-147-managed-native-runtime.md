@@ -24,13 +24,13 @@ would strand its card.
 - Browser requests carry opaque installation ids, never executable paths.
 - One installation serves every Codex facet: Chat, Shell, SDK jobs, model discovery,
   account usage. Any exception must be visible in diagnostics.
-- Phases 1–4 land on `main`. Phase 5 and 6 change runtime resolution, so they get one
-  worktree and are verified on 3002 before merge. Do not open a second worktree.
+- Every phase lands on the `codex-native-runtime` worktree and is verified on 3002
+  before merge. Do not open a second worktree.
 - Keep `approvalsReviewer: 'user'`; `--approve-for-me` stays unmapped.
 
 ## Phases
 
-- [x] 1. **`isBlocking` honoured, behaviour unchanged on 0.146** — `882c758`,
+- [x] 1. **`isBlocking` honoured, behaviour unchanged on 0.146** — `448e1ab`,
   live-verified on 3002.
 
 - [ ] 2. **Pinned to 0.147.0.** Bump `@openai/codex-sdk` to exact `0.147.0`, update
