@@ -1,13 +1,13 @@
 # Codex 0.147, then a managed native runtime
 
-- Status: 4/7
-- Next: Phase 5 — resolve and select one managed native runtime for every Codex facet
+- Status: 5/7
+- Next: Phase 6 — expose runtime checks and explicit selection in the Codex account card
 - Context: [Codex surface map](../maps/codex-cli-sdk-app-server.md), [upgrade ledger](../maps/codex-upgrade-ledger.md), [chat transport map](../maps/2026-07-25-codex-chat-transport-architecture.md), [provider contract §5](../maps/CLIde_Provider_Architecture_Current_Contract.md), ADR 0011. Claude's runtime/SDK pairing stays out of scope — it belongs to the "Recurring provider SDK/CLI update process" item in `TODO.md`.
 
-This branch pins the bundled runtime to 0.147.0; `main` is still 0.146.0. App Server
-is the *default* Chat transport, not opt-in. What remains is that every Codex facet
-resolves its own executable, so the version CLIde runs is still whatever is bundled
-rather than a version anyone chose.
+This branch pins the bundled runtime to 0.147.0 and routes every Codex facet through
+one approved installation; `main` is still 0.146.0 with each facet resolving its own.
+What remains is the surface that lets someone see which installation is active and
+choose a different one.
 
 ## Decisions — do not re-open these
 
@@ -48,21 +48,13 @@ rather than a version anyone chose.
   write a second implementation, and should surface the first failing method or field
   — today the result says only that something is missing.
 
-- [ ] 5. **Managed runtime resolution, provider-generic, Codex first.** A shared
-  resolver plus a per-provider descriptor — not a Codex-shaped module retrofitted
-  later. Detect `CLIDE_CODEX_CLI_PATH`, the service `PATH`, known installer
-  locations, and the bundled CLI; resolve symlinks, dedupe by real path, read
-  versions, assign opaque ids. Persist the host-wide selection atomically at
-  `~/.cloudcli/provider-runtimes.json`, mode `0600`, storing active and previous
-  fingerprints by real path, seeded to bundled so current behaviour is preserved.
-  Route every Codex consumer through the selection: Chat and account usage launch
-  `<selected> app-server --stdio`, SDK jobs and startup fallback pass
-  `codexPathOverride`, Shell uses the same executable with platform-safe quoting,
-  model discovery uses the selected runtime's `model/list` with the filesystem cache
-  demoted to a source-labelled stale fallback. Snapshot executable and version when
-  the long-lived App Server starts; a promotion mid-turn sets `updatePending` and
-  recycles the process after the last active turn. Never interrupt a turn, never
-  restart CLIde.
+- [x] 5. **Managed runtime resolution, provider-generic, Codex first** — `c0b8d5a`.
+  A shared resolver with a per-provider descriptor persists one approved executable
+  at `~/.cloudcli/provider-runtimes.json`, mode `0600`, seeded to bundled. Chat,
+  Shell, SDK jobs, auth, model discovery and account usage all launch it; a promotion
+  arriving mid-turn waits for idle; a missing or invalid selection reports Codex
+  unavailable instead of falling back. Live-verified on 3002 — all facets resolved
+  one installation.
 
 - [ ] 6. **Runtime row in the Codex account card.** One compact row: active,
   candidate, previous, bundled, SDK, and live-process versions, with **Check**,
@@ -93,11 +85,12 @@ rather than a version anyone chose.
   asserts 0.147.0.
 - Editing an MCP server in Settings leaves an unmodelled key in `~/.codex/config.toml`
   intact.
-- The Codex account card shows active 0.146 bundled with 0.147 as a candidate;
-  pressing Check passes, Use promotes it, and the version shown changes without a
-  CLIde restart and without killing a running turn.
-- With 0.147 active on 3002: new and resumed Chat, approvals, image and file input,
-  abort, rewind, fork, usage, model list, and Shell all work, and Roll back returns
-  to bundled.
+- The Codex account card shows the bundled installation active and the one on `PATH`
+  as a candidate — both read 0.147.0, so the real ID is the path. Check passes, Use
+  promotes it, and the active installation changes without a CLIde restart and
+  without killing a running turn.
+- With the promoted installation on 3002: new and resumed Chat, approvals, image and
+  file input, abort, rewind, fork, usage, model list, and Shell all work, and Roll
+  back returns to bundled.
 - Deleting the approved executable makes Codex report unavailable rather than
   silently running the bundled CLI.

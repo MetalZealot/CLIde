@@ -35,9 +35,10 @@ Cross-provider semantics and normalized CLIde bindings belong in the
 | Remaining 0.146 rollout evidence | Post-restart new-chat and resumed-chat smoke in the installed app |
 
 CLIde pins the TypeScript SDK and its bundled CLI exactly as one compatibility
-unit. Chat and account usage resolve the bundled executable from the repository
-dependency tree; the unrelated standalone `codex` on `PATH` is not the
-production App Server.
+unit. A provider-generic resolver persists one approved Codex executable for
+Chat, Shell, SDK jobs, model discovery, and account usage. New stores seed that
+selection to the bundled runtime; discovered installs remain inert until an
+explicit promotion.
 
 ## Status and disposition language
 
@@ -78,7 +79,7 @@ CLIde provider orchestration
    v
 Codex adapter
    |-- interactive Chat ------> long-lived app-server
-   |-- account usage ---------> disposable app-server
+   |-- models/account usage --> disposable app-server
    |-- simple jobs/fallback --> TypeScript SDK -> codex exec --json
    `-- terminal UI -----------> interactive codex CLI
 ```
@@ -144,15 +145,15 @@ and redaction behavior as the live stream.
 
 | Capability | Upstream surface | CLIde today | Integration destination | Disposition |
 |---|---|---|---|---|
-| Model catalog | `model/list`, provider capabilities, local cache | Reads `models_cache.json` with fallbacks | Codex models provider | Candidate: consume authoritative live catalog without losing fallback behavior |
+| Model catalog | `model/list`, provider capabilities, local cache | Reads the selected runtime live; labels `models_cache.json` stale and the static catalog fallback | Codex models provider | Keep |
 | Per-session effective model | Turn/transcript metadata | Implemented separately from global config defaults | Active-model service | Keep |
 | Account authentication state | `account/read` and auth notifications | Inferred from `auth.json`; login uses terminal flow | Codex auth provider + Settings | Candidate only with a complete native login/logout design |
-| Plan rate-limit windows | `account/rateLimits/read` | Implemented through a short-lived bundled App Server | Codex usage provider + composer usage popover | Keep |
+| Plan rate-limit windows | `account/rateLimits/read` | Implemented through a short-lived selected App Server | Codex usage provider + composer usage popover | Keep |
 | Credits/reset balance and account activity | `account/usage/read` | Implemented where account/auth mode supports it; account activity is an in-place drill-in beneath Weekly | Codex usage provider + composer usage popover | Keep |
 | API-key plan usage | Not available from the current account surface | Reports unsupported honestly | Usage provider | Keep |
 | Effective configuration and origins | `config/read` | Direct TOML/file interpretation only | Provider Settings | Candidate for a read-only cascade/policy view |
 | Managed requirements | `configRequirements/read` | Not exposed | Provider Settings/policy UI | Defer until effective-config viewing exists |
-| Runtime diagnostics | CLIde plus package manifests | Configured/actual transport, health, SDK version, bundled CLI version, startup fallback, and last error | Provider capability diagnostics | Keep; add protocol-drift counters |
+| Runtime diagnostics | CLIde plus managed-runtime state | Transport health plus selected, per-facet, live-process, and pending-update versions/ids | Provider capability diagnostics | Keep; expose selection controls in the account card |
 
 ### 2.4 MCP, skills, plugins, apps, and hooks
 
@@ -193,6 +194,7 @@ New Codex work should land at the narrowest owning boundary:
 | Transport selection, versions, and health | `server/modules/providers/list/codex/codex-chat-transport-state.ts` |
 | Curated consumed protocol | `server/modules/providers/list/codex/codex-app-server.protocol.ts` |
 | Generated contract guard | `codex-app-server-compatibility.ts`, covered by `server/modules/providers/tests/codex-app-server-protocol-drift.test.ts` |
+| Native runtime discovery and selection | `provider-native-runtime.service.ts` plus `codex-native-runtime.provider.ts` |
 | Capability flags | `server/modules/providers/services/provider-capabilities.service.ts` |
 | Session discovery and watcher ingestion | `server/modules/providers/list/codex/codex-session-synchronizer.provider.ts` |
 | History and transcript normalization | `server/modules/providers/list/codex/codex-sessions.provider.ts` |
