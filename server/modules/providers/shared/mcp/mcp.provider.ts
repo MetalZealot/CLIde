@@ -73,7 +73,7 @@ export abstract class McpProvider implements IProviderMcp {
     const workspacePath = resolveWorkspacePath(input.workspacePath);
     const normalizedName = normalizeServerName(input.name);
     const scopedServers = await this.readScopedServers(scope, workspacePath);
-    scopedServers[normalizedName] = this.buildServerConfig(input);
+    scopedServers[normalizedName] = this.buildServerConfig(input, scopedServers[normalizedName]);
     await this.writeScopedServers(scope, workspacePath, scopedServers);
 
     return {
@@ -122,7 +122,10 @@ export abstract class McpProvider implements IProviderMcp {
     servers: Record<string, unknown>,
   ): Promise<void>;
 
-  protected abstract buildServerConfig(input: UpsertProviderMcpServerInput): Record<string, unknown>;
+  protected abstract buildServerConfig(
+    input: UpsertProviderMcpServerInput,
+    existingConfig?: unknown,
+  ): Record<string, unknown>;
 
   protected abstract normalizeServerConfig(
     scope: McpScope,

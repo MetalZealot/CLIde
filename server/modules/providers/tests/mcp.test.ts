@@ -114,17 +114,6 @@ test('providerMcpService handles codex MCP TOML config and capability validation
       cwd: '/tmp',
     });
 
-    await providerMcpService.upsertProviderMcpServer('codex', {
-      name: 'codex-project-http',
-      scope: 'project',
-      transport: 'http',
-      url: 'https://codex.example.com/mcp',
-      headers: { 'X-Custom-Header': 'value' },
-      envHttpHeaders: { 'X-API-Key': 'MY_API_KEY_ENV' },
-      bearerTokenEnvVar: 'MY_API_TOKEN',
-      workspacePath,
-    });
-
     const userTomlPath = path.join(tempRoot, '.codex', 'config.toml');
     const userConfig = TOML.parse(await fs.readFile(userTomlPath, 'utf8')) as Record<string, unknown>;
     const userServers = userConfig.mcp_servers as Record<string, unknown>;
@@ -132,10 +121,42 @@ test('providerMcpService handles codex MCP TOML config and capability validation
     assert.equal(userStdio.command, 'python');
 
     const projectTomlPath = path.join(workspacePath, '.codex', 'config.toml');
+    await fs.mkdir(path.dirname(projectTomlPath), { recursive: true });
+    await fs.writeFile(
+      projectTomlPath,
+      TOML.stringify({
+        mcp_servers: {
+          'codex-project-http': {
+            url: 'https://codex.example.com/mcp',
+            http_headers: { 'X-Custom-Header': 'value' },
+            omit_tools_from: ['native-tool'],
+          },
+        },
+      } as never),
+      'utf8',
+    );
+
+    const listed = await providerMcpService.listProviderMcpServers('codex', { workspacePath });
+    assert.ok(listed.project.some((server) => (
+      server.name === 'codex-project-http' && server.url === 'https://codex.example.com/mcp'
+    )));
+
+    await providerMcpService.upsertProviderMcpServer('codex', {
+      name: 'codex-project-http',
+      scope: 'project',
+      transport: 'http',
+      url: 'https://codex.example.com/mcp-updated',
+      headers: { 'X-Custom-Header': 'updated' },
+      envHttpHeaders: { 'X-API-Key': 'MY_API_KEY_ENV' },
+      bearerTokenEnvVar: 'MY_API_TOKEN',
+      workspacePath,
+    });
+
     const projectConfig = TOML.parse(await fs.readFile(projectTomlPath, 'utf8')) as Record<string, unknown>;
     const projectServers = projectConfig.mcp_servers as Record<string, unknown>;
     const projectHttp = projectServers['codex-project-http'] as Record<string, unknown>;
-    assert.equal(projectHttp.url, 'https://codex.example.com/mcp');
+    assert.equal(projectHttp.url, 'https://codex.example.com/mcp-updated');
+    assert.deepEqual(projectHttp.omit_tools_from, ['native-tool']);
 
     await assert.rejects(
       providerMcpService.upsertProviderMcpServer('codex', {
@@ -346,4 +367,3 @@ test('providerMcpService global adder writes to all providers and rejects unsupp
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 });
-
