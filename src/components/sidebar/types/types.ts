@@ -125,6 +125,10 @@ export type DeleteProjectConfirmation = {
   /** What the confirmation names — the row's label, or one worktree's. */
   displayName: string;
   sessionCount: number;
+  /** False when Delete was chosen explicitly and Archive would be a duplicate path. */
+  allowArchive?: boolean;
+  /** True when the targets are every worktree in a repository, not a selection. */
+  coversRepository?: boolean;
 };
 
 // Delete confirmation payload used by sidebar UX. `projectId`/`provider` are

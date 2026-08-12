@@ -517,8 +517,8 @@ function Sidebar({
             entry={activeWorktreeEntry}
             onClose={() => setWorktreeManager(null)}
             onRenameWorktree={renameProjectDirect}
-            onArchiveWorktree={(project) => archiveProjects([project])}
-            onRemoveWorktree={requestProjectDelete}
+            onArchiveWorktrees={archiveProjects}
+            onDeleteWorktrees={requestProjectDelete}
             onCreateWorktree={onCreateWorktree}
             onAdoptCheckout={onAdoptCheckout}
             onOpenWorktree={worktreeManager.openCreatedInNewSession ? onNewSession : handleProjectSelect}

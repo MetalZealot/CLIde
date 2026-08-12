@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { AlertTriangle, EyeOff, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
+
 import { Button } from '../../../../shared/view/ui';
 import Settings from '../../../settings/view/Settings';
 import VersionUpgradeModal from '../../../version-upgrade/view';
@@ -126,30 +127,42 @@ export default function SidebarModals({
                     {/*
                       A row is a repository, so its delete covers every worktree
                       in it — say so, because the row only ever named one thing.
+                      A selection covers exactly what was ticked, and must not
+                      borrow the repository wording.
                     */}
                     {deleteConfirmation.projects.length > 1 && (
                       <p className="mt-2 text-sm text-muted-foreground">
-                        {t('deleteConfirmation.worktreeScope', {
-                          count: deleteConfirmation.projects.length,
-                          defaultValue_one:
-                            'This covers the 1 worktree registered for this repository. Its directory stays on disk.',
-                          defaultValue:
-                            'This covers all {{count}} worktrees registered for this repository. Their directories stay on disk.',
-                        })}
+                        {deleteConfirmation.coversRepository
+                          ? t('deleteConfirmation.worktreeScope', {
+                              count: deleteConfirmation.projects.length,
+                              defaultValue_one:
+                                'This covers the 1 worktree registered for this repository. Its directory stays on disk.',
+                              defaultValue:
+                                'This covers all {{count}} worktrees registered for this repository. Their directories stay on disk.',
+                            })
+                          : t('deleteConfirmation.selectionScope', {
+                              count: deleteConfirmation.projects.length,
+                              defaultValue_one:
+                                'This covers the 1 worktree you selected. Its directory stays on disk.',
+                              defaultValue:
+                                'This covers the {{count}} worktrees you selected. Their directories stay on disk.',
+                            })}
                       </p>
                     )}
                   </div>
                 </div>
               </div>
               <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-4">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => onConfirmDeleteProject(false)}
-                >
-                  <EyeOff className="mr-2 h-4 w-4" />
-                  {t('deleteConfirmation.archiveProject', 'Archive project')}
-                </Button>
+                {deleteConfirmation.allowArchive !== false && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => onConfirmDeleteProject(false)}
+                  >
+                    <EyeOff className="mr-2 h-4 w-4" />
+                    {t('deleteConfirmation.archiveProject', 'Archive project')}
+                  </Button>
+                )}
                 <Button
                   variant="destructive"
                   className="w-full justify-start bg-red-600 text-white hover:bg-red-700"

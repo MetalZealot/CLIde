@@ -72,3 +72,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0032 — The composer ring owns a summary-first usage popover](0032-summary-first-composer-usage-popover.md)
 - [0033 — A worktree with no project row is listed, not registered](0033-discovered-checkouts-are-derived-not-stored.md)
 - [0034 — Codex uses one explicitly approved native runtime](0034-codex-managed-native-runtime.md)
+- [0035 — Discovered checkout selection registers first](0035-discovered-checkout-selection-registers-first.md)

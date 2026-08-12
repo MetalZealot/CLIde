@@ -66,6 +66,8 @@ export type MainContentProps = {
   /** Selects a checkout as the target of a fresh chat and resets chat-local state. */
   onNewSessionTarget: (project: Project) => void;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
+  /** Registers a discovered checkout before a new session targets it. */
+  onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
   /** Silently re-syncs the sidebar project list. */
   onProjectsRefresh: () => Promise<Project[]>;
 };

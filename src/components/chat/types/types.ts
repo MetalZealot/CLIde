@@ -185,4 +185,5 @@ export interface ChatInterfaceProps {
   onNewSessionTarget: (project: Project) => void;
   onProjectsRefresh: () => Promise<Project[]>;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
+  onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
 }

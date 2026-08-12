@@ -1382,6 +1382,7 @@ export function useProjectsState({
     handleSessionSelect,
     handleNewSession,
     createWorktree,
+    adoptCheckout,
     handleSessionDelete,
     loadMoreProjectSessions,
     handleProjectDelete,

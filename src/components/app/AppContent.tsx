@@ -79,6 +79,7 @@ function AppContentInner() {
     sidebarSharedProps,
     handleNewSession,
     createWorktree,
+    adoptCheckout,
     handleProjectSelect,
   } = useProjectsState({
     sessionId,
@@ -258,6 +259,7 @@ function AppContentInner() {
           onProjectSelect={handleProjectSelect}
           onNewSessionTarget={handleNewSession}
           onCreateWorktree={createWorktree}
+          onAdoptCheckout={adoptCheckout}
           onProjectsRefresh={refreshProjectsSilently}
         />
       </div>

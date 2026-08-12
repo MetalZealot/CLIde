@@ -3,19 +3,22 @@ import ReactDOM from 'react-dom';
 import { AlertTriangle, Archive, Check, GitBranch, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button } from '../../../../shared/view/ui';
+import { Button, RowActionsTrigger, type ContextMenuAnchor } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import { api } from '../../../../utils/api';
 import type { Project } from '../../../../types/app';
 import type { CreateWorktreeOptions, CreateWorktreeOutcome, RepositoryEntry } from '../../types/types';
 import { getCheckoutRefLabel, isDiscoveredCheckout, isMainCheckout } from '../../utils/utils';
+import { compactHomePath, getBatchSelectableWorktrees, getWorktreeSessionCount } from '../../utils/worktreeManager';
+
+import SidebarContextMenu, { type SidebarContextMenuItem } from './SidebarContextMenu';
 
 type WorktreeManagerModalProps = {
   entry: RepositoryEntry;
   onClose: () => void;
   onRenameWorktree?: (projectId: string, displayName: string) => Promise<void> | void;
-  onArchiveWorktree?: (project: Project) => void;
-  onRemoveWorktree?: (project: Project) => void;
+  onArchiveWorktrees?: (projects: Project[]) => void;
+  onDeleteWorktrees?: (projects: Project[]) => void;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   /** Gives a discovered checkout a project row; see `isDiscoveredCheckout`. */
   onAdoptCheckout?: (checkoutPath: string) => Promise<Project | null>;
@@ -36,12 +39,12 @@ const CURRENT_HEAD = '';
 /**
  * Worktree management for one repository row.
  *
- * A panel rather than a context-menu level: each worktree carries three actions
- * plus a creation form, which is a list to work through, not a single tap.
+ * A panel rather than a context-menu level: each worktree carries an action
+ * menu plus a creation form, which is a list to work through, not a single tap.
  * Full-height on mobile (the PWA has no window to fall back on), a centred card
  * on desktop.
  *
- * Archive and Remove are CLIde-side only — they change what CLIde tracks and
+ * Archive and Delete are CLIde-side only — they change what CLIde tracks and
  * never run `git worktree remove`, so the directory and its commits survive. The
  * copy says so, because "delete" would imply the tree.
  */
@@ -49,8 +52,8 @@ export default function WorktreeManagerModal({
   entry,
   onClose,
   onRenameWorktree,
-  onArchiveWorktree,
-  onRemoveWorktree,
+  onArchiveWorktrees,
+  onDeleteWorktrees,
   onCreateWorktree,
   onAdoptCheckout,
   onOpenWorktree,
@@ -70,9 +73,16 @@ export default function WorktreeManagerModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [adoptingPath, setAdoptingPath] = useState<string | null>(null);
   const [adoptError, setAdoptError] = useState<string | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(() => new Set());
+  const [actionMenu, setActionMenu] = useState<{ project: Project; anchor: ContextMenuAnchor } | null>(null);
   const newBranchInputRef = useRef<HTMLInputElement>(null);
 
   const leadProjectId = entry.leadCheckout.projectId;
+  const selectableWorktrees = getBatchSelectableWorktrees(entry.checkouts);
+  const discoveredWorktrees = entry.checkouts.filter(isDiscoveredCheckout);
+  const selectedWorktrees = selectableWorktrees.filter((project) => selectedProjectIds.has(project.projectId));
+  const areAllSelected = selectableWorktrees.length > 0 && selectedWorktrees.length === selectableWorktrees.length;
 
   useEffect(() => {
     if (isCreating) {
@@ -124,9 +134,52 @@ export default function WorktreeManagerModal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  useEffect(() => {
+    const availableIds = new Set(
+      getBatchSelectableWorktrees(entry.checkouts).map((project) => project.projectId),
+    );
+    setSelectedProjectIds((current) => {
+      const next = new Set([...current].filter((projectId) => availableIds.has(projectId)));
+      return next.size === current.size ? current : next;
+    });
+  }, [entry.checkouts]);
+
   const startRenaming = (project: Project) => {
     setEditingProjectId(project.projectId);
     setEditingName(project.displayName || project.projectId);
+  };
+
+  const toggleSelection = (projectId: string) => {
+    setSelectedProjectIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
+
+  const leaveSelectionMode = () => {
+    setIsSelecting(false);
+    setSelectedProjectIds(new Set());
+  };
+
+  const runBatchArchive = () => {
+    if (selectedWorktrees.length === 0) {
+      return;
+    }
+    onArchiveWorktrees?.(selectedWorktrees);
+    leaveSelectionMode();
+  };
+
+  const runBatchDelete = () => {
+    if (selectedWorktrees.length === 0) {
+      return;
+    }
+    onDeleteWorktrees?.(selectedWorktrees);
+    leaveSelectionMode();
   };
 
   const saveRename = async () => {
@@ -222,48 +275,39 @@ export default function WorktreeManagerModal({
 
     return (
       <li key={project.projectId} className="border-b border-border/60 last:border-b-0">
-        <div className="flex items-center gap-2 p-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-sm text-muted-foreground">
+        <div className="p-3">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm text-muted-foreground">
                 {project.displayName}
-              </span>
-              <span
-                title={t('worktrees.discoveredHint', 'Found on disk, not added to CLIde yet.')}
-                className="flex-shrink-0 rounded-full border border-dashed border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
-              >
-                {t('worktrees.notAdded', 'not added')}
-              </span>
-            </div>
-            <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              </div>
               {refLabel && (
-                <>
+                <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
                   <GitBranch className="h-3 w-3 flex-shrink-0 opacity-70" />
                   <span className="truncate">{refLabel}</span>
-                  <span aria-hidden className="opacity-40">·</span>
-                </>
+                </div>
               )}
-              <span className="truncate opacity-70" title={project.fullPath}>
-                {project.fullPath}
-              </span>
             </div>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-11 w-11 flex-shrink-0"
+              disabled={isAdopting || !onAdoptCheckout}
+              onClick={() => void adoptCheckout(project)}
+              aria-label={t('worktrees.add', 'Add')}
+              title={t('worktrees.add', 'Add')}
+            >
+              {isAdopting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
+            </Button>
           </div>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="flex-shrink-0"
-            disabled={isAdopting || !onAdoptCheckout}
-            onClick={() => void adoptCheckout(project)}
-          >
-            {isAdopting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Plus className="h-3.5 w-3.5" />
-            )}
-            <span className="ml-1">{t('worktrees.add', 'Add')}</span>
-          </Button>
+          <div className="mt-0.5 break-words text-xs leading-5 text-muted-foreground/70" title={project.fullPath}>
+            {compactHomePath(project.fullPath)}
+          </div>
         </div>
       </li>
     );
@@ -277,6 +321,8 @@ export default function WorktreeManagerModal({
     const refLabel = getCheckoutRefLabel(project);
     const isEditing = editingProjectId === project.projectId;
     const isMain = isMainCheckout(project);
+    const isSelected = selectedProjectIds.has(project.projectId);
+    const sessionCount = getWorktreeSessionCount(project);
 
     return (
       <li key={project.projectId} className="border-b border-border/60 last:border-b-0">
@@ -319,63 +365,92 @@ export default function WorktreeManagerModal({
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate text-sm text-foreground">
-                  {project.displayName || project.projectId}
-                </span>
-                {isMain && (
-                  <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {t('worktrees.main', 'main')}
+          <div className="group p-3">
+            <div className="flex items-start gap-2">
+              {isSelecting && (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelection(project.projectId)}
+                  aria-label={t('worktrees.selectNamed', 'Select {{name}}', {
+                    name: project.displayName || project.projectId,
+                  })}
+                  className="mt-0.5 h-4 w-4 flex-shrink-0 accent-primary"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-sm text-foreground">
+                    {project.displayName || project.projectId}
                   </span>
-                )}
+                  {isMain && (
+                    <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {t('worktrees.main', 'main')}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                  <span className="flex-shrink-0">
+                    {t('worktrees.sessionCount', {
+                      count: sessionCount,
+                      defaultValue_one: '{{count}} session',
+                      defaultValue: '{{count}} sessions',
+                    })}
+                  </span>
+                  {refLabel && (
+                    <>
+                      <span aria-hidden className="opacity-40">·</span>
+                      <GitBranch className="h-3 w-3 flex-shrink-0 opacity-70" />
+                      <span className="truncate">{refLabel}</span>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                {refLabel && (
-                  <>
-                    <GitBranch className="h-3 w-3 flex-shrink-0 opacity-70" />
-                    <span className="truncate">{refLabel}</span>
-                    <span aria-hidden className="opacity-40">·</span>
-                  </>
-                )}
-                <span className="truncate opacity-70" title={project.fullPath}>
-                  {project.fullPath}
-                </span>
-              </div>
-            </div>
 
-            <div className="flex flex-shrink-0 items-center gap-1">
-              <button
-                type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                onClick={() => startRenaming(project)}
-                title={t('actions.rename')}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                onClick={() => onArchiveWorktree?.(project)}
-                title={t('actions.archive', 'Archive')}
-              >
-                <Archive className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                onClick={() => onRemoveWorktree?.(project)}
-                title={t('worktrees.remove', 'Remove from CLIde')}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {!isSelecting && (
+                <RowActionsTrigger
+                  label={t('actions.rowActions', 'Actions for {{name}}', {
+                    name: project.displayName || project.projectId,
+                  })}
+                  isOpen={actionMenu?.project.projectId === project.projectId}
+                  onOpen={(anchor) => setActionMenu({ project, anchor })}
+                  className="h-8 w-8"
+                />
+              )}
+            </div>
+            <div className="mt-0.5 break-words text-xs leading-5 text-muted-foreground/70" title={project.fullPath}>
+              {compactHomePath(project.fullPath)}
             </div>
           </div>
         )}
       </li>
     );
   };
+
+  const actionMenuItems: SidebarContextMenuItem[] = actionMenu
+    ? [
+        {
+          key: 'rename',
+          label: t('actions.rename'),
+          icon: Pencil,
+          onSelect: () => startRenaming(actionMenu.project),
+        },
+        {
+          key: 'archive',
+          label: t('actions.archive', 'Archive'),
+          icon: Archive,
+          showDividerBefore: true,
+          onSelect: () => onArchiveWorktrees?.([actionMenu.project]),
+        },
+        {
+          key: 'delete',
+          label: t('actions.delete'),
+          icon: Trash2,
+          isDanger: true,
+          onSelect: () => onDeleteWorktrees?.([actionMenu.project]),
+        },
+      ]
+    : [];
 
   return ReactDOM.createPortal(
     <div
@@ -403,18 +478,53 @@ export default function WorktreeManagerModal({
             </h2>
             <p className="truncate text-xs text-muted-foreground">{entry.displayName}</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t('actions.cancel')}
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-1">
+            {!creationOnly && selectableWorktrees.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSelecting) {
+                    leaveSelectionMode();
+                    return;
+                  }
+                  setActionMenu(null);
+                  setEditingProjectId(null);
+                  setIsCreating(false);
+                  setIsSelecting(true);
+                }}
+                className="rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                {isSelecting ? t('actions.cancel') : t('worktrees.select', 'Select')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={t('actions.cancel')}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {!creationOnly && <ul>{entry.checkouts.map(renderWorktree)}</ul>}
+          {!creationOnly && (
+            <ul>
+              {selectableWorktrees.length > 0 && (
+                <li className="border-b border-border/60 bg-muted/20 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {t('worktrees.inClide', 'In CLIde')}
+                </li>
+              )}
+              {selectableWorktrees.map(renderWorktree)}
+              {discoveredWorktrees.length > 0 && (
+                <li className="border-b border-border/60 bg-muted/20 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {t('worktrees.notAddedSection', 'Not added')}
+                </li>
+              )}
+              {discoveredWorktrees.map(renderWorktree)}
+            </ul>
+          )}
 
           {adoptError && (
             <div className="flex items-start gap-2 border-b border-border/60 bg-red-50 p-3 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
@@ -445,7 +555,7 @@ export default function WorktreeManagerModal({
             </div>
           )}
 
-          {isCreating ? (
+          {!isSelecting && (isCreating ? (
             <div className="space-y-2 border-t border-border bg-muted/20 p-3">
               <label className="block text-xs font-medium text-muted-foreground" htmlFor="new-worktree-branch">
                 {t('worktrees.branchLabel', 'New branch')}
@@ -558,18 +668,81 @@ export default function WorktreeManagerModal({
               <Plus className="h-3.5 w-3.5 flex-shrink-0" />
               <span>{t('worktrees.new', 'New Worktree')}</span>
             </button>
-          )}
+          ))}
         </div>
+
+        {/* The scope notice below owns the bottom inset; see `eb54fb7`. */}
+        {!creationOnly && isSelecting && (
+          <div className="border-t border-border bg-muted/20 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">
+                {t('worktrees.selectedCount', {
+                  count: selectedWorktrees.length,
+                  defaultValue_one: '{{count}} selected',
+                  defaultValue: '{{count}} selected',
+                })}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedProjectIds(
+                  areAllSelected
+                    ? new Set()
+                    : new Set(selectableWorktrees.map((project) => project.projectId)),
+                )}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {areAllSelected
+                  ? t('worktrees.clearAll', 'Clear all')
+                  : t('worktrees.selectAll', 'Select all')}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                disabled={selectedWorktrees.length === 0}
+                onClick={runBatchArchive}
+              >
+                <Archive className="mr-2 h-3.5 w-3.5" />
+                {t('actions.archive', 'Archive')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="flex-1 bg-red-600 text-white hover:bg-red-700"
+                disabled={selectedWorktrees.length === 0}
+                onClick={runBatchDelete}
+              >
+                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                {t('actions.delete')}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {!creationOnly && (
           <p className="border-t border-border bg-muted/30 p-3 pb-safe-area-inset-bottom text-xs text-muted-foreground">
             {t(
               'worktrees.scopeNotice',
-              'Archive and Remove only change what CLIde tracks. The worktree stays on disk — use `git worktree remove` to delete it.',
+              'Archive and Delete only change what CLIde tracks. The worktree stays on disk — use `git worktree remove` to delete it.',
             )}
           </p>
         )}
       </div>
+
+      {actionMenu && (
+        <SidebarContextMenu
+          anchor={actionMenu.anchor}
+          items={actionMenuItems}
+          onClose={() => setActionMenu(null)}
+          ariaLabel={t('actions.rowActions', 'Actions for {{name}}', {
+            name: actionMenu.project.displayName || actionMenu.project.projectId,
+          })}
+        />
+      )}
     </div>,
     document.body,
   );

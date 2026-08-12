@@ -4,7 +4,11 @@ import test from 'node:test';
 import type { Project } from '../../../types/app';
 import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 
-import { getLauncherCheckoutLabel, resolvePrimaryCheckout } from './newSessionLauncher';
+import {
+  getLauncherCheckoutLabel,
+  resolveLauncherCheckoutSelection,
+  resolvePrimaryCheckout,
+} from './newSessionLauncher';
 
 const REPOSITORY_ID = '/workspace/example/.git';
 const mainCheckout: Project = {
@@ -55,4 +59,36 @@ test('non-Git projects are labelled as the project root', () => {
   };
 
   assert.equal(getLauncherCheckoutLabel(plainFolder), 'Project root');
+});
+
+test('registered worktrees remain valid session targets without adoption', async () => {
+  let adoptionCalls = 0;
+  const selected = await resolveLauncherCheckoutSelection(worktree, async () => {
+    adoptionCalls += 1;
+    return null;
+  });
+
+  assert.equal(selected, worktree);
+  assert.equal(adoptionCalls, 0);
+});
+
+test('discovered worktrees are adopted before they become session targets', async () => {
+  const discovered: Project = {
+    ...worktree,
+    projectId: 'discovered:/workspace/example-feature',
+    isDiscovered: true,
+  };
+  const registered: Project = {
+    ...worktree,
+    projectId: 'registered-feature',
+  };
+  let adoptedPath = '';
+
+  const selected = await resolveLauncherCheckoutSelection(discovered, async (checkoutPath) => {
+    adoptedPath = checkoutPath;
+    return registered;
+  });
+
+  assert.equal(adoptedPath, discovered.fullPath);
+  assert.equal(selected, registered);
 });

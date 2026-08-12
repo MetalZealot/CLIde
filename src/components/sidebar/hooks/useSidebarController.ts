@@ -32,6 +32,7 @@ import {
   repositoryEntryKey,
   sortProjects,
 } from '../utils/utils';
+import { getBatchSelectableWorktrees, getWorktreeSessionCount } from '../utils/worktreeManager';
 
 type SnippetHighlight = {
   start: number;
@@ -993,16 +994,25 @@ export function useSidebarController({
     [onSessionStarPatch],
   );
 
-  /** Confirms removal of one worktree — the manager's per-row action. */
+  /** Confirms permanent CLIde-data deletion for worktrees selected in the manager. */
   const requestProjectDelete = useCallback(
-    (project: Project) => {
+    (targets: Project[]) => {
+      if (targets.length === 0) {
+        return;
+      }
       setDeleteConfirmation({
-        projects: [project],
-        displayName: project.displayName || project.projectId,
-        sessionCount: getProjectSessions(project).length,
+        projects: targets,
+        displayName: targets.length === 1
+          ? targets[0].displayName || targets[0].projectId
+          : t('worktrees.selectedWorktrees', {
+              count: targets.length,
+              defaultValue: '{{count}} worktrees',
+            }),
+        sessionCount: targets.reduce((total, project) => total + getWorktreeSessionCount(project), 0),
+        allowArchive: false,
       });
     },
-    [getProjectSessions],
+    [t],
   );
 
   /**
@@ -1012,16 +1022,20 @@ export function useSidebarController({
    */
   const requestRepositoryDelete = useCallback(
     (entry: RepositoryEntry) => {
+      // Discovered checkouts have no row to delete, so a synthetic id would only
+      // come back as a failure in the report.
+      const registered = getBatchSelectableWorktrees(entry.checkouts);
       setDeleteConfirmation({
-        projects: entry.checkouts,
+        projects: registered,
         displayName: entry.displayName,
-        sessionCount: entry.checkouts.reduce(
-          (total, checkout) => total + getProjectSessions(checkout).length,
+        sessionCount: registered.reduce(
+          (total, checkout) => total + getWorktreeSessionCount(checkout),
           0,
         ),
+        coversRepository: true,
       });
     },
-    [getProjectSessions],
+    [],
   );
 
   /**

@@ -47,6 +47,7 @@ function ChatInterface({
   onNewSessionTarget,
   onProjectsRefresh,
   onCreateWorktree,
+  onAdoptCheckout,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
@@ -480,6 +481,7 @@ function ChatInterface({
               onTargetSelect={onNewSessionTarget}
               onProjectsRefresh={onProjectsRefresh}
               onCreateWorktree={onCreateWorktree}
+              onAdoptCheckout={onAdoptCheckout}
               tasksEnabled={tasksEnabled}
               isTaskMasterInstalled={isTaskMasterInstalled}
               onShowAllTasks={onShowAllTasks}

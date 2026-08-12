@@ -45,14 +45,18 @@ list runs `git worktree list --porcelain` once per repository and appends any
 worktree it finds without one, marked `isDiscovered` and carrying a synthetic
 `discovered:<path>` id (ADR 0033). These hold no sessions, never lead their row,
 and never appear in the per-worktree session filter; the Worktrees panel offers
-one Add action, which registers the path through `create-project`. Paths with an
-archived row are excluded.
+one Add action, which registers the path through `create-project`. Registered
+rows show their active-session total, put Rename/Archive/Delete in one action
+menu, and support registered-only batch Archive/Delete. Paths with an archived
+row are excluded.
 
 **The New Session launcher uses the same repository grouping.** Its Project
 choice resolves to the repository's main checkout when that checkout is
-registered, while its Worktree choice names every registered checkout by its
-actual branch or detached-HEAD label. Project and worktree creation reuse the
-sidebar workflows; the selected checkout remains the session's `project_path`.
+registered, while its Worktree choice names every checkout by its actual branch
+or detached-HEAD label. A NOT ADDED choice registers first and only then becomes
+the target (ADR 0035), so synthetic ids never reach chat routing. Project and
+worktree creation reuse the sidebar workflows; the selected checkout remains the
+session's `project_path`.
 
 ## Identity rules (ADR 0016)
 

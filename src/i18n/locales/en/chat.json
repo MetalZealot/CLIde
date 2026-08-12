@@ -277,6 +277,7 @@
     "worktreeBranch": "Worktree",
     "chooseProject": "Choose a project",
     "chooseWorktree": "Choose a worktree or branch",
+    "addWorktreeFailed": "Failed to add worktree",
     "newProject": "New Project…",
     "newWorktree": "New Worktree…",
     "composerPlaceholder": "Choose a project to start…"

@@ -58,6 +58,7 @@ function MainContent({
   onProjectSelect,
   onNewSessionTarget,
   onCreateWorktree,
+  onAdoptCheckout,
   onProjectsRefresh,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
@@ -199,6 +200,7 @@ function MainContent({
                 onNewSessionTarget={onNewSessionTarget}
                 onProjectsRefresh={onProjectsRefresh}
                 onCreateWorktree={onCreateWorktree}
+                onAdoptCheckout={onAdoptCheckout}
               />
             </ErrorBoundary>
           </div>

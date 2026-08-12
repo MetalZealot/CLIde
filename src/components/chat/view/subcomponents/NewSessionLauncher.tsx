@@ -1,14 +1,18 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Check, ChevronDown, Folder, GitBranch, Plus } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Folder, GitBranch, Loader2, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../../lib/utils';
 import { ContextMenuOverlay, anchorFromElement } from '../../../../shared/view/ui';
 import type { Project } from '../../../../types/app';
 import type { CreateWorktreeOptions, CreateWorktreeOutcome, RepositoryEntry } from '../../../sidebar/types/types';
-import { buildRepositoryEntries, repositoryEntryKey } from '../../../sidebar/utils/utils';
-import { getLauncherCheckoutLabel, resolvePrimaryCheckout } from '../../utils/newSessionLauncher';
+import { buildRepositoryEntries, isDiscoveredCheckout, repositoryEntryKey } from '../../../sidebar/utils/utils';
+import {
+  getLauncherCheckoutLabel,
+  resolveLauncherCheckoutSelection,
+  resolvePrimaryCheckout,
+} from '../../utils/newSessionLauncher';
 import ProjectCreationWizard from '../../../project-creation-wizard';
 import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import WorktreeManagerModal from '../../../sidebar/view/subcomponents/WorktreeManagerModal';
@@ -19,6 +23,7 @@ type NewSessionLauncherProps = {
   onTargetSelect: (project: Project) => void;
   onProjectsRefresh: () => Promise<Project[]>;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
+  onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -36,6 +41,7 @@ export default function NewSessionLauncher({
   onTargetSelect,
   onProjectsRefresh,
   onCreateWorktree,
+  onAdoptCheckout,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
@@ -48,6 +54,8 @@ export default function NewSessionLauncher({
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [showProjectWizard, setShowProjectWizard] = useState(false);
   const [worktreeEntry, setWorktreeEntry] = useState<RepositoryEntry | null>(null);
+  const [adoptingCheckoutPath, setAdoptingCheckoutPath] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const launcherProjects = useMemo(() => {
     if (!selectedProject || projects.some((project) => project.projectId === selectedProject.projectId)) {
@@ -65,9 +73,28 @@ export default function NewSessionLauncher({
     setOpenMenu(null);
   };
 
-  const selectCheckout = (checkout: Project) => {
-    onTargetSelect(checkout);
-    setOpenMenu(null);
+  const selectCheckout = async (checkout: Project) => {
+    if (adoptingCheckoutPath) {
+      return;
+    }
+
+    setCheckoutError(null);
+    if (isDiscoveredCheckout(checkout)) {
+      setAdoptingCheckoutPath(checkout.fullPath);
+    }
+
+    try {
+      const selectedCheckout = await resolveLauncherCheckoutSelection(checkout, onAdoptCheckout);
+      if (!selectedCheckout) {
+        throw new Error(t('launcher.addWorktreeFailed', { defaultValue: 'Failed to add worktree' }));
+      }
+      onTargetSelect(selectedCheckout);
+      setOpenMenu(null);
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAdoptingCheckoutPath(null);
+    }
   };
 
   const startNewProject = () => {
@@ -222,29 +249,49 @@ export default function NewSessionLauncher({
             })}
             placement="above"
           className="sidebar-context-menu max-h-[min(65vh,24rem)] min-w-56 max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-xl py-1"
-          measureKey={`${selectedEntry.checkouts.length}:${selectedProject?.projectId ?? 'none'}`}
+          measureKey={`${selectedEntry.checkouts.length}:${selectedProject?.projectId ?? 'none'}:${checkoutError ?? ''}`}
         >
           {selectedEntry.checkouts.map((checkout) => {
             const isSelected = checkout.projectId === selectedProject?.projectId;
+            const isDiscovered = isDiscoveredCheckout(checkout);
+            const isAdopting = adoptingCheckoutPath === checkout.fullPath;
             return (
               <button
                 key={checkout.projectId}
                 type="button"
                 role="menuitem"
                 aria-current={isSelected ? 'true' : undefined}
-                onClick={() => selectCheckout(checkout)}
-                className={menuItemClassName}
+                disabled={Boolean(adoptingCheckoutPath)}
+                onClick={() => void selectCheckout(checkout)}
+                className={cn(menuItemClassName, 'disabled:cursor-wait disabled:opacity-60')}
               >
                 <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                  {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                  {isAdopting
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                    : isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
                 </span>
                 <GitBranch className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                <span className={cn('truncate', isSelected && 'font-medium')}>
+                <span className={cn('min-w-0 flex-1 truncate', isSelected && 'font-medium')}>
                   {getLauncherCheckoutLabel(checkout)}
                 </span>
+                {isDiscovered && (
+                  <span
+                    title={sidebarT('worktrees.discoveredHint', 'Found on disk, not added to CLIde yet.')}
+                    className="ml-auto flex-shrink-0 rounded-full border border-dashed border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+                  >
+                    {sidebarT('worktrees.notAdded', 'not added')}
+                  </span>
+                )}
               </button>
             );
           })}
+
+          {checkoutError && (
+            <div className="flex items-start gap-2 border-t border-border bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/20 dark:text-red-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+              <span className="min-w-0 break-words">{checkoutError}</span>
+            </div>
+          )}
 
           {selectedEntry.repositoryId && (
             <>
