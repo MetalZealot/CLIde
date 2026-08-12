@@ -116,10 +116,9 @@ behaviour stays behind adapter interfaces.
 
 ## Code comments
 
-A 2026-08-11 audit found fork-authored comments ~30% wordier than upstream's at every
-block size, and every stale file path in a comment — naming modules deleted in the 1.37
-migration — sat inside narrative that condensing removes anyway.  Verbosity and
-staleness are one defect, so the rules target length.
+Fork-authored comments run ~30% wordier than upstream's, and every stale file path in
+one sat inside narrative that condensing removes anyway.  Verbosity and staleness are
+one defect, so these rules target length.
 
 - **State the invariant, not the incident.**  No "used to", "this replaced", "before
   the fix" — git holds that.  Describe what must stay true, not what went wrong.
@@ -197,29 +196,30 @@ staleness are one defect, so the rules target length.
 
 ## Keeping the guides honest
 
-Nothing used to say which file owned a fact, so this one and the local `CLAUDE.md`
-drifted apart.  Ownership now:
+Write a durable fact to the file that owns it and route to it, rather than into
+whichever file you happen to have open.  Ownership:
 
 - **This file** owns shared project truth: architecture, invariants, workflow,
   verification, and the routing table above.  It is published on the fork, so it
-  carries **no host detail** — no home paths, hostnames, ports, or unit names
-  (ADR 0027).
-- **`docs/`** owns depth, in three document types, each answering one question: a
-  **map** (`docs/maps/`) answers "how does this work today", an **ADR**
-  (`docs/decisions/`) "what did we choose and why", a **plan** (`docs/plans/`)
-  "what is left, in what order".  Writing something that answers a different
-  question means it does not need a document.  `docs/specs/` is **retired** — the
-  name invited an essay, and eighteen of them reached 317 KB.  The replacement
-  rules (byte caps, banned ceremony sections, why a plan may point at a map but
-  never restate one) live in `docs/plans/README.md`, enforced by
-  `npm run check:docs`.  Do not invent a fourth type to escape them.
-- **The ignored local `CLAUDE.md`** owns only the host: paths, ports, services,
-  and the deploy loop.  A fact true for anyone who cloned the fork does not
-  belong there.
+  carries **no host detail** — no home paths, hostnames, ports, or unit names.
+- **`docs/`** owns depth, in three types, each answering one question: a **map**
+  (`docs/maps/`) "how does this work today", an **ADR** (`docs/decisions/`) "what did
+  we choose and why", a **plan** (`docs/plans/`) "what is left, in what order".
+  Something answering a different question does not need a document.  `docs/specs/`
+  is **retired** — the name invited an essay and eighteen reached 317 KB.  The
+  replacement rules (byte caps, banned ceremony sections) live in
+  `docs/plans/README.md`, enforced by `npm run check:docs`.  Do not invent a fourth
+  type to escape them.
+- **Host-local guides**, ignored by git, own the host: paths, ports, services, the
+  deploy loop.  There are two, one per agent, and **they are not shared**: Claude
+  reads `CLAUDE.md` files and never an agent-global `AGENTS.md`; Codex reads
+  `AGENTS.md` files — this one plus its own global one — and **never any
+  `CLAUDE.md`**.  A host fact recorded for only one of them is invisible to the other,
+  which is how Codex ended up not knowing where the user database lives.  Record it in
+  both, or accept that the other agent cannot know it.
 
-Write a durable fact to its owner and route to it, rather than into whichever file
-you happen to have open.  Restating a rule a linter, type checker, or test already
-enforces is not documentation — make the gate executable instead.
+Restating a rule a linter, type checker, or test already enforces is not documentation
+— make the gate executable instead.
 
 ## Safety
 
