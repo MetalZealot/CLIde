@@ -12,6 +12,8 @@ import type { AuthStatus } from '../../../types/types';
 import { toProviderStatus } from '../../../utils/providerStatus';
 import { SettingsGroup, SettingsRow, SettingsStatus } from '../../primitives';
 
+import CodexNativeRuntimeRow from './CodexNativeRuntimeRow';
+
 type AgentAccountCardProps = {
   provider: AgentProviderId;
   authStatus: AuthStatus;
@@ -173,6 +175,8 @@ export default function AgentAccountCard({
         {codexTransport?.lastError && (
           <div className="px-4 py-3 text-xs text-warning">{codexTransport.lastError}</div>
         )}
+
+        {provider === 'codex' && <CodexNativeRuntimeRow />}
 
         {authStatus.error && (
           <div className="px-4 py-3 text-sm text-destructive">

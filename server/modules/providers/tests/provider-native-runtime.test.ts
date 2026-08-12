@@ -56,6 +56,10 @@ test('native runtime discovery seeds bundled, deduplicates symlinks, and persist
     };
     assert.equal(persisted.providers.codex.active.realPath, externalPath);
     assert.equal(persisted.providers.codex.previous.realPath, bundledPath);
+    const state = await service.getRuntimeState();
+    assert.equal(state.active?.id, external.id);
+    assert.equal(state.previous?.id, seeded.id);
+    assert.equal((await service.getInstallation(seeded.id))?.realPath, bundledPath);
 
     const reloaded = new ProviderNativeRuntimeService(descriptor, {
       storePath,

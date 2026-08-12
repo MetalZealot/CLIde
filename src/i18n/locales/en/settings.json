@@ -377,6 +377,25 @@
     "codexTransport": {
       "title": "Chat transport",
       "detail": "Configured: {{configured}} · Status: {{health}}{{version}}"
+    },
+    "codexRuntime": {
+      "title": "Native runtime",
+      "description": "One approved Codex executable is used by Chat, Shell, models and account usage.",
+      "active": "Active",
+      "candidate": "Candidate",
+      "previous": "Previous",
+      "bundled": "Bundled",
+      "live": "Live",
+      "liveProcess": "Live process",
+      "unknown": "unknown",
+      "none": "none",
+      "check": "Check",
+      "checking": "Checking…",
+      "use": "Use",
+      "rollback": "Roll back",
+      "checkPassed": "Structural check passed. This does not verify a live Chat turn.",
+      "checkFailed": "Structural check failed: {{detail}}",
+      "updatePending": "switch after current turn"
     }
   },
   "permissions": {

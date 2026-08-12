@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import codexNativeRuntimeRoutes from '@/modules/providers/codex-native-runtime.routes.js';
 import { refreshClaudeContextUsage } from '@/modules/providers/list/claude/claude-runtime.provider.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
@@ -23,6 +24,8 @@ import type {
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
 const router = express.Router();
+
+router.use('/codex/runtime', codexNativeRuntimeRoutes);
 
 const readPathParam = (value: unknown, name: string): string => {
   if (typeof value === 'string') {

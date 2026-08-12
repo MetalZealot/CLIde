@@ -113,6 +113,14 @@ export type ProviderNativeRuntimeInstallation = {
   bundled: boolean;
 };
 
+/** Internal selection state used by provider-owned runtime management services. */
+export type ProviderNativeRuntimeState = {
+  installations: ProviderNativeRuntimeInstallation[];
+  active: ProviderNativeRuntimeInstallation | null;
+  previous: ProviderNativeRuntimeInstallation | null;
+  activeError: string | null;
+};
+
 /**
  * Provider-specific hooks consumed by the shared native-runtime resolver.
  * Descriptors own bundled-path lookup, version parsing, and structural checks;

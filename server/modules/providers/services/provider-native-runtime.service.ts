@@ -19,6 +19,7 @@ import type {
   ProviderNativeRuntimeCompatibility,
   ProviderNativeRuntimeDescriptor,
   ProviderNativeRuntimeInstallation,
+  ProviderNativeRuntimeState,
   ProviderNativeRuntimeSource,
 } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
@@ -299,6 +300,30 @@ export class ProviderNativeRuntimeService {
 
   async listInstallations(refresh = false): Promise<ProviderNativeRuntimeInstallation[]> {
     return [...(await this.loadSnapshot(refresh)).installations];
+  }
+
+  async getRuntimeState(refresh = false): Promise<ProviderNativeRuntimeState> {
+    const snapshot = await this.loadSnapshot(refresh);
+    const previous = snapshot.selection.previous
+      ? snapshot.installations.find((installation) => (
+        installation.realPath === snapshot.selection.previous?.realPath
+        && installation.fingerprint === snapshot.selection.previous.fingerprint
+      )) ?? null
+      : null;
+    return {
+      installations: [...snapshot.installations],
+      active: snapshot.active,
+      previous,
+      activeError: snapshot.activeError,
+    };
+  }
+
+  async getInstallation(
+    id: string,
+    refresh = false,
+  ): Promise<ProviderNativeRuntimeInstallation | null> {
+    const snapshot = await this.loadSnapshot(refresh);
+    return snapshot.installations.find((installation) => installation.id === id) ?? null;
   }
 
   async getActiveRuntime(): Promise<ProviderNativeRuntimeInstallation> {

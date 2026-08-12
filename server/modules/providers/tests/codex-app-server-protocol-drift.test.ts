@@ -42,6 +42,13 @@ test('Codex compatibility checker distinguishes incompatible protocols from fail
       await checkCodexAppServerCompatibility(emptyGenerator),
       'incompatible',
     );
+    assert.deepEqual(
+      await checkCodexAppServerCompatibility(emptyGenerator, { detailed: true }),
+      {
+        compatibility: 'incompatible',
+        detail: 'ClientRequest.ts: method initialize',
+      },
+    );
     assert.equal(
       await checkCodexAppServerCompatibility(path.join(tempRoot, 'missing-codex')),
       'check_failed',
