@@ -1,7 +1,7 @@
 # Codex 0.147, then a managed native runtime
 
-- Status: 2/7
-- Next: Phase 3 — preserve unknown native keys when editing Codex MCP servers
+- Status: 3/7
+- Next: Phase 4 — extract one reusable native-runtime compatibility check
 - Context: [Codex surface map](../maps/codex-cli-sdk-app-server.md), [upgrade ledger](../maps/codex-upgrade-ledger.md), [chat transport map](../maps/2026-07-25-codex-chat-transport-architecture.md), [provider contract §5](../maps/CLIde_Provider_Architecture_Current_Contract.md), ADR 0011. Claude's runtime/SDK pairing stays out of scope — it belongs to the "Recurring provider SDK/CLI update process" item in `TODO.md`.
 
 This branch pins the bundled runtime to 0.147.0; `main` is still 0.146.0. App Server
@@ -36,11 +36,11 @@ rather than a version anyone chose.
   transport without changing Claude's shared no-timer contract. New and resumed Chat
   live-verified on 3002.
 
-- [ ] 3. **MCP edits stop erasing unknown native keys.** `codex-mcp.provider.ts`
-  reconstructs each server record, so any key CLIde does not model is dropped —
-  0.147's `omit_tools_from` is only the current example. Merge edited fields into the
-  existing native record instead, and cover it with a list → edit → write → re-read
-  test asserting an unmodelled key survives.
+- [x] 3. **Codex MCP edits stop erasing unknown native keys** — `2a4a727`. The edit
+  merges over the existing record and clears only the keys this provider owns, so a
+  cleared field and a transport change both still take effect. Live-verified on 3002
+  through list → edit → native re-read. Claude, Cursor and OpenCode still rebuild
+  their records the old way; that is a `TODO.md` item, not a phase here.
 
 - [ ] 4. **One reusable compatibility check.** `codex-app-server-protocol-drift.test.ts`
   already generates the experimental bindings into a temp dir and asserts CLIde's
