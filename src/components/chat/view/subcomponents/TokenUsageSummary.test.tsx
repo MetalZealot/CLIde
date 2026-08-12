@@ -14,6 +14,9 @@ let container: HTMLDivElement | null = null;
 const originalFetch = globalThis.fetch;
 let claudeCreditSpend = 0;
 
+/** Reset labels are countdowns, so fixtures must sit in the future at run time. */
+const inMinutes = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+
 const usageByProvider = {
   claude: {
     provider: 'claude',
@@ -22,13 +25,13 @@ const usageByProvider = {
       {
         id: 'seven_day',
         utilization: 25,
-        resetsAt: '2026-08-10T01:00:00.000Z',
+        resetsAt: inMinutes(3 * 1440 + 120),
         durationMinutes: 10_080,
       },
       {
         id: 'five_hour',
         utilization: 75,
-        resetsAt: '2026-08-09T22:30:00.000Z',
+        resetsAt: inMinutes(90),
         durationMinutes: 300,
       },
     ],
@@ -48,7 +51,7 @@ const usageByProvider = {
       {
         id: 'seven_day',
         utilization: 52,
-        resetsAt: '2026-08-15T01:00:00.000Z',
+        resetsAt: inMinutes(5 * 1440),
         durationMinutes: 10_080,
       },
     ],
@@ -172,8 +175,8 @@ test('Claude usage follows the compact mockup order and drills into only its bre
   assert.match(text, /Context & Usage/);
   assert.match(trigger.textContent || '', /\$/);
   assert.match(text, /Session13% used117,721 \/ 934,000 · AutoBreakdown/);
-  assert.match(text, /5-hour limit75% usedResets at/);
-  assert.match(text, /Weekly25% usedResets \w+ /);
+  assert.match(text, /5-hour limit75% usedResets in \d+h \d+m/);
+  assert.match(text, /Weekly25% usedResets in \d+d \d+h/);
   assert.ok(text.indexOf('5-hour limit') < text.indexOf('Weekly'));
   assert.match(text, /Credits\/Tokens\$0\.00/);
   assert.doesNotMatch(text, /Plan usage limits|Full usage|Refresh/);

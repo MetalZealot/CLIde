@@ -49,7 +49,7 @@ const barToneClass = (utilization: number): string => {
   return 'bg-emerald-500';
 };
 
-const formatResetsIn = (resetsAt: string | null): string | null => {
+export const formatResetsIn = (resetsAt: string | null): string | null => {
   if (!resetsAt) {
     return null;
   }

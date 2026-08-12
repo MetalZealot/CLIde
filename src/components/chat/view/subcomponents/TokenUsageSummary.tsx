@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { LLMProvider } from '../../../../types/app';
 import { cn } from '../../../../lib/utils';
 import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage';
-import { UsageActivitySection } from '../../../provider-usage/UsageWindowList';
+import { formatResetsIn, UsageActivitySection } from '../../../provider-usage/UsageWindowList';
 import type {
   ProviderUsageBalanceCredits,
   ProviderUsageCredits,
@@ -107,20 +107,8 @@ const formatWindowLabel = (window: ProviderUsageWindow): string => {
 };
 
 const formatResetAt = (window: ProviderUsageWindow): string | null => {
-  if (!window.resetsAt) return null;
-
-  const date = new Date(window.resetsAt);
-  if (Number.isNaN(date.getTime())) return null;
-
-  const time = new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
-  const isWeekly = window.durationMinutes === 10_080 || window.id.startsWith('seven_day');
-  if (!isWeekly) return `Resets at ${time}`;
-
-  const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date);
-  return `Resets ${weekday} ${time}`;
+  const remaining = formatResetsIn(window.resetsAt);
+  return remaining ? `Resets in ${remaining}` : null;
 };
 
 const formatMoney = (amount: number, currency: string): string => {
