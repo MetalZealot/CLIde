@@ -4,12 +4,10 @@
 - Next: Phase 3 — preserve unknown native keys when editing Codex MCP servers
 - Context: [Codex surface map](../maps/codex-cli-sdk-app-server.md), [upgrade ledger](../maps/codex-upgrade-ledger.md), [chat transport map](../maps/2026-07-25-codex-chat-transport-architecture.md), [provider contract §5](../maps/CLIde_Provider_Architecture_Current_Contract.md), ADR 0011. Claude's runtime/SDK pairing stays out of scope — it belongs to the "Recurring provider SDK/CLI update process" item in `TODO.md`.
 
-Verified on this host 2026-08-12: native `codex` is 0.147.0, CLIde's bundled pin is
-0.146.0, and App Server is the *default* Chat transport, not opt-in. In 0.147's
-generated schema `isBlocking` is **required** on `ToolRequestUserInputParams` and
-`autoResolutionMs` is `@deprecated`, default null. CLIde reads only
-`autoResolutionMs` and maps null to "wait forever", so a 0.147 non-blocking question
-would strand its card.
+This branch pins the bundled runtime to 0.147.0; `main` is still 0.146.0. App Server
+is the *default* Chat transport, not opt-in. What remains is that every Codex facet
+resolves its own executable, so the version CLIde runs is still whatever is bundled
+rather than a version anyone chose.
 
 ## Decisions — do not re-open these
 
@@ -33,7 +31,7 @@ would strand its card.
 - [x] 1. **`isBlocking` honoured, behaviour unchanged on 0.146** — `448e1ab`,
   live-verified on 3002.
 
-- [x] 2. **Pinned to 0.147.0.** SDK, bundled CLI, platform lockfile packages,
+- [x] 2. **Pinned to 0.147.0** — `56bf5bf`. SDK, bundled CLI, platform lockfile packages,
   diagnostics, and drift contract updated. Zero-time questions resolve in the Codex
   transport without changing Claude's shared no-timer contract. New and resumed Chat
   live-verified on 3002.
