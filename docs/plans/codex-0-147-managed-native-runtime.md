@@ -1,7 +1,7 @@
 # Codex 0.147, then a managed native runtime
 
-- Status: 5/7
-- Next: Phase 6 — expose runtime checks and explicit selection in the Codex account card
+- Status: 6/7
+- Next: Phase 7 — align the managed-runtime decisions, maps, and backlog with reality
 - Context: [Codex surface map](../maps/codex-cli-sdk-app-server.md), [upgrade ledger](../maps/codex-upgrade-ledger.md), [chat transport map](../maps/2026-07-25-codex-chat-transport-architecture.md), [provider contract §5](../maps/CLIde_Provider_Architecture_Current_Contract.md), ADR 0011. Claude's runtime/SDK pairing stays out of scope — it belongs to the "Recurring provider SDK/CLI update process" item in `TODO.md`.
 
 This branch pins the bundled runtime to 0.147.0 and routes every Codex facet through
@@ -56,14 +56,15 @@ choose a different one.
   unavailable instead of falling back. Live-verified on 3002 — all facets resolved
   one installation.
 
-- [ ] 6. **Runtime row in the Codex account card.** One compact row: active,
-  candidate, previous, bundled, SDK, and live-process versions, with **Check**,
-  **Use** and **Roll back**. **Use** unlocks only after the Phase 4 check passes on
-  that candidate, and its result is reported as a structural check, not as live Chat
-  acceptance. Rollback is an explicit selection. Authenticated routes:
-  `GET /api/providers/codex/runtime`, `POST …/runtime/check`,
-  `PUT …/runtime/selection`, the last two taking an opaque installation id. No new
-  settings screen.
+- [x] 6. **Runtime row in the Codex account card** — `b0d4f54`. Installations list by
+  path with active, candidate, bundled and previous state; Check names the first
+  missing method or field and unlocks Use; routes take an opaque id behind the
+  authenticated provider router. Live-verified on 3002, including a promotion during
+  a running turn that left the live process alone until it finished.
+  Two follow-ups, both `TODO.md` items rather than reopened phases: Check and Use
+  target a derived candidate with nothing in the UI naming which row they act on,
+  which turns ambiguous as soon as a third installation is discovered; and the full
+  paths wrap to three lines each on a phone.
 
 - [ ] 7. **Documents match reality.** Supersede ADR 0011 — it still describes App
   Server as opt-in and pinned to 0.144.6 — with the default-transport,
