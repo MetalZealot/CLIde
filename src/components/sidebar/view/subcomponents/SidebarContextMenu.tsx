@@ -4,20 +4,29 @@ import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../../../lib/utils';
 import { ContextMenuOverlay, type ContextMenuAnchor } from '../../../../shared/view/ui';
 
-export type SidebarContextMenuItem = {
+type SidebarContextMenuItemBase = {
   key: string;
   label: string;
   icon: LucideIcon;
-  onSelect: () => void;
   isDanger?: boolean;
+  /** Separates a group above from this item (same convention as ActionMenu). */
+  showDividerBefore?: boolean;
+};
+
+export type SidebarContextMenuItem = SidebarContextMenuItemBase & ({
+  onSelect: () => void;
   /**
    * Leaves the overlay up so `onSelect` can replace the menu's contents — used
    * to step from a repository's checkout list into one checkout's actions.
    */
   keepOpen?: boolean;
-  /** Separates a group above from this item (same convention as ActionMenu). */
-  showDividerBefore?: boolean;
-};
+  href?: never;
+} | {
+  /** Internal app link opened in a separate browser tab. */
+  href: string;
+  onSelect?: never;
+  keepOpen?: never;
+});
 
 type SidebarContextMenuProps = {
   anchor: ContextMenuAnchor;
@@ -45,29 +54,49 @@ export default function SidebarContextMenu({ anchor, items, onClose, ariaLabel }
     >
       {items.map((item) => {
         const Icon = item.icon;
+        const itemClassName = cn(
+          'flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors',
+          'focus:outline-none',
+          item.isDanger
+            ? 'text-red-600 hover:bg-red-50 focus-visible:bg-red-50 active:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 dark:focus-visible:bg-red-950 dark:active:bg-red-950'
+            : 'text-foreground hover:bg-accent focus-visible:bg-accent active:bg-accent',
+        );
+        const content = (
+          <>
+            <Icon className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </>
+        );
+
         return (
           <Fragment key={item.key}>
             {item.showDividerBefore && <div className="mx-2 my-1 h-px bg-border" />}
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                item.onSelect();
-                if (!item.keepOpen) {
-                  onClose();
-                }
-              }}
-              className={cn(
-                'flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors',
-                'focus:outline-none',
-                item.isDanger
-                  ? 'text-red-600 hover:bg-red-50 focus-visible:bg-red-50 active:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 dark:focus-visible:bg-red-950 dark:active:bg-red-950'
-                  : 'text-foreground hover:bg-accent focus-visible:bg-accent active:bg-accent',
-              )}
-            >
-              <Icon className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate">{item.label}</span>
-            </button>
+            {'href' in item ? (
+              <a
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                role="menuitem"
+                onClick={onClose}
+                className={itemClassName}
+              >
+                {content}
+              </a>
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  item.onSelect();
+                  if (!item.keepOpen) {
+                    onClose();
+                  }
+                }}
+                className={itemClassName}
+              >
+                {content}
+              </button>
+            )}
           </Fragment>
         );
       })}

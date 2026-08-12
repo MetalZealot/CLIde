@@ -51,8 +51,8 @@ sticks to the top of the scroll area.
 **Session row** (`SidebarSessionItem.tsx`) — pin · name (`font-medium` marks
 unread and nothing else) · status symbol **or** relative age, never both ·
 message-count badge · project label (flat sections only) · branch badge ·
-provider logo · kebab (desktop). Desktop is a real `<a href>`, so its native
-context menu is left alone.
+provider logo · kebab (desktop). Desktop is a real `<a href>` for modified
+clicks, while right-click opens the session actions menu.
 
 **Footer** (`SidebarFooter.tsx`) — restart-required banner · update banner ·
 account button · New Session (mobile only) · version and OSS line (desktop).
@@ -67,7 +67,7 @@ All four are built in `Sidebar.tsx` and rendered through the one
 
 | Menu | Opened from | Items |
 |---|---|---|
-| Session actions | Long-press, kebab | Pin · Rename · Copy session ID ‖ Archive · Delete |
+| Session actions | Long-press, kebab, right-click | Open in new tab · Pin · Rename · Copy session ID ‖ Archive · Delete |
 | Repository actions | Long-press, kebab, right-click | Rename · Customize · Worktrees ‖ Archive · Delete |
 | Create | `+` in the Sessions subheader | New Session · New Worktree |
 | View | Filter icon in the Sessions subheader | Sort (newest, oldest, title, worktree) · filter by worktree · Reset |
@@ -96,7 +96,7 @@ worktree manager. `SidebarCollapsed` is desktop-only by nature.
 
 | Affordance | Mobile | Desktop | Status |
 |---|---|---|---|
-| Row action menu | Long-press | Kebab, plus right-click on repository rows | Parity — one menu builder, three anchors |
+| Row action menu | Long-press | Kebab or right-click | Parity — one menu builder, three anchors |
 | New Session | Footer, in the thumb zone | Header | Deliberate; the drawer's header is the far corner |
 | Repository row tap | Expands | Selects **and** expands | Undocumented divergence |
 | Session count | "3 sessions" | "3" | Inconsistent, no stated reason |

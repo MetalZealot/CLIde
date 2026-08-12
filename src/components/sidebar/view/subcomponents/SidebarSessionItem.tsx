@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { Check, GitBranch, Pin, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -132,6 +132,19 @@ export default function SidebarSessionItem({
   // Stays on for as long as this row's menu is open.
   const isContextActive = isPressing || isMenuOpen;
   const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread });
+
+  const openSessionMenuAtCursor = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (!onOpenActionsMenu) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    onOpenActionsMenu(session, {
+      top: event.clientY,
+      bottom: event.clientY,
+      left: event.clientX,
+    });
+  };
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
   // would visually hide it. While editing, dismiss only when the user clicks outside
@@ -283,13 +296,14 @@ export default function SidebarSessionItem({
             'h-auto w-full justify-start rounded-md px-3 py-2 text-left font-normal transition-all duration-150',
             isSelected ? 'bg-primary/15' : 'hover:bg-accent/50',
           )}
-          // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
-          // native right-click menu use the href to open a new tab/window.
+          // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click use the
+          // href, while right-click opens the row actions at the cursor.
           onClick={(event) => {
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
             onSessionSelect(session, project.projectId);
           }}
+          onContextMenu={openSessionMenuAtCursor}
         >
           <div className="w-full min-w-0">
             <div className="min-w-0 flex-1">

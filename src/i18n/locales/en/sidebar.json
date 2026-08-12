@@ -86,6 +86,7 @@
     "archive": "Archive",
     "rename": "Rename",
     "customize": "Customize",
+    "openInNewTab": "Open in new tab",
     "copySessionId": "Copy session ID",
     "rowActions": "Actions for {{name}}",
     "account": "Account",

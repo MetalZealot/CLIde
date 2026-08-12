@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, MessageSquare, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
+import { Archive, Copy, ExternalLink, MessageSquare, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -270,6 +270,12 @@ function Sidebar({
       const isStarred = Boolean(session.isStarred);
       const sessionName = getSessionName(session, t);
       return [
+        {
+          key: 'open-new-tab',
+          label: t('actions.openInNewTab', 'Open in new tab'),
+          icon: ExternalLink,
+          href: `/session/${session.id}`,
+        },
         {
           key: 'star',
           label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
