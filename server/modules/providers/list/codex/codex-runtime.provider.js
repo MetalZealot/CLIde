@@ -25,6 +25,7 @@ import {
   queryCodexAppServer,
   withCodexAppServerStartupFallback,
 } from '@/modules/providers/list/codex/codex-app-server-chat.transport.js';
+import { resolveSelectedCodexRuntime } from '@/modules/providers/list/codex/codex-native-runtime.provider.js';
 import {
   appendFilesInputTag,
   buildCodexInputItems,
@@ -242,7 +243,8 @@ export async function queryCodexSdk(command, options = {}, ws, context = default
     effort,
     images,
     files,
-    permissionMode = 'default'
+    permissionMode = 'default',
+    runtimeFacet = 'chat'
   } = options;
 
   // Callers pass the stable app session id; the SDK resumes threads with the
@@ -273,7 +275,8 @@ export async function queryCodexSdk(command, options = {}, ws, context = default
   const sessionKey = () => sessionId || capturedSessionId || null;
 
   try {
-    codex = new Codex();
+    const selectedRuntime = await resolveSelectedCodexRuntime(runtimeFacet);
+    codex = new Codex({ codexPathOverride: selectedRuntime.realPath });
 
     const threadOptions = {
       workingDirectory,
@@ -595,7 +598,7 @@ export async function queryCodexChat(command, options = {}, ws, context = defaul
  * enter from the agent routes without a registry runtime context.
  */
 export async function queryCodexJob(command, options = {}, writer) {
-  return queryCodexSdk(command, options, writer);
+  return queryCodexSdk(command, { ...options, runtimeFacet: 'jobs' }, writer);
 }
 
 export async function abortCodexSession(sessionId) {

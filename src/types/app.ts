@@ -20,6 +20,7 @@ export type ProviderModelOption = {
 export type ProviderModelsDefinition = {
   OPTIONS: ProviderModelOption[];
   DEFAULT: string;
+  source?: 'live' | 'stale' | 'fallback';
 };
 
 export type ProviderModelsCacheInfo = {

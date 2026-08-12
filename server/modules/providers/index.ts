@@ -3,6 +3,10 @@ export { providerCapabilitiesService } from './services/provider-capabilities.se
 export { providerSkillsService } from './services/skills.service.js';
 export { providerMcpService } from './services/mcp.service.js';
 export { providerRuntimeService } from './services/provider-runtime.service.js';
+export {
+  buildSelectedCodexShellCommand,
+  codexNativeRuntimeService,
+} from './list/codex/codex-native-runtime.provider.js';
 
 // queryCodexJob: the non-interactive Codex entry point. The registry runner
 // (codexRuntime.run) is the interactive Chat path, which brings up the App

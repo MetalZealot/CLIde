@@ -105,6 +105,7 @@ type ShellWebSocketDependencies = {
     sessionId: string,
     provider: string,
   ) => string | null | undefined;
+  buildCodexCommand?: (resumeSessionId?: string) => Promise<string>;
   spawnPty?: typeof pty.spawn;
 };
 
@@ -175,10 +176,10 @@ function resolveResumeSessionId(
 /**
  * Resolves provider command line for plain shell and agent-backed shell modes.
  */
-function buildShellCommand(
+async function buildShellCommand(
   message: ShellIncomingMessage,
   dependencies: ShellWebSocketDependencies
-): string {
+): Promise<string> {
   const hasSession = readBoolean(message.hasSession);
   const initialCommand = readString(message.initialCommand);
   const provider = readString(message.provider, 'claude');
@@ -200,13 +201,10 @@ function buildShellCommand(
   }
 
   if (provider === 'codex') {
-    if (resumeSessionId) {
-      if (os.platform() === 'win32') {
-        return `codex resume "${resumeSessionId}"; if ($LASTEXITCODE -ne 0) { codex }`;
-      }
-      return `codex resume "${resumeSessionId}" || codex`;
+    if (!dependencies.buildCodexCommand) {
+      throw new Error('Codex runtime command resolver is unavailable.');
     }
-    return 'codex';
+    return dependencies.buildCodexCommand(resumeSessionId || undefined);
   }
 
   if (provider === 'opencode') {
@@ -390,7 +388,7 @@ export function handleShellConnection(
           return;
         }
 
-        const shellCommand = buildShellCommand(data, dependencies);
+        const shellCommand = await buildShellCommand(data, dependencies);
         const resumeSessionId = resolveResumeSessionId(data, dependencies);
         const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
         const shellArgs =

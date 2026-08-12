@@ -1,14 +1,17 @@
-import {
-  resolveBundledCodexAppServerCommand,
-  type CodexAppServerCommand,
-} from '@/modules/providers/list/codex/codex-app-server.client.js';
+import type { CodexAppServerCommand } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import {
   isCodexAppServerChatEnabled,
   markCodexAppServerReady,
   markCodexAppServerStarting,
   markCodexAppServerStopped,
   markCodexAppServerStartupFallback,
+  markCodexAppServerRuntimeSnapshot,
+  markCodexAppServerUpdatePending,
 } from '@/modules/providers/list/codex/codex-chat-transport-state.js';
+import {
+  codexNativeRuntimeService,
+  resolveSelectedCodexRuntimeCommand,
+} from '@/modules/providers/list/codex/codex-native-runtime.provider.js';
 import type {
   CodexAdditionalFileSystemPermissions,
   CodexApprovalDecision,
@@ -53,6 +56,7 @@ import type {
   InteractiveRequestDecision,
   InteractiveRequestResponse,
   NormalizedMessage,
+  ProviderNativeRuntimeInstallation,
 } from '@/shared/types.js';
 import {
   createCompleteMessage,
@@ -89,6 +93,11 @@ type RunStoppedNotifier = (options: RunNotificationBase & {
 
 type AppServerChatOptions = {
   command?: CodexAppServerCommand;
+  resolveCommand?: () => Promise<{
+    command: CodexAppServerCommand;
+    runtime: ProviderNativeRuntimeInstallation;
+  }>;
+  subscribeRuntimeChanges?: (listener: () => void) => () => void;
   requestTimeoutMs?: number;
   trackRuntimeState?: boolean;
   notifyRunFailed?: RunFailedNotifier;
@@ -569,12 +578,30 @@ export class CodexAppServerChatTransport {
   private client: JsonlRpcClient | null = null;
   private startup: Promise<JsonlRpcClient> | null = null;
   private readonly activeTurns = new Map<string, ActiveTurn>();
+  private activeOperations = 0;
+  private updatePending = false;
+  private readonly unsubscribeRuntimeChanges: (() => void) | null;
 
   constructor(options: AppServerChatOptions = {}) {
     this.options = options;
+    this.unsubscribeRuntimeChanges = options.subscribeRuntimeChanges?.(() => {
+      this.updatePending = true;
+      if (this.options.trackRuntimeState) {
+        markCodexAppServerUpdatePending(true);
+      }
+      this.recycleIdleClient();
+    }) ?? null;
   }
 
   async query(
+    command: string,
+    options: QueryCodexAppServerOptions,
+    writer: AppServerWriter,
+  ): Promise<void> {
+    return this.withRuntimeOperation(() => this.runQuery(command, options, writer));
+  }
+
+  private async runQuery(
     command: string,
     options: QueryCodexAppServerOptions,
     writer: AppServerWriter,
@@ -792,6 +819,13 @@ export class CodexAppServerChatTransport {
     threadId: string,
     options: ForkCodexThreadOptions = {},
   ): Promise<CodexThread> {
+    return this.withRuntimeOperation(() => this.runForkThread(threadId, options));
+  }
+
+  private async runForkThread(
+    threadId: string,
+    options: ForkCodexThreadOptions,
+  ): Promise<CodexThread> {
     if (this.isActive(threadId)) {
       throw new Error('Cannot fork a Codex thread while its turn is still running.');
     }
@@ -827,10 +861,36 @@ export class CodexAppServerChatTransport {
   }
 
   closeForTests(): void {
+    this.unsubscribeRuntimeChanges?.();
     this.client?.close('Codex App Server Chat transport closed for tests.');
     this.client = null;
     this.startup = null;
     this.activeTurns.clear();
+    this.activeOperations = 0;
+    this.updatePending = false;
+  }
+
+  private async withRuntimeOperation<T>(operation: () => Promise<T>): Promise<T> {
+    this.activeOperations += 1;
+    try {
+      return await operation();
+    } finally {
+      this.activeOperations -= 1;
+      this.recycleIdleClient();
+    }
+  }
+
+  private recycleIdleClient(): void {
+    if (!this.updatePending || this.activeOperations > 0 || this.startup) {
+      return;
+    }
+    this.client?.close('Selected Codex runtime changed while App Server was idle.');
+    this.client = null;
+    this.updatePending = false;
+    if (this.options.trackRuntimeState) {
+      markCodexAppServerRuntimeSnapshot(null);
+      markCodexAppServerUpdatePending(false);
+    }
   }
 
   private async ensureClient(): Promise<JsonlRpcClient> {
@@ -842,8 +902,15 @@ export class CodexAppServerChatTransport {
     }
 
     this.startup = (async () => {
+      const resolved = this.options.command
+        ? { command: this.options.command, runtime: null }
+        : await (this.options.resolveCommand
+          ?? (() => resolveSelectedCodexRuntimeCommand(
+            'chat',
+            ['app-server', '--stdio'],
+          )))();
       const client = new JsonlRpcClient({
-        command: this.options.command ?? resolveBundledCodexAppServerCommand(),
+        command: resolved.command,
         requestTimeoutMs: this.options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS,
         onNotification: (method, params) => {
           this.handleNotification(method, params);
@@ -856,6 +923,7 @@ export class CodexAppServerChatTransport {
             this.client = null;
           }
           if (this.options.trackRuntimeState) {
+            markCodexAppServerRuntimeSnapshot(null);
             markCodexAppServerStopped(error);
           }
           this.failActiveTurns(error);
@@ -880,6 +948,8 @@ export class CodexAppServerChatTransport {
         client.notify('initialized', {});
         this.client = client;
         if (this.options.trackRuntimeState) {
+          markCodexAppServerRuntimeSnapshot(resolved.runtime);
+          markCodexAppServerUpdatePending(false);
           markCodexAppServerReady();
         }
         return client;
@@ -1341,6 +1411,11 @@ export class CodexAppServerChatTransport {
 
 const sharedTransport = new CodexAppServerChatTransport({
   trackRuntimeState: true,
+  resolveCommand: () => resolveSelectedCodexRuntimeCommand(
+    'chat',
+    ['app-server', '--stdio'],
+  ),
+  subscribeRuntimeChanges: (listener) => codexNativeRuntimeService.onSelectionChanged(listener),
 });
 
 export async function queryCodexAppServer(

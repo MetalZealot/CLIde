@@ -22,9 +22,9 @@ import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const PROVIDER_MODELS_CACHE_VERSION = 2;
-// Claude's catalog is maintained by its adapter, while Codex maintains its
-// catalog in ~/.codex/models_cache.json. Both sources already own refresh
-// behavior, so a second CloudCLI cache only delays newly available models.
+// Claude and Codex load their catalogs through their adapters. Codex's live
+// runtime reader owns its stale filesystem fallback, so a second CloudCLI
+// cache would hide both refreshes and source labels.
 const UNCACHED_PROVIDERS = new Set<LLMProvider>(['claude', 'codex']);
 
 type ProviderModelsServiceDependencies = {

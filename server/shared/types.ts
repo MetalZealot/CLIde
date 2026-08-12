@@ -68,6 +68,76 @@ export type AuthenticatedWebSocketRequest = IncomingMessage & {
  */
 export type LLMProvider = 'claude' | 'codex' | 'cursor' | 'opencode';
 
+// ---------------------------
+//----------------- PROVIDER NATIVE RUNTIME ------------
+/**
+ * Structural compatibility result for one provider executable. `check_failed`
+ * means the executable could not be inspected, while `incompatible` means the
+ * inspection completed and the required provider contract was absent.
+ */
+export type ProviderNativeRuntimeCompatibility =
+  | 'compatible'
+  | 'incompatible'
+  | 'check_failed';
+
+/**
+ * Discovery route that made a provider executable visible to CLIde. A runtime
+ * may have several sources after symlink resolution; selection never follows
+ * this ordering after an explicit fingerprint has been persisted.
+ */
+export type ProviderNativeRuntimeSource =
+  | 'configured'
+  | 'path'
+  | 'known'
+  | 'bundled'
+  | 'persisted';
+
+/**
+ * Codex execution surface recording which approved installation it resolved.
+ * Diagnostics expose only installation ids and versions, never executable paths.
+ */
+export type CodexNativeRuntimeFacet = 'auth' | 'chat' | 'shell' | 'models' | 'usage' | 'jobs';
+
+/**
+ * One canonical provider executable discovered on the host. `id` and
+ * `fingerprint` are opaque hashes; `realPath` is server-internal and must be
+ * stripped from browser-facing DTOs.
+ */
+export type ProviderNativeRuntimeInstallation = {
+  id: string;
+  provider: LLMProvider;
+  realPath: string;
+  version: string;
+  fingerprint: string;
+  sources: ProviderNativeRuntimeSource[];
+  bundled: boolean;
+};
+
+/**
+ * Provider-specific hooks consumed by the shared native-runtime resolver.
+ * Descriptors own bundled-path lookup, version parsing, and structural checks;
+ * discovery, fingerprinting, persistence, and selection stay provider-neutral.
+ */
+export type ProviderNativeRuntimeDescriptor = {
+  provider: LLMProvider;
+  executableName: string;
+  configuredPathEnvVar: string;
+  resolveBundledExecutablePath: () => Promise<string>;
+  readVersion: (executablePath: string) => Promise<string | null>;
+  checkCompatibility: (
+    executablePath: string,
+  ) => Promise<ProviderNativeRuntimeCompatibility>;
+};
+
+/**
+ * Shell-free command shape used to launch a selected provider executable.
+ * JavaScript launchers carry Node as `command` and the launcher as the first arg.
+ */
+export type ProviderNativeRuntimeCommand = {
+  command: string;
+  args: string[];
+};
+
 /**
  * One selectable model row in a provider model catalog.
  */
@@ -102,6 +172,8 @@ export type ProviderModelOption = {
 export type ProviderModelsDefinition = {
   OPTIONS: ProviderModelOption[];
   DEFAULT: string;
+  /** Whether this catalog came from the live runtime or a degraded fallback. */
+  source?: 'live' | 'stale' | 'fallback';
 };
 
 /**

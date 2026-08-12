@@ -4,7 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { readCodexAccountUsage } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import {
+  readCodexAccountUsage,
+  readCodexModelList,
+} from '@/modules/providers/list/codex/codex-app-server.client.js';
 import {
   CodexProviderUsage,
   normalizeCodexAccountActivity,
@@ -326,6 +329,51 @@ for await (const line of lines) {
         dailyUsageBuckets: null,
       },
     });
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex app-server client reads every model/list page', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-models-app-server-'));
+  const fakeServerPath = path.join(tempRoot, 'fake-app-server.mjs');
+  try {
+    await writeFile(fakeServerPath, `
+import readline from 'node:readline';
+const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+let initialized = false;
+const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
+for await (const line of lines) {
+  const message = JSON.parse(line);
+  if (message.method === 'initialize') {
+    if (message.params?.capabilities?.experimentalApi !== true) process.exit(20);
+    send({ id: message.id, result: { userAgent: 'fake' } });
+  } else if (message.method === 'initialized') {
+    initialized = true;
+  } else if (message.method === 'model/list') {
+    if (!initialized) process.exit(21);
+    const suffix = message.params.cursor ? 'two' : 'one';
+    send({ id: message.id, result: {
+      data: [{
+        id: 'id-' + suffix,
+        model: 'model-' + suffix,
+        displayName: 'Model ' + suffix,
+        description: '',
+        hidden: false,
+        supportedReasoningEfforts: [],
+        defaultReasoningEffort: 'medium',
+        isDefault: !message.params.cursor
+      }],
+      nextCursor: message.params.cursor ? null : 'page-2'
+    } });
+  }
+}
+`, 'utf8');
+    const models = await readCodexModelList({
+      command: { command: process.execPath, args: [fakeServerPath] },
+      timeoutMs: 2_000,
+    });
+    assert.deepEqual(models.map((model) => model.model), ['model-one', 'model-two']);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

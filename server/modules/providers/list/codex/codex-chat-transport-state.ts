@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
+import type {
+  CodexNativeRuntimeFacet,
+  ProviderNativeRuntimeInstallation,
+} from '@/shared/types.js';
+
 export type CodexChatTransport = 'app-server' | 'sdk';
 export type CodexChatTransportHealth =
   | 'disabled'
@@ -19,6 +24,14 @@ export type CodexChatTransportDiagnostics = {
   bundledCliVersion: string | null;
   lastError: string | null;
   lastStartupFallbackAt: string | null;
+  nativeRuntime: {
+    activeInstallationId: string | null;
+    activeVersion: string | null;
+    liveProcessInstallationId: string | null;
+    liveProcessVersion: string | null;
+    updatePending: boolean;
+    facets: Partial<Record<CodexNativeRuntimeFacet, string>>;
+  };
 };
 
 type RuntimeState = {
@@ -32,6 +45,14 @@ const runtimeState: RuntimeState = {
   health: 'idle',
   lastError: null,
   lastStartupFallbackAt: null,
+};
+const nativeRuntimeState: CodexChatTransportDiagnostics['nativeRuntime'] = {
+  activeInstallationId: null,
+  activeVersion: null,
+  liveProcessInstallationId: null,
+  liveProcessVersion: null,
+  updatePending: false,
+  facets: {},
 };
 
 function readPackageVersion(manifestPath: string): string | null {
@@ -94,6 +115,33 @@ export function markCodexAppServerStartupFallback(error: unknown): void {
   runtimeState.lastStartupFallbackAt = new Date().toISOString();
 }
 
+export function markCodexRuntimeFacetResolved(
+  facet: CodexNativeRuntimeFacet,
+  runtime: ProviderNativeRuntimeInstallation,
+): void {
+  nativeRuntimeState.activeInstallationId = runtime.id;
+  nativeRuntimeState.activeVersion = runtime.version;
+  nativeRuntimeState.facets[facet] = runtime.id;
+}
+
+export function markCodexRuntimeSelection(
+  runtime: ProviderNativeRuntimeInstallation,
+): void {
+  nativeRuntimeState.activeInstallationId = runtime.id;
+  nativeRuntimeState.activeVersion = runtime.version;
+}
+
+export function markCodexAppServerRuntimeSnapshot(
+  runtime: ProviderNativeRuntimeInstallation | null,
+): void {
+  nativeRuntimeState.liveProcessInstallationId = runtime?.id ?? null;
+  nativeRuntimeState.liveProcessVersion = runtime?.version ?? null;
+}
+
+export function markCodexAppServerUpdatePending(updatePending: boolean): void {
+  nativeRuntimeState.updatePending = updatePending;
+}
+
 export function getCodexChatTransportDiagnostics(): CodexChatTransportDiagnostics {
   const configured = getConfiguredCodexChatTransport();
   if (configured === 'sdk') {
@@ -105,6 +153,7 @@ export function getCodexChatTransportDiagnostics(): CodexChatTransportDiagnostic
       bundledCliVersion: bundledVersions.cli,
       lastError: null,
       lastStartupFallbackAt: runtimeState.lastStartupFallbackAt,
+      nativeRuntime: { ...nativeRuntimeState, facets: { ...nativeRuntimeState.facets } },
     };
   }
 
@@ -116,6 +165,7 @@ export function getCodexChatTransportDiagnostics(): CodexChatTransportDiagnostic
     bundledCliVersion: bundledVersions.cli,
     lastError: runtimeState.lastError,
     lastStartupFallbackAt: runtimeState.lastStartupFallbackAt,
+    nativeRuntime: { ...nativeRuntimeState, facets: { ...nativeRuntimeState.facets } },
   };
 }
 
@@ -128,4 +178,10 @@ export function resetCodexChatTransportStateForTests(): void {
   runtimeState.health = 'idle';
   runtimeState.lastError = null;
   runtimeState.lastStartupFallbackAt = null;
+  nativeRuntimeState.activeInstallationId = null;
+  nativeRuntimeState.activeVersion = null;
+  nativeRuntimeState.liveProcessInstallationId = null;
+  nativeRuntimeState.liveProcessVersion = null;
+  nativeRuntimeState.updatePending = false;
+  nativeRuntimeState.facets = {};
 }

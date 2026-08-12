@@ -2,8 +2,7 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import spawn from 'cross-spawn';
-
+import { resolveSelectedCodexRuntime } from '@/modules/providers/list/codex/codex-native-runtime.provider.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
@@ -13,6 +12,11 @@ export type CodexCredentialsStatus = {
   email: string | null;
   method: string | null;
   error?: string;
+};
+
+type CodexProviderAuthOptions = {
+  resolveRuntime?: () => Promise<unknown>;
+  readCredentials?: () => Promise<CodexCredentialsStatus>;
 };
 
 /**
@@ -72,12 +76,20 @@ export const readCodexCredentialsStatus = async (): Promise<CodexCredentialsStat
 };
 
 export class CodexProviderAuth implements IProviderAuth {
+  private readonly resolveRuntime: () => Promise<unknown>;
+  private readonly readCredentials: () => Promise<CodexCredentialsStatus>;
+
+  constructor(options: CodexProviderAuthOptions = {}) {
+    this.resolveRuntime = options.resolveRuntime ?? (() => resolveSelectedCodexRuntime('auth'));
+    this.readCredentials = options.readCredentials ?? readCodexCredentialsStatus;
+  }
+
   /**
    * Checks whether Codex is available to the server runtime.
    */
-  private checkInstalled(): boolean {
+  private async checkInstalled(): Promise<boolean> {
     try {
-      spawn.sync('codex', ['--version'], { stdio: 'ignore', timeout: 5000 });
+      await this.resolveRuntime();
       return true;
     } catch {
       return false;
@@ -88,8 +100,8 @@ export class CodexProviderAuth implements IProviderAuth {
    * Returns Codex SDK availability and credential status.
    */
   async getStatus(): Promise<ProviderAuthStatus> {
-    const installed = this.checkInstalled();
-    const credentials = await readCodexCredentialsStatus();
+    const installed = await this.checkInstalled();
+    const credentials = await this.readCredentials();
 
     return {
       installed,

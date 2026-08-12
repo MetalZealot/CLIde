@@ -12,6 +12,7 @@ import cors from 'cors';
 import { AppError, findApplicationRoot, getModuleDirectory, terminalTextStyles } from '@/shared/utils.js';
 import {
     closeSessionsWatcher,
+    buildSelectedCodexShellCommand,
     initializeSessionsWatcher,
     providerRuntimeService,
     queryCodexJob,
@@ -106,6 +107,7 @@ const wss = createWebSocketServer(server, {
         runtime: providerRuntimeService,
     },
     shell: {
+        buildCodexCommand: buildSelectedCodexShellCommand,
         resolveProviderSessionId: (sessionId, provider) => {
             const dbSession = sessionsDb.getSessionById(sessionId);
             if (dbSession) {

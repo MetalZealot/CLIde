@@ -14,6 +14,7 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RegExp[]>([
     /"method": "thread\/fork"/,
     /"method": "turn\/start"/,
     /"method": "turn\/interrupt"/,
+    /"method": "model\/list"/,
   ]],
   ['ServerRequest.ts', [
     /item\/commandExecution\/requestApproval/,
@@ -49,6 +50,13 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RegExp[]>([
   ]],
   ['v2/ToolRequestUserInputResponse.ts', [
     /answers: \{ \[key in string\]\?: ToolRequestUserInputAnswer \}/,
+  ]],
+  ['v2/Model.ts', [
+    /model: string/,
+    /displayName: string/,
+    /supportedReasoningEfforts:/,
+    /defaultReasoningEffort: ReasoningEffort/,
+    /isDefault: boolean/,
   ]],
 ]);
 

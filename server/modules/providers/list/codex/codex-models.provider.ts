@@ -4,6 +4,10 @@ import path from 'node:path';
 
 import TOML from '@iarna/toml';
 
+import {
+  readCodexModelList,
+  type CodexLiveModel,
+} from '@/modules/providers/list/codex/codex-app-server.client.js';
 import { writeProviderSessionModelPick } from '@/modules/providers/services/provider-session-model.service.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
@@ -47,6 +51,7 @@ export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
     },
   ],
   DEFAULT: 'gpt-5.4',
+  source: 'fallback',
 };
 
 type CodexCachedModel = {
@@ -105,7 +110,9 @@ const mapCodexModel = (model: CodexCachedModel): ProviderModelOption => {
   };
 };
 
-const buildCodexModelsDefinition = (models: CodexCachedModel[]): ProviderModelsDefinition => {
+const buildCachedCodexModelsDefinition = (
+  models: CodexCachedModel[],
+): ProviderModelsDefinition => {
   const sortedModels = [...models]
     .filter((model) => model.visibility === 'list' && model.supported_in_api !== false)
     .sort((left, right) => readCodexPriority(left.priority) - readCodexPriority(right.priority));
@@ -130,19 +137,80 @@ const buildCodexModelsDefinition = (models: CodexCachedModel[]): ProviderModelsD
   return {
     OPTIONS: options,
     DEFAULT: options[0]?.value ?? CODEX_FALLBACK_MODELS.DEFAULT,
+    source: 'stale',
   };
 };
 
+const mapLiveCodexModel = (model: CodexLiveModel): ProviderModelOption => ({
+  value: model.model || model.id,
+  label: model.displayName || model.model || model.id,
+  description: model.description || undefined,
+  isDefault: model.isDefault || undefined,
+  effort: model.supportedReasoningEfforts.length > 0
+    ? {
+        default: model.defaultReasoningEffort || undefined,
+        values: model.supportedReasoningEfforts.map((effort) => ({
+          value: effort.reasoningEffort,
+          description: effort.description || undefined,
+        })),
+      }
+    : undefined,
+});
+
+const buildLiveCodexModelsDefinition = (
+  models: CodexLiveModel[],
+): ProviderModelsDefinition | null => {
+  const options = models
+    .filter((model) => !model.hidden && Boolean(model.model || model.id))
+    .map(mapLiveCodexModel);
+  if (options.length === 0) {
+    return null;
+  }
+  const selectedDefault = options.find((option) => option.isDefault)?.value ?? options[0].value;
+  return {
+    OPTIONS: options,
+    DEFAULT: selectedDefault,
+    source: 'live',
+  };
+};
+
+type CodexProviderModelsOptions = {
+  readLiveModels?: () => Promise<CodexLiveModel[]>;
+  modelsCachePath?: string;
+  configPath?: string;
+};
+
 export class CodexProviderModels implements IProviderModels {
+  private readonly readLiveModels: () => Promise<CodexLiveModel[]>;
+  private readonly modelsCachePath: string;
+  private readonly configPath: string;
+
+  constructor(options: CodexProviderModelsOptions = {}) {
+    this.readLiveModels = options.readLiveModels ?? (() => readCodexModelList());
+    this.modelsCachePath = options.modelsCachePath ?? CODEX_MODELS_CACHE_PATH;
+    this.configPath = options.configPath ?? CODEX_CONFIG_PATH;
+  }
+
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
     try {
-      const raw = await readFile(CODEX_MODELS_CACHE_PATH, 'utf8');
+      const live = buildLiveCodexModelsDefinition(await this.readLiveModels());
+      if (live) {
+        return live;
+      }
+      throw new Error('Codex returned an empty model catalog.');
+    } catch {
+      // The CLI cache is explicitly stale evidence, but is better than a
+      // hardcoded catalog when the selected runtime cannot answer model/list.
+    }
+
+    try {
+      const raw = await readFile(this.modelsCachePath, 'utf8');
       const parsed = readObjectRecord(JSON.parse(raw));
       const models = Array.isArray(parsed?.models)
         ? parsed.models.filter(isCodexCachedModel)
         : [];
 
-      return buildCodexModelsDefinition(models);
+      return buildCachedCodexModelsDefinition(models);
     } catch {
       return CODEX_FALLBACK_MODELS;
     }
@@ -150,7 +218,7 @@ export class CodexProviderModels implements IProviderModels {
 
   async getCurrentActiveModel(): Promise<ProviderCurrentActiveModel> {
     try {
-      const raw = await readFile(CODEX_CONFIG_PATH, 'utf8');
+      const raw = await readFile(this.configPath, 'utf8');
       const parsed = readObjectRecord(TOML.parse(raw));
       const model = readOptionalString(parsed?.model);
       if (!model) {

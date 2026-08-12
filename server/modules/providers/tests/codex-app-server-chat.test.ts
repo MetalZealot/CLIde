@@ -17,7 +17,10 @@ import {
 import { interactiveRequestRegistry } from '@/modules/providers/services/interactive-request-registry.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
-import type { PendingInteractiveRequest } from '@/shared/types.js';
+import type {
+  PendingInteractiveRequest,
+  ProviderNativeRuntimeInstallation,
+} from '@/shared/types.js';
 
 type Writer = {
   messages: Array<Record<string, unknown>>;
@@ -948,6 +951,117 @@ process.stdin.once('data', () => process.exit(17));
   }
 });
 
+test('App Server keeps its runtime snapshot through a turn and recycles only when idle', async () => {
+  const serverSource = (marker: string) => `
+import readline from 'node:readline';
+const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
+const finish = () => {
+  send({ method: 'item/completed', params: {
+    threadId: 'thread-${marker}', turnId: 'turn-${marker}', completedAtMs: Date.now(),
+    item: { type: 'agentMessage', id: 'item-${marker}', text: '${marker}' }
+  } });
+  send({ method: 'turn/completed', params: {
+    threadId: 'thread-${marker}',
+    turn: { id: 'turn-${marker}', status: 'completed', error: null }
+  } });
+};
+for await (const line of lines) {
+  const message = JSON.parse(line);
+  if (message.method === 'initialize') {
+    send({ id: message.id, result: { userAgent: '${marker}' } });
+  } else if (message.method === 'thread/start') {
+    send({ id: message.id, result: {
+      thread: { id: 'thread-${marker}', sessionId: 'thread-${marker}', path: null, cwd: message.params.cwd },
+      model: message.params.model || 'gpt-test', cwd: message.params.cwd, reasoningEffort: null
+    } });
+  } else if (message.method === 'turn/start') {
+    send({ id: message.id, result: { turn: { id: 'turn-${marker}', status: 'inProgress', error: null } } });
+    if ('${marker}' === 'first') {
+      send({ id: 'runtime-wait', method: 'item/tool/requestUserInput', params: {
+        threadId: 'thread-${marker}', turnId: 'turn-${marker}', itemId: 'wait',
+        questions: [{ id: 'wait', header: 'Wait', question: 'Continue?', isOther: false,
+          isSecret: false, options: [{ label: 'Yes', description: 'Continue.' }] }],
+        autoResolutionMs: null
+      } });
+    } else {
+      finish();
+    }
+  } else if (message.id === 'runtime-wait' && message.result) {
+    finish();
+  }
+}`;
+  const firstServer = await createFakeServer(serverSource('first'));
+  const secondServer = await createFakeServer(serverSource('second'));
+  const makeRuntime = (id: string, realPath: string): ProviderNativeRuntimeInstallation => ({
+    id,
+    provider: 'codex',
+    realPath,
+    version: id === 'runtime-first' ? '0.147.0' : '0.148.0',
+    fingerprint: `fingerprint-${id}`,
+    sources: ['bundled'],
+    bundled: id === 'runtime-first',
+  });
+  let selected = {
+    command: firstServer.command,
+    runtime: makeRuntime('runtime-first', firstServer.command.args[0]),
+  };
+  let selectionListener = () => {};
+  const transport = new CodexAppServerChatTransport({
+    trackRuntimeState: true,
+    resolveCommand: async () => selected,
+    subscribeRuntimeChanges: (listener) => {
+      selectionListener = listener;
+      return () => { selectionListener = () => {}; };
+    },
+  });
+  transports.push(transport);
+
+  try {
+    const firstWriter = createWriter();
+    const firstQuery = transport.query(
+      'first',
+      { sessionId: 'runtime-snapshot-test', cwd: firstServer.root, model: 'gpt-test' },
+      firstWriter,
+    );
+    const pending = await waitForPending(() => true, 'runtime-snapshot-test');
+    assert.equal(
+      getCodexChatTransportDiagnostics().nativeRuntime.liveProcessInstallationId,
+      'runtime-first',
+    );
+
+    selected = {
+      command: secondServer.command,
+      runtime: makeRuntime('runtime-second', secondServer.command.args[0]),
+    };
+    selectionListener();
+    assert.equal(
+      getCodexChatTransportDiagnostics().nativeRuntime.liveProcessInstallationId,
+      'runtime-first',
+    );
+    assert.equal(getCodexChatTransportDiagnostics().nativeRuntime.updatePending, true);
+    assert.equal((await interactiveRequestRegistry.resolve(pending.requestId, {
+      requestType: 'user_input',
+      answers: { wait: ['Yes'] },
+    })).status, 'resolved');
+    await firstQuery;
+    assert.ok(firstWriter.messages.some((message) => message.content === 'first'));
+    assert.equal(getCodexChatTransportDiagnostics().nativeRuntime.liveProcessInstallationId, null);
+    assert.equal(getCodexChatTransportDiagnostics().nativeRuntime.updatePending, false);
+
+    const secondWriter = createWriter();
+    await transport.query('second', { cwd: secondServer.root, model: 'gpt-test' }, secondWriter);
+    assert.ok(secondWriter.messages.some((message) => message.content === 'second'));
+    assert.equal(
+      getCodexChatTransportDiagnostics().nativeRuntime.liveProcessInstallationId,
+      'runtime-second',
+    );
+  } finally {
+    await firstServer.cleanup();
+    await secondServer.cleanup();
+  }
+});
+
 test('Codex App Server is the default and sdk is the explicit capability escape hatch', () => {
   const previous = process.env.CLIDE_CODEX_CHAT_TRANSPORT;
   try {
@@ -982,6 +1096,14 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
         bundledCliVersion: '0.147.0',
         lastError: null,
         lastStartupFallbackAt: null,
+        nativeRuntime: {
+          activeInstallationId: null,
+          activeVersion: null,
+          liveProcessInstallationId: null,
+          liveProcessVersion: null,
+          updatePending: false,
+          facets: {},
+        },
       },
     );
 
