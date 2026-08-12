@@ -4,8 +4,8 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// This bootstrap cannot import shared/utils.ts: that module reads environment
-// defaults during evaluation, before this file has loaded `.env`.
+// This bootstrap cannot import server/shared/utils.ts: that module reads
+// environment defaults during evaluation, before this file has loaded `.env`.
 function getBootstrapApplicationRoot(importMetaUrl: string) {
   const moduleDirectory = path.dirname(fileURLToPath(importMetaUrl));
   let serverRoot = moduleDirectory;

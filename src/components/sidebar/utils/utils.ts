@@ -50,10 +50,10 @@ export const getSessionDate = (session: SessionWithProvider): Date => {
  * Sort comparator that pins starred sessions to the top, then falls back to
  * most-recent-activity order.
  *
- * The sidebar lifts pinned sessions out into their own section, so the starred
- * tier rarely fires there; it still governs every other session list, and it
- * matches the server's own `isStarred DESC` page order, which is what
- * guarantees a pinned session is never stranded behind pagination.
+ * The sidebar lifts pinned sessions into their own section, so the starred tier
+ * rarely fires there, but it governs every other session list and matches the
+ * server's `isStarred DESC` page order — which is what keeps a pinned session
+ * from being stranded behind pagination.
  */
 export const compareSessionsStarredFirst = (
   a: SessionWithProvider,
@@ -118,8 +118,8 @@ export const sortProjects = (
 ): Project[] => {
   const byName = [...projects];
 
-  // No starred-first tier: pinning belongs to sessions only (decided
-  // 2026-08-05), so a repository's position is its sort order and nothing else.
+  // No starred-first tier: pinning belongs to sessions only, so a repository's
+  // position is its sort order and nothing else.
   byName.sort((projectA, projectB) => {
     if (projectSortOrder === 'date') {
       return getProjectLastActivity(projectB).getTime() - getProjectLastActivity(projectA).getTime();
@@ -135,13 +135,10 @@ export const sortProjects = (
  * Narrows each project to the sessions whose title matches, dropping projects
  * that keep none.
  *
- * Search deliberately no longer matches project names, paths, or branches
- * (decided 2026-08-05). Repositories are a short, permanently visible list —
- * collapsing their worktrees into one row was itself the fix for a long
- * sidebar — so the thing actually worth finding is a session.
- *
- * Only sessions already loaded into the row can match; the server paginates
- * them. "Search inside messages" is what reaches further back.
+ * Search does not match project names, paths, or branches: repositories are a
+ * short, permanently visible list, so the thing worth finding is a session.
+ * Only sessions already loaded into the row can match — the server paginates
+ * them, and "search inside messages" is what reaches further back.
  */
 export const filterProjectsBySessionTitle = (
   projects: Project[],
@@ -166,8 +163,8 @@ export const filterProjectsBySessionTitle = (
     matchingProjects.push({
       ...project,
       sessions,
-      // The row's count and its "show more" have to describe the matches, not
-      // the full list the server paginated — same shape the running filter uses.
+      // Count and "show more" describe the matches, not the full list the
+      // server paginated.
       sessionMeta: {
         ...project.sessionMeta,
         total: sessions.length,
@@ -183,9 +180,9 @@ export const filterProjectsBySessionTitle = (
  * Directory of the main checkout of the repository identified by `repositoryId`.
  *
  * A linked worktree's shared git directory is the *main* checkout's `.git`, so
- * stripping that suffix names the main checkout's directory. Returns null for
- * layouts where that does not hold — a bare repository, or one created with
- * `--separate-git-dir` — and then no checkout is treated as the main one.
+ * stripping that suffix names its directory. Null for layouts where that does
+ * not hold — a bare repository, or `--separate-git-dir` — and then no checkout
+ * is treated as the main one.
  */
 const deriveMainCheckoutPath = (repositoryId: string): string | null => {
   const withoutGitSuffix = repositoryId.replace(/\/\.git\/?$/, '');
@@ -212,12 +209,11 @@ export const isMainCheckout = (project: Project): boolean => {
 /**
  * Which checkout leads its repository's row.
  *
- * Registered checkouts always outrank discovered ones, whatever git says about
- * which is the main worktree: the lead is the target of every repository-scoped
- * action (rename, accent colour, TaskMaster), and a discovered checkout's
- * `projectId` is synthetic, so addressing one would 404. Main-before-linked
- * decides the rest, and the sort is stable, so anything past that keeps the
- * order the caller established.
+ * Registered checkouts outrank discovered ones whatever git says about the main
+ * worktree: the lead is the target of every repository-scoped action (rename,
+ * accent colour, TaskMaster), and a discovered checkout's `projectId` is
+ * synthetic, so addressing one would 404. Main-before-linked decides the rest;
+ * the sort is stable, so anything past that keeps the caller's order.
  */
 const compareCheckoutsForLead = (a: Project, b: Project): number => {
   const registration = Number(isDiscoveredCheckout(a)) - Number(isDiscoveredCheckout(b));
@@ -229,10 +225,9 @@ const compareCheckoutsForLead = (a: Project, b: Project): number => {
 };
 
 /**
- * Branch label for a checkout, or a short SHA when HEAD is detached.
- *
- * Detached HEAD is deliberately not shown as a branch called `HEAD`; the Git
- * panel does that and ADR 0016 lists it as a truthfulness defect.
+ * Branch label for a checkout, or a short SHA when HEAD is detached. A detached
+ * HEAD is deliberately not shown as a branch called `HEAD` — ADR 0016 lists that
+ * as a truthfulness defect.
  */
 export const getCheckoutRefLabel = (project: Project): string | null => {
   if (typeof project.branch === 'string' && project.branch.length > 0) {
@@ -247,11 +242,9 @@ export const getCheckoutRefLabel = (project: Project): string | null => {
 };
 
 /**
- * Which sidebar row a project belongs to.
- *
- * Deliberately a pure function of the project alone. Deriving it from the
- * visible list instead would let a search that hides one checkout silently
- * re-key the surviving one, collapsing the row the user had open.
+ * Which sidebar row a project belongs to. Deliberately a pure function of the
+ * project alone: deriving it from the visible list would let a search that hides
+ * one checkout re-key the surviving one, collapsing the open row.
  */
 export const repositoryEntryKey = (project: Project): string => {
   return typeof project.repositoryId === 'string' && project.repositoryId.length > 0
@@ -266,23 +259,21 @@ const deriveRepositoryName = (repositoryId: string, checkouts: Project[]): strin
   }
 
   // The main checkout is not registered as a project here, so fall back to the
-  // directory that contains the shared git dir.
+  // directory containing the shared git dir.
   const mainPath = deriveMainCheckoutPath(repositoryId) ?? repositoryId;
   return mainPath.split('/').filter(Boolean).pop() || repositoryId;
 };
 
 /**
- * How a header names the checkout it is showing, or null when saying so would
- * be noise.
+ * How a header names the checkout it is showing, or null when that would be
+ * noise.
  *
  * A single-checkout project is its own repository, so its name already answers
- * the question and the label stays out of the way. Once the repository has more
- * than one checkout — registered or merely discovered — the project name alone
- * is ambiguous, because one sidebar row now covers several working trees, and
- * the branch is what tells them apart.
+ * the question. Past one checkout — registered or discovered — one row covers
+ * several working trees and the branch is what tells them apart.
  *
- * Counts by `repositoryEntryKey` rather than building the grouped entries, so
- * it stays cheap enough to call on every render of the header.
+ * Counts by `repositoryEntryKey` rather than building the grouped entries, so it
+ * stays cheap enough for every header render.
  */
 export const getCheckoutContextLabel = (
   selectedProject: Project | null | undefined,
@@ -315,10 +306,9 @@ export const getCheckoutContextLabel = (
  * repository (ADR 0016).
  *
  * Order is preserved: an entry takes the position of its highest-sorted
- * checkout, so changing the sort order or starring a worktree still moves the
- * row where the user expects. The main checkout leads, because it owns the
- * repository's shared git directory and is the sane default for
- * repository-scoped actions.
+ * checkout, so re-sorting or starring a worktree moves the row where expected.
+ * The main checkout leads — it owns the shared git directory and is the default
+ * target for repository-scoped actions.
  */
 export const buildRepositoryEntries = (projects: Project[]): RepositoryEntry[] => {
   const checkoutsByKey = new Map<string, Project[]>();
@@ -367,9 +357,9 @@ export const buildRepositoryEntries = (projects: Project[]): RepositoryEntry[] =
 /**
  * Keeps the raw project rows belonging to one visible repository entry.
  *
- * The sidebar still needs raw rows for loading/empty state, while its picker
- * exposes repository rows. Matching through the shared entry key preserves
- * every worktree in a selected repository instead of picking only its lead.
+ * The sidebar needs raw rows for loading/empty state while its picker exposes
+ * repository rows. Matching through the shared entry key preserves every
+ * worktree in a selected repository instead of only its lead.
  */
 export const filterProjectsByRepositoryEntry = (
   projects: Project[],
@@ -383,12 +373,11 @@ export const filterProjectsByRepositoryEntry = (
 };
 
 /**
- * Every session across an entry's checkouts, newest first, starred pinned to
- * the top — the flattened list that replaces a tier of checkout rows.
+ * Every session across an entry's checkouts, newest first, starred pinned to the
+ * top — the flattened list that replaces a tier of checkout rows.
  *
- * The branch label is attached here rather than read off the row's own project
- * so that a single-checkout entry stays free of a redundant label: there is
- * nothing to disambiguate it from.
+ * The branch label is attached here rather than read off the row's own project,
+ * so a single-checkout entry stays free of a label with nothing to disambiguate.
  */
 export const mergeCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[] => {
   const needsBranchLabel = entry.checkouts.length > 1;
@@ -402,12 +391,11 @@ export const mergeCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[]
 };
 
 /**
- * The sessions a repository row actually lists: its merged sessions minus the
- * pinned ones.
+ * The sessions a repository row lists: its merged sessions minus the pinned
+ * ones.
  *
- * A pinned session is *moved* into the Pinned section, not copied there
- * (decided 2026-08-05) — one session, one row, so nothing is ever read twice
- * or unpinned from a place it appears to still be in.
+ * A pinned session is *moved* into the Pinned section, not copied — one session,
+ * one row, so nothing is read twice or unpinned from a place it still appears.
  */
 export const getUnpinnedCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[] => {
   return mergeCheckoutSessions(entry).filter(({ session }) => !session.isStarred);
@@ -415,11 +403,10 @@ export const getUnpinnedCheckoutSessions = (entry: RepositoryEntry): CheckoutSes
 
 /**
  * Every pinned session across the visible rows, newest first, each tagged with
- * the repository it came from so it still says where it belongs.
+ * the repository it came from.
  *
- * Built from the rows rather than from the raw project list so a search narrows
- * this section too, and so the branch label stays consistent with the row the
- * session left.
+ * Built from the rows rather than the raw project list, so a search narrows this
+ * section too and the branch label matches the row the session left.
  */
 export const collectPinnedSessions = (entries: RepositoryEntry[]): PinnedSession[] => {
   return entries
@@ -505,11 +492,10 @@ export const isDefaultRepositoryView = (options: RepositoryViewOptions): boolean
 /**
  * Applies one row's sort and worktree filter to its merged session list.
  *
- * Worktree ordering falls back to recency within a worktree, and names the
- * checkout by the same branch label the rows themselves show, so the groups
- * read in the order the eye expects. `title` uses the displayed name, fallback
- * included, rather than the raw summary — otherwise every unnamed session
- * sorts under the empty string while showing "New Session".
+ * Worktree ordering falls back to recency within a worktree and names the
+ * checkout by the same branch label the rows show. `title` uses the displayed
+ * name, fallback included, rather than the raw summary — otherwise every unnamed
+ * session sorts under the empty string while showing "New Session".
  */
 export const applyRepositoryViewOptions = (
   sessions: CheckoutSession[],

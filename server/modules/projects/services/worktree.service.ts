@@ -7,9 +7,8 @@ import { AppError, validateWorkspacePath } from '@/shared/utils.js';
 /**
  * Creating a linked worktree of an existing repository, so the sidebar can add
  * one to a repository row without dropping the user into a terminal (ADR 0016).
- *
- * "Worktree" is git's own noun, and its `git worktree` commands are what this
- * shells out to; the sidebar's older `checkout` identifiers mean the same thing.
+ * "Worktree" is git's own noun; the sidebar's older `checkout` identifiers mean
+ * the same thing.
  */
 
 type GitInvocation = {
@@ -49,7 +48,7 @@ function runGitProcess(workingDirectory: string, args: string[]): Promise<GitInv
       stdout += chunk.toString();
     });
     // Unlike repository identity, git's own message is the useful part of a
-    // failure here ("branch already checked out at ...") and is shown to the user.
+    // failure here ("branch already checked out at ...") and is shown.
     child.stderr?.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();
     });
@@ -65,9 +64,9 @@ const defaultDependencies: WorktreeDependencies = {
 };
 
 /**
- * The subset of `git check-ref-format --branch` worth enforcing before we spawn
- * anything. Arguments never reach a shell, so this is about rejecting a name
- * git would refuse anyway — with a message the user can act on.
+ * The subset of `git check-ref-format --branch` worth enforcing before spawning
+ * anything. Arguments never reach a shell, so this is about rejecting a name git
+ * would refuse anyway, with a message the user can act on.
  */
 const INVALID_BRANCH_PATTERN = /[\x00-\x20~^:?*[\\]|^[-/.]|[/.]$|\.\.|@\{|\.lock(\/|$)|\/\//;
 
@@ -83,12 +82,11 @@ export function assertValidBranchName(branch: string): void {
 
 /**
  * A base ref is a commit-ish, not a branch name, so `assertValidBranchName` is
- * the wrong check for it: `main^`, `HEAD~2` and `HEAD@{1}` are all valid
- * starting points that the branch rules reject on `^`, `~` and `@{`.
+ * the wrong check: `main^`, `HEAD~2` and `HEAD@{1}` are valid starting points
+ * that the branch rules reject on `^`, `~` and `@{`.
  *
- * Arguments never reach a shell, so the only hazard worth catching here is a
- * value git would read as an option. Whether the ref resolves is git's
- * question, and its answer names the cause better than a guess would.
+ * Arguments never reach a shell, so the only hazard worth catching is a value
+ * git would read as an option. Whether the ref resolves is git's question.
  */
 const INVALID_BASE_REF_PATTERN = /[\x00-\x20\x7f?*[\\]|^-/;
 
@@ -119,10 +117,9 @@ export function deriveWorktreePath(repositoryRoot: string, branch: string): stri
  * Root of the repository's main worktree.
  *
  * A linked worktree's shared git directory is the main worktree's `.git`, so
- * stripping that suffix names the main worktree's directory — the same
- * derivation the sidebar uses to pick a row's lead. Falls back to the calling
- * project's own root for layouts where it does not hold (bare repositories,
- * `--separate-git-dir`).
+ * stripping that suffix names its directory — the same derivation the sidebar
+ * uses to pick a row's lead. Falls back to the calling project's own root for
+ * layouts where that does not hold (bare, `--separate-git-dir`).
  */
 async function resolveRepositoryRoot(
   projectPath: string,
@@ -152,15 +149,14 @@ async function resolveRepositoryRoot(
 /**
  * Runs `git worktree add`, creating the branch along with the tree.
  *
- * Registering the result as a project is deliberately left to the caller: the
- * directory exists on disk either way, and a failed registration must not look
- * like a failed worktree.
+ * Registering the result as a project is left to the caller: the directory
+ * exists either way, and a failed registration must not look like a failed
+ * worktree.
  *
- * The destination is validated against the workspace root *before* git runs,
- * because that is the one registration failure worth preventing rather than
- * reporting — otherwise a repository sitting outside the workspace root creates
- * its worktree successfully and then cannot be registered, leaving a directory
- * behind that nothing in the UI names.
+ * The destination is validated against the workspace root *before* git runs —
+ * the one registration failure worth preventing rather than reporting.
+ * Otherwise a repository outside the workspace root creates its worktree
+ * successfully, cannot be registered, and leaves a directory nothing names.
  */
 export async function createRepositoryWorktree(
   input: CreateWorktreeInput,
@@ -196,8 +192,8 @@ export async function createRepositoryWorktree(
     throw new AppError('Failed to create worktree', {
       code: 'WORKTREE_ADD_FAILED',
       statusCode: 400,
-      // git's own message names the real cause: the branch already exists, the
-      // path is taken, or the branch is checked out in another worktree.
+      // git's own message names the cause: branch exists, path taken, or branch
+      // already checked out in another worktree.
       details: added.stderr.trim() || `git worktree add failed for ${worktreePath}`,
     });
   }

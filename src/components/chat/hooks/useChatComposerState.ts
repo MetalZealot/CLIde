@@ -142,9 +142,9 @@ export type ContextCommandData = {
   message?: string;
   model?: string | null;
   /**
-   * The headline number. With a reading this is its own `totalTokens`, which
-   * the rendered categories sum to exactly; without one it is the ring's count.
-   * Never a mix of the two — they disagree slightly and the view stops adding up.
+   * The headline number. With a reading this is its own `totalTokens`, which the
+   * rendered categories sum to exactly; without one it is the ring's count.
+   * Never a mix — they disagree slightly and the view stops adding up.
    */
   usedTokens?: number;
   /** Usage at the moment the reading was taken. */
@@ -352,9 +352,8 @@ export function useChatComposerState({
     id: 0,
     view: 'summary',
   });
-  // Drives the /context modal's refresh button. Its own flag, separate from
-  // `isLoading` (the turn's send/stream state) — a refresh is a single POST,
-  // not a new turn.
+  // Drives the /context modal's refresh button. Separate from `isLoading` (the
+  // turn's stream state): a refresh is one POST, not a new turn.
   const [isRefreshingContext, setIsRefreshingContext] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -417,8 +416,8 @@ export function useChatComposerState({
           setModelMenuOpenRequest((request) => request + 1);
           break;
 
-        // `cost` is the pre-rename action name: a browser tab left open across
-        // the deploy still asks for it, and `/cost` survives as a command alias.
+        // `cost` is the pre-rename action name; a tab left open across the
+        // deploy still asks for it, and `/cost` survives as a command alias.
         case 'cost':
         case 'usage': {
           setCommandModalPayload(null);
@@ -695,11 +694,9 @@ export function useChatComposerState({
     );
   }, [executeCommand, provider]);
 
-  // Manually re-fires the SDK's context reading (only possible mid-turn — see
-  // docs/specs/2026-07-28-context-usage-live-refresh.md) and then
-  // re-opens the modal so it renders whatever the refresh produced. A
-  // "no live turn" response changes nothing server-side, so re-running is
-  // still correct there — the modal just re-renders the same cached reading.
+  // Manually re-fires the SDK's context reading (mid-turn only) and re-opens the
+  // modal to render whatever came back. A "no live turn" response changes
+  // nothing server-side, so re-running is still safe.
   const refreshContextPopover = useCallback(async () => {
     if (!selectedProject || !sessionKey) {
       return;
@@ -838,8 +835,8 @@ export function useChatComposerState({
   );
 
   // No `open` here on purpose: the picker is opened by a real tap on the native
-  // input rendered by NativeImageAttachmentPicker, not programmatically. Android
-  // standalone PWAs drop the result of a JS-driven `open()`.
+  // input in NativeImageAttachmentPicker. Android standalone PWAs drop the
+  // result of a JS-driven `open()`.
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     maxSize: MAX_ATTACHMENT_SIZE,
     maxFiles: MAX_ATTACHMENT_COUNT,
@@ -879,10 +876,10 @@ export function useChatComposerState({
     };
 
     const toolsSettings = getToolsSettings();
-    // The provider-level model is only a default for brand-new sessions.
-    // An existing session sends its own tracked model, or no model at all so
-    // the server resolves it from the session's pick/transcript — sending the
-    // global value here is what used to leak model choices across sessions.
+    // The provider-level model is only a seed for brand-new sessions. An
+    // existing session sends its own tracked model, or none at all so the server
+    // resolves from its pick/transcript — sending the global value here is what
+    // leaked model choices across sessions.
     const sessionSlotModel = sessionKey ? sessionStore.getSlot(sessionKey)?.model : null;
     const model = sessionSlotModel ?? (sessionKey ? undefined : currentProviderModel);
 
@@ -1018,8 +1015,8 @@ export function useChatComposerState({
 
       // Intercept slash commands only when "/" is the first input character.
       // Also accept exact "help" as a convenience alias for users who expect CLI-style help.
-      // Never while rewind-editing: an edited prior message that happens to
-      // start with "/" must be re-sent verbatim, not executed as a command.
+      // Never while rewind-editing: an edited prior message starting with "/"
+      // must be re-sent verbatim, not executed.
       const commandInput = currentInput.trimEnd();
       const isHelpAlias = commandInput.trim().toLowerCase() === 'help';
       if (!pendingRewind && (commandInput.startsWith('/') || isHelpAlias)) {
@@ -1120,9 +1117,9 @@ export function useChatComposerState({
         });
       }
 
-      // A rewind send drops the edited message and its tail from the visible
-      // list before the replacement is appended; the post-turn refetch
-      // reconciles against the server's branch-filtered transcript.
+      // A rewind send drops the edited message and its tail before the
+      // replacement is appended; the post-turn refetch reconciles against the
+      // server's branch-filtered transcript.
       if (pendingRewind) {
         sessionStore.truncateFromMessageId(targetSessionId, pendingRewind.anchorMessageId);
         rewindReconcileSessionRef.current = targetSessionId;
@@ -1251,8 +1248,8 @@ export function useChatComposerState({
   /**
    * Enter rewind-edit mode for a prior user message: load its text into the
    * composer and arm the next send with the message's transcript uuid. The
-   * previous draft is stashed and restored on cancel. Re-invoking while
-   * already editing retargets the anchor but keeps the original stash.
+   * previous draft is stashed and restored on cancel; re-invoking while editing
+   * retargets the anchor but keeps the original stash.
    */
   const beginRewindEdit = useCallback((message: ChatMessage) => {
     if (isLoading || message.type !== 'user' || typeof message.content !== 'string') {
@@ -1293,9 +1290,8 @@ export function useChatComposerState({
     setShowForkPicker(false);
   }, [sessionKey]);
 
-  // After a rewound turn completes, refetch from the server: the transcript
-  // (with its abandoned branch filtered out) is the ground truth the
-  // optimistic truncation must reconcile against.
+  // After a rewound turn, refetch: the transcript with its abandoned branch
+  // filtered out is what the optimistic truncation reconciles against.
   const rewindWasLoadingRef = useRef(isLoading);
   useEffect(() => {
     const wasLoading = rewindWasLoadingRef.current;
@@ -1347,8 +1343,8 @@ export function useChatComposerState({
       return;
     }
 
-    // Text drafts are intentionally per checkout and are restored below. File
-    // objects are transient, so never carry them silently into another target.
+    // Text drafts are per checkout and restored below. File objects are
+    // transient — never carry them into another target.
     setAttachedFiles([]);
     setUploadingFiles(new Map());
     setFileErrors(new Map());
@@ -1453,11 +1449,10 @@ export function useChatComposerState({
     [handleCommandInputChange, resetCommandMenuState, setCursorPosition],
   );
 
-  // Touch devices (phones/tablets, incl. installed PWA) get a soft keyboard whose
-  // Enter inserts a newline by default — sending is done via the send button, with
-  // the quick-settings "Enter to send" toggle (enterToSend) as the opt-in for e.g.
-  // tablets with hardware keyboards. Desktop (fine pointer) keeps Enter = send
-  // unless "Send by Ctrl+Enter" (sendByCtrlEnter) is on.
+  // Touch devices (including the installed PWA) get a soft keyboard whose Enter
+  // inserts a newline; sending is the send button, with `enterToSend` as the
+  // opt-in for tablets with hardware keyboards. Desktop (fine pointer) keeps
+  // Enter = send unless `sendByCtrlEnter` is on.
   const isTouchPrimary = useMemo(() => isTouchPrimaryDevice(), []);
 
   const handleKeyDown = useCallback(
@@ -1552,9 +1547,9 @@ export function useChatComposerState({
       sessionId: targetSessionId,
     });
     if (!delivered) {
-      // Socket is down — the abort never left the browser. Say so instead of
-      // silently no-oping; the reconnect flow will resync the real run state
-      // (and this transient note is replaced by the post-reconnect refetch).
+      // Socket is down — the abort never left the browser. Say so rather than
+      // silently no-oping; reconnect resyncs the real run state and replaces
+      // this note.
       addMessage({
         type: 'error',
         content: 'Connection lost — Stop was not delivered. Reconnecting…',
@@ -1607,11 +1602,10 @@ export function useChatComposerState({
         });
       });
 
-      // Interactive tools (AskUserQuestion) resolve locally the instant the
-      // user answers. Patch the transcript's tool_use message with the
-      // answer right away instead of waiting on the SDK's own tool_result
-      // to round-trip back — that round trip can take a few seconds, during
-      // which the message would otherwise still read "Skipped".
+      // Interactive tools (AskUserQuestion) resolve locally the instant the user
+      // answers. Patch the tool_use message immediately rather than waiting on
+      // the SDK's tool_result — that round trip can take seconds, during which
+      // the message would still read "Skipped".
       if (decision?.allow && decision.toolId && sessionKey) {
         const request = pendingPermissionRequests.find((item) => item.toolId === decision.toolId);
         const secretQuestionIds = new Set(
@@ -1631,10 +1625,10 @@ export function useChatComposerState({
         });
       }
 
-      // Keep the request visible until the backend confirms it was accepted
-      // (`permission_cancelled` with reason=resolved, or App Server's
-      // `serverRequest/resolved`). This prevents a dropped/stale response from
-      // looking successful and lets reconnect replay remain authoritative.
+      // Keep the request visible until the backend confirms acceptance
+      // (`permission_cancelled` reason=resolved, or App Server's
+      // `serverRequest/resolved`), so a dropped response cannot look successful
+      // and reconnect replay stays authoritative.
     },
     [sendMessage, sessionStore, sessionKey, pendingPermissionRequests],
   );

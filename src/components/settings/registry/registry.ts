@@ -1,14 +1,13 @@
 /**
  * The single source of truth for Settings' information architecture.
  *
- * This module is deliberately **pure data with no React imports** — it drives the
- * mobile root list, the desktop rail, deep links, the command palette and (in a
- * later phase) search, and it is unit-tested with `node:test` without a renderer.
- * Icons are therefore named, not imported; the view layer maps the names to
- * components in `SettingsIcons.tsx`, and the mapping is exhaustive by type.
+ * Deliberately **pure data with no React imports**: it drives the mobile root
+ * list, the desktop rail, deep links, the command palette and search, and is
+ * unit-tested without a renderer. Icons are named, not imported; the view layer
+ * maps names to components in `SettingsIcons.tsx`, exhaustively by type.
  *
- * Screen ids are stable strings and are used as deep links, so treat them as a
- * public contract: renaming one needs an entry in LEGACY_SCREEN_IDS.
+ * Screen ids are a public contract — they are deep links. Renaming one needs an
+ * entry in LEGACY_SCREEN_IDS.
  */
 
 export type SettingsIconName =
@@ -63,14 +62,13 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
 ];
 
 /**
- * The four CLI providers, promoted to root by P4. Declared as data because
- * their screens are otherwise identical: each is an account screen with up to
- * three subsystem sub-screens, and hand-writing fourteen near-identical nodes
- * is exactly the divergence the registry exists to prevent.
+ * The four CLI providers. Declared as data because their screens are otherwise
+ * identical — each is an account screen with up to three subsystem sub-screens,
+ * and fourteen hand-written near-identical nodes is the divergence this registry
+ * exists to prevent.
  *
- * Mirrors `LLMProvider` from `types/app`, restated here so this module keeps its
- * no-imports property; `AGENT_PROVIDER_IDS` is checked against it in the view
- * layer, which is where the two meet.
+ * Mirrors `LLMProvider` from `types/app`, restated so this module keeps its
+ * no-imports property; the view layer checks the two against each other.
  */
 export type AgentProviderId = 'claude' | 'cursor' | 'codex' | 'opencode';
 
@@ -81,9 +79,7 @@ type AgentProviderDescriptor = {
   icon: SettingsIconName;
   /**
    * OpenCode has neither a permissions UI nor per-provider skills, so it gets
-   * neither row. This is the pre-existing capability shape, not a new decision:
-   * `AgentCategoryContentSection` rendered nothing for OpenCode › Permissions,
-   * and the IA spec's provider sketch lists Skills as hidden for it.
+   * neither row — the pre-existing capability shape, not a new decision.
    */
   subsystems: AgentSubsystem[];
 };
@@ -132,9 +128,9 @@ const AGENT_SCREENS: SettingsScreenNode[] = AGENT_PROVIDERS.flatMap((provider) =
     labelKey: `agents.providers.${provider.id}`,
     icon: provider.icon,
     group: 'agents' as const,
-    // Deliberately *not* listing the subsystems here: each subsystem is its own
-    // screen with its own keywords, so repeating them would make "claude
-    // permissions" match both the account screen and the Permissions screen.
+    // Deliberately not listing the subsystems: each is its own screen with its
+    // own keywords, so repeating them would make "claude permissions" match both
+    // the account screen and the Permissions screen.
     keywords: `${provider.id} agent provider account sign in login usage plan`,
   },
   ...provider.subsystems.map((subsystem) => ({
@@ -149,9 +145,8 @@ const AGENT_SCREENS: SettingsScreenNode[] = AGENT_PROVIDERS.flatMap((provider) =
 ]);
 
 /**
- * Every destination in Settings. Since P4 this is the IA spec's root list
- * exactly: the interim single `agents` screen is gone, replaced by the four
- * provider screens above and their subsystem sub-screens.
+ * Every destination in Settings: the four provider screens above, their
+ * subsystem sub-screens, and the rest of the root list.
  */
 export const SETTINGS_SCREENS: SettingsScreenNode[] = [
   ...AGENT_SCREENS,
@@ -261,14 +256,11 @@ export const SETTINGS_NODES: SettingsNode[] = [...SETTINGS_GROUPS, ...SETTINGS_S
 export const MAX_SETTINGS_DEPTH = 2;
 
 /**
- * Old tab ids kept working as deep links. `openSettings('api')` and any
- * bookmarked palette entry must keep resolving after the restructure.
- * `tools` predates the Agents tab; both it and `agents` land on Claude's
- * provider screen, which is where the old Agents tab opened (Claude × Account).
- * `voice` was its own top-level tab; its enable toggle now lives on the `chat`
- * screen itself, but the deep link goes straight to the backend sub-screen since
- * that was the old tab's substance. `git` was its own top-level tab; P3b merged
- * it with project sorting into `projects-git`.
+ * Old tab ids kept working as deep links, so `openSettings('api')` and any
+ * bookmarked palette entry still resolve. `tools` and `agents` both land on
+ * Claude's provider screen, where the old Agents tab opened. `voice` goes
+ * straight to the backend sub-screen — the substance of the old tab, though its
+ * enable toggle now lives on `chat`. `git` merged into `projects-git`.
  */
 export const LEGACY_SCREEN_IDS: Record<string, string> = {
   tools: 'agent.claude',
@@ -330,10 +322,9 @@ const AGENT_SCREEN_REFS = new Map<string, AgentScreenRef>(
 );
 
 /**
- * Which provider and subsystem a screen id refers to, or null for any screen
- * outside the Agents group. Lets the view layer branch on two small values
- * instead of a fourteen-case switch, and keeps the id format an implementation
- * detail of this module.
+ * Which provider and subsystem a screen id refers to, or null outside the Agents
+ * group. Lets the view layer branch on two small values instead of a
+ * fourteen-case switch, and keeps the id format internal to this module.
  */
 export const parseAgentScreenId = (id: string | null | undefined): AgentScreenRef | null => (
   id ? AGENT_SCREEN_REFS.get(id) ?? null : null

@@ -1,22 +1,19 @@
 /**
- * verify-rewind-sdk.ts — empirical probe of the Agent SDK's rewind surface.
- *
- * Run from the repo root (uses the repo's installed SDK + the user's Claude login;
- * costs a handful of haiku turns):
+ * Empirical probe of the Agent SDK's rewind surface. Run from the repo root;
+ * uses the installed SDK and the user's Claude login, and costs a handful of
+ * haiku turns:
  *
  *   npx tsx scripts/verify-rewind-sdk.ts
  *
- * Answers the verification questions for the chat-rewind feature
- * (see docs/specs + docs/plans):
- *   V1 — resumeSessionAt: is a user-message uuid accepted? is the anchor inclusive?
- *   V2 — does resume+resumeSessionAt continue the SAME session id (in place) or fork?
- *        what happens to the original transcript jsonl on disk?
- *   V3 — behavior when the anchor uuid does not exist in the session.
+ *   V1 — resumeSessionAt: is a user-message uuid accepted? is it inclusive?
+ *   V2 — does resume+resumeSessionAt continue the SAME session id or fork, and
+ *        what happens to the original transcript jsonl?
+ *   V3 — behaviour when the anchor uuid does not exist.
  *   V4 — on fork, does the new session id arrive on the first streamed message?
- *   V5 — where enableFileCheckpointing stores snapshots (Pi disk-usage question).
+ *   V5 — where enableFileCheckpointing stores snapshots.
  *   V7 — do all real user transcript entries carry a uuid?
  *
- * FINDINGS (recorded after each run) — see the trailing "FINDINGS" comment block.
+ * Findings are in the trailing FINDINGS block.
  */
 
 import fs from 'node:fs';
@@ -264,35 +261,28 @@ main().catch((err) => {
 });
 
 /*
- * FINDINGS — run of 2026-07-22 (SDK v0.3.217, model haiku):
+ * FINDINGS — run 2026-07-22, SDK v0.3.217, model haiku.
  *
- *   V1: resumeSessionAt REQUIRES an assistant-message uuid. Passing a user uuid
- *       fails cleanly: result subtype error_during_execution, "No message found
- *       with message.uuid of: <uuid>". The anchor is INCLUSIVE (resumed context
- *       contained the anchored turn). A user message's parentUuid points directly
- *       at the preceding assistant text entry, so the anchor walk is: edited user
- *       entry → follow parentUuid until type === 'assistant'.
- *   V2: Rewind is IN PLACE — the resumed query keeps the SAME session id and the
- *       jsonl is NOT truncated. The new turn is APPENDED with parentUuid set to
- *       the anchor, turning the transcript into a TREE: the abandoned tail stays
- *       in the file as a dead branch. Consequence: any linear transcript reader
- *       shows both branches — history reading must follow the active parent
- *       chain backward from the last main-chain entry. (This also means CLIde
- *       currently mis-renders sessions rewound from the terminal CLI.)
- *   V3: Nonexistent anchor uuid → same clean error result as V1; no hang, no
- *       partial session damage. First-message edit has no assistant ancestor
- *       (parentUuid null) → must drop resume entirely and start fresh.
- *   V4: Moot for in-place (same sid on first streamed message). The fresh-start
- *       path relies on the existing new-session id capture.
- *   V5: enableFileCheckpointing writes file-history-snapshot / file-history-delta
- *       entries INTO the session jsonl (trackedFileBackups map); no separate
- *       storage dir appeared under ~/.claude. Disk growth is bounded to
- *       ~/.claude/projects transcripts. (Backup payload shape for modified files
- *       still TBD — Phase B concern.)
- *   V7: All real user transcript entries carry a uuid (0 missing). Metadata rows
- *       (attachment/queue-operation/last-prompt/ai-title/mode) have no uuid or no
- *       role and are not rendered as chat messages.
- *   V8 (implied by V2): the messages endpoint does NOT reflect any truncation —
- *       there is none. The branch-aware filter server-side is what makes the
+ *   V1: resumeSessionAt REQUIRES an assistant-message uuid. A user uuid fails
+ *       cleanly (error_during_execution, "No message found with message.uuid").
+ *       The anchor is INCLUSIVE. A user message's parentUuid points at the
+ *       preceding assistant entry, so the walk is: edited user entry → follow
+ *       parentUuid until type === 'assistant'.
+ *   V2: Rewind is IN PLACE — same session id, jsonl NOT truncated. The new turn
+ *       is APPENDED with parentUuid at the anchor, making the transcript a TREE
+ *       with the abandoned tail left as a dead branch. Any linear reader shows
+ *       both, so history reading must follow the active parent chain backward.
+ *   V3: Nonexistent anchor → the same clean error as V1; no hang, no damage. A
+ *       first-message edit has no assistant ancestor, so resume must be dropped.
+ *   V4: Moot for in-place. The fresh-start path uses the existing new-session id
+ *       capture.
+ *   V5: enableFileCheckpointing writes file-history-snapshot / -delta entries
+ *       INTO the session jsonl; no separate storage dir. Disk growth is bounded
+ *       to ~/.claude/projects transcripts.
+ *   V7: All real user entries carry a uuid (0 missing). Metadata rows
+ *       (attachment/queue-operation/last-prompt/ai-title/mode) have no uuid or
+ *       no role and are not rendered.
+ *   V8 (implied by V2): the messages endpoint reflects no truncation, because
+ *       there is none. The server-side branch-aware filter is what makes the
  *       post-rewind refetch correct.
  */

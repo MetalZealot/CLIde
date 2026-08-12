@@ -214,10 +214,9 @@ test('beginAbort claims a running run once and rejects concurrent duplicates', a
     const claimed = chatRunRegistry.beginAbort('app-run-abort');
     assert.equal(claimed, run);
 
-    // A mashed second click (or a duplicate key handler) while the first
-    // abort's provider interrupt call is still in flight must not get its
-    // own claim — that would fire a second concurrent interrupt against the
-    // same provider runtime.
+    // A mashed second click while the first abort's provider interrupt is still
+    // in flight must not get its own claim — that would fire a second concurrent
+    // interrupt against the same runtime.
     assert.equal(chatRunRegistry.beginAbort('app-run-abort'), null);
 
     // No active run at all still reports null, same as before this guard.

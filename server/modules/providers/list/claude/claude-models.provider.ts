@@ -19,8 +19,8 @@ import type {
 import { buildDefaultProviderCurrentActiveModel } from '@/shared/utils.js';
 
 // Every effort-capable Claude model exposes the same five levels, so they share
-// one frozen block rather than repeating it per option. The catalog is only ever
-// serialised to JSON, so sharing the reference is safe.
+// one frozen block. The catalog is only ever serialised to JSON, so sharing the
+// reference is safe.
 const CLAUDE_EFFORT_LEVELS: ProviderModelOption['effort'] = Object.freeze({
   default: 'high',
   values: Object.freeze([
@@ -32,19 +32,16 @@ const CLAUDE_EFFORT_LEVELS: ProviderModelOption['effort'] = Object.freeze({
   ]),
 }) as ProviderModelOption['effort'];
 
-// Labels carry the version number ("Opus 5", not "Opus") because the
-// composer picker renders the label alone — it never shows `description`
-// (ComposerModelMenu.tsx), so a bare family name leaves no way to
-// tell which generation you are picking. Current models use the floating alias
-// as their `value`, so these labels need bumping by hand whenever Claude ships
-// a new generation; legacy entries pin a concrete id, which is the point of them.
+// Labels carry the version number ("Opus 5", not "Opus"): the composer picker
+// renders the label alone and never shows `description` (ComposerModelMenu.tsx).
+// Current models use the floating alias as their `value`, so these labels need
+// bumping by hand each new generation; legacy entries pin a concrete id.
 //
-// There is deliberately no `[1m]` option for any model. The suffix opts into the
-// 1M-context beta, which only means something where 1M is not already native —
-// third-party platforms (Bedrock/Vertex/Foundry) and Pro-tier accounts. Talking
-// to api.anthropic.com above Pro, every model is natively 1M, Claude Code
-// suppresses its own "(1M context)" rows, and sending the suffix changes nothing
-// except billing the long-context premium under a separate usage key.
+// Deliberately no `[1m]` option for any model. The suffix opts into the 1M
+// beta, which only means something where 1M is not already native — third-party
+// platforms and Pro-tier accounts. Above Pro on api.anthropic.com every model is
+// natively 1M, Claude Code suppresses its own "(1M context)" rows, and the
+// suffix only bills the long-context premium under a separate usage key.
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
@@ -70,11 +67,11 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
       label: 'Haiku 4.5',
       description: 'Fastest for quick answers · $1/$5 per Mtok',
     },
-    // Claude Code hides these behind its third-party menu branch, but they still
-    // run as themselves on a first-party account. Opus 4.1 and 4.0 are
-    // deliberately absent: the CLI's deprecation table remaps them to the latest
-    // Opus unless CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP is set, so a row for
-    // them would name a model the session would not actually use.
+    // Claude Code hides these behind its third-party menu branch, but they run
+    // as themselves on a first-party account. Opus 4.1 and 4.0 are absent: the
+    // CLI's deprecation table remaps them to the latest Opus unless
+    // CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP is set, so a row would name a model
+    // the session would not use.
     {
       value: 'claude-opus-4-8',
       label: 'Opus 4.8',
@@ -104,10 +101,9 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
       effort: CLAUDE_EFFORT_LEVELS,
     },
   ],
-  // Only a display/seed fallback for when the configured default cannot be read;
+  // Display/seed fallback for when the configured default cannot be read;
   // `getSupportedModels` replaces it with the real one. Claude Code's own
-  // built-in fallback is Sonnet, so this matches what an unconfigured machine
-  // would actually run.
+  // built-in fallback is Sonnet, so this matches an unconfigured machine.
   DEFAULT: 'sonnet',
 };
 
@@ -121,10 +117,9 @@ export const findClaudeModelOption = (model: string | undefined | null): Provide
 };
 
 /**
- * Maps a full model id from a session transcript (e.g. `claude-fable-5`) back
- * to the picker alias (`fable`) so the frontend can highlight the matching
- * catalog option. Unknown ids are returned unchanged so the UI still shows the
- * real model instead of silently falling back to the default.
+ * Maps a full transcript model id (e.g. `claude-fable-5`) back to its picker
+ * alias (`fable`) so the frontend can highlight the matching option. Unknown ids
+ * pass through, so the UI shows the real model rather than the default.
  */
 export const resolveClaudeModelAlias = (
   model: string,
@@ -136,12 +131,11 @@ export const resolveClaudeModelAlias = (
   }
 
   // The catalog offers no `[1m]` variants, so a transcript that recorded one
-  // still belongs on its base model's row rather than on no row at all.
+  // still belongs on its base model's row.
   const lowered = normalized.toLowerCase().replace(/\[1m\]/g, '');
 
-  // Longest match wins. `claude-opus-4-8-20260101` contains both `opus` and
-  // `claude-opus-4-8`, and only the second names the model that actually ran —
-  // a first-match loop would highlight Opus 5 for an Opus 4.8 session.
+  // Longest match wins: `claude-opus-4-8-20260101` contains both `opus` and
+  // `claude-opus-4-8`, and a first-match loop would highlight Opus 5.
   let best: string | null = null;
   for (const option of options) {
     const family = option.value.toLowerCase();
@@ -156,13 +150,11 @@ export const resolveClaudeModelAlias = (
   return best ?? normalized;
 };
 /**
- * Decides whether a stored popup pick still represents the session, given when
- * the pick was recorded and when the last transcript turn ran. The pick wins
- * only when it is at least as recent as that turn; a newer turn means the model
- * has since changed by a path the cache never observed, so the transcript wins.
- * When either timestamp is missing/unparseable we bias toward whichever signal
- * we can trust: no turn to compare against -> the pick stands; an undateable
- * pick -> defer to the transcript.
+ * Whether a stored popup pick still represents the session. The pick wins only
+ * when it is at least as recent as the last transcript turn; a newer turn means
+ * the model changed by a path the cache never observed, so the transcript wins.
+ * Missing timestamps bias toward the trustworthy signal: no turn to compare
+ * against -> the pick stands; an undateable pick -> defer to the transcript.
  */
 export const pickSupersedesTranscript = (
   pickUpdatedAt?: string,
@@ -211,10 +203,9 @@ const ANSI_PATTERN = new RegExp(
 );
 
 // Claude Code stamps locally-fabricated assistant rows (API-error notices,
-// "No response requested.", session-limit messages) with the placeholder
-// model "<synthetic>". Adopting it would feed a non-model into the send path,
-// so placeholder values are skipped and the transcript scan keeps walking back
-// to the last real turn.
+// "No response requested.", session-limit messages) with the placeholder model
+// "<synthetic>". Adopting it would feed a non-model into the send path, so
+// placeholders are skipped and the scan walks back to the last real turn.
 const isPlaceholderClaudeModel = (value: string): boolean => /^<.*>$/.test(value);
 
 const extractClaudeEventModel = (event: ClaudeInitEvent, sessionId: string): string | null => {
@@ -335,10 +326,9 @@ export class ClaudeProviderModels implements IProviderModels {
   }
 
   /**
-   * Resolves what "default" actually runs for this machine, mirroring Claude
-   * Code's own precedence: ANTHROPIC_MODEL env, then the `model` key in
-   * ~/.claude/settings.json. Returns null when neither is set (the plan
-   * default applies and we cannot know it here).
+   * Resolves what "default" runs on this machine, mirroring Claude Code's
+   * precedence: ANTHROPIC_MODEL, then `model` in ~/.claude/settings.json. Null
+   * when neither is set — the plan default applies and cannot be read here.
    */
   private async readConfiguredDefaultModel(): Promise<string | null> {
     const envModel = process.env.ANTHROPIC_MODEL?.trim();
@@ -369,12 +359,10 @@ export class ClaudeProviderModels implements IProviderModels {
     // const supportedModels = await queryInstance.supportedModels();
     // queryInstance.close();
     // return buildClaudeModelsDefinition(supportedModels);
-    // There is no "Default" row to describe any more — the catalog names the
-    // model that is actually the default and flags it, so the picker can badge
-    // a real option instead of offering a pseudo-model. Sending the literal
-    // string "default" was never a working alias: Claude Code does not
-    // recognise it and falls back to its built-in Sonnet default, ignoring the
-    // user's configured `model` entirely.
+    // No "Default" row exists: the catalog names the model that *is* the default
+    // and flags it, so the picker badges a real option. The literal "default"
+    // was never a working alias — Claude Code falls back to built-in Sonnet and
+    // ignores the configured `model` entirely.
     const configuredDefaultModel = await this.readConfiguredDefaultModel();
     if (!configuredDefaultModel) {
       return CLAUDE_FALLBACK_MODELS;
@@ -406,9 +394,8 @@ export class ClaudeProviderModels implements IProviderModels {
       store: this.deps.modelPickStore,
     });
     // Sessions picked before the "Default" row was removed still carry that
-    // literal, which never named a model. Treat it as no pick rather than
-    // rewriting the row: the session then falls through to its transcript,
-    // which is what actually ran.
+    // literal, which named no model. Treat it as no pick rather than rewriting
+    // the row; the session falls through to its transcript.
     const pickedModel = changedModel.model === 'default' ? null : changedModel.model;
     const hasPendingPick = changedModel.changed && Boolean(pickedModel);
 
@@ -426,14 +413,14 @@ export class ClaudeProviderModels implements IProviderModels {
       transcriptModel = null;
     }
 
-    // A stored popup pick applies on the next turn, so it only reflects the
-    // session while it is at least as recent as the last recorded turn. Once a
-    // newer turn exists, the model may have changed by a path the cache never
-    // saw (fast mode, a Shell /model), and the transcript is the ground truth.
+    // A stored pick applies on the next turn, so it only reflects the session
+    // while at least as recent as the last recorded turn. Past that the model
+    // may have changed by a path the cache never saw (fast mode, a Shell
+    // /model), and the transcript is ground truth.
     if (hasPendingPick && pickSupersedesTranscript(changedModel.updatedAt, transcriptModel?.timestamp)) {
-      // Normalised for the same reason as the transcript path: a pick recorded
-      // against a since-removed row (`opus[1m]`) still belongs on the row that
-      // supersedes it, or the picker highlights nothing.
+      // Normalised as on the transcript path: a pick recorded against a
+      // since-removed row (`opus[1m]`) still belongs on its successor, or the
+      // picker highlights nothing.
       const supportedModels = await this.getSupportedModels();
       return {
         model: resolveClaudeModelAlias(pickedModel as string, supportedModels.OPTIONS),

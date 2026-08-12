@@ -47,17 +47,16 @@ export type ProjectListItem = {
   branch: string | null;
   detachedHead: string | null;
   /**
-   * A worktree found on disk that has no project row. It is derived per
-   * request, never stored, so its `projectId` is synthetic and no
-   * project-scoped operation may be addressed to it until the user adopts it.
+   * A worktree found on disk with no project row. Derived per request, never
+   * stored, so its `projectId` is synthetic and no project-scoped operation may
+   * address it until the user adopts it.
    */
   isDiscovered?: boolean;
 };
 
-// The archive is a flat historical view, so it carries no repository grouping.
-// Omitting the fields is deliberate: an archived project's directory is often
-// gone, and inventing nulls for it would read as "not a repository" rather than
-// "not grouped here".
+// The archive is a flat historical view with no repository grouping. Omitting
+// the fields is deliberate: an archived project's directory is often gone, and
+// nulls would read as "not a repository" rather than "not grouped here".
 export type ArchivedProjectListItem = Omit<
   ProjectListItem,
   'repositoryId' | 'branch' | 'detachedHead'
@@ -209,10 +208,10 @@ const NO_CHECKOUT_IDENTITY: CheckoutIdentity = {
 /**
  * How many identity reads run at once.
  *
- * Each one spawns git, so reading them inside the sequential project loop makes
- * the list as slow as the project count, while a flat `Promise.all` would fork
- * one process per project at the same instant. A small pool is the middle
- * ground; `readCheckoutIdentity` never rejects, so no settling wrapper is needed.
+ * Each spawns git, so reading them inside the sequential project loop makes the
+ * list as slow as the project count, while a flat `Promise.all` forks one process
+ * per project at once. `readCheckoutIdentity` never rejects, so no settling
+ * wrapper is needed.
  */
 const IDENTITY_READ_CONCURRENCY = 8;
 
@@ -232,20 +231,19 @@ async function readCheckoutIdentities(
 
 /**
  * Marks a list entry that exists only for this response. Nothing persistent may
- * be keyed by it, and the client uses the prefix to keep project-scoped actions
- * away from a checkout that has no row to act on.
+ * be keyed by it; the client uses the prefix to keep project-scoped actions away
+ * from a checkout with no row to act on.
  */
 export const DISCOVERED_PROJECT_ID_PREFIX = 'discovered:';
 
 /**
  * Worktrees of the already-listed repositories that have no project row.
  *
- * Probing is one `git worktree list` per repository rather than per project,
- * since any checkout reports the whole repository. Identity for each discovery
- * then goes through `readCheckoutIdentity` rather than being derived from the
- * porcelain output, so its `repositoryId` is produced by the same code that
- * produced the registered rows' — which is what makes the client's grouping
- * join work at all.
+ * One `git worktree list` per repository rather than per project, since any
+ * checkout reports the whole repository. Identity for each discovery goes
+ * through `readCheckoutIdentity` rather than the porcelain output, so its
+ * `repositoryId` comes from the same code that produced the registered rows' —
+ * which is what makes the client's grouping join work.
  */
 async function readDiscoveredCheckouts(
   registeredPaths: string[],
@@ -280,7 +278,7 @@ async function readDiscoveredCheckouts(
   for (const entry of entries) {
     const identity = identities.get(entry.path) ?? NO_CHECKOUT_IDENTITY;
     // No identity means git stopped agreeing this is a checkout between the two
-    // calls. Listing it ungrouped would strand a row nothing can adopt, so drop it.
+    // calls. Listing it ungrouped would strand a row nothing can adopt.
     if (!identity.repositoryId) {
       continue;
     }
@@ -288,10 +286,9 @@ async function readDiscoveredCheckouts(
     discovered.push({
       projectId: `${DISCOVERED_PROJECT_ID_PREFIX}${entry.path}`,
       path: entry.path,
-      // Deliberately the directory name, not `generateDisplayName`: every
-      // checkout of one repository shares its `package.json`, so the derived
-      // name is identical for all of them and tells the user nothing. This also
-      // matches the name `createProject` stores when the checkout is adopted.
+      // The directory name, not `generateDisplayName`: every checkout shares one
+      // `package.json`, so the derived name is identical for all of them. Also
+      // matches what `createProject` stores when the checkout is adopted.
       displayName: path.basename(entry.path) || entry.path,
       fullPath: entry.path,
       isStarred: false,

@@ -14,9 +14,8 @@ type UseSettingsNavigationArgs = {
   isOpen: boolean;
   initialScreenId?: string | null;
   /**
-   * Stack mode (mobile) drives the browser history so the Android back gesture
-   * pops a screen. Pane mode (desktop) selects without touching history —
-   * there is no back affordance to serve.
+   * Stack mode (mobile) drives browser history so the Android back gesture pops
+   * a screen. Pane mode (desktop) selects without touching history.
    */
   mode: 'stack' | 'panes';
   onClose: () => void;
@@ -28,12 +27,11 @@ const HISTORY_MARKER = '__clideSettingsDepth';
 /**
  * Owns the navigation stack plus its browser-history integration.
  *
- * The contract, from the IA spec: each push adds one history entry, each pop
- * consumes one, and closing from depth 2 unwinds *all* of them so the history
- * is not left holding stale settings states. Every downward transition goes
- * through `history.back()` and lands in the popstate handler, so there is
- * exactly one path that mutates the stack downward — the alternative, dispatching
- * on click *and* on popstate, double-pops the moment a real back gesture arrives.
+ * The contract: each push adds one history entry, each pop consumes one, and
+ * closing from depth 2 unwinds *all* of them. Every downward transition goes
+ * through `history.back()` and lands in the popstate handler, so exactly one
+ * path mutates the stack downward — dispatching on click *and* on popstate
+ * double-pops the moment a real back gesture arrives.
  */
 export function useSettingsNavigation({
   isOpen,
@@ -59,8 +57,8 @@ export function useSettingsNavigation({
   }, []);
 
   // Seed the stack whenever Settings opens, honouring a deep link. Opening
-  // straight to a sub-screen still needs history entries beneath it, or the
-  // first back gesture would close Settings from depth 2.
+  // straight to a sub-screen still needs history entries beneath it, or the first
+  // back gesture would close Settings from depth 2.
   useEffect(() => {
     if (!isOpen) return;
 
@@ -74,9 +72,9 @@ export function useSettingsNavigation({
     }
   }, [initialScreenId, isOpen, pushHistoryEntry, usesHistory]);
 
-  // If Settings is closed by any route that did not go through `close()` — an
-  // Escape key, a parent state change — the entries we pushed are still on the
-  // stack. Drop them, without treating the resulting popstate as a navigation.
+  // If Settings is closed by a route that did not go through `close()` — Escape,
+  // a parent state change — our pushed entries are still on the stack. Drop them
+  // without treating the resulting popstate as a navigation.
   useEffect(() => {
     if (isOpen || !usesHistory) return;
     if (ownedEntriesRef.current === 0) return;
@@ -106,8 +104,8 @@ export function useSettingsNavigation({
       }
 
       // A genuine back gesture. If it consumed one of ours, pop a screen;
-      // otherwise the user has navigated out from under an open Settings, so
-      // close rather than leaving a modal stranded over a different page.
+      // otherwise the user navigated out from under an open Settings, so close
+      // rather than strand a modal over a different page.
       if (ownedEntriesRef.current > 0) {
         ownedEntriesRef.current -= 1;
         dispatch({ type: 'pop' });
@@ -138,12 +136,10 @@ export function useSettingsNavigation({
 
   /**
    * Jump straight to a screen at any depth, expanding its ancestors — what a
-   * search result needs, since `push` deliberately only accepts a child of the
-   * current screen.
+   * search result needs, since `push` only accepts a child of the current screen.
    *
    * Search is only offered at the root list, so this is reached with no entries
-   * owned and seeds the whole path exactly as opening on a deep link does. It
-   * does not unwind, because there is never anything to unwind from the root.
+   * owned and seeds the whole path as a deep link does. It never unwinds.
    */
   const jumpTo = useCallback((id: string) => {
     const next = settingsNavReducer(state, { type: 'open', id });

@@ -21,9 +21,8 @@ type WorktreeManagerModalProps = {
   onAdoptCheckout?: (checkoutPath: string) => Promise<Project | null>;
   onOpenWorktree: (project: Project) => void;
   /**
-   * Opens straight into the create form. Set when the row's New Worktree
-   * button was the way in, so that button lands on the thing it names rather
-   * than on the list with the form still shut.
+   * Opens straight into the create form, set when the row's New Worktree button
+   * was the way in — so that button lands on the thing it names.
    */
   startInCreate?: boolean;
   /** Reuses only the existing creation workflow from the New Session launcher. */
@@ -37,14 +36,14 @@ const CURRENT_HEAD = '';
 /**
  * Worktree management for one repository row.
  *
- * This is a panel rather than a context-menu level: each worktree carries three
- * actions of its own plus a creation form, which is a list to work through, not
- * a single tap. Full-height on mobile because the PWA has no window to fall
- * back on; a centred card on desktop.
+ * A panel rather than a context-menu level: each worktree carries three actions
+ * plus a creation form, which is a list to work through, not a single tap.
+ * Full-height on mobile (the PWA has no window to fall back on), a centred card
+ * on desktop.
  *
  * Archive and Remove are CLIde-side only — they change what CLIde tracks and
- * never run `git worktree remove`, so the directory and its commits survive
- * both. The copy says so, because "delete" would otherwise imply the tree.
+ * never run `git worktree remove`, so the directory and its commits survive. The
+ * copy says so, because "delete" would imply the tree.
  */
 export default function WorktreeManagerModal({
   entry,
@@ -82,8 +81,8 @@ export default function WorktreeManagerModal({
   }, [isCreating]);
 
   /**
-   * Branches are loaded when the form opens rather than with the modal: most
-   * visits here are to rename or remove, and this spawns git on the server.
+   * Branches load when the form opens rather than with the modal: most visits
+   * are to rename or remove, and this spawns git on the server.
    */
   useEffect(() => {
     if (!isCreating) {
@@ -162,9 +161,9 @@ export default function WorktreeManagerModal({
         setIsCreating(false);
       }
 
-      // The tree exists either way. When CLIde could not adopt it the modal
-      // stays open holding the path, because that path is the only way back to
-      // a directory nothing else in the UI names.
+      // The tree exists either way. When CLIde could not adopt it the modal stays
+      // open holding the path — the only way back to a directory nothing else
+      // names.
       if (!outcome.project) {
         setOrphanWarning(
           t('worktrees.createdButUnregistered', {
@@ -177,13 +176,13 @@ export default function WorktreeManagerModal({
         return;
       }
 
-      // Creating a worktree is only ever a prelude to working in it, so the new
-      // checkout is selected and the manager gets out of the way.
+      // Creating a worktree is only ever a prelude to working in it, so select
+      // the new checkout and get out of the way.
       onOpenWorktree(outcome.project);
       onClose();
     } catch (error) {
       // git's refusal ("already checked out at ...", "path exists") is the only
-      // useful thing to say here, so it is shown verbatim rather than replaced.
+      // useful thing to say, so it is shown verbatim.
       setCreateError(error instanceof Error ? error.message : String(error));
     } finally {
       setIsSubmitting(false);
@@ -191,9 +190,8 @@ export default function WorktreeManagerModal({
   };
 
   /**
-   * Gives a discovered checkout a project row. The refreshed list arrives
-   * through `entry`, so this row turns into an ordinary one on its own — there
-   * is nothing to close or navigate to.
+   * Gives a discovered checkout a project row. The refreshed list arrives through
+   * `entry`, so the row becomes an ordinary one on its own.
    */
   const adoptCheckout = async (project: Project) => {
     if (!onAdoptCheckout) {
@@ -214,10 +212,9 @@ export default function WorktreeManagerModal({
 
   /**
    * A worktree git knows about that CLIde has no row for — created from a
-   * terminal, a script, or an agent session rather than through this panel.
-   * It is listed so it can be reached at all, but until it is adopted the only
-   * action it can carry is adoption: its id is synthetic, so rename, archive
-   * and remove have nothing to address.
+   * terminal, script, or agent session. Listed so it can be reached at all, but
+   * until adopted its id is synthetic, so rename, archive and remove have
+   * nothing to address.
    */
   const renderDiscoveredWorktree = (project: Project) => {
     const refLabel = getCheckoutRefLabel(project);
@@ -395,7 +392,7 @@ export default function WorktreeManagerModal({
         <div
           className="flex items-start justify-between gap-3 border-b border-border p-4"
           // The mobile sheet runs to the top of the viewport, so in the
-          // standalone PWA the header has to clear the status bar itself.
+          // standalone PWA the header clears the status bar itself.
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
         >
           <div className="min-w-0">

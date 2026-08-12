@@ -19,9 +19,8 @@ import { getNextRoutinePermissionMode } from '../utils/chatPermissions';
 import { readProviderDefaultModel } from '../../../utils/providerDefaultModel';
 
 const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
-  // Must be a real alias. "default" was not one: Claude Code does not
-  // recognise it, so it silently ran the built-in Sonnet default instead of
-  // the model configured in the settings cascade.
+  // Must be a real alias. "default" was not one: Claude Code silently ran its
+  // built-in Sonnet instead of the settings-cascade model.
   claude: 'sonnet',
   cursor: 'gpt-5.3-codex',
   codex: 'gpt-5.4',
@@ -50,9 +49,9 @@ const FALLBACK_PERMISSION_MODES: Record<LLMProvider, PermissionMode[]> = {
   opencode: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
 };
 
-// Collaboration controls stay hidden until the backend confirms that the
-// active runtime can honor them. In particular, Codex's SDK fallback has no
-// Plan collaboration surface even though App Server does.
+// Collaboration controls stay hidden until the backend confirms the active
+// runtime can honor them. Codex's SDK fallback has no Plan surface even though
+// App Server does.
 const FALLBACK_COLLABORATION_MODES: Record<LLMProvider, CollaborationMode[]> = {
   claude: [],
   cursor: [],
@@ -177,9 +176,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, []);
 
   /**
-   * Switches the provider a *new* chat will start with. Persisted immediately
-   * because the session-creation path and the realtime message normalizer both
-   * read `selected-provider` from storage rather than this state.
+   * Switches the provider a *new* chat starts with. Persisted immediately: the
+   * session-creation path and the realtime normalizer both read
+   * `selected-provider` from storage rather than this state.
    */
   const selectProvider = useCallback((nextProvider: LLMProvider) => {
     setProvider(nextProvider);
@@ -195,9 +194,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     localStorage.setItem(`${targetProvider}-effort`, effort);
   }, []);
 
-  // Single load per mount. There is deliberately no client-side hard refresh:
-  // Claude and Codex are never cached server-side, so their catalogs are already
-  // fetched live, and the two cached providers refresh on the next page load.
+  // Single load per mount, and deliberately no client-side hard refresh: Claude
+  // and Codex are never cached server-side, and the two cached providers refresh
+  // on the next page load.
   const loadProviderModels = useCallback(async () => {
     const requestId = providerModelsRequestIdRef.current + 1;
     providerModelsRequestIdRef.current = requestId;
@@ -314,9 +313,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, [providerCapabilities]);
 
   const getSupportsRewindForProvider = useCallback((targetProvider: LLMProvider): boolean => {
-    // No static fallback: rewind UI stays hidden until the backend confirms
-    // the capability, so a failed capabilities fetch can never surface an
-    // affordance the runtime would reject.
+    // No static fallback: rewind UI stays hidden until the backend confirms the
+    // capability, so a failed fetch cannot surface an affordance the runtime
+    // would reject.
     return providerCapabilities?.[targetProvider]?.supportsRewind === true;
   }, [providerCapabilities]);
 
@@ -339,8 +338,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     if (current && def.OPTIONS.some((o) => o.value === current)) {
       return current;
     }
-    // A default the user set in Settings outranks the catalog's own, which is
-    // only a suggestion from the provider.
+    // A default set in Settings outranks the catalog's own, which is only the
+    // provider's suggestion.
     if (configuredDefault && def.OPTIONS.some((o) => o.value === configuredDefault)) {
       return configuredDefault;
     }
@@ -368,10 +367,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     }
 
     // `supportsEffort` is the real gate; a catalog entry's `effort.values` only
-    // refines the list. Some models (e.g. Claude's `haiku`) are in the catalog
-    // but declare no effort values — fall back to the provider's values there,
-    // same as when the model isn't in the catalog at all, so the Effort picker
-    // stays visible instead of silently disappearing for those models.
+    // refines the list. Some models (Claude's `haiku`) are in the catalog but
+    // declare no effort values — fall back to the provider's, as when the model
+    // is absent entirely, so the Effort picker stays visible.
     const option = getModelOption(targetProvider, model);
     const optionValues = option?.effort?.values;
     if (optionValues && optionValues.length > 0) {
@@ -522,8 +520,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     );
 
     // Before collaboration became independent, Codex stored Plan in the
-    // permission slot. Preserve that intent once, then repair the access slot
-    // to its non-escalating baseline so the two settings can evolve separately.
+    // permission slot. Preserve that intent once, then repair the access slot to
+    // its non-escalating baseline so the two can evolve separately.
     const legacySessionPermission = sessionId
       ? localStorage.getItem(`permissionMode-${sessionId}`)
       : null;
@@ -667,9 +665,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   /**
    * Re-seeds a new chat from the default set in Settings, so that default beats
    * the last-used model `selectProviderModel` records. Keyed on the session id
-   * rather than running continuously: it fires when a chat is opened or
-   * cleared, and never in between, so a model picked before the first send
-   * survives instead of snapping back.
+   * rather than running continuously: it fires when a chat is opened or cleared,
+   * so a model picked before the first send survives.
    */
   useEffect(() => {
     if (selectedSession?.id) {

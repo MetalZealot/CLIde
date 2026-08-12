@@ -75,9 +75,9 @@ type ProviderRuntimeGateway = {
   ): Promise<unknown>;
   /**
    * Addressed with the stable app session id. Runtimes key their process and
-   * approval maps by the id the caller handed them, which since v1.37 is the
-   * app one — and unlike the provider-native id it exists from the first
-   * message, so an early Stop is addressable too.
+   * approval maps by the id the caller hands them, which since v1.37 is the app
+   * one — and unlike the provider id it exists from the first message, so an
+   * early Stop is addressable.
    */
   abort(provider: LLMProvider, appSessionId: string): Promise<boolean>;
   resolveInteractiveRequest(
@@ -183,8 +183,8 @@ async function handleChatSend(
     return;
   }
 
-  // Rewind is gated on the capability matrix, not the provider id: runtimes
-  // that never look at rewindToMessageId must never receive it.
+  // Rewind is gated on the capability matrix, not the provider id: runtimes that
+  // never read rewindToMessageId must never receive it.
   const requestedRewindId = (data.options as AnyRecord | undefined)?.rewindToMessageId;
   if (
     requestedRewindId !== undefined &&
@@ -247,15 +247,13 @@ async function handleChatSend(
     cwd: clientOptions.cwd ?? session.project_path ?? undefined,
     projectPath: session.project_path ?? clientOptions.projectPath,
     // Lets the runtime read the provider transcript (rewind anchor lookup)
-    // without re-deriving the path; runtimes without a use for it ignore it.
+    // without re-deriving the path; runtimes with no use for it ignore it.
     jsonlPath: session.jsonl_path ?? undefined,
     // Cancellation that does not depend on the provider session id existing.
     // `chat.abort` can only address a runtime by its provider-native id, which
-    // is unknown until the runtime announces it mid-stream (and is `null` for
-    // the entire first leg of a brand-new session) — so an early Stop had
-    // nothing to interrupt and the run completed anyway. Runtimes that honor
-    // this signal cancel correctly no matter when the abort lands; ones that
-    // ignore it keep the previous id-keyed behavior.
+    // is unknown until the runtime announces it mid-stream and `null` for the
+    // whole first leg of a new session. Runtimes that honor this signal cancel
+    // whenever the abort lands; ones that ignore it keep id-keyed behaviour.
     abortController: run.abortController,
   };
 
@@ -290,21 +288,18 @@ async function handleChatAbort(
     return;
   }
 
-  // `beginAbort` (not `getRun`) is the guard: it atomically claims the abort
-  // and flips `abortInFlight` in one synchronous step. A run only flips to
-  // `completed` after the awaited provider interrupt below resolves, so a
-  // second `chat.abort` for the same run — e.g. a mashed Stop button, or two
-  // listeners each firing once for the same Escape press — can arrive while
-  // `status` is still `running`. Without this claim, both calls would race
-  // their own concurrent interrupt request against the same underlying CLI
-  // process, which has been observed to corrupt its response stream instead
-  // of cleanly stopping it (a garbled result with `stop_reason: null`).
+  // `beginAbort` (not `getRun`) is the guard: it atomically claims the abort and
+  // flips `abortInFlight` in one synchronous step. A run only flips to
+  // `completed` after the awaited interrupt below resolves, so a second
+  // `chat.abort` — a mashed Stop, or two listeners firing for one Escape — can
+  // arrive while `status` is still `running`. Without the claim, both race their
+  // own interrupt against the same CLI process, which corrupts its response
+  // stream (garbled result, `stop_reason: null`) instead of stopping cleanly.
   const run = chatRunRegistry.beginAbort(sessionId);
   if (!run) {
-    // Distinguish "nothing to abort" from "already being aborted": the
-    // client renders every protocol_error as a visible chat message, and a
-    // duplicate Stop click is not an error — the first abort's own
-    // completion will resolve this run momentarily.
+    // Distinguish "nothing to abort" from "already aborting": the client renders
+    // every protocol_error as a visible message, and a duplicate Stop is not an
+    // error — the first abort resolves this run momentarily.
     const existing = chatRunRegistry.getRun(sessionId);
     if (!existing || existing.status !== 'running') {
       sendProtocolError(ws, 'NO_ACTIVE_RUN', `Session "${sessionId}" has no active run.`, sessionId);
@@ -313,18 +308,17 @@ async function handleChatAbort(
   }
 
   // Two-tier cancellation. `beginAbort` has already tripped the run's
-  // AbortController, which the runtime was handed at spawn time — that is the
-  // tier that always applies, and the only one Cursor and OpenCode have.
+  // AbortController, which the runtime was handed at spawn — the tier that
+  // always applies, and the only one Cursor and OpenCode have.
   //
-  // The id-keyed abort remains the preferred tier: it is the provider's own
-  // graceful interrupt, which unwinds the CLI/SDK cleanly and lets it flush
-  // partial output, whereas the signal is a blunter cancel. It is addressed by
-  // the *app* session id — the key every runtime registers under since v1.37,
-  // and one that exists from the first message, so this tier no longer misses
-  // the opening leg of a new session the way provider-id addressing did.
+  // The id-keyed abort is still preferred: it is the provider's graceful
+  // interrupt, which unwinds the CLI/SDK cleanly and flushes partial output,
+  // where the signal is a blunter cancel. It is addressed by the *app* session
+  // id — registered by every runtime since v1.37, and present from the first
+  // message, so it no longer misses a new session's opening leg.
   //
-  // Exit code 0 is "we cancelled this run"; only an interrupt that was
-  // attempted and refused is a genuine failure.
+  // Exit code 0 is "we cancelled this run"; only an interrupt attempted and
+  // refused is a genuine failure.
   const interruptFailed = !(await dependencies.runtime.abort(run.provider, sessionId));
 
   chatRunRegistry.completeRun(sessionId, {
@@ -366,8 +360,8 @@ function handleChatSubscribe(
       ? Math.max(0, Math.floor(lastSeqRaw))
       : 0;
 
-    // Which run the client's `lastSeq` was recorded against — `seq` restarts
-    // per run, so replay only honors the counter when the runs match.
+    // Which run the client's `lastSeq` was recorded against — `seq` restarts per
+    // run, so replay only honors the counter when the runs match.
     const clientRunId = typeof (target as AnyRecord).runId === 'string'
       ? ((target as AnyRecord).runId as string)
       : null;
@@ -382,10 +376,9 @@ function handleChatSubscribe(
     }
 
     // Runtimes register pending interactions under the app session id, so this
-    // resolves even before the provider has announced an id of its own — which
-    // is exactly when a mid-approval refresh used to lose the prompt. The
-    // sessionId is still restamped so a runtime that keys by its own id cannot
-    // leak one to the client.
+    // resolves before the provider has announced one of its own — exactly when a
+    // mid-approval refresh used to lose the prompt. The sessionId is restamped
+    // so a runtime keying by its own id cannot leak one to the client.
     const pendingPermissions = dependencies.runtime
       .getPendingApprovalsForSession(sessionId)
       .map((approval) =>
@@ -417,15 +410,14 @@ function handleChatSubscribe(
 }
 
 /**
- * Handles `chat.ping`: application-level liveness echo for the client-side
+ * Handles `chat.ping`: application-level liveness echo for the client's
  * half-open-connection watchdog.
  *
- * Browsers answer WS protocol pings inside the network stack — page JS never
- * sees them — so client-side dead-connection detection needs an echo that
- * travels as a normal data frame. The client sends `chat.ping` periodically;
- * missing the `chat_pong` (or any other frame) within its watchdog window
- * makes it force-close and reconnect. `ts` is echoed back untouched so the
- * client can match responses and estimate round-trip latency.
+ * Browsers answer WS protocol pings inside the network stack, so client-side
+ * dead-connection detection needs an echo that travels as a normal data frame.
+ * Missing the `chat_pong` (or any frame) within the watchdog window makes the
+ * client force-close and reconnect. `ts` is echoed untouched so it can match
+ * responses and estimate round-trip latency.
  */
 function handleChatPing(ws: WebSocket, data: AnyRecord): void {
   sendJson(ws, {

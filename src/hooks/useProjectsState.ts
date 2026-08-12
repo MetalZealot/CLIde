@@ -362,10 +362,10 @@ const removeSessionFromProject = (project: Project, sessionIdToDelete: string): 
 };
 
 /**
- * Patches one session in place inside a project's list without touching order
- * or counts. Used for optimistic flag flips (e.g. starring) where the row is
- * already loaded and only a field changes. Returns the same project reference
- * when the session is absent so React can skip re-rendering untouched projects.
+ * Patches one session in place inside a project's list without touching order or
+ * counts — for optimistic flag flips (starring) where the row is already loaded.
+ * Returns the same project reference when the session is absent, so React skips
+ * untouched projects.
  */
 const patchSessionInProject = (
   project: Project,
@@ -411,9 +411,9 @@ export function useProjectsState({
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
-  // Two independent per-session sidebar signals with different lifecycles:
-  // amber follows an unresolved permission/question request, while green is
-  // read-aware output and clears when the session opens.
+  // Two independent per-session signals with different lifecycles: amber follows
+  // an unresolved permission/question request, green is read-aware output and
+  // clears when the session opens.
   const [{ attentionSessionIds, unreadSessionIds }, dispatchSessionSignal] = useReducer(
     reduceSidebarSessionSignals,
     undefined,
@@ -575,8 +575,8 @@ export function useProjectsState({
 
   /**
    * Creates and registers a linked worktree, then resolves the returned project
-   * against the refreshed project list so every caller receives the canonical
-   * repository/branch metadata used by the launcher and sidebar.
+   * against the refreshed list so every caller gets the canonical
+   * repository/branch metadata.
    */
   const createWorktree = useCallback(
     async (options: CreateWorktreeOptions): Promise<CreateWorktreeOutcome> => {
@@ -623,11 +623,10 @@ export function useProjectsState({
   /**
    * Registers a checkout the projects API discovered on disk.
    *
-   * Discovery is derived per request and writes nothing, so a discovered
-   * checkout has a synthetic `projectId` and cannot be starred, renamed, or
-   * opened until it has a row. This is the one call that gives it one — the
-   * same `create-project` endpoint used to add any directory, pointed at a path
-   * the user did not have to know.
+   * Discovery is derived per request and writes nothing, so a discovered checkout
+   * has a synthetic `projectId` and cannot be starred, renamed, or opened until
+   * it has a row. This is the one call that gives it one — the same
+   * `create-project` endpoint, pointed at a path the user never had to know.
    */
   const adoptCheckout = useCallback(
     async (checkoutPath: string): Promise<Project | null> => {
@@ -841,8 +840,8 @@ export function useProjectsState({
 
       // While the socket was down no `session_upserted` deltas arrived, so the
       // list is stale by an unknown amount. Resync once on reconnect — this is
-      // what makes the manual refresh control unnecessary rather than merely
-      // hidden. Silent, so it cannot disturb an open chat.
+      // what makes a manual refresh control unnecessary. Silent, so it cannot
+      // disturb an open chat.
       if (event.kind === 'websocket_reconnected') {
         void refreshProjectsSilently();
         return;
@@ -1182,10 +1181,9 @@ export function useProjectsState({
     [navigate, removeSessionSignals, selectedSession?.id],
   );
 
-  // Optimistic in-place patch of a session's starred flag. The sidebar controller
-  // calls this before/after the API round-trip. We only flip the flag here — the
-  // starred-first pinning is applied downstream by `getAllSessions`, which re-sorts
-  // whenever the patched `isStarred` value changes.
+  // Optimistic in-place patch of a session's starred flag, called around the API
+  // round-trip. Only the flag flips here — starred-first pinning is applied
+  // downstream by `getAllSessions`, which re-sorts when `isStarred` changes.
   const handleSessionStarPatch = useCallback((sessionIdToPatch: string, isStarred: boolean) => {
     setProjects((prevProjects) =>
       prevProjects.map((project) => patchSessionInProject(project, sessionIdToPatch, { isStarred })),

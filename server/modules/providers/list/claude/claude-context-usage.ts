@@ -1,39 +1,26 @@
 /**
- * Authoritative context ceilings, read from the SDK instead of derived.
+ * Authoritative context ceilings, read from the SDK rather than derived.
  *
- * `claude-context-window.ts` reconstructs the ring's denominator from a
- * hand-mirrored copy of the SDK's model registry. That works everywhere, but it
- * is a copy, and an empirical probe (`scripts/verify-context-usage-sdk.ts`,
- * 2026-07-27) showed it disagrees with what Claude Code actually uses:
+ * `claude-context-window.ts` mirrors the SDK's model registry by hand. A probe
+ * (`scripts/verify-context-usage-sdk.ts`, 2026-07-27) showed the copy disagrees
+ * with what Claude Code actually uses:
  *
  *     claude-haiku-4-5  SDK 200000   derived 180000
  *     claude-sonnet-5   SDK 967000   derived 980000
  *
- * The SDK will simply tell us, via the `getContextUsage()` control request:
- * `maxTokens` is the denominator, and `autoCompactThreshold` is the point where
- * the conversation gets compacted out from under the user — which the ring had
- * no way to show before.
+ * `getContextUsage()` reports both `maxTokens` (the denominator) and
+ * `autoCompactThreshold`, which the ring could not show before.
  *
- * Two constraints from that probe shape everything here:
+ * Two constraints from that probe shape this module:
+ *   - it answers MID-TURN only. At the terminal `result` the transport is
+ *     already closing, and the query is gone once the generator returns.
+ *   - it costs 780-1200ms, so it is fired once per turn and never awaited.
  *
- *   - it only answers MID-TURN. At the terminal `result` message the transport
- *     is already closing ("Query closed before response received"), and once
- *     the generator returns the query is gone. So the reading has to be taken
- *     while a turn is streaming and remembered afterwards.
- *   - it costs 780-1200ms. Far too slow to await inline in the message loop, so
- *     callers fire it once per turn and let it land when it lands.
- *
- * Hence this cache: the live path fills it during a turn, and both the live
- * path and the `/token-usage` endpoint read it afterwards.
- *
- * The cache is also written through to disk, one small JSON file per session
- * under the database's own directory. Holding it only in memory made `/context`
- * blank for every session after a restart and for every session resumed from
- * history — which is most of the time anyone opens it. On disk, the last
- * reading a session ever produced survives, and consumers show it with its
- * `fetchedAt` timestamp rather than nothing. Still best-effort: a session that
- * has never streamed a turn has no reading at all, so every consumer must keep
- * its `resolveClaudeContextCeiling` fallback.
+ * Hence the cache, written through to one small JSON file per session under the
+ * database's own directory. Memory-only left `/context` blank after a restart
+ * and for every resumed session. Still best-effort: a session that never
+ * streamed a turn has no reading, so every consumer keeps its
+ * `resolveClaudeContextCeiling` fallback.
  */
 
 import { promises as fs } from 'fs';
@@ -47,10 +34,9 @@ const MAX_TRACKED_SESSIONS = 200;
 const MAX_PERSISTED_SESSIONS = 200;
 
 /**
- * Session ids that are safe to use as a filename verbatim. Claude's ids are
- * UUIDs, so this rejects nothing in practice — it exists so a future id shape
- * carrying a separator can never escape the store directory. Ids that fail it
- * stay memory-only rather than being mangled into a colliding filename.
+ * Session ids safe to use as a filename verbatim. Claude's ids are UUIDs, so
+ * this rejects nothing in practice; it exists so a future id shape carrying a
+ * separator cannot escape the store directory. Failures stay memory-only.
  */
 const PERSISTABLE_SESSION_ID = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -70,9 +56,9 @@ export type ClaudeContextCategory = {
 export type ClaudeNamedTokens = { name: string; tokens: number };
 
 /**
- * Everything behind the headline numbers — what the CLI's `/context` command
- * shows. Optional throughout: the CLI omits sections that do not apply (no MCP
- * servers configured, no skills loaded), and older CLIs omit more.
+ * Everything behind the headline numbers, as the CLI's `/context` shows it.
+ * Optional throughout: the CLI omits sections that do not apply (no MCP
+ * servers, no skills), and older CLIs omit more.
  */
 export type ClaudeContextBreakdown = {
   categories: ClaudeContextCategory[];
@@ -109,15 +95,14 @@ export type ClaudeContextCeiling = {
   /** Percentage of the window in use, as the CLI computed it. */
   percentage?: number;
   /**
-   * The `/context` detail. Held alongside the ceiling because it arrives in the
-   * same response and there is no way to re-ask once the turn is over — the
-   * `/context` view has to render from whatever the last turn recorded.
+   * The `/context` detail. Held with the ceiling because it arrives in the same
+   * response and cannot be re-asked once the turn is over.
    */
   breakdown?: ClaudeContextBreakdown;
   fetchedAt: number;
 };
 
-/** Minimal shape of the control request, so this module does not depend on the SDK's types. */
+/** Minimal control-request shape, so this module needs no SDK types. */
 type ContextUsageSource = {
   getContextUsage?: () => Promise<unknown>;
 };
@@ -150,11 +135,9 @@ const readNamedTokens = (value: unknown): ClaudeNamedTokens[] =>
     .map((entry) => ({ name: readString(entry.name) ?? 'Unknown', tokens: readTokenCount(entry.tokens) }));
 
 /**
- * Reshapes the `/context` detail off a raw payload.
- *
- * Everything is defensive: this is a control-request payload from a CLI that
- * ships independently of the app, so a section going missing or changing shape
- * has to degrade to "that section is empty", never to a crash in the modal.
+ * Reshapes the `/context` detail off a raw payload. Defensive throughout: this
+ * is a control-request payload from a CLI that ships independently, so a
+ * missing or changed section must degrade to "empty", never crash the modal.
  */
 const parseBreakdown = (raw: Record<string, unknown>): ClaudeContextBreakdown => {
   const skills = raw.skills as Record<string, unknown> | undefined;
@@ -216,10 +199,9 @@ const parseBreakdown = (raw: Record<string, unknown>): ClaudeContextBreakdown =>
 };
 
 /**
- * Narrows a raw `getContextUsage()` payload to the fields the ring needs.
- * Returns null when the response carries no usable ceiling, so a malformed or
- * future-shaped payload degrades to the derived fallback rather than poisoning
- * the cache with a zero denominator.
+ * Narrows a raw `getContextUsage()` payload to the fields the ring needs. Null
+ * when there is no usable ceiling, so a malformed or future-shaped payload
+ * falls back to the derived value rather than caching a zero denominator.
  */
 export const parseClaudeContextUsage = (payload: unknown): ClaudeContextCeiling | null => {
   if (!payload || typeof payload !== 'object') {
@@ -245,12 +227,10 @@ export const parseClaudeContextUsage = (payload: unknown): ClaudeContextCeiling 
 };
 
 /**
- * Where readings are persisted.
- *
- * It follows the database rather than the home directory directly, so an
- * instance pointed at another database (the branch-test harness, a second
- * install) keeps its own readings instead of writing into the live one's.
- * Resolved per call because `DATABASE_PATH` is set during startup.
+ * Where readings are persisted. Follows the database rather than the home
+ * directory, so an instance pointed at another database (the branch-test
+ * harness, a second install) keeps its own. Resolved per call because
+ * `DATABASE_PATH` is set during startup.
  */
 const resolveStoreDir = (): string => {
   const databasePath = process.env.DATABASE_PATH;
@@ -264,10 +244,9 @@ const storeFilePath = (sessionId: string): string =>
   path.join(resolveStoreDir(), `${sessionId}.json`);
 
 /**
- * Drops the oldest files once the store outgrows its cap.
- *
- * Sessions are never explicitly deleted here — a reading outlives the session
- * row it describes — so without this the directory would grow forever.
+ * Drops the oldest files once the store outgrows its cap. Readings are never
+ * explicitly deleted — one outlives the session row it describes — so without
+ * this the directory grows forever.
  */
 const pruneStore = async (storeDir: string): Promise<void> => {
   const names = (await fs.readdir(storeDir)).filter((name) => name.endsWith('.json'));
@@ -280,8 +259,8 @@ const pruneStore = async (storeDir: string): Promise<void> => {
       const stats = await fs.stat(path.join(storeDir, name));
       return { name, modifiedAt: stats.mtimeMs };
     } catch {
-      // Vanished under us (a concurrent prune); sorting it first makes the
-      // delete below a no-op rather than a special case.
+      // Vanished under us (concurrent prune); sorting it first makes the delete
+      // below a no-op.
       return { name, modifiedAt: 0 };
     }
   }));
@@ -297,10 +276,8 @@ const pruneStore = async (storeDir: string): Promise<void> => {
 
 /**
  * Writes one reading to disk. Never throws: persistence is an optimisation, and
- * a full or read-only disk must not take down the turn that triggered it.
- *
- * The write is atomic (temp file + rename) so a crash mid-write leaves the
- * previous reading intact rather than a truncated file that fails to parse.
+ * a full or read-only disk must not take down the turn. Atomic (temp + rename),
+ * so a crash mid-write leaves the previous reading rather than a truncated file.
  */
 const persistCeiling = async (sessionId: string, ceiling: ClaudeContextCeiling): Promise<void> => {
   try {
@@ -319,12 +296,10 @@ const persistCeiling = async (sessionId: string, ceiling: ClaudeContextCeiling):
 };
 
 /**
- * Rebuilds a reading from its persisted form.
- *
- * The file was written from an already-parsed ceiling, so this validates the
- * one field everything depends on and passes the rest through. A file that
- * fails validation is treated as absent, which falls back to the derived
- * ceiling — the same path as a session that never streamed a turn.
+ * Rebuilds a reading from its persisted form. The file was written from an
+ * already-parsed ceiling, so this validates the one field everything depends on
+ * and passes the rest through. A file that fails validation is treated as
+ * absent, falling back to the derived ceiling.
  */
 const reviveCeiling = (raw: unknown): ClaudeContextCeiling | null => {
   if (!raw || typeof raw !== 'object') {
@@ -430,10 +405,9 @@ export const clearClaudeContextCeilings = (): void => {
 /**
  * Asks a live query for its context usage and caches the result.
  *
- * Never throws and never rejects: the control request fails routinely for
- * reasons that are not errors from the ring's point of view (the turn ended
- * first, an older CLI without the control request, a transport that already
- * closed). Callers treat a null return as "keep using the derived ceiling".
+ * Never throws or rejects: the control request fails routinely for reasons that
+ * are not errors here (the turn ended first, an older CLI without the request, a
+ * closed transport). A null return means "keep using the derived ceiling".
  */
 export const captureClaudeContextUsage = async (
   sessionId: string | null | undefined,

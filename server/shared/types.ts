@@ -76,15 +76,15 @@ export type ProviderModelOption = {
   label: string;
   description?: string;
   /**
-   * Superseded models the provider still accepts. Catalogs keep them out of
-   * the main list so a picker can file them behind one row instead of doubling
-   * its height; `undefined` means the option belongs in the primary list.
+   * Superseded models the provider still accepts. Catalogs keep them out of the
+   * main list so a picker can file them behind one row; `undefined` means the
+   * option belongs in the primary list.
    */
   group?: 'legacy';
   /**
-   * True for the one option that a session runs when no model is sent at all.
-   * Resolved per request from the provider's own configuration, so it is a
-   * property of the response rather than of the static catalog.
+   * True for the one option a session runs when no model is sent. Resolved per
+   * request from the provider's configuration, so it is a property of the
+   * response, not of the static catalog.
    */
   isDefault?: boolean;
   effort?: {
@@ -142,10 +142,9 @@ export type ProviderModelsResult = {
 export type ProviderCurrentActiveModel = {
   model: string;
   /**
-   * Where the model value came from. `pick` and `transcript` are genuinely
-   * session-scoped; `default` means a global/catalog fallback that must not be
-   * treated as this session's own model. Consumers should treat a missing
-   * source as `default`.
+   * Where the model value came from. `pick` and `transcript` are session-scoped;
+   * `default` is a global/catalog fallback and must not be treated as this
+   * session's own model. A missing source means `default`.
    */
   source?: 'pick' | 'transcript' | 'default';
 };
@@ -208,8 +207,8 @@ export type ProviderSessionActiveModelChange = {
   supported: boolean;
   changed: boolean;
   model: string | null;
-  // When the cached change was recorded. Used to decide whether a stored popup
-  // pick still reflects the session or has been superseded by a later turn.
+  // When the cached change was recorded — decides whether a stored popup pick
+  // still reflects the session or was superseded by a later turn.
   updatedAt?: string;
 };
 
@@ -344,10 +343,9 @@ export type NormalizedMessage = {
    */
   seq?: number;
   /**
-   * Identifier of the run that assigned `seq`. Sequence numbers restart for
-   * every run, so replay progress is only comparable within one runId —
-   * clients echo it in `chat.subscribe` and reset their counter whenever a
-   * frame carries a new one.
+   * Identifier of the run that assigned `seq`. Sequence numbers restart per run,
+   * so replay progress is only comparable within one runId; clients echo it in
+   * `chat.subscribe` and reset their counter on a new one.
    */
   runId?: string;
   role?: 'user' | 'assistant';
@@ -374,20 +372,18 @@ export type NormalizedMessage = {
   compactReferences?: string[];
   /**
    * CLI-fabricated assistant notices (usage-limit banners, API-error
-   * placeholders, "No response requested." — transcript rows with
-   * `model: "<synthetic>"` / `isApiErrorMessage`). The UI renders these as a
-   * muted system banner instead of attributing them to the model.
+   * placeholders — rows with `model: "<synthetic>"` / `isApiErrorMessage`).
+   * Rendered as a muted system banner rather than attributed to the model.
    */
   isSystemNotice?: boolean;
   /**
-   * On an aborted terminal `complete`: whether this run ever produced anything
-   * before it was cancelled. False means the Stop landed before the provider
-   * emitted a single event, so the user's turn never reached it and was never
-   * written to the transcript — the client's optimistic user row is a ghost
-   * that would silently disappear on the next reload, and is retracted instead.
+   * On an aborted terminal `complete`: whether this run produced anything before
+   * cancellation. False means the Stop landed before the provider emitted a
+   * single event, so the turn never reached it and was never written to the
+   * transcript — the client's optimistic user row is a ghost, and is retracted.
    *
-   * Derived from the run's `seq` counter, so it holds for every provider
-   * rather than depending on a provider-specific notion of delivery.
+   * Derived from the run's `seq` counter, so it holds for every provider rather
+   * than a provider-specific notion of delivery.
    */
   deliveredToProvider?: boolean;
   images?: unknown;
@@ -435,11 +431,9 @@ export type ProviderRuntimeWriter = {
 };
 
 /**
- * Outcome of answering one pending interactive request.
- *
- * A stale or malformed answer is user-visible — the chat client renders
- * `INTERACTIVE_REQUEST_STALE` / `INTERACTIVE_RESPONSE_INVALID` as a message —
- * so the permission surface reports the status instead of swallowing it.
+ * Outcome of answering one pending interactive request. A stale or malformed
+ * answer is user-visible — the chat client renders `INTERACTIVE_REQUEST_STALE` /
+ * `INTERACTIVE_RESPONSE_INVALID` — so the status is reported, not swallowed.
  */
 export type ProviderInteractiveResolution = {
   status: 'resolved' | 'not_found' | 'invalid';
@@ -449,9 +443,9 @@ export type ProviderInteractiveResolution = {
 /**
  * Interaction surface a runtime exposes to the chat transport.
  *
- * `resolve` carries a whole `InteractiveRequestResponse` rather than a boolean
- * allow/deny because the registry behind it also serves AskUserQuestion answers
- * and Codex's approval decisions, not just tool approvals.
+ * `resolve` carries a whole `InteractiveRequestResponse` rather than a boolean:
+ * the registry behind it also serves AskUserQuestion answers and Codex approval
+ * decisions, not just tool approvals.
  */
 export type ProviderRuntimePermissionGateway = {
   resolve(
@@ -750,9 +744,9 @@ export type ProviderUsageSpendCredits = {
 };
 
 /**
- * Remaining credit balance and optional individual spend control reported by
- * providers such as Codex. Balance strings stay provider-formatted because the
- * protocol does not promise a currency code or numeric representation.
+ * Remaining credit balance and optional spend control, reported by providers
+ * such as Codex. Balance strings stay provider-formatted — the protocol promises
+ * no currency code or numeric representation.
  */
 export type ProviderUsageBalanceCredits = {
   kind: 'balance';
@@ -1334,10 +1328,9 @@ export type FileTreeServices = {
     message: string;
   }>;
   /**
-   * Batch move into a directory. Upstream 1.37 has no equivalent; CLIde's
-   * validation, ordering and rollback live in the Projects module's
-   * `file-move.service.ts`, which this delegates to so the behaviour stays
-   * testable against a temp directory instead of a live project.
+   * Batch move into a directory. No upstream equivalent; validation, ordering
+   * and rollback live in the Projects module's `file-move.service.ts`, which
+   * this delegates to so the behaviour is testable against a temp directory.
    */
   moveEntries(input: {
     projectId: string;

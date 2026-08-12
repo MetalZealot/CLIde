@@ -6,16 +6,14 @@ import { AppError } from '@/shared/utils.js';
 /**
  * Batch file/directory move with a complete preflight.
  *
- * A move of N sources is not atomic on a filesystem, so the safety model is:
- * validate *everything* first, and only then start renaming. That turns every
- * predictable failure (a collision, a source that vanished, a destination
- * inside the selection) into a clean rejection that changed nothing on disk.
- * Reverse rollback exists only for the unpredictable rest — a rename that
- * fails halfway through for a reason no check could have foreseen (EACCES on
- * one entry, a racing external delete).
+ * A move of N sources is not atomic, so: validate *everything* first, then start
+ * renaming. Every predictable failure (a collision, a vanished source, a
+ * destination inside the selection) becomes a clean rejection that changed
+ * nothing on disk. Reverse rollback covers only the unpredictable rest — a
+ * rename that fails halfway for a reason no check could foresee.
  *
- * The service is deliberately DB-free: the caller resolves `projectRoot` from
- * the database and passes it in, so tests can run against a temp directory.
+ * Deliberately DB-free: the caller resolves `projectRoot` and passes it in, so
+ * tests run against a temp directory.
  */
 
 /** Upper bound on one batch; a selection larger than this is a mistake, not a workflow. */
@@ -71,11 +69,11 @@ const badRequest = (message: string, code: string, details?: unknown) =>
 
 /**
  * Removes duplicates and any source already covered by a selected ancestor
- * directory. Shallowest paths are considered first so an ancestor always wins
- * over its descendants regardless of the caller's ordering.
+ * directory. Shallowest paths first, so an ancestor always wins over its
+ * descendants regardless of caller ordering.
  *
- * Exported for direct testing — the client runs the same rule for its payloads
- * and previews, but this copy is the trust boundary.
+ * Exported for testing — the client runs the same rule for previews, but this
+ * copy is the trust boundary.
  */
 export function canonicalizeMoveSources<T extends { realPath: string; type: MoveEntryType }>(
   sources: T[],
@@ -165,10 +163,9 @@ async function prepareSource(
     });
   }
 
-  // Resolve the *parent* rather than the entry: a symlinked source should be
-  // moved as the link it is, but a symlinked parent could still point outside
-  // the project, so that part has to be made real before the check means
-  // anything.
+  // Resolve the *parent*, not the entry: a symlinked source moves as the link it
+  // is, but a symlinked parent could point outside the project, so that has to be
+  // made real before the check means anything.
   const parentReal = await resolveRealDirectory(path.dirname(lexical));
   if (parentReal === null) {
     throw new AppError('File or directory not found', {
@@ -201,8 +198,8 @@ async function prepareSource(
   return {
     requestedPath,
     realPath,
-    // A symlink moves as a symlink; for planning purposes it behaves like a
-    // file (it is never treated as a container of other sources).
+    // A symlink moves as a symlink; for planning it behaves like a file, never
+    // as a container of other sources.
     type: stats.isDirectory() ? 'directory' : 'file',
     device: stats.dev,
   };
@@ -253,8 +250,8 @@ async function buildMovePlan(
   sources: PreparedSource[],
   destination: { realPath: string; device: number },
 ): Promise<MovePlan> {
-  // A destination equal to or inside any selected directory would move a
-  // folder into itself; there is no partial version of that to salvage.
+    // A destination equal to or inside any selected directory would move a folder
+    // into itself; there is no partial version of that to salvage.
   for (const source of sources) {
     if (source.type === 'directory' && isUnder(source.realPath, destination.realPath)) {
       throw badRequest('Cannot move a directory into itself', 'MOVE_INTO_SELF', {
@@ -268,8 +265,8 @@ async function buildMovePlan(
 
   for (const source of sources) {
     if (path.dirname(source.realPath) === destination.realPath) {
-      // Already where it is going: an explicit no-op, not a failure. This is
-      // what lets a mixed selection move the rest instead of being rejected.
+      // Already where it is going: an explicit no-op, not a failure — this is
+      // what lets a mixed selection move the rest.
       skipped.push({ path: source.requestedPath, reason: 'already-in-destination' });
       continue;
     }
@@ -283,9 +280,9 @@ async function buildMovePlan(
     throw badRequest('Every selected item is already in this folder', 'MOVE_NO_OP');
   }
 
-  // Two sources from different parents can share a basename. Renaming them one
-  // after another would silently overwrite; without a naming policy the only
-  // honest answer is to reject and name both.
+  // Two sources from different parents can share a basename, and renaming them
+  // in sequence would silently overwrite. With no naming policy, the honest
+  // answer is to reject and name both.
   const byTarget = new Map<string, string[]>();
   for (const entry of entries) {
     const existing = byTarget.get(entry.targetPath);
@@ -326,8 +323,8 @@ async function buildMovePlan(
     });
   }
 
-  // `rename` cannot cross devices. Catching it here keeps a doomed batch from
-  // moving its first few entries and then failing.
+  // `rename` cannot cross devices. Catching it here stops a doomed batch from
+  // moving its first few entries first.
   for (const entry of entries) {
     if (entry.source.device !== destination.device) {
       throw badRequest('Cannot move across different filesystems', 'MOVE_CROSS_DEVICE', {
@@ -401,12 +398,11 @@ async function executeMovePlan(
 }
 
 /**
- * Moves every source into `destinationPath` (`''` means the project root),
- * after a preflight that either passes completely or leaves the filesystem
- * untouched.
+ * Moves every source into `destinationPath` (`''` is the project root), after a
+ * preflight that either passes completely or leaves the filesystem untouched.
  *
  * Returns the old-to-new mappings the client needs to rebind an open editor,
- * plus the sources that were already in the destination and did nothing.
+ * plus the sources that were already in the destination.
  */
 export async function moveFilesIntoDirectory({
   projectRoot,

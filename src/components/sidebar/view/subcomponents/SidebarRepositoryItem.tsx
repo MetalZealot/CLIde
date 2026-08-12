@@ -73,23 +73,21 @@ type SidebarRepositoryItemProps = {
 };
 
 /**
- * Total across every checkout the row covers, so the count still matches the
- * list it opens. `sessionMeta.total` is the server's count including sessions
- * not yet paginated in.
+ * Total across every checkout the row covers, so the count matches the list it
+ * opens. `sessionMeta.total` is the server's count, including sessions not yet
+ * paginated in.
  *
- * Pinned sessions are subtracted: they were moved into the Pinned section, and
- * counting them here would promise rows the list no longer holds. Counting them
- * off the loaded page is exact, because the server orders `isStarred DESC` and
- * so never leaves a pinned session behind pagination.
+ * Pinned sessions are subtracted — they moved to the Pinned section. Counting
+ * them off the loaded page is exact, because the server orders `isStarred DESC`
+ * and never leaves a pinned session behind pagination.
  */
 const getSessionCountDisplay = (
   entry: RepositoryEntry,
   sessions: CheckoutSession[],
   hasCustomView: boolean,
 ): number => {
-  // A sorted or filtered row has already loaded every session it holds, and
-  // its list is the filtered one. The server's total describes the unfiltered
-  // set, so using it here would promise rows the filter has removed.
+  // A sorted or filtered row has loaded everything it holds and its list is the
+  // filtered one; the server's total describes the unfiltered set.
   if (hasCustomView) {
     return sessions.length;
   }
@@ -154,9 +152,9 @@ export default function SidebarRepositoryItem({
   activeContextMenuKey,
   t,
 }: SidebarRepositoryItemProps) {
-  // Rename and task status act on the lead checkout — the main working tree
-  // when it is registered. Delete covers the whole repository, because the row
-  // is the repository and would otherwise leave its other worktrees stranded.
+  // Rename and task status act on the lead checkout. Delete covers the whole
+  // repository — the row is the repository, and deleting only the lead would
+  // strand its other worktrees.
   const project = entry.leadCheckout;
   const isMerged = entry.checkouts.length > 1;
   // Any checkout being current lights the row, since they share it.
@@ -164,17 +162,17 @@ export default function SidebarRepositoryItem({
     (checkout) => selectedProject?.projectId === checkout.projectId,
   );
   const isEditing = editingProject === project.projectId;
-  // The highlight belongs to the lead checkout, the same target rename and the
-  // Customize menu act on, so a merged row shows one colour rather than one per
-  // worktree. Unknown tokens resolve to null and simply draw no strip.
+  // The highlight belongs to the lead checkout, the same target rename and
+  // Customize act on, so a merged row shows one colour. Unknown tokens resolve
+  // to null and draw no strip.
   const accentColor = readProjectAccentColor(project.accentColor);
   // Drives the header control's lit state, so a row you filtered and navigated
-  // away from still says so when you come back to it.
+  // away from still says so on return.
   const hasCustomView = !isDefaultRepositoryView(viewOptions);
   const totalSessionCount = getSessionCountDisplay(entry, sessions, hasCustomView);
   const sessionCountLabel = `${totalSessionCount} session${totalSessionCount === 1 ? '' : 's'}`;
-  // A merged row names its checkouts instead of a branch: it has several, and
-  // each session below already carries the one it belongs to.
+  // A merged row names its checkouts, not a branch: each session below already
+  // carries the one it belongs to.
   const rowSubtitle = isMerged
     ? t('projects.repositoryCheckouts', {
         count: entry.checkouts.length,
@@ -183,10 +181,10 @@ export default function SidebarRepositoryItem({
       })
     : getCheckoutRefLabel(project);
   // ADR 0016: a branch and a checkout never share an icon. The subtitle is a
-  // branch only on an unmerged row; on a merged one it counts worktrees.
+  // branch only on an unmerged row.
   const RowSubtitleIcon = isMerged ? TreeDeciduous : GitBranch;
-  // Roll up the same symbol and precedence as individual rows. Sessions not yet
-  // paginated in cannot be mapped here; they appear once loaded.
+  // Same symbol and precedence as individual rows. Sessions not yet paginated in
+  // cannot be mapped here; they appear once loaded.
   const projectActivityState = resolveActivityState({
     isProcessing: sessions.some(({ session }) => activeSessions.has(session.id)),
     needsAttention: sessions.some(({ session }) => attentionSessionIds.has(session.id)),
@@ -198,9 +196,9 @@ export default function SidebarRepositoryItem({
   const createMenuRef = useRef<HTMLButtonElement>(null);
 
   /**
-   * Session-scoped controls live together in the Sessions subheader. That
-   * subheader shares the project's sticky wrapper, so the controls stay tied to
-   * the repository they act on while its session list scrolls underneath.
+   * Session-scoped controls live in the Sessions subheader, which shares the
+   * project's sticky wrapper — so they stay tied to the repository they act on
+   * while the session list scrolls underneath.
    */
   const openViewMenu = (element: HTMLElement | null) => {
     const rect = element?.getBoundingClientRect();
@@ -246,8 +244,8 @@ export default function SidebarRepositoryItem({
   }, [isEditing]);
 
   const toggleProject = () => onToggleProject(entry.key);
-  // Anchor the menu to the row's box, not the finger, so it opens attached to
-  // the repository it acts on.
+  // Anchor to the row's box, not the finger, so the menu opens attached to the
+  // repository it acts on.
   const mobileRowRef = useRef<HTMLDivElement>(null);
   const { handlers: longPress, isPressing } = useLongPress(
     (coords) => onOpenProjectActionsMenu?.(entry, anchorFromElement(mobileRowRef.current, coords)),
@@ -257,9 +255,9 @@ export default function SidebarRepositoryItem({
   // Stays on for as long as this row's menu is open.
   const isContextActive = isPressing || isMenuOpen;
 
-  // Right-click anchors to the cursor. Free on this row, unlike the session row
-  // beneath it: that one is a real <a href>, where taking over the context menu
-  // would cost the native "Open in new tab".
+  // Right-click anchors to the cursor. Free here, unlike the session row below:
+  // that one is a real <a href>, where overriding the context menu would cost
+  // the native "Open in new tab".
   const openProjectMenuAtCursor = (event: ReactMouseEvent<HTMLElement>) => {
     if (!onOpenProjectActionsMenu) {
       return;
@@ -280,10 +278,10 @@ export default function SidebarRepositoryItem({
   /**
    * The customization highlight: a strip down the row's leading edge.
    *
-   * Clipped by the row's own `overflow-hidden`, so it picks up whatever corner
-   * radius that row has instead of hardcoding one per breakpoint. Kept out of
-   * the sticky wrapper deliberately — that wrapper also holds the Sessions
-   * subheader, and the strip marks the project, not its session list.
+   * Clipped by the row's `overflow-hidden`, so it inherits that row's corner
+   * radius rather than hardcoding one per breakpoint. Deliberately outside the
+   * sticky wrapper — that also holds the Sessions subheader, and the strip marks
+   * the project, not its session list.
    */
   const accentStrip = accentColor && (
     <span
@@ -315,12 +313,11 @@ export default function SidebarRepositoryItem({
           <div
             ref={mobileRowRef}
             className={cn(
-              // No resting card — see SidebarSessionItem for the reasoning.
-              // The row keeps an opaque background only while it is stuck to
-              // the top, so scrolled content cannot show through it.
-              // px-3 rather than p-2: the leading edge carries the accent strip,
-              // and 8px left the label almost touching it. Applied whether or
-              // not a colour is set, so adding one never shifts the text.
+              // No resting card — see SidebarSessionItem. Opaque background only
+              // while stuck to the top, so scrolled content cannot show through.
+              // px-3 not p-2: the leading edge carries the accent strip and 8px
+              // left the label almost touching it. Applied unconditionally, so
+              // adding a colour never shifts the text.
               'long-pressable relative overflow-hidden mx-3 my-0.5 rounded-lg px-3 py-2 transition-all duration-150',
               isContextActive && 'scale-[0.98] bg-accent/60',
               isSelected ? 'bg-primary/15' : 'active:bg-accent/50',
@@ -462,9 +459,8 @@ export default function SidebarRepositoryItem({
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <span className="flex-shrink-0">{totalSessionCount}</span>
                     {rowSubtitle ? (
-                      // The branch (or the checkout count) is the more useful
-                      // identifier than the path — none of the reference clients
-                      // in `docs/ui ref/` show a filesystem path at all.
+                      // The branch (or checkout count) identifies the row better
+                      // than a filesystem path.
                       <>
                         <RowSubtitleIcon className="h-3 w-3 flex-shrink-0 opacity-60" />
                         <span className="truncate opacity-80" title={`${rowSubtitle} — ${project.fullPath}`}>
@@ -546,8 +542,8 @@ export default function SidebarRepositoryItem({
             isNested
             summary={(
               // -my-1 keeps these 24px controls from growing the section
-              // header's 16px box; the touch target stays 24px, the layout
-              // height matches Pinned and Projects.
+              // header's 16px box; touch target stays 24px, height matches
+              // Pinned and Projects.
               <span className="-my-1 ml-auto flex items-center gap-1 normal-case tracking-normal">
                 {onOpenViewMenu && (
                   <button

@@ -31,13 +31,13 @@ export type ReplayProgress = { runId: string | null; seq: number };
 type WebSocketContextType = {
   ws: WebSocket | null;
   /**
-   * Sends one frame. Returns false when the socket is not open (or the send
-   * throws) so callers with user-visible actions (Stop, permission answers)
-   * can react instead of silently dropping the message.
+   * Sends one frame. False when the socket is not open (or the send throws), so
+   * callers with user-visible actions (Stop, permission answers) can react
+   * instead of dropping silently.
    *
-   * Caveat: `true` means "handed to the socket", not "delivered" — a
-   * half-open connection buffers sends until the liveness watchdog notices
-   * and forces a reconnect. Pair with `isConnected` for UI decisions.
+   * `true` means "handed to the socket", not "delivered" — a half-open
+   * connection buffers sends until the watchdog forces a reconnect. Pair with
+   * `isConnected` for UI decisions.
    */
   sendMessage: (message: unknown) => boolean;
   /**
@@ -59,30 +59,28 @@ type WebSocketContextType = {
   isConnected: boolean;
   /**
    * Fires one liveness probe immediately (no-op while disconnected). Callers
-   * with delivery-critical sends (Stop) use this to shrink half-open
-   * detection from the next heartbeat tick (≤40s) to PONG_TIMEOUT_MS.
+   * with delivery-critical sends (Stop) use this to shrink half-open detection
+   * from the next heartbeat tick (≤40s) to PONG_TIMEOUT_MS.
    */
   probeConnection: () => void;
   /**
    * Replay progress for a session's sequenced live events, for `chat.subscribe`
-   * (`lastSeq` + `runId`) so the server replays only what this client missed.
-   * Tracked here — not in chat components — because the dedup guard in
-   * `onmessage` is what keeps it exact, and because it must survive chat-view
-   * remounts (a reset counter would make the server replay the whole buffer).
+   * (`lastSeq` + `runId`) so the server replays only what was missed. Tracked
+   * here, not in chat components: the dedup guard in `onmessage` is what keeps
+   * it exact, and it must survive chat-view remounts — a reset counter would
+   * replay the whole buffer.
    */
   getReplayProgress: (sessionId: string) => ReplayProgress | null;
 };
 
 /**
  * Liveness heartbeat. Server-side WS protocol pings are answered inside the
- * browser's network stack — page JS never sees them — so a silently dead TCP
- * path (wifi power-save, PWA screen-lock wake, Tailscale path change) leaves
- * the socket reporting OPEN forever while every server frame vanishes:
- * permission prompts never render, Stop no-ops, and the UI looks alive.
- * The fix is an app-level echo: send `chat.ping` every HEARTBEAT_INTERVAL_MS;
- * if no frame at all (pong or otherwise) arrives within PONG_TIMEOUT_MS, the
- * connection is dead — force a reconnect, which triggers the server's
- * existing `chat.subscribe` replay + pending-permission recovery.
+ * browser's network stack, so a silently dead TCP path (wifi power-save, PWA
+ * screen-lock wake, Tailscale path change) leaves the socket reporting OPEN
+ * forever while every server frame vanishes — prompts never render, Stop no-ops.
+ * The fix is an app-level echo: `chat.ping` every HEARTBEAT_INTERVAL_MS, and if
+ * no frame at all arrives within PONG_TIMEOUT_MS, force a reconnect (which
+ * triggers the server's `chat.subscribe` replay and permission recovery).
  */
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const PONG_TIMEOUT_MS = 10_000;
@@ -124,16 +122,15 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const watchdogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   /**
-   * Per-session replay progress (see ReplayProgress). Written by the dedup
-   * guard in `onmessage`, read by `chat.subscribe` senders. Bounded by the
-   * sessions viewed this page lifetime; entries are tiny and never stale —
-   * a new run's frames carry a new runId and reset their entry.
+   * Per-session replay progress (see ReplayProgress). Written by the dedup guard
+   * in `onmessage`, read by `chat.subscribe` senders. Bounded by the sessions
+   * viewed this page lifetime and never stale — a new run's frames carry a new
+   * runId and reset their entry.
    */
   const replayProgressRef = useRef(new Map<string, ReplayProgress>());
   /**
-   * Self-reference so timer callbacks created inside `connect` (watchdog,
-   * wake probe) can trigger a fresh connection without a circular
-   * useCallback dependency.
+   * Self-reference so timer callbacks created inside `connect` (watchdog, wake
+   * probe) can reconnect without a circular useCallback dependency.
    */
   const connectRef = useRef<() => void>(() => {});
   const { isLoading: isAuthLoading, token, user } = useAuth();
@@ -165,12 +162,11 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   }, [clearWatchdog]);
 
   /**
-   * Arms the dead-connection watchdog (idempotent while already armed —
-   * only the oldest unanswered ping counts). Any received frame disarms it;
-   * expiry means the connection is half-open, so force a reconnect. The old
-   * socket cannot be trusted to fire `onclose` (that needs a close handshake
-   * over the very TCP path that is dead), so `connect` tears it down
-   * explicitly and starts fresh.
+   * Arms the dead-connection watchdog (idempotent — only the oldest unanswered
+   * ping counts). Any received frame disarms it; expiry means half-open, so
+   * force a reconnect. The old socket cannot be trusted to fire `onclose` (that
+   * needs a close handshake over the dead path), so `connect` tears it down
+   * explicitly.
    */
   const armWatchdog = useCallback(() => {
     if (watchdogTimeoutRef.current) return;
@@ -204,8 +200,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
 
       // Tear down any previous socket (half-open zombie, token change, or a
-      // reconnect racing a wake probe) so two live connections never coexist
-      // — a leaked second socket would double-dispatch every frame.
+      // reconnect racing a wake probe): a leaked second socket would
+      // double-dispatch every frame.
       const previous = wsRef.current;
       if (previous) {
         previous.onopen = null;
@@ -234,9 +230,9 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         }
         hasConnectedRef.current = true;
 
-        // App-level heartbeat (see HEARTBEAT_INTERVAL_MS doc). Note that
-        // background tabs throttle timers, so the interval may stretch while
-        // hidden — the visibilitychange probe covers the wake-up moment.
+        // App-level heartbeat (see HEARTBEAT_INTERVAL_MS). Background tabs
+        // throttle timers, so the interval may stretch while hidden — the
+        // visibilitychange probe covers the wake-up moment.
         heartbeatIntervalRef.current = setInterval(() => {
           if (wsRef.current !== websocket) return;
           sendPing(websocket);
@@ -253,13 +249,11 @@ const useWebSocketProviderState = (): WebSocketContextType => {
           if (data.kind === 'chat_pong') return; // liveness echo — not for listeners
 
           // Exactly-once dispatch for sequenced run frames: `chat.subscribe`
-          // replay can overlap frames that raced in live, and `seq` restarts
-          // per run, so progress only compares within the same runId. A frame
-          // at or below the recorded seq for its run was already dispatched —
-          // drop it here so no listener ever sees a duplicate. Frames without
-          // a runId (server predating it) are never dropped: with no way to
-          // tell "replay overlap" from "new run restarting at 1", dropping
-          // could eat legitimate frames.
+          // replay can overlap frames that raced in live, and `seq` restarts per
+          // run, so progress only compares within the same runId. A frame at or
+          // below the recorded seq was already dispatched. Frames without a
+          // runId are never dropped — "replay overlap" and "new run restarting
+          // at 1" are indistinguishable, so dropping could eat real frames.
           if (typeof data.seq === 'number' && typeof data.sessionId === 'string' && data.sessionId) {
             const runId = typeof data.runId === 'string' ? data.runId : null;
             const known = replayProgressRef.current.get(data.sessionId);
@@ -305,8 +299,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
   useEffect(() => {
     // The cleanup below sets unmountedRef = true. Without this reset, every
-    // re-run of the effect (e.g. on token refresh) would short-circuit connect()
-    // at its unmounted guard and leave the socket permanently disconnected.
+    // re-run of the effect (e.g. token refresh) short-circuits connect() at its
+    // unmounted guard and leaves the socket permanently disconnected.
     unmountedRef.current = false;
     if (!IS_PLATFORM && (isAuthLoading || !user)) {
       return undefined;
@@ -321,8 +315,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       stopHeartbeat();
       const activeSocket = wsRef.current;
       if (activeSocket) {
-        // Prevent the intentionally closed, old-token socket from scheduling
-        // a reconnect after the refreshed-token effect has already started.
+        // Stop the intentionally closed, old-token socket from scheduling a
+        // reconnect after the refreshed-token effect has started.
         activeSocket.onopen = null;
         activeSocket.onmessage = null;
         activeSocket.onclose = null;
@@ -335,12 +329,11 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   }, [token, user, isAuthLoading, connect, stopHeartbeat]);
 
   /**
-   * Immediate liveness re-check when the app comes back to life — PWA wake
-   * from screen lock and network flaps are the two main ways the connection
-   * dies while the page still believes it is OPEN. Don't wait up to a full
-   * heartbeat interval to find out: probe now, and if the socket is already
-   * known-down, reconnect now instead of waiting out a (possibly throttled)
-   * backoff timer.
+   * Immediate liveness re-check when the app comes back to life. PWA wake from
+   * screen lock and network flaps are the two ways the connection dies while the
+   * page still believes it is OPEN, so probe now rather than waiting a full
+   * heartbeat interval — and if the socket is already known-down, reconnect
+   * rather than waiting out a possibly throttled backoff.
    */
   useEffect(() => {
     const probe = () => {

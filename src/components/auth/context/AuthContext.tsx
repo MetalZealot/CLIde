@@ -32,10 +32,9 @@ const AUTH_RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-// The server only mints a replacement token in response to an authenticated
-// request made past the token's half-life. A tab sitting on an open WebSocket
-// makes no such request, so ping an authenticated endpoint on this interval to
-// keep the token from expiring underneath an idle-but-open client.
+// The server only mints a replacement token on an authenticated request past the
+// token's half-life. A tab sitting on an open WebSocket makes none, so ping an
+// authenticated endpoint on this interval to keep the token alive.
 const TOKEN_KEEPALIVE_INTERVAL_MS = 60 * 60 * 1000;
 
 const readStoredToken = (): string | null => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
@@ -121,10 +120,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [token, user]);
 
-  // Adopt tokens the server refreshes on ordinary requests; without this the
+  // Adopt tokens the server refreshes on ordinary requests; otherwise the
   // in-memory token stays pinned to whatever was stored at mount and consumers
-  // that read it (WebSocketContext) keep reconnecting with a stale one. Per
-  // ADR 0024 this updates credentials only — it must never re-run bootstrap.
+  // (WebSocketContext) reconnect with a stale one. Per ADR 0024 this updates
+  // credentials only — never re-runs bootstrap.
   useEffect(() => {
     const handleTokenRefreshed = (event: Event) => {
       const nextToken = (event as CustomEvent<unknown>).detail;
@@ -165,19 +164,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setNeedsSetup(false);
 
-      // Read storage at call time instead of closing over the token state. A
-      // successful authenticated request may rotate the token and update that
-      // state while this check is still finishing. If `checkAuthStatus` changes
-      // identity with every rotation, the mount effect below runs again,
-      // briefly returns ProtectedRoute to its loading screen, and unmounts the
-      // workspace (including any file input awaiting an Android picker result).
+      // Read storage at call time rather than closing over the token state: a
+      // successful request may rotate the token mid-check. If `checkAuthStatus`
+      // changed identity on every rotation, the mount effect below would re-run,
+      // return ProtectedRoute to its loading screen, and unmount the workspace
+      // (including a file input awaiting an Android picker result).
       if (!readStoredToken()) {
         return;
       }
 
-      // Only 401/403 means "this token is no longer valid" — anything else
-      // (server restarting, proxy 5xx, offline) is transient and must NOT drop
-      // the stored token, or a badly timed reload logs the user out for good.
+      // Only 401/403 means the token is invalid. Anything else (server
+      // restarting, proxy 5xx, offline) is transient and must NOT drop the stored
+      // token, or a badly timed reload logs the user out for good.
       for (let attempt = 0; attempt <= AUTH_RETRY_DELAYS_MS.length; attempt += 1) {
         if (attempt > 0) {
           await delay(AUTH_RETRY_DELAYS_MS[attempt - 1]);
@@ -229,9 +227,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void checkAuthStatus();
   }, [checkAuthStatus, checkOnboardingStatus]);
 
-  // We still hold a token but never confirmed it (server was down / offline).
-  // Re-check when the tab comes back or the network returns, so the session
-  // restores itself instead of leaving a login form the user has to fill in.
+  // Token held but never confirmed (server down / offline). Re-check when the
+  // tab returns or the network comes back, so the session restores itself rather
+  // than leaving a login form.
   useEffect(() => {
     if (IS_PLATFORM || user || !token) {
       return;
@@ -282,8 +280,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [token, user]);
 
   // Proactive refresh at the token's half-life (upstream 1.37). Complements the
-  // keep-alive above rather than replacing it: this renews the token outright,
-  // the ping only picks up whatever X-Refreshed-Token an ordinary request returns.
+  // keep-alive rather than replacing it: this renews outright, the ping only
+  // picks up whatever X-Refreshed-Token an ordinary request returns.
   useEffect(() => {
     if (IS_PLATFORM || !token || !user) {
       return undefined;
@@ -377,16 +375,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [clearSession]);
 
   /**
-   * Applies a name and/or picture change, then adopts the row the server
-   * actually stored rather than the values sent. A rename can be normalised
-   * (trimmed) or refused, and every surface reading `user` should show the
-   * truth either way.
+   * Applies a name and/or picture change, then adopts the row the server stored
+   * rather than the values sent — a rename can be trimmed or refused, and every
+   * surface reading `user` should show the truth.
    */
   const updateProfile = useCallback(async (changes: AuthProfileChanges): Promise<AuthActionResult> => {
     try {
       const response = await api.auth.updateProfile(changes);
       // The route returns the stored row on success and an error body on
-      // failure, so this parses as both rather than guessing from the status.
+      // failure, so parse as both rather than guessing from the status.
       const data = await parseJsonSafely<AuthUserPayload & ApiErrorPayload>(response);
 
       if (!response.ok || !data?.user) {
@@ -402,9 +399,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   /**
-   * Does not touch the stored token. The server keeps no revocation list, so
-   * the existing session stays valid — pretending otherwise by logging the user
-   * out here would imply a guarantee the backend cannot make.
+   * Does not touch the stored token. The server keeps no revocation list, so the
+   * existing session stays valid — logging out here would imply a guarantee the
+   * backend cannot make.
    */
   const changePassword = useCallback(async (
     currentPassword: string,

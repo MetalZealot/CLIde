@@ -61,9 +61,8 @@ function SessionListSkeleton() {
  * The one list under a repository row: every session across its checkouts,
  * merged and ordered together (ADR 0016).
  *
- * Each row carries its *own* checkout, so selecting a session still switches
- * the app to the working tree that session actually runs in — the branch label
- * is only there to say which one that is.
+ * Each row carries its *own* checkout, so selecting a session switches the app to
+ * the working tree it runs in; the branch label only says which.
  */
 export default function SidebarProjectSessions({
   entry,
@@ -101,28 +100,25 @@ export default function SidebarProjectSessions({
   // More to show if this row is holding sessions back, or if the server still
   // has some it has not sent.
   const canShowMore = sessions.length > visibleSessions.length || hasMoreSessions;
-  // How many are still hidden, when that is knowable. The server's own count is
-  // per checkout and excludes pinned sessions, so a merged row can only promise
-  // a number once every page has arrived; until then the label stays plain.
+  // How many are still hidden, when knowable. The server's count is per checkout
+  // and excludes pinned sessions, so a merged row can only promise a number once
+  // every page has arrived.
   const hiddenSessionCount = hasMoreSessions ? null : sessions.length - visibleSessions.length;
-  // Nothing left to reveal and the cap has been lifted: the same button folds
-  // the row back to its first page, so opening it is not a one-way door.
+  // Nothing left to reveal and the cap lifted: the same button folds the row back
+  // to its first page, so opening it is not one-way.
   const canShowLess = !canShowMore && visibleSessionCount > SESSION_PAGE_SIZE;
 
   // The rail starts at the same x as the repository row's accent strip (`w-1`
-  // inside an `mx-3` row), so an open project and its sessions read as one
-  // spine rather than two unrelated verticals. It carries the project's colour
-  // for the same reason — that, rather than a background tint, is what marks
-  // the row as expanded.
+  // inside an `mx-3` row), so an open project and its sessions read as one spine.
+  // It carries the project's colour for the same reason — that, not a background
+  // tint, is what marks the row expanded.
   //
-  // Narrower than the strip on purpose: at a matching 4px it ran the full
-  // height of the list and read as a second UI element competing with the
-  // rows. The `pl-0.5` makes up the 2px it gives back, so the session labels'
-  // text edge does not move.
+  // Narrower than the strip on purpose: at a matching 4px it read as a second UI
+  // element competing with the rows. `pl-0.5` gives back the 2px, so the session
+  // labels' text edge does not move.
   //
-  // No `space-y` here: rows own their spacing through `my-0.5`, and adding 4px
-  // on top of it made this list twice as airy as the identical-looking Pinned
-  // list above it.
+  // No `space-y`: rows own their spacing through `my-0.5`, and 4px on top made
+  // this list twice as airy as the identical-looking Pinned list above.
   return (
     <div
       className="ml-3 border-l-2 border-border pl-0.5"
@@ -170,8 +166,8 @@ export default function SidebarProjectSessions({
               variant="ghost"
               size="sm"
               // pl-5 lands on the session labels' text edge (their ml-2 plus
-              // px-3), so this reads as part of the list rather than a control
-              // hanging off it.
+              // px-3), so this reads as part of the list, not a control hanging
+              // off it.
               className="my-0.5 h-7 w-full justify-start pl-5 pr-3 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => (canShowMore ? onShowAllSessions(entry) : onCollapseSessions(entry))}
               disabled={isLoadingMoreSessions}

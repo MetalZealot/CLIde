@@ -244,10 +244,10 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
 /**
  * Add the project highlight colour column.
  *
- * Runs as its own step after the rebuild above rather than only alongside the
- * other `addColumnToTableIfNotExists` calls, because that rebuild recreates
- * `projects` from an explicit column list and would otherwise silently drop
- * this column on any database old enough to take that path.
+ * Its own step after the rebuild above, not just another
+ * `addColumnToTableIfNotExists` call: that rebuild recreates `projects` from an
+ * explicit column list and would silently drop this column on any database old
+ * enough to take that path.
  */
 const addProjectAccentColorColumn = (db: Database): void => {
   const columnNames = getTableInfo(db, 'projects').map((column) => column.name);
@@ -421,10 +421,10 @@ const addProviderSessionIdMapping = (db: Database): void => {
 };
 
 /**
- * Adds the `isStarred` flag used to float favourite conversations to the top of
- * their project in the sidebar. Runs after the sessions rebuild so it covers
- * both the rebuilt table (which omits the column) and modern tables alike,
- * mirroring `addProviderSessionIdMapping`.
+ * Adds the `isStarred` flag that floats favourite conversations to the top of
+ * their project. Runs after the sessions rebuild so it covers both the rebuilt
+ * table (which omits the column) and modern tables, mirroring
+ * `addProviderSessionIdMapping`.
  */
 const addSessionStarColumn = (db: Database): void => {
   const sessionsTableInfo = getTableInfo(db, 'sessions');
@@ -438,10 +438,9 @@ const addSessionStarColumn = (db: Database): void => {
  *
  * `model` is upstream 1.37's column, taken deliberately so both forks store this
  * in the same place. `model_updated_at` is ours and is not optional: ADR 0003
- * settles a disagreement between the stored pick and the session transcript by
- * comparing *when* each happened, and upstream's bare column cannot answer that.
- * A column without the timestamp would quietly turn the precedence rule into
- * "the pick always wins", which is the behaviour ADR 0003 exists to prevent.
+ * settles a disagreement between the stored pick and the transcript by comparing
+ * *when* each happened, which upstream's bare column cannot answer. Without the
+ * timestamp the precedence rule quietly becomes "the pick always wins".
  *
  * See ADR 0025, which supersedes the storage half of ADR 0003.
  */
@@ -467,20 +466,19 @@ type LegacyActiveModelChangeEntry = {
 /**
  * Imports picks from the pre-ADR-0025 sidecar file into the sessions table.
  *
- * Until ADR 0025 these lived in `~/.cloudcli/provider-session-active-model-changes.json`
- * — outside the database, so outside backups and outside this migration system.
- * Entries are matched to session rows by id *and* provider, because the sidecar
- * was keyed by both and a row whose provider has since changed should not
- * inherit another provider's pick.
+ * Until ADR 0025 these lived in
+ * `~/.cloudcli/provider-session-active-model-changes.json` — outside the
+ * database, backups, and this migration system. Entries match session rows by id
+ * *and* provider, because the sidecar was keyed by both and a row whose provider
+ * has changed must not inherit another provider's pick.
  *
- * Deliberately non-destructive in both directions: rows that already carry a
- * model are left alone, and the sidecar file is not deleted. It stays on disk as
- * a fallback until the migration is confirmed in the wild.
+ * Non-destructive both ways: rows that already carry a model are left alone, and
+ * the sidecar is not deleted — it stays as a fallback until the migration is
+ * confirmed in the wild.
  *
  * Runs only on the upgrade that adds the column. "Does any row have a model?"
- * would be the obvious sentinel and is the wrong one — it conflates "already
- * imported" with "the user has picked a model since", so a database that
- * happened to carry one pick would skip the import of every other.
+ * is the wrong sentinel: it conflates "already imported" with "the user has
+ * picked since", so one pick would skip the import of every other.
  */
 const importLegacySessionModelPicks = (db: Database): void => {
   const legacyPath = path.join(

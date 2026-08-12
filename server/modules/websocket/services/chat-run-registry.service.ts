@@ -20,36 +20,29 @@ type ChatRunStatus = 'running' | 'completed';
  * - `providerSessionId`: the provider-native id captured mid-run. The abort
  *   handler uses it for the graceful provider-level interrupt, and the DB
  *   mapping is written from it so history/resume work after the run.
- * - `abortController`: the abort path that always works. It exists from the
- *   moment the run is created, whereas `providerSessionId` is only known once
- *   the runtime announces it mid-stream — for a brand-new session that is
- *   `null` for the whole first leg of the run. An abort arriving in that
- *   window has no provider id to address, so the id-keyed interrupt is a
- *   silent no-op while the runtime keeps going and completes normally. This
- *   controller is handed to the runtime at spawn time and tripped
- *   synchronously by `beginAbort`, so cancellation lands whether or not the
- *   provider id ever arrived.
+ * - `abortController`: the abort path that always works. It exists from run
+ *   creation, whereas `providerSessionId` is only known once the runtime
+ *   announces it mid-stream — `null` for the whole first leg of a new session,
+ *   where the id-keyed interrupt is a silent no-op while the runtime completes
+ *   normally. Handed to the runtime at spawn and tripped synchronously by
+ *   `beginAbort`, so cancellation lands whether or not the id arrived.
  * - `status`: drives `chat_subscribed.isProcessing`, prevents double sends
  *   into the same session, and guards the synthetic-complete fallback in the
  *   chat handler (only emitted when a runtime died without completing).
- * - `abortInFlight`: set the instant an abort begins, before the (awaited,
- *   round-trip) provider interrupt call resolves. `status` alone cannot guard
- *   re-entrancy here because it only flips to `completed` *after* that await
- *   returns — a user mashing Stop (or a double-fired key handler) sends
- *   several `chat.abort`s within milliseconds, all landing while `status` is
- *   still `running`. Without this flag, each one calls the provider's
- *   interrupt independently; overlapping concurrent interrupt calls against
- *   the same underlying CLI process have been observed to corrupt its
- *   response stream (a garbled result with `stop_reason: null`) instead of
- *   cleanly stopping it.
+ * - `abortInFlight`: set the instant an abort begins, before the awaited
+ *   provider interrupt resolves. `status` cannot guard re-entrancy here — it
+ *   only flips to `completed` *after* that await returns, so several
+ *   `chat.abort`s from a mashed Stop all land while it is still `running`.
+ *   Without this flag each calls the provider's interrupt independently, and
+ *   overlapping interrupts against one CLI process corrupt its response stream
+ *   (garbled result, `stop_reason: null`) instead of stopping it.
  * - `lastSeq` / `events`: the per-run event log. Every live event gets a
  *   monotonically increasing `seq` and is buffered so a reconnecting client
  *   can replay exactly the events it missed via `chat.subscribe`.
- * - `runId`: identifies this run on the wire. `seq` restarts at 1 for every
- *   run, so a client's replay progress is only meaningful for the run it was
- *   recorded against — `chat.subscribe` echoes the runId back, and a mismatch
- *   (older run, or a counter that predates a server restart) means the
- *   client's `lastSeq` must be ignored and the full buffer replayed.
+ * - `runId`: identifies this run on the wire. `seq` restarts at 1 per run, so a
+ *   client's replay progress only means anything for the run it was recorded
+ *   against. `chat.subscribe` echoes the runId back; a mismatch means the
+ *   client's `lastSeq` is ignored and the full buffer is replayed.
  */
 type ChatRun = {
   appSessionId: string;
@@ -156,14 +149,12 @@ function evictRunLater(appSessionId: string): void {
  */
 function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): NormalizedMessage | null {
   // Exactly-one-complete contract: when a run is aborted the chat handler
-  // emits the terminal `complete` immediately, but the killed runtime's
-  // async generator can still be mid-flight — `interrupt()` resolving
-  // doesn't guarantee no more buffered messages are yielded — and may go on
-  // to emit dangling content events and/or its own `complete` from its exit
-  // handler moments later. Once the terminal event has passed through,
-  // EVERYTHING after it is dropped, not just a duplicate `complete`:
-  // otherwise those dangling events reach the client after the Stop button
-  // already disappeared, looking like the reply kept going after abort.
+  // emits the terminal `complete` immediately, but the killed runtime's async
+  // generator can still be mid-flight — `interrupt()` resolving does not
+  // guarantee no more buffered messages — and may emit dangling content events
+  // and its own `complete` moments later. Once the terminal event has passed,
+  // EVERYTHING after it is dropped, not just a duplicate `complete`: otherwise
+  // those events reach the client after Stop already disappeared.
   if (run.status === 'completed') {
     return null;
   }
@@ -317,21 +308,17 @@ export const chatRunRegistry = {
   },
 
   /**
-   * Atomically claims the right to abort the session's current run: returns
-   * the run only the first time this is called while it is running, flipping
-   * `abortInFlight` and tripping the run's `AbortController` in the same
-   * synchronous step. A second `chat.abort` for the same run — arriving while
-   * the first is still awaiting the provider's interrupt round-trip — gets
-   * `null` instead of racing its own concurrent interrupt call against the
-   * same provider runtime.
+   * Atomically claims the right to abort the session's current run: returns the
+   * run only on the first call while it is running, flipping `abortInFlight` and
+   * tripping the `AbortController` in the same synchronous step. A second
+   * `chat.abort` arriving while the first awaits the provider's interrupt gets
+   * `null` rather than racing its own interrupt against the same runtime.
    *
-   * The controller is signalled here rather than in the caller so that
-   * cancellation is committed before any `await` can yield: the runtime is
-   * spawned concurrently with this handler, so an abort that only took effect
-   * after an await could be observed by a runtime that had already passed its
-   * last cancellation checkpoint. Tripping it synchronously also means an
-   * abort that lands *before* the runtime is spawned is still seen — the
-   * signal is already aborted by the time the runtime reads it.
+   * The controller is signalled here, not in the caller, so cancellation commits
+   * before any `await` can yield: the runtime is spawned concurrently, so an
+   * abort taking effect after an await could arrive past the runtime's last
+   * cancellation checkpoint. Tripping synchronously also means an abort landing
+   * *before* the runtime spawns is still seen.
    */
   beginAbort(appSessionId: string): ChatRun | null {
     const run = runs.get(appSessionId);
@@ -385,11 +372,10 @@ export const chatRunRegistry = {
    * Returns buffered events with `seq` greater than `afterSeq` for replay.
    *
    * `afterSeq` is only meaningful against the run it was recorded from: `seq`
-   * restarts per run, so when `clientRunId` doesn't match the current run
-   * (client last saw an older run, or its counter predates a server restart)
-   * the whole buffer is replayed instead — the client's transport-level
-   * dedup guard makes over-replay safe, while trusting a stale counter would
-   * silently skip everything the client hasn't seen.
+   * restarts per run, so a `clientRunId` mismatch (older run, or a counter
+   * predating a server restart) replays the whole buffer instead. The client's
+   * transport-level dedup makes over-replay safe, where trusting a stale counter
+   * would silently skip everything it has not seen.
    *
    * An empty array with `run.lastSeq > afterSeq` not covered by the buffer
    * means the buffer was truncated; the client should refresh over REST.
@@ -415,11 +401,10 @@ export const chatRunRegistry = {
       return;
     }
 
-    // Read `lastSeq` before `sendComplete`, which assigns the terminal event
-    // its own seq: a run cancelled with the counter still at zero never
-    // emitted anything, so the provider never took the turn and the client's
-    // optimistic user row has nothing behind it. Only meaningful for aborts —
-    // a run that ends normally always delivered.
+    // Read `lastSeq` before `sendComplete`, which assigns the terminal event its
+    // own seq: a run cancelled with the counter still at zero never emitted
+    // anything, so the provider never took the turn and the client's optimistic
+    // user row has nothing behind it. Only meaningful for aborts.
     run.writer.sendComplete({
       ...opts,
       ...(opts.aborted ? { deliveredToProvider: run.lastSeq > 0 } : {}),

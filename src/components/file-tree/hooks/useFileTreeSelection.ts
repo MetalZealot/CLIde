@@ -5,14 +5,14 @@ import type { FileTreeNode } from '../types/types';
 /**
  * Multi-selection for the Files tab.
  *
- * Selection and activation are separate concepts: in normal mode a click still
- * opens a file or toggles a folder, and selection only takes over row clicks
- * once selection mode is on (entered explicitly, by a modifier-click, or from
- * the long-press menu). Selection is owned here, by `FileTree`, so the
- * recursive row component stays a dumb renderer that receives a boolean.
+ * Selection and activation are separate: in normal mode a click opens a file or
+ * toggles a folder, and selection only takes over row clicks once selection mode
+ * is on (entered explicitly, by modifier-click, or from the long-press menu).
+ * Selection is owned here, by `FileTree`, so the recursive row component stays a
+ * renderer receiving a boolean.
  *
- * Identity is the absolute path — the same key rows, operations, and the move
- * API already use. Node metadata is looked up on demand from the current tree.
+ * Identity is the absolute path — the key rows, operations, and the move API
+ * already use. Node metadata is looked up on demand from the current tree.
  */
 
 export type FileTreeSelectionMode = 'normal' | 'selection';
@@ -57,9 +57,8 @@ type UseFileTreeSelectionOptions = {
 
 /**
  * Walks the tree the way `FileTreeNode` renders it: filtered rows only, and a
- * directory's children only when it is expanded. This is the order Shift-range
- * and Select-all operate over — collapsed and filtered-out rows do not
- * participate.
+ * directory's children only when expanded. This is the order Shift-range and
+ * Select-all operate over.
  */
 function flattenVisible(
   nodes: FileTreeNode[],
@@ -86,9 +85,9 @@ function indexTree(nodes: FileTreeNode[], into: Map<string, FileTreeNode>): Map<
 }
 
 /**
- * Mirrors the server's canonicalization so the payload, the count shown in the
- * move dialog, and the drag validation all agree with what will happen. The
- * server repeats this — this copy is for a clear UI, not a trust boundary.
+ * Mirrors the server's canonicalization so the payload, the move dialog's count,
+ * and drag validation all agree. The server repeats this — the copy here is for
+ * a clear UI, not a trust boundary.
  */
 export function canonicalizeSelection(nodes: FileTreeNode[]): FileTreeNode[] {
   const byPath = new Map<string, FileTreeNode>();
@@ -139,14 +138,14 @@ export function useFileTreeSelection({
   const visiblePaths = useMemo(() => visibleNodes.map((node) => node.path), [visibleNodes]);
 
   // Indexed off the *unfiltered* tree: a row hidden by search is still selected
-  // and still needs its metadata, so only genuine disappearance counts as gone.
+  // and still needs its metadata, so only real disappearance counts as gone.
   const pathIndex = useMemo(
     () => indexTree(files, new Map<string, FileTreeNode>()),
     [files],
   );
 
   // A watcher, terminal, or agent can delete a selected path out from under the
-  // selection. When fresh tree data arrives, drop whatever no longer exists.
+  // selection, so drop whatever no longer exists when fresh tree data arrives.
   useEffect(() => {
     setSelectedPaths((previous) => {
       if (previous.size === 0) {
@@ -197,8 +196,8 @@ export function useFileTreeSelection({
       }
       return next;
     });
-    // The most recent direct selection is always the range anchor, even when
-    // the click deselected — that is where a following Shift-click extends from.
+    // The most recent direct selection is always the range anchor, even when the
+    // click deselected — that is where a following Shift-click extends from.
     setRangeAnchorPath(path);
   }, []);
 
@@ -209,9 +208,8 @@ export function useFileTreeSelection({
       const targetIndex = visiblePaths.indexOf(path);
       const anchorIndex = rangeAnchorPath === null ? -1 : visiblePaths.indexOf(rangeAnchorPath);
 
-      // A stored anchor can stop being visible when search or a collapse
-      // changes the rendered set; fall back to selecting just the clicked row
-      // and making it the new anchor.
+      // A stored anchor can stop being visible when search or a collapse changes
+      // the rendered set; fall back to the clicked row as the new anchor.
       if (targetIndex === -1 || anchorIndex === -1) {
         setSelectedPaths((previous) => new Set(previous).add(path));
         setRangeAnchorPath(path);
@@ -221,8 +219,8 @@ export function useFileTreeSelection({
       const start = Math.min(anchorIndex, targetIndex);
       const end = Math.max(anchorIndex, targetIndex);
       setSelectedPaths((previous) => {
-        // Add to the existing set rather than replacing it, so a range does not
-        // silently discard Ctrl/Cmd picks made elsewhere.
+        // Add to the existing set rather than replacing, so a range does not
+        // discard Ctrl/Cmd picks made elsewhere.
         const next = new Set(previous);
         for (let index = start; index <= end; index += 1) {
           next.add(visiblePaths[index]);
@@ -261,7 +259,7 @@ export function useFileTreeSelection({
       }
     }
     // Selected rows hidden by search or a collapsed parent still belong to the
-    // set; they are appended so operations act on the complete selection.
+    // set; append them so operations act on the complete selection.
     for (const path of selectedPaths) {
       if (seen.has(path)) {
         continue;

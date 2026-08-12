@@ -185,8 +185,7 @@ function Sidebar({
   type SidebarMenuState =
     | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor }
     // The row's own actions: repository-scoped, plus the way into the worktree
-    // manager. Not a worktree picker — that step used to stand between the user
-    // and every action on the row.
+    // manager. Not a worktree picker.
     | { kind: 'repository'; entry: RepositoryEntry; anchor: ContextMenuAnchor }
     | { kind: 'create'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
   const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
@@ -197,15 +196,14 @@ function Sidebar({
   const [viewMenu, setViewMenu] = useState<
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
   >(null);
-  // The highlight-colour picker, opened from Customize. It reuses the anchor the
-  // project menu was opened at, so it appears where that menu just was rather
-  // than jumping to a different part of the row.
+  // The highlight-colour picker, opened from Customize. Reuses the anchor the
+  // project menu was opened at, so it appears where that menu just was.
   const [accentColorMenu, setAccentColorMenu] = useState<
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
   >(null);
 
-  // Long-press, the row's kebab, and right-click all land here: the anchor is
-  // the only thing that differs, so every entry point shares one menu.
+  // Long-press, the row's kebab, and right-click all land here: only the anchor
+  // differs, so every entry point shares one menu.
   const handleSessionActionsMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'session', session, anchor });
   };
@@ -219,8 +217,8 @@ function Sidebar({
   };
 
   /**
-   * The open manager follows the live entry rather than the one captured when
-   * it opened, so creating or removing a worktree updates the list in place.
+   * The open manager follows the live entry, not the one captured when it opened,
+   * so creating or removing a worktree updates the list in place.
    */
   const activeWorktreeEntry = worktreeManager
     ? repositoryEntries.find(
@@ -230,14 +228,14 @@ function Sidebar({
 
   /**
    * The open menu follows the live entry too, so adding a worktree while it is
-   * open adds a row to its filter list instead of leaving a stale one.
+   * open adds a row to its filter list.
    */
   const activeViewMenuEntry = viewMenu
     ? repositoryEntries.find((entry) => entry.key === viewMenu.entry.key) ?? null
     : null;
 
-  // Follows the live entry as well, so the swatch check mark moves to the
-  // colour just picked instead of the one the menu opened with.
+  // Follows the live entry as well, so the swatch check mark moves to the colour
+  // just picked.
   const activeAccentColorMenuEntry = accentColorMenu
     ? repositoryEntries.find((entry) => entry.key === accentColorMenu.entry.key) ?? null
     : null;

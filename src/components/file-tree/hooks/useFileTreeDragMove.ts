@@ -4,25 +4,23 @@ import type { DragEvent, HTMLAttributes } from 'react';
 import type { FileTreeNode } from '../types/types';
 
 /**
- * Desktop drag-and-drop *move* for file-tree rows (distinct from
- * useFileTreeUpload, which handles OS-file drops). Internal drags are tagged
- * with a custom dataTransfer type so the two never collide: upload's root
- * handlers must ignore events carrying this type, and these handlers ignore
- * everything else (external drags fall through to the upload path).
+ * Desktop drag-and-drop *move* for file-tree rows, distinct from
+ * useFileTreeUpload (OS-file drops). Internal drags are tagged with a custom
+ * dataTransfer type so the two never collide: upload's root handlers ignore
+ * events carrying it, and these handlers ignore everything else.
  *
- * Drag moves the *set*: starting a drag on a selected row moves the whole
- * canonical selection, while starting on an unselected row replaces the
- * selection with that row and moves only it — the standard file-explorer rule.
+ * Drag moves the *set*: starting on a selected row moves the whole canonical
+ * selection; starting on an unselected row replaces the selection with that row
+ * and moves only it — the standard file-explorer rule.
  *
- * `draggable` rows are enabled only for mouse input: on touch they collide
- * with the long-press context menu (iOS Safari starts a native HTML5 drag on
- * long-press), and the "Move to…" dialog is the touch move surface anyway.
+ * `draggable` is enabled for mouse input only: on touch it collides with the
+ * long-press context menu (iOS Safari starts a native drag on long-press), and
+ * the "Move to…" dialog is the touch surface anyway.
  *
- * Drop semantics (standard file-explorer): directory rows accept drops,
- * file rows are dead zones (they swallow the event so a miss doesn't fall
- * through and become a move-to-root), tree background = project root
- * (`''` — the server resolves it to the root). Invalid targets never get
- * preventDefault, so the browser shows the not-allowed cursor.
+ * Drop semantics: directory rows accept drops, file rows are dead zones (they
+ * swallow the event so a miss does not become a move-to-root), tree background
+ * is the project root (`''`). Invalid targets never get preventDefault, so the
+ * browser shows the not-allowed cursor.
  */
 
 export const INTERNAL_DRAG_TYPE = 'application/x-cloudcli-file-tree-move';
@@ -91,17 +89,16 @@ export function useFileTreeDragMove({
   resolveDragSources,
   isLocked = false,
 }: UseFileTreeDragMoveOptions): FileTreeDragMove {
-  // Seeded from the pointer media query so a desktop's very first gesture can
-  // drag, then corrected by the actual input events — hybrid devices and
-  // browsers that misreport pointer capabilities settle on whatever the user
-  // is really using rather than on a mount-time guess.
+  // Seeded from the pointer media query so a desktop's first gesture can drag,
+  // then corrected by real input events — hybrid devices and browsers that
+  // misreport pointer capabilities settle on what the user is actually using.
   const [isFinePointer, setIsFinePointer] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches,
   );
   const [draggedPaths, setDraggedPaths] = useState<Set<string>>(() => new Set());
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
-  // Ref mirror: dragover can't read dataTransfer payloads (browser security),
-  // so target validation reads the sources from here instead.
+  // Ref mirror: dragover cannot read dataTransfer payloads (browser security),
+  // so target validation reads the sources from here.
   const draggedSourcesRef = useRef<FileTreeNode[]>([]);
   const dragImageRef = useRef<HTMLElement | null>(null);
 
@@ -128,9 +125,8 @@ export function useFileTreeDragMove({
 
   /**
    * A destination is valid when at least one source would actually move there.
-   * Sources already sitting in the destination are legal no-ops (the server
-   * skips them), but a destination where *every* source already lives has
-   * nothing to do, so it shows not-allowed instead.
+   * Sources already in the destination are legal no-ops (the server skips them),
+   * but a destination where *every* source already lives shows not-allowed.
    */
   const isValidDropTarget = useCallback(
     (sources: FileTreeNode[], destinationPath: string) => {
@@ -216,7 +212,7 @@ export function useFileTreeDragMove({
           }
         };
       } else {
-        // Dead zone: swallow internal drags so they don't bubble to the root
+        // Dead zone: swallow internal drags so they do not bubble to the root
         // handler and read as a move-to-root.
         props.onDragOver = (event) => {
           if (isInternalDragEvent(event)) {

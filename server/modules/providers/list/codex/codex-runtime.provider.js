@@ -214,9 +214,8 @@ function mapPermissionModeToCodexOptions(permissionMode) {
 
 // The provider registry injects a runtime context so adapters never import
 // services that resolve back through the registry. Non-interactive job callers
-// (the agent routes) enter this module directly and have no registry context to
-// hand over, so they fall back to the same lookups performed by the injected
-// one.
+// (the agent routes) enter this module directly with no registry context, so
+// they fall back to the same lookups the injected one performs.
 const defaultCodexRuntimeContext = {
   resolveProviderSessionId: (sessionId) => sessionsService.resolveProviderSessionId(sessionId),
   resolveResumeModel: (sessionId, requestedModel) =>
@@ -503,21 +502,21 @@ export function getActiveCodexSessions() {
 }
 
 // The registry runner is the interactive Chat entry point. Non-interactive jobs
-// call queryCodexJob directly so they stay on the smaller SDK surface.
+// call queryCodexJob directly to stay on the smaller SDK surface.
 //
 // Codex's App Server transport parks its approval and question requests in the
 // same provider-neutral registry Claude uses, so it declares the identical
 // permission surface. Without it, Codex approvals would only work by riding on
-// Claude's gateway entry — correct today, silently broken the moment the
-// registry stops being a shared singleton.
+// Claude's gateway entry — silently broken the moment the registry stops being a
+// shared singleton.
 export const codexRuntime = {
   run: queryCodexChat,
   abort: abortCodexSession,
   permissions: {
     resolve: (requestId, response) => interactiveRequestRegistry.resolve(requestId, response),
-    // Provider-scoped for the same reason Claude's is: the registry is one
-    // shared map, so an unfiltered lookup would also report Claude's pending
-    // prompts and duplicate them in the `chat.subscribe` replay.
+    // Provider-scoped for the same reason Claude's is: one shared map, so an
+    // unfiltered lookup would also report Claude's pending prompts and duplicate
+    // them in the `chat.subscribe` replay.
     listPending: (sessionId) => interactiveRequestRegistry.getPendingForSession(sessionId, 'codex'),
   },
 };
@@ -561,11 +560,11 @@ const completedSessionCleanupTimer = setInterval(() => {
 completedSessionCleanupTimer.unref?.();
 
 /**
- * Interactive Chat entry point. App Server is the default transport and the
- * SDK remains an explicit escape hatch plus startup-only fallback.
- * App Server falls back only when its process cannot complete initialization;
- * once a thread/turn request is attempted, errors stay on that path so a user
- * instruction can never be duplicated by an SDK retry.
+ * Interactive Chat entry point. App Server is the default transport; the SDK is
+ * an explicit escape hatch plus startup-only fallback. App Server falls back only
+ * when its process cannot finish initialization — once a thread/turn request is
+ * attempted, errors stay on that path, so an SDK retry can never duplicate a
+ * user instruction.
  */
 export async function queryCodexChat(command, options = {}, ws, context = defaultCodexRuntimeContext) {
   if (!isCodexAppServerChatEnabled()) {
@@ -573,10 +572,9 @@ export async function queryCodexChat(command, options = {}, ws, context = defaul
   }
 
   // Callers pass the stable app session id. App Server resumes threads with the
-  // provider-native id recorded on the session row, and has to start a fresh
-  // thread when there is none yet — resuming an app-minted id makes Codex
-  // report "no rollout found for thread id ...". The transport gets no runtime
-  // context of its own, so the resolution happens here.
+  // provider-native id on the session row, and must start a fresh thread when
+  // there is none — resuming an app-minted id makes Codex report "no rollout
+  // found for thread id". The transport has no runtime context, so resolve here.
   const appServerOptions = {
     ...options,
     providerSessionId: context.resolveProviderSessionId(options.sessionId),
@@ -592,9 +590,9 @@ export async function queryCodexChat(command, options = {}, ws, context = defaul
 }
 
 /**
- * Non-interactive jobs deliberately stay on the smaller SDK surface. They do
- * not need App Server's approval/question channel or shared process lifecycle,
- * and they enter from the agent routes without a registry runtime context.
+ * Non-interactive jobs stay on the smaller SDK surface: they need neither App
+ * Server's approval/question channel nor its shared process lifecycle, and they
+ * enter from the agent routes without a registry runtime context.
  */
 export async function queryCodexJob(command, options = {}, writer) {
   return queryCodexSdk(command, options, writer);

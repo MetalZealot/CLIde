@@ -10,11 +10,10 @@ export type SessionSortKey = 'recent' | 'oldest' | 'title' | 'worktree';
 /**
  * How one repository row presents its sessions.
  *
- * Held per row and only in memory, so a view survives navigating away and back
- * but never outlives the tab — a sort you forgot you set is worse than one you
- * have to set again. Sorting and filtering by model are deliberately absent:
- * the model pick lives in the database but never reaches the session list, and
- * almost no row carries one yet (see `docs/TODO.md`).
+ * Per row and in memory only, so a view survives navigating away and back but
+ * never outlives the tab — a sort you forgot you set is worse than one you have
+ * to set again. Sorting and filtering by model are deliberately absent: the
+ * model pick lives in the database but never reaches the session list.
  */
 export type RepositoryViewOptions = {
   sort: SessionSortKey;
@@ -25,16 +24,15 @@ export type RepositoryViewOptions = {
 /**
  * One row in the sidebar's project list (ADR 0016).
  *
- * The list is deliberately two levels deep — repository, then session — which
- * is the shape every reference client in `docs/ui ref/` converged on. So a
- * repository with several registered checkouts is *one* row whose sessions are
- * merged across those checkouts and labelled with the branch each came from,
- * not a third tier of checkout rows. A single-checkout repository renders
- * exactly as a project row did before grouping existed.
+ * The list is two levels deep — repository, then session. A repository with
+ * several registered checkouts is *one* row whose sessions are merged across
+ * them and labelled with each branch, not a third tier of checkout rows. A
+ * single-checkout repository renders exactly as a project row did before
+ * grouping existed.
  */
 export type RepositoryEntry = {
   /**
-   * React key and expansion key. Derived only from the project, never from the
+   * React key and expansion key. Derived only from the project, never the
    * current filter, so searching cannot change which row a project belongs to.
    */
   key: string;
@@ -120,7 +118,7 @@ export type ArchivedSessionListItem = {
 
 export type DeleteProjectConfirmation = {
   /**
-   * Every worktree the action covers. A sidebar row is a repository, so its own
+   * Every worktree the action covers. A sidebar row is a repository, so its
    * delete covers all of them; the worktree manager confirms one at a time.
    */
   projects: Project[];
@@ -153,9 +151,9 @@ export type SidebarProps = {
   onNewSession: (project: Project) => void;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   /**
-   * Registers a checkout the projects API discovered on disk, resolving to the
-   * project row it now has. Discovered checkouts carry a synthetic id, so this
-   * is what every other project-scoped action has to wait for.
+   * Registers a checkout the projects API discovered on disk, resolving to its
+   * new project row. Discovered checkouts carry a synthetic id, so every other
+   * project-scoped action waits for this.
    */
   onAdoptCheckout?: (checkoutPath: string) => Promise<Project | null>;
   onSessionDelete?: (sessionId: string) => void;

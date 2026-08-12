@@ -5,53 +5,40 @@ import path from 'node:path';
 /**
  * Model-derived context ceiling for the Claude token ring.
  *
- * The three Claude token-usage paths (`extractTokenBudget` in
- * server/claude-sdk.js, the `/token-usage` endpoint in server/index.js, and
- * `extractHistoryTokenUsage` here in the sessions provider) used to report a
- * flat `CONTEXT_WINDOW || 160000` as the denominator. That is wrong for every
- * model: 200K-class models actually get 180,000 usable tokens, and the 1M
- * models (Opus 4.7+, Sonnet 5, Fable 5) get ~980,000 — the ring read "full" at
- * roughly a sixth of real capacity.
+ * This module is the FALLBACK, for history reads, resumed sessions, and
+ * anything else with no live query to ask. Where a query exists the SDK reports
+ * its own ceiling and auto-compact threshold — authoritative, and free of the
+ * mirroring problem below. See `claude-context-usage.ts`.
  *
- * Claude Code's own algorithm, decoded from the CLI binary (2026-07-26):
+ * Claude Code's algorithm, decoded from the CLI binary, 2026-07-26:
  *
  *   window = the model's registry `context.window`
  *   window = min(window, first cap that is set):
  *              env CLAUDE_CODE_AUTO_COMPACT_WINDOW
  *              → settings.json `autoCompactWindow`
- *              → clientdata/experiment override (not reachable from here)
- *              → a 200,000 "model-default" clamp, applied ONLY when the
- *                model's own window is < 1,000,000, so a 1M model falls
- *                through at its full window
+ *              → a 200,000 "model-default" clamp, applied ONLY when the model's
+ *                own window is < 1,000,000, so a 1M model falls through at its
+ *                full window
  *   usable = window, less a 33,000 reserve on the 1M models (see
- *            LONG_CONTEXT_RESERVE — this part is measured, not decoded)
+ *            LONG_CONTEXT_RESERVE — measured, not decoded)
  *
- * This whole module is the FALLBACK. Where a live query is available the SDK
- * reports its own ceiling and auto-compact threshold, which is both
- * authoritative and free of the mirroring problem below — see
- * `claude-context-usage.ts`. This path exists for history reads, resumed
- * sessions, and anything else with no query to ask.
- *
- * The model facts below are copied verbatim from the registry embedded in
- * `@anthropic-ai/claude-agent-sdk` 0.3.220 (`sdk.mjs`) — `context.window`,
- * `max_output_tokens.default`, and whether the entry declares any form of 1M
- * support. They are never written from memory; refresh them from that registry
- * when the SDK is bumped.
+ * The model facts below are copied verbatim from the registry in
+ * `@anthropic-ai/claude-agent-sdk` 0.3.220 (`sdk.mjs`): `context.window`,
+ * `max_output_tokens.default`, and whether the entry declares 1M support. Never
+ * write them from memory; refresh from that registry when the SDK is bumped.
  */
 
 /**
  * Held back from the 1M models' window, and nothing else.
  *
- * Measured, not decoded: `scripts/verify-context-usage-sdk.ts` (2026-07-27)
- * asked the SDK for its own ceiling and got `maxTokens` 200000 for
- * claude-haiku-4-5 (its full registry window, no reserve at all) and 967000 for
- * claude-sonnet-5 (registry window 1e6, verified in sdk.mjs, less 33000). The
- * same 33000 appears as sonnet's "Autocompact buffer" category and as the gap
- * between `maxTokens` and `autoCompactThreshold` on both models.
+ * Measured, not decoded: `scripts/verify-context-usage-sdk.ts` (2026-07-27) got
+ * `maxTokens` 200000 for claude-haiku-4-5 (full registry window, no reserve) and
+ * 967000 for claude-sonnet-5 (registry 1e6 less 33000). The same 33000 is
+ * sonnet's "Autocompact buffer" category and the `maxTokens` /
+ * `autoCompactThreshold` gap on both models.
  *
- * Only those two model classes were sampled, so this reproduces an observation
- * rather than a rule recovered from the binary. It is deliberately not applied
- * below 1M, because that is what was measured.
+ * Only those two classes were sampled, so this reproduces an observation rather
+ * than a rule from the binary, and is deliberately not applied below 1M.
  */
 const LONG_CONTEXT_RESERVE = 33_000;
 
@@ -63,18 +50,16 @@ const LONG_CONTEXT_WINDOW = 1_000_000;
 
 /**
  * Window assumed for a model this table has never heard of. Every Claude model
- * shipped so far is at least 200K, so this under-reports a hypothetical future
- * 1M model rather than over-reporting a small one. The live-stream path avoids
- * the guess entirely — the SDK hands it real numbers (see
- * `resolveClaudeContextCeiling`'s `contextWindow`/`maxOutputTokens` inputs).
+ * so far is at least 200K, so this under-reports a hypothetical future 1M model
+ * rather than over-reporting a small one. The live-stream path avoids the guess
+ * — the SDK hands it real numbers.
  */
 const FALLBACK_WINDOW = MODEL_DEFAULT_WINDOW_CLAMP;
 
 export type ClaudeModelContextSpec = {
   /**
-   * Registry `context.window`. Absent on pre-4 entries, which carry no
-   * `context` block at all — those fall back to the model-default clamp,
-   * which is what Claude Code does with them too.
+   * Registry `context.window`. Absent on pre-4 entries, which carry no `context`
+   * block; those fall back to the model-default clamp, as Claude Code does.
    */
   window?: number;
   /** Registry `max_output_tokens.default`. */
@@ -110,11 +95,11 @@ export const CLAUDE_MODEL_CONTEXT_SPECS: Readonly<Record<string, ClaudeModelCont
 /**
  * Non-canonical model strings that reach us, mapped onto registry ids.
  *
- * The floating family aliases come from the registry's own `aliases` block —
- * they re-point on every SDK bump, so they are refreshed alongside the specs.
- * The `claude-opus-4` / `claude-sonnet-4` entries exist because those models'
- * dated wire ids (`claude-opus-4-20250514`) reduce to a stem that is not the
- * registry id (`claude-opus-4-0`); every other dated id reduces cleanly.
+ * Floating family aliases come from the registry's own `aliases` block and
+ * re-point on every SDK bump, so refresh them alongside the specs. The
+ * `claude-opus-4` / `claude-sonnet-4` entries exist because those dated wire ids
+ * reduce to a stem that is not the registry id; every other dated id reduces
+ * cleanly.
  */
 export const CLAUDE_MODEL_ID_ALIASES: Readonly<Record<string, string>> = {
   opus: 'claude-opus-5',
@@ -164,10 +149,9 @@ export const normalizeClaudeModelId = (
 };
 
 /**
- * Looks up a model's registry facts. Returns null for anything not in the
- * table — including the `default` picker value, which names no model at all
- * (what it resolves to depends on plan/settings, and by the time any usage
- * exists the transcript already reports the concrete model instead).
+ * Looks up a model's registry facts. Null for anything not in the table,
+ * including the `default` picker value, which names no model — by the time any
+ * usage exists the transcript reports the concrete model instead.
  */
 export const resolveClaudeModelContextSpec = (
   model: string | null | undefined,
@@ -180,7 +164,7 @@ type CachedSettingsWindow = { filePath: string; mtimeMs: number; window?: number
 
 /**
  * settings.json is re-read only when its mtime moves, so the live-stream path
- * can call this once per assistant frame without paying for a parse each time.
+ * can call this once per assistant frame without a parse each time.
  */
 let settingsWindowCache: CachedSettingsWindow | null = null;
 
@@ -209,9 +193,9 @@ export const resetClaudeContextWindowCache = (): void => {
 /**
  * The `CONTEXT_WINDOW` operator override, when set.
  *
- * Exported so callers that have a *better* source than this module's derivation
- * — the SDK's own `maxTokens`, via `claude-context-usage.ts` — can still let the
- * override win. It is the escape hatch; nothing outranks it.
+ * Exported so callers with a better source than this module's derivation — the
+ * SDK's `maxTokens`, via `claude-context-usage.ts` — can still let the override
+ * win. Nothing outranks it.
  */
 export const readClaudeContextWindowOverride = (): number | undefined =>
   readPositiveInteger(process.env.CONTEXT_WINDOW);
@@ -227,12 +211,11 @@ export type ClaudeContextCeilingInput = {
 
 /**
  * Usable context tokens for a session running `model` — the denominator the
- * token ring should divide by.
+ * token ring divides by.
  *
- * `CONTEXT_WINDOW` still wins when set, as the operator escape hatch it always
- * was; it is taken as the final ceiling, not as a raw window to subtract from.
- * A SDK-supplied `contextWindow` outranks the local table, so a model shipped
- * after this table was written still resolves sanely.
+ * `CONTEXT_WINDOW` wins when set, and is taken as the final ceiling rather than
+ * a raw window to subtract from. An SDK-supplied `contextWindow` outranks the
+ * local table, so a model shipped after this table still resolves sanely.
  */
 export const resolveClaudeContextCeiling = (
   input: ClaudeContextCeilingInput = {},

@@ -3,14 +3,13 @@ import fs from 'node:fs';
 /**
  * Helpers for conversation rewind against Claude Code transcript jsonl files.
  *
- * Empirical ground truth (scripts/verify-rewind-sdk.ts, 2026-07-22):
- * - `resumeSessionAt` accepts only ASSISTANT-message uuids; the anchor is
- *   inclusive. A user entry's parentUuid chain leads directly to the assistant
- *   entry the SDK itself would anchor the next turn to.
- * - A rewound turn is APPENDED to the same jsonl with parentUuid pointing at
- *   the anchor: the transcript becomes a tree and the abandoned tail stays in
- *   the file. Readers must follow the active parent chain from the last
- *   main-chain entry — see {@link filterToActiveBranch}.
+ * Ground truth (scripts/verify-rewind-sdk.ts, 2026-07-22):
+ * - `resumeSessionAt` accepts only ASSISTANT uuids; the anchor is inclusive. A
+ *   user entry's parentUuid chain leads directly to the assistant entry the SDK
+ *   would anchor the next turn to.
+ * - A rewound turn is APPENDED to the same jsonl with parentUuid at the anchor:
+ *   the transcript becomes a tree and the abandoned tail stays. Readers must
+ *   follow the active parent chain — see {@link filterToActiveBranch}.
  */
 
 /** The minimal transcript-entry shape these helpers care about. */
@@ -25,9 +24,8 @@ const UUID_PREFIX_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 
 /**
  * Normalized message ids are the transcript uuid plus an optional part suffix
- * (`_text_0`, `_tr_<toolUseId>`, `_images`, ...). Returns the leading uuid, or
- * null when the id is not transcript-backed (e.g. the `claude_<uuid>` ids from
- * generateMessageId, or client-generated optimistic ids).
+ * (`_text_0`, `_tr_<toolUseId>`, `_images`). Returns the leading uuid, or null
+ * when the id is not transcript-backed.
  */
 export function extractBaseTranscriptUuid(messageId: unknown): string | null {
   if (typeof messageId !== 'string') {
@@ -45,9 +43,8 @@ export type ResumeAnchor =
  * Given the uuid of the user message being edited, find the uuid to pass as
  * `resumeSessionAt`: the nearest ASSISTANT ancestor on the parentUuid chain.
  *
- * `anchorUuid: null` (with `found: true`) means the edited message has no
- * assistant ancestor — it is the session's first message, so the caller must
- * start a fresh session instead of resuming.
+ * `anchorUuid: null` with `found: true` means no assistant ancestor — the edited
+ * message is the session's first, so the caller must start fresh.
  */
 export function computeResumeAnchor(
   entries: RewindTranscriptEntry[],
@@ -87,17 +84,14 @@ export function computeResumeAnchor(
 }
 
 /**
- * Drop transcript entries that live on an abandoned branch.
+ * Drop transcript entries on an abandoned branch.
  *
  * The active branch is the ancestor chain of the LAST (file order) non-sidechain
  * user/assistant entry. An entry is dropped only when its own ancestor walk
- * reaches the active chain without the entry itself being on it — i.e. it
- * provably forked off the active conversation. Everything else is kept:
- * - entries without a uuid (metadata rows: ai-title, queue-operation, ...)
- * - sidechain entries (subagent activity; not main-chain messages)
- * - chain segments disconnected from the active root (e.g. pre-compaction
- *   history whose chains end at their own null root) — never misclassified
- *   as abandoned.
+ * reaches the active chain without the entry being on it — i.e. it provably
+ * forked off. Everything else is kept: entries without a uuid (metadata rows),
+ * sidechain entries (subagent activity), and chain segments disconnected from
+ * the active root (pre-compaction history ending at its own null root).
  */
 export function filterToActiveBranch<T extends RewindTranscriptEntry>(entries: T[]): T[] {
   const byUuid = new Map<string, T>();
@@ -128,7 +122,7 @@ export function filterToActiveBranch<T extends RewindTranscriptEntry>(entries: T
   }
 
   // Classify each main-chain entry: keep unless its ancestor walk hits the
-  // active chain from the outside. Memoized so shared prefixes walk once.
+  // active chain from outside. Memoized so shared prefixes walk once.
   const verdictByUuid = new Map<string, boolean>(); // true = keep
   const isKept = (entry: T): boolean => {
     const chain: string[] = [];
@@ -148,8 +142,8 @@ export function filterToActiveBranch<T extends RewindTranscriptEntry>(entries: T
         break;
       }
       if (active.has(key)) {
-        // Reached the active chain. The entry is kept only if the FIRST node
-        // of its walk was already active (chain starts on the active branch).
+        // Reached the active chain. Kept only if the FIRST node of the walk was
+        // already active.
         verdict = chain.length === 0;
         break;
       }
@@ -170,7 +164,7 @@ export function filterToActiveBranch<T extends RewindTranscriptEntry>(entries: T
       return true;
     }
     // Only rendered message kinds are ever hidden; chain-link metadata rows
-    // (attachment, system, ...) stay untouched regardless of branch.
+    // (attachment, system) stay regardless of branch.
     if (entry.type !== 'user' && entry.type !== 'assistant') {
       return true;
     }

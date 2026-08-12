@@ -187,9 +187,8 @@ function mapCliOptionsToSDK(options = {}) {
     sdkOptions.cwd = cwd;
   }
 
-  // Send native `default` explicitly: the composer labels it Ask Before Tools.
-  // Omitting it would inherit permissions.defaultMode from Claude settings and
-  // could silently run a more permissive mode than the picker displays.
+  // Send explicitly — omitting it inherits permissions.defaultMode from Claude
+  // settings, which can outrank what the picker shows.
   if (permissionMode) {
     sdkOptions.permissionMode = permissionMode;
   }
@@ -224,21 +223,18 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
 
-  // Leaving `model` unset is what makes Claude Code apply its own precedence:
-  // ANTHROPIC_MODEL, then `model` in the settings cascade, then the plan
-  // default. Sending a placeholder instead does not — "default" is not a real
-  // alias, so the CLI silently drops to its built-in Sonnet default and the
-  // user's configured model never takes effect.
-  // The literal is filtered here too, not just on the read path: a client that
-  // has not reloaded since the catalog changed can still send it.
+  // Unset lets Claude Code apply its own precedence (ANTHROPIC_MODEL, settings
+  // cascade, plan default). "default" is not a real alias: sending it drops the
+  // CLI to built-in Sonnet. Filtered here as well as on read, for clients that
+  // have not reloaded since the catalog changed.
   if (options.model && options.model !== 'default') {
     sdkOptions.model = options.model;
   }
 
   const effortModels = options.effortModels || CLAUDE_FALLBACK_MODELS;
   const resolvedEffort = resolveClaudeEffort(
-    // With no model of our own, the effort slider still has to resolve against
-    // something; the catalog's default is the model that will actually run.
+    // No explicit model: effort resolves against the catalog default, which is
+    // what will actually run.
     sdkOptions.model || effortModels.DEFAULT,
     effort,
     effortModels,
@@ -254,18 +250,16 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.settingSources = ['project', 'user', 'local'];
 
-  // Ephemeral runs (e.g. the Source Control commit-message generator) opt out
-  // of transcript persistence: without this the SDK writes a jsonl into
-  // ~/.claude/projects/ and the session watcher surfaces the one-shot query as
-  // a real session in the project's sidebar.
+  // Ephemeral runs (e.g. commit-message generation) must opt out: a persisted
+  // jsonl makes the session watcher surface the one-shot query as a real
+  // sidebar session.
   if (options.persistSession === false) {
     sdkOptions.persistSession = false;
   }
 
-  // Snapshot files before edits (file-history-snapshot/-delta rows in the
-  // session jsonl) so a future file-restore rewind has checkpoints to work
-  // with. Conversation-only rewind does not depend on this. Pointless without
-  // a transcript to write the snapshots into.
+  // File snapshots give a future file-restore rewind its checkpoints.
+  // Conversation-only rewind does not need them, and they are pointless with no
+  // transcript to write into.
   if (process.env.CLIDE_DISABLE_CHECKPOINTS !== '1' && options.persistSession !== false) {
     sdkOptions.enableFileCheckpointing = true;
   }
@@ -276,21 +270,16 @@ function mapCliOptionsToSDK(options = {}) {
   }
 
   if (providerSessionId && options.resumeSessionAt) {
-    // Rewind: resume only up to (and including) this assistant-message uuid.
-    // Verified 2026-07-22 (scripts/verify-rewind-sdk.ts): the SDK keeps the
-    // same session id and APPENDS the new turn with parentUuid set to the
-    // anchor — the transcript becomes a tree and readers must follow the
-    // active parent chain.
+    // Resume up to and including this assistant uuid. Verified 2026-07-22
+    // (scripts/verify-rewind-sdk.ts): the session id is unchanged and the new
+    // turn is APPENDED with parentUuid = the anchor, so the transcript is a
+    // tree and readers must follow the active parent chain.
     sdkOptions.resumeSessionAt = options.resumeSessionAt;
   }
 
-  // Cancellation that works before this run has a session id. `interrupt()`
-  // can only be reached through `abortClaudeSDKSession`, which looks the query
-  // up by its provider-native id — an id that does not exist until the SDK
-  // announces it in the first streamed message. A Stop pressed in that window
-  // found no session and silently did nothing, so the query ran to completion
-  // and wrote a full reply into the transcript. The gateway hands the run's
-  // controller in at spawn time, so the signal is live from the first tick.
+  // Abort must work before the SDK announces a provider id: the id-keyed
+  // `abortClaudeSDKSession` path cannot reach a run in that window. The gateway
+  // hands in the run's controller at spawn, so the signal is live from tick one.
   if (options.abortController) {
     sdkOptions.abortController = options.abortController;
   }
@@ -362,11 +351,10 @@ function readNumber(value) {
 /**
  * Picks the ring's denominator for one frame.
  *
- * Order is deliberate: the `CONTEXT_WINDOW` env override is the operator escape
- * hatch and outranks everything; then the SDK's own `maxTokens`, which the
- * session reported about itself; then the derived fallback, used until the
- * mid-turn control request lands (~1s into the first turn) and forever on CLIs
- * that do not answer it.
+ * Precedence: the `CONTEXT_WINDOW` env override (operator escape hatch), then
+ * the SDK's own `maxTokens` for this session, then the derived fallback — used
+ * until the mid-turn control request lands and forever on CLIs that never
+ * answer it.
  *
  * @param {Object|null} ceiling - Cached `getContextUsage()` reading, if any
  * @param {Object} derivedInput - Fallback input for resolveClaudeContextCeiling
@@ -400,18 +388,15 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
     const inputTokens = directInputTokens + cacheTokens;
     const outputTokens = readNumber(messageUsage.output_tokens ?? messageUsage.outputTokens);
     const totalUsed = inputTokens + outputTokens;
-    // Assistant frames name the model that produced this usage, so the derived
-    // fallback still tracks the session's real model when the SDK reading has
-    // not landed yet.
+    // Assistant frames name their own model, so the derived fallback tracks the
+    // session's real model before the SDK reading lands.
     const contextWindow = pickContextWindow(ceiling, {
       model: sdkMessage.message?.model ?? sdkMessage.model,
     });
 
-    // Claude Code streams locally-fabricated assistant messages (session-limit
-    // notices, API-error placeholders, "No response requested.") with an
-    // all-zero usage object. Emitting that as a token_budget frame would reset
-    // the composer's context ring to empty when a session ends on a usage
-    // limit, so skip rows with no real input and keep the last real reading.
+    // Claude fabricates assistant messages (session-limit notices, API-error
+    // placeholders) with all-zero usage. Emitting one as a token_budget frame
+    // would blank the composer's ring; skip and keep the last real reading.
     if (inputTokens <= 0) {
       return null;
     }
@@ -424,8 +409,8 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
       cacheReadTokens,
       cacheCreationTokens,
       cacheTokens,
-      // Undefined until the SDK reading lands; the client treats a missing
-      // threshold as "no auto-compact marker", not as zero.
+      // Undefined until the SDK reading lands; a missing threshold means "no
+      // auto-compact marker", not zero.
       autoCompactThreshold: ceiling?.autoCompactThreshold,
       isAutoCompactEnabled: ceiling?.isAutoCompactEnabled,
       breakdown: {
@@ -450,9 +435,8 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
   const inputTokens = readNumber(modelData.cumulativeInputTokens ?? modelData.inputTokens);
   const outputTokens = readNumber(modelData.cumulativeOutputTokens ?? modelData.outputTokens);
   const totalUsed = inputTokens + outputTokens;
-  // SDK `ModelUsage` entries carry the model's own contextWindow, which
-  // outranks the local registry table — a model newer than that table still
-  // resolves correctly here.
+  // SDK `ModelUsage` carries the model's own contextWindow, which outranks the
+  // local registry table — a model newer than that table still resolves.
   const contextWindow = pickContextWindow(ceiling, {
     model: modelData.canonicalModel ?? modelKey,
     contextWindow: modelData.contextWindow,
@@ -625,23 +609,21 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   // the provider-native id once captured (legacy/direct API callers).
   const sessionKey = () => sessionId || capturedSessionId || null;
 
-  // An abort can reach this run two ways: `abortClaudeSDKSession` (id-keyed,
-  // records the id in `abortedSessionIds`) or the gateway tripping this
-  // signal (works with no id at all). Either means the terminal `complete`
-  // was already sent by the abort handler, so this run must not send its own.
+  // Two abort paths reach this run: `abortClaudeSDKSession` (id-keyed, records
+  // in `abortedSessionIds`) and the gateway tripping this signal (works with no
+  // id). Either already sent the terminal `complete`, so this run must not.
   const abortSignal = options.abortController?.signal ?? null;
   const wasRunAborted = () => {
-    // `delete` both tests and clears the id-keyed marker, so it must run even
-    // when the signal already reports the abort — leaving a stale id behind
-    // would make the session's *next* run suppress its own terminal complete.
+    // `delete` both tests and clears, so it must run even when the signal
+    // already reports the abort — a stale id would suppress the *next* run's
+    // terminal complete.
     const interruptClaimed = capturedSessionId ? abortedSessionIds.delete(capturedSessionId) : false;
     return interruptClaimed || Boolean(abortSignal?.aborted);
   };
 
-  // Conversation rewind: translate the edited message uuid into the resume
-  // shape before option mapping. A fresh start behaves like a brand-new
-  // session — the writer remaps the announced provider id onto the app
-  // session, so the client never notices the id change.
+  // Conversation rewind: resolve the resume shape before option mapping. A
+  // fresh start behaves like a new session; the writer remaps the announced
+  // provider id onto the app session, so the client never sees the id change.
   let rewindPlan = null;
   if (options.rewindToMessageId !== undefined && sessionId) {
     rewindPlan = resolveRewindPlan(options, sessionId);
@@ -679,8 +661,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
     const sdkOptions = mapCliOptionsToSDK({
       ...options,
-      // Editing the first message has nothing to resume: start fresh and let
-      // the announced id be remapped onto the app session.
+      // Editing the first message has nothing to resume: start fresh; the
+      // announced id gets remapped onto the app session.
       providerSessionId: rewindPlan?.freshStart ? null : providerSessionId,
       resumeSessionAt: rewindPlan?.resumeSessionAt,
       model: resolvedModel || options.model,
@@ -749,8 +731,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
       const requestId = createRequestId();
       // toolUseID lets the client optimistically patch the matching tool_use
-      // message with the answer as soon as the user submits it, instead of
-      // waiting on the full round trip to the SDK's own tool_result.
+      // message on submit, rather than waiting for the SDK's tool_result.
       ws.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, toolId: context?.toolUseID, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
       emitNotification(createNotificationEvent({
         provider: 'claude',
@@ -860,9 +841,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
           ws.send(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
         }
       } else if (message.session_id && capturedSessionId && message.session_id !== capturedSessionId) {
-        // Defensive: the SDK announced a different session id on a resumed
-        // query (e.g. a forked resume). Re-key abort tracking and let the
-        // writer remap the provider id onto the stable app session id.
+        // Defensive: SDK announced a different session id on a resumed query
+        // (e.g. a forked resume). Re-key abort tracking; the writer remaps it.
         removeSession(capturedSessionId);
         capturedSessionId = message.session_id;
         addSession(capturedSessionId, queryInstance, ws);
@@ -871,17 +851,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         }
       }
 
-      // Ask the SDK what this session's real context ceiling and auto-compact
-      // threshold are. It only answers while a turn is streaming — at the
-      // terminal `result` the transport is already closing — and the round trip
-      // costs ~1s, so it is never awaited here: blocking the loop would stall
-      // every frame behind it. It used to fire once per turn, freezing the
-      // reading (and the /context modal breakdown built from it) at whatever
-      // was true a second into a long turn. It now re-fires on an interval so
-      // a multi-minute turn's reading keeps tracking the run instead of going
-      // stale. Frames that stream before a capture lands use the derived
-      // fallback, and each answer is cached for the rest of this turn, for
-      // later turns, and for /token-usage.
+      // Ask the SDK for this session's real ceiling and auto-compact threshold.
+      // It only answers while a turn is streaming, and the round trip costs
+      // ~1s, so it is never awaited — blocking here would stall every frame.
+      // Re-fires on an interval so a multi-minute turn keeps tracking instead of
+      // freezing at whatever was true one second in. Frames arriving before a
+      // capture lands use the derived fallback; each answer is cached for later
+      // turns and /token-usage.
       if (capturedSessionId && Date.now() - lastContextUsageAt >= CLAUDE_CONTEXT_USAGE_REFRESH_MS) {
         lastContextUsageAt = Date.now(); // set before firing — prevents stacking
         void captureClaudeContextUsage(capturedSessionId, queryInstance);
@@ -901,12 +877,10 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         ws.send(msg);
       }
 
-      // Drive the composer's context-usage wheel from per-step assistant usage
-      // only. The terminal `result` message reports CUMULATIVE usage for the
-      // whole turn — summing cache reads across every tool step — which can far
-      // exceed the context window and briefly flashes the wheel red before the
-      // next turn corrects it. The wheel wants current context size, which the
-      // last assistant step already carries, so skip the cumulative summary.
+      // Drive the ring from per-step assistant usage only. The terminal
+      // `result` reports CUMULATIVE turn usage — cache reads summed across every
+      // tool step — which can exceed the context window and flash the wheel red.
+      // The last assistant step already carries current context size.
       if (message?.type !== 'result') {
         const tokenBudgetData = extractTokenBudget(
           message,
@@ -1035,10 +1009,9 @@ function getActiveClaudeSDKSessions() {
  * @returns {Array} Array of pending permission request objects
  */
 function getPendingApprovalsForSession(sessionId) {
-  // Provider-scoped: the registry is shared with the other runtimes, and the
-  // gateway asks each of them in turn. Without the filter every runtime that
-  // delegates here answers with the same entries, so one pending prompt is
-  // replayed once per runtime on `chat.subscribe`.
+  // Provider-scoped: the registry is shared and the gateway asks every runtime
+  // in turn. Without the filter, one pending prompt is replayed once per runtime
+  // on `chat.subscribe`.
   return interactiveRequestRegistry.getPendingForSession(sessionId, 'claude');
 }
 
@@ -1058,11 +1031,9 @@ function reconnectSessionWriter(sessionId, newRawWs) {
 }
 
 /**
- * Manual counterpart to the interval re-capture above, for the /context
- * modal's refresh button. Same mid-turn-only constraint: it looks the
- * session up in the active-sessions map and asks its live query instance,
- * so it returns null whenever there is no turn currently streaming (the
- * turn already ended, or the session was never active in this process).
+ * Manual counterpart to the interval re-capture above, for the /context modal's
+ * refresh button. Same mid-turn-only constraint: it asks the live query
+ * instance, so it returns null when no turn is streaming.
  * @param {string} providerSessionId - Claude's own session id
  * @returns {Promise<Object|null>} Fresh ceiling, or null if no live query
  */
@@ -1074,10 +1045,9 @@ async function refreshClaudeContextUsage(providerSessionId) {
   return captureClaudeContextUsage(providerSessionId, session.instance);
 }
 
-// `resolveToolApproval`/`getPendingApprovalsForSession` are CLIde's thin
-// wrappers over the interactive-request registry, which also carries
-// AskUserQuestion — the registry, not a tool-approval-only channel, is what the
-// runtime's permission surface resolves against.
+// `resolveToolApproval`/`getPendingApprovalsForSession` wrap the interactive-
+// request registry, which also carries AskUserQuestion — the permission surface
+// resolves against the registry, not a tool-approval-only channel.
 export const claudeRuntime = {
   run: queryClaudeSDK,
   abort: abortClaudeSDKSession,

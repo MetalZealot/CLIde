@@ -1,75 +1,58 @@
 /**
- * verify-context-usage-sdk.ts — empirical probe of the Agent SDK's
- * `Query.getContextUsage()` control request.
- *
- * Run from the repo root (uses the repo's installed SDK + the user's Claude login;
- * costs two one-word turns):
+ * Empirical probe of the Agent SDK's `Query.getContextUsage()` control request.
+ * Run from the repo root; uses the installed SDK and the user's Claude login,
+ * and costs two one-word turns:
  *
  *   npx tsx scripts/verify-context-usage-sdk.ts
  *
- * Answers the feasibility questions for driving the context ring off the SDK
- * instead of reconstructing it from JSONL (TODO "Drive the context ring from
- * the SDK's getContextUsage()"):
+ * Questions, for driving the context ring off the SDK instead of reconstructing
+ * it from JSONL:
  *
- *   C1 — does the control request work when `prompt` is a bare STRING? The SDK
- *        documents control requests as "only supported when streaming
- *        input/output is used", and server/claude-sdk.js passes a string for
- *        every text-only turn. If this fails, the feature needs the whole send
- *        path moved to streaming input.
- *   C2 — WHEN can it be called? Inside the loop on the terminal `result`
- *        message, versus after the generator has finished (the query instance
- *        CLIde currently drops via removeSession).
- *   C3 — what is `maxTokens` / `rawMaxTokens`, and does `maxTokens` agree with
- *        the hand-derived ceiling from resolveClaudeContextCeiling?
- *   C4 — are `autoCompactThreshold` / `isAutoCompactEnabled` populated, i.e. can
- *        the ring mark where auto-compact fires?
- *   C5 — does `totalTokens` agree with what extractTokenBudget reports as
- *        `used` for the same turn?
- *   C6 — how long does the round trip take (it would run once per turn)?
+ *   C1 — does the control request work with a bare STRING prompt? The SDK
+ *        documents control requests as streaming-only, and the Claude runtime
+ *        passes a string for every text-only turn.
+ *   C2 — WHEN can it be called: inside the loop, on the terminal `result`, or
+ *        after the generator finishes?
+ *   C3 — what are `maxTokens` / `rawMaxTokens`, and do they agree with
+ *        resolveClaudeContextCeiling?
+ *   C4 — are `autoCompactThreshold` / `isAutoCompactEnabled` populated?
+ *   C5 — does `totalTokens` agree with extractTokenBudget's `used`?
+ *   C6 — how long is the round trip?
  *
- * Both probe turns run in a scratch cwd, so they create a real transcript under
+ * Both turns run in a scratch cwd, creating a real transcript under
  * ~/.claude/projects/-tmp-context-usage-probe — delete it when finished.
- *
- * FINDINGS (recorded after the run) — see the trailing "FINDINGS" comment block.
  */
 
 /*
  * FINDINGS — run 2026-07-27, SDK 0.3.220, one turn per model.
  *
- * C1 — YES, a bare string prompt works. Despite the "only supported when
- *      streaming input/output is used" wording on the Query control-request
- *      block, getContextUsage() resolved fine against the string-prompt
- *      transport CLIde already uses. No migration of the send path needed.
+ * C1 — YES. Despite the streaming-only wording, getContextUsage() resolved
+ *      against the string-prompt transport already in use.
  *
- * C2 — TIMING is the real constraint, not the prompt shape:
+ * C2 — TIMING is the constraint, not prompt shape:
  *          at system/init  -> OK (1082-1200ms)
  *          at assistant    -> OK (779-1121ms)
  *          at result       -> "Query closed before response received"
  *          after the loop  -> "ProcessTransport is not ready for writing"
- *      So it must be called mid-turn. The terminal `result` message is already
- *      too late: the transport is closing by the time it is yielded.
+ *      Mid-turn only; the terminal `result` is already too late.
  *
- * C3 — the SDK's maxTokens DISAGREES with resolveClaudeContextCeiling, in both
- *      directions:
+ * C3 — maxTokens DISAGREES with resolveClaudeContextCeiling, both directions:
  *          haiku  (claude-haiku-4-5-20251001): SDK 200000, derived 180000
  *          sonnet (claude-sonnet-5):           SDK 967000, derived 980000
- *      i.e. Claude Code does NOT subtract an output reserve from a 200K window,
- *      and takes 33000 off the 1M window (registry `context.window` for
- *      claude-sonnet-5 really is 1e6 — verified in sdk.mjs). rawMaxTokens
- *      equalled maxTokens in both runs.
+ *      So no output reserve is taken off a 200K window, and 33000 off the 1M
+ *      window (registry `context.window` for sonnet really is 1e6, verified in
+ *      sdk.mjs). rawMaxTokens equalled maxTokens in both runs.
  *
- * C4 — YES: isAutoCompactEnabled true, autoCompactThreshold populated, and in
- *      both runs threshold === maxTokens - 33000 (haiku 167000, sonnet 934000).
- *      33000 also shows up as sonnet's "Autocompact buffer" category. So
- *      auto-compact IS enabled for SDK sessions, and the point where it fires
- *      is knowable.
+ * C4 — YES: isAutoCompactEnabled true, and threshold === maxTokens - 33000 in
+ *      both runs (haiku 167000, sonnet 934000). 33000 also appears as sonnet's
+ *      "Autocompact buffer" category.
  *
- * C5 — totalTokens tracks the stream numerator to within a handful of tokens
- *      (20003 vs 20106, 26878 vs 26879). extractTokenBudget's numerator is
- *      already right; it is the denominator that was wrong.
+ * C5 — totalTokens tracks the stream numerator to within a few tokens (20003 vs
+ *      20106, 26878 vs 26879). The numerator was already right; the denominator
+ *      was wrong.
  *
- * C6 — 780-1200ms per round trip. Fine once per turn, far too slow to run per
- *      assistant frame, and it must not be awaited inline in the message loop.
+ * C6 — 780-1200ms. Fine once per turn, far too slow per assistant frame, and it
+ *      must not be awaited inline in the message loop.
  */
 
 import fs from 'node:fs';

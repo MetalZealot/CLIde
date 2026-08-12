@@ -5,9 +5,9 @@ import { cn } from '../../../lib/utils';
 
 const VIEWPORT_PADDING = 10;
 const ANCHOR_GAP = 8;
-// A tap leaves a click behind a few ms after touchend; swallow it so it can't
-// land on the row the menu was covering. Short enough that a fresh tap started
-// right afterwards keeps its own click.
+// A tap leaves a click behind a few ms after touchend; swallow it so it cannot
+// land on the row the menu covered. Short enough that a fresh tap keeps its own
+// click.
 const CLICK_SWALLOW_MS = 150;
 // Insurance only: a gesture always ends with touchend/touchcancel/mouseup, but
 // a shield that somehow outlived its gesture would freeze the whole app.
@@ -20,9 +20,9 @@ const SHIELD_MAX_MS = 2000;
 export type ContextMenuAnchor = { top: number; bottom: number; left: number };
 
 /**
- * Anchor a menu to the row that was long-pressed rather than to the finger, so
- * it's obvious which row it belongs to. Falls back to the touch point if the
- * row can't be measured.
+ * Anchor a menu to the long-pressed row rather than the finger, so it is obvious
+ * which row it belongs to. Falls back to the touch point if the row cannot be
+ * measured.
  */
 export function anchorFromElement(
   element: Element | null | undefined,
@@ -41,9 +41,8 @@ function calculateAnchoredPosition(
   menuHeight: number,
   placement: 'auto' | 'above',
 ) {
-  // Prefer just below the row; flip to just above it when the row sits low
-  // enough that a downward menu would run off the bottom. Either way the menu
-  // touches the row it belongs to instead of floating off on its own.
+  // Prefer just below the row; flip above when a downward menu would run off the
+  // bottom. Either way it touches the row it belongs to.
   const spaceBelow = window.innerHeight - VIEWPORT_PADDING - (anchor.bottom + ANCHOR_GAP);
   const spaceAbove = anchor.top - ANCHOR_GAP - VIEWPORT_PADDING;
 
@@ -64,14 +63,13 @@ let releaseActiveTapShield: (() => void) | null = null;
 
 /**
  * Keep the rest of the gesture that dismissed a menu inert: it must not scroll
- * the list and must not land on whatever the menu was covering.
+ * the list or land on whatever the menu covered.
  *
- * Deliberately a plain DOM element rather than React state — the menu's owner
- * usually unmounts the whole overlay the instant it's dismissed, and the shield
- * has to outlive that. It's released the moment the finger lifts: holding it
- * even a little longer ate the start of the *next* swipe, because the browser
- * fixes an element's `touch-action` when a gesture begins on it and never
- * revisits that decision mid-gesture.
+ * A plain DOM element rather than React state — the menu's owner usually
+ * unmounts the overlay the instant it is dismissed, and the shield must outlive
+ * that. Released as the finger lifts: holding it longer ate the start of the
+ * *next* swipe, because the browser fixes an element's `touch-action` when a
+ * gesture begins on it and never revisits that mid-gesture.
  */
 export function armTapShield() {
   releaseActiveTapShield?.();
@@ -80,8 +78,8 @@ export function armTapShield() {
   shield.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:9999;touch-action:none;';
   document.body.appendChild(shield);
 
-  // The finger that's still down already owns a scrolling gesture on the list;
-  // `touch-action` can't retract that, so block the moves outright.
+  // The finger still down already owns a scrolling gesture on the list;
+  // `touch-action` cannot retract that, so block the moves outright.
   const blockScroll = (event: TouchEvent) => event.preventDefault();
   document.addEventListener('touchmove', blockScroll, { passive: false });
 
@@ -140,10 +138,9 @@ type ContextMenuOverlayProps = {
 
 /**
  * Shared long-press / right-click menu surface: a portaled popover anchored to
- * the row it belongs to, over a transparent catcher that freezes the list
- * behind it. Used by the file tree and the sidebar so both behave identically.
- *
- * No scrim or backdrop blur (app-wide preference); the catcher is invisible.
+ * its row, over a transparent catcher that freezes the list behind it. Used by
+ * the file tree and the sidebar so both behave identically. No scrim or backdrop
+ * blur (ADR 0001); the catcher is invisible.
  */
 export default function ContextMenuOverlay({
   anchor,
@@ -157,23 +154,23 @@ export default function ContextMenuOverlay({
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
 
-  // Position against the menu's real size (its height varies with the action
-  // list), before paint so it never shows at the wrong spot first.
+  // Position against the menu's real size (height varies with the action list),
+  // before paint, so it never shows at the wrong spot first.
   useLayoutEffect(() => {
     const menuElement = menuRef.current;
     if (!menuElement) {
       return;
     }
 
-    // offsetWidth/Height, not getBoundingClientRect: the menu's `zoom-in-95`
-    // enter animation has it scaled to 0.95 at this point, and a rect 5% short
-    // pushed the flipped-above placement down onto the row it belongs to.
+    // offsetWidth/Height, not getBoundingClientRect: the `zoom-in-95` enter
+    // animation has it scaled to 0.95 here, and a rect 5% short pushed the
+    // flipped-above placement onto the row.
     setPosition(calculateAnchoredPosition(anchor, menuElement.offsetWidth, menuElement.offsetHeight, placement));
   }, [anchor, measureKey, placement]);
 
-  // An outside press dismisses on touchstart/mousedown rather than click, so
-  // the menu is gone the instant the screen is touched. The shield keeps the
-  // remainder of that one gesture inert and is released as the finger lifts.
+  // An outside press dismisses on touchstart/mousedown rather than click, so the
+  // menu is gone the instant the screen is touched. The shield keeps the rest of
+  // that gesture inert.
   const dismissOnOutsidePress = useCallback(() => {
     armTapShield();
     onDismiss();
@@ -187,9 +184,8 @@ export default function ContextMenuOverlay({
     };
 
     // The catcher's `touch-action: none` only governs gestures that *start*
-    // after the menu opens; the finger that long-pressed is still down and
-    // already owns a scrolling gesture on the row. Block that one too, so the
-    // list can't slide out from under the menu without lifting first.
+    // after the menu opens; the finger that long-pressed already owns a
+    // scrolling gesture on the row. Block that one too.
     const blockScrollWhileOpen = (event: TouchEvent) => {
       const menuElement = menuRef.current;
       if (menuElement && menuElement.contains(event.target as Node)) {
@@ -272,8 +268,8 @@ export default function ContextMenuOverlay({
           position: 'absolute',
           left: position?.x ?? 0,
           top: position?.y ?? 0,
-          // A forced-above menu scrolls within the space above its row instead
-          // of growing through the row and over the surface beneath it.
+          // A forced-above menu scrolls within the space above its row rather
+          // than growing through it.
           maxHeight: placement === 'above'
             ? Math.max(0, anchor.top - ANCHOR_GAP - VIEWPORT_PADDING)
             : undefined,

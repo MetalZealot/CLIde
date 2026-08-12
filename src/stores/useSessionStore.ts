@@ -14,7 +14,7 @@ import type { LLMProvider } from '../types/app';
 
 import { removeOptimisticUserEchoes } from './sessionMessageReconciliation';
 
-// ─── NormalizedMessage (mirrors server/adapters/types.js) ────────────────────
+// ─── NormalizedMessage (mirrors server/shared/types.ts) ─────────────────
 
 export type MessageKind =
   | 'text'
@@ -610,10 +610,10 @@ export function useSessionStore() {
     const slot = getSlot(sessionId);
     const fetchTicket = ++slot._fetchSeq;
     try {
-      // Preserve the currently loaded tail window. A reconnect or transcript
-      // watcher refresh used to omit pagination and replace a 20-row view with
-      // the entire conversation, causing a huge render and invalidating the
-      // reader's scroll geometry. Full-history views still refresh in full.
+      // Preserve the loaded tail window. A reconnect or watcher refresh used to
+      // omit pagination and replace a 20-row view with the entire conversation,
+      // invalidating the reader's scroll geometry. Full-history views still
+      // refresh in full.
       const refreshLimit = slot.hasMore && slot.offset > 0 ? slot.offset : null;
       const params = new URLSearchParams();
       if (refreshLimit !== null) {
@@ -755,9 +755,9 @@ export function useSessionStore() {
       const body = await response.json();
       if (body.success && body.data?.model) {
         // Only a genuinely session-scoped model (a stored pick or the session's
-        // own transcript) may become this session's model. A `default` source
-        // is a global/catalog fallback; storing it would feed it back into the
-        // send path and override the user's provider-level model choice.
+        // own transcript) may become this session's model. A `default` source is
+        // a global fallback; storing it would feed it back into the send path
+        // and override the user's provider-level choice.
         const isSessionScoped = body.data.source === 'pick' || body.data.source === 'transcript';
         slot.model = isSessionScoped ? body.data.model : null;
         slot.modelStatus = 'idle';
@@ -785,10 +785,9 @@ export function useSessionStore() {
   }, [getSlot, notify]);
 
   /**
-   * Optimistically merge a tool_result onto the matching tool_use message.
-   * For interactive tools (e.g. AskUserQuestion) that resolve client-side
-   * the instant the user answers, well before the SDK's own tool_result
-   * round-trips back over the websocket.
+   * Optimistically merge a tool_result onto its tool_use message, for
+   * interactive tools (AskUserQuestion) that resolve client-side the instant the
+   * user answers — well before the SDK's tool_result round-trips back.
    */
   const patchToolResult = useCallback((
     sessionId: string,
@@ -817,10 +816,10 @@ export function useSessionStore() {
   }, [notify]);
 
   /**
-   * Optimistically drop the edited message and everything after it when a
-   * rewind send starts. The transcript on the server is the ground truth
-   * (its abandoned branch is filtered there); this only keeps the visible
-   * list consistent until the post-turn refetch reconciles.
+   * Optimistically drop the edited message and everything after it when a rewind
+   * send starts. The server transcript is ground truth (its abandoned branch is
+   * filtered there); this only keeps the visible list consistent until the
+   * post-turn refetch.
    */
   const truncateFromMessageId = useCallback((sessionId: string, baseMessageUuid: string) => {
     const slot = storeRef.current.get(sessionId);
@@ -839,16 +838,14 @@ export function useSessionStore() {
   }, [notify]);
 
   /**
-   * Retracts the optimistic user row for a run that was cancelled before the
-   * provider ever received it, returning its text so the caller can put it
-   * back in the composer.
+   * Retracts the optimistic user row for a run cancelled before the provider
+   * received it, returning its text so the caller can restore the composer.
    *
-   * Only `realtimeMessages` is touched, and only when the trailing row is a
-   * user turn: an undelivered run emitted nothing, so that row is the last
-   * thing appended and the server transcript has no counterpart. Leaving it
-   * would keep a bubble that survives until the next reload and then silently
-   * disappears — it can't be edited or rewound either, because it has no
-   * transcript uuid to anchor a resume.
+   * Only `realtimeMessages`, and only when the trailing row is a user turn: an
+   * undelivered run emitted nothing, so that row is the last thing appended and
+   * the transcript has no counterpart. Leaving it keeps a bubble that survives
+   * until the next reload and then silently disappears — and it cannot be edited
+   * or rewound, having no transcript uuid to anchor a resume.
    */
   const retractUndeliveredUserTurn = useCallback((sessionId: string): string | null => {
     const slot = storeRef.current.get(sessionId);
@@ -856,7 +853,7 @@ export function useSessionStore() {
 
     // Must be the local echo (`local_` id from chatMessageToNormalized), not a
     // transcript-backed row that merely happens to be last — retracting one of
-    // those would delete real history the server still has.
+    // those would delete real history.
     const last = slot.realtimeMessages[slot.realtimeMessages.length - 1];
     const isLocalUserEcho =
       last?.role === 'user' && typeof last.id === 'string' && last.id.startsWith('local_');

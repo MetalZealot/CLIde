@@ -129,9 +129,8 @@ function readCodexTokenUsage(fileContent: string): TokenUsageResult {
       }
 
       // Shared with the live Codex stream: `total_token_usage` is cumulative
-      // across the whole thread, so it overstates what is actually in the
-      // context window after a compaction. The helper prefers the per-turn
-      // `last_token_usage` reading and derives the ceiling with it.
+      // across the thread, so it overstates what is in the context window after
+      // a compaction. The helper prefers the per-turn `last_token_usage`.
       tokenUsage = extractCodexContextTokenUsage(tokenInfo);
       if (tokenUsage) {
         contextWindow = tokenUsage.total;
@@ -166,13 +165,11 @@ type ClaudeTranscriptUsage = {
  * Finds the latest assistant message carrying *real* usage data.
  *
  * Mirrors `extractHistoryTokenUsage` in `claude-sessions.provider.ts` and
- * `extractTokenBudget` in the Claude runtime — the three paths must stay in
- * sync. Claude Code appends locally-fabricated assistant rows (session-limit
- * notices, API-error placeholders, "No response requested.") carrying an
- * all-zero `usage` object. Breaking on those would report used=0 and blank the
- * context ring when a session ends on a usage limit, so rows with no real input
- * — and subagent sidechains, which have their own smaller context — are skipped
- * to keep walking back to the last genuine turn.
+ * `extractTokenBudget` in the Claude runtime — all three must stay in sync.
+ * Claude appends locally-fabricated assistant rows (session-limit notices,
+ * API-error placeholders) with an all-zero `usage` object; breaking on those
+ * would report used=0 and blank the ring. Rows with no real input, and subagent
+ * sidechains (their own smaller context), are skipped.
  */
 function readClaudeTranscriptUsage(fileContent: string): ClaudeTranscriptUsage {
   const lines = fileContent.trim().split('\n');
@@ -399,10 +396,9 @@ export function createProviderTokenUsageService(
       const usage = readClaudeTranscriptUsage(fileContent);
 
       // The ceiling follows the session's active model. The last real turn names
-      // the model that produced the reading above; a popup pick made since that
-      // turn is what the next turn will actually run, so it wins on the same
-      // recency rule `resolveResumeModel` uses. Reusing the row already scanned
-      // keeps this free — no second pass over the transcript.
+      // the model that produced the reading above; a pick made since that turn is
+      // what the next turn runs, so it wins on the same recency rule
+      // `resolveResumeModel` uses. Reusing the scanned row avoids a second pass.
       let ceilingModel = usage.model;
       try {
         const changedModel = await dependencies.getChangedActiveModel(sessionId);
@@ -416,12 +412,11 @@ export function createProviderTokenUsageService(
         // No stored pick, or it is unreadable — the transcript model stands.
       }
 
-      // If this session has ever streamed a turn, the SDK has already reported
-      // its real ceiling and auto-compact threshold, which beats deriving them
-      // (see claude-context-usage.ts — the reading is persisted, so this
-      // survives a restart and a resume). It is only usable while it still
-      // describes the model the session is on: switching model changes the
-      // window, and the cached reading predates the switch.
+      // If this session has ever streamed a turn, the SDK already reported its
+      // real ceiling and threshold, which beats deriving them (the reading is
+      // persisted, so this survives a restart and a resume). Usable only while it
+      // still describes the session's model: switching model changes the window,
+      // and the cached reading predates the switch.
       const cachedCeiling = await dependencies.loadClaudeContextCeiling(providerSessionId);
       const cachedModelStillApplies = Boolean(cachedCeiling)
         && (!ceilingModel

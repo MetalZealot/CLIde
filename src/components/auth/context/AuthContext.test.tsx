@@ -1,18 +1,16 @@
 /**
- * Regression coverage for ADR 0024 — token rotation does not restart auth
+ * Regression coverage for ADR 0024 — token rotation must not restart auth
  * bootstrap.
  *
- * The bug this guards against cost days to find and presented as "the PWA
- * reboots itself": adopting a server-refreshed JWT changed `checkAuthStatus`'s
- * callback identity, which re-ran the mount effect, which set `isLoading` back
- * to `true`, which made `ProtectedRoute` swap the entire workspace for the
- * loading screen. On Android that unmounted the file input while the native
- * picker was still open, so the chosen image was discarded 49 ms after
- * selection.
+ * The guarded bug presented as "the PWA reboots itself": adopting a
+ * server-refreshed JWT changed `checkAuthStatus`'s callback identity, which
+ * re-ran the mount effect, set `isLoading` back to `true`, and made
+ * `ProtectedRoute` swap the whole workspace for the loading screen. On Android
+ * that unmounted the file input while the native picker was open, discarding the
+ * chosen image.
  *
- * The merged v1.37 tree makes this more load-bearing, not less: there are now
- * two mechanisms that call `setToken` — CLIde's `X-Refreshed-Token` keep-alive
- * and upstream's proactive half-life `refreshSession`. Neither may reboot the
+ * Two mechanisms now call `setToken` — CLIde's `X-Refreshed-Token` keep-alive and
+ * upstream's proactive half-life `refreshSession`. Neither may reboot the
  * workspace.
  *
  * Run with `npm run test:client`, which supplies the client tsconfig (this file
@@ -34,12 +32,10 @@ import { AuthProvider, useAuth } from './AuthContext';
  *
  *   if (isLoading) return <AuthLoadingScreen />;
  *
- * The real component is not imported because its graph reaches Onboarding and
- * the shell terminal, so loading it in Node turns this into an xterm/CJS interop
- * exercise. The gate itself is the contract under test, and ADR 0024 states it
- * in terms of `isLoading` — if `isLoading` goes back to `true` while a session
- * is live, the real `ProtectedRoute` unmounts the workspace. Keep this in sync
- * if that component's gating changes.
+ * The real component is not imported because its graph reaches Onboarding and the
+ * shell terminal, making this an xterm/CJS interop exercise. The gate is the
+ * contract under test, and ADR 0024 states it in terms of `isLoading`. Keep in
+ * sync if that component's gating changes.
  */
 const ProtectedRouteGate = ({ children }: { children: React.ReactNode }) => {
   const { isLoading, user } = useAuth();
@@ -60,10 +56,9 @@ const base64Url = (value: string) =>
   Buffer.from(value, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 /**
- * `isValidRefreshedToken` and `getAuthTokenRefreshDelay` both parse the token,
- * so the fixtures have to be shaped like real JWTs. Issued now, expiring in a
- * week, matching the server's lifetime — well short of its half-life, so
- * upstream's proactive refresh timer stays idle for the duration of the test.
+ * `isValidRefreshedToken` and `getAuthTokenRefreshDelay` both parse the token, so
+ * fixtures must be shaped like real JWTs. Issued now, expiring in a week —
+ * well short of the half-life, so upstream's proactive refresh stays idle.
  */
 const makeToken = (label: string) => {
   const issuedAt = Math.floor(Date.now() / 1000);
@@ -149,8 +144,8 @@ const renderWorkspace = async () => {
   api.user.onboardingStatus = async () => jsonResponse({ hasCompletedOnboarding: true });
 
   // Stands in for the app's workspace. Its mount/unmount counters are the
-  // assertion that matters: the composer's file input lives inside this tree,
-  // and remounting it is what discarded the Android picker's result.
+  // assertion that matters: the composer's file input lives in this tree, and
+  // remounting it is what discarded the Android picker's result.
   const Workspace = () => {
     const { token } = useAuth();
     harness.currentToken = token;
@@ -176,8 +171,8 @@ const renderWorkspace = async () => {
   });
   await React.act(flush);
 
-  // The loading screen legitimately renders during bootstrap. Zero the counter
-  // so assertions read "the loading screen came back", not "it ever appeared".
+  // The loading screen legitimately renders during bootstrap. Zero the counter so
+  // assertions read "it came back", not "it ever appeared".
   harness.loadingScreenRenders = 0;
 
   return harness;

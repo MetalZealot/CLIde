@@ -5,15 +5,15 @@ import crossSpawn from 'cross-spawn';
 import { normalizeProjectPath } from '@/shared/utils.js';
 
 /**
- * Finding the worktrees of a repository that CLIde has no project row for, so
- * the sidebar can show a checkout somebody created outside the app.
+ * Finding the worktrees of a repository CLIde has no project row for, so the
+ * sidebar can show a checkout created outside the app.
  *
- * A project row is written in exactly two places — the in-app worktree/project
- * creation flow, and the session synchronizer, which records a transcript's
- * `cwd`. A worktree created from a shell satisfies neither, so until someone
- * starts a session in it there is nothing in the UI that names it. This service
- * closes that gap by *reading* git, never by writing a row: discovery is derived
- * at request time, in keeping with ADR 0016's treatment of repository identity.
+ * A project row is written in exactly two places — the in-app creation flow, and
+ * the session synchronizer recording a transcript's `cwd`. A worktree created
+ * from a shell satisfies neither, so nothing in the UI names it until someone
+ * starts a session there. This service closes that gap by *reading* git, never
+ * writing a row: discovery is derived at request time, as ADR 0016 treats
+ * repository identity.
  */
 
 export type WorktreePorcelainEntry = {
@@ -72,11 +72,10 @@ const defaultDependencies: WorktreeInventoryDependencies = {
  * Parses `git worktree list --porcelain`. Entries are separated by blank lines
  * and the first is always the main worktree.
  *
- * Harvested from upstream v1.37's rejected Worktrees module
- * (`server/modules/worktrees/services/worktree-git.service.ts` at tag
- * `v1.37.0`), which is the one part of that feature worth keeping: parsing
- * git's own stable output has no product opinion in it. Paths are normalized
- * here so they compare equal to the DB's stored project paths.
+ * Harvested from upstream v1.37's rejected Worktrees module — the one part of
+ * that feature worth keeping, since parsing git's stable output carries no
+ * product opinion. Paths are normalized so they compare equal to the DB's stored
+ * project paths.
  */
 export function parseWorktreeListPorcelain(output: string): WorktreePorcelainEntry[] {
   const entries: WorktreePorcelainEntry[] = [];
@@ -132,11 +131,10 @@ export function parseWorktreeListPorcelain(output: string): WorktreePorcelainEnt
 }
 
 /**
- * Every worktree of the repository containing `checkoutPath`.
- *
- * Never throws. This runs inside the project-list request, where an unreadable
- * directory must cost the user nothing more than the discoveries it would have
- * contributed — the same contract `readCheckoutIdentity` keeps.
+ * Every worktree of the repository containing `checkoutPath`. Never throws: this
+ * runs inside the project-list request, where an unreadable directory must cost
+ * no more than the discoveries it would have contributed — the same contract
+ * `readCheckoutIdentity` keeps.
  */
 export async function listRepositoryWorktrees(
   checkoutPath: string,
@@ -153,8 +151,7 @@ export async function listRepositoryWorktrees(
 export type DiscoverCheckoutsInput = {
   /**
    * One registered checkout per repository — `git worktree list` reports the
-   * whole repository from any of them, so asking more than once per repository
-   * only spends git calls.
+   * whole repository from any of them, so asking twice only spends git calls.
    */
   repositoryProbePaths: string[];
   /** True when a path already has a project row, archived or not. */
@@ -162,11 +159,10 @@ export type DiscoverCheckoutsInput = {
 };
 
 /**
- * Worktree paths that exist on disk and have no project row.
+ * Worktree paths that exist on disk with no project row.
  *
- * Archived rows count as registered. Archiving a checkout is a deliberate act,
- * and rediscovering it would put the user in an unwinnable loop: archive it,
- * watch it come straight back.
+ * Archived rows count as registered: archiving is deliberate, and rediscovering
+ * would put the user in an unwinnable loop.
  */
 export async function discoverUnregisteredCheckouts(
   input: DiscoverCheckoutsInput,
@@ -184,9 +180,8 @@ export async function discoverUnregisteredCheckouts(
       if (input.isRegistered(entry.path)) {
         continue;
       }
-      // `prunable` is git's own answer to "is this directory still there", but
-      // it depends on the repository's prune settings and on git's version, so
-      // the filesystem gets the last word.
+      // `prunable` is git's own answer to "is this directory still there", but it
+      // depends on prune settings and git version, so the filesystem wins.
       if (!(await dependencies.pathExists(entry.path))) {
         continue;
       }

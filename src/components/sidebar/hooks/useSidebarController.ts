@@ -522,12 +522,11 @@ export function useSidebarController({
       return;
     }
 
-    // The in-flight guard is a ref, not the state set: React only runs a state
-    // updater eagerly when nothing else is queued on that fiber, so reading the
-    // decision out of the updater loses the race under a burst of pages — the
-    // call returns early *after* the updater has marked the row as loading, and
-    // nothing ever clears it. That left the row stuck on "Loading sessions..."
-    // with its own "show less" out of reach.
+    // In-flight guard is a ref, not the state set: React only runs a state
+    // updater eagerly when nothing else is queued on that fiber, so deciding
+    // inside the updater loses the race under a burst of pages — the call
+    // returns early after the row is already marked loading, and nothing clears
+    // it.
     if (inFlightSessionPagesRef.current.has(projectId)) {
       return;
     }
@@ -559,8 +558,8 @@ export function useSidebarController({
   }, [onLoadMoreSessions, t]);
 
   /**
-   * Pagination is still per checkout on the server, so one "load more" on a
-   * merged row fans out to every checkout that still has sessions to fetch.
+   * Pagination is per checkout on the server, so one "load more" on a merged row
+   * fans out to every checkout that still has sessions.
    */
   const loadMoreSessionsForRepository = useCallback(
     async (entry: RepositoryEntry) => {
@@ -580,15 +579,13 @@ export function useSidebarController({
   /**
    * Opens one row all the way: every session it has, fetched and shown.
    *
-   * This replaced a "show more" that added five at a time. Paging a sidebar row
-   * five sessions at a time is busywork — the cap exists so one busy repository
-   * cannot push every other project off the screen, and once you have asked to
-   * see past it you have already said that is not what you want. Sorting and
-   * filtering need the whole set loaded anyway (see the effect below), so this
+   * The five-session cap exists so one busy repository cannot push every other
+   * project off screen; asking to see past it means the cap is not wanted. Sort
+   * and filter need the whole set loaded anyway (see the effect below), so this
    * is the same fetch the view menu performs, reachable on its own.
    *
-   * The page loop lives in that effect: marking the row here is what starts it,
-   * and it stops when no checkout reports more.
+   * The page loop lives in that effect: marking the row starts it, and it stops
+   * when no checkout reports more.
    */
   const showAllSessions = useCallback(
     (entry: RepositoryEntry) => {
@@ -610,9 +607,9 @@ export function useSidebarController({
   );
 
   /**
-   * Puts one row back to its first page. Already-fetched sessions stay in
-   * memory, so this only changes how many are drawn; dropping the row from
-   * `fullyRevealedRows` is what stops the page loop asking for more.
+   * Puts one row back to its first page. Fetched sessions stay in memory, so
+   * this only changes how many are drawn; dropping the row from
+   * `fullyRevealedRows` is what stops the page loop.
    */
   const collapseSessions = useCallback((entry: RepositoryEntry) => {
     setFullyRevealedRows((previous) => {
@@ -633,18 +630,17 @@ export function useSidebarController({
   }, []);
 
   /**
-   * Accent-colour picks applied before the server has echoed them back.
+   * Accent-colour picks applied before the server echoes them back.
    *
-   * `projects` is owned by the caller and refetched wholesale, and a full
-   * refresh for a colour pick is far too heavy a price for what should feel
-   * instant. Overriding here rather than at the row means every derived
-   * structure — picker entries, repository entries, the filtered list — sees
-   * the same value from one insertion point.
+   * `projects` is owned by the caller and refetched wholesale, which is far too
+   * heavy for a colour pick. Overriding here rather than at the row gives every
+   * derived structure — picker entries, repository entries, filtered list — the
+   * same value from one insertion point.
    */
   const [accentColorOverrides, setAccentColorOverrides] = useState<Record<string, string | null>>({});
 
   // Drop an override once a refresh carries the same value back, so a colour
-  // changed on another device is not masked indefinitely by a stale local pick.
+  // changed on another device is not masked by a stale local pick.
   useEffect(() => {
     setAccentColorOverrides((currentOverrides) => {
       const unreconciled = Object.entries(currentOverrides).filter(([projectId, accentColor]) => {
@@ -720,9 +716,8 @@ export function useSidebarController({
   );
 
   /**
-   * True while a typed query is narrowing the rows to matching sessions. The
-   * rows have to open themselves for it: a match the user cannot see is the
-   * same as no match at all.
+   * True while a typed query is narrowing rows to matching sessions. Rows open
+   * themselves for it: an unseen match is the same as no match.
    */
   const isSessionSearchActive =
     searchMode !== 'conversations' && searchMode !== 'archived' && debouncedSearchQuery.length > 0;
@@ -770,9 +765,9 @@ export function useSidebarController({
   /**
    * The rows drawn below the pinned section.
    *
-   * A search that a row matched only through a pinned session leaves that row
-   * with nothing left to list, and the match is already visible above it, so
-   * the empty row drops out rather than reading as a dead end.
+   * A row that matched only through a pinned session has nothing left to list
+   * and the match is already visible above, so it drops out rather than reading
+   * as a dead end.
    */
   const repositoryEntries = useMemo(() => {
     const searchableEntries = !isSessionSearchActive
@@ -790,10 +785,8 @@ export function useSidebarController({
    * A sorted or filtered row loads every session it has before it answers.
    *
    * The server pages sessions (`isStarred DESC`, then newest first), so sorting
-   * or filtering only the loaded page would quietly answer from five sessions
-   * out of forty — an alphabetical list missing most of the alphabet, or a
-   * worktree filter reporting nothing while its matches sit behind "show more".
-   * Each arriving page re-runs this, and it stops once no checkout has more.
+   * or filtering one page answers from five sessions out of forty. Each arriving
+   * page re-runs this; it stops once no checkout has more.
    */
   useEffect(() => {
     if (repositoryViews.size === 0 && fullyRevealedRows.size === 0) {
@@ -945,9 +938,8 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onSessionDelete, sessionDeleteConfirmation, t]);
 
-  // Archive without the confirmation modal — Archive is recoverable from the
-  // Archive tab, so the long-press menu archives directly (mirrors
-  // confirmDeleteSession's soft-delete path with hardDelete=false).
+  // Archive skips the confirmation modal — it is recoverable from the Archive
+  // tab (mirrors confirmDeleteSession's soft-delete path, hardDelete=false).
   const archiveSessionDirect = useCallback(async (sessionId: string) => {
     try {
       const response = await api.deleteSession(sessionId, false);
@@ -969,11 +961,10 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onSessionDelete, t]);
 
-  // Optimistic session-star toggle: flip the icon immediately (which also pins
-  // the session to the top via `getAllSessions`' starred-first sort), then
-  // reconcile with the server's returned flag; revert on failure. No sequence
-  // guard needed — the pin order follows `isStarred` directly rather than a
-  // separate ordering map, so there is nothing to race against.
+  // Optimistic star toggle: flip the icon immediately (which also pins the
+  // session via `getAllSessions`' starred-first sort), reconcile with the
+  // server's returned flag, revert on failure. No sequence guard needed — pin
+  // order follows `isStarred` directly, not a separate ordering map.
   const toggleStarSession = useCallback(
     (sessionId: string, currentIsStarred: boolean) => {
       const optimisticIsStarred = !currentIsStarred;
@@ -1016,10 +1007,8 @@ export function useSidebarController({
 
   /**
    * Confirms removal of a whole repository row, every worktree included.
-   *
-   * A row *is* the repository, so deleting it must not leave its other
-   * worktrees behind as rows of their own — which is exactly what deleting only
-   * the lead would do.
+   * Deleting only the lead would leave the other worktrees behind as rows of
+   * their own.
    */
   const requestRepositoryDelete = useCallback(
     (entry: RepositoryEntry) => {
@@ -1037,22 +1026,19 @@ export function useSidebarController({
 
   /**
    * Archives or removes every project in `targets`. `deleteData` is the
-   * destructive branch: it drops the DB row and the provider transcripts.
-   * Neither branch touches the directory on disk.
+   * destructive branch: drops the DB row and the provider transcripts. Neither
+   * branch touches the directory on disk.
    *
-   * A repository row's delete covers every worktree in it, so this is a batch,
-   * and ADR 0017's preflight-then-rollback shape does not transfer: a hard
-   * delete has nothing to roll back to. What transfers is the point of that
-   * ADR — never leave the user in a half-finished state they cannot see. So
-   * every target is attempted and the report names each failure, rather than
-   * stopping at the first one with a message that does not say which of the
-   * worktrees it is even about, or which of the rest were tried.
+   * A repository row's delete covers every worktree, so this is a batch. ADR
+   * 0017's preflight-then-rollback does not transfer — a hard delete has nothing
+   * to roll back to — but its point does: every target is attempted and the
+   * report names each failure, rather than stopping at the first.
    */
   const deleteProjects = useCallback(
     async (targets: Project[], deleteData: boolean) => {
       const projectIds = targets.map((target) => target.projectId);
-      // Track in-flight deletes by projectId so the UI can disable actions
-      // even if the project object is rebuilt while the request is flying.
+      // Track in-flight deletes by projectId, so the UI can disable actions even
+      // if the project object is rebuilt mid-request.
       setDeletingProjects((prev) => new Set([...prev, ...projectIds]));
 
       const failures: Array<{ name: string; reason: string }> = [];
@@ -1104,9 +1090,8 @@ export function useSidebarController({
         return;
       }
 
-      // A single target keeps its own message. Server text is concatenated
-      // rather than interpolated, because i18next escapes interpolated values
-      // and would mangle the quotes in git's own wording.
+      // Server text is concatenated rather than interpolated: i18next escapes
+      // interpolated values and would mangle the quotes in git's own wording.
       if (targets.length === 1) {
         alert(failures[0].reason);
         return;
@@ -1133,8 +1118,8 @@ export function useSidebarController({
   }, [deleteConfirmation, deleteProjects]);
 
   /**
-   * Archives without a confirmation step: archiving is reversible from the
-   * Archive view, so a modal would only be in the way.
+   * Archives without confirmation: archiving is reversible from the Archive
+   * view, so a modal would only be in the way.
    */
   const archiveProjects = useCallback(
     (targets: Project[]) => {
@@ -1171,8 +1156,8 @@ export function useSidebarController({
    * Sets a project's highlight colour, or clears it with null.
    *
    * Optimistic and deliberately without a refresh: the strip repaints from the
-   * override immediately, and a failure puts the previous colour back rather
-   * than leaving the row showing a colour that was never saved.
+   * override, and a failure restores the previous colour rather than leaving a
+   * colour that was never saved.
    */
   const setProjectAccentColor = useCallback(
     (projectId: string, accentColor: string | null, previousAccentColor: string | null) => {

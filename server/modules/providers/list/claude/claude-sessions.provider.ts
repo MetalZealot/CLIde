@@ -44,12 +44,12 @@ function readTokenCount(value: unknown): number {
 }
 
 /**
- * Claude Code writes a content-free "No response requested." synthetic
- * assistant row (model: "<synthetic>") whenever a turn ends without a real
- * response — a usage-limit cutoff or /compact. Unlike the usage-limit notice
- * it carries no information, so it's dropped entirely rather than surfaced as
- * an isSystemNotice banner. Gated on the synthetic flag so a genuine model
- * message that happened to say the same words is never swallowed.
+ * Claude Code writes a content-free "No response requested." synthetic assistant
+ * row (model: "<synthetic>") whenever a turn ends without a real response — a
+ * usage-limit cutoff or /compact. Unlike the usage-limit notice it carries no
+ * information, so it is dropped rather than surfaced as an isSystemNotice
+ * banner. Gated on the synthetic flag, so a genuine model message saying the
+ * same words is never swallowed.
  */
 const NO_RESPONSE_PLACEHOLDER = 'No response requested.';
 
@@ -58,10 +58,10 @@ function isNoResponsePlaceholder(text: unknown): boolean {
 }
 
 /**
- * Derives the session's last known context usage from raw JSONL records so a
- * resumed session can show its token footprint before the first (expensive)
- * turn. Mirrors the live token_budget shape emitted by server/claude-sdk.js;
- * Codex/OpenCode already return the equivalent from their fetchHistory.
+ * Derives the session's last known context usage from raw JSONL, so a resumed
+ * session shows its token footprint before the first (expensive) turn. Mirrors
+ * the live token_budget shape; Codex and OpenCode return the equivalent from
+ * their own fetchHistory.
  */
 function extractHistoryTokenUsage(rawMessages: AnyRecord[]): AnyRecord | undefined {
   for (let index = rawMessages.length - 1; index >= 0; index--) {
@@ -211,9 +211,9 @@ async function getSessionMessages(
       }
     }
 
-    // A rewound session's jsonl is a tree: the SDK appends the post-rewind
-    // turn with parentUuid pointing at the anchor and leaves the abandoned
-    // tail in the file. Only the active branch is real conversation history.
+    // A rewound session's jsonl is a tree: the SDK appends the post-rewind turn
+    // with parentUuid at the anchor and leaves the abandoned tail in the file.
+    // Only the active branch is real history.
     const activeMessages = filterToActiveBranch(
       messages as unknown as RewindTranscriptEntry[],
     ) as unknown as AnyRecord[];
@@ -372,15 +372,15 @@ function stripAnsiFormatting(text: string): string {
 }
 
 /**
- * `/compact` reaches the transcript twice: once as the user's real prompt row
- * (the rewind anchor) and again ~50ms later as the `<command-name>` wrapper,
- * which normalizes to an identical second bubble. Every other local command
- * (`/model`, `/plugin`, `/agents`, `/config`) writes only the wrapper — which
- * is why it is rendered at all — so the wrapper is dropped just when a recent
- * user row already said the same thing, rather than special-casing `/compact`.
+ * `/compact` reaches the transcript twice: as the user's real prompt row (the
+ * rewind anchor) and again ~50ms later as the `<command-name>` wrapper, which
+ * normalizes to an identical second bubble. Every other local command (`/model`,
+ * `/plugin`, `/agents`, `/config`) writes only the wrapper — which is why it is
+ * rendered at all — so the wrapper is dropped whenever a recent user row already
+ * said the same thing, rather than special-casing `/compact`.
  *
  * The surviving row is the plain prompt, so the edit/rewind affordance
- * (suppressed on `isLocalCommand` rows) stays available on the command.
+ * (suppressed on `isLocalCommand` rows) stays available.
  */
 const LOCAL_COMMAND_ECHO_WINDOW_MS = 60_000;
 
@@ -424,14 +424,13 @@ export function dropDuplicateLocalCommandEchoes(messages: NormalizedMessage[]): 
 /**
  * Compaction appends `attachment` rows naming the files it carried across the
  * boundary: `compact_file_reference` for a bare mention, `file` for one whose
- * contents were re-read. The CLI lists them under its `/compact` line, but
- * `normalizeMessage` ignores attachment rows entirely, so they never reached
- * chat.
+ * contents were re-read. `normalizeMessage` ignores attachment rows entirely, so
+ * they never reached chat.
  *
  * Rows are collected from each compact-summary row up to the next genuine
- * conversational turn. The `/compact` bookkeeping in between (caveat, command
- * wrapper, stdout) is skipped rather than treated as a boundary, since the
- * transcript's timestamp ordering can interleave it with the attachments.
+ * conversational turn. The `/compact` bookkeeping in between (caveat, wrapper,
+ * stdout) is skipped rather than treated as a boundary — timestamp ordering can
+ * interleave it with the attachments.
  */
 const COMPACT_REFERENCE_ATTACHMENT_TYPES = new Set(['file', 'compact_file_reference']);
 
@@ -517,21 +516,19 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const baseId = raw.uuid || generateMessageId('claude');
 
     /**
-     * Harness-injected user rows arrive under different flags depending on the
-     * source: transcript JSONL marks them `isMeta` (and transcript-only rows
+     * Harness-injected user rows arrive under different flags by source:
+     * transcript JSONL marks them `isMeta` (transcript-only rows
      * `isVisibleInTranscriptOnly`), while the live SDK stream collapses both
-     * into `isSynthetic` (the CLI stamps `isSynthetic: isMeta ||
-     * isVisibleInTranscriptOnly` on outbound user events — verified against
-     * the CLI binary). Without the stream-side check, skill-content
-     * injections leak into chat live as giant "user" messages. Rows that
-     * carry an `origin` (peer/channel messages) stay visible, mirroring the
-     * CLI's own transcript view; genuine tool results carry none of these
-     * flags.
+     * into `isSynthetic` — the CLI stamps `isSynthetic: isMeta ||
+     * isVisibleInTranscriptOnly` on outbound user events, verified against the
+     * binary. Without the stream-side check, skill-content injections leak into
+     * chat as giant "user" messages. Rows carrying an `origin` (peer/channel
+     * messages) stay visible; genuine tool results carry none of these flags.
+     *
+     * Compact summaries arrive as transcript-only/synthetic user rows too, but
+     * carry real content re-labelled as an assistant summary below — exempt so
+     * they are not dropped as harness noise.
      */
-    // Compact summaries arrive as transcript-only (`isVisibleInTranscriptOnly`)
-    // / synthetic user rows too, but they carry real content that we re-label
-    // as an assistant summary below — exempt them so they aren't dropped as
-    // harness noise.
     const isHiddenUserRow =
       raw.isCompactSummary !== true &&
       (raw.isMeta === true ||
@@ -767,11 +764,10 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     if (raw.message?.role === 'assistant' && raw.message?.content) {
       /**
        * Claude fabricates local assistant rows for usage-limit notices, API
-       * errors, and "No response requested." — stamped `model: "<synthetic>"`
-       * (and `isApiErrorMessage` in transcripts). They read as if the model
-       * said them; flag them so the UI renders a muted system banner instead
-       * of a normal assistant bubble (which live duplicates the error frame
-       * the run already emitted).
+       * errors, and "No response requested." — stamped `model: "<synthetic>"`,
+       * and `isApiErrorMessage` in transcripts. They read as if the model said
+       * them, so flag them for a muted system banner rather than a normal
+       * assistant bubble, which live would duplicate the run's error frame.
        */
       const isSyntheticNotice =
         raw.message?.model === '<synthetic>' || raw.isApiErrorMessage === true;

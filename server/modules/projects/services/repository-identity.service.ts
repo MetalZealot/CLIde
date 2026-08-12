@@ -5,27 +5,23 @@ import crossSpawn from 'cross-spawn';
 /**
  * Git-derived identity of one project directory, per ADR 0016.
  *
- * `repositoryId` is the join key that lets several project rows be recognised
- * as checkouts of one repository. It is intentionally derived at read time
- * rather than stored, so no schema migration and no session rebinding is
- * involved.
+ * `repositoryId` is the join key that lets several project rows be recognised as
+ * checkouts of one repository. Derived at read time rather than stored, so no
+ * schema migration and no session rebinding.
  */
 export type CheckoutIdentity = {
   /**
-   * Absolute path of the repository's shared git directory, which every
-   * checkout of that repository resolves to identically. `null` when the
-   * project is not a git repository, is not the *root* of one, or no longer
-   * exists on disk.
+   * Absolute path of the repository's shared git directory, which every checkout
+   * resolves to identically. Null when the project is not a git repository, is
+   * not the *root* of one, or no longer exists.
    */
   repositoryId: string | null;
   /** Checked-out branch, or `null` when HEAD is detached or there is no repository. */
   branch: string | null;
   /**
-   * Short commit SHA, populated only when HEAD is detached.
-   *
-   * Detached HEAD is reported as its own state rather than as a branch called
-   * `HEAD` — the existing Git panel gets this wrong (see ADR 0016's Phase 0
-   * list) and new surfaces must not repeat it.
+   * Short commit SHA, populated only when HEAD is detached. Detached HEAD is
+   * reported as its own state, never as a branch called `HEAD` — the existing
+   * Git panel gets that wrong (ADR 0016) and new surfaces must not repeat it.
    */
   detachedHead: string | null;
 };
@@ -51,9 +47,9 @@ const NO_IDENTITY: CheckoutIdentity = {
   detachedHead: null,
 };
 
-// Only successful lookups are cached. A negative result must not be, because a
-// project can become a repository at any time through `POST /api/git/init`, and
-// a cached "not a repository" would survive that indefinitely.
+// Only successful lookups are cached. A negative result must not be: a project
+// can become a repository at any time via `POST /api/git/init`, and a cached
+// "not a repository" would survive that indefinitely.
 const repositoryLocationCache = new Map<string, RepositoryLocation>();
 
 function runGitProcess(workingDirectory: string, args: string[]): Promise<GitInvocation> {
@@ -64,8 +60,8 @@ function runGitProcess(workingDirectory: string, args: string[]): Promise<GitInv
     child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
     });
-    // stderr is deliberately discarded: every failure here is an expected,
-    // non-actionable "not a repository" or "no such directory".
+    // stderr is discarded: every failure here is an expected, non-actionable
+    // "not a repository" or "no such directory".
     child.stderr?.resume();
 
     child.on('error', () => resolve({ stdout: '', ok: false }));
@@ -82,8 +78,8 @@ const defaultDependencies: RepositoryIdentityDependencies = {
  *
  * `--path-format=absolute` is not optional. Plain `--git-common-dir` returns a
  * *relative* `.git` for a main checkout but an *absolute* path for a linked
- * worktree, so using its raw output as a join key would fail to group a main
- * checkout with its own worktrees — the exact inverse of what ADR 0016 wants.
+ * worktree, so its raw output as a join key fails to group a main checkout with
+ * its own worktrees — the inverse of what ADR 0016 wants.
  */
 async function resolveRepositoryLocation(
   projectPath: string,
@@ -118,12 +114,10 @@ async function resolveRepositoryLocation(
 }
 
 /**
- * Reads one project directory's repository identity and current branch.
- *
- * Used by the project-listing service so the sidebar can group checkouts of one
- * repository together. Never throws: any git or filesystem failure is reported
- * as "no identity", because an unreadable directory must degrade to an ordinary
- * ungrouped project rather than break the whole project list.
+ * Reads one project directory's repository identity and current branch, so the
+ * sidebar can group checkouts together. Never throws: any git or filesystem
+ * failure is reported as "no identity", because an unreadable directory must
+ * degrade to an ungrouped project rather than break the whole list.
  */
 export async function readCheckoutIdentity(
   projectPath: string,
@@ -131,19 +125,16 @@ export async function readCheckoutIdentity(
 ): Promise<CheckoutIdentity> {
   // Every path below proves liveness with an *uncached* git call before the
   // memoised location is consulted. Retiring a worktree leaves its project row
-  // behind, so a stale cache hit for a deleted directory is the normal failure
-  // mode here rather than an edge case.
+  // behind, so a stale cache hit for a deleted directory is the normal case.
   const symbolicRef = await dependencies.runGit(projectPath, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
   const branch = symbolicRef.stdout.trim();
 
   let detachedHead: string | null = null;
 
   if (!symbolicRef.ok && !branch) {
-    // git exits non-zero with no output both when HEAD is detached and when
-    // this is not a repository at all. Reading the commit tells them apart:
-    // a detached checkout has one, a missing or non-repository directory does
-    // not. A repository with no commits yet never reaches here, because
-    // `symbolic-ref` still resolves its unborn branch.
+    // git exits non-zero with no output both when HEAD is detached and when this
+    // is not a repository. Reading the commit tells them apart. A repository with
+    // no commits never reaches here — `symbolic-ref` resolves its unborn branch.
     const head = await dependencies.runGit(projectPath, ['rev-parse', '--short', 'HEAD']);
     if (!head.ok) {
       repositoryLocationCache.delete(projectPath);
@@ -166,11 +157,9 @@ export async function readCheckoutIdentity(
 }
 
 /**
- * Grouping applies only to a repository's checkout roots.
- *
- * A project registered on a *subdirectory* of a repository (say `<repo>/docs`)
- * resolves to that repository's common dir too, and grouping it would silently
- * absorb an ordinary folder project into the repository's checkout list.
+ * Grouping applies only to a repository's checkout roots. A project registered
+ * on a *subdirectory* (say `<repo>/docs`) resolves to the same common dir, and
+ * grouping it would absorb an ordinary folder project into the checkout list.
  */
 function isCheckoutRoot(projectPath: string, location: RepositoryLocation): boolean {
   return path.resolve(projectPath) === location.topLevel;
