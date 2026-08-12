@@ -114,6 +114,25 @@ behaviour stays behind adapter interfaces.
   patterns; do not broaden scope, add speculative abstractions, or compromise working
   behaviour merely to reach completion.
 
+## Code comments
+
+A 2026-08-11 audit found fork-authored comments ~30% wordier than upstream's at every
+block size, and every stale file path in a comment — naming modules deleted in the 1.37
+migration — sat inside narrative that condensing removes anyway.  Verbosity and
+staleness are one defect, so the rules target length.
+
+- **State the invariant, not the incident.**  No "used to", "this replaced", "before
+  the fix" — git holds that.  Describe what must stay true, not what went wrong.
+- **Never cite a file path, commit hash, or date unless the comment is useless without
+  it.**  Paths move, hashes rewrite on every upstream rebase.  A date is legitimate
+  only on a *measurement* (`decoded from the CLI binary, 2026-07-26`), never on
+  narrative.
+- **Default to one line.**  A multi-line block must earn it: a concurrency invariant, a
+  measured constant, or a deliberate choice that reads as a bug.  Rationale a reader
+  can recover from the code itself is not a reason.
+- Prefer a terse register over prose.  "Fixed-width slot so labels align across rows"
+  beats a sentence explaining why alignment matters.
+
 ## Project invariants
 
 - Do not introduce `backdrop-filter`/glassmorphism.  Use a solid dim scrim such as
