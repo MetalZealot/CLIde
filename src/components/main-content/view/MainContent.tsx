@@ -166,7 +166,7 @@ function MainContent({
           onMenuClick={onMenuClick}
         />
       ) : isMobile ? (
-        <div className="pwa-header-safe flex-shrink-0 border-b border-border/50 bg-background/80 p-2 sm:p-3">
+        <div className="app-bar border-b border-border/50 bg-background/80 px-3 sm:px-4">
           <MobileMenuButton onMenuClick={onMenuClick} compact />
         </div>
       ) : null}

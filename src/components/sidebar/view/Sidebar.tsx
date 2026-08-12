@@ -563,7 +563,6 @@ function Sidebar({
       ) : (
         <>
         <SidebarContent
-            isPWA={isPWA}
             isMobile={isMobile}
             archivedProjects={archivedProjects}
             archivedSessions={archivedSessions}

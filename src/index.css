@@ -84,16 +84,8 @@
     --safe-area-inset-bottom: env(safe-area-inset-bottom);
     --safe-area-inset-left: env(safe-area-inset-left);
 
-    /* Mobile navigation dimensions - Single source of truth */
-    /* Floating nav: ~52px bar + 8px bottom margin + 12px px-3 top spacing */
-    --mobile-nav-height: 52px;
-    --mobile-nav-padding: 20px;
-    --mobile-nav-total: calc(var(--mobile-nav-height) + var(--mobile-nav-padding) + env(safe-area-inset-bottom, 0px));
-
-    /* Header safe area dimensions */
-    --header-safe-area-top: env(safe-area-inset-top, 0px);
-    --header-base-padding: 8px;
-    --header-total-padding: calc(var(--header-safe-area-top) + var(--header-base-padding));
+    /* Height of every top bar — see .app-bar */
+    --app-bar-height: 48px;
   }
   
   /* Fallback for older iOS versions */
@@ -185,39 +177,19 @@
     overscroll-behavior-y: contain;
   }
   
-  /* Root element with safe area padding for PWA */
+  /* Padding here would do nothing: the app shell is `position: fixed`, so it is
+     laid out against the viewport and never sees its parent's padding. Safe-area
+     insets belong to the edges that hold content — see .app-bar and .safe-top. */
   #root {
     min-height: 100vh;
     margin: 0;
     padding: 0;
     box-sizing: border-box;
   }
-  
-  /* Apply safe area padding in standalone mode */
-  @supports (padding-top: env(safe-area-inset-top)) {
-    @media (display-mode: standalone) {
-      #root {
-        padding-top: var(--safe-area-inset-top);
-        padding-left: var(--safe-area-inset-left);
-        padding-right: var(--safe-area-inset-right);
-      }
-    }
-  }
 
-  /* PWA mode detected by JavaScript - more reliable */
   body.pwa-mode #root {
-    padding-left: var(--safe-area-inset-left);
-    padding-right: var(--safe-area-inset-right);
     height: 100vh;
     overflow: hidden;
-  }
-
-  /* Adjust fixed inset positioning in PWA mode */
-  body.pwa-mode .fixed.inset-0 {
-    top: var(--header-total-padding);
-    left: var(--safe-area-inset-left);
-    right: var(--safe-area-inset-right);
-    bottom: 0;
   }
   
   /* Global transition defaults */
@@ -316,12 +288,6 @@
   .nav-tab-active {
     box-shadow: 0 1px 8px hsl(var(--nav-tab-glow)),
                 0 0 0 1px hsl(var(--nav-tab-ring));
-  }
-
-  /* Floating mobile nav bar — uses theme tokens */
-  .mobile-nav-float {
-    box-shadow: 0 -1px 20px hsl(var(--nav-float-shadow)),
-                0 0 0 1px hsl(var(--nav-float-ring));
   }
 
   /* Subtle sidebar divider — uses theme tokens */
@@ -779,29 +745,30 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   
-  /* PWA specific header adjustments - uses CSS variables for consistency */
-  .pwa-header-safe {
-    padding-top: var(--header-base-padding);
+  /* Every top bar is exactly --app-bar-height tall with its contents centred, so
+     the sidebar toggle keeps one centreline whatever else the bar carries — a
+     two-line title, a pill bar, or nothing. Deriving the height from the content
+     instead moves the toggle between views.
+
+     The bar also owns the top safe-area inset: it sits at the top of its layer,
+     its background paints under the status bar, and its contents clear it. Every
+     layer that starts at the viewport's top edge (the app shell, the drawer)
+     therefore lands on the same centreline without arithmetic. */
+  .app-bar {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(var(--app-bar-height) + env(safe-area-inset-top, 0px));
   }
 
-  /* When PWA mode is detected by JavaScript */
-  body.pwa-mode .pwa-header-safe {
-    /* Reset padding since #root already handles safe area */
-    padding-top: 0px !important;
-  }
-
-  /* For mobile PWA, add bottom padding for better spacing */
-  @media screen and (max-width: 768px) {
-    body.pwa-mode .pwa-header-safe {
-      padding-bottom: 8px;
-    }
+  /* For a full-bleed overlay whose own content starts at the top edge and which
+     has no app bar to carry the inset. Never put this on a scrim — a scrim must
+     cover the status bar, not stop below it. */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
   }
   
-  @media screen and (max-width: 768px) {
-    .chat-input-mobile {
-      padding-bottom: calc(60px + env(safe-area-inset-bottom));
-    }
-  }
 
   /* Text wrapping improvements */
   .chat-message {

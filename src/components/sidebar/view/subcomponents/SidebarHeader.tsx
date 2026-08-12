@@ -14,8 +14,6 @@ const MOD_KEY =
 const MIN_CONTENT_SEARCH_LENGTH = 2;
 
 type SidebarHeaderProps = {
-  isPWA: boolean;
-  isMobile: boolean;
   searchFilter: string;
   onSearchFilterChange: (value: string) => void;
   onClearSearchFilter: () => void;
@@ -27,8 +25,6 @@ type SidebarHeaderProps = {
 };
 
 export default function SidebarHeader({
-  isPWA,
-  isMobile,
   searchFilter,
   onSearchFilterChange,
   onClearSearchFilter,
@@ -193,8 +189,8 @@ export default function SidebarHeader({
   return (
     <div className="flex-shrink-0">
       {/* Desktop header */}
-      <div className="hidden px-3 pb-2 pt-3 md:block">
-        <div className="flex items-center justify-between gap-2">
+      <div className="hidden md:block">
+        <div className="app-bar justify-between gap-2 px-3">
           {IS_PLATFORM ? (
             <a
               href="https://cloudcli.ai/dashboard"
@@ -210,7 +206,7 @@ export default function SidebarHeader({
           {renderHeaderTools(false)}
         </div>
 
-        <div className="mt-2.5 space-y-1">
+        <div className="space-y-1 px-3 pb-2 pt-1">
           {renderSearchInput(false)}
           {renderContentSearchToggle()}
         </div>
@@ -220,15 +216,10 @@ export default function SidebarHeader({
       <div className="nav-divider hidden md:block" />
 
       {/* Mobile header */}
-      <div
-        className="p-3 pb-2 md:hidden"
-        // The mobile drawer runs edge-to-edge to the top of the viewport (see
-        // MobileSidebarOverlay), so in the standalone PWA the header content must
-        // clear the status bar itself — pad by the safe-area inset plus a small
-        // base gap. The panel surface fills behind it, so no bare strip shows.
-        style={isPWA && isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' } : {}}
-      >
-        <div className="flex items-center justify-between gap-2">
+      <div className="md:hidden">
+        {/* Same bar as the main header's, so the collapse button here and the
+            open button there share a centreline. */}
+        <div className="app-bar justify-between gap-2 px-3">
           {IS_PLATFORM ? (
             <a
               href="https://cloudcli.ai/dashboard"
@@ -244,7 +235,7 @@ export default function SidebarHeader({
           {renderHeaderTools(true)}
         </div>
 
-        <div className="mt-2.5 space-y-1">
+        <div className="space-y-1 px-3 pb-2 pt-1">
           {renderSearchInput(true)}
           {renderContentSearchToggle()}
         </div>

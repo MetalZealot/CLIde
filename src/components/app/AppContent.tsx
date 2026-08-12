@@ -211,7 +211,15 @@ function AppContentInner() {
   }, []);
 
   return (
-    <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
+    <div
+      className="fixed inset-0 flex bg-background"
+      // The shell spans the true viewport, so its own bottom edge owns the
+      // gesture-bar inset; the top inset belongs to .app-bar.
+      style={{
+        bottom: 'var(--keyboard-height, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
+    >
       {!isMobile ? (
         <div className="h-full flex-shrink-0 border-r border-border/50">
           <Sidebar {...sidebarSharedProps} />

@@ -279,13 +279,10 @@ export default function ContextMenuOverlay({
 
   return createPortal(
     /*
-      Inset is set inline, and the `inset-0` class deliberately avoided,
-      because `body.pwa-mode .fixed.inset-0` (index.css) pushes fixed overlays
-      below the header's safe-area padding. This overlay holds menu coordinates
-      that are already viewport-relative, so that offset shifted the whole menu
-      down — visible in the PWA only, as a fat gap below a row and none above one.
+      Spans the raw viewport: the menu coordinates inside are already
+      viewport-relative, so this layer must carry no inset of its own.
     */
-    <div className="fixed z-[9999]" style={{ top: 0, right: 0, bottom: 0, left: 0, overscrollBehavior: 'contain' }}>
+    <div className="fixed inset-0 z-[9999]" style={{ overscrollBehavior: 'contain' }}>
       {/*
         Transparent full-screen catcher (no scrim — matches the app-wide
         no-backdrop-filter preference). It dismisses on press rather than click,

@@ -65,8 +65,8 @@ export default function CodeEditorBinaryFile({
   }
 
   const containerClassName = isFullscreen
-    ? 'fixed inset-0 z-[9999] bg-background flex flex-col'
-    : 'fixed inset-0 z-[9999] md:bg-black/50 md:flex md:items-center md:justify-center md:p-4';
+    ? 'fixed inset-0 safe-top z-[9999] bg-background flex flex-col'
+    : 'fixed inset-0 safe-top z-[9999] md:bg-black/50 md:flex md:items-center md:justify-center md:p-4';
 
   const innerClassName = isFullscreen
     ? 'bg-background flex flex-col w-full h-full'

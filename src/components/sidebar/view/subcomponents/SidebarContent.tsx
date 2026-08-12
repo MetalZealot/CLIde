@@ -111,7 +111,6 @@ function formatCompactArchivedAge(dateString: string | null): string {
 }
 
 type SidebarContentProps = {
-  isPWA: boolean;
   isMobile: boolean;
   archivedProjects: ArchivedProjectListItem[];
   archivedSessions: ArchivedSessionListItem[];
@@ -146,7 +145,6 @@ type SidebarContentProps = {
 };
 
 export default function SidebarContent({
-  isPWA,
   isMobile,
   archivedProjects,
   archivedSessions,
@@ -191,8 +189,6 @@ export default function SidebarContent({
       style={{}}
     >
       <SidebarHeader
-        isPWA={isPWA}
-        isMobile={isMobile}
         searchFilter={searchFilter}
         onSearchFilterChange={onSearchFilterChange}
         onClearSearchFilter={onClearSearchFilter}

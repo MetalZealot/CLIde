@@ -36,8 +36,8 @@ export default function MainContentHeader({
   }, [updateScrollState]);
 
   return (
-    <div className="pwa-header-safe flex-shrink-0 border-b border-border/60 bg-background px-3 py-1.5 sm:px-4 sm:py-2">
-      <div className="flex items-center justify-between gap-3">
+    <div className="app-bar border-b border-border/60 bg-background px-3 sm:px-4">
+      <div className="flex w-full items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}
           <MainContentTitle
