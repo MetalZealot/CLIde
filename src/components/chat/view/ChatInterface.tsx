@@ -400,9 +400,10 @@ function ChatInterface({
     () => availableProviders.map((value) => ({ value, label: getProviderLabel(value) })),
     [availableProviders, getProviderLabel],
   );
+  const isNewSession = !selectedSession && !currentSessionId;
   // A session belongs to the runtime that started it, so the provider can only
   // be chosen while the chat is still brand new.
-  const canSelectProvider = !selectedSession && !currentSessionId;
+  const canSelectProvider = isNewSession;
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
@@ -472,7 +473,7 @@ function ChatInterface({
             onShowContext={showContextPopover}
           />
 
-          {!selectedSession && !currentSessionId && (
+          {isNewSession && (
             <NewSessionLauncher
               projects={projects}
               selectedProject={selectedProject}
@@ -492,6 +493,7 @@ function ChatInterface({
             handlePermissionDecision={handlePermissionDecision}
             handleGrantToolPermission={handleGrantToolPermission}
             activity={sessionActivity}
+            reserveActivitySpace={!isNewSession}
             isLoading={isProcessing}
             onAbortSession={requestAbortSession}
             isStopArmed={isStopArmed}

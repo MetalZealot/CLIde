@@ -273,8 +273,8 @@
     "modelIsDefault": "Default"
   },
   "launcher": {
-    "selectProject": "Select Project",
-    "worktreeBranch": "Worktree/Branch",
+    "selectProject": "Project",
+    "worktreeBranch": "Worktree",
     "chooseProject": "Choose a project",
     "chooseWorktree": "Choose a worktree or branch",
     "newProject": "New Project…",

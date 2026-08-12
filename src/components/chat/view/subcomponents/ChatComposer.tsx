@@ -70,6 +70,12 @@ interface ChatComposerProps {
   ) => void;
   handleGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
   activity: SessionActivity | null;
+  /**
+   * Hold the activity strip's height while it is idle so the composer does not
+   * jump when a turn starts. Pointless before a session exists, where it only
+   * pushes the launcher away from the composer.
+   */
+  reserveActivitySpace?: boolean;
   isLoading: boolean;
   onAbortSession: () => void;
   /** True once the first Escape/tap has armed Stop; the next one aborts. */
@@ -147,6 +153,7 @@ export default function ChatComposer({
   handlePermissionDecision,
   handleGrantToolPermission,
   activity,
+  reserveActivitySpace = true,
   isLoading,
   onAbortSession,
   isStopArmed = false,
@@ -290,7 +297,7 @@ export default function ChatComposer({
 
   return (
     <div className="chat-composer-shell relative flex-shrink-0 px-2 pb-2 pt-0 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
-      {pendingPermissionRequests.length === 0 && (
+      {pendingPermissionRequests.length === 0 && (activity || reserveActivitySpace) && (
         <div className="mx-auto mb-2 max-w-[54.25rem]" style={{ visibility: activity ? 'visible' : 'hidden' }}>
           <ActivityIndicator activity={activity} onAbort={onAbortSession} isStopArmed={isStopArmed} />
         </div>

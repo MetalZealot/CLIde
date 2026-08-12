@@ -101,10 +101,10 @@ export default function NewSessionLauncher({
   const nextTaskPrompt = t('tasks.nextTaskPrompt', {
     defaultValue: 'Start the next task',
   });
-  const projectLabel = selectedEntry?.displayName ?? t('launcher.selectProject', { defaultValue: 'Select Project' });
+  const projectLabel = selectedEntry?.displayName ?? t('launcher.selectProject', { defaultValue: 'Project' });
   const worktreeLabel = selectedProject
     ? getLauncherCheckoutLabel(selectedProject)
-    : t('launcher.worktreeBranch', { defaultValue: 'Worktree/Branch' });
+    : t('launcher.worktreeBranch', { defaultValue: 'Worktree' });
 
   return (
     <>
@@ -117,7 +117,10 @@ export default function NewSessionLauncher({
       )}
 
       <div className="px-2 pb-1 sm:px-4">
-        <div className="mx-auto grid w-full max-w-[34.25rem] grid-cols-2 gap-1">
+        {/* One centred group, not two half-width cells, so the pair reads as a
+            single control. Triggers size to their labels and only truncate once
+            the row actually overflows; the floors below decide who gives way. */}
+        <div className="mx-auto flex w-full max-w-[34.25rem] items-center justify-center gap-1">
           <button
             ref={projectButtonRef}
             type="button"
@@ -125,9 +128,11 @@ export default function NewSessionLauncher({
             aria-expanded={openMenu === 'project'}
             onClick={() => setOpenMenu((current) => (current === 'project' ? null : 'project'))}
             className={cn(
-              'flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-sm',
-              'text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-              openMenu === 'project' && 'bg-accent text-foreground',
+              // Higher floor than the worktree side: project names are short and
+              // carry the identity, branch names are long and expected to clip.
+              'flex min-h-10 min-w-[8rem] items-center justify-center gap-1.5 rounded-lg px-2 text-sm',
+              'text-muted-foreground transition-colors hover:text-foreground',
+              openMenu === 'project' && 'text-foreground',
             )}
             title={projectLabel}
           >
@@ -146,10 +151,10 @@ export default function NewSessionLauncher({
             disabled={!selectedEntry}
             onClick={() => setOpenMenu((current) => (current === 'worktree' ? null : 'worktree'))}
             className={cn(
-              'flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-sm',
-              'text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-              'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground',
-              openMenu === 'worktree' && 'bg-accent text-foreground',
+              'flex min-h-10 min-w-[7rem] items-center justify-center gap-1.5 rounded-lg px-2 text-sm',
+              'text-muted-foreground transition-colors hover:text-foreground',
+              'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground',
+              openMenu === 'worktree' && 'text-foreground',
             )}
             title={worktreeLabel}
           >
@@ -165,6 +170,7 @@ export default function NewSessionLauncher({
       {openMenu === 'project' && projectButtonRef.current && (
         <ContextMenuOverlay
           anchor={anchorFromElement(projectButtonRef.current, { x: 0, y: 0 })}
+          anchorElement={projectButtonRef.current}
           onDismiss={() => setOpenMenu(null)}
           ariaLabel={t('launcher.chooseProject', {
             defaultValue: 'Choose a project',
@@ -209,6 +215,7 @@ export default function NewSessionLauncher({
             x: 0,
             y: 0,
           })}
+          anchorElement={worktreeButtonRef.current}
           onDismiss={() => setOpenMenu(null)}
             ariaLabel={t('launcher.chooseWorktree', {
               defaultValue: 'Choose a worktree or branch',
