@@ -304,6 +304,8 @@ export type PendingInteractiveRequest = {
   context?: unknown;
   questions?: InteractiveQuestion[];
   receivedAt: string;
+  /** Effective behavior after provider-specific defaults are applied. */
+  isBlocking?: boolean;
   expiresAt?: string | null;
   autoResolutionMs?: number | null;
 };

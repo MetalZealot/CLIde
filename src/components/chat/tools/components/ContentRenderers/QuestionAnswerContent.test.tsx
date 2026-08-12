@@ -146,6 +146,7 @@ test('provider-neutral input panel renders Codex wording, descriptions, countdow
         toolName: 'request_user_input',
         input: {},
         receivedAt: new Date().toISOString(),
+        isBlocking: false,
         expiresAt: new Date(Date.now() + 5_000).toISOString(),
         autoResolutionMs: 5_000,
         questions: [{
@@ -165,6 +166,30 @@ test('provider-neutral input panel renders Codex wording, descriptions, countdow
   assert.ok(html.includes('Use the existing token'));
   assert.ok(html.includes('Other'));
   assert.ok(html.includes('Skips in'));
+});
+
+test('blocking input panel ignores an expiry and renders no countdown', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(UserInputRequestPanel, {
+      request: {
+        requestId: 'request-blocking',
+        provider: 'codex',
+        sessionId: 'session-1',
+        requestType: 'user_input',
+        toolName: 'request_user_input',
+        receivedAt: new Date().toISOString(),
+        isBlocking: true,
+        expiresAt: new Date(Date.now() + 5_000).toISOString(),
+        questions: [{
+          id: 'choice',
+          question: 'Choose one',
+          options: [{ label: 'A' }],
+        }],
+      },
+      onDecision: () => {},
+    }),
+  );
+  assert.ok(!html.includes('Skips in'));
 });
 
 test('free-text-only secret questions render a password input', () => {

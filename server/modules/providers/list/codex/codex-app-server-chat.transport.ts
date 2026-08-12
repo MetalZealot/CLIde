@@ -429,6 +429,37 @@ function validateQuestions(value: unknown): CodexQuestion[] {
   });
 }
 
+const DEFAULT_NON_BLOCKING_QUESTION_TIMEOUT_MS = 120_000;
+
+function resolveUserInputTiming(
+  params: CodexToolRequestUserInputParams,
+  receivedAt: Date,
+): {
+  isBlocking: boolean;
+  autoResolutionMs: number | null;
+  expiresAt: string | null;
+} {
+  const requestedTimeoutMs = typeof params.autoResolutionMs === 'number'
+    && Number.isFinite(params.autoResolutionMs)
+    && params.autoResolutionMs > 0
+    ? Math.floor(params.autoResolutionMs)
+    : null;
+
+  const autoResolutionMs = params.isBlocking === true
+    ? null
+    : params.isBlocking === false
+      ? requestedTimeoutMs ?? DEFAULT_NON_BLOCKING_QUESTION_TIMEOUT_MS
+      : requestedTimeoutMs;
+
+  return {
+    isBlocking: autoResolutionMs === null,
+    autoResolutionMs,
+    expiresAt: autoResolutionMs === null
+      ? null
+      : new Date(receivedAt.getTime() + autoResolutionMs).toISOString(),
+  };
+}
+
 function validateQuestionAnswers(
   questions: CodexQuestion[],
   response: InteractiveRequestResponse,
@@ -1007,13 +1038,9 @@ export class CodexAppServerChatTransport {
   ): void {
     const active = this.requireActiveRequest(params?.threadId, params?.turnId);
     const questions = validateQuestions(params?.questions);
-    const autoResolutionMs = typeof params.autoResolutionMs === 'number'
-      && Number.isFinite(params.autoResolutionMs)
-      && params.autoResolutionMs > 0
-      ? Math.floor(params.autoResolutionMs)
-      : null;
     const requestId = toExternalRequestId(rpcId);
     const receivedAt = new Date();
+    const timing = resolveUserInputTiming(params, receivedAt);
 
     interactiveRequestRegistry.register({
       requestId,
@@ -1045,12 +1072,11 @@ export class CodexAppServerChatTransport {
         })),
       },
       receivedAt: receivedAt.toISOString(),
-      autoResolutionMs,
-      expiresAt: autoResolutionMs
-        ? new Date(receivedAt.getTime() + autoResolutionMs).toISOString()
-        : null,
+      isBlocking: timing.isBlocking,
+      autoResolutionMs: timing.autoResolutionMs,
+      expiresAt: timing.expiresAt,
     }, {
-      timeoutMs: autoResolutionMs ?? 0,
+      timeoutMs: timing.autoResolutionMs ?? 0,
       onResponse: (response) => {
         this.client?.respond(rpcId, validateQuestionAnswers(questions, response));
       },
@@ -1089,7 +1115,9 @@ export class CodexAppServerChatTransport {
       toolId: itemId,
       input: interactiveRequestRegistry.get(requestId)?.input,
       questions: interactiveRequestRegistry.get(requestId)?.questions,
-      autoResolutionMs,
+      receivedAt: interactiveRequestRegistry.get(requestId)?.receivedAt,
+      isBlocking: interactiveRequestRegistry.get(requestId)?.isBlocking,
+      autoResolutionMs: timing.autoResolutionMs,
       expiresAt: interactiveRequestRegistry.get(requestId)?.expiresAt,
       sessionId: active.threadId,
       provider: PROVIDER,

@@ -568,6 +568,9 @@ test('App Server validates questions and maps every approval response without ex
   try {
     const query = completeTransport.query('interactive', { cwd: completeFake.root }, completeWriter);
     const question = await waitForPending((request) => request.requestType === 'user_input');
+    assert.equal(question.isBlocking, true);
+    assert.equal(question.autoResolutionMs, null);
+    assert.equal(question.expiresAt, null);
     assert.equal(question.questions?.[0].id, 'choice');
     assert.equal(question.questions?.[0].options[0].description, 'First');
     assert.equal(question.questions?.[1].isSecret, true);
@@ -626,11 +629,53 @@ test('App Server validates questions and maps every approval response without ex
   }
 });
 
-test('App Server timeout submits an empty answer map', async () => {
-  const fake = await createFakeServer(`
+type UserInputTimingCase = {
+  name: string;
+  params: { autoResolutionMs: number | null; isBlocking?: boolean };
+  expectedBlocking: boolean;
+  expectedTimeoutMs: number | null;
+  resolvesAutomatically: boolean;
+};
+
+const USER_INPUT_TIMING_CASES: UserInputTimingCase[] = [
+  {
+    name: 'blocking question ignores autoResolutionMs',
+    params: { isBlocking: true, autoResolutionMs: 40 },
+    expectedBlocking: true,
+    expectedTimeoutMs: null,
+    resolvesAutomatically: false,
+  },
+  {
+    name: 'non-blocking question honors autoResolutionMs',
+    params: { isBlocking: false, autoResolutionMs: 60 },
+    expectedBlocking: false,
+    expectedTimeoutMs: 60,
+    resolvesAutomatically: true,
+  },
+  {
+    name: 'non-blocking question defaults a null timeout to 120 seconds',
+    params: { isBlocking: false, autoResolutionMs: null },
+    expectedBlocking: false,
+    expectedTimeoutMs: 120_000,
+    resolvesAutomatically: false,
+  },
+  {
+    name: 'legacy question without isBlocking honors autoResolutionMs',
+    params: { autoResolutionMs: 60 },
+    expectedBlocking: false,
+    expectedTimeoutMs: 60,
+    resolvesAutomatically: true,
+  },
+];
+
+for (const timingCase of USER_INPUT_TIMING_CASES) {
+  test(`App Server ${timingCase.name}`, async () => {
+    const serializedTiming = JSON.stringify(timingCase.params);
+    const fake = await createFakeServer(`
 import readline from 'node:readline';
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
+const timing = ${serializedTiming};
 for await (const line of lines) {
   const message = JSON.parse(line);
   if (message.method === 'initialize') send({ id: message.id, result: {} });
@@ -640,30 +685,63 @@ for await (const line of lines) {
   } });
   else if (message.method === 'turn/start') {
     send({ id: message.id, result: { turn: { id: 'turn-1', status: 'inProgress', error: null } } });
-    send({ id: 'timeout-question', method: 'item/tool/requestUserInput', params: {
+    send({ id: 'timing-question', method: 'item/tool/requestUserInput', params: {
       threadId: 'thread-1', turnId: 'turn-1', itemId: 'q',
       questions: [{ id: 'q', header: '', question: 'Optional?', isOther: true, isSecret: false, options: null }],
-      autoResolutionMs: 30
+      ...timing
     } });
-  } else if (message.id === 'timeout-question') {
+  } else if (message.id === 'timing-question') {
     if (Object.keys(message.result?.answers || {}).length !== 0) process.exit(41);
     send({ method: 'turn/completed', params: {
       threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed', error: null }
     } });
   }
 }`);
-  const transport = new CodexAppServerChatTransport({ command: fake.command });
-  transports.push(transport);
-  providerModelsService.resolveResumeModel = async () => 'gpt-test';
-  const writer = createWriter();
-  try {
-    await transport.query('timeout', { cwd: fake.root }, writer);
-    assert.deepEqual(interactiveRequestRegistry.getPendingForSession('thread-1'), []);
-    assert.equal(writer.messages.filter((message) => message.kind === 'complete').length, 1);
-  } finally {
-    await fake.cleanup();
-  }
-});
+    const transport = new CodexAppServerChatTransport({ command: fake.command });
+    transports.push(transport);
+    providerModelsService.resolveResumeModel = async () => 'gpt-test';
+    const writer = createWriter();
+    try {
+      const query = transport.query('timing', { cwd: fake.root }, writer);
+      const pending = await waitForPending();
+      assert.equal(pending.isBlocking, timingCase.expectedBlocking);
+      assert.equal(pending.autoResolutionMs, timingCase.expectedTimeoutMs);
+      assert.equal(
+        pending.expiresAt === null,
+        timingCase.expectedTimeoutMs === null,
+      );
+      if (timingCase.expectedTimeoutMs !== null) {
+        assert.equal(
+          Date.parse(pending.expiresAt || '') - Date.parse(pending.receivedAt),
+          timingCase.expectedTimeoutMs,
+        );
+      }
+
+      const liveRequest = writer.messages.find((message) => message.kind === 'permission_request');
+      assert.equal(liveRequest?.isBlocking, timingCase.expectedBlocking);
+      assert.equal(liveRequest?.expiresAt, pending.expiresAt);
+
+      if (timingCase.resolvesAutomatically) {
+        await query;
+      } else {
+        if (timingCase.params.isBlocking === true) {
+          await new Promise((resolve) => setTimeout(resolve, 70));
+          assert.ok(interactiveRequestRegistry.get(pending.requestId));
+        }
+        assert.equal((await interactiveRequestRegistry.resolve(pending.requestId, {
+          requestType: 'user_input',
+          answers: {},
+        })).status, 'resolved');
+        await query;
+      }
+
+      assert.deepEqual(interactiveRequestRegistry.getPendingForSession('thread-1'), []);
+      assert.equal(writer.messages.filter((message) => message.kind === 'complete').length, 1);
+    } finally {
+      await fake.cleanup();
+    }
+  });
+}
 
 test('App Server process exit fails an accepted turn and a later query starts a fresh process', async () => {
   const fake = await createFakeServer(`

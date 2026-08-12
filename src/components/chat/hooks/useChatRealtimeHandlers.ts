@@ -327,6 +327,7 @@ export function useChatRealtimeHandlers({
                 toolId: msg.toolId as string | undefined,
                 sessionId: sid || null,
                 receivedAt: typeof msg.receivedAt === 'string' ? msg.receivedAt : new Date(),
+                isBlocking: typeof msg.isBlocking === 'boolean' ? msg.isBlocking : undefined,
                 expiresAt: typeof msg.expiresAt === 'string' ? msg.expiresAt : null,
                 autoResolutionMs: typeof msg.autoResolutionMs === 'number' ? msg.autoResolutionMs : null,
                 questions: Array.isArray(msg.questions) ? msg.questions as PendingPermissionRequest['questions'] : undefined,

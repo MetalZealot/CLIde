@@ -148,6 +148,8 @@ export type CodexToolRequestUserInputParams = {
   itemId: string;
   questions: CodexQuestion[];
   autoResolutionMs: number | null;
+  /** Added in 0.147; absent on the pinned 0.146 runtime. */
+  isBlocking?: boolean;
 };
 
 export type CodexToolRequestUserInputResponse = {

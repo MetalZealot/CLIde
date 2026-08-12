@@ -63,6 +63,13 @@ function readExpiry(value: Date | string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function readRequestExpiry(
+  isBlocking: boolean | undefined,
+  expiresAt: Date | string | null | undefined,
+): number | null {
+  return isBlocking === true ? null : readExpiry(expiresAt);
+}
+
 export const UserInputRequestPanel: React.FC<PermissionPanelProps> = ({
   request,
   onDecision,
@@ -73,7 +80,7 @@ export const UserInputRequestPanel: React.FC<PermissionPanelProps> = ({
   const [freeText, setFreeText] = useState<Map<string, string>>(() => new Map());
   const [otherActive, setOtherActive] = useState<Set<string>>(() => new Set());
   const [remainingMs, setRemainingMs] = useState<number | null>(() => {
-    const expiry = readExpiry(request.expiresAt);
+    const expiry = readRequestExpiry(request.isBlocking, request.expiresAt);
     return expiry === null ? null : Math.max(0, expiry - Date.now());
   });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,7 +91,7 @@ export const UserInputRequestPanel: React.FC<PermissionPanelProps> = ({
   const isOtherOn = Boolean(q && (isFreeTextOnly || otherActive.has(q.id)));
 
   useEffect(() => {
-    const expiry = readExpiry(request.expiresAt);
+    const expiry = readRequestExpiry(request.isBlocking, request.expiresAt);
     if (expiry === null) {
       setRemainingMs(null);
       return;
@@ -93,7 +100,7 @@ export const UserInputRequestPanel: React.FC<PermissionPanelProps> = ({
     update();
     const timer = window.setInterval(update, 250);
     return () => window.clearInterval(timer);
-  }, [request.expiresAt]);
+  }, [request.expiresAt, request.isBlocking]);
 
   useEffect(() => {
     if (isOtherOn) {

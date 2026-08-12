@@ -129,6 +129,7 @@ export interface PendingPermissionRequest {
   toolId?: string;
   sessionId?: string | null;
   receivedAt?: Date | string;
+  isBlocking?: boolean;
   expiresAt?: Date | string | null;
   autoResolutionMs?: number | null;
   questions?: Question[];

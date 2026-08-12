@@ -147,7 +147,14 @@ test('chat.subscribe replays pending approvals looked up by the app session id',
           // Runtimes register under the app id; a runtime that still stamps its
           // own id on the request must not leak it past the gateway.
           return sessionId === appSessionId
-            ? [{ requestId: 'req-1', sessionId: providerSessionId, toolName: 'Bash' }]
+            ? [{
+                requestId: 'req-1',
+                sessionId: providerSessionId,
+                toolName: 'request_user_input',
+                isBlocking: false,
+                autoResolutionMs: 120_000,
+                expiresAt: '2026-08-12T12:02:00.000Z',
+              }]
             : [];
         },
       },
@@ -182,5 +189,8 @@ test('chat.subscribe replays pending approvals looked up by the app session id',
     assert.equal(pending.length, 1, 'the pending approval should survive the refresh');
     assert.equal(pending[0].requestId, 'req-1');
     assert.equal(pending[0].sessionId, appSessionId, 'the client only ever sees app ids');
+    assert.equal(pending[0].isBlocking, false, 'blocking state should survive replay');
+    assert.equal(pending[0].autoResolutionMs, 120_000);
+    assert.equal(pending[0].expiresAt, '2026-08-12T12:02:00.000Z');
   });
 });
