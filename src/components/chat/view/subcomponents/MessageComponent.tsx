@@ -94,7 +94,16 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     !message.isCompactSummary;
 
 
-  const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(undefined, { hour12: true }), [message.timestamp]);
+  // Locale is pinned and the fields are explicit: the device's own locale renders
+  // seconds and varies the AM/PM marker, so timestamps drift between phone and desktop.
+  const formattedTime = useMemo(
+    () => new Date(message.timestamp).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }),
+    [message.timestamp],
+  );
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
 
   if (shouldHideThinkingMessage) {
@@ -500,13 +509,13 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+                {!isGrouped && <span>{formattedTime}</span>}
                 {shouldShowAssistantCopyControl && (
                   <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                 )}
                 {shouldShowAssistantCopyControl && (
                   <MessageSpeakControl content={assistantCopyContent} />
                 )}
-                {!isGrouped && <span>{formattedTime}</span>}
               </div>
             )}
           </div>
