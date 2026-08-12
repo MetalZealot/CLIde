@@ -79,6 +79,25 @@ test('interactive registry timeout invokes the provider adapter and clears repla
   assert.equal(interactiveRequestRegistry.getPendingForSession('thread-1').length, 0);
 });
 
+test('Claude approval with a zero timeout remains pending for the human', async () => {
+  let timedOut = false;
+  interactiveRequestRegistry.register({
+    ...baseRequest,
+    provider: 'claude',
+    toolName: 'Bash',
+  }, {
+    timeoutMs: 0,
+    onResponse: () => {},
+    onTimeout: () => {
+      timedOut = true;
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(timedOut, false);
+  assert.equal(interactiveRequestRegistry.getPendingForSession('thread-1').length, 1);
+});
+
 test('interactive registry server resolution and abort cancellation clear requests', async () => {
   let cancellations = 0;
   interactiveRequestRegistry.register(baseRequest, {

@@ -653,6 +653,13 @@ const USER_INPUT_TIMING_CASES: UserInputTimingCase[] = [
     resolvesAutomatically: true,
   },
   {
+    name: 'non-blocking question resolves immediately when autoResolutionMs is zero',
+    params: { isBlocking: false, autoResolutionMs: 0 },
+    expectedBlocking: false,
+    expectedTimeoutMs: 0,
+    resolvesAutomatically: true,
+  },
+  {
     name: 'non-blocking question defaults a null timeout to 120 seconds',
     params: { isBlocking: false, autoResolutionMs: null },
     expectedBlocking: false,
@@ -703,6 +710,17 @@ for await (const line of lines) {
     const writer = createWriter();
     try {
       const query = transport.query('timing', { cwd: fake.root }, writer);
+      if (timingCase.expectedTimeoutMs === 0) {
+        await query;
+        assert.equal(
+          writer.messages.some((message) => message.kind === 'permission_request'),
+          false,
+        );
+        assert.deepEqual(interactiveRequestRegistry.getPendingForSession('thread-1'), []);
+        assert.equal(writer.messages.filter((message) => message.kind === 'complete').length, 1);
+        return;
+      }
+
       const pending = await waitForPending();
       assert.equal(pending.isBlocking, timingCase.expectedBlocking);
       assert.equal(pending.autoResolutionMs, timingCase.expectedTimeoutMs);
@@ -952,16 +970,16 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     );
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, true);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, true);
-    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, '0.146.0');
-    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, '0.146.0');
+    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, '0.147.0');
+    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, '0.147.0');
     assert.deepEqual(
       getCodexChatTransportDiagnostics(),
       {
         configured: 'app-server',
         actual: 'app-server',
         health: 'idle',
-        sdkVersion: '0.146.0',
-        bundledCliVersion: '0.146.0',
+        sdkVersion: '0.147.0',
+        bundledCliVersion: '0.147.0',
         lastError: null,
         lastStartupFallbackAt: null,
       },

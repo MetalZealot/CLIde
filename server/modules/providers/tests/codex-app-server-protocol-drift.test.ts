@@ -8,7 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const moduleRequire = createRequire(import.meta.url);
-const EXPECTED_CODEX_VERSION = '0.146.0';
+const EXPECTED_CODEX_VERSION = '0.147.0';
 
 test(`Codex SDK and bundled CLI stay pinned to ${EXPECTED_CODEX_VERSION}`, () => {
   const codexBin = moduleRequire.resolve('@openai/codex/bin/codex.js');
@@ -46,6 +46,7 @@ test(`generated ${EXPECTED_CODEX_VERSION} protocol retains CLIde Chat methods an
       threadFork,
       turnStart,
       tokenUsage,
+      questionParams,
       question,
       questionResponse,
     ] =
@@ -56,6 +57,7 @@ test(`generated ${EXPECTED_CODEX_VERSION} protocol retains CLIde Chat methods an
         readFile(path.join(tempRoot, 'v2', 'ThreadForkParams.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'TurnStartParams.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'TokenUsageBreakdown.ts'), 'utf8'),
+        readFile(path.join(tempRoot, 'v2', 'ToolRequestUserInputParams.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'ToolRequestUserInputQuestion.ts'), 'utf8'),
         readFile(path.join(tempRoot, 'v2', 'ToolRequestUserInputResponse.ts'), 'utf8'),
       ]);
@@ -86,6 +88,8 @@ test(`generated ${EXPECTED_CODEX_VERSION} protocol retains CLIde Chat methods an
     assert.match(turnStart, /sandboxPolicy\?: SandboxPolicy/);
     assert.match(turnStart, /effort\?: ReasoningEffort/);
     assert.match(tokenUsage, /cacheWriteInputTokens: number/);
+    assert.match(questionParams, /isBlocking: boolean/);
+    assert.match(questionParams, /autoResolutionMs: number \| null/);
     for (const field of ['id: string', 'isOther: boolean', 'isSecret: boolean', 'options:']) {
       assert.match(question, new RegExp(field));
     }

@@ -441,7 +441,7 @@ function resolveUserInputTiming(
 } {
   const requestedTimeoutMs = typeof params.autoResolutionMs === 'number'
     && Number.isFinite(params.autoResolutionMs)
-    && params.autoResolutionMs > 0
+    && params.autoResolutionMs >= 0
     ? Math.floor(params.autoResolutionMs)
     : null;
 
@@ -1042,6 +1042,11 @@ export class CodexAppServerChatTransport {
     const receivedAt = new Date();
     const timing = resolveUserInputTiming(params, receivedAt);
 
+    if (timing.autoResolutionMs === 0) {
+      this.client?.respond(rpcId, { answers: {} });
+      return;
+    }
+
     interactiveRequestRegistry.register({
       requestId,
       provider: PROVIDER,
@@ -1076,7 +1081,7 @@ export class CodexAppServerChatTransport {
       autoResolutionMs: timing.autoResolutionMs,
       expiresAt: timing.expiresAt,
     }, {
-      timeoutMs: timing.autoResolutionMs ?? 0,
+      timeoutMs: timing.autoResolutionMs ?? undefined,
       onResponse: (response) => {
         this.client?.respond(rpcId, validateQuestionAnswers(questions, response));
       },

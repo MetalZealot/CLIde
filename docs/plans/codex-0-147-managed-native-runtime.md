@@ -1,7 +1,7 @@
 # Codex 0.147, then a managed native runtime
 
-- Status: 1/7
-- Next: Phase 2 — pin the SDK and bundled CLI to 0.147.0
+- Status: 2/7
+- Next: Phase 3 — preserve unknown native keys when editing Codex MCP servers
 - Context: [Codex surface map](../maps/codex-cli-sdk-app-server.md), [upgrade ledger](../maps/codex-upgrade-ledger.md), [chat transport map](../maps/2026-07-25-codex-chat-transport-architecture.md), [provider contract §5](../maps/CLIde_Provider_Architecture_Current_Contract.md), ADR 0011. Claude's runtime/SDK pairing stays out of scope — it belongs to the "Recurring provider SDK/CLI update process" item in `TODO.md`.
 
 Verified on this host 2026-08-12: native `codex` is 0.147.0, CLIde's bundled pin is
@@ -33,14 +33,10 @@ would strand its card.
 - [x] 1. **`isBlocking` honoured, behaviour unchanged on 0.146** — `448e1ab`,
   live-verified on 3002.
 
-- [ ] 2. **Pinned to 0.147.0.** Bump `@openai/codex-sdk` to exact `0.147.0`, update
-  `EXPECTED_CODEX_VERSION` in the protocol-drift test, refresh the curated protocol
-  for anything else the drift test flags. Nothing else in 0.147 is consumed:
-  conversation sections, plugins, `readOnlyHint`, model specialty, plan values and
-  image metadata are additive and stay unmapped. Two carry-overs from Phase 1: an
-  `autoResolutionMs` of exactly `0` with `isBlocking: false` currently falls through
-  to the 120 s default instead of resolving at once, and the `isBlocking` comment in
-  the curated protocol still describes 0.146 as the pinned runtime.
+- [x] 2. **Pinned to 0.147.0.** SDK, bundled CLI, platform lockfile packages,
+  diagnostics, and drift contract updated. Zero-time questions resolve in the Codex
+  transport without changing Claude's shared no-timer contract. New and resumed Chat
+  live-verified on 3002.
 
 - [ ] 3. **MCP edits stop erasing unknown native keys.** `codex-mcp.provider.ts`
   reconstructs each server record, so any key CLIde does not model is dropped —
