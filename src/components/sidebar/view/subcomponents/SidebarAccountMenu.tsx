@@ -35,8 +35,10 @@ function MenuRow({
       aria-current={isActive ? 'true' : undefined}
       onClick={onSelect}
       className={cn(
-        'flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent active:bg-accent',
-        isDestructive ? 'text-destructive' : 'text-foreground',
+        'flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition-colors',
+        isDestructive
+          ? 'text-red-600 hover:bg-red-50 focus-visible:bg-red-50 active:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 dark:focus-visible:bg-red-950 dark:active:bg-red-950'
+          : 'text-foreground hover:bg-accent focus-visible:bg-accent active:bg-accent',
       )}
     >
       <Icon className={cn('h-4 w-4 flex-shrink-0', !isDestructive && 'text-muted-foreground')} />
