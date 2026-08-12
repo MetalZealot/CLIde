@@ -369,6 +369,9 @@ export function useChatComposerState({
   const inputValueRef = useRef(input);
   const selectedProjectId = selectedProject?.projectId;
   const previousSelectedProjectIdRef = useRef(selectedProjectId);
+  // Which project the composer last restored a draft for; `undefined` means no
+  // project has been picked yet, so the current text belongs to no draft key.
+  const lastRestoredProjectIdRef = useRef(selectedProjectId);
   // Prefer the stable backend-allocated id (selectedSession.id) but fall back
   // to currentSessionId for a just-established session that hasn't been
   // handed back to the parent's `selectedSession` prop yet.
@@ -1354,7 +1357,14 @@ export function useChatComposerState({
     if (!selectedProjectId) {
       return;
     }
+    const hadProject = lastRestoredProjectIdRef.current !== undefined;
+    lastRestoredProjectIdRef.current = selectedProjectId;
     const savedInput = safeLocalStorage.getItem(`draft_input_${selectedProjectId}`) || '';
+    // Text typed before any project existed has nowhere to be keyed, so the
+    // first project picked adopts it rather than restoring over it.
+    if (!hadProject && !savedInput && inputValueRef.current) {
+      return;
+    }
     setInput((previous) => {
       const next = previous === savedInput ? previous : savedInput;
       inputValueRef.current = next;
