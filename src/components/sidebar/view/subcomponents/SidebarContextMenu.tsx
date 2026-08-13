@@ -13,20 +13,14 @@ type SidebarContextMenuItemBase = {
   showDividerBefore?: boolean;
 };
 
-export type SidebarContextMenuItem = SidebarContextMenuItemBase & ({
+export type SidebarContextMenuItem = SidebarContextMenuItemBase & {
   onSelect: () => void;
   /**
    * Leaves the overlay up so `onSelect` can replace the menu's contents — used
    * to step from a repository's checkout list into one checkout's actions.
    */
   keepOpen?: boolean;
-  href?: never;
-} | {
-  /** Internal app link opened in a separate browser tab. */
-  href: string;
-  onSelect?: never;
-  keepOpen?: never;
-});
+};
 
 type SidebarContextMenuProps = {
   anchor: ContextMenuAnchor;
@@ -71,32 +65,19 @@ export default function SidebarContextMenu({ anchor, items, onClose, ariaLabel }
         return (
           <Fragment key={item.key}>
             {item.showDividerBefore && <div className="mx-2 my-1 h-px bg-border" />}
-            {'href' in item ? (
-              <a
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                role="menuitem"
-                onClick={onClose}
-                className={itemClassName}
-              >
-                {content}
-              </a>
-            ) : (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  item.onSelect();
-                  if (!item.keepOpen) {
-                    onClose();
-                  }
-                }}
-                className={itemClassName}
-              >
-                {content}
-              </button>
-            )}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                item.onSelect();
+                if (!item.keepOpen) {
+                  onClose();
+                }
+              }}
+              className={itemClassName}
+            >
+              {content}
+            </button>
           </Fragment>
         );
       })}

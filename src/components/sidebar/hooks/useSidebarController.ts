@@ -939,28 +939,57 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onSessionDelete, sessionDeleteConfirmation, t]);
 
-  // Archive skips the confirmation modal — it is recoverable from the Archive
-  // tab (mirrors confirmDeleteSession's soft-delete path, hardDelete=false).
-  const archiveSessionDirect = useCallback(async (sessionId: string) => {
-    try {
-      const response = await api.deleteSession(sessionId, false);
+  /**
+   * Removes one or many sessions in a single pass: `hardDelete` false archives,
+   * true deletes. Every request is issued before anything is reported, so one
+   * failure never leaves the rest unattempted, and the archive is refetched once.
+   */
+  const removeSessions = useCallback(async (sessionIds: string[], hardDelete: boolean) => {
+    if (sessionIds.length === 0) {
+      return;
+    }
 
-      if (response.ok) {
-        onSessionDelete?.(sessionId);
-        await fetchArchivedSessions();
-      } else {
-        const errorText = await response.text();
-        console.error('[Sidebar] Failed to archive session:', {
-          status: response.status,
-          error: errorText,
-        });
-        alert(t('messages.deleteSessionFailed'));
+    const outcomes = await Promise.all(sessionIds.map(async (sessionId) => {
+      try {
+        const response = await api.deleteSession(sessionId, hardDelete);
+        if (!response.ok) {
+          console.error('[Sidebar] Failed to remove session:', {
+            sessionId,
+            hardDelete,
+            status: response.status,
+            error: await response.text(),
+          });
+          return { sessionId, ok: false, threw: false };
+        }
+        return { sessionId, ok: true, threw: false };
+      } catch (error) {
+        console.error('[Sidebar] Error removing session:', sessionId, error);
+        return { sessionId, ok: false, threw: true };
       }
-    } catch (error) {
-      console.error('[Sidebar] Error archiving session:', error);
-      alert(t('messages.deleteSessionError'));
+    }));
+
+    for (const outcome of outcomes) {
+      if (outcome.ok) {
+        onSessionDelete?.(outcome.sessionId);
+      }
+    }
+
+    await fetchArchivedSessions();
+
+    const failures = outcomes.filter((outcome) => !outcome.ok);
+    if (failures.length > 0) {
+      alert(failures.some((failure) => failure.threw)
+        ? t('messages.deleteSessionError')
+        : t('messages.deleteSessionFailed'));
     }
   }, [fetchArchivedSessions, onSessionDelete, t]);
+
+  // Archive skips the confirmation modal — it is recoverable from the Archive
+  // tab (mirrors confirmDeleteSession's soft-delete path, hardDelete=false).
+  const archiveSessionDirect = useCallback(
+    (sessionId: string) => removeSessions([sessionId], false),
+    [removeSessions],
+  );
 
   // Optimistic star toggle: flip the icon immediately (which also pins the
   // session via `getAllSessions`' starred-first sort), reconcile with the
@@ -1372,6 +1401,7 @@ export function useSidebarController({
     showDeleteSessionConfirmation,
     confirmDeleteSession,
     archiveSessionDirect,
+    removeSessions,
     toggleStarSession,
     requestProjectDelete,
     requestRepositoryDelete,

@@ -1,12 +1,22 @@
-import { ArrowDownAZ, ArrowDownWideNarrow, ArrowUpWideNarrow, Check, RotateCcw, TreeDeciduous } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarClock, Check, RotateCcw, TreeDeciduous, Type } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ContextMenuOverlay, type ContextMenuAnchor } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project } from '../../../../types/app';
-import type { RepositoryEntry, RepositoryViewOptions, SessionSortKey } from '../../types/types';
-import { getCheckoutRefLabel, isDefaultRepositoryView, isDiscoveredCheckout } from '../../utils/utils';
+import type {
+  RepositoryEntry,
+  RepositoryViewOptions,
+  SessionSortDirection,
+  SessionSortKey,
+} from '../../types/types';
+import {
+  DEFAULT_SORT_DIRECTION,
+  getCheckoutRefLabel,
+  isDefaultRepositoryView,
+  isDiscoveredCheckout,
+} from '../../utils/utils';
 
 type SidebarSessionViewMenuProps = {
   entry: RepositoryEntry;
@@ -60,6 +70,49 @@ function MenuChoice({
 }
 
 /**
+ * A sort field, which is also its own direction toggle: picking the active field
+ * again reverses it. The arrow marks the active field in the slot a checkmark
+ * would use, and the order reads out in words because an arrow alone cannot say
+ * whether down means newest or oldest.
+ */
+function MenuSortChoice({
+  label,
+  orderLabel,
+  icon: Icon,
+  isSelected,
+  direction,
+  onSelect,
+}: {
+  label: string;
+  orderLabel: string;
+  icon: LucideIcon;
+  isSelected: boolean;
+  direction: SessionSortDirection;
+  onSelect: () => void;
+}) {
+  const Arrow = direction === 'asc' ? ArrowUp : ArrowDown;
+
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={isSelected}
+      onClick={onSelect}
+      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent active:bg-accent"
+    >
+      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        {isSelected && <Arrow className="h-3.5 w-3.5 text-primary" />}
+      </span>
+      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+      <span className={cn('min-w-0 flex-1 truncate', isSelected && 'font-medium')}>{label}</span>
+      {isSelected && (
+        <span className="flex-shrink-0 text-[11px] text-muted-foreground">{orderLabel}</span>
+      )}
+    </button>
+  );
+}
+
+/**
  * Sort and filter for one repository row's session list.
  *
  * Filtering by worktree appears only when the row actually covers several —
@@ -88,21 +141,33 @@ export default function SidebarSessionViewMenu({
   const isMerged = filterableCheckouts.length > 1;
   const isCustomized = !isDefaultRepositoryView(options);
 
-  const sortChoices: Array<{ key: SessionSortKey; label: string; icon: LucideIcon }> = [
+  type SortChoice = {
+    key: SessionSortKey;
+    label: string;
+    icon: LucideIcon;
+    order: Record<SessionSortDirection, string>;
+  };
+
+  const alphabetical = {
+    asc: t('sessionView.orderAZ', 'A–Z'),
+    desc: t('sessionView.orderZA', 'Z–A'),
+  };
+
+  const sortChoices: SortChoice[] = [
     {
-      key: 'recent',
-      label: t('sessionView.sortNewest', 'Newest first'),
-      icon: ArrowDownWideNarrow,
-    },
-    {
-      key: 'oldest',
-      label: t('sessionView.sortOldest', 'Oldest first'),
-      icon: ArrowUpWideNarrow,
+      key: 'date',
+      label: t('sessionView.sortDate', 'Date'),
+      icon: CalendarClock,
+      order: {
+        asc: t('sessionView.orderOldestFirst', 'Oldest first'),
+        desc: t('sessionView.orderNewestFirst', 'Newest first'),
+      },
     },
     {
       key: 'title',
       label: t('sessionView.sortTitle', 'Session title'),
-      icon: ArrowDownAZ,
+      icon: Type,
+      order: alphabetical,
     },
     ...(isMerged
       ? [
@@ -110,10 +175,23 @@ export default function SidebarSessionViewMenu({
             key: 'worktree' as const,
             label: t('sessionView.sortWorktree', 'Worktree'),
             icon: TreeDeciduous,
+            order: alphabetical,
           },
         ]
       : []),
   ];
+
+  /** Picking the active field reverses it; picking another starts it its own way up. */
+  const selectSort = (key: SessionSortKey) => {
+    const direction =
+      options.sort === key
+        ? options.direction === 'asc'
+          ? 'desc'
+          : 'asc'
+        : DEFAULT_SORT_DIRECTION[key];
+
+    onChange({ ...options, sort: key, direction });
+  };
 
   const worktreeLabel = (checkout: Project) =>
     getCheckoutRefLabel(checkout) ?? checkout.displayName ?? checkout.projectId;
@@ -146,15 +224,22 @@ export default function SidebarSessionViewMenu({
       measureKey={`${sortChoices.length}:${entry.checkouts.length}:${isCustomized}`}
     >
       <MenuSectionLabel label={t('sessionView.sortBy', 'Sort by')} />
-      {sortChoices.map((choice) => (
-        <MenuChoice
-          key={choice.key}
-          label={choice.label}
-          icon={choice.icon}
-          isSelected={options.sort === choice.key}
-          onSelect={() => onChange({ ...options, sort: choice.key })}
-        />
-      ))}
+      {sortChoices.map((choice) => {
+        const isSelected = options.sort === choice.key;
+        const direction = isSelected ? options.direction : DEFAULT_SORT_DIRECTION[choice.key];
+
+        return (
+          <MenuSortChoice
+            key={choice.key}
+            label={choice.label}
+            orderLabel={choice.order[direction]}
+            icon={choice.icon}
+            isSelected={isSelected}
+            direction={direction}
+            onSelect={() => selectSort(choice.key)}
+          />
+        );
+      })}
 
       {isMerged && (
         <>

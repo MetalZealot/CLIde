@@ -4,8 +4,11 @@ import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 export type ProjectSortOrder = 'name' | 'date';
 export type SidebarSearchMode = 'projects' | 'conversations' | 'archived';
 
-/** Order of the sessions under one repository row. `recent` is the default. */
-export type SessionSortKey = 'recent' | 'oldest' | 'title' | 'worktree';
+/** Field the sessions under one repository row are ordered by. */
+export type SessionSortKey = 'date' | 'title' | 'worktree';
+
+/** Ascending is oldest-first for `date` and A–Z for the two text fields. */
+export type SessionSortDirection = 'asc' | 'desc';
 
 /**
  * How one repository row presents its sessions.
@@ -17,6 +20,7 @@ export type SessionSortKey = 'recent' | 'oldest' | 'title' | 'worktree';
  */
 export type RepositoryViewOptions = {
   sort: SessionSortKey;
+  direction: SessionSortDirection;
   /** Checkouts to keep, by `projectId`. Null shows every one of them. */
   worktreeProjectIds: string[] | null;
 };

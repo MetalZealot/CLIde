@@ -85,7 +85,7 @@
     --safe-area-inset-left: env(safe-area-inset-left);
 
     /* Height of every top bar — see .app-bar */
-    --app-bar-height: 48px;
+    --app-bar-height: 56px;
   }
   
   /* Fallback for older iOS versions */

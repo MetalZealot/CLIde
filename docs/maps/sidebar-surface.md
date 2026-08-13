@@ -43,10 +43,12 @@ Archive.
 | New Project | Last in the list it adds to, deliberately faded |
 
 **Repository row** (`SidebarRepositoryItem.tsx`) — accent strip · display name ·
-session count · branch-or-worktree-count subtitle with its own icon · activity
-roll-up · kebab (desktop, hover/focus) · chevron. Expanded, it grows a
-"Sessions" subheader carrying the view menu and the create menu, and the header
-sticks to the top of the scroll area.
+session count · branch (with its glyph) or worktree count (a `·` separator, no
+glyph — ADR 0016 still holds: a branch and a checkout never share an icon) ·
+"Filtered" cue when the row's view is non-default · activity roll-up · kebab
+(desktop, hover/focus) · chevron. Expanded, the header sticks to the top of the
+scroll area and the row grows nothing else: the list carries no permanent
+controls of its own.
 
 **Session row** (`SidebarSessionItem.tsx`) — pin · name (`font-medium` marks
 unread and nothing else) · status symbol **or** relative age, never both ·
@@ -62,19 +64,29 @@ summary, version.
 
 ## Tier 2 — anchored menus
 
-All four are built in `Sidebar.tsx` and rendered through the one
+All three are built in `Sidebar.tsx` and rendered through the one
 `ContextMenuOverlay` (ADR 0009).
 
 | Menu | Opened from | Items |
 |---|---|---|
-| Session actions | Long-press, kebab, right-click | Open in new tab · Pin · Rename · Copy session ID ‖ Archive · Delete |
-| Repository actions | Long-press, kebab, right-click | Rename · Customize · Worktrees ‖ Archive · Delete |
-| Create | `+` in the Sessions subheader | New Session · New Worktree |
-| View | Filter icon in the Sessions subheader | Sort (newest, oldest, title, worktree) · filter by worktree · Reset |
+| Session actions | Long-press, kebab, right-click | Pin · Rename · Copy session ID ‖ Select… (repository rows only) ‖ Archive · Delete |
+| Repository actions | Long-press, kebab, right-click | Rename · Customize · Sort and filter sessions · Worktrees ‖ Archive · Delete |
+| View | Repository actions, or the row's "Filtered" cue | Sort by date, title, or worktree — retap the active one to reverse it · filter by worktree · Reset |
+
+**Select…** puts one repository row's list into batch mode, opening with the
+row it was invoked on ticked. Rows become tick boxes — no navigation, no menu,
+no rename — and `SidebarSelectionBar` replaces the footer with the count,
+Archive, Delete, and Cancel. Delete confirms with the count; Archive does not,
+being recoverable. Selection never spans two repositories, and does not survive
+collapsing the row.
 
 Repository actions target the **lead checkout**, so a merged row keeps one
-identity however many worktrees it has. Accent colour opens from Customize at
-the same anchor the menu occupied.
+identity however many worktrees it has. Accent colour and the view menu both
+open from it at the same anchor the menu occupied.
+
+Sort and filter has no permanent control: a default view has nothing to say, and
+a non-default one says it on the row itself. Adding a worktree is the manager's
+create form, which then opens the new checkout in a new session.
 
 ## Tier 3 — containers
 
@@ -124,12 +136,11 @@ Four places where the tiers above are not what the code does. Each is a
   your sessions living next to Log out. ADR 0030 placed it in the footer beside
   Settings; the account-menu consolidation fixed the footer and left Archive
   in the one container that is not about sessions.
-- **Three entry points for New Session** — header (global), footer (global,
-  mobile), per-row `+` (scoped). Nothing distinguishes the scoped one.
 - **Activity and Pinned are visually identical and behave oppositely** — copy
   versus move, with no cue for which.
 - **View state has two forms at two levels** — the project picker is a dropdown
-  wearing a section header; the per-row view menu is an icon in a subheader.
+  wearing a section header; the per-row view lives in that row's actions menu
+  and surfaces only as a cue.
 
 ## Dead surface
 

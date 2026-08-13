@@ -16,7 +16,6 @@
     "all": "All",
     "allProjects": "All projects",
     "chooseProject": "Choose project",
-    "createMenu": "Create in project",
     "customizeColor": "Highlight colour",
     "customizeColorNone": "No highlight",
     "untitledSession": "Untitled Session",
@@ -36,7 +35,6 @@
     "subtitle": "AI coding assistant interface"
   },
   "sessions": {
-    "title": "Sessions",
     "newSession": "New Session",
     "deleteSession": "Delete Session",
     "renameSession": "Rename Session",
@@ -87,12 +85,12 @@
     "rename": "Rename",
     "customize": "Customize",
     "open": "Open",
-    "openInNewTab": "Open in new tab",
     "copySessionId": "Copy session ID",
     "rowActions": "Actions for {{name}}",
     "account": "Account",
     "accountMenu": "Account menu",
-    "logOut": "Log out"
+    "logOut": "Log out",
+    "select": "Select…"
   },
   "branding": {
     "openSource": "Open Source"
@@ -170,7 +168,10 @@
     "worktreeScope_one": "This covers the 1 worktree registered for this repository. Its directory stays on disk.",
     "worktreeScope_other": "This covers all {{count}} worktrees registered for this repository. Their directories stay on disk.",
     "selectionScope_one": "This covers the 1 worktree you selected. Its directory stays on disk.",
-    "selectionScope_other": "This covers the {{count}} worktrees you selected. Their directories stay on disk."
+    "selectionScope_other": "This covers the {{count}} worktrees you selected. Their directories stay on disk.",
+    "deleteSessions_one": "Delete {{count}} session?",
+    "deleteSessions_other": "Delete {{count}} sessions?",
+    "deleteSessionsNotice": "This permanently removes their history. Archive instead to keep it."
   },
   "worktrees": {
     "title": "Worktrees",
@@ -204,11 +205,19 @@
   "sessionView": {
     "title": "Sort and filter sessions",
     "sortBy": "Sort by",
-    "sortNewest": "Newest first",
-    "sortOldest": "Oldest first",
+    "sortDate": "Date",
     "sortTitle": "Session title",
     "sortWorktree": "Worktree",
+    "orderNewestFirst": "Newest first",
+    "orderOldestFirst": "Oldest first",
+    "orderAZ": "A–Z",
+    "orderZA": "Z–A",
     "filterByWorktree": "Filter by worktree",
-    "reset": "Reset"
+    "reset": "Reset",
+    "filtered": "Filtered"
+  },
+  "selection": {
+    "count_one": "{{count}} selected",
+    "count_other": "{{count}} selected"
   }
 }

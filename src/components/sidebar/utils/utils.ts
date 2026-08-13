@@ -8,6 +8,8 @@ import type {
   ProjectSortOrder,
   RepositoryEntry,
   RepositoryViewOptions,
+  SessionSortDirection,
+  SessionSortKey,
   SettingsProject,
   SessionViewModel,
   SessionWithProvider,
@@ -480,22 +482,33 @@ export const collectActivitySessions = (
 
 /** Newest first, every worktree shown — the order the row has always used. */
 export const DEFAULT_REPOSITORY_VIEW_OPTIONS: RepositoryViewOptions = {
-  sort: 'recent',
+  sort: 'date',
+  direction: 'desc',
   worktreeProjectIds: null,
+};
+
+/** The direction a field is first sorted in when you pick it. */
+export const DEFAULT_SORT_DIRECTION: Record<SessionSortKey, SessionSortDirection> = {
+  date: 'desc',
+  title: 'asc',
+  worktree: 'asc',
 };
 
 /** True when a row is presenting its sessions the plain way. */
 export const isDefaultRepositoryView = (options: RepositoryViewOptions): boolean => {
-  return options.sort === 'recent' && options.worktreeProjectIds === null;
+  return (
+    options.sort === 'date' && options.direction === 'desc' && options.worktreeProjectIds === null
+  );
 };
 
 /**
  * Applies one row's sort and worktree filter to its merged session list.
  *
- * Worktree ordering falls back to recency within a worktree and names the
- * checkout by the same branch label the rows show. `title` uses the displayed
- * name, fallback included, rather than the raw summary — otherwise every unnamed
- * session sorts under the empty string while showing "New Session".
+ * Within a worktree group the order stays newest first whichever way the group
+ * labels run, and the checkout is named by the same branch label the rows show.
+ * `title` uses the displayed name, fallback included, rather than the raw summary
+ * — otherwise every unnamed session sorts under the empty string while showing
+ * "New Session".
  */
 export const applyRepositoryViewOptions = (
   sessions: CheckoutSession[],
@@ -506,30 +519,28 @@ export const applyRepositoryViewOptions = (
     ? sessions.filter(({ checkout }) => options.worktreeProjectIds?.includes(checkout.projectId))
     : sessions;
 
-  const byRecency = (a: CheckoutSession, b: CheckoutSession) =>
-    getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime();
+  const oldestFirst = (a: CheckoutSession, b: CheckoutSession) =>
+    getSessionDate(a.session).getTime() - getSessionDate(b.session).getTime();
+  const sign = options.direction === 'asc' ? 1 : -1;
 
   const sorted = [...kept];
 
   switch (options.sort) {
-    case 'oldest':
-      sorted.sort((a, b) => -byRecency(a, b));
-      break;
     case 'title':
-      sorted.sort((a, b) =>
-        getSessionName(a.session, t).localeCompare(getSessionName(b.session, t)),
+      sorted.sort(
+        (a, b) => sign * getSessionName(a.session, t).localeCompare(getSessionName(b.session, t)),
       );
       break;
     case 'worktree':
       sorted.sort((a, b) => {
         const label = (entry: CheckoutSession) =>
           getCheckoutRefLabel(entry.checkout) ?? entry.checkout.displayName ?? entry.checkout.projectId;
-        const byWorktree = label(a).localeCompare(label(b));
-        return byWorktree !== 0 ? byWorktree : byRecency(a, b);
+        const byWorktree = sign * label(a).localeCompare(label(b));
+        return byWorktree !== 0 ? byWorktree : -oldestFirst(a, b);
       });
       break;
     default:
-      sorted.sort(byRecency);
+      sorted.sort((a, b) => sign * oldestFirst(a, b));
       break;
   }
 

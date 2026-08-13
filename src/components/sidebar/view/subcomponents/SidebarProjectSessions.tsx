@@ -36,6 +36,9 @@ type SidebarProjectSessionsProps = {
   onCollapseSessions: (entry: RepositoryEntry) => void;
   onOpenSessionActionsMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
+  /** Ids ticked in batch mode; null when this row is not in batch mode. */
+  batchSelectedIds: ReadonlySet<string> | null;
+  onToggleBatchSelected: (sessionId: string) => void;
   t: TFunction;
 };
 
@@ -89,6 +92,8 @@ export default function SidebarProjectSessions({
   onCollapseSessions,
   onOpenSessionActionsMenu,
   activeContextMenuKey,
+  batchSelectedIds,
+  onToggleBatchSelected,
   t,
 }: SidebarProjectSessionsProps) {
   if (!isExpanded) {
@@ -152,6 +157,9 @@ export default function SidebarProjectSessions({
               onSessionSelect={onSessionSelect}
               onOpenActionsMenu={onOpenSessionActionsMenu}
               activeContextMenuKey={activeContextMenuKey}
+              isSelectionMode={batchSelectedIds !== null}
+              isBatchSelected={batchSelectedIds?.has(session.id) ?? false}
+              onToggleBatchSelected={onToggleBatchSelected}
               t={t}
             />
           ))}

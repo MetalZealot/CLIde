@@ -50,6 +50,13 @@ type SidebarSessionItemProps = {
    */
   onOpenActionsMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
   activeContextMenuKey?: string | null;
+  /**
+   * Batch mode: the row becomes a checkbox. Navigation, rename, and the actions
+   * menu are all suspended, so a tap can only ever tick or untick.
+   */
+  isSelectionMode?: boolean;
+  isBatchSelected?: boolean;
+  onToggleBatchSelected?: (sessionId: string) => void;
   t: TFunction;
 };
 
@@ -101,11 +108,14 @@ export default function SidebarSessionItem({
   onSessionSelect,
   onOpenActionsMenu,
   activeContextMenuKey,
+  isSelectionMode = false,
+  isBatchSelected = false,
+  onToggleBatchSelected,
   t,
 }: SidebarSessionItemProps) {
   const sessionView = createSessionViewModel(session, currentTime, t);
   const isSelected = selectedSession?.id === session.id;
-  const isEditing = editingSession === session.id;
+  const isEditing = editingSession === session.id && !isSelectionMode;
   const isStarred = Boolean(session.isStarred);
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   // Shares the metadata line with the message-count badge rather than claiming a
@@ -126,12 +136,34 @@ export default function SidebarSessionItem({
   const mobileRowRef = useRef<HTMLDivElement>(null);
   const { handlers: longPress, isPressing } = useLongPress(
     (coords) => onOpenActionsMenu?.(session, anchorFromElement(mobileRowRef.current, coords)),
-    { disabled: !onOpenActionsMenu },
+    { disabled: !onOpenActionsMenu || isSelectionMode },
   );
   const isMenuOpen = activeContextMenuKey === `session:${session.id}`;
   // Stays on for as long as this row's menu is open.
   const isContextActive = isPressing || isMenuOpen;
   const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread });
+  const toggleBatchSelected = () => onToggleBatchSelected?.(session.id);
+  // The trailing slot yields to whatever replaces it. Batch mode replaces it
+  // with nothing, so it must stay put.
+  const trailingFadeClass = isEditing
+    ? 'opacity-0'
+    : isSelectionMode ? undefined : 'group-hover:opacity-0';
+
+  // Leading tick box, shown only in batch mode so ordinary rows keep their full
+  // width for the title.
+  const selectionBox = isSelectionMode && (
+    <span
+      aria-hidden
+      className={cn(
+        'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors',
+        isBatchSelected
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-muted-foreground/50',
+      )}
+    >
+      {isBatchSelected && <Check className="h-3 w-3" />}
+    </span>
+  );
 
   const openSessionMenuAtCursor = (event: ReactMouseEvent<HTMLAnchorElement>) => {
     if (!onOpenActionsMenu) {
@@ -229,6 +261,9 @@ export default function SidebarSessionItem({
         ) : (
           <div
             ref={mobileRowRef}
+            role={isSelectionMode ? 'checkbox' : undefined}
+            aria-checked={isSelectionMode ? isBatchSelected : undefined}
+            aria-label={isSelectionMode ? sessionView.sessionName : undefined}
             className={cn(
               // No resting card: the row surface belongs to interaction and
               // selection; transient state has its own symbol slot.
@@ -239,14 +274,17 @@ export default function SidebarSessionItem({
               'long-pressable my-0.5 rounded-md px-3 py-2 transition-all duration-150 relative',
               isSectionItem ? 'mx-3' : 'ml-2 mr-3',
               isContextActive && 'scale-[0.98] bg-accent/60',
-              isSelected ? 'bg-primary/15' : 'active:bg-accent/50',
+              isBatchSelected
+                ? 'bg-primary/20'
+                : isSelected ? 'bg-primary/15' : 'active:bg-accent/50',
             )}
-            onClick={selectMobileSession}
+            onClick={isSelectionMode ? toggleBatchSelected : selectMobileSession}
             {...longPress}
           >
             <div className="min-w-0">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
+                  {selectionBox}
                   {isStarred && (
                     <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                   )}
@@ -289,25 +327,45 @@ export default function SidebarSessionItem({
 
       <div className="hidden md:block">
         <a
-          href={`/session/${session.id}`}
+          // Batch mode drops the href: the row is a tick box, and a modified
+          // click must not open a session the user is only selecting.
+          href={isSelectionMode ? undefined : `/session/${session.id}`}
+          role={isSelectionMode ? 'checkbox' : undefined}
+          aria-checked={isSelectionMode ? isBatchSelected : undefined}
+          tabIndex={isSelectionMode ? 0 : undefined}
           className={cn(
             buttonVariants({ variant: 'ghost' }),
             // Surface on hover or when current; status stays in its symbol slot.
             'h-auto w-full justify-start rounded-md px-3 py-2 text-left font-normal transition-all duration-150',
-            isSelected ? 'bg-primary/15' : 'hover:bg-accent/50',
+            isBatchSelected
+              ? 'bg-primary/20'
+              : isSelected ? 'bg-primary/15' : 'hover:bg-accent/50',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click use the
           // href, while right-click opens the row actions at the cursor.
           onClick={(event) => {
+            if (isSelectionMode) {
+              event.preventDefault();
+              toggleBatchSelected();
+              return;
+            }
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
             onSessionSelect(session, project.projectId);
           }}
-          onContextMenu={openSessionMenuAtCursor}
+          onKeyDown={(event) => {
+            if (!isSelectionMode) return;
+            if (event.key === ' ' || event.key === 'Enter') {
+              event.preventDefault();
+              toggleBatchSelected();
+            }
+          }}
+          onContextMenu={isSelectionMode ? undefined : openSessionMenuAtCursor}
         >
           <div className="w-full min-w-0">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
+                {selectionBox}
                 {isStarred && (
                   <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                 )}
@@ -326,16 +384,13 @@ export default function SidebarSessionItem({
                   <SidebarStatusIndicator
                     status={activityState}
                     t={t}
-                    className={cn(
-                      'ml-auto transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : 'group-hover:opacity-0',
-                    )}
+                    className={cn('ml-auto transition-opacity duration-200', trailingFadeClass)}
                   />
                 ) : compactSessionAge && (
                   <span
                     className={cn(
                       'ml-auto flex-shrink-0 text-xs text-muted-foreground transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : 'group-hover:opacity-0',
+                      trailingFadeClass,
                     )}
                   >
                     {compactSessionAge}
@@ -405,7 +460,7 @@ export default function SidebarSessionItem({
                 </button>
               </>
             ) : (
-              onOpenActionsMenu && (
+              onOpenActionsMenu && !isSelectionMode && (
                 <RowActionsTrigger
                   label={t('actions.rowActions', 'Actions for {{name}}', { name: sessionView.sessionName })}
                   isOpen={isMenuOpen}

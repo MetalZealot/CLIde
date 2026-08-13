@@ -141,6 +141,8 @@ type SidebarContentProps = {
   onShowVersionModal: () => void;
   onShowSettings: (screenId?: string) => void;
   projectListProps: SidebarProjectListProps;
+  /** Batch mode's toolbar; replaces the footer while a selection is live. */
+  selectionBar: ReactNode;
   t: TFunction;
 };
 
@@ -173,6 +175,7 @@ export default function SidebarContent({
   onShowVersionModal,
   onShowSettings,
   projectListProps,
+  selectionBar,
   t,
 }: SidebarContentProps) {
   const showConversationSearch = searchMode === 'conversations' && searchFilter.trim().length >= 2;
@@ -557,7 +560,9 @@ export default function SidebarContent({
 
       </ScrollArea>
 
-      {!isRenamingOnMobile && (
+      {selectionBar}
+
+      {!selectionBar && !isRenamingOnMobile && (
         <SidebarFooter
           updateAvailable={updateAvailable}
           restartRequired={restartRequired}

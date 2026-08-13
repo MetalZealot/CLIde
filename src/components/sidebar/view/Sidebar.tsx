@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, ExternalLink, MessageSquare, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
+import { Archive, Copy, ListChecks, ListFilter, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -23,6 +23,7 @@ import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
 import SidebarContextMenu, { type SidebarContextMenuItem } from './subcomponents/SidebarContextMenu';
+import SidebarSelectionBar from './subcomponents/SidebarSelectionBar';
 import SidebarAccentColorMenu from './subcomponents/SidebarAccentColorMenu';
 import SidebarSessionViewMenu from './subcomponents/SidebarSessionViewMenu';
 import WorktreeManagerModal from './subcomponents/WorktreeManagerModal';
@@ -125,6 +126,7 @@ function Sidebar({
     showDeleteSessionConfirmation,
     confirmDeleteSession,
     archiveSessionDirect,
+    removeSessions,
     toggleStarSession,
     requestProjectDelete,
     requestRepositoryDelete,
@@ -183,16 +185,14 @@ function Sidebar({
   };
 
   type SidebarMenuState =
-    | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor }
+    // `entryKey` is the repository list the row was opened from, and is null for
+    // the flat Activity/Pinned rows — which own no list, so cannot be batched.
+    | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor; entryKey: string | null }
     // The row's own actions: repository-scoped, plus the way into the worktree
     // manager. Not a worktree picker.
-    | { kind: 'repository'; entry: RepositoryEntry; anchor: ContextMenuAnchor }
-    | { kind: 'create'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
+    | { kind: 'repository'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
   const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
-  // `mode` decides whether the manager opens on its list or its create form.
-  const [worktreeManager, setWorktreeManager] = useState<
-    { entry: RepositoryEntry; mode: 'manage' | 'create'; openCreatedInNewSession: boolean } | null
-  >(null);
+  const [worktreeManager, setWorktreeManager] = useState<{ entry: RepositoryEntry } | null>(null);
   const [viewMenu, setViewMenu] = useState<
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
   >(null);
@@ -202,18 +202,60 @@ function Sidebar({
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
   >(null);
 
+  /**
+   * Batch mode covers one repository row's list at a time, so its count and its
+   * Archive/Delete can only ever mean sessions the user can see together.
+   */
+  const [sessionSelection, setSessionSelection] = useState<
+    { entryKey: string; ids: Set<string> } | null
+  >(null);
+  const [isBatchDeleteOpen, setIsBatchDeleteOpen] = useState(false);
+
+  const exitSelection = () => {
+    setSessionSelection(null);
+    setIsBatchDeleteOpen(false);
+  };
+
+  const toggleBatchSelected = (sessionId: string) => {
+    setSessionSelection((current) => {
+      if (!current) {
+        return current;
+      }
+      const ids = new Set(current.ids);
+      if (!ids.delete(sessionId)) {
+        ids.add(sessionId);
+      }
+      return { entryKey: current.entryKey, ids };
+    });
+  };
+
+  // The list empties as the requests land, so read the selection before clearing.
+  const runBatchRemoval = (hardDelete: boolean) => {
+    const sessionIds = sessionSelection ? [...sessionSelection.ids] : [];
+    exitSelection();
+    void removeSessions(sessionIds, hardDelete);
+  };
+
+  // A collapsed row hides the very rows the selection refers to.
+  const handleToggleProject = (entryKey: string) => {
+    if (sessionSelection?.entryKey === entryKey) {
+      exitSelection();
+    }
+    toggleProject(entryKey);
+  };
+
   // Long-press, the row's kebab, and right-click all land here: only the anchor
   // differs, so every entry point shares one menu.
-  const handleSessionActionsMenu = (session: SessionWithProvider, anchor: ContextMenuAnchor) => {
-    setContextMenu({ kind: 'session', session, anchor });
+  const handleSessionActionsMenu = (
+    session: SessionWithProvider,
+    anchor: ContextMenuAnchor,
+    entryKey?: string,
+  ) => {
+    setContextMenu({ kind: 'session', session, anchor, entryKey: entryKey ?? null });
   };
 
   const handleProjectActionsMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'repository', entry, anchor });
-  };
-
-  const handleCreateMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
-    setContextMenu({ kind: 'create', entry, anchor });
   };
 
   /**
@@ -240,14 +282,20 @@ function Sidebar({
     ? repositoryEntries.find((entry) => entry.key === accentColorMenu.entry.key) ?? null
     : null;
 
+  // A selection cannot outlive the row it belongs to.
+  useEffect(() => {
+    if (sessionSelection && !repositoryEntries.some((entry) => entry.key === sessionSelection.entryKey)) {
+      setSessionSelection(null);
+      setIsBatchDeleteOpen(false);
+    }
+  }, [repositoryEntries, sessionSelection]);
+
   // Lets the row that owns the open menu stay highlighted, so it's clear which
   // repository/session the actions apply to.
   const activeContextMenuKey = contextMenu
     ? contextMenu.kind === 'session'
       ? `session:${contextMenu.session.id}`
-      : contextMenu.kind === 'repository'
-        ? `project:${contextMenu.entry.key}`
-        : null
+      : `project:${contextMenu.entry.key}`
     : null;
 
   // Names the menu after the row it acts on, so a screen reader announces which
@@ -255,9 +303,7 @@ function Sidebar({
   const contextMenuAriaLabel = contextMenu
     ? contextMenu.kind === 'session'
       ? t('actions.rowActions', 'Actions for {{name}}', { name: getSessionName(contextMenu.session, t) })
-      : contextMenu.kind === 'create'
-        ? t('projects.createMenu', 'Create in project')
-        : t('actions.rowActions', 'Actions for {{name}}', { name: contextMenu.entry.displayName })
+      : t('actions.rowActions', 'Actions for {{name}}', { name: contextMenu.entry.displayName })
     : undefined;
 
   const contextMenuItems = useMemo<SidebarContextMenuItem[]>(() => {
@@ -270,12 +316,6 @@ function Sidebar({
       const isStarred = Boolean(session.isStarred);
       const sessionName = getSessionName(session, t);
       return [
-        {
-          key: 'open-new-tab',
-          label: t('actions.openInNewTab', 'Open in new tab'),
-          icon: ExternalLink,
-          href: `/session/${session.id}`,
-        },
         {
           key: 'star',
           label: isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites'),
@@ -301,6 +341,21 @@ function Sidebar({
             void copyTextToClipboard(session.id);
           },
         },
+        // Offered only from a repository row's list: the flat sections have no
+        // list of their own to select within. Opens with this row ticked, so
+        // one gesture selects rather than two.
+        ...(contextMenu.entryKey
+          ? [{
+              showDividerBefore: true,
+              key: 'select',
+              label: t('actions.select', 'Select…'),
+              icon: ListChecks,
+              onSelect: () => setSessionSelection({
+                entryKey: contextMenu.entryKey as string,
+                ids: new Set([session.id]),
+              }),
+            }]
+          : []),
         {
           // Splits the reversible edits above from the ones that remove the
           // session from the list.
@@ -328,32 +383,6 @@ function Sidebar({
       ];
     }
 
-    if (contextMenu.kind === 'create') {
-      const { entry } = contextMenu;
-      return [
-        {
-          key: 'new-session',
-          label: t('sessions.newSession'),
-          icon: MessageSquare,
-          onSelect: () => onNewSession(entry.leadCheckout),
-        },
-        ...(entry.repositoryId
-          ? [
-              {
-                key: 'new-worktree',
-                label: t('worktrees.new', 'New Worktree'),
-                icon: TreeDeciduous,
-                onSelect: () => setWorktreeManager({
-                  entry,
-                  mode: 'create',
-                  openCreatedInNewSession: true,
-                }),
-              },
-            ]
-          : []),
-      ];
-    }
-
     const { entry } = contextMenu;
     return [
       {
@@ -372,6 +401,14 @@ function Sidebar({
         icon: Palette,
         onSelect: () => setAccentColorMenu({ entry, anchor: contextMenu.anchor }),
       },
+      {
+        // The row's list has no permanent control of its own; a non-default view
+        // announces itself on the row instead.
+        key: 'session-view',
+        label: t('sessionView.title', 'Sort and filter sessions'),
+        icon: ListFilter,
+        onSelect: () => setViewMenu({ entry, anchor: contextMenu.anchor }),
+      },
       // Offered only for an actual git checkout root. A plain folder project has
       // no repository to add a worktree to, and the manager's create form would
       // only fail server-side with "Not a git repository".
@@ -381,11 +418,7 @@ function Sidebar({
               key: 'worktrees',
               label: t('worktrees.title', 'Worktrees'),
               icon: TreeDeciduous,
-              onSelect: () => setWorktreeManager({
-                entry,
-                mode: 'manage',
-                openCreatedInNewSession: false,
-              }),
+              onSelect: () => setWorktreeManager({ entry }),
             },
           ]
         : []),
@@ -444,7 +477,7 @@ function Sidebar({
     // open to show them.
     forceExpanded: isSessionSearchActive,
     onEditingNameChange: setEditingName,
-    onToggleProject: toggleProject,
+    onToggleProject: handleToggleProject,
     onProjectSelect: handleProjectSelect,
     onCancelEditingProject: cancelEditing,
     onSaveProjectName: (projectName) => {
@@ -454,7 +487,6 @@ function Sidebar({
     getVisibleSessionCount,
     onShowAllSessions: showAllSessions,
     onCollapseSessions: collapseSessions,
-    onOpenCreateMenu: handleCreateMenu,
     getRepositoryView,
     onOpenViewMenu: (entry: RepositoryEntry, anchor: ContextMenuAnchor) =>
       setViewMenu({ entry, anchor }),
@@ -470,6 +502,8 @@ function Sidebar({
     onOpenProjectActionsMenu: handleProjectActionsMenu,
     onOpenSessionActionsMenu: handleSessionActionsMenu,
     activeContextMenuKey,
+    sessionSelection,
+    onToggleBatchSelected: toggleBatchSelected,
     t,
   };
 
@@ -521,9 +555,10 @@ function Sidebar({
             onDeleteWorktrees={requestProjectDelete}
             onCreateWorktree={onCreateWorktree}
             onAdoptCheckout={onAdoptCheckout}
-            onOpenWorktree={worktreeManager.openCreatedInNewSession ? onNewSession : handleProjectSelect}
+            // The manager's create form is now the only way to add a worktree,
+            // so it inherits what the removed `+` did: land in it, ready to work.
+            onOpenWorktree={onNewSession}
             onSelectWorktree={handleProjectSelect}
-            startInCreate={worktreeManager.mode === 'create'}
             t={t}
           />
         )}
@@ -542,6 +577,9 @@ function Sidebar({
         sessionDeleteConfirmation={sessionDeleteConfirmation}
         onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
         onConfirmDeleteSession={confirmDeleteSession}
+        batchDeleteCount={isBatchDeleteOpen && sessionSelection ? sessionSelection.ids.size : null}
+        onCancelBatchDelete={() => setIsBatchDeleteOpen(false)}
+        onConfirmBatchDelete={() => runBatchRemoval(true)}
         showVersionModal={showVersionModal}
         onCloseVersionModal={() => setShowVersionModal(false)}
         releaseInfo={releaseInfo}
@@ -629,6 +667,15 @@ function Sidebar({
             onShowVersionModal={() => setShowVersionModal(true)}
             onShowSettings={onShowSettings}
             projectListProps={projectListProps}
+            selectionBar={sessionSelection && (
+              <SidebarSelectionBar
+                count={sessionSelection.ids.size}
+                onArchive={() => runBatchRemoval(false)}
+                onDelete={() => setIsBatchDeleteOpen(true)}
+                onCancel={exitSelection}
+                t={t}
+              />
+            )}
             t={t}
           />
         </>

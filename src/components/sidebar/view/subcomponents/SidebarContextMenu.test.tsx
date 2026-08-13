@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 
-import { ExternalLink } from 'lucide-react';
+import { Archive, Pencil } from 'lucide-react';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
@@ -18,8 +18,10 @@ afterEach(async () => {
   container = null;
 });
 
-test('renders a new-tab menu item as a protected link and closes on selection', async () => {
-  let closeCount = 0;
+const renderMenu = async (
+  items: React.ComponentProps<typeof SidebarContextMenu>['items'],
+  onClose: () => void,
+) => {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -28,23 +30,41 @@ test('renders a new-tab menu item as a protected link and closes on selection', 
     root?.render(
       <SidebarContextMenu
         anchor={{ top: 20, bottom: 40, left: 20 }}
-        items={[{
-          key: 'open-new-tab',
-          label: 'Open in new tab',
-          icon: ExternalLink,
-          href: '/session/session-1',
-        }]}
-        onClose={() => { closeCount += 1; }}
+        items={items}
+        onClose={onClose}
       />,
     );
   });
+};
 
-  const link = document.querySelector<HTMLAnchorElement>('[role="menuitem"]');
-  assert.ok(link);
-  assert.equal(link.getAttribute('href'), '/session/session-1');
-  assert.equal(link.getAttribute('target'), '_blank');
-  assert.equal(link.getAttribute('rel'), 'noopener noreferrer');
+test('selecting an item runs its action and closes the menu', async () => {
+  let closeCount = 0;
+  let selectCount = 0;
 
-  await React.act(async () => link.click());
+  await renderMenu(
+    [{ key: 'rename', label: 'Rename', icon: Pencil, onSelect: () => { selectCount += 1; } }],
+    () => { closeCount += 1; },
+  );
+
+  const item = document.querySelector<HTMLButtonElement>('[role="menuitem"]');
+  assert.ok(item);
+  await React.act(async () => item.click());
+
+  assert.equal(selectCount, 1);
   assert.equal(closeCount, 1);
+});
+
+test('a keepOpen item leaves the menu up so it can replace its own contents', async () => {
+  let closeCount = 0;
+
+  await renderMenu(
+    [{ key: 'archive', label: 'Archive', icon: Archive, keepOpen: true, onSelect: () => {} }],
+    () => { closeCount += 1; },
+  );
+
+  const item = document.querySelector<HTMLButtonElement>('[role="menuitem"]');
+  assert.ok(item);
+  await React.act(async () => item.click());
+
+  assert.equal(closeCount, 0);
 });

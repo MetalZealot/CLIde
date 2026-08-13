@@ -69,7 +69,6 @@ export type SidebarProjectListProps = {
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
-  onOpenCreateMenu: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   getRepositoryView: (entryKey: string) => RepositoryViewOptions;
   onOpenViewMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   onEditingSessionNameChange: (value: string) => void;
@@ -77,9 +76,17 @@ export type SidebarProjectListProps = {
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onCreateProject: () => void;
   onOpenProjectActionsMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
-  onOpenSessionActionsMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  /** `entryKey` is absent for the flat Activity/Pinned rows, which own no list. */
+  onOpenSessionActionsMenu?: (
+    session: SessionWithProvider,
+    anchor: ContextMenuAnchor,
+    entryKey?: string,
+  ) => void;
   /** `project:<entryKey>` / `session:<sessionId>` of the row whose menu is open. */
   activeContextMenuKey?: string | null;
+  /** The one repository row in batch mode, and what is ticked in it. */
+  sessionSelection: { entryKey: string; ids: ReadonlySet<string> } | null;
+  onToggleBatchSelected: (sessionId: string) => void;
   t: TFunction;
 };
 
@@ -124,7 +131,6 @@ export default function SidebarProjectList({
   onCancelEditingProject,
   onSaveProjectName,
   onSessionSelect,
-  onOpenCreateMenu,
   getRepositoryView,
   onOpenViewMenu,
   onEditingSessionNameChange,
@@ -134,6 +140,8 @@ export default function SidebarProjectList({
   onOpenProjectActionsMenu,
   onOpenSessionActionsMenu,
   activeContextMenuKey,
+  sessionSelection,
+  onToggleBatchSelected,
   t,
 }: SidebarProjectListProps) {
   const state = (
@@ -194,7 +202,6 @@ export default function SidebarProjectList({
       activeSessions={activeSessions}
       attentionSessionIds={attentionSessionIds}
       unreadSessionIds={unreadSessionIds}
-      onOpenCreateMenu={onOpenCreateMenu}
       viewOptions={getRepositoryView(entry.key)}
       onOpenViewMenu={onOpenViewMenu}
       onEditingSessionNameChange={onEditingSessionNameChange}
@@ -203,6 +210,8 @@ export default function SidebarProjectList({
       onOpenProjectActionsMenu={onOpenProjectActionsMenu}
       onOpenSessionActionsMenu={onOpenSessionActionsMenu}
       activeContextMenuKey={activeContextMenuKey}
+      batchSelectedIds={sessionSelection?.entryKey === entry.key ? sessionSelection.ids : null}
+      onToggleBatchSelected={onToggleBatchSelected}
       t={t}
     />
   );

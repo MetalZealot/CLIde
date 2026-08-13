@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { Project, ProjectSession } from '../../../types/app';
+import type { RepositoryViewOptions } from '../types/types';
 
 import {
   applyRepositoryViewOptions,
@@ -379,10 +380,10 @@ test('the default view is newest first across every checkout', () => {
   assert.ok(isDefaultRepositoryView(DEFAULT_REPOSITORY_VIEW_OPTIONS));
 });
 
-test('oldest-first is the exact reverse, and title sorts by displayed name', () => {
+test('reversing the date sort is the exact reverse of the default', () => {
   const oldest = applyRepositoryViewOptions(
     mergedRow(),
-    { sort: 'oldest', worktreeProjectIds: null },
+    { sort: 'date', direction: 'asc', worktreeProjectIds: null },
     fallbackName,
   );
   assert.deepEqual(
@@ -390,21 +391,39 @@ test('oldest-first is the exact reverse, and title sorts by displayed name', () 
     ['s-main-old', 's-codex-mid', 's-tts-new'],
   );
 
+  // A reversed default is not the default, or the header would not light up.
+  assert.equal(
+    isDefaultRepositoryView({ sort: 'date', direction: 'asc', worktreeProjectIds: null }),
+    false,
+  );
+});
+
+test('title sorts by displayed name, and reverses on demand', () => {
   const byTitle = applyRepositoryViewOptions(
     mergedRow(),
-    { sort: 'title', worktreeProjectIds: null },
+    { sort: 'title', direction: 'asc', worktreeProjectIds: null },
     fallbackName,
   );
   assert.deepEqual(
     byTitle.map(({ session }) => session.summary),
     ['Codex parity review', 'Review the merge plan', 'Wire up speech playback'],
   );
+
+  const reversed = applyRepositoryViewOptions(
+    mergedRow(),
+    { sort: 'title', direction: 'desc', worktreeProjectIds: null },
+    fallbackName,
+  );
+  assert.deepEqual(
+    reversed.map(({ session }) => session.summary),
+    ['Wire up speech playback', 'Review the merge plan', 'Codex parity review'],
+  );
 });
 
 test('worktree sort groups by branch label, newest first inside a group', () => {
   const grouped = applyRepositoryViewOptions(
     mergedRow(),
-    { sort: 'worktree', worktreeProjectIds: null },
+    { sort: 'worktree', direction: 'asc', worktreeProjectIds: null },
     fallbackName,
   );
 
@@ -413,24 +432,32 @@ test('worktree sort groups by branch label, newest first inside a group', () => 
     grouped.map(({ checkout }) => checkout.branch),
     ['feature/tts-and-stt', 'main', 'test/codex'],
   );
+
+  const reversed = applyRepositoryViewOptions(
+    mergedRow(),
+    { sort: 'worktree', direction: 'desc', worktreeProjectIds: null },
+    fallbackName,
+  );
+  assert.deepEqual(
+    reversed.map(({ checkout }) => checkout.branch),
+    ['test/codex', 'main', 'feature/tts-and-stt'],
+  );
 });
 
 test('a worktree filter keeps only the checkouts it names', () => {
-  const filtered = applyRepositoryViewOptions(
-    mergedRow(),
-    { sort: 'recent', worktreeProjectIds: ['p-codex'] },
-    fallbackName,
-  );
+  const view: RepositoryViewOptions = {
+    sort: 'date',
+    direction: 'desc',
+    worktreeProjectIds: ['p-codex'],
+  };
+  const filtered = applyRepositoryViewOptions(mergedRow(), view, fallbackName);
 
   assert.deepEqual(
     filtered.map(({ session }) => session.id),
     ['s-codex-mid'],
   );
   // The header's lit state reads off this, so a real filter must not look default.
-  assert.equal(
-    isDefaultRepositoryView({ sort: 'recent', worktreeProjectIds: ['p-codex'] }),
-    false,
-  );
+  assert.equal(isDefaultRepositoryView(view), false);
 });
 
 const discoveredMainCheckout = project({

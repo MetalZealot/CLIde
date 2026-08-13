@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 
 import { cn } from '../../../../lib/utils';
 
-import { NESTED_SECTION_HEADER_CLASS, SIDEBAR_SECTION_HEADER_CLASS } from './sectionHeaderStyles';
+import { SIDEBAR_SECTION_HEADER_CLASS } from './sectionHeaderStyles';
 
 type SidebarSectionHeaderProps = {
   label: string;
@@ -14,11 +14,6 @@ type SidebarSectionHeaderProps = {
   /** Omit to render an inert label. */
   isCollapsed?: boolean;
   onToggle?: () => void;
-  /**
-   * Labels a run of rows belonging to the row directly above it, rather than a
-   * top-level section of the sidebar. See `NESTED_SECTION_HEADER_CLASS`.
-   */
-  isNested?: boolean;
 };
 
 /**
@@ -35,7 +30,6 @@ export default function SidebarSectionHeader({
   summary,
   isCollapsed,
   onToggle,
-  isNested = false,
 }: SidebarSectionHeaderProps) {
   const content = (
     <>
@@ -54,10 +48,8 @@ export default function SidebarSectionHeader({
     </>
   );
 
-  const className = isNested ? NESTED_SECTION_HEADER_CLASS : SIDEBAR_SECTION_HEADER_CLASS;
-
   if (!onToggle) {
-    return <div className={className}>{content}</div>;
+    return <div className={SIDEBAR_SECTION_HEADER_CLASS}>{content}</div>;
   }
 
   return (
@@ -65,7 +57,7 @@ export default function SidebarSectionHeader({
       type="button"
       onClick={onToggle}
       aria-expanded={!isCollapsed}
-      className={cn(className, 'transition-colors hover:text-foreground')}
+      className={cn(SIDEBAR_SECTION_HEADER_CLASS, 'transition-colors hover:text-foreground')}
     >
       {content}
     </button>

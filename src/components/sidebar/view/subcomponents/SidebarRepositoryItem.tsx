@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
-import { Check, ChevronDown, ChevronRight, GitBranch, ListFilter, MessageSquare, Plus, TreeDeciduous, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, GitBranch, ListFilter, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import {
@@ -26,7 +26,6 @@ import { useLongPress } from '../../../../hooks/useLongPress';
 import { projectAccentColorValue, readProjectAccentColor } from '../../utils/accentColors';
 
 import SidebarProjectSessions from './SidebarProjectSessions';
-import SidebarSectionHeader from './SidebarSectionHeader';
 import SidebarStatusIndicator from './SidebarStatusIndicator';
 
 type SidebarRepositoryItemProps = {
@@ -55,7 +54,6 @@ type SidebarRepositoryItemProps = {
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
-  onOpenCreateMenu: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   /** How this row is currently sorted and filtered. */
   viewOptions: RepositoryViewOptions;
   onOpenViewMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
@@ -67,8 +65,19 @@ type SidebarRepositoryItemProps = {
    * to its kebab, or to the cursor (right-click). One menu, several ways in.
    */
   onOpenProjectActionsMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
-  onOpenSessionActionsMenu?: (session: SessionWithProvider, anchor: ContextMenuAnchor) => void;
+  /**
+   * `entryKey` scopes batch selection to this row: a selection only ever spans
+   * one repository's list, so the action bar's count means one thing.
+   */
+  onOpenSessionActionsMenu?: (
+    session: SessionWithProvider,
+    anchor: ContextMenuAnchor,
+    entryKey: string,
+  ) => void;
   activeContextMenuKey?: string | null;
+  /** Ids ticked in batch mode; null when this row is not in batch mode. */
+  batchSelectedIds: ReadonlySet<string> | null;
+  onToggleBatchSelected: (sessionId: string) => void;
   t: TFunction;
 };
 
@@ -141,7 +150,6 @@ export default function SidebarRepositoryItem({
   activeSessions,
   unreadSessionIds,
   attentionSessionIds,
-  onOpenCreateMenu,
   viewOptions,
   onOpenViewMenu,
   onEditingSessionNameChange,
@@ -150,6 +158,8 @@ export default function SidebarRepositoryItem({
   onOpenProjectActionsMenu,
   onOpenSessionActionsMenu,
   activeContextMenuKey,
+  batchSelectedIds,
+  onToggleBatchSelected,
   t,
 }: SidebarRepositoryItemProps) {
   // Rename and task status act on the lead checkout. Delete covers the whole
@@ -180,9 +190,6 @@ export default function SidebarRepositoryItem({
         defaultValue: '{{count}} worktrees',
       })
     : getCheckoutRefLabel(project);
-  // ADR 0016: a branch and a checkout never share an icon. The subtitle is a
-  // branch only on an unmerged row.
-  const RowSubtitleIcon = isMerged ? TreeDeciduous : GitBranch;
   // Same symbol and precedence as individual rows. Sessions not yet paginated in
   // cannot be mapped here; they appear once loaded.
   const projectActivityState = resolveActivityState({
@@ -192,14 +199,8 @@ export default function SidebarRepositoryItem({
   });
 
   const mobileRenameInputRef = useRef<HTMLInputElement>(null);
-  const viewMenuRef = useRef<HTMLButtonElement>(null);
-  const createMenuRef = useRef<HTMLButtonElement>(null);
+  const viewCueRef = useRef<HTMLSpanElement>(null);
 
-  /**
-   * Session-scoped controls live in the Sessions subheader, which shares the
-   * project's sticky wrapper — so they stay tied to the repository they act on
-   * while the session list scrolls underneath.
-   */
   const openViewMenu = (element: HTMLElement | null) => {
     const rect = element?.getBoundingClientRect();
     onOpenViewMenu?.(
@@ -208,17 +209,56 @@ export default function SidebarRepositoryItem({
     );
   };
 
-  const openCreateMenu = (element: HTMLElement | null) => {
-    const rect = element?.getBoundingClientRect();
-    onOpenCreateMenu(
-      entry,
-      anchorFromElement(element, { x: rect?.left ?? 0, y: rect?.bottom ?? 0 }),
-    );
-  };
+  /**
+   * Sort and filter live in the row's own actions menu; the list itself carries
+   * no permanent control for them. What the row does owe the user is why its
+   * list is short, so a non-default view says so here — and only here, since in
+   * the default state there is nothing to say.
+   *
+   * `role="button"` rather than a real one: on desktop this sits inside the
+   * header's own <button>.
+   */
+  const viewCue = hasCustomView && onOpenViewMenu && (
+    <span
+      ref={viewCueRef}
+      role="button"
+      tabIndex={0}
+      title={t('sessionView.title', 'Sort and filter sessions')}
+      aria-label={t('sessionView.title', 'Sort and filter sessions')}
+      className="flex flex-shrink-0 items-center gap-0.5 rounded px-1 text-primary transition-colors hover:bg-primary/10"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openViewMenu(viewCueRef.current);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        openViewMenu(viewCueRef.current);
+      }}
+    >
+      <ListFilter className="h-3 w-3" />
+      {t('sessionView.filtered', 'Filtered')}
+    </span>
+  );
 
-  const viewMenuClasses = cn(
-    'flex h-6 w-6 flex-shrink-0 items-center justify-center rounded transition-all duration-200',
-    hasCustomView ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-accent',
+  // ADR 0016: a branch and a checkout never share an icon. An unmerged row's
+  // subtitle is a branch and keeps the branch glyph; a worktree count is just a
+  // count, so it takes a separator.
+  const rowSubtitleLead = isMerged ? (
+    <span aria-hidden className="flex-shrink-0">·</span>
+  ) : (
+    <GitBranch className="h-3 w-3 flex-shrink-0 opacity-60" />
+  );
+
+  const viewCueWithSeparator = viewCue && (
+    <>
+      <span aria-hidden className="flex-shrink-0">·</span>
+      {viewCue}
+    </>
   );
 
   useEffect(() => {
@@ -280,7 +320,7 @@ export default function SidebarRepositoryItem({
    *
    * Clipped by the row's `overflow-hidden`, so it inherits that row's corner
    * radius rather than hardcoding one per breakpoint. Deliberately outside the
-   * sticky wrapper — that also holds the Sessions subheader, and the strip marks
+   * sticky wrapper — that also holds the session controls, and this strip marks
    * the project, not its session list.
    */
   const accentStrip = accentColor && (
@@ -364,12 +404,13 @@ export default function SidebarRepositoryItem({
                         <span className="flex-shrink-0">{sessionCountLabel}</span>
                         {rowSubtitle && (
                           <>
-                            <RowSubtitleIcon className="h-3 w-3 flex-shrink-0 opacity-60" />
+                            {rowSubtitleLead}
                             <span className="truncate" title={rowSubtitle}>
                               {rowSubtitle}
                             </span>
                           </>
                         )}
+                        {viewCueWithSeparator}
                       </p>
                     </>
                   )}
@@ -462,7 +503,7 @@ export default function SidebarRepositoryItem({
                       // The branch (or checkout count) identifies the row better
                       // than a filesystem path.
                       <>
-                        <RowSubtitleIcon className="h-3 w-3 flex-shrink-0 opacity-60" />
+                        {rowSubtitleLead}
                         <span className="truncate opacity-80" title={`${rowSubtitle} — ${project.fullPath}`}>
                           {rowSubtitle}
                         </span>
@@ -475,6 +516,7 @@ export default function SidebarRepositoryItem({
                         </span>
                       )
                     )}
+                    {viewCueWithSeparator}
                   </div>
                 </div>
               )}
@@ -535,42 +577,6 @@ export default function SidebarRepositoryItem({
           </div>
         </Button>
 
-        {isExpanded && !isEditing && (
-          <SidebarSectionHeader
-            label={t('sessions.title')}
-            icon={MessageSquare}
-            isNested
-            summary={(
-              // -my-1 keeps these 24px controls from growing the section
-              // header's 16px box; touch target stays 24px, height matches
-              // Pinned and Projects.
-              <span className="-my-1 ml-auto flex items-center gap-1 normal-case tracking-normal">
-                {onOpenViewMenu && (
-                  <button
-                    ref={viewMenuRef}
-                    type="button"
-                    className={viewMenuClasses}
-                    onClick={() => openViewMenu(viewMenuRef.current)}
-                    title={t('sessionView.title', 'Sort and filter sessions')}
-                    aria-label={t('sessionView.title', 'Sort and filter sessions')}
-                  >
-                    <ListFilter className="h-3.5 w-3.5" />
-                  </button>
-                )}
-                <button
-                  ref={createMenuRef}
-                  type="button"
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent"
-                  onClick={() => openCreateMenu(createMenuRef.current)}
-                  title={t('projects.createMenu', 'Create in project')}
-                  aria-label={t('projects.createMenu', 'Create in project')}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </span>
-            )}
-          />
-        )}
       </div>
 
       <SidebarProjectSessions
@@ -596,8 +602,13 @@ export default function SidebarRepositoryItem({
         visibleSessionCount={visibleSessionCount}
         onShowAllSessions={onShowAllSessions}
         onCollapseSessions={onCollapseSessions}
-        onOpenSessionActionsMenu={onOpenSessionActionsMenu}
+        onOpenSessionActionsMenu={
+          onOpenSessionActionsMenu &&
+          ((session, anchor) => onOpenSessionActionsMenu(session, anchor, entry.key))
+        }
         activeContextMenuKey={activeContextMenuKey}
+        batchSelectedIds={batchSelectedIds}
+        onToggleBatchSelected={onToggleBatchSelected}
         t={t}
       />
     </div>
