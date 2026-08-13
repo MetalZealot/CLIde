@@ -7,6 +7,7 @@ import {
   compactHomePath,
   getBatchSelectableWorktrees,
   getWorktreeSessionCount,
+  shouldShowWorktreePath,
 } from './worktreeManager';
 
 const registered: Project = {
@@ -33,6 +34,25 @@ test('batch selection excludes discovered checkouts with synthetic ids', () => {
   };
 
   assert.deepEqual(getBatchSelectableWorktrees([registered, discovered]), [registered]);
+});
+
+test('a path the name already gives away does not get its own line', () => {
+  const lead = '/home/g/Projects/cloudcli';
+  const beside = (fullPath: string, displayName: string): Project => ({
+    ...registered,
+    displayName,
+    fullPath,
+  });
+
+  assert.equal(shouldShowWorktreePath(beside(lead, 'cloudcli'), lead), false);
+  assert.equal(
+    shouldShowWorktreePath(beside('/home/g/Projects/cloudcli-wt-tts', 'cloudcli-wt-tts'), lead),
+    false,
+  );
+  // Renamed in CLIde, so the directory is no longer recoverable from the row.
+  assert.equal(shouldShowWorktreePath(beside('/home/g/Projects/cloudcli-wt-tts', 'Voice'), lead), true);
+  // Not beside the repository.
+  assert.equal(shouldShowWorktreePath(beside('/mnt/external/cloudcli-wt-tts', 'cloudcli-wt-tts'), lead), true);
 });
 
 test('home paths keep their useful suffix without assuming a username', () => {

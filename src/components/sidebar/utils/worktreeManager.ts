@@ -17,3 +17,19 @@ export const getBatchSelectableWorktrees = (checkouts: Project[]): Project[] =>
 /** Keeps the useful path suffix visible without baking in the host username. */
 export const compactHomePath = (fullPath: string): string =>
   fullPath.replace(/^\/home\/[^/]+(?=\/|$)/, '~');
+
+const trimTrailingSlash = (path: string): string => path.replace(/\/+$/, '');
+const lastSegment = (path: string): string => trimTrailingSlash(path).split('/').pop() ?? '';
+const parentDirectory = (path: string): string => trimTrailingSlash(path).replace(/\/[^/]*$/, '');
+
+/**
+ * The path earns its own line only when the row's name does not already give it
+ * away: a renamed checkout, or a tree that does not sit beside the repository.
+ */
+export const shouldShowWorktreePath = (project: Project, leadCheckoutPath: string): boolean => {
+  const name = project.displayName || project.projectId;
+  return (
+    lastSegment(project.fullPath) !== name
+    || parentDirectory(project.fullPath) !== parentDirectory(leadCheckoutPath)
+  );
+};

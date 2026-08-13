@@ -1,15 +1,32 @@
 import { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { AlertTriangle, Archive, Check, GitBranch, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Archive,
+  Check,
+  FolderOpen,
+  GitBranch,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button, RowActionsTrigger, type ContextMenuAnchor } from '../../../../shared/view/ui';
+import { Button, RowActionsTrigger, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
+import { useLongPress, type LongPressCoords } from '../../../../hooks/useLongPress';
 import { cn } from '../../../../lib/utils';
 import { api } from '../../../../utils/api';
 import type { Project } from '../../../../types/app';
 import type { CreateWorktreeOptions, CreateWorktreeOutcome, RepositoryEntry } from '../../types/types';
 import { getCheckoutRefLabel, isDiscoveredCheckout, isMainCheckout } from '../../utils/utils';
-import { compactHomePath, getBatchSelectableWorktrees, getWorktreeSessionCount } from '../../utils/worktreeManager';
+import {
+  compactHomePath,
+  getBatchSelectableWorktrees,
+  getWorktreeSessionCount,
+  shouldShowWorktreePath,
+} from '../../utils/worktreeManager';
 
 import SidebarContextMenu, { type SidebarContextMenuItem } from './SidebarContextMenu';
 
@@ -22,7 +39,10 @@ type WorktreeManagerModalProps = {
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   /** Gives a discovered checkout a project row; see `isDiscoveredCheckout`. */
   onAdoptCheckout?: (checkoutPath: string) => Promise<Project | null>;
+  /** Where a freshly created worktree lands, which is not where Open goes. */
   onOpenWorktree: (project: Project) => void;
+  /** Backs the row menu's Open; omitted where the list is not shown. */
+  onSelectWorktree?: (project: Project) => void;
   /**
    * Opens straight into the create form, set when the row's New Worktree button
    * was the way in — so that button lands on the thing it names.
@@ -35,6 +55,137 @@ type WorktreeManagerModalProps = {
 
 /** Sentinel for "wherever the repository's HEAD is", which sends no base ref. */
 const CURRENT_HEAD = '';
+
+type WorktreeRowProps = {
+  project: Project;
+  isMain: boolean;
+  showPath: boolean;
+  isSelecting: boolean;
+  isSelected: boolean;
+  isMenuOpen: boolean;
+  onToggleSelection: () => void;
+  onOpenMenu: (anchor: ContextMenuAnchor) => void;
+  t: TFunction;
+};
+
+/**
+ * One registered worktree.
+ *
+ * Long-press, right-click and the kebab all open the same menu, anchored to the
+ * row rather than the finger so a duplicated open lands in the same place. A
+ * plain tap belongs to Select mode alone: the row carries no primary action, so
+ * nothing happens invisibly behind a tap.
+ */
+function WorktreeRow({
+  project,
+  isMain,
+  showPath,
+  isSelecting,
+  isSelected,
+  isMenuOpen,
+  onToggleSelection,
+  onOpenMenu,
+  t,
+}: WorktreeRowProps) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const name = project.displayName || project.projectId;
+  const refLabel = getCheckoutRefLabel(project);
+  const sessionCount = getWorktreeSessionCount(project);
+
+  const openMenu = (coords: LongPressCoords) => {
+    onOpenMenu(anchorFromElement(rowRef.current, coords));
+  };
+
+  const { handlers: longPress, isPressing } = useLongPress(openMenu, { disabled: isSelecting });
+
+  return (
+    <div
+      ref={rowRef}
+      className={cn(
+        'long-pressable group p-3 transition-colors',
+        isSelecting && 'cursor-pointer',
+        (isPressing || isMenuOpen) && 'bg-accent/60',
+      )}
+      title={project.fullPath}
+      role={isSelecting ? 'checkbox' : undefined}
+      aria-checked={isSelecting ? isSelected : undefined}
+      tabIndex={isSelecting ? 0 : undefined}
+      onClick={isSelecting ? onToggleSelection : undefined}
+      onKeyDown={(event) => {
+        if (!isSelecting || (event.key !== 'Enter' && event.key !== ' ')) {
+          return;
+        }
+        event.preventDefault();
+        onToggleSelection();
+      }}
+      {...longPress}
+      onContextMenu={(event) => {
+        if (isSelecting) {
+          return;
+        }
+        event.preventDefault();
+        openMenu({ x: event.clientX, y: event.clientY });
+      }}
+    >
+      <div className="flex items-start gap-2">
+        {isSelecting && (
+          <span
+            aria-hidden
+            className={cn(
+              'mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border',
+              isSelected
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-background',
+            )}
+          >
+            {isSelected && <Check className="h-3.5 w-3.5" />}
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-sm font-medium text-foreground">{name}</span>
+            {isMain && (
+              <span className="flex-shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                {t('worktrees.main', 'main')}
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            <span className="flex-shrink-0">
+              {t('worktrees.sessionCount', {
+                count: sessionCount,
+                defaultValue_one: '{{count}} session',
+                defaultValue: '{{count}} sessions',
+              })}
+            </span>
+            {refLabel && (
+              <>
+                <span aria-hidden className="opacity-40">·</span>
+                <GitBranch className="h-3 w-3 flex-shrink-0 opacity-70" />
+                <span className="truncate">{refLabel}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {!isSelecting && (
+          <RowActionsTrigger
+            label={t('actions.rowActions', 'Actions for {{name}}', { name })}
+            isOpen={isMenuOpen}
+            onOpen={onOpenMenu}
+            // Negative margins buy a 44px target without growing the row.
+            className="-mr-1.5 -mt-1.5 h-11 w-11"
+          />
+        )}
+      </div>
+      {showPath && (
+        <div className="mt-0.5 break-words text-xs leading-5 text-muted-foreground/70">
+          {compactHomePath(project.fullPath)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Worktree management for one repository row.
@@ -57,6 +208,7 @@ export default function WorktreeManagerModal({
   onCreateWorktree,
   onAdoptCheckout,
   onOpenWorktree,
+  onSelectWorktree,
   startInCreate = false,
   creationOnly = false,
   t,
@@ -275,10 +427,10 @@ export default function WorktreeManagerModal({
 
     return (
       <li key={project.projectId} className="border-b border-border/60 last:border-b-0">
-        <div className="p-3">
+        <div className="p-3" title={project.fullPath}>
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm text-muted-foreground">
+              <div className="truncate text-sm font-medium text-muted-foreground">
                 {project.displayName}
               </div>
               {refLabel && (
@@ -288,26 +440,26 @@ export default function WorktreeManagerModal({
                 </div>
               )}
             </div>
+            {/*
+              Labelled and quiet: `+` is the footer's create, and this row is the
+              least of the list's concerns — it should not outweigh the rest.
+            */}
             <Button
               type="button"
-              size="icon"
-              variant="outline"
-              className="h-11 w-11 flex-shrink-0"
+              variant="ghost"
+              className="h-11 flex-shrink-0 px-3 text-primary hover:text-primary"
               disabled={isAdopting || !onAdoptCheckout}
               onClick={() => void adoptCheckout(project)}
-              aria-label={t('worktrees.add', 'Add')}
-              title={t('worktrees.add', 'Add')}
             >
-              {isAdopting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Plus className="h-3.5 w-3.5" />
-              )}
+              {isAdopting && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {t('worktrees.add', 'Add')}
             </Button>
           </div>
-          <div className="mt-0.5 break-words text-xs leading-5 text-muted-foreground/70" title={project.fullPath}>
-            {compactHomePath(project.fullPath)}
-          </div>
+          {shouldShowWorktreePath(project, entry.leadCheckout.fullPath) && (
+            <div className="mt-0.5 break-words text-xs leading-5 text-muted-foreground/70">
+              {compactHomePath(project.fullPath)}
+            </div>
+          )}
         </div>
       </li>
     );
@@ -318,11 +470,7 @@ export default function WorktreeManagerModal({
       return renderDiscoveredWorktree(project);
     }
 
-    const refLabel = getCheckoutRefLabel(project);
     const isEditing = editingProjectId === project.projectId;
-    const isMain = isMainCheckout(project);
-    const isSelected = selectedProjectIds.has(project.projectId);
-    const sessionCount = getWorktreeSessionCount(project);
 
     return (
       <li key={project.projectId} className="border-b border-border/60 last:border-b-0">
@@ -349,7 +497,7 @@ export default function WorktreeManagerModal({
             />
             <button
               type="button"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-green-500 text-white active:scale-90 dark:bg-green-600"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md bg-green-500 text-white active:scale-90 dark:bg-green-600"
               onClick={() => void saveRename()}
               title={t('tooltips.save')}
             >
@@ -357,7 +505,7 @@ export default function WorktreeManagerModal({
             </button>
             <button
               type="button"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-gray-500 text-white active:scale-90 dark:bg-gray-600"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md bg-gray-500 text-white active:scale-90 dark:bg-gray-600"
               onClick={() => setEditingProjectId(null)}
               title={t('tooltips.cancel')}
             >
@@ -365,63 +513,17 @@ export default function WorktreeManagerModal({
             </button>
           </div>
         ) : (
-          <div className="group p-3">
-            <div className="flex items-start gap-2">
-              {isSelecting && (
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleSelection(project.projectId)}
-                  aria-label={t('worktrees.selectNamed', 'Select {{name}}', {
-                    name: project.displayName || project.projectId,
-                  })}
-                  className="mt-0.5 h-4 w-4 flex-shrink-0 accent-primary"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-sm text-foreground">
-                    {project.displayName || project.projectId}
-                  </span>
-                  {isMain && (
-                    <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {t('worktrees.main', 'main')}
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                  <span className="flex-shrink-0">
-                    {t('worktrees.sessionCount', {
-                      count: sessionCount,
-                      defaultValue_one: '{{count}} session',
-                      defaultValue: '{{count}} sessions',
-                    })}
-                  </span>
-                  {refLabel && (
-                    <>
-                      <span aria-hidden className="opacity-40">·</span>
-                      <GitBranch className="h-3 w-3 flex-shrink-0 opacity-70" />
-                      <span className="truncate">{refLabel}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {!isSelecting && (
-                <RowActionsTrigger
-                  label={t('actions.rowActions', 'Actions for {{name}}', {
-                    name: project.displayName || project.projectId,
-                  })}
-                  isOpen={actionMenu?.project.projectId === project.projectId}
-                  onOpen={(anchor) => setActionMenu({ project, anchor })}
-                  className="h-8 w-8"
-                />
-              )}
-            </div>
-            <div className="mt-0.5 break-words text-xs leading-5 text-muted-foreground/70" title={project.fullPath}>
-              {compactHomePath(project.fullPath)}
-            </div>
-          </div>
+          <WorktreeRow
+            project={project}
+            isMain={isMainCheckout(project)}
+            showPath={shouldShowWorktreePath(project, entry.leadCheckout.fullPath)}
+            isSelecting={isSelecting}
+            isSelected={selectedProjectIds.has(project.projectId)}
+            isMenuOpen={actionMenu?.project.projectId === project.projectId}
+            onToggleSelection={() => toggleSelection(project.projectId)}
+            onOpenMenu={(anchor) => setActionMenu({ project, anchor })}
+            t={t}
+          />
         )}
       </li>
     );
@@ -429,6 +531,19 @@ export default function WorktreeManagerModal({
 
   const actionMenuItems: SidebarContextMenuItem[] = actionMenu
     ? [
+        ...(onSelectWorktree
+          ? [
+              {
+                key: 'open',
+                label: t('actions.open', 'Open'),
+                icon: FolderOpen,
+                onSelect: () => {
+                  onSelectWorktree(actionMenu.project);
+                  onClose();
+                },
+              },
+            ]
+          : []),
         {
           key: 'rename',
           label: t('actions.rename'),
@@ -492,7 +607,7 @@ export default function WorktreeManagerModal({
                   setIsCreating(false);
                   setIsSelecting(true);
                 }}
-                className="rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="flex h-11 items-center rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 {isSelecting ? t('actions.cancel') : t('worktrees.select', 'Select')}
               </button>
@@ -501,14 +616,18 @@ export default function WorktreeManagerModal({
               type="button"
               onClick={onClose}
               aria-label={t('actions.cancel')}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="-mr-1.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Nothing sits below the list at rest, so it owns the bottom inset. */}
+        <div
+          className="min-h-0 flex-1 overflow-y-auto"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
           {!creationOnly && (
             <ul>
               {selectableWorktrees.length > 0 && (
@@ -671,9 +790,11 @@ export default function WorktreeManagerModal({
           ))}
         </div>
 
-        {/* The scope notice below owns the bottom inset; see `eb54fb7`. */}
         {!creationOnly && isSelecting && (
-          <div className="border-t border-border bg-muted/20 p-3">
+          <div
+            className="border-t border-border bg-muted/20 p-3"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
+          >
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
                 {t('worktrees.selectedCount', {
@@ -723,14 +844,6 @@ export default function WorktreeManagerModal({
           </div>
         )}
 
-        {!creationOnly && (
-          <p className="border-t border-border bg-muted/30 p-3 pb-safe-area-inset-bottom text-xs text-muted-foreground">
-            {t(
-              'worktrees.scopeNotice',
-              'Archive and Delete only change what CLIde tracks. The worktree stays on disk — use `git worktree remove` to delete it.',
-            )}
-          </p>
-        )}
       </div>
 
       {actionMenu && (

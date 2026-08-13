@@ -522,6 +522,7 @@ function Sidebar({
             onCreateWorktree={onCreateWorktree}
             onAdoptCheckout={onAdoptCheckout}
             onOpenWorktree={worktreeManager.openCreatedInNewSession ? onNewSession : handleProjectSelect}
+            onSelectWorktree={handleProjectSelect}
             startInCreate={worktreeManager.mode === 'create'}
             t={t}
           />

@@ -128,9 +128,13 @@ export default function SidebarModals({
                       A row is a repository, so its delete covers every worktree
                       in it — say so, because the row only ever named one thing.
                       A selection covers exactly what was ticked, and must not
-                      borrow the repository wording.
+                      borrow the repository wording. A selection always says it,
+                      down to one worktree: this is the only place that promises
+                      the directory survives.
                     */}
-                    {deleteConfirmation.projects.length > 1 && (
+                    {(deleteConfirmation.coversRepository
+                      ? deleteConfirmation.projects.length > 1
+                      : true) && (
                       <p className="mt-2 text-sm text-muted-foreground">
                         {deleteConfirmation.coversRepository
                           ? t('deleteConfirmation.worktreeScope', {
