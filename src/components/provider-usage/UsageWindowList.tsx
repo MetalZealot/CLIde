@@ -1,4 +1,5 @@
-import React from 'react';
+import { ChevronDown } from 'lucide-react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Shimmer } from '../../shared/view/ui';
@@ -319,12 +320,19 @@ export function UsageActivitySection({
   activity,
   showDivider = true,
   showHeading = true,
+  collapsible = false,
 }: {
   activity: ProviderUsageActivity;
   showDivider?: boolean;
   showHeading?: boolean;
+  /**
+   * Starts collapsed behind its heading. For Settings, where the stat grid and
+   * the 14-day chart otherwise push every provider row below the fold.
+   */
+  collapsible?: boolean;
 }) {
   const { t } = useTranslation('common');
+  const [expanded, setExpanded] = useState(false);
   const stats = [
     activity.lifetimeTokens === undefined ? null : {
       label: t('planUsage.lifetimeTokens', { defaultValue: 'Lifetime tokens' }),
@@ -352,22 +360,54 @@ export function UsageActivitySection({
     .slice(-14);
   const maxDailyTokens = Math.max(1, ...recentDaily.map((bucket) => bucket.tokens));
 
+  const collapsed = collapsible && showHeading && !expanded;
+  const heading = t('planUsage.tokenActivity', { defaultValue: 'Token activity' });
+  const subheading = t('planUsage.activityNotAllowance', {
+    defaultValue: 'Account activity — separate from plan limits.',
+  });
+
   return (
     <div className={cn('space-y-3', showDivider && 'border-t border-border/60 pt-4')}>
-      {showHeading && (
+      {showHeading && !collapsible && (
         <div>
-          <p className="text-sm font-medium text-foreground">
-            {t('planUsage.tokenActivity', { defaultValue: 'Token activity' })}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {t('planUsage.activityNotAllowance', {
-              defaultValue: 'Account activity — separate from plan limits.',
-            })}
-          </p>
+          <p className="text-sm font-medium text-foreground">{heading}</p>
+          <p className="text-xs text-muted-foreground">{subheading}</p>
         </div>
       )}
 
-      {stats.length > 0 && (
+      {/*
+        Collapsed, this is one label/value line so it sits in the same two-column
+        rhythm as the limit rows above it. The caveat only appears once opened,
+        where there is something to caveat.
+      */}
+      {showHeading && collapsible && (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          aria-expanded={expanded}
+          className="flex w-full touch-manipulation items-center gap-3 text-left"
+        >
+          <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{heading}</span>
+          {collapsed && activity.lifetimeTokens !== undefined && (
+            <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
+              {formatTokenCount(activity.lifetimeTokens)}
+            </span>
+          )}
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150',
+              expanded && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </button>
+      )}
+
+      {showHeading && collapsible && expanded && (
+        <p className="-mt-1 text-xs text-muted-foreground">{subheading}</p>
+      )}
+
+      {!collapsed && stats.length > 0 && (
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
           {stats.map((stat) => (
             <div key={stat.label}>
@@ -378,7 +418,7 @@ export function UsageActivitySection({
         </dl>
       )}
 
-      {recentDaily.length > 0 && (
+      {!collapsed && recentDaily.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground">
             {t('planUsage.recentDailyActivity', { defaultValue: 'Recent daily activity' })}
@@ -475,7 +515,7 @@ export default function UsageWindowList({
       ))}
       {credits && <UsageCreditsRow credits={credits} />}
       {resetCredits && <UsageResetCreditsRow resetCredits={resetCredits} />}
-      {activity && <UsageActivitySection activity={activity} />}
+      {activity && <UsageActivitySection activity={activity} collapsible />}
       {usage.stale && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
           {t('planUsage.stale', { defaultValue: 'Showing cached data — the last refresh failed.' })}

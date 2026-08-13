@@ -1,18 +1,19 @@
-import { LogIn, RefreshCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { AlertTriangle, LogIn, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Badge, Button } from '../../../../../shared/view/ui';
-import { authenticatedFetch } from '../../../../../utils/api';
+import { Button } from '../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../llm-logo-provider/SessionProviderLogo';
 import UsageWindowList from '../../../../provider-usage/UsageWindowList';
 import { useProviderUsage } from '../../../../provider-usage/hooks/useProviderUsage';
+import {
+  type CodexTransportDiagnostics,
+  isTransportDegraded,
+  useCodexTransport,
+} from '../../../hooks/useCodexRuntime';
 import type { AgentProviderId } from '../../../registry/registry';
 import type { AuthStatus } from '../../../types/types';
 import { toProviderStatus } from '../../../utils/providerStatus';
 import { SettingsGroup, SettingsRow, SettingsStatus } from '../../primitives';
-
-import CodexNativeRuntimeRow from './CodexNativeRuntimeRow';
 
 type AgentAccountCardProps = {
   provider: AgentProviderId;
@@ -22,32 +23,12 @@ type AgentAccountCardProps = {
   loginSucceeded?: boolean | null;
 };
 
-type CodexTransportDiagnostics = {
-  configured: 'app-server' | 'sdk';
-  actual: 'app-server' | 'sdk';
-  health: 'disabled' | 'idle' | 'starting' | 'ready' | 'stopped' | 'fallback';
-  sdkVersion: string | null;
-  bundledCliVersion: string | null;
-  lastError: string | null;
-  lastStartupFallbackAt: string | null;
-};
-
-type CodexCapabilitiesResponse = {
-  success?: boolean;
-  data?: {
-    chatTransport?: CodexTransportDiagnostics;
-  };
-};
-
-const transportLabel = (transport: 'app-server' | 'sdk'): string =>
-  transport === 'app-server' ? 'App Server' : 'TypeScript SDK';
-
-const codexVersionLabel = (diagnostics: CodexTransportDiagnostics): string => {
-  const versions = [
-    diagnostics.sdkVersion ? `SDK ${diagnostics.sdkVersion}` : null,
-    diagnostics.bundledCliVersion ? `CLI ${diagnostics.bundledCliVersion}` : null,
-  ].filter((value): value is string => Boolean(value));
-  return versions.length > 0 ? ` · ${versions.join(' · ')}` : '';
+/** Which of the three alert sentences a degraded transport gets. */
+const transportAlertKey = (transport: CodexTransportDiagnostics): string => {
+  if (transport.health === 'fallback' || transport.health === 'stopped') {
+    return transport.health;
+  }
+  return 'error';
 };
 
 const formatUpdatedAgo = (fetchedAt: string): string | null => {
@@ -68,6 +49,9 @@ const formatUpdatedAgo = (fetchedAt: string): string | null => {
  * palette (`bg-blue-50` / `border-purple-200` / `bg-gray-800` …). Those literals
  * are gone: the provider's identity is carried by its logo, and everything else
  * is theme tokens, per the restructure's no-hardcoded-colour rule.
+ *
+ * Codex's runtime and transport detail live on the Runtime sub-screen. What
+ * remains here is the exception: a healthy transport says nothing at all.
  */
 export default function AgentAccountCard({
   provider,
@@ -94,30 +78,10 @@ export default function AgentAccountCard({
   const usageUpdatedAgo = planUsage.usage?.fetchedAt
     ? formatUpdatedAgo(planUsage.usage.fetchedAt)
     : null;
-  const [codexTransport, setCodexTransport] = useState<CodexTransportDiagnostics | null>(null);
-
-  useEffect(() => {
-    if (provider !== 'codex') {
-      setCodexTransport(null);
-      return;
-    }
-
-    let cancelled = false;
-    void authenticatedFetch('/api/providers/codex/capabilities')
-      .then(async (response) => {
-        const body = (await response.json()) as CodexCapabilitiesResponse;
-        if (!cancelled && body.success && body.data?.chatTransport) {
-          setCodexTransport(body.data.chatTransport);
-        }
-      })
-      .catch((error) => {
-        console.error('Error loading Codex transport diagnostics:', error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [provider]);
+  const codexTransport = useCodexTransport(provider === 'codex');
+  const transportAlert = isTransportDegraded(codexTransport)
+    ? t(`agents.codexTransport.alerts.${transportAlertKey(codexTransport)}`)
+    : null;
 
   const identityLine = authStatus.authenticated
     ? authStatus.email || t('agents.authStatus.authenticatedUser')
@@ -149,34 +113,19 @@ export default function AgentAccountCard({
           </SettingsRow>
         )}
 
-        {provider === 'codex' && codexTransport && (
-          <SettingsRow
-            label={t('agents.codexTransport.title', { defaultValue: 'Chat transport' })}
-            description={t('agents.codexTransport.detail', {
-              defaultValue: 'Configured: {{configured}} · Status: {{health}}{{version}}',
-              configured: transportLabel(codexTransport.configured),
-              health: codexTransport.health,
-              version: codexVersionLabel(codexTransport),
-            })}
-          >
-            <Badge
-              variant="secondary"
-              className={
-                codexTransport.health === 'fallback' || codexTransport.health === 'stopped'
-                  ? 'border-warning/40 bg-warning/10 text-warning'
-                  : 'bg-muted'
-              }
-            >
-              {transportLabel(codexTransport.actual)}
-            </Badge>
-          </SettingsRow>
+        {transportAlert && (
+          <div className="flex items-start gap-2 px-4 py-3 text-sm text-warning">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <div className="min-w-0">
+              <div>{transportAlert}</div>
+              {codexTransport?.lastError && (
+                <div className="mt-0.5 break-words text-xs text-warning/80">
+                  {codexTransport.lastError}
+                </div>
+              )}
+            </div>
+          </div>
         )}
-
-        {codexTransport?.lastError && (
-          <div className="px-4 py-3 text-xs text-warning">{codexTransport.lastError}</div>
-        )}
-
-        {provider === 'codex' && <CodexNativeRuntimeRow />}
 
         {authStatus.error && (
           <div className="px-4 py-3 text-sm text-destructive">

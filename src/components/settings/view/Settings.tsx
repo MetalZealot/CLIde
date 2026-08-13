@@ -12,6 +12,7 @@ import type { SettingsProps } from '../types/types';
 
 import AboutScreen from './screens/AboutScreen';
 import AccountScreen from './screens/AccountScreen';
+import AgentCodexRuntimeScreen from './screens/AgentCodexRuntimeScreen';
 import AgentMcpScreen from './screens/AgentMcpScreen';
 import AgentDefaultModelScreen from './screens/AgentDefaultModelScreen';
 import AgentPermissionsScreen from './screens/AgentPermissionsScreen';
@@ -222,6 +223,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
 
         case 'skills':
           return <AgentSkillsScreen provider={provider} projects={projects} />;
+
+        // Registry-gated to Codex, the only provider with a selectable runtime.
+        case 'runtime':
+          return <AgentCodexRuntimeScreen />;
 
         default:
           return (

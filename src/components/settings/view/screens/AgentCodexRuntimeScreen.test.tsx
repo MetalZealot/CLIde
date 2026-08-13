@@ -7,7 +7,7 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { initReactI18next } from 'react-i18next';
 
-import CodexNativeRuntimeRow from './CodexNativeRuntimeRow';
+import AgentCodexRuntimeScreen from './AgentCodexRuntimeScreen';
 
 const bundledId = 'runtime_111111111111111111111111';
 const candidateId = 'runtime_222222222222222222222222';
@@ -45,7 +45,7 @@ const originalFetch = globalThis.fetch;
 
 before(async () => {
   const settingsTranslations = JSON.parse(readFileSync(
-    new URL('../../../../../i18n/locales/en/settings.json', import.meta.url),
+    new URL('../../../../i18n/locales/en/settings.json', import.meta.url),
     'utf8',
   )) as Record<string, unknown>;
   await i18next.use(initReactI18next).init({
@@ -76,9 +76,13 @@ const flush = async () => {
 
 const findButton = (host: HTMLElement, label: string): HTMLButtonElement => {
   const button = [...host.querySelectorAll('button')].find((item) => item.textContent === label);
-  assert.ok(button);
+  assert.ok(button, `no button labelled "${label}"`);
   return button;
 };
+
+const hasButton = (host: HTMLElement, label: string): boolean => (
+  [...host.querySelectorAll('button')].some((item) => item.textContent === label)
+);
 
 const installationRow = (host: HTMLElement, fullPath: string): HTMLElement => {
   const pathButton = host.querySelector<HTMLButtonElement>(`button[title="${fullPath}"]`);
@@ -86,7 +90,7 @@ const installationRow = (host: HTMLElement, fullPath: string): HTMLElement => {
   return pathButton.parentElement;
 };
 
-test('Codex runtime row uses paths as identity and gates Use behind Check', async () => {
+test('runtime screen gates Use behind Check and offers rollback on the previous install', async () => {
   let activeInstallationId = bundledId;
   let previousInstallationId: string | null = null;
   const selectionRequests: string[] = [];
@@ -104,7 +108,19 @@ test('Codex runtime row uses paths as identity and gates Use behind Check', asyn
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     let data: unknown;
-    if (url.endsWith('/check')) {
+    if (url.endsWith('/capabilities')) {
+      data = {
+        chatTransport: {
+          configured: 'app-server',
+          actual: 'app-server',
+          health: 'ready',
+          sdkVersion: '0.147.0',
+          bundledCliVersion: '0.147.0',
+          lastError: null,
+          lastStartupFallbackAt: null,
+        },
+      };
+    } else if (url.endsWith('/check')) {
       const body = JSON.parse(String(init?.body)) as { installationId: string };
       data = {
         installationId: body.installationId,
@@ -129,14 +145,27 @@ test('Codex runtime row uses paths as identity and gates Use behind Check', asyn
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  await React.act(async () => root?.render(<CodexNativeRuntimeRow />));
+  await React.act(async () => root?.render(<AgentCodexRuntimeScreen />));
   await flush();
 
+  // Paths are compacted to version + binary, and no raw enum reaches the user.
   assert.doesNotMatch(container.textContent ?? '', /Projects\/CLIde/);
   assert.match(container.textContent ?? '', /…\/node_modules\/…\/bin\/codex/);
   assert.match(container.textContent ?? '', /…\/standalone\/releases\/…\/bin\/codex/);
+  assert.doesNotMatch(container.textContent ?? '', /app-server/);
+  assert.match(container.textContent ?? '', /App Server/);
+  assert.match(container.textContent ?? '', /Ready/);
+
+  // One state badge per row: no Candidate, no Live, and Bundled is a sentence.
+  assert.doesNotMatch(container.textContent ?? '', /Candidate/);
+  assert.match(container.textContent ?? '', /Bundled with CLIde/);
+
+  const bundledRow = installationRow(container, bundledPath);
   const candidateRow = installationRow(container, candidatePath);
   const alternateRow = installationRow(container, alternatePath);
+
+  assert.equal(hasButton(bundledRow, 'Check'), false);
+  assert.equal(hasButton(bundledRow, 'Roll back'), false);
   assert.equal(findButton(candidateRow, 'Use').disabled, true);
   assert.equal(findButton(alternateRow, 'Use').disabled, true);
 
@@ -150,14 +179,18 @@ test('Codex runtime row uses paths as identity and gates Use behind Check', asyn
   const candidatePathButton = candidateRow.querySelector<HTMLButtonElement>(`button[title="${candidatePath}"]`);
   assert.ok(candidatePathButton);
   await React.act(async () => candidatePathButton.click());
-  assert.match(candidateRow.textContent ?? '', /.codex\/packages\/standalone/);
+  assert.match(candidateRow.textContent ?? '', /\.codex\/packages\/standalone/);
 
   await React.act(async () => findButton(alternateRow, 'Use').click());
   await flush();
   assert.deepEqual(selectionRequests, [alternateId]);
-  assert.match(container.textContent ?? '', /switch after current turn/);
+  assert.match(container.textContent ?? '', /Switches after the current turn ends/);
 
-  await React.act(async () => findButton(container as HTMLDivElement, 'Roll back').click());
+  // Rollback is an action on the previous installation's own row, and replaces
+  // the Check/Use pair there rather than sitting loose at the bottom.
+  const previousRow = installationRow(container, bundledPath);
+  assert.equal(hasButton(previousRow, 'Check'), false);
+  await React.act(async () => findButton(previousRow, 'Roll back').click());
   await flush();
   assert.deepEqual(selectionRequests, [alternateId, bundledId]);
 });

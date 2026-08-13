@@ -1,9 +1,11 @@
+import { AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useMcpServers } from '../../../mcp/hooks/useMcpServers';
 import type { McpProject } from '../../../mcp/types';
 import { useProviderSkills } from '../../../skills/hooks/useProviderSkills';
+import { useCodexRuntimeStatus } from '../../hooks/useCodexRuntime';
 import {
   AGENT_PROVIDERS,
   type AgentProviderId,
@@ -115,6 +117,35 @@ function PermissionsSubsystemRow({ provider, onOpenScreen }: Omit<SubsystemRowPr
 }
 
 /**
+ * Codex-only (ADR 0034). Previews the active runtime's version, and flags an
+ * activation failure here so the drill-down is not the only place it surfaces.
+ */
+function RuntimeSubsystemRow({ provider, onOpenScreen }: Omit<SubsystemRowProps, 'projects'>) {
+  const { t } = useTranslation('settings');
+  const { status } = useCodexRuntimeStatus(provider === 'codex');
+  const screen = getScreen(agentScreenId(provider, 'runtime'));
+
+  if (!screen) {
+    return null;
+  }
+
+  const active = status?.installations
+    .find((installation) => installation.id === status.activeInstallationId);
+
+  return (
+    <SettingsNavRow
+      label={t(screen.labelKey)}
+      icon={SETTINGS_ICONS[screen.icon]}
+      value={active?.version}
+      trailing={status?.activeError
+        ? <AlertTriangle className="h-4 w-4 flex-shrink-0 text-warning" />
+        : undefined}
+      onClick={() => onOpenScreen(screen.id)}
+    />
+  );
+}
+
+/**
  * No count or preview value here on purpose: reading it would mean fetching the
  * provider's whole model catalog to render one row, and the destination screen
  * fetches it anyway.
@@ -178,6 +209,9 @@ export default function AgentProviderScreen({
           )}
           {subsystems.includes('skills') && (
             <SkillsSubsystemRow provider={provider} projects={projects} onOpenScreen={onOpenScreen} />
+          )}
+          {subsystems.includes('runtime') && (
+            <RuntimeSubsystemRow provider={provider} onOpenScreen={onOpenScreen} />
           )}
         </SettingsGroup>
       )}

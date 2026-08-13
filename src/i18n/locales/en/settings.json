@@ -5,7 +5,8 @@
     "mcpServers": "MCP Servers",
     "skills": "Skills",
     "appearance": "Appearance",
-    "defaultModel": "Default Model"
+    "defaultModel": "Default Model",
+    "runtime": "Runtime"
   },
   "account": {
     "title": "Account",
@@ -376,26 +377,50 @@
     },
     "codexTransport": {
       "title": "Chat transport",
-      "detail": "Configured: {{configured}} · Status: {{health}}{{version}}"
+      "detail": "Configured: {{configured}} · {{health}}",
+      "kinds": {
+        "app-server": "App Server",
+        "sdk": "TypeScript SDK"
+      },
+      "health": {
+        "disabled": "Disabled",
+        "idle": "Idle",
+        "starting": "Starting…",
+        "ready": "Ready",
+        "stopped": "Stopped",
+        "fallback": "Running on the fallback transport"
+      },
+      "alerts": {
+        "fallback": "Chat is running on the TypeScript SDK because the App Server did not start.",
+        "stopped": "The Codex App Server has stopped. Chat restarts it on your next message.",
+        "error": "The Codex chat transport reported an error."
+      }
     },
     "codexRuntime": {
       "title": "Native runtime",
       "description": "One approved Codex executable is used by Chat, Shell, models and account usage.",
+      "installationsTitle": "Installations",
+      "diagnosticsTitle": "Diagnostics",
+      "loading": "Reading installed runtimes…",
       "active": "Active",
-      "candidate": "Candidate",
       "previous": "Previous",
-      "bundled": "Bundled",
-      "live": "Live",
+      "bundledNote": "Bundled with CLIde",
+      "pendingNote": "A run in progress finishes on {{version}}; new runs use this one.",
       "liveProcess": "Live process",
-      "unknown": "unknown",
-      "none": "none",
+      "sdkVersion": "SDK version",
+      "unknown": "Unknown",
+      "none": "None running",
       "check": "Check",
       "checking": "Checking…",
       "use": "Use",
       "rollback": "Roll back",
       "checkPassed": "Structural check passed. This does not verify a live Chat turn.",
       "checkFailed": "Structural check failed: {{detail}}",
-      "updatePending": "switch after current turn"
+      "compatibility": {
+        "incompatible": "this build is not compatible with CLIde",
+        "check_failed": "the check could not be completed"
+      },
+      "updatePending": "Switches after the current turn ends"
     }
   },
   "permissions": {
