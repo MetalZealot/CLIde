@@ -478,6 +478,14 @@ export function useProjectsState({
   projectsRef.current = projects;
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
+  /**
+   * Selecting a session is not the same as watching it: another tab replaces the
+   * transcript, and the mobile sidebar covers it entirely. Read signals key off
+   * this, so a run that finishes off-screen still turns green.
+   */
+  const isChatVisible = activeTab === 'chat' && !(isMobile && sidebarOpen);
+  const isChatVisibleRef = useRef(isChatVisible);
+  isChatVisibleRef.current = isChatVisible;
   /** URL session id whose backend lookup already ran (or is in flight) — one attempt per id. */
   const sessionLookupRef = useRef<string | null>(null);
 
@@ -498,8 +506,7 @@ export function useProjectsState({
       return;
     }
 
-    const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
-    if (targetSessionId === viewedSessionId) {
+    if (isChatVisibleRef.current && targetSessionId === (selectedSessionRef.current?.id ?? sessionId ?? null)) {
       return;
     }
 
@@ -813,7 +820,9 @@ export function useProjectsState({
       const eventSessionId = typeof event.sessionId === 'string' && event.sessionId
         ? event.sessionId
         : null;
-      const viewedSessionId = selectedSessionRef.current?.id ?? sessionId ?? null;
+      const viewedSessionId = isChatVisibleRef.current
+        ? selectedSessionRef.current?.id ?? sessionId ?? null
+        : null;
 
       if (eventSessionId) {
         if (event.kind === 'permission_request') {
@@ -866,9 +875,10 @@ export function useProjectsState({
         && !activeSessionsRef.current.has(upsert.sessionId)
       ) {
         setExternalMessageUpdate((prev) => prev + 1);
-      } else {
-        markSessionUnread(upsert.sessionId);
       }
+
+      // No-ops for a session whose transcript is on screen.
+      markSessionUnread(upsert.sessionId);
 
       setProjects((previousProjects) => {
         const targetProjectId = upsert.project?.projectId;
@@ -964,9 +974,21 @@ export function useProjectsState({
     };
   }, []);
 
+  // Invariant, not an arrival edge: an unread signal that lands on the visible
+  // session — however late, and whichever path set it — clears on the next
+  // render rather than surviving until the session is opened again.
   useEffect(() => {
-    markSessionViewed(selectedSession?.id ?? sessionId ?? null);
-  }, [markSessionViewed, selectedSession?.id, sessionId]);
+    if (!isChatVisible) {
+      return;
+    }
+
+    const viewedSessionId = selectedSession?.id ?? sessionId ?? null;
+    if (!viewedSessionId || !unreadSessionIds.has(viewedSessionId)) {
+      return;
+    }
+
+    markSessionViewed(viewedSessionId);
+  }, [isChatVisible, markSessionViewed, selectedSession?.id, sessionId, unreadSessionIds]);
 
   useEffect(() => {
     if (!sessionId) {
