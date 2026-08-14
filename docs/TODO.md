@@ -85,8 +85,7 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 ## Theming
 
 - [ ] **Typography overhaul** — self-hosted Figtree + Iosevka, removing Merriweather and the Google Fonts CDN. [Plan](plans/typography-system.md). **M**
-- [ ] Colour picker for accent colour; maybe a slight background hue shift. Light and dark variants. **M**
-- [ ] Optional presets matching model-provider branding (Anthropic, OpenAI, Google). **S once the picker exists**
+- [ ] **Colour theming overhaul** — OKLCH tokens, monochrome/accent/full-colour presets with derived light and dark, a corner-radius dial, and provider accents. Supersedes the old accent-picker and provider-branding items. Cost is Phase 0: 2,335 hardcoded palette classes across 118 files bypass the token layer. [Plan](plans/colour-theming-system.md). **L**
 - [ ] **Custom project icon**, second half of Customize after the colour strip. Pick an image from the project (or upload) via a modal reusing `useFileTreeData` + `isImageFile`, not a Files-tab detour — the tab has no pick mode and the cross-tab return trip is the real cost. Store a downscaled data URI on the project row, path as provenance only: a file in the repo breaks on worktrees. **M**
 
 ## Features (bigger ideas)
