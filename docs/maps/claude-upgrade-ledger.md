@@ -83,3 +83,49 @@ live behavior take precedence over documentation. See the map's evidence policy.
 - **Verification:** documentation-only audit. No CLIde code changed, so no tests
   were required; every count above was read from the installed artifacts named in
   the sources line.
+
+## Runtime sweep 2.1.220 → 2.1.232 — 2026-08-14
+
+- **From/to:** repository pin unchanged at `^0.3.165` (lockfile 0.3.165), so the
+  SDK wrapper and its bundled 2.1.165 runtime are untouched. The runtime CLIde
+  actually spawns advanced 2.1.220 → 2.1.232 without anyone asking: the native
+  installer self-updates by repointing `~/.local/bin/claude` at
+  `~/.local/share/claude/versions/<version>`. `autoUpdates: false` in
+  `~/.claude.json` governs only the npm updater, not this.
+- **Sources:** the published changelog for 2.1.221–2.1.232 (2.1.220 and 2.1.226
+  carry no itemised entries); a `--help` diff of the installed 2.1.226 and
+  2.1.232 binaries; `grep -a` over the 2.1.232 binary for the project-path
+  encoder; the Claude adapter under `server/modules/providers/list/claude/`.
+- **CLI surface:** top-level `--help` is byte-identical between 2.1.226 and
+  2.1.232 (242 lines each); 2.1.220–2.1.225 could not be diffed because those
+  binaries are no longer on disk. New subcommands landed in that gap
+  (`self-hosted-runner`, `remote-control --continue`), so the subcommand surface
+  is not flag-identical across the whole window — but CLIde never invokes a
+  subcommand, it spawns the binary through the SDK's control protocol.
+  The SDK-side surface counts from the 2026-07-30 refresh were not re-measured;
+  the pin did not move, so its types are unchanged by construction.
+- **Transcript project-directory encoding changed (2.1.224).** The runtime now
+  truncates the encoded path and appends a hash once it exceeds 200 characters:
+  `s.replace(/[^a-zA-Z0-9]/g,'-')`, then `slice(0,200) + '-' + base36(hash(s))`.
+  `resolveClaudeTranscriptPath` implements only the plain-replacement branch, so
+  it derives a wrong directory for any workspace whose encoded path passes 200.
+  Not reachable today: that fallback runs only when the session row carries no
+  `jsonlPath`, and the longest encoded directory on this host is 72 characters.
+- **`CLAUDE_CODE_DISABLE_1M_CONTEXT` now holds every 1M model to 200K (2.1.223).**
+  `claude-context-window.ts` never reads it, so with that variable set the gauge
+  would report a 1M ceiling against a runtime using 200K. Unset on this host. The
+  same release kept unrecognised models inside the assumed window, which CLIde's
+  `FALLBACK_WINDOW` already matches.
+- **Subagent forking is on by default and forks inherit the whole conversation
+  (2.1.232).** Four `isSidechain` guards — token usage, both rewind walkers, and
+  the session list — assume subagent rows stay sidechain-marked. Unverified: the
+  four most recent transcripts contain no sidechain rows at all.
+- **No action:** `ultraplan` was removed and `crossSessionInbound` / `dialogExpiry`
+  were added; CLIde references none of them. The two new keys are cascade-viewer
+  input, not adapter work. The remainder of the window is Remote Control, plugin,
+  sandbox, and gateway work on surfaces CLIde does not bind.
+- **Disposition:** fix the 200-character encoder branch; leave the 1M env var and
+  the fork/sidechain question as watches until either can be reproduced.
+- **Verification:** read-only inspection; no CLIde code changed. Live evidence
+  that the pairing works — 25 Claude sessions in CLIde's database in the four days
+  to 2026-08-14, most recent 13:34, all on runtime 2.1.232 against SDK 0.3.165.
