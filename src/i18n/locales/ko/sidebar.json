@@ -114,6 +114,7 @@
   },
   "version": {
     "updateAvailable": "업데이트 가능",
+    "updateAvailableNamed": "{{name}} 사용 가능",
     "restartRequired": "업데이트가 설치됨 — 적용하려면 서버를 재시작하세요"
   },
   "deleteConfirmation": {

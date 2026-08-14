@@ -115,6 +115,7 @@
   },
   "version": {
     "updateAvailable": "Aggiornamento disponibile",
+    "updateAvailableNamed": "{{name}} disponibile",
     "restartRequired": "Aggiornamento installato — riavvia il server per applicarlo"
   },
   "search": {

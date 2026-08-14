@@ -115,6 +115,7 @@
   },
   "version": {
     "updateAvailable": "Güncelleme mevcut",
+    "updateAvailableNamed": "{{name}} mevcut",
     "restartRequired": "Güncelleme yüklendi — uygulamak için sunucuyu yeniden başlatın"
   },
   "search": {

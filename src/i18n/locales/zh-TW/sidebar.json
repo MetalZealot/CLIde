@@ -114,6 +114,7 @@
   },
   "version": {
     "updateAvailable": "有可用更新",
+    "updateAvailableNamed": "{{name}} 可用",
     "restartRequired": "已安裝更新 — 請重新啟動伺服器以套用"
   },
   "search": {

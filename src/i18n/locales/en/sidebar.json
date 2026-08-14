@@ -140,6 +140,7 @@
   },
   "version": {
     "updateAvailable": "Update available",
+    "updateAvailableNamed": "{{name}} available",
     "restartRequired": "Update installed — restart the server to apply"
   },
   "search": {

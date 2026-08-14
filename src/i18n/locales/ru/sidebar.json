@@ -115,6 +115,7 @@
   },
   "version": {
     "updateAvailable": "Доступно обновление",
+    "updateAvailableNamed": "{{name}} доступно",
     "restartRequired": "Обновление установлено — перезапустите сервер для применения"
   },
   "search": {

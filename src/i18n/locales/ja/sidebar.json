@@ -114,6 +114,7 @@
   },
   "version": {
     "updateAvailable": "アップデートあり",
+    "updateAvailableNamed": "{{name}} が利用可能",
     "restartRequired": "更新が適用されていません。サーバーを再起動してください"
   },
   "deleteConfirmation": {

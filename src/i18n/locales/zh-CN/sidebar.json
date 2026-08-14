@@ -115,6 +115,7 @@
   },
   "version": {
     "updateAvailable": "有可用更新",
+    "updateAvailableNamed": "{{name}} 可用",
     "restartRequired": "已安装更新 — 请重启服务器以生效"
   },
   "search": {
