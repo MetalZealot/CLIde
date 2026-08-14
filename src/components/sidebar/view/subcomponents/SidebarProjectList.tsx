@@ -261,7 +261,7 @@ export default function SidebarProjectList({
   );
 
   return (
-    <div className="pb-safe-area-inset-bottom md:space-y-1">
+    <div className="md:space-y-1">
       {/*
         Activity is a transient copy while Pinned is a durable move. The
         project picker scopes only the repository rows below it; the two global

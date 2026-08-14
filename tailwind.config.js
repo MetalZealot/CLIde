@@ -73,10 +73,8 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
-      spacing: {
-        'safe-area-inset-bottom': 'env(safe-area-inset-bottom)',
-        'mobile-nav': 'var(--mobile-nav-total)',
-      },
+      // No safe-area spacing utilities: the shell owns the bottom inset and
+      // `.app-bar` the top, so a utility that adds one is always a double-count.
       keyframes: {
         // Seamless only in tandem with Shimmer.tsx's `bg-[length:200%_100%]`.
         // background-position percentages resolve against (elementW - backgroundW),

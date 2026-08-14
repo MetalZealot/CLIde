@@ -296,7 +296,7 @@ export default function ChatComposer({
         : t('input.send');
 
   return (
-    <div className="chat-composer-shell relative flex-shrink-0 px-2 pb-2 pt-0 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
+    <div className="chat-composer-shell relative flex-shrink-0 px-4 pb-4 pt-0 md:px-6 md:pb-6">
       {pendingPermissionRequests.length === 0 && (activity || reserveActivitySpace) && (
         <div className="mx-auto mb-2 max-w-[54.25rem]" style={{ visibility: activity ? 'visible' : 'hidden' }}>
           <ActivityIndicator activity={activity} onAbort={onAbortSession} isStopArmed={isStopArmed} />
