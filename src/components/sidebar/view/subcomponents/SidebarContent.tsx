@@ -5,7 +5,12 @@ import type { TFunction } from 'i18next';
 import { ScrollArea } from '../../../../shared/view/ui';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
 import type { ConversationSearchResults, SearchProgress } from '../../hooks/useSidebarController';
-import type { ArchivedProjectListItem, ArchivedSessionListItem, SidebarSearchMode } from '../../types/types';
+import type {
+  ArchivedProjectListItem,
+  ArchivedSessionListItem,
+  SidebarBrowseMode,
+  SidebarSearchMode,
+} from '../../types/types';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import { getAllSessions } from '../../utils/utils';
 
@@ -116,6 +121,8 @@ type SidebarContentProps = {
   archivedSessions: ArchivedSessionListItem[];
   archivedSessionsCount: number;
   isArchivedSessionsLoading: boolean;
+  browseMode: SidebarBrowseMode;
+  onBrowseModeChange: (mode: SidebarBrowseMode) => void;
   searchFilter: string;
   onSearchFilterChange: (value: string) => void;
   onClearSearchFilter: () => void;
@@ -152,6 +159,8 @@ export default function SidebarContent({
   archivedSessions,
   archivedSessionsCount,
   isArchivedSessionsLoading,
+  browseMode,
+  onBrowseModeChange,
   searchFilter,
   onSearchFilterChange,
   onClearSearchFilter,
@@ -192,6 +201,8 @@ export default function SidebarContent({
       style={{}}
     >
       <SidebarHeader
+        browseMode={browseMode}
+        onBrowseModeChange={onBrowseModeChange}
         searchFilter={searchFilter}
         onSearchFilterChange={onSearchFilterChange}
         onClearSearchFilter={onClearSearchFilter}
@@ -571,8 +582,6 @@ export default function SidebarContent({
           currentVersion={currentVersion}
           onShowVersionModal={onShowVersionModal}
           onShowSettings={onShowSettings}
-          isArchiveOpen={searchMode === 'archived'}
-          onShowArchive={() => onSearchModeChange(searchMode === 'archived' ? 'projects' : 'archived')}
           onOpenNewSession={onOpenNewSession}
           t={t}
         />

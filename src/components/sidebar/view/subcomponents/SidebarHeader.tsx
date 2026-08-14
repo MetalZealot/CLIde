@@ -1,19 +1,34 @@
-import { MessageSquare, MessageSquarePlus, Search, X, PanelLeftClose } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Archive,
+  Check,
+  ChevronDown,
+  Folder,
+  MessageSquare,
+  MessageSquarePlus,
+  PanelLeftClose,
+  Search,
+  X,
+} from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button, Input } from '../../../../shared/view/ui';
+import {
+  Button,
+  ContextMenuOverlay,
+  Input,
+  anchorFromElement,
+} from '../../../../shared/view/ui';
 import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '../../../../constants/branding';
 import { IS_PLATFORM } from '../../../../constants/config';
 import { cn } from '../../../../lib/utils';
-import type { SidebarSearchMode } from '../../types/types';
-
-const MOD_KEY =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
+import type { SidebarBrowseMode, SidebarSearchMode } from '../../types/types';
 
 /** Full-text search reads every transcript, so it waits for a real query. */
 const MIN_CONTENT_SEARCH_LENGTH = 2;
 
 type SidebarHeaderProps = {
+  browseMode: SidebarBrowseMode;
+  onBrowseModeChange: (mode: SidebarBrowseMode) => void;
   searchFilter: string;
   onSearchFilterChange: (value: string) => void;
   onClearSearchFilter: () => void;
@@ -25,6 +40,8 @@ type SidebarHeaderProps = {
 };
 
 export default function SidebarHeader({
+  browseMode,
+  onBrowseModeChange,
   searchFilter,
   onSearchFilterChange,
   onClearSearchFilter,
@@ -34,26 +51,45 @@ export default function SidebarHeader({
   onOpenNewSession,
   t,
 }: SidebarHeaderProps) {
-  // Every mode searches sessions now — the sidebar's short list of
-  // repositories was never the thing worth searching for.
-  const searchPlaceholder = searchMode === 'conversations'
-    ? t('search.conversationsPlaceholder')
-    : searchMode === 'archived'
-      ? t('search.archivedPlaceholder', 'Search archived sessions...')
+  const [isSearchOpen, setIsSearchOpen] = useState(Boolean(searchFilter));
+  const [isBrowseMenuOpen, setIsBrowseMenuOpen] = useState(false);
+  const browseButtonRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const isArchiveOpen = searchMode === 'archived';
+  const isContentSearch = searchMode === 'conversations';
+  const canSearchContents = !isArchiveOpen && searchFilter.trim().length >= MIN_CONTENT_SEARCH_LENGTH;
+  const browseLabel = browseMode === 'projects'
+    ? t('search.modeProjects')
+    : t('search.modeConversations');
+  const BrowseIcon = browseMode === 'projects' ? Folder : MessageSquare;
+  const searchPlaceholder = isArchiveOpen
+    ? t('search.archivedPlaceholder', 'Search archived sessions...')
+    : isContentSearch
+      ? t('search.conversationsPlaceholder')
       : t('search.sessionsPlaceholder', 'Search session names...');
 
-  const isContentSearch = searchMode === 'conversations';
-  // Full-text search across transcripts used to be a permanent tab. It is a
-  // search refinement, not a place, so it now hangs off the query itself: the
-  // plain query matches session names, this reaches into their messages.
-  const canSearchContents = searchFilter.trim().length >= MIN_CONTENT_SEARCH_LENGTH;
+  useEffect(() => {
+    if (!isSearchOpen) {
+      return;
+    }
 
-  /*
-    These are render functions, not components declared in the body.
-    A component declared here is a new type on every render, so React would
-    unmount and remount the search input on each keystroke — which blurs it and
-    dismisses the on-screen keyboard.
-  */
+    const frame = requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [isSearchOpen]);
+
+  const closeSearch = () => {
+    onClearSearchFilter();
+    if (isContentSearch) {
+      onSearchModeChange('projects');
+    }
+    setIsSearchOpen(false);
+  };
+
+  const chooseBrowseMode = (mode: SidebarBrowseMode) => {
+    setIsBrowseMenuOpen(false);
+    onBrowseModeChange(mode);
+  };
+
   const renderLogoBlock = () => (
     <div className="flex min-w-0 items-center gap-2.5">
       <div
@@ -79,170 +115,205 @@ export default function SidebarHeader({
     </div>
   );
 
-  /**
-   * Global actions in the header.
-   *
-   * New Chat is desktop-only here. On a phone the header is the far corner of
-   * a full-height drawer, so the sidebar's highest-frequency action floats over
-   * the bottom of the list instead, inside the thumb zone — see
-   * `SidebarContent`.
-   */
-  const renderHeaderTools = (compact: boolean) => {
-    return (
-      <div className="flex items-center gap-0.5">
-        {!compact && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
-            onClick={onOpenNewSession}
-            aria-label={t('sessions.newSession')}
-            title={t('sessions.newSession')}
-          >
-            <MessageSquarePlus strokeWidth={1.5} className="h-3.5 w-3.5" />
-          </Button>
-        )}
-
+  /** New Session stays in the desktop header and the mobile thumb-zone footer. */
+  const renderHeaderTools = (compact: boolean) => (
+    <div className="flex items-center gap-0.5">
+      {!compact && (
         <Button
           variant="ghost"
           size="sm"
-          className={cn(
-            'rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground',
-            compact ? 'h-8 w-8 active:scale-95' : 'h-7 w-7',
-          )}
-          onClick={onCollapseSidebar}
-          aria-label={t('tooltips.hideSidebar')}
-          title={t('tooltips.hideSidebar')}
+          className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+          onClick={onOpenNewSession}
+          aria-label={t('sessions.newSession')}
+          title={t('sessions.newSession')}
         >
-          {/* Button applies [&_svg]:size-4. The mobile opener is a plain button
-              at 20px, so make this override explicit rather than letting the
-              shared default silently shrink the close glyph to 16px. */}
-          <PanelLeftClose strokeWidth={1.5} className={compact ? '!h-5 !w-5' : 'h-3.5 w-3.5'} />
+          <MessageSquarePlus strokeWidth={1.5} className="h-3.5 w-3.5" />
         </Button>
-      </div>
-    );
-  };
-
-  const renderContentSearchToggle = () =>
-    canSearchContents ? (
-      <button
-        type="button"
-        onClick={() => onSearchModeChange(isContentSearch ? 'projects' : 'conversations')}
-        aria-pressed={isContentSearch}
-        className={cn(
-          'flex w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left text-[11px] transition-colors',
-          isContentSearch
-            ? 'text-foreground'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-      >
-        <MessageSquare className="h-3 w-3 flex-shrink-0" />
-        <span className="truncate">
-          {isContentSearch
-            ? t('search.backToSessionNames', 'Search session names instead')
-            : t('search.searchContents', 'Search inside messages')}
-        </span>
-      </button>
-    ) : null;
-
-  const renderSearchInput = (compact: boolean) => (
-    <div className="relative">
-      <Search
-        className={cn(
-          'pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50',
-          compact ? 'h-4 w-4' : 'h-3.5 w-3.5',
-        )}
-      />
-      <Input
-        type="text"
-        placeholder={searchPlaceholder}
-        value={searchFilter}
-        onChange={(event) => onSearchFilterChange(event.target.value)}
-        className={cn(
-          'nav-search-input rounded-xl border-0 text-sm transition-all duration-200 placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0',
-          compact ? 'h-10 pl-10 pr-9' : 'h-9 pl-9 pr-14',
-        )}
-      />
-      {searchFilter ? (
-        <button
-          onClick={onClearSearchFilter}
-          aria-label={t('tooltips.clearSearch')}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 hover:bg-accent"
-        >
-          <X className={cn('text-muted-foreground', compact ? 'h-3.5 w-3.5' : 'h-3 w-3')} />
-        </button>
-      ) : (
-        !compact && (
-          <kbd
-            aria-hidden
-            title={t('tooltips.openCommandPalette')}
-            className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground md:inline-flex"
-          >
-            {MOD_KEY}
-            <span>K</span>
-          </kbd>
-        )
       )}
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn(
+          'rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground',
+          compact ? 'h-8 w-8 active:scale-95' : 'h-7 w-7',
+        )}
+        onClick={onCollapseSidebar}
+        aria-label={t('tooltips.hideSidebar')}
+        title={t('tooltips.hideSidebar')}
+      >
+        <PanelLeftClose strokeWidth={1.5} className={compact ? '!h-5 !w-5' : 'h-3.5 w-3.5'} />
+      </Button>
+    </div>
+  );
+
+  const renderAppBar = (compact: boolean) => (
+    <div className="app-bar justify-between gap-2 px-3">
+      {IS_PLATFORM ? (
+        <a
+          href="https://cloudcli.ai/dashboard"
+          className={cn(
+            'flex min-w-0 items-center gap-2.5 transition-opacity',
+            compact ? 'active:opacity-70' : 'hover:opacity-80',
+          )}
+          title={t('tooltips.viewEnvironments')}
+        >
+          {renderLogoBlock()}
+        </a>
+      ) : (
+        renderLogoBlock()
+      )}
+      {renderHeaderTools(compact)}
     </div>
   );
 
   return (
     <div className="flex-shrink-0">
-      {/* Desktop header */}
-      <div className="hidden md:block">
-        <div className="app-bar justify-between gap-2 px-3">
-          {IS_PLATFORM ? (
-            <a
-              href="https://cloudcli.ai/dashboard"
-              className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
-              title={t('tooltips.viewEnvironments')}
-            >
-              {renderLogoBlock()}
-            </a>
-          ) : (
-            renderLogoBlock()
+      <div className="hidden md:block">{renderAppBar(false)}</div>
+      <div className="md:hidden">{renderAppBar(true)}</div>
+
+      <div className="flex items-center gap-1 px-3 pb-2 pt-1">
+        <button
+          ref={browseButtonRef}
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={isBrowseMenuOpen}
+          aria-label={browseLabel}
+          title={browseLabel}
+          onClick={() => setIsBrowseMenuOpen((current) => !current)}
+          className={cn(
+            'sidebar-utility-hit-target flex h-8 min-w-0 max-w-28 flex-shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground active:bg-accent/60',
+            isSearchOpen && 'md:w-8 md:justify-center md:px-0',
           )}
+        >
+          <BrowseIcon className="h-3 w-3 flex-shrink-0" />
+          <span className={cn('truncate', isSearchOpen && 'md:hidden')}>{browseLabel}</span>
+          <ChevronDown className={cn(
+            'h-3 w-3 flex-shrink-0 transition-transform',
+            isBrowseMenuOpen && 'rotate-180',
+            isSearchOpen && 'md:hidden',
+          )} />
+        </button>
 
-          {renderHeaderTools(false)}
-        </div>
+        {isSearchOpen ? (
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder={searchPlaceholder}
+              value={searchFilter}
+              onChange={(event) => onSearchFilterChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  closeSearch();
+                }
+              }}
+              className={cn(
+                'nav-search-input h-8 rounded-lg border-0 pl-8 text-xs placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0',
+                canSearchContents ? 'pr-14' : 'pr-9',
+              )}
+            />
+            {canSearchContents && (
+              <button
+                type="button"
+                onClick={() => onSearchModeChange(isContentSearch ? 'projects' : 'conversations')}
+                aria-pressed={isContentSearch}
+                aria-label={isContentSearch
+                  ? t('search.backToSessionNames', 'Search session names instead')
+                  : t('search.searchContents', 'Search inside messages')}
+                title={isContentSearch
+                  ? t('search.backToSessionNames', 'Search session names instead')
+                  : t('search.searchContents', 'Search inside messages')}
+                className={cn(
+                  'absolute right-7 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md transition-colors',
+                  isContentSearch
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                )}
+              >
+                <MessageSquare className="h-3 w-3" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={closeSearch}
+              aria-label={t('tooltips.clearSearch')}
+              title={t('tooltips.clearSearch')}
+              className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ) : (
+          <span aria-hidden className="flex-1" />
+        )}
 
-        <div className="space-y-1 px-3 pb-2 pt-1">
-          {renderSearchInput(false)}
-          {renderContentSearchToggle()}
-        </div>
+        {!isSearchOpen && (
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(true)}
+            aria-label={t('tooltips.toggleSearch')}
+            title={t('tooltips.toggleSearch')}
+            className="sidebar-utility-hit-target flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground active:bg-accent/60"
+          >
+            <Search className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => onSearchModeChange(isArchiveOpen ? 'projects' : 'archived')}
+          aria-pressed={isArchiveOpen}
+          aria-label={t('actions.archive', 'Archive')}
+          title={t('actions.archive', 'Archive')}
+          className={cn(
+            'sidebar-utility-hit-target flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors',
+            isArchiveOpen
+              ? 'bg-primary/10 text-primary'
+              : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground active:bg-accent/60',
+          )}
+        >
+          <Archive className="h-3.5 w-3.5" />
+        </button>
       </div>
 
-      {/* Desktop divider */}
-      <div className="nav-divider hidden md:block" />
+      {isBrowseMenuOpen && browseButtonRef.current && (
+        <ContextMenuOverlay
+          anchor={anchorFromElement(browseButtonRef.current, { x: 0, y: 0 })}
+          onDismiss={() => setIsBrowseMenuOpen(false)}
+          ariaLabel={`${t('search.modeProjects')} / ${t('search.modeConversations')}`}
+          className="sidebar-context-menu min-w-40 rounded-xl py-1"
+        >
+          {(['projects', 'sessions'] as const).map((mode) => {
+            const isSelected = browseMode === mode;
+            const Icon = mode === 'projects' ? Folder : MessageSquare;
+            const label = mode === 'projects'
+              ? t('search.modeProjects')
+              : t('search.modeConversations');
 
-      {/* Mobile header */}
-      <div className="md:hidden">
-        {/* Same bar as the main header's, so the collapse button here and the
-            open button there share a centreline. */}
-        <div className="app-bar justify-between gap-2 px-3">
-          {IS_PLATFORM ? (
-            <a
-              href="https://cloudcli.ai/dashboard"
-              className="flex min-w-0 items-center gap-2.5 transition-opacity active:opacity-70"
-              title={t('tooltips.viewEnvironments')}
-            >
-              {renderLogoBlock()}
-            </a>
-          ) : (
-            renderLogoBlock()
-          )}
+            return (
+              <button
+                key={mode}
+                type="button"
+                role="menuitem"
+                aria-current={isSelected ? 'true' : undefined}
+                onClick={() => chooseBrowseMode(mode)}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-accent active:bg-accent"
+              >
+                <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                  {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                </span>
+                <Icon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                <span className={cn('truncate', isSelected && 'font-medium')}>{label}</span>
+              </button>
+            );
+          })}
+        </ContextMenuOverlay>
+      )}
 
-          {renderHeaderTools(true)}
-        </div>
-
-        <div className="space-y-1 px-3 pb-2 pt-1">
-          {renderSearchInput(true)}
-          {renderContentSearchToggle()}
-        </div>
-      </div>
-
-      {/* Mobile divider */}
-      <div className="nav-divider md:hidden" />
+      <div className="nav-divider" />
     </div>
   );
 }

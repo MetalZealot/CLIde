@@ -4,7 +4,10 @@ import type { LucideIcon } from 'lucide-react';
 
 import { cn } from '../../../../lib/utils';
 
-import { SIDEBAR_SECTION_HEADER_CLASS } from './sectionHeaderStyles';
+const SECTION_HEADER_CLASS = cn(
+  'flex w-full items-center gap-1.5 px-3 pb-0.5 pt-3 md:px-2 md:pb-0 md:pt-2',
+  'text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70',
+);
 
 type SidebarSectionHeaderProps = {
   label: string;
@@ -49,7 +52,7 @@ export default function SidebarSectionHeader({
   );
 
   if (!onToggle) {
-    return <div className={SIDEBAR_SECTION_HEADER_CLASS}>{content}</div>;
+    return <div className={SECTION_HEADER_CLASS}>{content}</div>;
   }
 
   return (
@@ -57,7 +60,7 @@ export default function SidebarSectionHeader({
       type="button"
       onClick={onToggle}
       aria-expanded={!isCollapsed}
-      className={cn(SIDEBAR_SECTION_HEADER_CLASS, 'transition-colors hover:text-foreground')}
+      className={cn(SECTION_HEADER_CLASS, 'transition-colors hover:text-foreground')}
     >
       {content}
     </button>

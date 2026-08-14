@@ -8,17 +8,18 @@ import type {
   ActivitySession,
   ActivityState,
   ActivitySummary,
+  BrowseSession,
   CheckoutSession,
   PinnedSession,
   RepositoryEntry,
   RepositoryViewOptions,
+  SidebarBrowseMode,
   SessionWithProvider,
 } from '../../types/types';
 import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 
 import SidebarRepositoryItem from './SidebarRepositoryItem';
 import SidebarProjectsState from './SidebarProjectsState';
-import SidebarProjectPicker from './SidebarProjectPicker';
 import SidebarSectionHeader from './SidebarSectionHeader';
 import SidebarSessionItem from './SidebarSessionItem';
 import SidebarStatusIndicator from './SidebarStatusIndicator';
@@ -28,11 +29,8 @@ export type SidebarProjectListProps = {
   filteredProjects: Project[];
   /** `filteredProjects` collapsed to one row per repository (ADR 0016). */
   repositoryEntries: RepositoryEntry[];
-  /** Every repository row, unaffected by session search or project scope. */
-  projectPickerEntries: RepositoryEntry[];
-  /** Null means every repository row is visible. */
-  projectFilterKey: string | null;
-  onProjectFilterSelect: (entryKey: string | null) => void;
+  browseMode: SidebarBrowseMode;
+  browseSessions: BrowseSession[];
   /** Pinned sessions, which live here instead of inside their own row. */
   pinnedSessions: PinnedSession[];
   /** Transient activity is copied here and remains inside repository rows. */
@@ -94,9 +92,8 @@ export default function SidebarProjectList({
   projects,
   filteredProjects,
   repositoryEntries,
-  projectPickerEntries,
-  projectFilterKey,
-  onProjectFilterSelect,
+  browseMode,
+  browseSessions,
   activitySessions,
   activitySummary,
   isActivitySectionCollapsed,
@@ -217,9 +214,9 @@ export default function SidebarProjectList({
   );
 
   /** A flat-section session labelled with the repository it belongs to. */
-  const renderSectionSession = (
-    { session, checkout, branchLabel, repositoryName }: PinnedSession | ActivitySession,
-    facet: 'activity' | 'pinned',
+  const renderFlatSession = (
+    { session, checkout, branchLabel, repositoryName }: PinnedSession | ActivitySession | BrowseSession,
+    facet: 'activity' | 'pinned' | 'browse',
   ) => (
     <SidebarSessionItem
       key={`${facet}:${session.id}`}
@@ -264,8 +261,8 @@ export default function SidebarProjectList({
     <div className="md:space-y-1">
       {/*
         Activity is a transient copy while Pinned is a durable move. The
-        project picker scopes only the repository rows below it; the two global
-        sections keep background status and durable shortcuts visible.
+        browse mode changes only the list below it; the two global sections
+        keep background status and durable shortcuts visible.
       */}
       {showActivitySection && (
         <>
@@ -276,7 +273,7 @@ export default function SidebarProjectList({
             isCollapsed={isActivitySectionCollapsed}
             onToggle={onToggleActivitySection}
           />
-          {!isActivitySectionCollapsed && activitySessions.map((session) => renderSectionSession(session, 'activity'))}
+          {!isActivitySectionCollapsed && activitySessions.map((session) => renderFlatSession(session, 'activity'))}
         </>
       )}
 
@@ -289,25 +286,26 @@ export default function SidebarProjectList({
             isCollapsed={isPinnedSectionCollapsed}
             onToggle={onTogglePinnedSection}
           />
-          {!isPinnedSectionCollapsed && pinnedSessions.map((session) => renderSectionSession(session, 'pinned'))}
+          {!isPinnedSectionCollapsed && pinnedSessions.map((session) => renderFlatSession(session, 'pinned'))}
         </>
       )}
 
-      <SidebarProjectPicker
-        entries={projectPickerEntries}
-        selectedEntryKey={projectFilterKey}
-        onSelect={onProjectFilterSelect}
-        t={t}
-      />
-
-      {!showProjects ? state : repositoryEntries.map(renderEntry)}
+      {!showProjects ? state : browseMode === 'projects' ? (
+        repositoryEntries.map(renderEntry)
+      ) : browseSessions.length > 0 ? (
+        browseSessions.map((session) => renderFlatSession(session, 'browse'))
+      ) : (
+        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          {t('sessions.noSessions')}
+        </div>
+      )}
 
       {/*
         Creating a project is the last thing in the list it adds to, faded
         because it is an affordance rather than a project. It stays visible even
         with no projects at all — that is when it matters most.
       */}
-      {!isLoading && (
+      {!isLoading && browseMode === 'projects' && (
         <button
           type="button"
           onClick={onCreateProject}

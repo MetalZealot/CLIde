@@ -3,6 +3,7 @@ import type { SessionActivityMap } from '../../../hooks/useSessionProtection';
 
 export type ProjectSortOrder = 'name' | 'date';
 export type SidebarSearchMode = 'projects' | 'conversations' | 'archived';
+export type SidebarBrowseMode = 'projects' | 'sessions';
 
 /** Field the sessions under one repository row are ordered by. */
 export type SessionSortKey = 'date' | 'title' | 'worktree';
@@ -88,6 +89,11 @@ export type CheckoutSession = {
  * row, so it has to name the repository it came from itself.
  */
 export type PinnedSession = CheckoutSession & {
+  repositoryName: string;
+};
+
+/** An unpinned session in the flat Sessions view. */
+export type BrowseSession = CheckoutSession & {
   repositoryName: string;
 };
 

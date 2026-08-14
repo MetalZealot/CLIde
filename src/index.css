@@ -306,6 +306,19 @@
     background: hsl(var(--background));
     box-shadow: 0 0 0 2px hsl(var(--nav-input-focus-ring));
   }
+
+  /* Fill the utility row's reserved vertical space without enlarging its controls. */
+  .sidebar-utility-hit-target {
+    position: relative;
+  }
+
+  .sidebar-utility-hit-target::before {
+    position: absolute;
+    inset-inline: 0;
+    top: -0.25rem;
+    bottom: -0.5rem;
+    content: '';
+  }
   
   /* Modal and dropdown transitions */
   .modal-transition {

@@ -1,5 +1,6 @@
 import { ArrowUpCircle, AlertTriangle, MessageSquarePlus } from 'lucide-react';
 import type { TFunction } from 'i18next';
+
 import { IS_PLATFORM } from '../../../../constants/config';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
 
@@ -15,8 +16,6 @@ type SidebarFooterProps = {
   currentVersion: string;
   onShowVersionModal: () => void;
   onShowSettings: (screenId?: string) => void;
-  isArchiveOpen: boolean;
-  onShowArchive: () => void;
   onOpenNewSession: () => void;
   t: TFunction;
 };
@@ -29,8 +28,6 @@ export default function SidebarFooter({
   currentVersion,
   onShowVersionModal,
   onShowSettings,
-  isArchiveOpen,
-  onShowArchive,
   onOpenNewSession,
   t,
 }: SidebarFooterProps) {
@@ -104,8 +101,6 @@ export default function SidebarFooter({
       <div className="flex items-center justify-between gap-2 px-2 py-1.5">
         <SidebarAccountMenu
           onShowSettings={onShowSettings}
-          isArchiveOpen={isArchiveOpen}
-          onShowArchive={onShowArchive}
           t={t}
         />
 

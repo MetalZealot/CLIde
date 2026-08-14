@@ -13,6 +13,7 @@ import type {
   ProjectSortOrder,
   RepositoryEntry,
   RepositoryViewOptions,
+  SidebarBrowseMode,
   SidebarSearchMode,
   SessionDeleteConfirmation,
   SessionWithProvider,
@@ -21,9 +22,9 @@ import {
   applyRepositoryViewOptions,
   buildRepositoryEntries,
   collectActivitySessions,
+  collectBrowseSessions,
   collectPinnedSessions,
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
-  filterProjectsByRepositoryEntry,
   filterProjectsBySessionTitle,
   getAllSessions,
   getUnpinnedCheckoutSessions,
@@ -117,12 +118,23 @@ type UseSidebarControllerArgs = {
 export const SESSION_PAGE_SIZE = 5;
 
 const ACTIVITY_SECTION_COLLAPSED_STORAGE_KEY = 'sidebar-activity-section-collapsed';
+const SIDEBAR_BROWSE_MODE_STORAGE_KEY = 'sidebar-browse-mode';
 
 const readActivitySectionCollapsed = (): boolean => {
   try {
     return localStorage.getItem(ACTIVITY_SECTION_COLLAPSED_STORAGE_KEY) === 'true';
   } catch {
     return false;
+  }
+};
+
+const readSidebarBrowseMode = (): SidebarBrowseMode => {
+  try {
+    return localStorage.getItem(SIDEBAR_BROWSE_MODE_STORAGE_KEY) === 'sessions'
+      ? 'sessions'
+      : 'projects';
+  } catch {
+    return 'projects';
   }
 };
 
@@ -167,9 +179,7 @@ export function useSidebarController({
     readActivitySectionCollapsed,
   );
   const [isPinnedSectionCollapsed, setIsPinnedSectionCollapsed] = useState(false);
-  // Null keeps the ordinary all-projects view. A key scopes only the repository
-  // rows; Activity and Pinned stay global so background work never disappears.
-  const [projectFilterKey, setProjectFilterKey] = useState<string | null>(null);
+  const [browseMode, setBrowseMode] = useState<SidebarBrowseMode>(readSidebarBrowseMode);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
   const [editingSession, setEditingSession] = useState<string | null>(null);
@@ -441,23 +451,12 @@ export function useSidebarController({
 
   const handleSessionClick = useCallback(
     (session: SessionWithProvider, projectId: string) => {
-      // In a focused Projects view, following a global Activity/Pinned result
-      // moves that focus to the session's repository. "All projects" remains
-      // all: ordinary navigation must not silently turn the filter on.
-      setProjectFilterKey((currentKey) => {
-        if (currentKey === null) {
-          return null;
-        }
-
-        const project = projects.find((candidate) => candidate.projectId === projectId);
-        return project ? repositoryEntryKey(project) : currentKey;
-      });
       // Tag the session with its owning projectId so downstream handlers
       // can correlate it with the selectedProject in the app state.
       onSessionSelect({ ...session, __projectId: projectId });
       clearSearchFilter();
     },
-    [clearSearchFilter, onSessionSelect, projects],
+    [clearSearchFilter, onSessionSelect],
   );
 
   const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
@@ -677,44 +676,14 @@ export function useSidebarController({
     [debouncedSearchQuery, sortedProjects],
   );
 
-  // The picker is independent of session search. Searching inside one project
-  // must not make the other choices disappear from the menu.
-  const projectPickerEntries = useMemo(
-    () => buildRepositoryEntries(sortedProjects),
-    [sortedProjects],
-  );
-
-  useEffect(() => {
-    if (
-      projectFilterKey !== null &&
-      !projectPickerEntries.some((entry) => entry.key === projectFilterKey)
-    ) {
-      setProjectFilterKey(null);
+  const selectBrowseMode = useCallback((mode: SidebarBrowseMode) => {
+    setBrowseMode(mode);
+    try {
+      localStorage.setItem(SIDEBAR_BROWSE_MODE_STORAGE_KEY, mode);
+    } catch {
+      // The view still changes when storage is unavailable.
     }
-  }, [projectFilterKey, projectPickerEntries]);
-
-  const selectProjectFilter = useCallback((entryKey: string | null) => {
-    setProjectFilterKey(entryKey);
-
-    if (entryKey === null) {
-      return;
-    }
-
-    setExpandedProjects((previous) => {
-      if (previous.has(entryKey)) {
-        return previous;
-      }
-
-      const next = new Set(previous);
-      next.add(entryKey);
-      return next;
-    });
   }, []);
-
-  const scopedFilteredProjects = useMemo(
-    () => filterProjectsByRepositoryEntry(filteredProjects, projectFilterKey),
-    [filteredProjects, projectFilterKey],
-  );
 
   /**
    * True while a typed query is narrowing rows to matching sessions. Rows open
@@ -771,16 +740,17 @@ export function useSidebarController({
    * as a dead end.
    */
   const repositoryEntries = useMemo(() => {
-    const searchableEntries = !isSessionSearchActive
+    return !isSessionSearchActive
       ? allRepositoryEntries
       : allRepositoryEntries.filter(
       (entry) => getUnpinnedCheckoutSessions(entry).length > 0,
     );
+  }, [allRepositoryEntries, isSessionSearchActive]);
 
-    return projectFilterKey === null
-      ? searchableEntries
-      : searchableEntries.filter((entry) => entry.key === projectFilterKey);
-  }, [allRepositoryEntries, isSessionSearchActive, projectFilterKey]);
+  const browseSessions = useMemo(
+    () => collectBrowseSessions(repositoryEntries),
+    [repositoryEntries],
+  );
 
   /**
    * A sorted or filtered row loads every session it has before it answers.
@@ -1231,9 +1201,6 @@ export function useSidebarController({
 
   const handleProjectSelect = useCallback(
     (project: Project) => {
-      setProjectFilterKey((currentKey) =>
-        currentKey === null ? null : repositoryEntryKey(project),
-      );
       onProjectSelect(project);
       setCurrentProject(project);
     },
@@ -1366,11 +1333,11 @@ export function useSidebarController({
     deleteConfirmation,
     sessionDeleteConfirmation,
     showVersionModal,
-    filteredProjects: scopedFilteredProjects,
+    filteredProjects,
     repositoryEntries,
-    projectPickerEntries,
-    projectFilterKey,
-    selectProjectFilter,
+    browseMode,
+    selectBrowseMode,
+    browseSessions,
     activitySessions,
     activitySummary,
     isActivitySectionCollapsed,

@@ -8,9 +8,9 @@ import {
   applyRepositoryViewOptions,
   buildRepositoryEntries,
   collectActivitySessions,
+  collectBrowseSessions,
   collectPinnedSessions,
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
-  filterProjectsByRepositoryEntry,
   filterProjectsBySessionTitle,
   getCheckoutContextLabel,
   getUnpinnedCheckoutSessions,
@@ -139,23 +139,6 @@ test('the row key never depends on which checkouts survive a filter', () => {
   assert.equal(repositoryEntryKey(plainFolder), 'p-home', 'a non-repo folder keys on its own id');
 });
 
-test('project scope keeps every checkout belonging to the selected repository row', () => {
-  const scoped = filterProjectsByRepositoryEntry(
-    [mainCheckout, worktreeA, soloRepository, worktreeB],
-    CLOUDCLI_REPO,
-  );
-
-  assert.deepEqual(
-    scoped.map((item) => item.projectId),
-    ['p-main', 'p-tts', 'p-codex'],
-  );
-  assert.equal(
-    filterProjectsByRepositoryEntry([mainCheckout, soloRepository], null).length,
-    2,
-    'the All projects choice must preserve the complete list',
-  );
-});
-
 test('sessions from every checkout merge into one activity-ordered list', () => {
   const [entry] = buildRepositoryEntries([mainCheckout, worktreeA, worktreeB]);
   const merged = mergeCheckoutSessions(entry);
@@ -261,6 +244,26 @@ test('Pinned gathers across repositories, newest first, naming each one', () => 
     ['oney-index', 'cloudcli-wt-tts'],
   );
   assert.equal(pinned[1].checkout.projectId, 'p-tts', 'selecting it must open its own checkout');
+});
+
+test('Sessions view flattens repositories by recency and leaves pinned rows global', () => {
+  const pinnedHere = project({
+    ...mainCheckout,
+    sessions: [session('s-pinned', '2026-08-05T10:00:00Z', { isStarred: true })],
+  });
+  const entries = buildRepositoryEntries([pinnedHere, worktreeA, soloRepository]);
+
+  const browseSessions = collectBrowseSessions(entries);
+
+  assert.deepEqual(
+    browseSessions.map(({ session: item }) => item.id),
+    ['s-tts-new', 's-oney'],
+    'the flat list is chronological across repositories and excludes Pinned',
+  );
+  assert.deepEqual(
+    browseSessions.map(({ repositoryName }) => repositoryName),
+    ['cloudcli', 'oney-index'],
+  );
 });
 
 test('Activity copies sessions and orders blocked, running, then unread', () => {

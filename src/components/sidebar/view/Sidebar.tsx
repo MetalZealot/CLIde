@@ -11,6 +11,7 @@ import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import type { Project, LLMProvider } from '../../../types/app';
 import type {
   RepositoryEntry,
+  SidebarBrowseMode,
   SidebarProps,
   SessionWithProvider,
 } from '../types/types';
@@ -94,9 +95,9 @@ function Sidebar({
     showVersionModal,
     filteredProjects,
     repositoryEntries,
-    projectPickerEntries,
-    projectFilterKey,
-    selectProjectFilter,
+    browseMode,
+    selectBrowseMode,
+    browseSessions,
     activitySessions,
     activitySummary,
     isActivitySectionCollapsed,
@@ -214,6 +215,13 @@ function Sidebar({
   const exitSelection = () => {
     setSessionSelection(null);
     setIsBatchDeleteOpen(false);
+  };
+
+  const handleBrowseModeChange = (mode: SidebarBrowseMode) => {
+    exitSelection();
+    selectBrowseMode(mode);
+    setSearchMode('projects');
+    clearConversationResults();
   };
 
   const toggleBatchSelected = (sessionId: string) => {
@@ -446,9 +454,8 @@ function Sidebar({
     projects,
     filteredProjects,
     repositoryEntries,
-    projectPickerEntries,
-    projectFilterKey,
-    onProjectFilterSelect: selectProjectFilter,
+    browseMode,
+    browseSessions,
     activitySessions,
     activitySummary,
     isActivitySectionCollapsed,
@@ -607,6 +614,8 @@ function Sidebar({
             archivedSessions={archivedSessions}
             archivedSessionsCount={archivedSessionsCount}
             isArchivedSessionsLoading={isArchivedSessionsLoading}
+            browseMode={browseMode}
+            onBrowseModeChange={handleBrowseModeChange}
             searchFilter={searchFilter}
             onSearchFilterChange={setSearchFilter}
             onClearSearchFilter={() => setSearchFilter('')}

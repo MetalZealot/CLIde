@@ -24,9 +24,13 @@ effectively unbounded, which makes it the right default home for a new idea.
 - Logo and wordmark; links to the dashboard only under `IS_PLATFORM`
 - New Session — desktop only; the mobile drawer puts it in the footer thumb zone
 - Collapse sidebar
-- Search input, with clear button and a `⌘K`/`Ctrl K` hint
-- "Search inside messages" — appears once the query reaches 2 characters, and
-  switches `searchMode` rather than opening a place
+- Transparent 44px utility block: Projects/Sessions dropdown · right-aligned
+  Search and Archive buttons; Search expands into a shaded field between them.
+  Its visible 32px controls fill the 44px hit area through the reserved 4px
+  above and 8px below; the open state compacts the selector to its icon in the
+  288px desktop sidebar.
+- "Search inside messages" — appears inside the expanded field once the query
+  reaches 2 characters, and switches `searchMode` rather than opening a place
 
 **Body** — three mutually exclusive modes off one `searchMode`
 (`SidebarContent.tsx`): the project list, conversation search results, and
@@ -38,7 +42,6 @@ Archive.
 |---|---|
 | Activity section | Icon, label, per-state count roll-up, collapse. A transient **copy** — rows also stay in their repository |
 | Pinned section | Icon, label, count, collapse. A durable **move** — subtracted from repository session counts |
-| Project picker | Scope filter wearing the "Projects" section label. Scopes repository rows only, never Activity or Pinned |
 | Repository rows | One per repository, not per directory (ADR 0016) |
 | New Project | Last in the list it adds to, deliberately faded |
 
@@ -57,7 +60,8 @@ provider logo · kebab (desktop). Desktop is a real `<a href>` for modified
 clicks, while right-click opens the session actions menu.
 
 **Footer** (`SidebarFooter.tsx`) — restart-required banner · update banner ·
-account button · New Session (mobile only) · version and OSS line (desktop).
+account button (Account, Settings, Log out) · New Session (mobile only) · version
+and OSS line (desktop).
 
 **Collapsed rail** (`SidebarCollapsed.tsx`) — expand, Settings, activity
 summary, version.
@@ -90,8 +94,8 @@ create form, which then opens the new checkout in a new session.
 
 ## Tier 3 — containers
 
-Settings and Account (via the account menu), Archive (a body mode, entered from
-the account menu), the worktree manager modal, project delete and session delete
+Settings and Account (via the account menu), Archive (a body mode entered from
+the utility row), the worktree manager modal, project delete and session delete
 confirmations, and the version modal.
 
 ## Breakpoint parity
@@ -102,9 +106,9 @@ can silently drop an affordance on one side, while a shared one can carry
 sizing tuned for the other.
 
 **Forked** — `SidebarHeader`, `SidebarFooter`, `SidebarRepositoryItem`,
-`SidebarSessionItem`. **Shared** — the project list, project picker, section
-headers, session list, archive view, conversation results, every menu, and the
-worktree manager. `SidebarCollapsed` is desktop-only by nature.
+`SidebarSessionItem`. **Shared** — the project list, utility row, section headers,
+session list, archive view, conversation results, every menu, and the worktree
+manager. `SidebarCollapsed` is desktop-only by nature.
 
 | Affordance | Mobile | Desktop | Status |
 |---|---|---|---|
@@ -129,18 +133,11 @@ It carries a fixture of that original shape as a negative control.
 
 ## Known drift
 
-Four places where the tiers above are not what the code does. Each is a
+One place where the tiers above are not what the code does. It is a
 [TODO](../TODO.md) item under "Sidebar information architecture".
 
-- **Archive is a body mode entered from an identity control.** It is a view of
-  your sessions living next to Log out. ADR 0030 placed it in the footer beside
-  Settings; the account-menu consolidation fixed the footer and left Archive
-  in the one container that is not about sessions.
 - **Activity and Pinned are visually identical and behave oppositely** — copy
   versus move, with no cue for which.
-- **View state has two forms at two levels** — the project picker is a dropdown
-  wearing a section header; the per-row view lives in that row's actions menu
-  and surfaces only as a cue.
 
 ## Dead surface
 
