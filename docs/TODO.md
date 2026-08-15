@@ -55,9 +55,7 @@ main checkout only).
 
 Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md). Decide the tier before designing the control.
 
-- [ ] **The project header keeps its aggregate status symbol while expanded** — same state shown twice when the session carrying it is on screen. Condition on *rendered*, not expanded: the pagination cap and the sticky header both mean expanded ≠ visible, and `5faeb40` exists to signal a finished run you cannot see. Bundle with the Activity-section rework below. **S**
 - [ ] **Adopt a tier-1 budget, or decide not to.** The map names three tiers; nothing yet says the permanent tier is fixed-size, so every new control still only has to clear "is this useful?" — which it always does. If adopted, it's an ADR. **S — decision, blocks the three below**
-- [ ] **Activity and Pinned look identical and behave oppositely** — Activity copies a session while leaving it in its repository row, Pinned moves it and subtracts it from the row's count. Both render as `SidebarSectionHeader` + flat rows. Needs one cue, not a third section. **S**
 - [ ] **A repository row tap does different things per breakpoint** — mobile `onClick` only expands, desktop also selects the project (`SidebarRepositoryItem`, `toggleProject` vs `selectAndToggleProject`). No comment says why. Either is defensible; the divergence being undocumented is not. Parity table: [the sidebar map](maps/sidebar-surface.md). **S**
 - [ ] **The version is unreachable on mobile** — the OSS/version line is `hidden md:block` in the footer, and the version modal only opens from the update banner. A phone with no update pending can't see what it's running. **S**
 - [ ] **Session count reads "3 sessions" on mobile and "3" on desktop** from the same `getSessionCountDisplay`. Pick one. **S**

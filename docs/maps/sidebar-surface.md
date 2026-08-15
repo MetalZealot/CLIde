@@ -24,25 +24,24 @@ effectively unbounded, which makes it the right default home for a new idea.
 - Logo and wordmark; links to the dashboard only under `IS_PLATFORM`
 - New Session — desktop only; the mobile drawer puts it in the footer thumb zone
 - Collapse sidebar
-- Transparent 44px utility block: Projects/Sessions dropdown · right-aligned
-  Search and Archive buttons; Search expands into a shaded field between them.
+- Transparent 44px utility block: Projects/Sessions/Archive dropdown ·
+  right-aligned Search and contextual Filter buttons; Search expands into a
+  shaded field between them, while Filter is absent in Archive.
   Its visible 32px controls fill the 44px hit area through the reserved 4px
   above and 8px below; the open state compacts the selector to its icon in the
   288px desktop sidebar.
 - "Search inside messages" — appears inside the expanded field once the query
   reaches 2 characters, and switches `searchMode` rather than opening a place
 
-**Body** — three mutually exclusive modes off one `searchMode`
-(`SidebarContent.tsx`): the project list, conversation search results, and
-Archive.
+**Body** — Projects, Sessions, and Archive are view destinations; an expanded
+query can temporarily replace either active list with conversation results.
 
 **Project list**, in render order (`SidebarProjectList.tsx`)
 
 | Element | Notes |
 |---|---|
-| Activity section | Icon, label, per-state count roll-up, collapse. A transient **copy** — rows also stay in their repository |
-| Pinned section | Icon, label, count, collapse. A durable **move** — subtracted from repository session counts |
-| Repository rows | One per repository, not per directory (ADR 0016) |
+| Repository rows | One per repository, not per directory (ADR 0016); pinned sessions lead each row's own list |
+| Sessions view | One flat cross-repository list; pinned sessions lead without a separate section |
 | New Project | Last in the list it adds to, deliberately faded |
 
 **Repository row** (`SidebarRepositoryItem.tsx`) — accent strip · display name ·
@@ -55,7 +54,7 @@ controls of its own.
 
 **Session row** (`SidebarSessionItem.tsx`) — pin · name (`font-medium` marks
 unread and nothing else) · status symbol **or** relative age, never both ·
-message-count badge · project label (flat sections only) · branch badge ·
+message-count badge · project label (Sessions view only) · branch badge ·
 provider logo · kebab (desktop). Desktop is a real `<a href>` for modified
 clicks, while right-click opens the session actions menu.
 
@@ -68,34 +67,38 @@ summary, version.
 
 ## Tier 2 — anchored menus
 
-All three are built in `Sidebar.tsx` and rendered through the one
-`ContextMenuOverlay` (ADR 0009).
+Row-scoped menus are built in `Sidebar.tsx`; the header owns the global view
+menu. All use `ContextMenuOverlay` (ADR 0009).
 
 | Menu | Opened from | Items |
 |---|---|---|
-| Session actions | Long-press, kebab, right-click | Pin · Rename · Copy session ID ‖ Select… (repository rows only) ‖ Archive · Delete |
+| Session actions | Long-press, kebab, right-click | Pin · Rename · Copy session ID ‖ Select… ‖ Archive · Delete |
 | Repository actions | Long-press, kebab, right-click | Rename · Customize · Sort and filter sessions · Worktrees ‖ Archive · Delete |
-| View | Repository actions, or the row's "Filtered" cue | Sort by date, title, or worktree — retap the active one to reverse it · filter by worktree · Reset |
+| Global view | Header Filter | Projects: sort by name or date · Sessions: sort by date, title, or project; filter by project/worktree · Reset |
+| Repository session view | Repository actions, or the row's "Filtered" cue | Sort by date, title, or worktree — retap the active one to reverse it · filter by worktree · Reset |
 
-**Select…** puts one repository row's list into batch mode, opening with the
-row it was invoked on ticked. Rows become tick boxes — no navigation, no menu,
-no rename — and `SidebarSelectionBar` replaces the footer with the count,
+**Select…** puts the visible list into batch mode, opening with the row it was
+invoked on ticked. In Projects view that scope is one repository row; in Sessions
+view it is the complete flat list. Rows become tick boxes — no navigation, no
+menu, no rename — and `SidebarSelectionBar` replaces the footer with the count,
 Archive, Delete, and Cancel. Delete confirms with the count; Archive does not,
-being recoverable. Selection never spans two repositories, and does not survive
-collapsing the row.
+being recoverable. A Projects-view selection never spans two repositories and
+does not survive collapsing its row.
 
 Repository actions target the **lead checkout**, so a merged row keeps one
 identity however many worktrees it has. Accent colour and the view menu both
 open from it at the same anchor the menu occupied.
 
-Sort and filter has no permanent control: a default view has nothing to say, and
-a non-default one says it on the row itself. Adding a worktree is the manager's
-create form, which then opens the new checkout in a new session.
+The header Filter affects only the active Projects or Sessions view. Project
+sorting persists per browser; the global Sessions options and repository
+options are in memory. A non-default row says "Filtered" on itself. Adding a
+worktree is the manager's create form, which then opens the new checkout in a
+new session.
 
 ## Tier 3 — containers
 
-Settings and Account (via the account menu), Archive (a body mode entered from
-the utility row), the worktree manager modal, project delete and session delete
+Settings and Account (via the account menu), Archive (a body view entered from
+the view menu), the worktree manager modal, project delete and session delete
 confirmations, and the version modal.
 
 ## Breakpoint parity
@@ -106,8 +109,8 @@ can silently drop an affordance on one side, while a shared one can carry
 sizing tuned for the other.
 
 **Forked** — `SidebarHeader`, `SidebarFooter`, `SidebarRepositoryItem`,
-`SidebarSessionItem`. **Shared** — the project list, utility row, section headers,
-session list, archive view, conversation results, every menu, and the worktree
+`SidebarSessionItem`. **Shared** — the project list, utility row, session list,
+archive view, conversation results, every menu, and the worktree
 manager. `SidebarCollapsed` is desktop-only by nature.
 
 | Affordance | Mobile | Desktop | Status |
@@ -130,14 +133,6 @@ browser that misreports itself as a fine pointer.
 parses every `.tsx` under `src/` and fails on an element that its own container
 hides at the other breakpoint — the shape that kept `TaskIndicator` off screen.
 It carries a fixture of that original shape as a negative control.
-
-## Known drift
-
-One place where the tiers above are not what the code does. It is a
-[TODO](../TODO.md) item under "Sidebar information architecture".
-
-- **Activity and Pinned are visually identical and behave oppositely** — copy
-  versus move, with no cue for which.
 
 ## Dead surface
 

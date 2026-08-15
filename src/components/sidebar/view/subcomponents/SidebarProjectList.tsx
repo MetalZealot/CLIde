@@ -1,28 +1,23 @@
 import { useEffect } from 'react';
-import { Activity, FolderPlus, Pin } from 'lucide-react';
+import { FolderPlus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type {
-  ActivitySession,
-  ActivityState,
-  ActivitySummary,
   BrowseSession,
   CheckoutSession,
-  PinnedSession,
   RepositoryEntry,
   RepositoryViewOptions,
   SidebarBrowseMode,
+  SessionSelectionScope,
   SessionWithProvider,
 } from '../../types/types';
 import type { ContextMenuAnchor } from '../../../../shared/view/ui';
 
 import SidebarRepositoryItem from './SidebarRepositoryItem';
 import SidebarProjectsState from './SidebarProjectsState';
-import SidebarSectionHeader from './SidebarSectionHeader';
 import SidebarSessionItem from './SidebarSessionItem';
-import SidebarStatusIndicator from './SidebarStatusIndicator';
 
 export type SidebarProjectListProps = {
   projects: Project[];
@@ -31,15 +26,6 @@ export type SidebarProjectListProps = {
   repositoryEntries: RepositoryEntry[];
   browseMode: SidebarBrowseMode;
   browseSessions: BrowseSession[];
-  /** Pinned sessions, which live here instead of inside their own row. */
-  pinnedSessions: PinnedSession[];
-  /** Transient activity is copied here and remains inside repository rows. */
-  activitySessions: ActivitySession[];
-  activitySummary: ActivitySummary;
-  isActivitySectionCollapsed: boolean;
-  onToggleActivitySection: () => void;
-  isPinnedSectionCollapsed: boolean;
-  onTogglePinnedSection: () => void;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   isLoading: boolean;
@@ -74,16 +60,15 @@ export type SidebarProjectListProps = {
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onCreateProject: () => void;
   onOpenProjectActionsMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
-  /** `entryKey` is absent for the flat Activity/Pinned rows, which own no list. */
   onOpenSessionActionsMenu?: (
     session: SessionWithProvider,
     anchor: ContextMenuAnchor,
-    entryKey?: string,
+    selectionScope?: SessionSelectionScope,
   ) => void;
   /** `project:<entryKey>` / `session:<sessionId>` of the row whose menu is open. */
   activeContextMenuKey?: string | null;
-  /** The one repository row in batch mode, and what is ticked in it. */
-  sessionSelection: { entryKey: string; ids: ReadonlySet<string> } | null;
+  /** The visible list in batch mode, and what is ticked in it. */
+  sessionSelection: { scope: SessionSelectionScope; ids: ReadonlySet<string> } | null;
   onToggleBatchSelected: (sessionId: string) => void;
   t: TFunction;
 };
@@ -94,13 +79,6 @@ export default function SidebarProjectList({
   repositoryEntries,
   browseMode,
   browseSessions,
-  activitySessions,
-  activitySummary,
-  isActivitySectionCollapsed,
-  onToggleActivitySection,
-  pinnedSessions,
-  isPinnedSectionCollapsed,
-  onTogglePinnedSection,
   selectedProject,
   selectedSession,
   isLoading,
@@ -207,93 +185,61 @@ export default function SidebarProjectList({
       onOpenProjectActionsMenu={onOpenProjectActionsMenu}
       onOpenSessionActionsMenu={onOpenSessionActionsMenu}
       activeContextMenuKey={activeContextMenuKey}
-      batchSelectedIds={sessionSelection?.entryKey === entry.key ? sessionSelection.ids : null}
+      batchSelectedIds={
+        sessionSelection?.scope.kind === 'repository'
+        && sessionSelection.scope.entryKey === entry.key
+          ? sessionSelection.ids
+          : null
+      }
       onToggleBatchSelected={onToggleBatchSelected}
       t={t}
     />
   );
 
-  /** A flat-section session labelled with the repository it belongs to. */
+  /** A flat Sessions-view row labelled with the repository it belongs to. */
   const renderFlatSession = (
-    { session, checkout, branchLabel, repositoryName }: PinnedSession | ActivitySession | BrowseSession,
-    facet: 'activity' | 'pinned' | 'browse',
-  ) => (
-    <SidebarSessionItem
-      key={`${facet}:${session.id}`}
-      project={checkout}
-      session={session}
-      projectLabel={repositoryName}
-      branchLabel={branchLabel}
-      isSectionItem
-      selectedSession={selectedSession}
-      isProcessing={activeSessions.has(session.id)}
-      needsAttention={attentionSessionIds.has(session.id)}
-      isUnread={unreadSessionIds.has(session.id)}
-      currentTime={currentTime}
-      editingSession={editingSession}
-      editingSessionName={editingSessionName}
-      onEditingSessionNameChange={onEditingSessionNameChange}
-      onCancelEditingSession={onCancelEditingSession}
-      onSaveEditingSession={onSaveEditingSession}
-      onProjectSelect={onProjectSelect}
-      onSessionSelect={onSessionSelect}
-      onOpenActionsMenu={onOpenSessionActionsMenu}
-      activeContextMenuKey={activeContextMenuKey}
-      t={t}
-    />
-  );
+    { session, checkout, branchLabel, repositoryName }: BrowseSession,
+  ) => {
+    const sessionsSelection = { kind: 'sessions' } as const;
+    const isSessionsSelectionMode = sessionSelection?.scope.kind === 'sessions';
 
-  const showActivitySection = showProjects && activitySessions.length > 0;
-  const showPinnedSection = showProjects && pinnedSessions.length > 0;
-  const activityStates: ActivityState[] = ['blocked', 'running', 'unread'];
-  const activitySummaryNode = (
-    <span className="ml-auto flex flex-shrink-0 items-center gap-2 normal-case tracking-normal">
-      {activityStates.map((status) => activitySummary[status] > 0 && (
-        <span key={status} className="flex items-center gap-0.5 tabular-nums text-muted-foreground">
-          <SidebarStatusIndicator status={status} t={t} size="xs" />
-          {activitySummary[status]}
-        </span>
-      ))}
-    </span>
-  );
+    return (
+      <SidebarSessionItem
+        key={session.id}
+        project={checkout}
+        session={session}
+        projectLabel={repositoryName}
+        branchLabel={branchLabel}
+        isSectionItem
+        selectedSession={selectedSession}
+        isProcessing={activeSessions.has(session.id)}
+        needsAttention={attentionSessionIds.has(session.id)}
+        isUnread={unreadSessionIds.has(session.id)}
+        currentTime={currentTime}
+        editingSession={editingSession}
+        editingSessionName={editingSessionName}
+        onEditingSessionNameChange={onEditingSessionNameChange}
+        onCancelEditingSession={onCancelEditingSession}
+        onSaveEditingSession={onSaveEditingSession}
+        onProjectSelect={onProjectSelect}
+        onSessionSelect={onSessionSelect}
+        onOpenActionsMenu={onOpenSessionActionsMenu && ((item, anchor) =>
+          onOpenSessionActionsMenu(item, anchor, sessionsSelection))}
+        activeContextMenuKey={activeContextMenuKey}
+        isSelectionMode={isSessionsSelectionMode}
+        isBatchSelected={isSessionsSelectionMode && sessionSelection.ids.has(session.id)}
+        onToggleBatchSelected={onToggleBatchSelected}
+        t={t}
+      />
+    );
+  };
 
   return (
     <div className="md:space-y-1">
-      {/*
-        Activity is a transient copy while Pinned is a durable move. The
-        browse mode changes only the list below it; the two global sections
-        keep background status and durable shortcuts visible.
-      */}
-      {showActivitySection && (
-        <>
-          <SidebarSectionHeader
-            label={t('projects.activity')}
-            icon={Activity}
-            summary={activitySummaryNode}
-            isCollapsed={isActivitySectionCollapsed}
-            onToggle={onToggleActivitySection}
-          />
-          {!isActivitySectionCollapsed && activitySessions.map((session) => renderFlatSession(session, 'activity'))}
-        </>
-      )}
-
-      {showPinnedSection && (
-        <>
-          <SidebarSectionHeader
-            label={t('projects.starred')}
-            icon={Pin}
-            count={pinnedSessions.length}
-            isCollapsed={isPinnedSectionCollapsed}
-            onToggle={onTogglePinnedSection}
-          />
-          {!isPinnedSectionCollapsed && pinnedSessions.map((session) => renderFlatSession(session, 'pinned'))}
-        </>
-      )}
-
       {!showProjects ? state : browseMode === 'projects' ? (
         repositoryEntries.map(renderEntry)
       ) : browseSessions.length > 0 ? (
-        browseSessions.map((session) => renderFlatSession(session, 'browse'))
+        browseSessions.map(renderFlatSession)
       ) : (
         <div className="px-4 py-8 text-center text-sm text-muted-foreground">
           {t('sessions.noSessions')}

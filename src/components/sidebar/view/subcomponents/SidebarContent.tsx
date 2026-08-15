@@ -8,6 +8,8 @@ import type { ConversationSearchResults, SearchProgress } from '../../hooks/useS
 import type {
   ArchivedProjectListItem,
   ArchivedSessionListItem,
+  BrowseSessionViewOptions,
+  ProjectViewOptions,
   SidebarBrowseMode,
   SidebarSearchMode,
 } from '../../types/types';
@@ -123,6 +125,13 @@ type SidebarContentProps = {
   isArchivedSessionsLoading: boolean;
   browseMode: SidebarBrowseMode;
   onBrowseModeChange: (mode: SidebarBrowseMode) => void;
+  repositoryEntries: SidebarProjectListProps['repositoryEntries'];
+  projectView: ProjectViewOptions;
+  browseSessionView: BrowseSessionViewOptions;
+  onProjectViewChange: (options: ProjectViewOptions) => void;
+  onBrowseSessionViewChange: (options: BrowseSessionViewOptions) => void;
+  onProjectViewReset: () => void;
+  onBrowseSessionViewReset: () => void;
   searchFilter: string;
   onSearchFilterChange: (value: string) => void;
   onClearSearchFilter: () => void;
@@ -161,6 +170,13 @@ export default function SidebarContent({
   isArchivedSessionsLoading,
   browseMode,
   onBrowseModeChange,
+  repositoryEntries,
+  projectView,
+  browseSessionView,
+  onProjectViewChange,
+  onBrowseSessionViewChange,
+  onProjectViewReset,
+  onBrowseSessionViewReset,
   searchFilter,
   onSearchFilterChange,
   onClearSearchFilter,
@@ -203,6 +219,13 @@ export default function SidebarContent({
       <SidebarHeader
         browseMode={browseMode}
         onBrowseModeChange={onBrowseModeChange}
+        repositoryEntries={repositoryEntries}
+        projectView={projectView}
+        browseSessionView={browseSessionView}
+        onProjectViewChange={onProjectViewChange}
+        onBrowseSessionViewChange={onBrowseSessionViewChange}
+        onProjectViewReset={onProjectViewReset}
+        onBrowseSessionViewReset={onBrowseSessionViewReset}
         searchFilter={searchFilter}
         onSearchFilterChange={onSearchFilterChange}
         onClearSearchFilter={onClearSearchFilter}

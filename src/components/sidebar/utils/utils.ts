@@ -2,10 +2,12 @@ import type { TFunction } from 'i18next';
 
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type {
-  ActivitySession,
+  ActivityState,
+  ActivitySummary,
+  BrowseSessionViewOptions,
   BrowseSession,
   CheckoutSession,
-  PinnedSession,
+  ProjectViewOptions,
   ProjectSortOrder,
   RepositoryEntry,
   RepositoryViewOptions,
@@ -16,19 +18,62 @@ import type {
   SessionWithProvider,
 } from '../types/types';
 
-export const readProjectSortOrder = (): ProjectSortOrder => {
+export const DEFAULT_PROJECT_VIEW_OPTIONS: ProjectViewOptions = {
+  sort: 'name',
+  direction: 'asc',
+};
+
+export const DEFAULT_BROWSE_SESSION_VIEW_OPTIONS: BrowseSessionViewOptions = {
+  sort: 'date',
+  direction: 'desc',
+  checkoutProjectIds: null,
+};
+
+const SIDEBAR_PROJECT_VIEW_STORAGE_KEY = 'sidebar-project-view-options';
+
+export const readProjectViewOptions = (): ProjectViewOptions => {
   try {
+    const stored = localStorage.getItem(SIDEBAR_PROJECT_VIEW_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<ProjectViewOptions>;
+      const sort = parsed.sort === 'date' ? 'date' : 'name';
+      const direction = parsed.direction === 'desc' ? 'desc' : 'asc';
+      return { sort, direction };
+    }
+
+    // Import the former Settings-owned value once, then the sidebar owns it.
     const rawSettings = localStorage.getItem('claude-settings');
     if (!rawSettings) {
-      return 'name';
+      return DEFAULT_PROJECT_VIEW_OPTIONS;
     }
 
     const settings = JSON.parse(rawSettings) as { projectSortOrder?: ProjectSortOrder };
-    return settings.projectSortOrder === 'date' ? 'date' : 'name';
+    const migrated: ProjectViewOptions = settings.projectSortOrder === 'date'
+      ? { sort: 'date', direction: 'desc' }
+      : DEFAULT_PROJECT_VIEW_OPTIONS;
+    localStorage.setItem(SIDEBAR_PROJECT_VIEW_STORAGE_KEY, JSON.stringify(migrated));
+    return migrated;
   } catch {
-    return 'name';
+    return DEFAULT_PROJECT_VIEW_OPTIONS;
   }
 };
+
+export const writeProjectViewOptions = (options: ProjectViewOptions): void => {
+  try {
+    localStorage.setItem(SIDEBAR_PROJECT_VIEW_STORAGE_KEY, JSON.stringify(options));
+  } catch {
+    // The view still changes when storage is unavailable.
+  }
+};
+
+export const isDefaultProjectView = (options: ProjectViewOptions): boolean =>
+  options.sort === DEFAULT_PROJECT_VIEW_OPTIONS.sort
+  && options.direction === DEFAULT_PROJECT_VIEW_OPTIONS.direction;
+
+export const isDefaultBrowseSessionView = (options: BrowseSessionViewOptions): boolean =>
+  options.sort === DEFAULT_BROWSE_SESSION_VIEW_OPTIONS.sort
+  && options.direction === DEFAULT_BROWSE_SESSION_VIEW_OPTIONS.direction
+  && options.checkoutProjectIds === null;
 
 const getCreatedTimestamp = (session: SessionWithProvider): string => {
   return String(session.createdAt || session.created_at || '');
@@ -53,10 +98,8 @@ export const getSessionDate = (session: SessionWithProvider): Date => {
  * Sort comparator that pins starred sessions to the top, then falls back to
  * most-recent-activity order.
  *
- * The sidebar lifts pinned sessions into their own section, so the starred tier
- * rarely fires there, but it governs every other session list and matches the
- * server's `isStarred DESC` page order — which is what keeps a pinned session
- * from being stranded behind pagination.
+ * This governs repository and flat Sessions lists and matches the server's
+ * `isStarred DESC` page order, so a pin cannot be stranded behind pagination.
  */
 export const compareSessionsStarredFirst = (
   a: SessionWithProvider,
@@ -115,23 +158,25 @@ export const getProjectLastActivity = (project: Project): Date => {
   }, new Date(0));
 };
 
-export const sortProjects = (
-  projects: Project[],
-  projectSortOrder: ProjectSortOrder,
-): Project[] => {
-  const byName = [...projects];
+export const sortRepositoryEntries = (
+  entries: RepositoryEntry[],
+  options: ProjectViewOptions,
+): RepositoryEntry[] => {
+  const sorted = [...entries];
+  const sign = options.direction === 'asc' ? 1 : -1;
 
-  // No starred-first tier: pinning belongs to sessions only, so a repository's
-  // position is its sort order and nothing else.
-  byName.sort((projectA, projectB) => {
-    if (projectSortOrder === 'date') {
-      return getProjectLastActivity(projectB).getTime() - getProjectLastActivity(projectA).getTime();
+  sorted.sort((entryA, entryB) => {
+    if (options.sort === 'date') {
+      const lastActivity = (entry: RepositoryEntry) => Math.max(
+        ...entry.checkouts.map((checkout) => getProjectLastActivity(checkout).getTime()),
+      );
+      return sign * (lastActivity(entryA) - lastActivity(entryB));
     }
 
-    return (projectA.displayName || projectA.projectId).localeCompare(projectB.displayName || projectB.projectId);
+    return sign * entryA.displayName.localeCompare(entryB.displayName);
   });
 
-  return byName;
+  return sorted;
 };
 
 /**
@@ -375,50 +420,46 @@ export const mergeCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[]
     .sort((a, b) => compareSessionsStarredFirst(a.session, b.session));
 };
 
-/**
- * The sessions a repository row lists: its merged sessions minus the pinned
- * ones.
- *
- * A pinned session is *moved* into the Pinned section, not copied — one session,
- * one row, so nothing is read twice or unpinned from a place it still appears.
- */
-export const getUnpinnedCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[] => {
-  return mergeCheckoutSessions(entry).filter(({ session }) => !session.isStarred);
-};
-
-/**
- * Every pinned session across the visible rows, newest first, each tagged with
- * the repository it came from.
- *
- * Built from the rows rather than the raw project list, so a search narrows this
- * section too and the branch label matches the row the session left.
- */
-export const collectPinnedSessions = (entries: RepositoryEntry[]): PinnedSession[] => {
-  return entries
-    .flatMap((entry) =>
-      mergeCheckoutSessions(entry)
-        .filter(({ session }) => session.isStarred)
-        .map((checkoutSession) => ({ ...checkoutSession, repositoryName: entry.displayName })),
-    )
-    .sort((a, b) => getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime());
-};
-
-/** Every unpinned session across the visible repository rows, newest first. */
+/** Every session across the visible repositories, pinned first then newest. */
 export const collectBrowseSessions = (entries: RepositoryEntry[]): BrowseSession[] => {
   return entries
     .flatMap((entry) =>
-      getUnpinnedCheckoutSessions(entry).map((checkoutSession) => ({
+      mergeCheckoutSessions(entry).map((checkoutSession) => ({
         ...checkoutSession,
         repositoryName: entry.displayName,
       })),
     )
-    .sort((a, b) => getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime());
+    .sort((a, b) => compareSessionsStarredFirst(a.session, b.session));
 };
 
-const ACTIVITY_URGENCY: Record<ActivitySession['activityState'], number> = {
-  blocked: 0,
-  running: 1,
-  unread: 2,
+/** Applies the flat Sessions view without disturbing its pinned-first tier. */
+export const applyBrowseSessionViewOptions = (
+  sessions: BrowseSession[],
+  options: BrowseSessionViewOptions,
+  t: TFunction,
+): BrowseSession[] => {
+  const filtered = options.checkoutProjectIds === null
+    ? sessions
+    : sessions.filter(({ checkout }) => options.checkoutProjectIds?.includes(checkout.projectId));
+  const sign = options.direction === 'asc' ? 1 : -1;
+  const pinnedFirst = (compare: (a: BrowseSession, b: BrowseSession) => number) =>
+    (a: BrowseSession, b: BrowseSession) => {
+      if (Boolean(a.session.isStarred) !== Boolean(b.session.isStarred)) {
+        return a.session.isStarred ? -1 : 1;
+      }
+      return compare(a, b);
+    };
+
+  return [...filtered].sort(pinnedFirst((a, b) => {
+    if (options.sort === 'title') {
+      return sign * getSessionName(a.session, t).localeCompare(getSessionName(b.session, t));
+    }
+    if (options.sort === 'project') {
+      const byProject = sign * a.repositoryName.localeCompare(b.repositoryName);
+      return byProject !== 0 ? byProject : compareSessionsStarredFirst(a.session, b.session);
+    }
+    return sign * (getSessionDate(a.session).getTime() - getSessionDate(b.session).getTime());
+  }));
 };
 
 /**
@@ -434,45 +475,33 @@ export const resolveActivityState = ({
   isProcessing: boolean;
   needsAttention: boolean;
   isUnread: boolean;
-}): ActivitySession['activityState'] | null => {
+}): ActivityState | null => {
   if (needsAttention) return 'blocked';
   if (isProcessing) return 'running';
   if (isUnread) return 'unread';
   return null;
 };
 
-/**
- * Every session with transient activity, grouped by urgency and newest first
- * within each group. Unlike Pinned, Activity copies sessions into its section:
- * transient work must not make repository rows jump in and out.
- */
-export const collectActivitySessions = (
+/** Counts transient status without creating a second set of session rows. */
+export const summarizeSessionActivity = (
   entries: RepositoryEntry[],
   activeSessionIds: ReadonlySet<string>,
   attentionSessionIds: ReadonlySet<string>,
   unreadSessionIds: ReadonlySet<string>,
-): ActivitySession[] => {
-  return entries
-    .flatMap((entry) =>
-      mergeCheckoutSessions(entry).flatMap((checkoutSession) => {
-        const sessionId = checkoutSession.session.id;
-        const activityState = resolveActivityState({
-          isProcessing: activeSessionIds.has(sessionId),
-          needsAttention: attentionSessionIds.has(sessionId),
-          isUnread: unreadSessionIds.has(sessionId),
-        });
-
-        return activityState
-          ? [{ ...checkoutSession, repositoryName: entry.displayName, activityState }]
-          : [];
-      }),
-    )
-    .sort((a, b) => {
-      const urgencyDifference = ACTIVITY_URGENCY[a.activityState] - ACTIVITY_URGENCY[b.activityState];
-      return urgencyDifference !== 0
-        ? urgencyDifference
-        : getSessionDate(b.session).getTime() - getSessionDate(a.session).getTime();
-    });
+): ActivitySummary => {
+  return entries.reduce<ActivitySummary>((summary, entry) => {
+    for (const { session } of mergeCheckoutSessions(entry)) {
+      const activityState = resolveActivityState({
+        isProcessing: activeSessionIds.has(session.id),
+        needsAttention: attentionSessionIds.has(session.id),
+        isUnread: unreadSessionIds.has(session.id),
+      });
+      if (activityState) {
+        summary[activityState] += 1;
+      }
+    }
+    return summary;
+  }, { blocked: 0, unread: 0, running: 0 });
 };
 
 /** Newest first, every worktree shown — the order the row has always used. */
@@ -517,25 +546,34 @@ export const applyRepositoryViewOptions = (
   const oldestFirst = (a: CheckoutSession, b: CheckoutSession) =>
     getSessionDate(a.session).getTime() - getSessionDate(b.session).getTime();
   const sign = options.direction === 'asc' ? 1 : -1;
+  const pinnedFirst = (
+    fallback: (a: CheckoutSession, b: CheckoutSession) => number,
+  ) => (a: CheckoutSession, b: CheckoutSession) => {
+    const aPinned = Boolean(a.session.isStarred);
+    const bPinned = Boolean(b.session.isStarred);
+    return aPinned === bPinned ? fallback(a, b) : aPinned ? -1 : 1;
+  };
 
   const sorted = [...kept];
 
   switch (options.sort) {
     case 'title':
       sorted.sort(
-        (a, b) => sign * getSessionName(a.session, t).localeCompare(getSessionName(b.session, t)),
+        pinnedFirst(
+          (a, b) => sign * getSessionName(a.session, t).localeCompare(getSessionName(b.session, t)),
+        ),
       );
       break;
     case 'worktree':
-      sorted.sort((a, b) => {
+      sorted.sort(pinnedFirst((a, b) => {
         const label = (entry: CheckoutSession) =>
           getCheckoutRefLabel(entry.checkout) ?? entry.checkout.displayName ?? entry.checkout.projectId;
         const byWorktree = sign * label(a).localeCompare(label(b));
         return byWorktree !== 0 ? byWorktree : -oldestFirst(a, b);
-      });
+      }));
       break;
     default:
-      sorted.sort((a, b) => sign * oldestFirst(a, b));
+      sorted.sort(pinnedFirst((a, b) => sign * oldestFirst(a, b)));
       break;
   }
 

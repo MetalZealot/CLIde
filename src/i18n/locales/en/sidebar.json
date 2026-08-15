@@ -201,6 +201,15 @@
     "createHint": "Creates the branch and a worktree beside the repository, then adds it here.",
     "createdButUnregistered": "The worktree was created at {{path}}, but CLIde could not add it: {{reason}}"
   },
+  "browseView": {
+    "filter": "Sort and filter",
+    "projectOptions": "Sort projects",
+    "sessionOptions": "Sort and filter sessions",
+    "sortName": "Name",
+    "sortDate": "Date",
+    "sortProject": "Project",
+    "filterProjectWorktree": "Filter by project / worktree"
+  },
   "sessionView": {
     "title": "Sort and filter sessions",
     "sortBy": "Sort by",

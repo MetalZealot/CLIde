@@ -91,7 +91,6 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'notifications', labelKey: 'notifications.sound.title', keywords: 'tone chime audio' },
   { screenId: 'notifications', labelKey: 'notifications.events.title', keywords: 'action required stopped failed' },
 
-  { screenId: 'projects-git', labelKey: 'appearanceSettings.projectSorting.label', keywords: 'order sidebar alphabetical recent' },
   { screenId: 'projects-git', labelKey: 'git.name.label', keywords: 'identity commits author' },
   { screenId: 'projects-git', labelKey: 'git.email.label', keywords: 'identity commits author' },
 

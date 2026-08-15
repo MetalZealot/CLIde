@@ -15,6 +15,7 @@ import type {
   CheckoutSession,
   RepositoryEntry,
   RepositoryViewOptions,
+  SessionSelectionScope,
   SessionWithProvider,
 } from '../../types/types';
 import {
@@ -66,13 +67,12 @@ type SidebarRepositoryItemProps = {
    */
   onOpenProjectActionsMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
   /**
-   * `entryKey` scopes batch selection to this row: a selection only ever spans
-   * one repository's list, so the action bar's count means one thing.
+   * Repository scope keeps Projects-view batch selection inside this row.
    */
   onOpenSessionActionsMenu?: (
     session: SessionWithProvider,
     anchor: ContextMenuAnchor,
-    entryKey: string,
+    selectionScope: SessionSelectionScope,
   ) => void;
   activeContextMenuKey?: string | null;
   /** Ids ticked in batch mode; null when this row is not in batch mode. */
@@ -85,10 +85,6 @@ type SidebarRepositoryItemProps = {
  * Total across every checkout the row covers, so the count matches the list it
  * opens. `sessionMeta.total` is the server's count, including sessions not yet
  * paginated in.
- *
- * Pinned sessions are subtracted — they moved to the Pinned section. Counting
- * them off the loaded page is exact, because the server orders `isStarred DESC`
- * and never leaves a pinned session behind pagination.
  */
 const getSessionCountDisplay = (
   entry: RepositoryEntry,
@@ -109,10 +105,10 @@ const getSessionCountDisplay = (
     return sessions.length;
   }
 
-  return entry.checkouts.reduce((total, checkout) => {
-    const pinnedCount = (checkout.sessions ?? []).filter((session) => session.isStarred).length;
-    return total + Number(checkout.sessionMeta?.total ?? 0) - pinnedCount;
-  }, 0);
+  return entry.checkouts.reduce(
+    (total, checkout) => total + Number(checkout.sessionMeta?.total ?? 0),
+    0,
+  );
 };
 
 /**
@@ -190,12 +186,15 @@ export default function SidebarRepositoryItem({
         defaultValue: '{{count}} worktrees',
       })
     : getCheckoutRefLabel(project);
-  // Same symbol and precedence as individual rows. Sessions not yet paginated in
-  // cannot be mapped here; they appear once loaded.
+  // Same symbol and precedence as individual rows. Use the repository's loaded
+  // sessions rather than its filtered view so a hidden active row still rolls up.
+  const repositorySessionIds = entry.checkouts.flatMap(
+    (checkout) => (checkout.sessions ?? []).map((session) => session.id),
+  );
   const projectActivityState = resolveActivityState({
-    isProcessing: sessions.some(({ session }) => activeSessions.has(session.id)),
-    needsAttention: sessions.some(({ session }) => attentionSessionIds.has(session.id)),
-    isUnread: sessions.some(({ session }) => unreadSessionIds.has(session.id)),
+    isProcessing: repositorySessionIds.some((sessionId) => activeSessions.has(sessionId)),
+    needsAttention: repositorySessionIds.some((sessionId) => attentionSessionIds.has(sessionId)),
+    isUnread: repositorySessionIds.some((sessionId) => unreadSessionIds.has(sessionId)),
   });
 
   const mobileRenameInputRef = useRef<HTMLInputElement>(null);
@@ -604,7 +603,10 @@ export default function SidebarRepositoryItem({
         onCollapseSessions={onCollapseSessions}
         onOpenSessionActionsMenu={
           onOpenSessionActionsMenu &&
-          ((session, anchor) => onOpenSessionActionsMenu(session, anchor, entry.key))
+          ((session, anchor) => onOpenSessionActionsMenu(session, anchor, {
+            kind: 'repository',
+            entryKey: entry.key,
+          }))
         }
         activeContextMenuKey={activeContextMenuKey}
         batchSelectedIds={batchSelectedIds}

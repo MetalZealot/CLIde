@@ -5,6 +5,11 @@ import type { TFunction } from 'i18next';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import {
+  DEFAULT_BROWSE_SESSION_VIEW_OPTIONS,
+  DEFAULT_PROJECT_VIEW_OPTIONS,
+} from '../../utils/utils';
+
 import SidebarHeader from './SidebarHeader';
 
 let root: Root | null = null;
@@ -21,6 +26,7 @@ afterEach(async () => {
 const translations: Record<string, string> = {
   'app.title': 'CLIde',
   'actions.archive': 'Archive',
+  'browseView.filter': 'Sort and filter',
   'search.modeProjects': 'Projects',
   'search.modeConversations': 'Sessions',
   'search.searchContents': 'Search inside messages',
@@ -52,6 +58,13 @@ const renderHeader = async (
         onClearSearchFilter={() => {}}
         searchMode="projects"
         onSearchModeChange={() => {}}
+        repositoryEntries={[]}
+        projectView={DEFAULT_PROJECT_VIEW_OPTIONS}
+        browseSessionView={DEFAULT_BROWSE_SESSION_VIEW_OPTIONS}
+        onProjectViewChange={() => {}}
+        onBrowseSessionViewChange={() => {}}
+        onProjectViewReset={() => {}}
+        onBrowseSessionViewReset={() => {}}
         onCollapseSidebar={() => {}}
         onOpenNewSession={() => {}}
         t={t}
@@ -61,7 +74,7 @@ const renderHeader = async (
   });
 };
 
-test('search expands inline while the view selector and Archive stay visible', async () => {
+test('search expands inline while the view selector and Filter stay visible', async () => {
   let clearCount = 0;
   await renderHeader({ onClearSearchFilter: () => { clearCount += 1; } });
 
@@ -85,7 +98,7 @@ test('search expands inline while the view selector and Archive stay visible', a
   assert.equal(selector.parentElement?.classList.contains('pt-1'), true);
   assert.equal(selector.parentElement?.classList.contains('pb-2'), true);
   assert.equal(selector.parentElement?.classList.contains('mb-2'), false);
-  assert.equal(container?.querySelectorAll('button[aria-label="Archive"]').length, 1);
+  assert.equal(container?.querySelectorAll('button[aria-label="Sort and filter"]').length, 1);
 
   const closeButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Clear search"]');
   assert.ok(closeButton);
@@ -95,7 +108,7 @@ test('search expands inline while the view selector and Archive stay visible', a
   assert.equal(container?.querySelector('input'), null);
 });
 
-test('the compact selector changes browse mode and Archive remains a separate body mode', async () => {
+test('the compact selector owns Projects, Sessions, and Archive', async () => {
   let chosenMode = '';
   let chosenSearchMode = '';
   await renderHeader({
@@ -113,10 +126,35 @@ test('the compact selector changes browse mode and Archive remains a separate bo
   await React.act(async () => sessionsItem.click());
   assert.equal(chosenMode, 'sessions');
 
-  const archiveButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Archive"]');
-  assert.ok(archiveButton);
-  await React.act(async () => archiveButton.click());
+  await React.act(async () => selector.click());
+  const archiveItem = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+    .find((item) => item.textContent?.includes('Archive'));
+  assert.ok(archiveItem);
+  await React.act(async () => archiveItem.click());
   assert.equal(chosenSearchMode, 'archived');
+});
+
+test('Archive hides the contextual Filter control', async () => {
+  await renderHeader({ searchMode: 'archived' });
+
+  assert.ok(container?.querySelector<HTMLButtonElement>('button[aria-label="Archive"]'));
+  assert.equal(container?.querySelector('button[aria-label="Sort and filter"]'), null);
+});
+
+test('Filter changes the active view without touching the browse mode', async () => {
+  let nextProjectView = DEFAULT_PROJECT_VIEW_OPTIONS;
+  await renderHeader({ onProjectViewChange: (options) => { nextProjectView = options; } });
+
+  const filterButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Sort and filter"]');
+  assert.ok(filterButton);
+  await React.act(async () => filterButton.click());
+
+  const dateChoice = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
+    .find((item) => item.textContent?.includes('Date'));
+  assert.ok(dateChoice);
+  await React.act(async () => dateChoice.click());
+
+  assert.deepEqual(nextProjectView, { sort: 'date', direction: 'desc' });
 });
 
 test('message-content search is an inline refinement of an expanded query', async () => {

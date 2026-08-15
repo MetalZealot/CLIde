@@ -97,8 +97,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
 
   const {
     loginResult,
-    projectSortOrder,
-    setProjectSortOrder,
     codeEditorSettings,
     updateCodeEditorSetting,
     claudePermissions,
@@ -285,12 +283,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
         );
 
       case 'projects-git':
-        return (
-          <ProjectsGitScreen
-            projectSortOrder={projectSortOrder}
-            onProjectSortOrderChange={setProjectSortOrder}
-          />
-        );
+        return <ProjectsGitScreen />;
 
       case 'plugins':
         return <ExtensionsPluginsScreen />;

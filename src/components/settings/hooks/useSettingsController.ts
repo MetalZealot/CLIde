@@ -15,7 +15,6 @@ import type {
   CodexPermissionMode,
   CursorPermissionsState,
   NotificationPreferencesState,
-  ProjectSortOrder,
 } from '../types/types';
 
 type ThemeContextValue = {
@@ -31,7 +30,6 @@ type ClaudeSettingsStorage = {
   allowedTools?: string[];
   disallowedTools?: string[];
   skipPermissions?: boolean;
-  projectSortOrder?: ProjectSortOrder;
 };
 
 type CursorSettingsStorage = {
@@ -145,7 +143,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
   const closeTimerRef = useRef<number | null>(null);
 
   const [loginResult, setLoginResult] = useState<ProviderLoginResult | null>(null);
-  const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
   const [codeEditorSettings, setCodeEditorSettings] = useState<CodeEditorSettingsState>(() => (
     readCodeEditorSettings()
   ));
@@ -180,7 +177,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
         disallowedTools: savedClaudeSettings.disallowedTools || [],
         skipPermissions: Boolean(savedClaudeSettings.skipPermissions),
       });
-      setProjectSortOrder(savedClaudeSettings.projectSortOrder === 'date' ? 'date' : 'name');
 
       const savedCursorSettings = parseJson<CursorSettingsStorage>(
         localStorage.getItem('cursor-tools-settings'),
@@ -220,7 +216,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
       setCursorPermissions(createEmptyCursorPermissions());
       setNotificationPreferences(createDefaultNotificationPreferences());
       setCodexPermissionMode('default');
-      setProjectSortOrder('name');
     }
   }, []);
 
@@ -253,7 +248,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
         allowedTools: claudePermissions.allowedTools,
         disallowedTools: claudePermissions.disallowedTools,
         skipPermissions: claudePermissions.skipPermissions,
-        projectSortOrder,
         lastUpdated: now,
       }));
 
@@ -288,7 +282,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
     cursorPermissions.disallowedCommands,
     cursorPermissions.skipPermissions,
     notificationPreferences,
-    projectSortOrder,
   ]);
 
   const updateCodeEditorSetting = useCallback(
@@ -377,8 +370,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
     isDarkMode,
     toggleDarkMode,
     loginResult,
-    projectSortOrder,
-    setProjectSortOrder,
     codeEditorSettings,
     updateCodeEditorSetting,
     claudePermissions,

@@ -13,6 +13,7 @@ import type {
   RepositoryEntry,
   SidebarBrowseMode,
   SidebarProps,
+  SessionSelectionScope,
   SessionWithProvider,
 } from '../types/types';
 import type { ContextMenuAnchor } from '../../../shared/view/ui';
@@ -98,13 +99,13 @@ function Sidebar({
     browseMode,
     selectBrowseMode,
     browseSessions,
-    activitySessions,
+    projectView,
+    updateProjectView,
+    resetProjectView,
+    browseSessionView,
+    updateBrowseSessionView,
+    resetBrowseSessionView,
     activitySummary,
-    isActivitySectionCollapsed,
-    toggleActivitySection,
-    pinnedSessions,
-    isPinnedSectionCollapsed,
-    togglePinnedSection,
     isSessionSearchActive,
     archivedProjects,
     archivedSessions,
@@ -186,9 +187,8 @@ function Sidebar({
   };
 
   type SidebarMenuState =
-    // `entryKey` is the repository list the row was opened from, and is null for
-    // the flat Activity/Pinned rows — which own no list, so cannot be batched.
-    | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor; entryKey: string | null }
+    // The scope is absent where the visible mode owns no batch-selectable list.
+    | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor; selectionScope: SessionSelectionScope | null }
     // The row's own actions: repository-scoped, plus the way into the worktree
     // manager. Not a worktree picker.
     | { kind: 'repository'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
@@ -203,12 +203,8 @@ function Sidebar({
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
   >(null);
 
-  /**
-   * Batch mode covers one repository row's list at a time, so its count and its
-   * Archive/Delete can only ever mean sessions the user can see together.
-   */
   const [sessionSelection, setSessionSelection] = useState<
-    { entryKey: string; ids: Set<string> } | null
+    { scope: SessionSelectionScope; ids: Set<string> } | null
   >(null);
   const [isBatchDeleteOpen, setIsBatchDeleteOpen] = useState(false);
 
@@ -233,7 +229,7 @@ function Sidebar({
       if (!ids.delete(sessionId)) {
         ids.add(sessionId);
       }
-      return { entryKey: current.entryKey, ids };
+      return { scope: current.scope, ids };
     });
   };
 
@@ -246,7 +242,10 @@ function Sidebar({
 
   // A collapsed row hides the very rows the selection refers to.
   const handleToggleProject = (entryKey: string) => {
-    if (sessionSelection?.entryKey === entryKey) {
+    if (
+      sessionSelection?.scope.kind === 'repository'
+      && sessionSelection.scope.entryKey === entryKey
+    ) {
       exitSelection();
     }
     toggleProject(entryKey);
@@ -257,9 +256,9 @@ function Sidebar({
   const handleSessionActionsMenu = (
     session: SessionWithProvider,
     anchor: ContextMenuAnchor,
-    entryKey?: string,
+    selectionScope?: SessionSelectionScope,
   ) => {
-    setContextMenu({ kind: 'session', session, anchor, entryKey: entryKey ?? null });
+    setContextMenu({ kind: 'session', session, anchor, selectionScope: selectionScope ?? null });
   };
 
   const handleProjectActionsMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
@@ -290,9 +289,13 @@ function Sidebar({
     ? repositoryEntries.find((entry) => entry.key === accentColorMenu.entry.key) ?? null
     : null;
 
-  // A selection cannot outlive the row it belongs to.
+  // A repository selection cannot outlive the row it belongs to.
   useEffect(() => {
-    if (sessionSelection && !repositoryEntries.some((entry) => entry.key === sessionSelection.entryKey)) {
+    const selectionScope = sessionSelection?.scope;
+    if (
+      selectionScope?.kind === 'repository'
+      && !repositoryEntries.some((entry) => entry.key === selectionScope.entryKey)
+    ) {
       setSessionSelection(null);
       setIsBatchDeleteOpen(false);
     }
@@ -349,17 +352,15 @@ function Sidebar({
             void copyTextToClipboard(session.id);
           },
         },
-        // Offered only from a repository row's list: the flat sections have no
-        // list of their own to select within. Opens with this row ticked, so
-        // one gesture selects rather than two.
-        ...(contextMenu.entryKey
+        // Opens with this row ticked, so one gesture selects rather than two.
+        ...(contextMenu.selectionScope
           ? [{
               showDividerBefore: true,
               key: 'select',
               label: t('actions.select', 'Select…'),
               icon: ListChecks,
               onSelect: () => setSessionSelection({
-                entryKey: contextMenu.entryKey as string,
+                scope: contextMenu.selectionScope as SessionSelectionScope,
                 ids: new Set([session.id]),
               }),
             }]
@@ -456,13 +457,6 @@ function Sidebar({
     repositoryEntries,
     browseMode,
     browseSessions,
-    activitySessions,
-    activitySummary,
-    isActivitySectionCollapsed,
-    onToggleActivitySection: toggleActivitySection,
-    pinnedSessions,
-    isPinnedSectionCollapsed,
-    onTogglePinnedSection: togglePinnedSection,
     selectedProject,
     selectedSession,
     isLoading,
@@ -616,11 +610,31 @@ function Sidebar({
             isArchivedSessionsLoading={isArchivedSessionsLoading}
             browseMode={browseMode}
             onBrowseModeChange={handleBrowseModeChange}
+            repositoryEntries={repositoryEntries}
+            projectView={projectView}
+            browseSessionView={browseSessionView}
+            onProjectViewChange={(options) => {
+              exitSelection();
+              updateProjectView(options);
+            }}
+            onBrowseSessionViewChange={(options) => {
+              exitSelection();
+              updateBrowseSessionView(options);
+            }}
+            onProjectViewReset={() => {
+              exitSelection();
+              resetProjectView();
+            }}
+            onBrowseSessionViewReset={() => {
+              exitSelection();
+              resetBrowseSessionView();
+            }}
             searchFilter={searchFilter}
             onSearchFilterChange={setSearchFilter}
             onClearSearchFilter={() => setSearchFilter('')}
             searchMode={searchMode}
             onSearchModeChange={(mode) => {
+              if (mode === 'archived') exitSelection();
               setSearchMode(mode);
               if (mode === 'projects') clearConversationResults();
             }}

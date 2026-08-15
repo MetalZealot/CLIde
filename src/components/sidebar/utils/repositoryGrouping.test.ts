@@ -5,20 +5,22 @@ import type { Project, ProjectSession } from '../../../types/app';
 import type { RepositoryViewOptions } from '../types/types';
 
 import {
+  applyBrowseSessionViewOptions,
   applyRepositoryViewOptions,
   buildRepositoryEntries,
-  collectActivitySessions,
   collectBrowseSessions,
-  collectPinnedSessions,
+  DEFAULT_BROWSE_SESSION_VIEW_OPTIONS,
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
   filterProjectsBySessionTitle,
   getCheckoutContextLabel,
-  getUnpinnedCheckoutSessions,
+  isDefaultBrowseSessionView,
   isDefaultRepositoryView,
   isMainCheckout,
   mergeCheckoutSessions,
   repositoryEntryKey,
   resolveActivityState,
+  sortRepositoryEntries,
+  summarizeSessionActivity,
 } from './utils';
 
 const CLOUDCLI_REPO = '/home/user/Projects/cloudcli/.git';
@@ -96,6 +98,20 @@ test('a repository with one checkout is an ordinary project row', () => {
   assert.deepEqual(
     entries.map((entry) => entry.checkouts.length),
     [1, 1],
+  );
+});
+
+test('Projects view sorts repository rows by name or latest activity', () => {
+  const entries = buildRepositoryEntries([soloRepository, mainCheckout, worktreeA]);
+
+  assert.deepEqual(
+    sortRepositoryEntries(entries, { sort: 'name', direction: 'asc' }).map((item) => item.displayName),
+    ['cloudcli', 'oney-index'],
+  );
+  assert.deepEqual(
+    sortRepositoryEntries(entries, { sort: 'date', direction: 'asc' }).map((item) => item.displayName),
+    ['oney-index', 'cloudcli'],
+    'the merged row sorts by its newest checkout, not whichever checkout appeared first',
   );
 });
 
@@ -200,27 +216,20 @@ test('starred sessions lead the merged list regardless of checkout', () => {
   assert.equal(merged[0].session.id, 's-starred');
 });
 
-test('a pinned session leaves its row and is listed once, in Pinned', () => {
+test('a pinned session stays in its repository and leads the row', () => {
   const starredInWorktree = project({
     ...worktreeB,
     sessions: [session('s-starred', '2026-07-01T10:00:00Z', { isStarred: true })],
   });
 
-  const entries = buildRepositoryEntries([mainCheckout, worktreeA, starredInWorktree]);
-  const rowSessions = getUnpinnedCheckoutSessions(entries[0]).map(({ session: item }) => item.id);
-  const pinned = collectPinnedSessions(entries).map(({ session: item }) => item.id);
-
-  assert.deepEqual(rowSessions, ['s-tts-new', 's-main-old'], 'the row must not repeat a pinned session');
-  assert.deepEqual(pinned, ['s-starred']);
-  // Together the two lists are the merged list exactly once over: pinning moves
-  // a session, it does not copy it.
+  const [entry] = buildRepositoryEntries([mainCheckout, worktreeA, starredInWorktree]);
   assert.deepEqual(
-    [...rowSessions, ...pinned].sort(),
-    mergeCheckoutSessions(entries[0]).map(({ session: item }) => item.id).sort(),
+    mergeCheckoutSessions(entry).map(({ session: item }) => item.id),
+    ['s-starred', 's-tts-new', 's-main-old'],
   );
 });
 
-test('Pinned gathers across repositories, newest first, naming each one', () => {
+test('Sessions view gathers pins across repositories before recent unpinned sessions', () => {
   const pinnedHere = project({
     ...worktreeA,
     sessions: [session('s-old-pin', '2026-07-01T10:00:00Z', { isStarred: true })],
@@ -230,26 +239,23 @@ test('Pinned gathers across repositories, newest first, naming each one', () => 
     sessions: [session('s-new-pin', '2026-08-03T10:00:00Z', { isStarred: true })],
   });
 
-  const pinned = collectPinnedSessions(buildRepositoryEntries([pinnedHere, pinnedThere]));
+  const sessions = collectBrowseSessions(buildRepositoryEntries([pinnedHere, pinnedThere, mainCheckout]));
 
   assert.deepEqual(
-    pinned.map(({ session: item }) => item.id),
-    ['s-new-pin', 's-old-pin'],
-    'the section orders by activity, not by the row each session came from',
+    sessions.map(({ session: item }) => item.id),
+    ['s-new-pin', 's-old-pin', 's-main-old'],
   );
-  // A session out of its row still has to say where it belongs — under the
-  // same name the row it left carries.
   assert.deepEqual(
-    pinned.map(({ repositoryName }) => repositoryName),
-    ['oney-index', 'cloudcli-wt-tts'],
+    sessions.map(({ repositoryName }) => repositoryName),
+    ['oney-index', 'cloudcli', 'cloudcli'],
   );
-  assert.equal(pinned[1].checkout.projectId, 'p-tts', 'selecting it must open its own checkout');
+  assert.equal(sessions[1].checkout.projectId, 'p-tts', 'selecting it must open its own checkout');
 });
 
-test('Sessions view flattens repositories by recency and leaves pinned rows global', () => {
+test('Sessions view flattens unpinned repositories by recency', () => {
   const pinnedHere = project({
     ...mainCheckout,
-    sessions: [session('s-pinned', '2026-08-05T10:00:00Z', { isStarred: true })],
+    sessions: [session('s-main', '2026-08-01T10:00:00Z')],
   });
   const entries = buildRepositoryEntries([pinnedHere, worktreeA, soloRepository]);
 
@@ -257,50 +263,69 @@ test('Sessions view flattens repositories by recency and leaves pinned rows glob
 
   assert.deepEqual(
     browseSessions.map(({ session: item }) => item.id),
-    ['s-tts-new', 's-oney'],
-    'the flat list is chronological across repositories and excludes Pinned',
+    ['s-tts-new', 's-oney', 's-main'],
   );
   assert.deepEqual(
     browseSessions.map(({ repositoryName }) => repositoryName),
-    ['cloudcli', 'oney-index'],
+    ['cloudcli', 'oney-index', 'cloudcli'],
   );
 });
 
-test('Activity copies sessions and orders blocked, running, then unread', () => {
+test('Sessions view filters by checkout and sorts the remaining titles', () => {
+  const translate = ((key: string) => key) as unknown as Parameters<
+    typeof applyBrowseSessionViewOptions
+  >[2];
+  const pinnedMain = project({
+    ...mainCheckout,
+    sessions: [session('s-pinned', '2026-07-01T10:00:00Z', {
+      isStarred: true,
+      summary: 'Zebra pinned',
+    })],
+  });
+  const sessions = collectBrowseSessions(
+    buildRepositoryEntries([pinnedMain, worktreeA, worktreeB, soloRepository]),
+  );
+  const filtered = applyBrowseSessionViewOptions(sessions, {
+    sort: 'title',
+    direction: 'asc',
+    checkoutProjectIds: ['p-main', 'p-codex'],
+  }, translate);
+
+  assert.deepEqual(
+    filtered.map(({ session: item }) => item.id),
+    ['s-pinned', 's-codex-mid'],
+    'the pin leads even though its title sorts last',
+  );
+  assert.equal(isDefaultBrowseSessionView(DEFAULT_BROWSE_SESSION_VIEW_OPTIONS), true);
+  assert.equal(isDefaultBrowseSessionView({
+    ...DEFAULT_BROWSE_SESSION_VIEW_OPTIONS,
+    checkoutProjectIds: ['p-main'],
+  }), false);
+});
+
+test('activity summary counts each session at its highest-urgency state', () => {
   const entries = buildRepositoryEntries([mainCheckout, worktreeA, worktreeB, soloRepository]);
   const activeSessionIds = new Set(['s-main-old', 's-tts-new', 's-codex-mid']);
   const attentionSessionIds = new Set(['s-main-old']);
   const unreadSessionIds = new Set(['s-oney']);
 
-  const activity = collectActivitySessions(
+  const summary = summarizeSessionActivity(
     entries,
     activeSessionIds,
     attentionSessionIds,
     unreadSessionIds,
   );
 
-  assert.deepEqual(
-    activity.map(({ session: item, activityState }) => [item.id, activityState]),
-    [
-      ['s-main-old', 'blocked'],
-      ['s-tts-new', 'running'],
-      ['s-codex-mid', 'running'],
-      ['s-oney', 'unread'],
-    ],
-  );
-  assert.ok(
-    mergeCheckoutSessions(entries[0]).some(({ session: item }) => item.id === 's-main-old'),
-    'Activity must copy a session instead of removing it from its repository row',
-  );
+  assert.deepEqual(summary, { blocked: 1, running: 2, unread: 1 });
 });
 
-test('Activity assigns overlapping states to the highest urgency only', () => {
+test('activity summary assigns overlapping states once', () => {
   const entries = buildRepositoryEntries([mainCheckout]);
   const sessionIds = new Set(['s-main-old']);
 
-  const [activity] = collectActivitySessions(entries, sessionIds, sessionIds, sessionIds);
+  const summary = summarizeSessionActivity(entries, sessionIds, sessionIds, sessionIds);
 
-  assert.equal(activity.activityState, 'blocked');
+  assert.deepEqual(summary, { blocked: 1, running: 0, unread: 0 });
 });
 
 test('sidebar status resolves blocked, then running, then unread', () => {
@@ -361,7 +386,7 @@ test('a search that matches only some checkouts leaves the rest out of the row',
 
 /** The row list a view is applied to: three checkouts, three activity dates. */
 const mergedRow = () =>
-  getUnpinnedCheckoutSessions(buildRepositoryEntries([mainCheckout, worktreeA, worktreeB])[0]);
+  mergeCheckoutSessions(buildRepositoryEntries([mainCheckout, worktreeA, worktreeB])[0]);
 
 // `getSessionName`'s fallback, which the title sort has to see rather than the
 // empty summary underneath it.
@@ -399,6 +424,31 @@ test('reversing the date sort is the exact reverse of the default', () => {
     isDefaultRepositoryView({ sort: 'date', direction: 'asc', worktreeProjectIds: null }),
     false,
   );
+});
+
+test('pinning outranks a repository custom sort', () => {
+  const pinnedMain = project({
+    ...mainCheckout,
+    sessions: [session('s-pinned', '2026-07-01T10:00:00Z', {
+      isStarred: true,
+      summary: 'Zebra pinned',
+    })],
+  });
+  const [entry] = buildRepositoryEntries([pinnedMain, worktreeA, worktreeB]);
+
+  const byOldest = applyRepositoryViewOptions(
+    mergeCheckoutSessions(entry),
+    { sort: 'date', direction: 'asc', worktreeProjectIds: null },
+    fallbackName,
+  );
+  const byTitle = applyRepositoryViewOptions(
+    mergeCheckoutSessions(entry),
+    { sort: 'title', direction: 'asc', worktreeProjectIds: null },
+    fallbackName,
+  );
+
+  assert.equal(byOldest[0].session.id, 's-pinned');
+  assert.equal(byTitle[0].session.id, 's-pinned');
 });
 
 test('title sorts by displayed name, and reverses on demand', () => {

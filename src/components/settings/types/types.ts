@@ -2,7 +2,6 @@ import type { LLMProvider } from '../../../types/app';
 import type { ProviderAuthStatus } from '../../provider-auth/types';
 
 export type AgentProvider = LLMProvider;
-export type ProjectSortOrder = 'name' | 'date';
 export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 
 export type SettingsProject = {

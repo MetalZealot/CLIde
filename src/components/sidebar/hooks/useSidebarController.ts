@@ -9,8 +9,9 @@ import type {
   ActivitySummary,
   ArchivedProjectListItem,
   ArchivedSessionListItem,
+  BrowseSessionViewOptions,
   DeleteProjectConfirmation,
-  ProjectSortOrder,
+  ProjectViewOptions,
   RepositoryEntry,
   RepositoryViewOptions,
   SidebarBrowseMode,
@@ -19,19 +20,23 @@ import type {
   SessionWithProvider,
 } from '../types/types';
 import {
+  applyBrowseSessionViewOptions,
   applyRepositoryViewOptions,
   buildRepositoryEntries,
-  collectActivitySessions,
   collectBrowseSessions,
-  collectPinnedSessions,
+  DEFAULT_BROWSE_SESSION_VIEW_OPTIONS,
+  DEFAULT_PROJECT_VIEW_OPTIONS,
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
   filterProjectsBySessionTitle,
   getAllSessions,
-  getUnpinnedCheckoutSessions,
+  isDefaultBrowseSessionView,
   isDefaultRepositoryView,
-  readProjectSortOrder,
+  mergeCheckoutSessions,
+  readProjectViewOptions,
   repositoryEntryKey,
-  sortProjects,
+  sortRepositoryEntries,
+  summarizeSessionActivity,
+  writeProjectViewOptions,
 } from '../utils/utils';
 import { getBatchSelectableWorktrees, getWorktreeSessionCount } from '../utils/worktreeManager';
 
@@ -117,16 +122,7 @@ type UseSidebarControllerArgs = {
 /** Sessions a row shows before "Show all", and what "Show less" returns it to. */
 export const SESSION_PAGE_SIZE = 5;
 
-const ACTIVITY_SECTION_COLLAPSED_STORAGE_KEY = 'sidebar-activity-section-collapsed';
 const SIDEBAR_BROWSE_MODE_STORAGE_KEY = 'sidebar-browse-mode';
-
-const readActivitySectionCollapsed = (): boolean => {
-  try {
-    return localStorage.getItem(ACTIVITY_SECTION_COLLAPSED_STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
-};
 
 const readSidebarBrowseMode = (): SidebarBrowseMode => {
   try {
@@ -175,13 +171,12 @@ export function useSidebarController({
   const [repositoryViews, setRepositoryViews] = useState<Map<string, RepositoryViewOptions>>(new Map());
   // Rows the user asked to see in full, which keep pulling pages until drained.
   const [fullyRevealedRows, setFullyRevealedRows] = useState<Set<string>>(new Set());
-  const [isActivitySectionCollapsed, setIsActivitySectionCollapsed] = useState(
-    readActivitySectionCollapsed,
-  );
-  const [isPinnedSectionCollapsed, setIsPinnedSectionCollapsed] = useState(false);
   const [browseMode, setBrowseMode] = useState<SidebarBrowseMode>(readSidebarBrowseMode);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
+  const [projectView, setProjectView] = useState<ProjectViewOptions>(readProjectViewOptions);
+  const [browseSessionView, setBrowseSessionView] = useState<BrowseSessionViewOptions>(
+    DEFAULT_BROWSE_SESSION_VIEW_OPTIONS,
+  );
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
@@ -256,33 +251,6 @@ export function useSidebarController({
       setInitialSessionsLoaded(loadedProjects);
     }
   }, [projects, isLoading]);
-
-  useEffect(() => {
-    const loadSortOrder = () => {
-      setProjectSortOrder(readProjectSortOrder());
-    };
-
-    loadSortOrder();
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === 'claude-settings') {
-        loadSortOrder();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    const interval = setInterval(() => {
-      if (document.hasFocus()) {
-        loadSortOrder();
-      }
-    }, 1000);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
-  }, []);
 
   useEffect(() => {
     onRefreshRef.current = onRefresh;
@@ -494,28 +462,12 @@ export function useSidebarController({
   const getRepositorySessions = useCallback(
     (entry: RepositoryEntry) =>
       applyRepositoryViewOptions(
-        getUnpinnedCheckoutSessions(entry),
+        mergeCheckoutSessions(entry),
         getRepositoryView(entry.key),
         t,
       ),
     [getRepositoryView, t],
   );
-
-  const togglePinnedSection = useCallback(() => {
-    setIsPinnedSectionCollapsed((previous) => !previous);
-  }, []);
-
-  const toggleActivitySection = useCallback(() => {
-    setIsActivitySectionCollapsed((previous) => {
-      const next = !previous;
-      try {
-        localStorage.setItem(ACTIVITY_SECTION_COLLAPSED_STORAGE_KEY, String(next));
-      } catch {
-        // The section still collapses when storage is unavailable.
-      }
-      return next;
-    });
-  }, []);
 
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
     if (!onLoadMoreSessions) {
@@ -666,14 +618,9 @@ export function useSidebarController({
     );
   }, [accentColorOverrides, projects]);
 
-  const sortedProjects = useMemo(
-    () => sortProjects(projectsWithAccentOverrides, projectSortOrder),
-    [projectSortOrder, projectsWithAccentOverrides],
-  );
-
   const filteredProjects = useMemo(
-    () => filterProjectsBySessionTitle(sortedProjects, debouncedSearchQuery),
-    [debouncedSearchQuery, sortedProjects],
+    () => filterProjectsBySessionTitle(projectsWithAccentOverrides, debouncedSearchQuery),
+    [debouncedSearchQuery, projectsWithAccentOverrides],
   );
 
   const selectBrowseMode = useCallback((mode: SidebarBrowseMode) => {
@@ -683,6 +630,23 @@ export function useSidebarController({
     } catch {
       // The view still changes when storage is unavailable.
     }
+  }, []);
+
+  const updateProjectView = useCallback((options: ProjectViewOptions) => {
+    setProjectView(options);
+    writeProjectViewOptions(options);
+  }, []);
+
+  const resetProjectView = useCallback(() => {
+    updateProjectView(DEFAULT_PROJECT_VIEW_OPTIONS);
+  }, [updateProjectView]);
+
+  const updateBrowseSessionView = useCallback((options: BrowseSessionViewOptions) => {
+    setBrowseSessionView(options);
+  }, []);
+
+  const resetBrowseSessionView = useCallback(() => {
+    setBrowseSessionView(DEFAULT_BROWSE_SESSION_VIEW_OPTIONS);
   }, []);
 
   /**
@@ -695,25 +659,12 @@ export function useSidebarController({
   // ADR 0016: collapsing to one row per repository is the last step, so
   // sorting and the search filter both keep operating on a flat project list.
   const allRepositoryEntries = useMemo(
-    () => buildRepositoryEntries(filteredProjects),
-    [filteredProjects],
+    () => sortRepositoryEntries(buildRepositoryEntries(filteredProjects), projectView),
+    [filteredProjects, projectView],
   );
 
-  /**
-   * Pinned sessions, lifted out of their rows into one section at the top of
-   * the sidebar and listed there only (decided 2026-08-05).
-   */
-  const pinnedSessions = useMemo(
-    () => collectPinnedSessions(allRepositoryEntries),
-    [allRepositoryEntries],
-  );
-
-  /**
-   * Transient session activity, copied above Pinned without removing anything
-   * from its repository row. The collector applies the urgency ordering.
-   */
-  const activitySessions = useMemo(
-    () => collectActivitySessions(
+  const activitySummary = useMemo<ActivitySummary>(
+    () => summarizeSessionActivity(
       allRepositoryEntries,
       activeSessionIds,
       attentionSessionIds,
@@ -721,35 +672,16 @@ export function useSidebarController({
     ),
     [activeSessionIds, allRepositoryEntries, attentionSessionIds, unreadSessionIds],
   );
-  const activitySummary = useMemo<ActivitySummary>(
-    () => activitySessions.reduce(
-      (summary, session) => ({
-        ...summary,
-        [session.activityState]: summary[session.activityState] + 1,
-      }),
-      { blocked: 0, unread: 0, running: 0 },
-    ),
-    [activitySessions],
-  );
 
-  /**
-   * The rows drawn below the pinned section.
-   *
-   * A row that matched only through a pinned session has nothing left to list
-   * and the match is already visible above, so it drops out rather than reading
-   * as a dead end.
-   */
-  const repositoryEntries = useMemo(() => {
-    return !isSessionSearchActive
-      ? allRepositoryEntries
-      : allRepositoryEntries.filter(
-      (entry) => getUnpinnedCheckoutSessions(entry).length > 0,
-    );
-  }, [allRepositoryEntries, isSessionSearchActive]);
+  const repositoryEntries = allRepositoryEntries;
 
   const browseSessions = useMemo(
-    () => collectBrowseSessions(repositoryEntries),
-    [repositoryEntries],
+    () => applyBrowseSessionViewOptions(
+      collectBrowseSessions(repositoryEntries),
+      browseSessionView,
+      t,
+    ),
+    [browseSessionView, repositoryEntries, t],
   );
 
   /**
@@ -760,12 +692,19 @@ export function useSidebarController({
    * page re-runs this; it stops once no checkout has more.
    */
   useEffect(() => {
-    if (repositoryViews.size === 0 && fullyRevealedRows.size === 0) {
+    const hasCustomizedBrowseView = browseMode === 'sessions'
+      && !isDefaultBrowseSessionView(browseSessionView);
+    if (repositoryViews.size === 0 && fullyRevealedRows.size === 0 && !hasCustomizedBrowseView) {
       return;
     }
 
     for (const entry of allRepositoryEntries) {
-      if (!repositoryViews.has(entry.key) && !fullyRevealedRows.has(entry.key)) {
+      const isInBrowseFilter = browseSessionView.checkoutProjectIds === null
+        || entry.checkouts.some((checkout) =>
+          browseSessionView.checkoutProjectIds?.includes(checkout.projectId));
+      const needsBrowseSessions = hasCustomizedBrowseView && isInBrowseFilter;
+
+      if (!repositoryViews.has(entry.key) && !fullyRevealedRows.has(entry.key) && !needsBrowseSessions) {
         continue;
       }
 
@@ -773,7 +712,14 @@ export function useSidebarController({
         void loadMoreSessionsForRepository(entry);
       }
     }
-  }, [allRepositoryEntries, fullyRevealedRows, loadMoreSessionsForRepository, repositoryViews]);
+  }, [
+    allRepositoryEntries,
+    browseMode,
+    browseSessionView,
+    fullyRevealedRows,
+    loadMoreSessionsForRepository,
+    repositoryViews,
+  ]);
 
   const filteredArchivedSessions = useMemo(() => {
     const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
@@ -1324,7 +1270,12 @@ export function useSidebarController({
     editingName,
     initialSessionsLoaded,
     currentTime,
-    projectSortOrder,
+    projectView,
+    updateProjectView,
+    resetProjectView,
+    browseSessionView,
+    updateBrowseSessionView,
+    resetBrowseSessionView,
     editingSession,
     editingSessionName,
     searchFilter,
@@ -1338,13 +1289,7 @@ export function useSidebarController({
     browseMode,
     selectBrowseMode,
     browseSessions,
-    activitySessions,
     activitySummary,
-    isActivitySectionCollapsed,
-    toggleActivitySection,
-    pinnedSessions,
-    isPinnedSectionCollapsed,
-    togglePinnedSection,
     isSessionSearchActive,
     archivedProjects: filteredArchivedProjects,
     archivedSessions: filteredArchivedSessions,

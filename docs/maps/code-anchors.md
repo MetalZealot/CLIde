@@ -130,8 +130,8 @@ the same function — fix both in one pass.
 - **The two signals have different lifecycles** — `reduceSidebarSessionSignals`
   (`src/hooks/sidebarSessionSignals.ts`). Attention follows the *request* lifecycle,
   unread follows the *viewing* one, so opening a session clears unread but never
-  clears an unresolved attention signal. `collectActivitySessions` copies these above
-  Pinned without removing the rows from their repositories (ADR 0030).
+  clears an unresolved attention signal. `summarizeSessionActivity` counts them for
+  the collapsed rail; expanded views render them on repository and session rows (ADR 0036).
 - **Every composer popover shares one anchor and one surface.** `useComposerMenuAnchor`
   owns above-trigger placement, outside-pointer and Escape dismissal, and reflow;
   `ComposerMenuPrimitives` owns the surface, heading, separator, and item. The three

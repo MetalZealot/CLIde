@@ -1,7 +1,7 @@
 # 0030 — Sidebar activity is a section; search is persistent and Archive is in the footer
 
 - Date: 2026-08-08
-- Status: Accepted
+- Status: Superseded by 0036 and 0037
 
 ## Decision
 

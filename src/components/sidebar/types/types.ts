@@ -5,11 +5,31 @@ export type ProjectSortOrder = 'name' | 'date';
 export type SidebarSearchMode = 'projects' | 'conversations' | 'archived';
 export type SidebarBrowseMode = 'projects' | 'sessions';
 
+/** Ascending is oldest-first for dates and A–Z for text fields. */
+export type SessionSortDirection = 'asc' | 'desc';
+
+export type ProjectViewOptions = {
+  sort: ProjectSortOrder;
+  direction: SessionSortDirection;
+};
+
+export type BrowseSessionSortKey = 'date' | 'title' | 'project';
+
+/** How the flat, cross-project Sessions view is presented. */
+export type BrowseSessionViewOptions = {
+  sort: BrowseSessionSortKey;
+  direction: SessionSortDirection;
+  /** Registered checkouts to keep. Null shows every checkout. */
+  checkoutProjectIds: string[] | null;
+};
+
+/** The visible list whose session rows batch mode replaces with checkboxes. */
+export type SessionSelectionScope =
+  | { kind: 'repository'; entryKey: string }
+  | { kind: 'sessions' };
+
 /** Field the sessions under one repository row are ordered by. */
 export type SessionSortKey = 'date' | 'title' | 'worktree';
-
-/** Ascending is oldest-first for `date` and A–Z for the two text fields. */
-export type SessionSortDirection = 'asc' | 'desc';
 
 /**
  * How one repository row presents its sessions.
@@ -84,26 +104,12 @@ export type CheckoutSession = {
   branchLabel: string | null;
 };
 
-/**
- * A pinned session as the Pinned section draws it: it has left its repository's
- * row, so it has to name the repository it came from itself.
- */
-export type PinnedSession = CheckoutSession & {
-  repositoryName: string;
-};
-
-/** An unpinned session in the flat Sessions view. */
+/** A session in the flat Sessions view, labelled with its repository. */
 export type BrowseSession = CheckoutSession & {
   repositoryName: string;
 };
 
 export type ActivityState = 'blocked' | 'unread' | 'running';
-
-/** A transiently active session, labelled because Activity is a flat section. */
-export type ActivitySession = CheckoutSession & {
-  repositoryName: string;
-  activityState: ActivityState;
-};
 
 export type ActivitySummary = Record<ActivityState, number>;
 

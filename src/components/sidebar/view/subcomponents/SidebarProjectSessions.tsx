@@ -122,8 +122,7 @@ export default function SidebarProjectSessions({
   // element competing with the rows. `pl-0.5` gives back the 2px, so the session
   // labels' text edge does not move.
   //
-  // No `space-y`: rows own their spacing through `my-0.5`, and 4px on top made
-  // this list twice as airy as the identical-looking Pinned list above.
+  // No `space-y`: rows own their spacing through `my-0.5`.
   return (
     <div
       className="ml-3 border-l-2 border-border pl-0.5"
