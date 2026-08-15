@@ -231,7 +231,7 @@ export default function SidebarSessionItem({
         {isEditing ? (
           <div
             ref={mobileEditRef}
-            className="my-0.5 ml-1 mr-3 flex items-center gap-1 rounded-md border border-primary/50 bg-card px-3 py-2"
+            className="my-[3px] ml-1 mr-3 flex items-center gap-1 rounded-md border border-primary/50 bg-card px-3 py-2"
           >
             <input
               type="text"
@@ -286,7 +286,7 @@ export default function SidebarSessionItem({
               // sessions beneath a repository remain visibly nested.
               // Matches the repository header's px-3 so labels down the whole
               // sidebar share one text edge instead of two by a few pixels.
-              'long-pressable relative my-0.5 overflow-hidden rounded-md px-3 py-2 transition-all duration-150',
+              'long-pressable relative my-[3px] overflow-hidden rounded-md px-3 py-2 transition-all duration-150',
               isSectionItem ? 'mx-3' : 'ml-2 mr-3',
               isContextActive && 'scale-[0.98] bg-accent/60',
               isBatchSelected

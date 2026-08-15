@@ -47,7 +47,7 @@ function SessionListSkeleton() {
   return (
     <>
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="my-0.5 rounded-md py-2 pl-5 pr-3">
+        <div key={index} className="my-[3px] rounded-md py-2 pl-5 pr-3">
           <div className="flex items-start gap-2">
             <div className="mt-0.5 h-3 w-3 animate-pulse rounded-full bg-muted" />
             <div className="flex-1 space-y-1">
@@ -123,7 +123,7 @@ export default function SidebarProjectSessions({
   // element competing with the rows. `pl-0.5` gives back the 2px, so the session
   // labels' text edge does not move.
   //
-  // No `space-y`: rows own their spacing through `my-0.5`.
+  // No `space-y`: rows own their spacing through their vertical margin.
   return (
     <div
       className="ml-3 border-l-2 border-border pl-0.5"

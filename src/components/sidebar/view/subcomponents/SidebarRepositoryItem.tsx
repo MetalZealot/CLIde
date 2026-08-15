@@ -357,7 +357,7 @@ export default function SidebarRepositoryItem({
               // px-3 not p-2: the leading edge carries the accent strip and 8px
               // left the label almost touching it. Applied unconditionally, so
               // adding a colour never shifts the text.
-              'long-pressable relative overflow-hidden mx-3 my-0.5 rounded-lg px-3 py-2 transition-all duration-150',
+              'long-pressable relative overflow-hidden mx-3 my-[3px] rounded-lg px-3 py-2 transition-all duration-150',
               isContextActive && 'scale-[0.98] bg-accent/60',
               isSelected ? 'bg-primary/15' : 'active:bg-accent/50',
             )}
