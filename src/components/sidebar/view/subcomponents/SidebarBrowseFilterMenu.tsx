@@ -2,7 +2,6 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarClock,
-  Check,
   Folder,
   RotateCcw,
   Type,
@@ -17,21 +16,17 @@ import type {
   BrowseSessionViewOptions,
   ProjectSortOrder,
   ProjectViewOptions,
-  RepositoryEntry,
   SidebarBrowseMode,
   SessionSortDirection,
 } from '../../types/types';
 import {
-  getCheckoutRefLabel,
   isDefaultBrowseSessionView,
   isDefaultProjectView,
-  isDiscoveredCheckout,
 } from '../../utils/utils';
 
 type SidebarBrowseFilterMenuProps = {
   anchor: ContextMenuAnchor;
   browseMode: SidebarBrowseMode;
-  repositoryEntries: RepositoryEntry[];
   projectOptions: ProjectViewOptions;
   sessionOptions: BrowseSessionViewOptions;
   onProjectChange: (options: ProjectViewOptions) => void;
@@ -95,7 +90,6 @@ function SortChoice({
 export default function SidebarBrowseFilterMenu({
   anchor,
   browseMode,
-  repositoryEntries,
   projectOptions,
   sessionOptions,
   onProjectChange,
@@ -126,15 +120,6 @@ export default function SidebarBrowseFilterMenu({
       ];
   const selectedSort = isProjects ? projectOptions.sort : sessionOptions.sort;
   const selectedDirection = isProjects ? projectOptions.direction : sessionOptions.direction;
-  const filterableCheckouts = repositoryEntries.flatMap((entry) => {
-    const registered = entry.checkouts.filter((checkout) => !isDiscoveredCheckout(checkout));
-    return registered.map((checkout) => ({
-      projectId: checkout.projectId,
-      label: registered.length > 1
-        ? `${entry.displayName} · ${getCheckoutRefLabel(checkout) ?? checkout.displayName ?? checkout.projectId}`
-        : entry.displayName,
-    }));
-  });
   const isCustomized = isProjects
     ? !isDefaultProjectView(projectOptions)
     : !isDefaultBrowseSessionView(sessionOptions);
@@ -156,27 +141,15 @@ export default function SidebarBrowseFilterMenu({
     onSessionChange({ ...sessionOptions, sort: sessionKey, direction });
   };
 
-  const toggleCheckout = (projectId: string) => {
-    const allIds = filterableCheckouts.map((checkout) => checkout.projectId);
-    const current = sessionOptions.checkoutProjectIds ?? allIds;
-    const next = current.includes(projectId)
-      ? current.filter((id) => id !== projectId)
-      : [...current, projectId];
-    onSessionChange({
-      ...sessionOptions,
-      checkoutProjectIds: next.length === allIds.length ? null : next,
-    });
-  };
-
   return (
     <ContextMenuOverlay
       anchor={anchor}
       onDismiss={onClose}
       ariaLabel={isProjects
         ? t('browseView.projectOptions', 'Sort projects')
-        : t('browseView.sessionOptions', 'Sort and filter sessions')}
-      className="sidebar-context-menu max-h-[min(70vh,32rem)] min-w-56 max-w-72 overflow-y-auto rounded-xl py-1"
-      measureKey={`${browseMode}:${sortChoices.length}:${filterableCheckouts.length}:${isCustomized}`}
+        : t('browseView.sessionOptions', 'Sort sessions')}
+      className="sidebar-context-menu min-w-56 max-w-72 rounded-xl py-1"
+      measureKey={`${browseMode}:${sortChoices.length}:${isCustomized}`}
     >
       <SectionLabel>{t('sessionView.sortBy', 'Sort by')}</SectionLabel>
       {sortChoices.map((choice) => {
@@ -195,33 +168,6 @@ export default function SidebarBrowseFilterMenu({
           />
         );
       })}
-
-      {!isProjects && filterableCheckouts.length > 0 && (
-        <>
-          <div className="my-1 border-t border-border" />
-          <SectionLabel>{t('browseView.filterProjectWorktree', 'Filter by project / worktree')}</SectionLabel>
-          {filterableCheckouts.map((checkout) => {
-            const isSelected = sessionOptions.checkoutProjectIds === null
-              || sessionOptions.checkoutProjectIds.includes(checkout.projectId);
-            return (
-              <button
-                key={checkout.projectId}
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={isSelected}
-                onClick={() => toggleCheckout(checkout.projectId)}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent active:bg-accent"
-              >
-                <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                  {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
-                </span>
-                <Folder className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                <span className="truncate">{checkout.label}</span>
-              </button>
-            );
-          })}
-        </>
-      )}
 
       <div className="my-1 border-t border-border" />
       <button

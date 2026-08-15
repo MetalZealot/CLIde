@@ -75,3 +75,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0035 — Discovered checkout selection registers first](0035-discovered-checkout-selection-registers-first.md)
 - [0036 — Pins belong to session lists; activity belongs to status](0036-pins-belong-to-session-lists-activity-belongs-to-status.md)
 - [0037 — The sidebar view menu owns Archive and global list controls](0037-sidebar-view-menu-owns-archive-and-global-list-controls.md)
+- [0038 — The sidebar view menu owns Archive and global sorting](0038-global-sessions-menu-sorts-only.md)

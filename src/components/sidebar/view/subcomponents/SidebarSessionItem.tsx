@@ -13,6 +13,7 @@ import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel, resolveActivityState } from '../../utils/utils';
+import { projectAccentColorValue, type ProjectAccentColor } from '../../utils/accentColors';
 import { useLongPress } from '../../../../hooks/useLongPress';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 
@@ -31,6 +32,8 @@ type SidebarSessionItemProps = {
   editingSessionName: string;
   /** Shown under the session name in flat lists that mix projects. */
   projectLabel?: string;
+  /** Repository identity marker for a standalone row in the flat Sessions view. */
+  accentColor?: ProjectAccentColor | null;
   /** Global Activity/Pinned rows align with repository headers, not nested sessions. */
   isSectionItem?: boolean;
   /**
@@ -99,6 +102,7 @@ export default function SidebarSessionItem({
   editingSession,
   editingSessionName,
   projectLabel,
+  accentColor = null,
   isSectionItem = false,
   branchLabel,
   onEditingSessionNameChange,
@@ -148,6 +152,17 @@ export default function SidebarSessionItem({
   const trailingFadeClass = isEditing
     ? 'opacity-0'
     : isSelectionMode ? undefined : 'group-hover:opacity-0';
+
+  // Flat Sessions-view rows stand alone, so they repeat the repository strip.
+  // Nested Projects-view rows omit this prop because the enclosing rail already
+  // carries the same identity.
+  const accentStrip = accentColor && (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-y-0 left-0 w-1"
+      style={{ backgroundColor: projectAccentColorValue(accentColor) }}
+    />
+  );
 
   // Leading tick box, shown only in batch mode so ordinary rows keep their full
   // width for the title.
@@ -271,7 +286,7 @@ export default function SidebarSessionItem({
               // sessions beneath a repository remain visibly nested.
               // Matches the repository header's px-3 so labels down the whole
               // sidebar share one text edge instead of two by a few pixels.
-              'long-pressable my-0.5 rounded-md px-3 py-2 transition-all duration-150 relative',
+              'long-pressable relative my-0.5 overflow-hidden rounded-md px-3 py-2 transition-all duration-150',
               isSectionItem ? 'mx-3' : 'ml-2 mr-3',
               isContextActive && 'scale-[0.98] bg-accent/60',
               isBatchSelected
@@ -281,6 +296,7 @@ export default function SidebarSessionItem({
             onClick={isSelectionMode ? toggleBatchSelected : selectMobileSession}
             {...longPress}
           >
+            {accentStrip}
             <div className="min-w-0">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
@@ -336,7 +352,7 @@ export default function SidebarSessionItem({
           className={cn(
             buttonVariants({ variant: 'ghost' }),
             // Surface on hover or when current; status stays in its symbol slot.
-            'h-auto w-full justify-start rounded-md px-3 py-2 text-left font-normal transition-all duration-150',
+            'relative h-auto w-full overflow-hidden justify-start rounded-md px-3 py-2 text-left font-normal transition-all duration-150',
             isBatchSelected
               ? 'bg-primary/20'
               : isSelected ? 'bg-primary/15' : 'hover:bg-accent/50',
@@ -362,6 +378,7 @@ export default function SidebarSessionItem({
           }}
           onContextMenu={isSelectionMode ? undefined : openSessionMenuAtCursor}
         >
+          {accentStrip}
           <div className="w-full min-w-0">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">

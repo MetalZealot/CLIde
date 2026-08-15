@@ -1,7 +1,7 @@
 # 0037 — The sidebar view menu owns Archive and global list controls
 
 - Date: 2026-08-14
-- Status: Accepted
+- Status: Superseded by 0038
 
 ## Decision
 

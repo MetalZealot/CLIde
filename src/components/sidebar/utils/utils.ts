@@ -26,7 +26,6 @@ export const DEFAULT_PROJECT_VIEW_OPTIONS: ProjectViewOptions = {
 export const DEFAULT_BROWSE_SESSION_VIEW_OPTIONS: BrowseSessionViewOptions = {
   sort: 'date',
   direction: 'desc',
-  checkoutProjectIds: null,
 };
 
 const SIDEBAR_PROJECT_VIEW_STORAGE_KEY = 'sidebar-project-view-options';
@@ -72,8 +71,7 @@ export const isDefaultProjectView = (options: ProjectViewOptions): boolean =>
 
 export const isDefaultBrowseSessionView = (options: BrowseSessionViewOptions): boolean =>
   options.sort === DEFAULT_BROWSE_SESSION_VIEW_OPTIONS.sort
-  && options.direction === DEFAULT_BROWSE_SESSION_VIEW_OPTIONS.direction
-  && options.checkoutProjectIds === null;
+  && options.direction === DEFAULT_BROWSE_SESSION_VIEW_OPTIONS.direction;
 
 const getCreatedTimestamp = (session: SessionWithProvider): string => {
   return String(session.createdAt || session.created_at || '');
@@ -427,6 +425,7 @@ export const collectBrowseSessions = (entries: RepositoryEntry[]): BrowseSession
       mergeCheckoutSessions(entry).map((checkoutSession) => ({
         ...checkoutSession,
         repositoryName: entry.displayName,
+        repositoryAccentColor: entry.leadCheckout.accentColor,
       })),
     )
     .sort((a, b) => compareSessionsStarredFirst(a.session, b.session));
@@ -438,9 +437,6 @@ export const applyBrowseSessionViewOptions = (
   options: BrowseSessionViewOptions,
   t: TFunction,
 ): BrowseSession[] => {
-  const filtered = options.checkoutProjectIds === null
-    ? sessions
-    : sessions.filter(({ checkout }) => options.checkoutProjectIds?.includes(checkout.projectId));
   const sign = options.direction === 'asc' ? 1 : -1;
   const pinnedFirst = (compare: (a: BrowseSession, b: BrowseSession) => number) =>
     (a: BrowseSession, b: BrowseSession) => {
@@ -450,7 +446,7 @@ export const applyBrowseSessionViewOptions = (
       return compare(a, b);
     };
 
-  return [...filtered].sort(pinnedFirst((a, b) => {
+  return [...sessions].sort(pinnedFirst((a, b) => {
     if (options.sort === 'title') {
       return sign * getSessionName(a.session, t).localeCompare(getSessionName(b.session, t));
     }

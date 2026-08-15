@@ -252,6 +252,19 @@ test('Sessions view gathers pins across repositories before recent unpinned sess
   assert.equal(sessions[1].checkout.projectId, 'p-tts', 'selecting it must open its own checkout');
 });
 
+test('Sessions view gives worktree sessions the repository row highlight', () => {
+  const highlightedMain = project({ ...mainCheckout, accentColor: 'violet' });
+  const differentlyColoredWorktree = project({ ...worktreeA, accentColor: 'amber' });
+
+  const sessions = collectBrowseSessions(
+    buildRepositoryEntries([highlightedMain, differentlyColoredWorktree]),
+  );
+  const worktreeSession = sessions.find(({ session: item }) => item.id === 's-tts-new');
+
+  assert.equal(worktreeSession?.checkout.projectId, 'p-tts');
+  assert.equal(worktreeSession?.repositoryAccentColor, 'violet');
+});
+
 test('Sessions view flattens unpinned repositories by recency', () => {
   const pinnedHere = project({
     ...mainCheckout,
@@ -271,7 +284,7 @@ test('Sessions view flattens unpinned repositories by recency', () => {
   );
 });
 
-test('Sessions view filters by checkout and sorts the remaining titles', () => {
+test('Sessions view sorts every project by title without disturbing pins', () => {
   const translate = ((key: string) => key) as unknown as Parameters<
     typeof applyBrowseSessionViewOptions
   >[2];
@@ -282,25 +295,24 @@ test('Sessions view filters by checkout and sorts the remaining titles', () => {
       summary: 'Zebra pinned',
     })],
   });
+  const namedSolo = project({
+    ...soloRepository,
+    sessions: [session('s-oney', '2026-08-03T10:00:00Z', { summary: 'Alpha session' })],
+  });
   const sessions = collectBrowseSessions(
-    buildRepositoryEntries([pinnedMain, worktreeA, worktreeB, soloRepository]),
+    buildRepositoryEntries([pinnedMain, worktreeA, worktreeB, namedSolo]),
   );
-  const filtered = applyBrowseSessionViewOptions(sessions, {
+  const sorted = applyBrowseSessionViewOptions(sessions, {
     sort: 'title',
     direction: 'asc',
-    checkoutProjectIds: ['p-main', 'p-codex'],
   }, translate);
 
   assert.deepEqual(
-    filtered.map(({ session: item }) => item.id),
-    ['s-pinned', 's-codex-mid'],
+    sorted.map(({ session: item }) => item.id),
+    ['s-pinned', 's-oney', 's-codex-mid', 's-tts-new'],
     'the pin leads even though its title sorts last',
   );
   assert.equal(isDefaultBrowseSessionView(DEFAULT_BROWSE_SESSION_VIEW_OPTIONS), true);
-  assert.equal(isDefaultBrowseSessionView({
-    ...DEFAULT_BROWSE_SESSION_VIEW_OPTIONS,
-    checkoutProjectIds: ['p-main'],
-  }), false);
 });
 
 test('activity summary counts each session at its highest-urgency state', () => {

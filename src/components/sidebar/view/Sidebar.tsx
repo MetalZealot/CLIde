@@ -610,7 +610,6 @@ function Sidebar({
             isArchivedSessionsLoading={isArchivedSessionsLoading}
             browseMode={browseMode}
             onBrowseModeChange={handleBrowseModeChange}
-            repositoryEntries={repositoryEntries}
             projectView={projectView}
             browseSessionView={browseSessionView}
             onProjectViewChange={(options) => {

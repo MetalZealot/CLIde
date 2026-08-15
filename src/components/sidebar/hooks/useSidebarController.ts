@@ -685,11 +685,11 @@ export function useSidebarController({
   );
 
   /**
-   * A sorted or filtered row loads every session it has before it answers.
+   * A custom-sorted row loads every session it has before it answers.
    *
    * The server pages sessions (`isStarred DESC`, then newest first), so sorting
-   * or filtering one page answers from five sessions out of forty. Each arriving
-   * page re-runs this; it stops once no checkout has more.
+   * one page answers from five sessions out of forty. Each arriving page re-runs
+   * this; it stops once no checkout has more.
    */
   useEffect(() => {
     const hasCustomizedBrowseView = browseMode === 'sessions'
@@ -699,10 +699,7 @@ export function useSidebarController({
     }
 
     for (const entry of allRepositoryEntries) {
-      const isInBrowseFilter = browseSessionView.checkoutProjectIds === null
-        || entry.checkouts.some((checkout) =>
-          browseSessionView.checkoutProjectIds?.includes(checkout.projectId));
-      const needsBrowseSessions = hasCustomizedBrowseView && isInBrowseFilter;
+      const needsBrowseSessions = hasCustomizedBrowseView;
 
       if (!repositoryViews.has(entry.key) && !fullyRevealedRows.has(entry.key) && !needsBrowseSessions) {
         continue;

@@ -28,6 +28,7 @@ test('Sessions view gives flat rows the global batch-selection scope', async () 
     projectId: 'project-1',
     displayName: 'Project',
     fullPath: '/project',
+    accentColor: 'blue',
   };
   const session: SessionWithProvider = {
     id: 'session-1',
@@ -58,6 +59,7 @@ test('Sessions view gives flat rows the global batch-selection scope', async () 
           checkout: project,
           branchLabel: null,
           repositoryName: 'Project',
+          repositoryAccentColor: 'blue',
         }]}
         selectedProject={null}
         selectedSession={null}
@@ -106,6 +108,11 @@ test('Sessions view gives flat rows the global batch-selection scope', async () 
 
   const desktopLink = container.querySelector<HTMLAnchorElement>('a[href="/session/session-1"]');
   assert.ok(desktopLink);
+  assert.equal(
+    container.querySelectorAll('span[style*="--project-accent-blue"]').length,
+    2,
+    'the flat row carries the repository strip in its mobile and desktop renderings',
+  );
   await React.act(async () => desktopLink.dispatchEvent(new window.MouseEvent('contextmenu', {
     bubbles: true,
     cancelable: true,

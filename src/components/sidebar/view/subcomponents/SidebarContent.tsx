@@ -125,7 +125,6 @@ type SidebarContentProps = {
   isArchivedSessionsLoading: boolean;
   browseMode: SidebarBrowseMode;
   onBrowseModeChange: (mode: SidebarBrowseMode) => void;
-  repositoryEntries: SidebarProjectListProps['repositoryEntries'];
   projectView: ProjectViewOptions;
   browseSessionView: BrowseSessionViewOptions;
   onProjectViewChange: (options: ProjectViewOptions) => void;
@@ -170,7 +169,6 @@ export default function SidebarContent({
   isArchivedSessionsLoading,
   browseMode,
   onBrowseModeChange,
-  repositoryEntries,
   projectView,
   browseSessionView,
   onProjectViewChange,
@@ -219,7 +217,6 @@ export default function SidebarContent({
       <SidebarHeader
         browseMode={browseMode}
         onBrowseModeChange={onBrowseModeChange}
-        repositoryEntries={repositoryEntries}
         projectView={projectView}
         browseSessionView={browseSessionView}
         onProjectViewChange={onProjectViewChange}

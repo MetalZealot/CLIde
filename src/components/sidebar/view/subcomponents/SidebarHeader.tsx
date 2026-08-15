@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Archive,
+  ArrowUpDown,
   Check,
   ChevronDown,
   Folder,
-  ListFilter,
   MessageSquare,
   MessageSquarePlus,
   PanelLeftClose,
@@ -25,7 +25,6 @@ import { cn } from '../../../../lib/utils';
 import type {
   BrowseSessionViewOptions,
   ProjectViewOptions,
-  RepositoryEntry,
   SidebarBrowseMode,
   SidebarSearchMode,
 } from '../../types/types';
@@ -44,7 +43,6 @@ type SidebarHeaderProps = {
   onClearSearchFilter: () => void;
   searchMode: SidebarSearchMode;
   onSearchModeChange: (mode: SidebarSearchMode) => void;
-  repositoryEntries: RepositoryEntry[];
   projectView: ProjectViewOptions;
   browseSessionView: BrowseSessionViewOptions;
   onProjectViewChange: (options: ProjectViewOptions) => void;
@@ -64,7 +62,6 @@ export default function SidebarHeader({
   onClearSearchFilter,
   searchMode,
   onSearchModeChange,
-  repositoryEntries,
   projectView,
   browseSessionView,
   onProjectViewChange,
@@ -310,8 +307,8 @@ export default function SidebarHeader({
             aria-haspopup="menu"
             aria-expanded={isFilterMenuOpen}
             aria-pressed={isFilterCustomized}
-            aria-label={t('browseView.filter', 'Sort and filter')}
-            title={t('browseView.filter', 'Sort and filter')}
+            aria-label={t('browseView.filter', 'Sort')}
+            title={t('browseView.filter', 'Sort')}
             onClick={() => {
               setIsBrowseMenuOpen(false);
               setIsFilterMenuOpen((current) => !current);
@@ -323,7 +320,7 @@ export default function SidebarHeader({
                 : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground active:bg-accent/60',
             )}
           >
-            <ListFilter className="h-3.5 w-3.5" />
+            <ArrowUpDown className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
@@ -382,7 +379,6 @@ export default function SidebarHeader({
         <SidebarBrowseFilterMenu
           anchor={anchorFromElement(filterButtonRef.current, { x: 0, y: 0 })}
           browseMode={browseMode}
-          repositoryEntries={repositoryEntries}
           projectOptions={projectView}
           sessionOptions={browseSessionView}
           onProjectChange={onProjectViewChange}

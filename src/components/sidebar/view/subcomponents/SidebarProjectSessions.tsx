@@ -6,6 +6,7 @@ import type { Project, ProjectSession, LLMProvider } from '../../../../types/app
 import type { CheckoutSession, RepositoryEntry, SessionWithProvider } from '../../types/types';
 import { SESSION_PAGE_SIZE } from '../../hooks/useSidebarController';
 import { projectAccentColorValue, type ProjectAccentColor } from '../../utils/accentColors';
+import { cn } from '../../../../lib/utils';
 
 import SidebarSessionItem from './SidebarSessionItem';
 
@@ -175,7 +176,10 @@ export default function SidebarProjectSessions({
               // pl-5 lands on the session labels' text edge (their ml-2 plus
               // px-3), so this reads as part of the list, not a control hanging
               // off it.
-              className="my-0.5 h-7 w-full justify-start pl-5 pr-3 text-xs text-muted-foreground hover:text-foreground"
+              className={cn(
+                'my-0.5 h-7 w-full justify-start pl-5 pr-3 text-xs text-muted-foreground hover:text-foreground',
+                canShowLess && 'sticky bottom-0 z-10 bg-background',
+              )}
               onClick={() => (canShowMore ? onShowAllSessions(entry) : onCollapseSessions(entry))}
               disabled={isLoadingMoreSessions}
             >

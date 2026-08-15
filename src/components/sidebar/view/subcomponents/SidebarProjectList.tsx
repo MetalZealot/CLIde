@@ -14,6 +14,7 @@ import type {
   SessionWithProvider,
 } from '../../types/types';
 import type { ContextMenuAnchor } from '../../../../shared/view/ui';
+import { readProjectAccentColor } from '../../utils/accentColors';
 
 import SidebarRepositoryItem from './SidebarRepositoryItem';
 import SidebarProjectsState from './SidebarProjectsState';
@@ -198,7 +199,7 @@ export default function SidebarProjectList({
 
   /** A flat Sessions-view row labelled with the repository it belongs to. */
   const renderFlatSession = (
-    { session, checkout, branchLabel, repositoryName }: BrowseSession,
+    { session, checkout, branchLabel, repositoryName, repositoryAccentColor }: BrowseSession,
   ) => {
     const sessionsSelection = { kind: 'sessions' } as const;
     const isSessionsSelectionMode = sessionSelection?.scope.kind === 'sessions';
@@ -209,6 +210,7 @@ export default function SidebarProjectList({
         project={checkout}
         session={session}
         projectLabel={repositoryName}
+        accentColor={readProjectAccentColor(repositoryAccentColor)}
         branchLabel={branchLabel}
         isSectionItem
         selectedSession={selectedSession}

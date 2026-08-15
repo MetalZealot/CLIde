@@ -26,7 +26,7 @@ afterEach(async () => {
 const translations: Record<string, string> = {
   'app.title': 'CLIde',
   'actions.archive': 'Archive',
-  'browseView.filter': 'Sort and filter',
+  'browseView.filter': 'Sort',
   'search.modeProjects': 'Projects',
   'search.modeConversations': 'Sessions',
   'search.searchContents': 'Search inside messages',
@@ -58,7 +58,6 @@ const renderHeader = async (
         onClearSearchFilter={() => {}}
         searchMode="projects"
         onSearchModeChange={() => {}}
-        repositoryEntries={[]}
         projectView={DEFAULT_PROJECT_VIEW_OPTIONS}
         browseSessionView={DEFAULT_BROWSE_SESSION_VIEW_OPTIONS}
         onProjectViewChange={() => {}}
@@ -74,7 +73,7 @@ const renderHeader = async (
   });
 };
 
-test('search expands inline while the view selector and Filter stay visible', async () => {
+test('search expands inline while the view selector and Sort stay visible', async () => {
   let clearCount = 0;
   await renderHeader({ onClearSearchFilter: () => { clearCount += 1; } });
 
@@ -98,7 +97,7 @@ test('search expands inline while the view selector and Filter stay visible', as
   assert.equal(selector.parentElement?.classList.contains('pt-1'), true);
   assert.equal(selector.parentElement?.classList.contains('pb-2'), true);
   assert.equal(selector.parentElement?.classList.contains('mb-2'), false);
-  assert.equal(container?.querySelectorAll('button[aria-label="Sort and filter"]').length, 1);
+  assert.equal(container?.querySelectorAll('button[aria-label="Sort"]').length, 1);
 
   const closeButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Clear search"]');
   assert.ok(closeButton);
@@ -134,18 +133,18 @@ test('the compact selector owns Projects, Sessions, and Archive', async () => {
   assert.equal(chosenSearchMode, 'archived');
 });
 
-test('Archive hides the contextual Filter control', async () => {
+test('Archive hides the contextual Sort control', async () => {
   await renderHeader({ searchMode: 'archived' });
 
   assert.ok(container?.querySelector<HTMLButtonElement>('button[aria-label="Archive"]'));
-  assert.equal(container?.querySelector('button[aria-label="Sort and filter"]'), null);
+  assert.equal(container?.querySelector('button[aria-label="Sort"]'), null);
 });
 
-test('Filter changes the active view without touching the browse mode', async () => {
+test('Sort changes the active view without touching the browse mode', async () => {
   let nextProjectView = DEFAULT_PROJECT_VIEW_OPTIONS;
   await renderHeader({ onProjectViewChange: (options) => { nextProjectView = options; } });
 
-  const filterButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Sort and filter"]');
+  const filterButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Sort"]');
   assert.ok(filterButton);
   await React.act(async () => filterButton.click());
 
@@ -155,6 +154,19 @@ test('Filter changes the active view without touching the browse mode', async ()
   await React.act(async () => dateChoice.click());
 
   assert.deepEqual(nextProjectView, { sort: 'date', direction: 'desc' });
+});
+
+test('Sessions Sort offers only the three global sort choices', async () => {
+  await renderHeader({ browseMode: 'sessions' });
+
+  const sortButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Sort"]');
+  assert.ok(sortButton);
+  await React.act(async () => sortButton.click());
+
+  const menu = document.querySelector<HTMLElement>('[role="menu"][aria-label="Sort sessions"]');
+  assert.ok(menu);
+  assert.equal(menu.querySelectorAll('[role="menuitemradio"]').length, 3);
+  assert.equal(menu.querySelectorAll('[role="menuitemcheckbox"]').length, 0);
 });
 
 test('message-content search is an inline refinement of an expanded query', async () => {

@@ -25,8 +25,8 @@ effectively unbounded, which makes it the right default home for a new idea.
 - New Session — desktop only; the mobile drawer puts it in the footer thumb zone
 - Collapse sidebar
 - Transparent 44px utility block: Projects/Sessions/Archive dropdown ·
-  right-aligned Search and contextual Filter buttons; Search expands into a
-  shaded field between them, while Filter is absent in Archive.
+  right-aligned Search and contextual Sort buttons; Search expands into a
+  shaded field between them, while Sort is absent in Archive.
   Its visible 32px controls fill the 44px hit area through the reserved 4px
   above and 8px below; the open state compacts the selector to its icon in the
   288px desktop sidebar.
@@ -50,13 +50,16 @@ glyph — ADR 0016 still holds: a branch and a checkout never share an icon) ·
 "Filtered" cue when the row's view is non-default · activity roll-up · kebab
 (desktop, hover/focus) · chevron. Expanded, the header sticks to the top of the
 scroll area and the row grows nothing else: the list carries no permanent
-controls of its own.
+controls of its own. Expanding past the first five sessions pins “Show less” to
+the bottom of the visible list until its natural position scrolls into view.
 
-**Session row** (`SidebarSessionItem.tsx`) — pin · name (`font-medium` marks
-unread and nothing else) · status symbol **or** relative age, never both ·
-message-count badge · project label (Sessions view only) · branch badge ·
-provider logo · kebab (desktop). Desktop is a real `<a href>` for modified
-clicks, while right-click opens the session actions menu.
+**Session row** (`SidebarSessionItem.tsx`) — project accent strip (Sessions view
+only) · pin · name (`font-medium` marks unread and nothing else) · status symbol
+**or** relative age, never both · message-count badge · project label (Sessions
+view only) · branch badge · provider logo · kebab (desktop). Nested Projects-view
+sessions use the repository rail instead of repeating the strip. Desktop is a
+real `<a href>` for modified clicks, while right-click opens the session actions
+menu.
 
 **Footer** (`SidebarFooter.tsx`) — restart-required banner · update banner ·
 account button (Account, Settings, Log out) · New Session (mobile only) · version
@@ -74,7 +77,7 @@ menu. All use `ContextMenuOverlay` (ADR 0009).
 |---|---|---|
 | Session actions | Long-press, kebab, right-click | Pin · Rename · Copy session ID ‖ Select… ‖ Archive · Delete |
 | Repository actions | Long-press, kebab, right-click | Rename · Customize · Sort and filter sessions · Worktrees ‖ Archive · Delete |
-| Global view | Header Filter | Projects: sort by name or date · Sessions: sort by date, title, or project; filter by project/worktree · Reset |
+| Global view | Header Sort | Projects: sort by name or date · Sessions: sort by date, title, or project · Reset |
 | Repository session view | Repository actions, or the row's "Filtered" cue | Sort by date, title, or worktree — retap the active one to reverse it · filter by worktree · Reset |
 
 **Select…** puts the visible list into batch mode, opening with the row it was
@@ -89,7 +92,7 @@ Repository actions target the **lead checkout**, so a merged row keeps one
 identity however many worktrees it has. Accent colour and the view menu both
 open from it at the same anchor the menu occupied.
 
-The header Filter affects only the active Projects or Sessions view. Project
+The header Sort affects only the active Projects or Sessions view. Project
 sorting persists per browser; the global Sessions options and repository
 options are in memory. A non-default row says "Filtered" on itself. Adding a
 worktree is the manager's create form, which then opens the new checkout in a

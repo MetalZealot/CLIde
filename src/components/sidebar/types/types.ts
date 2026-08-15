@@ -19,8 +19,6 @@ export type BrowseSessionSortKey = 'date' | 'title' | 'project';
 export type BrowseSessionViewOptions = {
   sort: BrowseSessionSortKey;
   direction: SessionSortDirection;
-  /** Registered checkouts to keep. Null shows every checkout. */
-  checkoutProjectIds: string[] | null;
 };
 
 /** The visible list whose session rows batch mode replaces with checkboxes. */
@@ -107,6 +105,8 @@ export type CheckoutSession = {
 /** A session in the flat Sessions view, labelled with its repository. */
 export type BrowseSession = CheckoutSession & {
   repositoryName: string;
+  /** The repository row's highlight, inherited even when this is a worktree session. */
+  repositoryAccentColor: Project['accentColor'];
 };
 
 export type ActivityState = 'blocked' | 'unread' | 'running';

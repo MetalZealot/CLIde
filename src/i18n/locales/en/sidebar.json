@@ -202,13 +202,12 @@
     "createdButUnregistered": "The worktree was created at {{path}}, but CLIde could not add it: {{reason}}"
   },
   "browseView": {
-    "filter": "Sort and filter",
+    "filter": "Sort",
     "projectOptions": "Sort projects",
-    "sessionOptions": "Sort and filter sessions",
+    "sessionOptions": "Sort sessions",
     "sortName": "Name",
     "sortDate": "Date",
-    "sortProject": "Project",
-    "filterProjectWorktree": "Filter by project / worktree"
+    "sortProject": "Project"
   },
   "sessionView": {
     "title": "Sort and filter sessions",
