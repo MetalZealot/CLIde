@@ -233,7 +233,7 @@ export default function SidebarContent({
         t={t}
       />
 
-      <ScrollArea className="min-h-0 flex-1 overflow-y-auto overscroll-contain md:px-1.5 md:py-2">
+      <ScrollArea className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-2 md:px-1.5 md:pb-2">
         {showConversationSearch ? (
           isSearching && !hasPartialResults ? (
             <div className="px-4 py-12 text-center md:py-8">
