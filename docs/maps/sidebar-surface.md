@@ -25,12 +25,11 @@ effectively unbounded, which makes it the right default home for a new idea.
 - New Session — desktop only; the mobile drawer puts it in the footer thumb zone
 - Collapse sidebar
 - Transparent 44px utility block: Projects/Sessions/Archive dropdown ·
-  right-aligned Search and contextual Sort buttons; Search expands into a
-  shaded field between them, while Sort is absent in Archive.
-  Its visible 32px controls fill the 44px hit area through the reserved 4px
-  above and 8px below; the open state compacts the selector to its icon in the
-  288px desktop sidebar.
-- "Search inside messages" — appears inside the expanded field once the query
+  permanently shaded Search field · contextual Sort button, absent in Archive.
+  Clear appears only for a non-empty query. Its visible 32px controls fill the
+  44px hit area through the reserved 4px above and 8px below; desktop compacts
+  the selector to its icon.
+- "Search inside messages" — appears inside the field once the query
   reaches 2 characters, and switches `searchMode` rather than opening a place
 
 **Body** — Projects, Sessions, and Archive are view destinations; an expanded

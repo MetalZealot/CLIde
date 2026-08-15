@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Archive,
   ArrowUpDown,
@@ -72,12 +72,10 @@ export default function SidebarHeader({
   onOpenNewSession,
   t,
 }: SidebarHeaderProps) {
-  const [isSearchOpen, setIsSearchOpen] = useState(Boolean(searchFilter));
   const [isBrowseMenuOpen, setIsBrowseMenuOpen] = useState(false);
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const browseButtonRef = useRef<HTMLButtonElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const isArchiveOpen = searchMode === 'archived';
   const isContentSearch = searchMode === 'conversations';
   const canSearchContents = !isArchiveOpen && searchFilter.trim().length >= MIN_CONTENT_SEARCH_LENGTH;
@@ -96,21 +94,11 @@ export default function SidebarHeader({
       ? t('search.conversationsPlaceholder')
       : t('search.sessionsPlaceholder', 'Search session names...');
 
-  useEffect(() => {
-    if (!isSearchOpen) {
-      return;
-    }
-
-    const frame = requestAnimationFrame(() => searchInputRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [isSearchOpen]);
-
-  const closeSearch = () => {
+  const clearSearch = () => {
     onClearSearchFilter();
     if (isContentSearch) {
       onSearchModeChange('projects');
     }
-    setIsSearchOpen(false);
   };
 
   const chooseBrowseMode = (mode: SidebarBrowseMode) => {
@@ -221,84 +209,69 @@ export default function SidebarHeader({
           }}
           className={cn(
             'sidebar-utility-hit-target flex h-8 min-w-0 max-w-28 flex-shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground active:bg-accent/60',
-            isSearchOpen && 'md:w-8 md:justify-center md:px-0',
+            'md:w-8 md:justify-center md:px-0',
           )}
         >
           <BrowseIcon className="h-3 w-3 flex-shrink-0" />
-          <span className={cn('truncate', isSearchOpen && 'md:hidden')}>{browseLabel}</span>
+          <span className="truncate md:hidden">{browseLabel}</span>
           <ChevronDown className={cn(
             'h-3 w-3 flex-shrink-0 transition-transform',
             isBrowseMenuOpen && 'rotate-180',
-            isSearchOpen && 'md:hidden',
+            'md:hidden',
           )} />
         </button>
 
-        {isSearchOpen ? (
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
-            <Input
-              ref={searchInputRef}
-              type="text"
-              placeholder={searchPlaceholder}
-              value={searchFilter}
-              onChange={(event) => onSearchFilterChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  closeSearch();
-                }
-              }}
-              className={cn(
-                'nav-search-input h-8 rounded-lg border-0 pl-8 text-xs placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0',
-                canSearchContents ? 'pr-14' : 'pr-9',
-              )}
-            />
-            {canSearchContents && (
-              <button
-                type="button"
-                onClick={() => onSearchModeChange(isContentSearch ? 'projects' : 'conversations')}
-                aria-pressed={isContentSearch}
-                aria-label={isContentSearch
-                  ? t('search.backToSessionNames', 'Search session names instead')
-                  : t('search.searchContents', 'Search inside messages')}
-                title={isContentSearch
-                  ? t('search.backToSessionNames', 'Search session names instead')
-                  : t('search.searchContents', 'Search inside messages')}
-                className={cn(
-                  'absolute right-7 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md transition-colors',
-                  isContentSearch
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                )}
-              >
-                <MessageSquare className="h-3 w-3" />
-              </button>
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
+          <Input
+            type="text"
+            placeholder={searchPlaceholder}
+            value={searchFilter}
+            onChange={(event) => onSearchFilterChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                clearSearch();
+              }
+            }}
+            className={cn(
+              'nav-search-input h-8 rounded-lg border-0 pl-8 text-xs placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0',
+              canSearchContents ? 'pr-14' : 'pr-9',
             )}
+          />
+          {canSearchContents && (
             <button
               type="button"
-              onClick={closeSearch}
-              aria-label={t('tooltips.clearSearch')}
-              title={t('tooltips.clearSearch')}
-              className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              onClick={() => onSearchModeChange(isContentSearch ? 'projects' : 'conversations')}
+              aria-pressed={isContentSearch}
+              aria-label={isContentSearch
+                ? t('search.backToSessionNames', 'Search session names instead')
+                : t('search.searchContents', 'Search inside messages')}
+              title={isContentSearch
+                ? t('search.backToSessionNames', 'Search session names instead')
+                : t('search.searchContents', 'Search inside messages')}
+              className={cn(
+                'absolute right-7 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md transition-colors',
+                isContentSearch
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              )}
             >
-              <X className="h-3 w-3" />
+              <MessageSquare className="h-3 w-3" />
             </button>
-          </div>
-        ) : (
-          <span aria-hidden className="flex-1" />
-        )}
-
-        {!isSearchOpen && (
-          <button
-            type="button"
-            onClick={() => setIsSearchOpen(true)}
-            aria-label={t('tooltips.toggleSearch')}
-            title={t('tooltips.toggleSearch')}
-            className="sidebar-utility-hit-target flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground active:bg-accent/60"
-          >
-            <Search className="h-3.5 w-3.5" />
-          </button>
-        )}
+          )}
+          {searchFilter.length > 0 && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label={t('tooltips.clearSearch')}
+                title={t('tooltips.clearSearch')}
+                className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+          )}
+        </div>
 
         {!isArchiveOpen && (
           <button

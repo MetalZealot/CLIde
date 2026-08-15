@@ -73,18 +73,9 @@ const renderHeader = async (
   });
 };
 
-test('search expands inline while the view selector and Sort stay visible', async () => {
+test('search stays visible and only offers Clear for a non-empty query', async () => {
   let clearCount = 0;
   await renderHeader({ onClearSearchFilter: () => { clearCount += 1; } });
-
-  const searchButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Search"]');
-  assert.ok(searchButton);
-  assert.equal(
-    container?.querySelectorAll('.sidebar-utility-hit-target').length,
-    3,
-    'the visible 32px controls must fill the utility row with their hit areas',
-  );
-  await React.act(async () => searchButton.click());
 
   const input = container?.querySelector<HTMLInputElement>('input[placeholder="Search session names..."]');
   const selector = container?.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
@@ -98,13 +89,18 @@ test('search expands inline while the view selector and Sort stay visible', asyn
   assert.equal(selector.parentElement?.classList.contains('pb-2'), true);
   assert.equal(selector.parentElement?.classList.contains('mb-2'), false);
   assert.equal(container?.querySelectorAll('button[aria-label="Sort"]').length, 1);
+  assert.equal(container?.querySelector('button[aria-label="Clear search"]'), null);
 
-  const closeButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Clear search"]');
-  assert.ok(closeButton);
-  await React.act(async () => closeButton.click());
+  await renderHeader({
+    searchFilter: 'review',
+    onClearSearchFilter: () => { clearCount += 1; },
+  });
+  const clearButton = container?.querySelector<HTMLButtonElement>('button[aria-label="Clear search"]');
+  assert.ok(clearButton);
+  await React.act(async () => clearButton.click());
 
   assert.equal(clearCount, 1);
-  assert.equal(container?.querySelector('input'), null);
+  assert.ok(container?.querySelector('input'));
 });
 
 test('the compact selector owns Projects, Sessions, and Archive', async () => {

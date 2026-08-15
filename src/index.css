@@ -302,11 +302,6 @@
     border: none;
   }
 
-  .nav-search-input:focus-within {
-    background: hsl(var(--background));
-    box-shadow: 0 0 0 2px hsl(var(--nav-input-focus-ring));
-  }
-
   /* Fill the utility row's reserved vertical space without enlarging its controls. */
   .sidebar-utility-hit-target {
     position: relative;
