@@ -37,6 +37,7 @@ only once an index says it is the one you need; never read a directory to find o
 | Abort, approval replay, resume, rewind, or fork | ADRs 0008, 0012, 0013 |
 | The model picker | "Model picker follow-ups" in `docs/TODO.md`, ADRs 0003 and 0025 |
 | Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
+| Adding, merging, or timing tests | `docs/maps/test-suite.md` |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
 | Multi-session work with phases | its plan in `docs/plans/` — the board in that README first |
 
@@ -86,16 +87,28 @@ behaviour stays behind adapter interfaces.
 
 ## Development and verification
 
-- Use `npm run typecheck`, `npm run lint`, and the narrowest relevant build.
-- `npm test` runs `test:server` then `test:client`; run either half alone while
-  iterating.  A single server test needs the server tsconfig —
-  `npx tsx --tsconfig server/tsconfig.json --test <path to *.test.ts>` — because the
-  root tsconfig maps `@/*` to `src/*` while the server maps it to `server/*`.  A bare
-  `--test` fails on the alias, and a directory argument fails even with the tsconfig.
-- Small client-only changes: `npm run build:client`, then refresh the running app.  A
-  server restart is not needed for client bundles; the server reads `dist/` from disk
-  per request.  Only server changes (`dist-server/`) need `npm run build:server` and a
-  restart.
+- **Match the checks to what changed.  The full gate is opt-in, not the default ending
+  of a task** — everything together costs 217s on the maintainer's hardware against
+  ~10s for a focused path, and running it after every edit is a session's largest
+  avoidable cost ([test suite map](docs/maps/test-suite.md)).
+
+  | Change | Run |
+  |---|---|
+  | Copy, CSS, one component | that component's test file, `build:client` |
+  | Client logic, store, hook | its test file(s), `typecheck:client`, `build:client` |
+  | One backend module | that module's tests, `build:server` (type-checks it too) |
+  | Session ids, providers, auth, database, protocol | `npm test` — contracts span modules |
+  | Dependency bump, upstream rebase, pre-merge | `npm test`, `typecheck`, `lint`, `build` |
+
+- One file: `npm run test:client:one <path>` / `test:server:one <path>`.  The halves
+  need different tsconfigs — root maps `@/*` to `src/*`, server to `server/*` — so a
+  bare `--test` fails on the alias, and a directory argument fails even with the right
+  tsconfig.
+- **Cost is per test *file*, not per test** (~3s of startup each): add cases to an
+  existing file rather than creating a near-empty new one.  Consolidating files is the
+  lever, never deleting a passing test.
+- Client bundles need no restart — the server reads `dist/` from disk per request, so
+  `build:client` then refresh.  Only `dist-server/` changes need a restart.
 - **Verify on the server that actually serves the checkout you edited.**  The main
   checkout's server does not serve a worktree's `dist/`, so worktree work is never
   verified there — use that worktree's own test server.  Never tell the user to refresh

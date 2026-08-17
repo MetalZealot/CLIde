@@ -1,8 +1,28 @@
+// Pure helpers exported by the chat hooks: composer popover routing and
+// realtime permission-request de-duplication.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { dedupePermissionRequestsById } from './useChatRealtimeHandlers';
 import type { PendingPermissionRequest } from '../types/types';
+
+import { resolveUsagePopoverView } from './useChatComposerState';
+import { dedupePermissionRequestsById } from './useChatRealtimeHandlers';
+
+// --- useChatComposerState ---------------------------------------------------
+
+test('usage commands route to provider-specific popover detail', () => {
+  assert.equal(resolveUsagePopoverView('usage', 'claude'), 'summary');
+  assert.equal(resolveUsagePopoverView('usage', 'codex'), 'activity');
+  assert.equal(resolveUsagePopoverView('cost', 'codex'), 'activity');
+});
+
+test('context commands expose only Claude breakdown detail', () => {
+  assert.equal(resolveUsagePopoverView('context', 'claude'), 'breakdown');
+  assert.equal(resolveUsagePopoverView('context', 'codex'), 'summary');
+  assert.equal(resolveUsagePopoverView('status', 'claude'), null);
+});
+
+// --- useChatRealtimeHandlers ------------------------------------------------
 
 const request = (
   requestId: unknown,
