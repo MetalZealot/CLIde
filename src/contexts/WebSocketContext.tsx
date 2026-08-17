@@ -95,6 +95,9 @@ export const useWebSocket = () => {
   return context;
 };
 
+/** Lets optional realtime consumers retain their REST behavior outside the app shell. */
+export const useOptionalWebSocket = () => useContext(WebSocketContext);
+
 const buildWebSocketUrl = (token: string | null) => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   if (IS_PLATFORM) return `${protocol}//${window.location.host}/ws`; // Platform mode: Use same domain as the page (goes through proxy)

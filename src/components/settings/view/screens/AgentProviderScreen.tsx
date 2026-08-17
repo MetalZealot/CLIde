@@ -13,7 +13,7 @@ import {
   agentScreenId,
   getScreen,
 } from '../../registry/registry';
-import type { AuthStatus, SettingsProject } from '../../types/types';
+import type { AuthStatus, NotificationPreferencesState, SettingsProject } from '../../types/types';
 import { SETTINGS_ICONS, SettingsGroup, SettingsNavRow, SettingsScreen } from '../primitives';
 import AgentAccountCard from '../sections/agent/AgentAccountCard';
 
@@ -24,6 +24,9 @@ type AgentProviderScreenProps = {
   loginSucceeded?: boolean | null;
   projects: SettingsProject[];
   onOpenScreen: (screenId: string) => void;
+  notificationPreferences: NotificationPreferencesState;
+  onNotificationPreferencesChange: (value: NotificationPreferencesState) => void;
+  onOpenNotifications: () => void;
 };
 
 type SubsystemRowProps = {
@@ -183,6 +186,9 @@ export default function AgentProviderScreen({
   loginSucceeded = null,
   projects,
   onOpenScreen,
+  notificationPreferences,
+  onNotificationPreferencesChange,
+  onOpenNotifications,
 }: AgentProviderScreenProps) {
   const subsystems: AgentSubsystem[] = AGENT_PROVIDERS
     .find((descriptor) => descriptor.id === provider)?.subsystems ?? [];
@@ -194,6 +200,9 @@ export default function AgentProviderScreen({
         authStatus={authStatus}
         onLogin={onLogin}
         loginSucceeded={loginSucceeded}
+        notificationPreferences={notificationPreferences}
+        onNotificationPreferencesChange={onNotificationPreferencesChange}
+        onOpenNotifications={onOpenNotifications}
       />
 
       {subsystems.length > 0 && (

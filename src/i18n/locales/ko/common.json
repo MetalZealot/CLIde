@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "사용량",
+    "description": "연결된 모델 제공자의 계정 한도와 잔액입니다.",
+    "percentRemaining": "{{percent}}% 남음",
+    "creditBalance": "크레딧 잔액",
+    "afterPlanLimits": "플랜 한도 이후 사용 가능",
+    "apiKeyConnected": "API 키로 연결됨",
+    "connected": "연결됨",
+    "updated": "{{time}}에 업데이트",
+    "stale": "마지막으로 성공한 사용량 업데이트를 표시합니다.",
+    "apiKeyUnavailable": "이 제공자는 API 키 연결의 계정 사용량을 제공하지 않습니다.",
+    "unavailable": "이 제공자는 CLIde에 계정 사용량을 제공하지 않습니다.",
+    "loadFailed": "제공자 사용량을 불러오지 못했습니다.",
+    "details": "세부 정보",
+    "loadingProviders": "연결된 제공자 확인 중…",
+    "noProviders": "연결된 모델 제공자가 없습니다.",
+    "notifications": {
+      "title": "사용량 알림",
+      "reset": "사용량 초기화 알림",
+      "resetDescription": "이 제공자의 사용량 한도가 초기화될 때 알립니다.",
+      "channelRequired": "이 알림을 받으려면 웹 푸시 또는 데스크톱 알림을 활성화하세요.",
+      "openSettings": "알림 설정"
+    }
+  },
   "buttons": {
     "save": "저장",
     "cancel": "취소",

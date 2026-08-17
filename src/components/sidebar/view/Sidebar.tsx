@@ -56,6 +56,7 @@ function Sidebar({
   loadingProgress,
   onRefresh,
   onShowSettings,
+  onShowUsage,
   showSettings,
   settingsInitialTab,
   onCloseSettings,
@@ -688,6 +689,7 @@ function Sidebar({
             currentVersion={currentVersion}
             onShowVersionModal={() => setShowVersionModal(true)}
             onShowSettings={onShowSettings}
+            onShowUsage={onShowUsage}
             projectListProps={projectListProps}
             selectionBar={sessionSelection && (
               <SidebarSelectionBar

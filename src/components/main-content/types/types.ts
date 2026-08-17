@@ -70,6 +70,8 @@ export type MainContentProps = {
   onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
   /** Silently re-syncs the sidebar project list. */
   onProjectsRefresh: () => Promise<Project[]>;
+  /** Replaces project content with the routed account-level usage dashboard. */
+  showUsage: boolean;
 };
 
 export type MainContentHeaderProps = {

@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "用量",
+    "description": "已連線模型供應商的帳戶限制與餘額。",
+    "percentRemaining": "剩餘 {{percent}}%",
+    "creditBalance": "額度餘額",
+    "afterPlanLimits": "方案限制用完後可用",
+    "apiKeyConnected": "已透過 API 金鑰連線",
+    "connected": "已連線",
+    "updated": "更新於 {{time}}",
+    "stale": "正在顯示上次成功取得的用量資料。",
+    "apiKeyUnavailable": "此供應商不提供 API 金鑰連線的帳戶用量資料。",
+    "unavailable": "此供應商不向 CLIde 提供帳戶用量資料。",
+    "loadFailed": "無法載入供應商用量。",
+    "details": "詳細資料",
+    "loadingProviders": "正在檢查已連線的供應商…",
+    "noProviders": "未連線任何模型供應商。",
+    "notifications": {
+      "title": "用量通知",
+      "reset": "用量重設通知",
+      "resetDescription": "此供應商重設用量限制時通知我。",
+      "channelRequired": "請啟用網頁推播或桌面通知以接收此提醒。",
+      "openSettings": "通知設定"
+    }
+  },
   "buttons": {
     "save": "儲存",
     "cancel": "取消",

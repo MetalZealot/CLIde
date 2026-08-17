@@ -1,19 +1,21 @@
 import { AlertTriangle, LogIn, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { useProviderCapabilities } from '../../../../../hooks/useProviderCapabilities';
 import { Button } from '../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../llm-logo-provider/SessionProviderLogo';
 import UsageWindowList from '../../../../provider-usage/UsageWindowList';
 import { useProviderUsage } from '../../../../provider-usage/hooks/useProviderUsage';
+import { supportsProviderUsageReset } from '../../../../provider-usage/types';
 import {
   type CodexTransportDiagnostics,
   isTransportDegraded,
   useCodexTransport,
 } from '../../../hooks/useCodexRuntime';
 import type { AgentProviderId } from '../../../registry/registry';
-import type { AuthStatus } from '../../../types/types';
+import type { AuthStatus, NotificationPreferencesState } from '../../../types/types';
 import { toProviderStatus } from '../../../utils/providerStatus';
-import { SettingsGroup, SettingsRow, SettingsStatus } from '../../primitives';
+import { SettingsGroup, SettingsRow, SettingsStatus, SettingsToggle } from '../../primitives';
 
 type AgentAccountCardProps = {
   provider: AgentProviderId;
@@ -21,6 +23,9 @@ type AgentAccountCardProps = {
   onLogin: () => void;
   /** Outcome of the most recent login for this provider, if one just finished. */
   loginSucceeded?: boolean | null;
+  notificationPreferences: NotificationPreferencesState;
+  onNotificationPreferencesChange: (value: NotificationPreferencesState) => void;
+  onOpenNotifications: () => void;
 };
 
 /** Which of the three alert sentences a degraded transport gets. */
@@ -58,8 +63,11 @@ export default function AgentAccountCard({
   authStatus,
   onLogin,
   loginSucceeded = null,
+  notificationPreferences,
+  onNotificationPreferencesChange,
+  onOpenNotifications,
 }: AgentAccountCardProps) {
-  const { t } = useTranslation('settings');
+  const { t } = useTranslation(['settings', 'common']);
   const status = toProviderStatus(authStatus);
   const providerName = t(`agents.providers.${provider}`);
   const planUsage = useProviderUsage(provider, {
@@ -82,6 +90,28 @@ export default function AgentAccountCard({
   const transportAlert = isTransportDegraded(codexTransport)
     ? t(`agents.codexTransport.alerts.${transportAlertKey(codexTransport)}`)
     : null;
+  const capabilities = useProviderCapabilities();
+  const supportsUsageReset = authStatus.authenticated && supportsProviderUsageReset(
+    capabilities?.[provider]?.supportsUsageResetAlerts === true,
+    authStatus.method,
+    planUsage.usage?.supported === true,
+  );
+  const hasNotificationChannel = notificationPreferences.channels.webPush
+    || notificationPreferences.channels.desktop;
+  const usageResetEnabled = notificationPreferences.events.usageReset[provider] === true;
+
+  const setUsageResetEnabled = (enabled: boolean) => {
+    onNotificationPreferencesChange({
+      ...notificationPreferences,
+      events: {
+        ...notificationPreferences.events,
+        usageReset: {
+          ...notificationPreferences.events.usageReset,
+          [provider]: enabled,
+        },
+      },
+    });
+  };
 
   const identityLine = authStatus.authenticated
     ? authStatus.email || t('agents.authStatus.authenticatedUser')
@@ -181,6 +211,34 @@ export default function AgentAccountCard({
           <div className="p-4 text-sm text-muted-foreground">
             {t('agents.usage.apiKeyUnavailable')}
           </div>
+        </SettingsGroup>
+      )}
+
+      {supportsUsageReset && (
+        <SettingsGroup title={t('common:usageDashboard.notifications.title', { defaultValue: 'Usage notifications' })}>
+          <SettingsRow
+            label={t('common:usageDashboard.notifications.reset', { defaultValue: 'Usage reset notification' })}
+            description={hasNotificationChannel
+              ? t('common:usageDashboard.notifications.resetDescription', {
+                defaultValue: 'Notify me whenever this provider resets a usage limit.',
+              })
+              : t('common:usageDashboard.notifications.channelRequired', {
+                defaultValue: 'Enable Web Push or Desktop notifications to receive this alert.',
+              })}
+          >
+            <SettingsToggle
+              checked={usageResetEnabled}
+              onChange={setUsageResetEnabled}
+              ariaLabel={t('common:usageDashboard.notifications.reset', { defaultValue: 'Usage reset notification' })}
+            />
+          </SettingsRow>
+          {!hasNotificationChannel && (
+            <div className="border-t border-border px-4 py-3">
+              <Button type="button" variant="outline" size="sm" onClick={onOpenNotifications}>
+                {t('common:usageDashboard.notifications.openSettings', { defaultValue: 'Notification settings' })}
+              </Button>
+            </div>
+          )}
         </SettingsGroup>
       )}
     </>

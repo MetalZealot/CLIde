@@ -9,6 +9,7 @@ import {
   getPublicKey,
   notifyUserIfEnabled,
 } from '@/modules/notifications/index.js';
+import { reconcileProviderUsageResetMonitor } from '@/modules/providers/index.js';
 
 import { createSettingsRouter } from './settings.routes.js';
 import { createSettingsService } from './settings.service.js';
@@ -37,6 +38,7 @@ const settingsService = createSettingsService({
       meta: { message: 'Push notifications are now enabled!' }, severity: 'info',
     }),
     notifyUser: (userId, event) => notifyUserIfEnabled({ userId, event }),
+    preferencesUpdated: reconcileProviderUsageResetMonitor,
   },
   pushSubscriptions: {
     save: (userId, endpoint, p256dh, auth) =>

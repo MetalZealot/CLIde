@@ -15,6 +15,26 @@ const USAGE_FETCH_TIMEOUT_MS = 10_000;
 
 const clampUtilization = (value: number): number => Math.min(100, Math.max(0, value));
 
+/** Normalizes one Claude SDK rate-limit push for the runtime usage cache. */
+export const normalizeClaudeRateLimitEvent = (value: unknown): ProviderUsageWindow | null => {
+  const record = readObjectRecord(value);
+  if (!record || typeof record.rateLimitType !== 'string' || typeof record.utilization !== 'number') {
+    return null;
+  }
+
+  const resetValue = record.resetsAt;
+  const resetMs = typeof resetValue === 'number'
+    ? (resetValue < 10_000_000_000 ? resetValue * 1000 : resetValue)
+    : NaN;
+  const resetsAt = Number.isFinite(resetMs) ? new Date(resetMs).toISOString() : null;
+
+  return {
+    id: record.rateLimitType,
+    utilization: clampUtilization(record.utilization),
+    resetsAt,
+  };
+};
+
 /**
  * Extracts rate-limit windows from the OAuth usage response.
  *

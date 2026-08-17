@@ -31,6 +31,12 @@ type ProviderCapabilities = {
   supportsPermissionRequests: boolean;
   /** Whether the token-usage endpoint has data for this provider. */
   supportsTokenUsage: boolean;
+  /**
+   * Whether the provider issues account-level reset timestamps the reset
+   * monitor can schedule an alert from. Implies `usage.plan-limits`, but is
+   * narrower: a provider can report plan windows without a usable `resetsAt`.
+   */
+  supportsUsageResetAlerts: boolean;
   /** Whether the provider runtime can accept model-level reasoning effort. */
   supportsEffort: boolean;
   /**
@@ -62,6 +68,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
+    supportsUsageResetAlerts: true,
     supportsEffort: true,
     supportsRewind: true,
     supportsFork: false,
@@ -77,6 +84,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
+    supportsUsageResetAlerts: false,
     supportsEffort: false,
     supportsRewind: false,
     supportsFork: false,
@@ -92,6 +100,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
+    supportsUsageResetAlerts: true,
     supportsEffort: true,
     supportsRewind: false,
     supportsFork: false,
@@ -110,6 +119,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsAbort: true,
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
+    supportsUsageResetAlerts: false,
     supportsEffort: true,
     supportsRewind: false,
     supportsFork: false,

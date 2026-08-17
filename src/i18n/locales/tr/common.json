@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "Kullanım",
+    "description": "Bağlı model sağlayıcılarının hesap limitleri ve bakiyeleri.",
+    "percentRemaining": "%{{percent}} kaldı",
+    "creditBalance": "Kredi bakiyesi",
+    "afterPlanLimits": "Plan limitlerinden sonra kullanılabilir",
+    "apiKeyConnected": "API anahtarıyla bağlı",
+    "connected": "Bağlı",
+    "updated": "{{time}} tarihinde güncellendi",
+    "stale": "Son başarılı kullanım güncellemesi gösteriliyor.",
+    "apiKeyUnavailable": "Bu sağlayıcı, API anahtarı bağlantıları için hesap kullanımını sunmuyor.",
+    "unavailable": "Bu sağlayıcı, hesap kullanımını CLIde'a sunmuyor.",
+    "loadFailed": "Sağlayıcı kullanımı yüklenemedi.",
+    "details": "Ayrıntılar",
+    "loadingProviders": "Bağlı sağlayıcılar kontrol ediliyor…",
+    "noProviders": "Bağlı model sağlayıcısı yok.",
+    "notifications": {
+      "title": "Kullanım bildirimleri",
+      "reset": "Kullanım sıfırlama bildirimi",
+      "resetDescription": "Bu sağlayıcı bir kullanım limitini sıfırladığında bildir.",
+      "channelRequired": "Bu uyarıyı almak için Web Push veya masaüstü bildirimlerini etkinleştirin.",
+      "openSettings": "Bildirim ayarları"
+    }
+  },
   "buttons": {
     "save": "Kaydet",
     "cancel": "İptal",

@@ -13,6 +13,7 @@ const PROVIDER_LABELS = {
   claude: 'Claude',
   cursor: 'Cursor',
   codex: 'Codex',
+  opencode: 'OpenCode',
   system: 'System'
 };
 
@@ -29,6 +30,9 @@ const cleanupOldEventKeys = () => {
 };
 
 function isNotificationEventEnabled(preferences, event) {
+  if (event.kind === 'usage_reset') {
+    return preferences?.events?.usageReset?.[event.provider] === true;
+  }
   const prefEventKey = KIND_TO_PREF_KEY[event.kind];
   const eventEnabled = prefEventKey ? Boolean(preferences?.events?.[prefEventKey]) : true;
 
@@ -45,6 +49,19 @@ function isDuplicate(event) {
   return false;
 }
 
+/**
+ * @param {{
+ *   provider: string,
+ *   sessionId?: string | null,
+ *   kind?: string,
+ *   code?: string,
+ *   meta?: Record<string, any>,
+ *   severity?: string,
+ *   dedupeKey?: string | null,
+ *   requiresUserAction?: boolean,
+ *   urlPath?: string | null
+ * }} input
+ */
 function createNotificationEvent({
   provider,
   sessionId = null,
@@ -53,7 +70,8 @@ function createNotificationEvent({
   meta = {},
   severity = 'info',
   dedupeKey = null,
-  requiresUserAction = false
+  requiresUserAction = false,
+  urlPath = null
 }) {
   return {
     provider,
@@ -64,6 +82,7 @@ function createNotificationEvent({
     severity,
     requiresUserAction,
     dedupeKey,
+    urlPath,
     createdAt: new Date().toISOString()
   };
 }
@@ -157,6 +176,9 @@ function buildNotificationPayload(event) {
     'run.stopped': normalizedEvent.meta?.stopReason || 'Run Stopped: The run has stopped',
     'run.failed': normalizedEvent.meta?.error ? `Run Failed: ${normalizedEvent.meta.error}` : 'Run Failed: The run encountered an error',
     'agent.notification': normalizedEvent.meta?.message ? String(normalizedEvent.meta.message) : 'You have a new notification',
+    'usage.reset': Array.isArray(normalizedEvent.meta?.windowLabels) && normalizedEvent.meta.windowLabels.length
+      ? `Usage reset: ${normalizedEvent.meta.windowLabels.join(', ')}`
+      : 'Your usage limit has reset',
     'push.enabled': 'Push notifications are now enabled!'
   };
   const providerLabel = PROVIDER_LABELS[normalizedEvent.provider] || 'Assistant';
@@ -170,6 +192,7 @@ function buildNotificationPayload(event) {
       sessionId: normalizedEvent.sessionId || null,
       code: normalizedEvent.code,
       provider: normalizedEvent.provider || null,
+      urlPath: normalizedEvent.urlPath || null,
       sessionName,
       tag: `${normalizedEvent.provider || 'assistant'}:${normalizedEvent.sessionId || 'none'}:${normalizedEvent.code}`
     }

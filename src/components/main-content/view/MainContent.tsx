@@ -18,6 +18,7 @@ import EditorSidebar from '../../code-editor/view/EditorSidebar';
 import type { Project } from '../../../types/app';
 import { TaskMasterPanel } from '../../task-master';
 import { getCheckoutContextLabel } from '../../sidebar/utils/utils';
+import UsageDashboard from '../../usage-dashboard/view/UsageDashboard';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
@@ -60,6 +61,7 @@ function MainContent({
   onCreateWorktree,
   onAdoptCheckout,
   onProjectsRefresh,
+  showUsage,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
   const { showRawParameters, showThinking, sendByCtrlEnter, enterToSend } = preferences;
@@ -150,6 +152,10 @@ function MainContent({
 
   if (isLoading) {
     return <MainContentStateView mode="loading" isMobile={isMobile} onMenuClick={onMenuClick} />;
+  }
+
+  if (showUsage) {
+    return <UsageDashboard isMobile={isMobile} onMenuClick={onMenuClick} />;
   }
 
   return (

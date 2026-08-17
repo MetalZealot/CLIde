@@ -4,7 +4,7 @@
 
 **Started:** 2026-07-30
 
-**Last source audit:** 2026-08-12, Codex managed-runtime branch through `b0d4f54`
+**Last source audit:** 2026-08-16, account usage dashboard and reset-monitor integration
 
 **Architecture contract:** [Current provider architecture contract](CLIde_Provider_Architecture_Current_Contract.md)
 
@@ -135,10 +135,18 @@ Notes:
 | `reasoning.effort` | Request provider-native effort level | E | E | — | E |
 | `usage.context` | Report turn/session token context where available | E | E | — | E |
 | `usage.plan-limits` | Report plan windows/credits without inventing unsupported concepts | E | E | — | — |
+| `usage.reset-alert` | Notify through enabled system channels at provider-issued reset times | E | E | — | — |
 
 Catalog fidelity differs. Claude and Codex retain fallbacks, Cursor and OpenCode
 have native model commands, and model-source/runtime-version diagnostics are not
 yet uniform.
+
+Plan usage is account-level and separate from session context. `/usage` lists
+authenticated providers, keeps unsupported/API-key states explicit, and uses
+the existing per-provider endpoint; reset preferences appear only for usage-capable
+Claude/Codex sign-in methods. The server polls enabled providers every five
+minutes, schedules exact future resets, and deliberately skips catch-up alerts
+after downtime (ADR 0039).
 
 ### 4.3 Access policy and interaction
 
@@ -210,7 +218,7 @@ universal configuration object.
 | Interactive request normalization | `interactive-request-registry.service.ts`, shared request types, Chat request UI |
 | Stable session/native-ID persistence | Sessions repository/database plus provider synchronizers |
 | Model requested/effective resolution | Provider model services and per-session model state |
-| MCP/skills/auth/usage | Optional provider facets and shared routes/services |
+| MCP/skills/auth/usage | Optional provider facets, shared routes/services, `/usage`, and the reset monitor |
 | Generic UI capability consumption | Composer, Chat controls, provider settings/status surfaces |
 
 ## 7. Provider-native maps and ledgers

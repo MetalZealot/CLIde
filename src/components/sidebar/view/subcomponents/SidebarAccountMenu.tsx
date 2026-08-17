@@ -1,5 +1,5 @@
 import { useRef, useState, type ComponentType } from 'react';
-import { CircleUser, LogOut, Settings } from 'lucide-react';
+import { BarChart3, CircleUser, LogOut, Settings } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { useAuth } from '../../../auth';
@@ -10,6 +10,7 @@ import { cn } from '../../../../lib/utils';
 type SidebarAccountMenuProps = {
   /** Opens Settings; the account row deep-links straight to its own screen. */
   onShowSettings: (screenId?: string) => void;
+  onShowUsage: () => void;
   t: TFunction;
 };
 
@@ -50,6 +51,7 @@ function MenuRow({
  */
 export default function SidebarAccountMenu({
   onShowSettings,
+  onShowUsage,
   t,
 }: SidebarAccountMenuProps) {
   const { user, logout } = useAuth();
@@ -92,6 +94,11 @@ export default function SidebarAccountMenu({
             label={t('actions.account', 'Account')}
             icon={CircleUser}
             onSelect={() => choose(() => onShowSettings('account'))}
+          />
+          <MenuRow
+            label={t('common:usageDashboard.title', 'Usage')}
+            icon={BarChart3}
+            onSelect={() => choose(onShowUsage)}
           />
           <MenuRow
             label={t('actions.settings')}

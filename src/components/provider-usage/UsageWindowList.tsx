@@ -5,6 +5,13 @@ import { useTranslation } from 'react-i18next';
 import { Shimmer } from '../../shared/view/ui';
 import { cn } from '../../lib/utils';
 
+import {
+  formatResetLocal,
+  formatResetsIn,
+  formatUsageWindowLabel,
+  prettifyUsageId,
+  usageBarToneClass,
+} from './format';
 import type {
   ProviderUsageActivity,
   ProviderUsageBalanceCredits,
@@ -29,70 +36,11 @@ type UsageWindowListProps = {
   windowsOnly?: boolean;
 };
 
-const KNOWN_WINDOW_LABELS: Record<string, { key: string; defaultValue: string }> = {
-  five_hour: { key: 'planUsage.fiveHour', defaultValue: '5-hour limit' },
-  seven_day: { key: 'planUsage.weekly', defaultValue: 'Weekly limit' },
-  seven_day_opus: { key: 'planUsage.weeklyOpus', defaultValue: 'Weekly limit (Opus)' },
-  seven_day_sonnet: { key: 'planUsage.weeklySonnet', defaultValue: 'Weekly limit (Sonnet)' },
-};
-
-const prettifyWindowId = (id: string): string => (
-  id.replace(/[:_]/g, ' ').replace(/^\w/, (char) => char.toUpperCase())
-);
-
-const barToneClass = (utilization: number): string => {
-  if (utilization >= 90) {
-    return 'bg-red-500';
-  }
-  if (utilization >= 75) {
-    return 'bg-amber-500';
-  }
-  return 'bg-emerald-500';
-};
-
-export const formatResetsIn = (resetsAt: string | null): string | null => {
-  if (!resetsAt) {
-    return null;
-  }
-
-  const remainingMs = Date.parse(resetsAt) - Date.now();
-  if (Number.isNaN(remainingMs) || remainingMs <= 0) {
-    return null;
-  }
-
-  const totalMinutes = Math.max(1, Math.round(remainingMs / 60_000));
-  const days = Math.floor(totalMinutes / 1440);
-  const hours = Math.floor((totalMinutes % 1440) / 60);
-  const minutes = totalMinutes % 60;
-
-  if (days > 0) {
-    return `${days}d ${hours}h`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
-};
-
 function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
   const { t } = useTranslation('common');
-  const knownLabel = KNOWN_WINDOW_LABELS[window.id];
-  const durationLabel = window.durationMinutes === 300
-    ? t('planUsage.fiveHour', { defaultValue: '5-hour limit' })
-    : window.durationMinutes === 10_080
-      ? t('planUsage.weekly', { defaultValue: 'Weekly limit' })
-      : window.durationMinutes
-        ? `${window.durationMinutes % 1440 === 0
-          ? `${window.durationMinutes / 1440}-day`
-          : window.durationMinutes % 60 === 0
-            ? `${window.durationMinutes / 60}-hour`
-            : `${window.durationMinutes}-minute`} limit`
-        : null;
-  const baseLabel = knownLabel
-    ? t(knownLabel.key, { defaultValue: knownLabel.defaultValue })
-    : durationLabel ?? prettifyWindowId(window.id);
-  const displayLabel = window.label ? `${window.label} · ${baseLabel}` : baseLabel;
+  const displayLabel = formatUsageWindowLabel(window, t);
   const resetsIn = formatResetsIn(window.resetsAt);
+  const exactReset = formatResetLocal(window.resetsAt);
   const clamped = Math.min(100, Math.max(0, window.utilization));
 
   return (
@@ -110,13 +58,14 @@ function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn('h-full rounded-full transition-[width]', barToneClass(clamped))}
+          className={cn('h-full rounded-full transition-[width]', usageBarToneClass(clamped))}
           style={{ width: `${clamped}%` }}
         />
       </div>
       {resetsIn && (
         <p className="text-xs text-muted-foreground">
           {t('planUsage.resetsIn', { defaultValue: 'Resets in {{time}}', time: resetsIn })}
+          {exactReset && ` · ${exactReset}`}
         </p>
       )}
     </div>
@@ -155,7 +104,7 @@ function UsageSpendCreditsRow({ credits }: { credits: ProviderUsageSpendCredits 
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn('h-full rounded-full transition-[width]', barToneClass(clamped))}
+          className={cn('h-full rounded-full transition-[width]', usageBarToneClass(clamped))}
           style={{ width: `${clamped}%` }}
         />
       </div>
@@ -204,6 +153,7 @@ function UsageBalanceCreditsRow({ credits }: { credits: ProviderUsageBalanceCred
     ? 100 - Math.min(100, Math.max(0, individualLimit.remainingPercent))
     : null;
   const resetsIn = individualLimit ? formatResetsIn(individualLimit.resetsAt) : null;
+  const exactReset = individualLimit ? formatResetLocal(individualLimit.resetsAt) : null;
   const balanceValue = credits.unlimited
     ? t('planUsage.unlimited', { defaultValue: 'Unlimited' })
     : credits.balance
@@ -237,7 +187,10 @@ function UsageBalanceCreditsRow({ credits }: { credits: ProviderUsageBalanceCred
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
-              className={cn('h-full rounded-full transition-[width]', barToneClass(individualUtilization))}
+              className={cn(
+                'h-full rounded-full transition-[width]',
+                usageBarToneClass(individualUtilization),
+              )}
               style={{ width: `${individualUtilization}%` }}
             />
           </div>
@@ -252,6 +205,7 @@ function UsageBalanceCreditsRow({ credits }: { credits: ProviderUsageBalanceCred
             {resetsIn && (
               <span>
                 {t('planUsage.resetsIn', { defaultValue: 'Resets in {{time}}', time: resetsIn })}
+                {exactReset && ` · ${exactReset}`}
               </span>
             )}
           </div>
@@ -261,7 +215,7 @@ function UsageBalanceCreditsRow({ credits }: { credits: ProviderUsageBalanceCred
       {credits.limitReachedReason && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
           {REACHED_REASON_COPY[credits.limitReachedReason]
-            ?? prettifyWindowId(credits.limitReachedReason)}
+            ?? prettifyUsageId(credits.limitReachedReason)}
         </p>
       )}
     </div>
@@ -274,7 +228,13 @@ function UsageCreditsRow({ credits }: { credits: ProviderUsageCredits }) {
     : <UsageBalanceCreditsRow credits={credits} />;
 }
 
-function UsageResetCreditsRow({ resetCredits }: { resetCredits: ProviderUsageResetCredits }) {
+export function UsageResetCreditsRow({
+  resetCredits,
+  showDivider = true,
+}: {
+  resetCredits: ProviderUsageResetCredits;
+  showDivider?: boolean;
+}) {
   const { t } = useTranslation('common');
   const availability = resetCredits.availableCount === 1
     ? t('planUsage.oneResetAvailable', { defaultValue: '1 available' })
@@ -284,7 +244,10 @@ function UsageResetCreditsRow({ resetCredits }: { resetCredits: ProviderUsageRes
     });
 
   return (
-    <div className="flex items-baseline justify-between gap-3 border-t border-border/60 pt-4">
+    <div className={cn(
+      'flex items-baseline justify-between gap-3',
+      showDivider ? 'border-t border-border/60 pt-4' : 'py-4',
+    )}>
       <span className="text-sm font-medium text-foreground">
         {t('planUsage.usageLimitResets', { defaultValue: 'Usage limit resets' })}
       </span>

@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "Usage",
+    "description": "Account-level limits and balances for connected model providers.",
+    "percentRemaining": "{{percent}}% remaining",
+    "creditBalance": "Credit balance",
+    "afterPlanLimits": "Available after plan limits",
+    "apiKeyConnected": "Connected with API key",
+    "connected": "Connected",
+    "updated": "Updated {{time}}",
+    "stale": "Showing the last successful usage update.",
+    "apiKeyUnavailable": "This provider does not expose account usage for API-key connections.",
+    "unavailable": "This provider does not expose account usage to CLIde.",
+    "loadFailed": "Couldn't load provider usage.",
+    "details": "Details",
+    "loadingProviders": "Checking connected providers…",
+    "noProviders": "No model providers are connected.",
+    "notifications": {
+      "title": "Usage notifications",
+      "reset": "Usage reset notification",
+      "resetDescription": "Notify me whenever this provider resets a usage limit.",
+      "channelRequired": "Enable Web Push or Desktop notifications to receive this alert.",
+      "openSettings": "Notification settings"
+    }
+  },
   "buttons": {
     "save": "Save",
     "cancel": "Cancel",

@@ -102,7 +102,10 @@ self.addEventListener('notificationclick', event => {
 
   const sessionId = event.notification.data?.sessionId;
   const provider = event.notification.data?.provider || null;
-  const urlPath = sessionId ? `/session/${sessionId}` : '/';
+  const requestedPath = event.notification.data?.urlPath;
+  const urlPath = typeof requestedPath === 'string' && requestedPath.startsWith('/') && !requestedPath.startsWith('//')
+    ? requestedPath
+    : sessionId ? `/session/${sessionId}` : '/';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async clientList => {

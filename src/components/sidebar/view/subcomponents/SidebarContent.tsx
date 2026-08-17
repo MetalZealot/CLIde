@@ -155,6 +155,7 @@ type SidebarContentProps = {
   currentVersion: string;
   onShowVersionModal: () => void;
   onShowSettings: (screenId?: string) => void;
+  onShowUsage: () => void;
   projectListProps: SidebarProjectListProps;
   /** Batch mode's toolbar; replaces the footer while a selection is live. */
   selectionBar: ReactNode;
@@ -197,6 +198,7 @@ export default function SidebarContent({
   currentVersion,
   onShowVersionModal,
   onShowSettings,
+  onShowUsage,
   projectListProps,
   selectionBar,
   t,
@@ -602,6 +604,7 @@ export default function SidebarContent({
           currentVersion={currentVersion}
           onShowVersionModal={onShowVersionModal}
           onShowSettings={onShowSettings}
+          onShowUsage={onShowUsage}
           onOpenNewSession={onOpenNewSession}
           t={t}
         />

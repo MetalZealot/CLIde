@@ -5,6 +5,7 @@
  */
 
 import { getConnection } from '@/modules/database/connection.js';
+import type { LLMProvider } from '@/shared/types.js';
 
 type NotificationPreferences = {
   channels: {
@@ -18,6 +19,7 @@ type NotificationPreferences = {
     actionRequired: boolean;
     stop: boolean;
     error: boolean;
+    usageReset: Partial<Record<LLMProvider, boolean>>;
   };
 };
 
@@ -32,6 +34,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     actionRequired: true,
     stop: true,
     error: true,
+    usageReset: {},
   },
 };
 
@@ -57,6 +60,12 @@ function normalizeNotificationPreferences(value: unknown): NotificationPreferenc
       actionRequired: source.events?.actionRequired !== false,
       stop: source.events?.stop !== false,
       error: source.events?.error !== false,
+      usageReset: {
+        claude: source.events?.usageReset?.claude === true,
+        cursor: source.events?.usageReset?.cursor === true,
+        codex: source.events?.usageReset?.codex === true,
+        opencode: source.events?.usageReset?.opencode === true,
+      },
     },
   };
 }

@@ -195,6 +195,12 @@ export function useChatRealtimeHandlers({
         case 'loading_progress':
           return;
 
+        // Account-level usage push — owned by useProviderUsage. It carries no
+        // session id, so falling through would file it under whichever session
+        // is on screen and evict a real message from the realtime buffer.
+        case 'provider_usage':
+          return;
+
         default:
           break;
       }

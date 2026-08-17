@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "Utilisation",
+    "description": "Limites et soldes du compte pour les fournisseurs de modèles connectés.",
+    "percentRemaining": "{{percent}} % restants",
+    "creditBalance": "Solde de crédits",
+    "afterPlanLimits": "Disponible après les limites du forfait",
+    "apiKeyConnected": "Connecté avec une clé API",
+    "connected": "Connecté",
+    "updated": "Mis à jour à {{time}}",
+    "stale": "La dernière mise à jour réussie de l’utilisation est affichée.",
+    "apiKeyUnavailable": "Ce fournisseur ne communique pas l’utilisation du compte pour les connexions par clé API.",
+    "unavailable": "Ce fournisseur ne communique pas l’utilisation du compte à CLIde.",
+    "loadFailed": "Impossible de charger l’utilisation du fournisseur.",
+    "details": "Détails",
+    "loadingProviders": "Vérification des fournisseurs connectés…",
+    "noProviders": "Aucun fournisseur de modèles n’est connecté.",
+    "notifications": {
+      "title": "Notifications d’utilisation",
+      "reset": "Notification de réinitialisation de l’utilisation",
+      "resetDescription": "Me prévenir lorsque ce fournisseur réinitialise une limite d’utilisation.",
+      "channelRequired": "Activez les notifications Web Push ou de bureau pour recevoir cette alerte.",
+      "openSettings": "Paramètres des notifications"
+    }
+  },
   "buttons": {
     "save": "Enregistrer",
     "cancel": "Annuler",

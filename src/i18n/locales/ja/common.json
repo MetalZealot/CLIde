@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "使用状況",
+    "description": "接続済みモデルプロバイダーのアカウント制限と残高です。",
+    "percentRemaining": "残り {{percent}}%",
+    "creditBalance": "クレジット残高",
+    "afterPlanLimits": "プラン上限後に利用可能",
+    "apiKeyConnected": "API キーで接続済み",
+    "connected": "接続済み",
+    "updated": "{{time}} に更新",
+    "stale": "最後に正常取得できた使用状況を表示しています。",
+    "apiKeyUnavailable": "このプロバイダーは API キー接続のアカウント使用状況を公開していません。",
+    "unavailable": "このプロバイダーは CLIde にアカウント使用状況を公開していません。",
+    "loadFailed": "プロバイダーの使用状況を読み込めませんでした。",
+    "details": "詳細",
+    "loadingProviders": "接続済みプロバイダーを確認中…",
+    "noProviders": "モデルプロバイダーが接続されていません。",
+    "notifications": {
+      "title": "使用状況の通知",
+      "reset": "使用上限リセット通知",
+      "resetDescription": "このプロバイダーの使用上限がリセットされたときに通知します。",
+      "channelRequired": "この通知を受け取るには Web Push またはデスクトップ通知を有効にしてください。",
+      "openSettings": "通知設定"
+    }
+  },
   "buttons": {
     "save": "保存",
     "cancel": "キャンセル",

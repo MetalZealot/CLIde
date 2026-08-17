@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
 import type { LLMProvider } from '../../../types/app';
+import { useOptionalWebSocket } from '../../../contexts/WebSocketContext';
 import { providerUsageEndpoint } from '../types';
 import type { ProviderUsageStatus } from '../types';
 
@@ -20,7 +21,7 @@ type UsageFetchState = {
 // so opening both surfaces back-to-back costs one round-trip. The server keeps
 // its own cache; this only avoids duplicate requests from the same page.
 const CLIENT_CACHE_TTL_MS = 60_000;
-const usageCache = new Map<LLMProvider, { data: ProviderUsageStatus; fetchedAtMs: number }>();
+const usageCache = new Map<LLMProvider, { data: ProviderUsageStatus; lastSuccessAtMs: number }>();
 const usageInFlight = new Map<LLMProvider, Promise<ProviderUsageStatus>>();
 
 const fetchProviderUsage = (provider: LLMProvider, refresh: boolean): Promise<ProviderUsageStatus> => {
@@ -36,7 +37,13 @@ const fetchProviderUsage = (provider: LLMProvider, refresh: boolean): Promise<Pr
     }
 
     const payload = (await response.json()) as ProviderUsageApiResponse;
-    usageCache.set(provider, { data: payload.data, fetchedAtMs: Date.now() });
+    const successfulAt = payload.data.error
+      ? Date.parse(payload.data.fetchedAt ?? '')
+      : Date.now();
+    usageCache.set(provider, {
+      data: payload.data,
+      lastSuccessAtMs: Number.isFinite(successfulAt) ? successfulAt : 0,
+    });
     return payload.data;
   })();
 
@@ -64,6 +71,7 @@ export function useProviderUsage(
   provider: LLMProvider | null,
   { enabled = true }: UseProviderUsageOptions = {},
 ) {
+  const websocket = useOptionalWebSocket();
   const [state, setState] = useState<UsageFetchState>({ usage: null, loading: false, error: null });
 
   const isCacheFresh = useCallback(() => {
@@ -72,7 +80,11 @@ export function useProviderUsage(
     }
 
     const cached = usageCache.get(provider);
-    return Boolean(cached && Date.now() - cached.fetchedAtMs < CLIENT_CACHE_TTL_MS);
+    return Boolean(
+      cached
+      && cached.lastSuccessAtMs > 0
+      && Date.now() - cached.lastSuccessAtMs < CLIENT_CACHE_TTL_MS,
+    );
   }, [provider]);
 
   const load = useCallback(async (refresh: boolean) => {
@@ -99,13 +111,42 @@ export function useProviderUsage(
     }
 
     const cached = usageCache.get(provider);
-    if (cached && Date.now() - cached.fetchedAtMs < CLIENT_CACHE_TTL_MS) {
+    if (
+      cached
+      && cached.lastSuccessAtMs > 0
+      && Date.now() - cached.lastSuccessAtMs < CLIENT_CACHE_TTL_MS
+    ) {
       setState({ usage: cached.data, loading: false, error: null });
       return;
     }
 
     void load(false);
   }, [provider, enabled, isCacheFresh, load]);
+
+  // A live `provider_usage` push updates what is on screen, but it is not a
+  // fetch: it carries only the window that moved, so it never refreshes the
+  // cache's success timestamp — the normal TTL still owes a real request.
+  useEffect(() => {
+    if (!websocket) return undefined;
+    return websocket.subscribe((event) => {
+      if (event.kind !== 'provider_usage' || !event.usage || typeof event.usage !== 'object') {
+        return;
+      }
+
+      const pushed = event.usage as ProviderUsageStatus;
+      if (pushed.provider !== provider) {
+        return;
+      }
+
+      const cached = usageCache.get(pushed.provider);
+      const usage = cached ? { ...cached.data, ...pushed } : pushed;
+      usageCache.set(pushed.provider, {
+        data: usage,
+        lastSuccessAtMs: cached?.lastSuccessAtMs ?? 0,
+      });
+      setState({ usage, loading: false, error: null });
+    });
+  }, [provider, websocket]);
 
   const refresh = useCallback(() => {
     void load(true);
@@ -123,6 +164,13 @@ export function useProviderUsage(
 
     void load(false);
   }, [provider, isCacheFresh, load]);
+
+  useEffect(() => {
+    if (!provider || !enabled) return undefined;
+    const handleFocus = () => refreshIfStale();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [enabled, provider, refreshIfStale]);
 
   // A settings/provider switch can reuse the same hook instance. Never expose
   // the previous provider's cached bars while the new request is starting.

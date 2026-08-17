@@ -14,6 +14,8 @@ import {
     closeSessionsWatcher,
     buildSelectedCodexShellCommand,
     initializeSessionsWatcher,
+    initializeProviderUsageResetMonitor,
+    closeProviderUsageResetMonitor,
     providerRuntimeService,
     queryCodexJob,
 } from '@/modules/providers/index.js';
@@ -369,6 +371,7 @@ async function startServer() {
 
             // Start watching the projects folder for changes
             await initializeSessionsWatcher();
+            initializeProviderUsageResetMonitor();
 
             // Start server-side plugin processes for enabled plugins
             startEnabledPluginServers().catch(err => {
@@ -379,6 +382,7 @@ async function startServer() {
         await closeSessionsWatcher();
         // Clean up plugin processes on shutdown
         const shutdownRuntimeServices = async () => {
+            closeProviderUsageResetMonitor();
             try {
                 await browserUseService.stopAllSessions();
             } catch (err) {

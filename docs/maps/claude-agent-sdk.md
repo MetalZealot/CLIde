@@ -33,7 +33,7 @@ remains the companion inventory for the settings cascade.
 | Runtime pairing policy | **Unpinned by design**: `CLAUDE_CLI_PATH` or bare `claude` |
 | SDK `Options` surface | 64 top-level options; CLIde sets 19 |
 | SDK `Query` control methods | 27; CLIde calls 2 (`interrupt`, `getContextUsage`) |
-| SDK stream message types | 39; CLIde's live normalizer acts on 2 shapes (assistant/user) |
+| SDK stream message types | 39; CLIde's live normalizer acts on assistant/user shapes plus `rate_limit_event` |
 | SDK top-level exports | 17 functions, 2 classes, 3 constants; CLIde imports `query` only |
 | Hook events | 31; CLIde registers 1 (`Notification`) |
 | Settings cascade | In force via `settingSources: ['project','user','local']`; no CLIde UI |
@@ -196,8 +196,8 @@ redaction behavior as the live stream.
 | Account identity | `accountInfo()` (email, org, subscription) | Inferred from credentials files and `settings.json` | `claude-auth.provider.ts` + Settings | Candidate |
 | Installed/authenticated state | `claude --version`, credentials files | Implemented | `claude-auth.provider.ts` | Keep |
 | Login/logout | `claude auth`, `setup-token` | Terminal flow only | Settings | Defer pending a complete native design |
-| Plan rate limits and credits | `https://api.anthropic.com/api/oauth/usage` | Implemented as a cached read for the composer summary; the external action opens Claude's plan usage settings | `claude-usage.provider.ts` + composer usage popover | Keep |
-| Live rate-limit pushes | `rate_limit_event` stream message | **Not exposed** although it arrives unprompted mid-session | Live normalizer → usage UI | Integrate — free live updates, no extra requests |
+| Plan rate limits and credits | `https://api.anthropic.com/api/oauth/usage` | Implemented as a truthful cached read shared by the composer, Settings, and `/usage`; stale fallback retains the last successful timestamp | `claude-usage.provider.ts` + shared usage surfaces | Keep |
+| Live rate-limit pushes | `rate_limit_event` stream message | Implemented: normalized into the provider usage cache and emitted as `provider_usage` to live UI consumers | Claude runtime → usage service/hook | Keep |
 | Settings cascade (read) | `resolveSettings()` — effective, provenance, per-tier sources | Not exposed; the cascade is in force but invisible | `GET /api/providers/claude/settings` + provider settings screen | Integrate — cheapest high-value item |
 | Settings cascade (write) | `Options.settings` flag tier, JSONC edits | Not exposed | Provider settings screen | Defer to the settings spec |
 | Silently overridden keys | `model`, `effortLevel`, `permissions.defaultMode`, `env`, `systemPrompt` | Overridden on every query without telling the user | Read-only rows with a "CLIde controls this" note | Integrate with the viewer |
@@ -248,14 +248,15 @@ be decorative.
 user message shapes — text, `thinking`, `tool_use`, `tool_result`, base64 image
 blocks — plus transcript-only concerns: compact summaries, local-command rows and
 their stdout, and `<synthetic>` notices. `claude-runtime.provider.js` reads `session_id` off
-any frame and per-step usage off assistant frames, and uses `result` only as an
-exclusion so the cumulative turn total never drives the ring.
+any frame, consumes `rate_limit_event` into the shared account-usage cache, and
+reads per-step usage off assistant frames; `result` is only an exclusion so the
+cumulative turn total never drives the ring.
 
 Everything else in the 32-type union falls through and is dropped:
 
 | Message type | What it carries | Disposition |
 |---|---|---|
-| `rate_limit_event` | `rateLimitType` (`five_hour` / `seven_day` / `seven_day_opus` / `seven_day_sonnet` / `overage`), `utilization`, `resetsAt`, overage status | Integrate — live usage for free |
+| `rate_limit_event` | `rateLimitType` (`five_hour` / `seven_day` / `seven_day_opus` / `seven_day_sonnet` / `overage`), `utilization`, `resetsAt`, overage status | Implemented for normalized windows and live `provider_usage`; overage-only fields remain unused |
 | `status` (`compacting` / `requesting`) | Why the session is silent | Integrate |
 | `api_retry` | Retry attempt during 529 storms | Integrate |
 | `compact_boundary` | Where context was compacted | Candidate |

@@ -40,6 +40,17 @@ activity only when `account/usage/read` returned it. `/context`, `/usage`, and t
 near-compaction warning route into that popover through `UsagePopoverRequest`;
 `CommandResultModal` no longer owns Context or Usage views.
 
+Account plan usage has one normalized path: provider adapters implement
+`IProviderUsage`, `provider-usage.service.ts` owns the truthful server cache,
+and `useProviderUsage` shares its client cache across the composer, Settings,
+and `/usage`. Claude's runtime merges `rate_limit_event` windows into that cache
+and emits `provider_usage` — a gateway event, not a transcript row, so it is
+neither decorated with a session id nor buffered for replay. Reset scheduling
+lives in `provider-usage-reset-monitor.service.ts`, follows ADR 0039, and is
+gated by `supportsUsageResetAlerts` on the capability matrix, which the client
+reads through `useProviderCapabilities` rather than branching on provider id.
+Window names are derived in one place, `provider-usage/format.ts`.
+
 ## Session identity and addressing
 
 Runtimes are addressed by the **app** session id, never the provider-native one.

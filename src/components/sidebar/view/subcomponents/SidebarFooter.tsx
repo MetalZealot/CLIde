@@ -16,6 +16,7 @@ type SidebarFooterProps = {
   currentVersion: string;
   onShowVersionModal: () => void;
   onShowSettings: (screenId?: string) => void;
+  onShowUsage: () => void;
   onOpenNewSession: () => void;
   t: TFunction;
 };
@@ -28,6 +29,7 @@ export default function SidebarFooter({
   currentVersion,
   onShowVersionModal,
   onShowSettings,
+  onShowUsage,
   onOpenNewSession,
   t,
 }: SidebarFooterProps) {
@@ -101,6 +103,7 @@ export default function SidebarFooter({
       <div className="flex items-center justify-between gap-2 px-2 py-1.5">
         <SidebarAccountMenu
           onShowSettings={onShowSettings}
+          onShowUsage={onShowUsage}
           t={t}
         />
 

@@ -33,6 +33,8 @@ import {
   getClaudeContextCeiling,
 } from '@/modules/providers/list/claude/claude-context-usage.js';
 import { CLAUDE_FALLBACK_MODELS } from '@/modules/providers/list/claude/claude-models.provider.js';
+import { normalizeClaudeRateLimitEvent } from '@/modules/providers/list/claude/claude-usage.provider.js';
+import { providerUsageService } from '@/modules/providers/services/provider-usage.service.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import {
   createNotificationEvent,
@@ -872,6 +874,17 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // Transform and normalize message via adapter
       const transformedMessage = transformMessage(message);
       const sid = capturedSessionId || sessionId || null;
+
+      // Account-level usage push, not a transcript row: sent as a gateway
+      // event (no message id, no session id) so no chat surface files it
+      // under the conversation that happened to trigger it.
+      if (message?.type === 'rate_limit_event') {
+        const window = normalizeClaudeRateLimitEvent(message.rate_limit_info);
+        if (window) {
+          const usage = providerUsageService.mergeProviderUsageWindows('claude', [window]);
+          ws.send({ kind: 'provider_usage', provider: 'claude', usage });
+        }
+      }
 
       // Use adapter to normalize SDK events into NormalizedMessage[]
       const normalized = context.normalizeMessage(transformedMessage, sid);

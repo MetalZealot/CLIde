@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "Utilizzo",
+    "description": "Limiti e saldi dell’account per i provider di modelli connessi.",
+    "percentRemaining": "{{percent}}% rimanente",
+    "creditBalance": "Saldo crediti",
+    "afterPlanLimits": "Disponibile dopo i limiti del piano",
+    "apiKeyConnected": "Connesso con chiave API",
+    "connected": "Connesso",
+    "updated": "Aggiornato alle {{time}}",
+    "stale": "È mostrato l’ultimo aggiornamento riuscito dell’utilizzo.",
+    "apiKeyUnavailable": "Questo provider non espone l’utilizzo dell’account per le connessioni con chiave API.",
+    "unavailable": "Questo provider non espone l’utilizzo dell’account a CLIde.",
+    "loadFailed": "Impossibile caricare l’utilizzo del provider.",
+    "details": "Dettagli",
+    "loadingProviders": "Verifica dei provider connessi…",
+    "noProviders": "Nessun provider di modelli è connesso.",
+    "notifications": {
+      "title": "Notifiche sull’utilizzo",
+      "reset": "Notifica di ripristino dell’utilizzo",
+      "resetDescription": "Avvisami quando questo provider ripristina un limite di utilizzo.",
+      "channelRequired": "Abilita le notifiche Web Push o desktop per ricevere questo avviso.",
+      "openSettings": "Impostazioni notifiche"
+    }
+  },
   "buttons": {
     "save": "Salva",
     "cancel": "Annulla",

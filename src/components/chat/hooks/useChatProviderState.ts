@@ -15,6 +15,7 @@ import {
   FALLBACK_PROVIDER_EFFORT_VALUES,
   toProviderEffortOptions,
 } from '../constants/providerEffort';
+import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 import { getNextRoutinePermissionMode } from '../utils/chatPermissions';
 import { readProviderDefaultModel } from '../../../utils/providerDefaultModel';
 
@@ -57,29 +58,6 @@ const FALLBACK_COLLABORATION_MODES: Record<LLMProvider, CollaborationMode[]> = {
   cursor: [],
   codex: [],
   opencode: [],
-};
-
-type ProviderCapabilities = {
-  provider: LLMProvider;
-  permissionModes: string[];
-  defaultPermissionMode: string;
-  collaborationModes?: string[];
-  defaultCollaborationMode?: string | null;
-  supportsImages: boolean;
-  supportsFiles: boolean;
-  supportsAbort: boolean;
-  supportsPermissionRequests: boolean;
-  supportsTokenUsage: boolean;
-  supportsEffort?: boolean;
-  supportsRewind?: boolean;
-  supportsFork?: boolean;
-};
-
-type ProviderCapabilitiesApiResponse = {
-  success?: boolean;
-  data?: {
-    providers?: ProviderCapabilities[];
-  };
 };
 
 interface UseChatProviderStateArgs {
@@ -141,9 +119,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
    * Null until `/api/providers/capabilities` resolves; the static fallback
    * map covers that window.
    */
-  const [providerCapabilities, setProviderCapabilities] = useState<
-    Partial<Record<LLMProvider, ProviderCapabilities>> | null
-  >(null);
+  const providerCapabilities = useProviderCapabilities();
 
   const [providerModelCatalog, setProviderModelCatalog] = useState<
     Partial<Record<LLMProvider, ProviderModelsDefinition>>
@@ -242,33 +218,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     void loadProviderModels();
   }, [loadProviderModels]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadCapabilities = async () => {
-      try {
-        const response = await authenticatedFetch('/api/providers/capabilities');
-        const body = (await response.json()) as ProviderCapabilitiesApiResponse;
-        if (cancelled || !body.success || !Array.isArray(body.data?.providers)) {
-          return;
-        }
-
-        const byProvider: Partial<Record<LLMProvider, ProviderCapabilities>> = {};
-        for (const capabilities of body.data.providers) {
-          byProvider[capabilities.provider] = capabilities;
-        }
-        setProviderCapabilities(byProvider);
-      } catch (error) {
-        console.error('Error loading provider capabilities:', error);
-      }
-    };
-
-    void loadCapabilities();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const getPermissionModesForProvider = useCallback((targetProvider: LLMProvider): PermissionMode[] => {
     const capabilityModes = providerCapabilities?.[targetProvider]?.permissionModes;

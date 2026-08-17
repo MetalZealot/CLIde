@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "用量",
+    "description": "已连接模型提供商的账户限额和余额。",
+    "percentRemaining": "剩余 {{percent}}%",
+    "creditBalance": "额度余额",
+    "afterPlanLimits": "套餐限额用尽后可用",
+    "apiKeyConnected": "已通过 API 密钥连接",
+    "connected": "已连接",
+    "updated": "更新于 {{time}}",
+    "stale": "正在显示上次成功获取的用量数据。",
+    "apiKeyUnavailable": "此提供商不提供 API 密钥连接的账户用量数据。",
+    "unavailable": "此提供商不向 CLIde 提供账户用量数据。",
+    "loadFailed": "无法加载提供商用量。",
+    "details": "详细信息",
+    "loadingProviders": "正在检查已连接的提供商…",
+    "noProviders": "未连接任何模型提供商。",
+    "notifications": {
+      "title": "用量通知",
+      "reset": "用量重置通知",
+      "resetDescription": "此提供商重置用量限额时通知我。",
+      "channelRequired": "请启用网页推送或桌面通知以接收此提醒。",
+      "openSettings": "通知设置"
+    }
+  },
   "buttons": {
     "save": "保存",
     "cancel": "取消",

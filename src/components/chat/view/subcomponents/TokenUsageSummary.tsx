@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import type { LLMProvider } from '../../../../types/app';
 import { cn } from '../../../../lib/utils';
 import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage';
-import { formatResetsIn, UsageActivitySection } from '../../../provider-usage/UsageWindowList';
+import { UsageActivitySection } from '../../../provider-usage/UsageWindowList';
+import { formatResetsIn } from '../../../provider-usage/format';
 import type {
   ProviderUsageBalanceCredits,
   ProviderUsageCredits,

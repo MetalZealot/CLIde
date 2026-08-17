@@ -235,6 +235,9 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
               loginSucceeded={loginResult?.provider === provider ? loginResult.succeeded : null}
               projects={projects}
               onOpenScreen={isMobile ? nav.push : nav.select}
+              notificationPreferences={notificationPreferences}
+              onNotificationPreferencesChange={setNotificationPreferences}
+              onOpenNotifications={() => nav.jumpTo('notifications')}
             />
           );
       }

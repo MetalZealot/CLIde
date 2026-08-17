@@ -1,4 +1,28 @@
 {
+  "usageDashboard": {
+    "title": "Nutzung",
+    "description": "Kontolimits und Guthaben für verbundene Modellanbieter.",
+    "percentRemaining": "{{percent}} % verbleibend",
+    "creditBalance": "Guthaben",
+    "afterPlanLimits": "Nach Erreichen der Tariflimits verfügbar",
+    "apiKeyConnected": "Mit API-Schlüssel verbunden",
+    "connected": "Verbunden",
+    "updated": "Aktualisiert: {{time}}",
+    "stale": "Die letzte erfolgreiche Nutzungsaktualisierung wird angezeigt.",
+    "apiKeyUnavailable": "Dieser Anbieter stellt für API-Schlüssel-Verbindungen keine Kontonutzung bereit.",
+    "unavailable": "Dieser Anbieter stellt CLIde keine Kontonutzung bereit.",
+    "loadFailed": "Die Anbieternutzung konnte nicht geladen werden.",
+    "details": "Details",
+    "loadingProviders": "Verbundene Anbieter werden geprüft…",
+    "noProviders": "Keine Modellanbieter sind verbunden.",
+    "notifications": {
+      "title": "Nutzungsbenachrichtigungen",
+      "reset": "Benachrichtigung bei zurückgesetzter Nutzung",
+      "resetDescription": "Benachrichtigen, wenn dieser Anbieter ein Nutzungslimit zurücksetzt.",
+      "channelRequired": "Aktiviere Web-Push- oder Desktop-Benachrichtigungen, um diesen Hinweis zu erhalten.",
+      "openSettings": "Benachrichtigungseinstellungen"
+    }
+  },
   "buttons": {
     "save": "Speichern",
     "cancel": "Abbrechen",

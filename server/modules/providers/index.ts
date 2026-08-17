@@ -22,6 +22,11 @@ export {
 
 export { initializeSessionsWatcher } from './services/sessions-watcher.service.js';
 export { closeSessionsWatcher } from './services/sessions-watcher.service.js';
+export {
+  closeProviderUsageResetMonitor,
+  initializeProviderUsageResetMonitor,
+  reconcileProviderUsageResetMonitor,
+} from './services/provider-usage-reset-monitor.service.js';
 
 // The Claude context ceiling, for callers outside this module that render a
 // context gauge (Commands' /context and /usage). Same three-source order the

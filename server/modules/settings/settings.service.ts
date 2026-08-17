@@ -29,6 +29,7 @@ type SettingsDependencies = {
     updatePreferences(userId: number, preferences: NotificationPreferences): unknown;
     createEnabledEvent(): unknown;
     notifyUser(userId: number, event: unknown): void | Promise<void>;
+    preferencesUpdated?(userId: number): void;
   };
   pushSubscriptions: {
     save(userId: number, endpoint: string, p256dh: string, auth: string): void;
@@ -142,9 +143,11 @@ export function createSettingsService(dependencies: SettingsDependencies) {
       return { success: true, preferences: dependencies.notifications.getPreferences(userId) };
     },
     updateNotificationPreferences(userId: number, preferences: NotificationPreferences) {
+      const updated = dependencies.notifications.updatePreferences(userId, preferences);
+      dependencies.notifications.preferencesUpdated?.(userId);
       return {
         success: true,
-        preferences: dependencies.notifications.updatePreferences(userId, preferences),
+        preferences: updated,
       };
     },
     getVapidPublicKey() {

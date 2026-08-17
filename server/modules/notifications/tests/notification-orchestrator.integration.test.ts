@@ -53,3 +53,17 @@ test('notification payload uses the app session id for a provider session id', a
     assert.match(payload.data.tag, /app-session-1/);
   });
 });
+
+test('usage reset payload keeps grouped labels and the dashboard route', () => {
+  const payload = buildNotificationPayload({
+    provider: 'claude',
+    sessionId: null,
+    kind: 'usage_reset',
+    code: 'usage.reset',
+    meta: { windowLabels: ['5-hour limit', 'Weekly limit'] },
+    urlPath: '/usage',
+  });
+
+  assert.match(payload.body, /5-hour limit, Weekly limit/);
+  assert.equal(payload.data.urlPath, '/usage');
+});

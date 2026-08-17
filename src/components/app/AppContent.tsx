@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
@@ -50,6 +50,7 @@ export default function AppContent() {
 
 function AppContentInner() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { ws, sendMessage, subscribe } = useWebSocket();
@@ -91,6 +92,10 @@ function AppContentInner() {
 
   const openSidebar = useCallback(() => setSidebarOpen(true), [setSidebarOpen]);
   const closeSidebar = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
+  const openUsage = useCallback(() => {
+    setSidebarOpen(false);
+    navigate('/usage');
+  }, [navigate, setSidebarOpen]);
 
   // Queued messages for sessions that finish while another session (or none)
   // is being viewed are sent from here; the viewed session's composer handles
@@ -177,6 +182,15 @@ function AppContentInner() {
         return;
       }
 
+      if (
+        typeof message.urlPath === 'string'
+        && message.urlPath.startsWith('/')
+        && !message.urlPath.startsWith('//')
+      ) {
+        navigate(message.urlPath);
+        return;
+      }
+
       navigate('/');
     };
 
@@ -223,11 +237,11 @@ function AppContentInner() {
     >
       {!isMobile ? (
         <div className="h-full flex-shrink-0 border-r border-border/50">
-          <Sidebar {...sidebarSharedProps} />
+          <Sidebar {...sidebarSharedProps} onShowUsage={openUsage} />
         </div>
       ) : (
         <MobileSidebarOverlay isOpen={sidebarOpen} onOpen={openSidebar} onClose={closeSidebar}>
-          <Sidebar {...sidebarSharedProps} onCloseSidebar={closeSidebar} />
+          <Sidebar {...sidebarSharedProps} onShowUsage={openUsage} onCloseSidebar={closeSidebar} />
         </MobileSidebarOverlay>
       )}
 
@@ -261,6 +275,7 @@ function AppContentInner() {
           onCreateWorktree={createWorktree}
           onAdoptCheckout={adoptCheckout}
           onProjectsRefresh={refreshProjectsSilently}
+          showUsage={location.pathname === '/usage'}
         />
       </div>
 

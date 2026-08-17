@@ -86,6 +86,15 @@ export class ChatSessionWriter {
       return;
     }
 
+    if (record.kind === 'provider_usage') {
+      // Account-level gateway event, not a transcript row — hence checked
+      // before the NormalizedMessage cast. Forwarded raw: decorating it would
+      // stamp this run's app session id onto it (filing an account event under
+      // a conversation) and spend a slot in the replay buffer.
+      this.forward(record);
+      return;
+    }
+
     const message = record as NormalizedMessage;
 
     if (message.kind === 'session_created') {
@@ -152,9 +161,10 @@ export class ChatSessionWriter {
     this.options.onProviderSessionId(providerSessionId, metadata);
   }
 
-  private forward(message: NormalizedMessage): void {
+  /** Writes one outbound frame: a decorated message, or a gateway event. */
+  private forward(frame: NormalizedMessage | Record<string, unknown>): void {
     if (this.ws.readyState === WS_OPEN_STATE) {
-      this.ws.send(JSON.stringify(message));
+      this.ws.send(JSON.stringify(frame));
     }
   }
 }
