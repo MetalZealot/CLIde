@@ -20,7 +20,7 @@ const durationLabel = (durationMinutes: number, t: TranslateFn): string => {
   if (durationMinutes === 10_080) return t('planUsage.weekly', { defaultValue: 'Weekly limit' });
   if (durationMinutes % 1440 === 0) return `${durationMinutes / 1440}-day limit`;
   if (durationMinutes % 60 === 0) return `${durationMinutes / 60}-hour limit`;
-  return `${durationMinutes} minute limit`;
+  return `${durationMinutes}-minute limit`;
 };
 
 /**

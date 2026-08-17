@@ -127,7 +127,7 @@ export function useProviderUsage(
   // fetch: it carries only the window that moved, so it never refreshes the
   // cache's success timestamp — the normal TTL still owes a real request.
   useEffect(() => {
-    if (!websocket) return undefined;
+    if (!websocket || !enabled) return undefined;
     return websocket.subscribe((event) => {
       if (event.kind !== 'provider_usage' || !event.usage || typeof event.usage !== 'object') {
         return;
@@ -146,7 +146,7 @@ export function useProviderUsage(
       });
       setState({ usage, loading: false, error: null });
     });
-  }, [provider, websocket]);
+  }, [enabled, provider, websocket]);
 
   const refresh = useCallback(() => {
     void load(true);

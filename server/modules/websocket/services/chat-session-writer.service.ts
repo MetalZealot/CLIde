@@ -46,6 +46,8 @@ type ProviderSessionMetadata = {
  *
  * - `session_created` events are swallowed and turned into a provider-id
  *   mapping; the frontend never learns provider-native ids.
+ * - `provider_usage` is an account-level gateway event belonging to no
+ *   conversation, so it is forwarded untouched.
  * - every other event gets `sessionId` remapped to the app session id and a
  *   per-run `seq` assigned before being forwarded.
  * - `setSessionId(...)` calls (used by runtimes to label captured ids) are
