@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActivityIcon, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { ActivityIcon, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { LLMProvider } from '../../../../types/app';
@@ -288,6 +288,7 @@ export default function TokenUsageSummary({
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 19 * 16);
   const usageProvider = toUsageProvider(provider);
   const planUsage = useProviderUsage(usageProvider);
+  const refreshPlanUsage = planUsage.refresh;
   const refreshPlanUsageIfStale = planUsage.refreshIfStale;
 
   useEffect(() => {
@@ -412,8 +413,25 @@ export default function TokenUsageSummary({
               ? 'Session breakdown'
               : 'Usage activity'}
         >
-          <div className="mb-3 text-[11px] font-medium text-muted-foreground">
-            Context &amp; Usage
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Context &amp; Usage
+            </span>
+            {view !== 'breakdown' && (
+              <button
+                type="button"
+                onClick={refreshPlanUsage}
+                disabled={!usageProvider || planUsage.loading}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t('buttons.refresh', { defaultValue: 'Refresh' })}
+                title={t('buttons.refresh', { defaultValue: 'Refresh' })}
+              >
+                <RefreshCw
+                  className={cn('h-3.5 w-3.5', planUsage.loading && 'animate-spin')}
+                  aria-hidden
+                />
+              </button>
+            )}
           </div>
           {view === 'summary' && (
             <div className="space-y-4">

@@ -21,6 +21,7 @@ describe('TokenUsageSummary', () => {
   let container: HTMLDivElement | null = null;
   const originalFetch = globalThis.fetch;
   let claudeCreditSpend = 0;
+  const providerUsageRequests: string[] = [];
 
   /** Reset labels are countdowns, so fixtures must sit in the future at run time. */
   const inMinutes = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
@@ -94,6 +95,7 @@ describe('TokenUsageSummary', () => {
     });
 
     globalThis.fetch = (async (input: RequestInfo | URL) => {
+      providerUsageRequests.push(String(input));
       const provider = String(input).includes('/codex/') ? 'codex' : 'claude';
       const data = provider === 'claude'
         ? {
@@ -188,6 +190,16 @@ describe('TokenUsageSummary', () => {
     assert.ok(text.indexOf('5-hour limit') < text.indexOf('Weekly'));
     assert.match(text, /Credits\/Tokens\$0\.00/);
     assert.doesNotMatch(text, /Plan usage limits|Full usage|Refresh/);
+
+    const refreshButton = dialog.querySelector<HTMLButtonElement>('button[aria-label="Refresh"]');
+    assert.ok(refreshButton);
+    const requestCountBeforeRefresh = providerUsageRequests.length;
+    await React.act(async () => {
+      refreshButton.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    assert.equal(providerUsageRequests.length, requestCountBeforeRefresh + 1);
+    assert.match(providerUsageRequests.at(-1) || '', /[?&]refresh=true/);
 
     const link = dialog.querySelector<HTMLAnchorElement>('a');
     assert.equal(link?.textContent?.trim(), 'Manage Plan and Balance');
