@@ -54,6 +54,7 @@ main checkout only).
 Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md). Decide the tier before designing the control.
 
 - [ ] **Adopt a tier-1 budget, or decide not to.** The map names three tiers; nothing yet says the permanent tier is fixed-size, so every new control still only has to clear "is this useful?" — which it always does. If adopted, it's an ADR. **S — decision, blocks the three below**
+- [ ] **A worktree is only ever named by its branch, never by the folder it is.** Git names a checkout by place with the branch in brackets; CLIde shows state alone, so hunting for a worktree means hunting for something not on screen — on 2026-08-17 `cloudcli-wt-usage-dashboard` was listed the whole time as `feature/stats`. [Plan](plans/checkout-naming.md). **S/M**
 - [ ] **A repository row tap does different things per breakpoint** — mobile `onClick` only expands, desktop also selects the project (`SidebarRepositoryItem`, `toggleProject` vs `selectAndToggleProject`). No comment says why. Either is defensible; the divergence being undocumented is not. Parity table: [the sidebar map](maps/sidebar-surface.md). **S**
 - [ ] **The version is unreachable on mobile** — the OSS/version line is `hidden md:block` in the footer, and the version modal only opens from the update banner. A phone with no update pending can't see what it's running. **S**
 - [ ] **Session count reads "3 sessions" on mobile and "3" on desktop** from the same `getSessionCountDisplay`. Pick one. **S**
