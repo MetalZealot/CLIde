@@ -3,6 +3,7 @@
     "title": "Utilisation",
     "description": "Limites et soldes du compte pour les fournisseurs de modèles connectés.",
     "percentRemaining": "{{percent}} % restants",
+    "windowReset": "Réinitialisé",
     "creditBalance": "Solde de crédits",
     "afterPlanLimits": "Disponible après les limites du forfait",
     "apiKeyConnected": "Connecté avec une clé API",

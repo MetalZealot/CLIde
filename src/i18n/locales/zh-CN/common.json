@@ -3,6 +3,7 @@
     "title": "用量",
     "description": "已连接模型提供商的账户限额和余额。",
     "percentRemaining": "剩余 {{percent}}%",
+    "windowReset": "已重置",
     "creditBalance": "额度余额",
     "afterPlanLimits": "套餐限额用尽后可用",
     "apiKeyConnected": "已通过 API 密钥连接",

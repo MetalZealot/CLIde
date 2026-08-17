@@ -29,7 +29,8 @@ function createHarness(options: HarnessOptions = {}) {
   const notifications: Array<{ provider: LLMProvider; labels: string[] }> = [];
   let nextTimer = 1;
   let now = options.now ?? Date.parse('2026-08-16T12:00:00.000Z');
-  const usage = options.usage ?? {
+  let usageCalls = 0;
+  let usage: ProviderUsageStatus = options.usage ?? {
     provider: 'claude',
     supported: true,
     windows: [{
@@ -45,7 +46,10 @@ function createHarness(options: HarnessOptions = {}) {
 
   const monitor = createProviderUsageResetMonitor({
     listMonitoredProviders: () => ['claude', 'codex'],
-    getUsage: async () => usage,
+    getUsage: async () => {
+      usageCalls += 1;
+      return usage;
+    },
     isEnabled: (_userId, provider) => enabled && provider === 'claude',
     readState: () => state,
     writeState: (_userId, nextState) => { state = nextState; },
@@ -88,6 +92,8 @@ function createHarness(options: HarnessOptions = {}) {
     getState: () => state,
     disable: () => { enabled = false; },
     advance: (ms: number) => { now += ms; },
+    setUsage: (next: ProviderUsageStatus) => { usage = next; },
+    getUsageCalls: () => usageCalls,
   };
 }
 
@@ -139,6 +145,77 @@ test('does not reschedule an identity persisted as notified before restart', asy
 test('clears exact reset timers when the provider preference is disabled', async () => {
   const harness = createHarness();
   harness.monitor.reconcileUser(7);
+  await flushPromises();
+  assert.equal(harness.timeouts.size, 1);
+
+  harness.disable();
+  harness.monitor.reconcileUser(7);
+  assert.equal(harness.timeouts.size, 0);
+});
+
+test('retries the post-reset refresh until one comes back with fresh data', async () => {
+  const harness = createHarness({
+    usage: {
+      provider: 'claude',
+      supported: true,
+      windows: [{ id: 'five_hour', utilization: 90, resetsAt: '2026-08-16T13:00:05.000Z' }],
+    },
+  });
+  harness.monitor.reconcileUser(7);
+  await flushPromises();
+
+  harness.advance(60 * 60_000 + 5_000);
+  harness.onlyTimeout().fire();
+  await flushPromises();
+  assert.equal(harness.notifications.length, 1);
+
+  // The refresh is scheduled, not immediate: an immediate one lands inside the
+  // usage cache's 15-second floor on upstream calls and reads back the very
+  // snapshot the reset invalidated.
+  const firstAttempt = harness.onlyTimeout();
+  assert.equal(firstAttempt.delayMs, 20_000);
+
+  const callsBeforeRefresh = harness.getUsageCalls();
+  harness.setUsage({
+    provider: 'claude',
+    supported: true,
+    stale: true,
+    error: 'Claude\'s access token expired while idle. Send a message to refresh it.',
+    windows: [{ id: 'five_hour', utilization: 90, resetsAt: '2026-08-16T13:00:05.000Z' }],
+  });
+  firstAttempt.fire();
+  await flushPromises();
+  assert.equal(harness.getUsageCalls(), callsBeforeRefresh + 1);
+
+  // Still the pre-reset numbers, so it backs off and tries again.
+  const secondAttempt = harness.onlyTimeout();
+  assert.equal(secondAttempt.delayMs, 60_000);
+
+  harness.setUsage({
+    provider: 'claude',
+    supported: true,
+    windows: [{ id: 'five_hour', utilization: 0, resetsAt: null }],
+  });
+  secondAttempt.fire();
+  await flushPromises();
+
+  assert.equal(harness.timeouts.size, 0);
+  assert.equal(harness.notifications.length, 1);
+});
+
+test('drops pending post-reset refreshes when the provider preference is disabled', async () => {
+  const harness = createHarness({
+    usage: {
+      provider: 'claude',
+      supported: true,
+      windows: [{ id: 'five_hour', utilization: 90, resetsAt: '2026-08-16T13:00:05.000Z' }],
+    },
+  });
+  harness.monitor.reconcileUser(7);
+  await flushPromises();
+
+  harness.advance(60 * 60_000 + 5_000);
+  harness.onlyTimeout().fire();
   await flushPromises();
   assert.equal(harness.timeouts.size, 1);
 

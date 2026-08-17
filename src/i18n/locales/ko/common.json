@@ -3,6 +3,7 @@
     "title": "사용량",
     "description": "연결된 모델 제공자의 계정 한도와 잔액입니다.",
     "percentRemaining": "{{percent}}% 남음",
+    "windowReset": "초기화됨",
     "creditBalance": "크레딧 잔액",
     "afterPlanLimits": "플랜 한도 이후 사용 가능",
     "apiKeyConnected": "API 키로 연결됨",

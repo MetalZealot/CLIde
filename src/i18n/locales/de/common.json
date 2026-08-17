@@ -3,6 +3,7 @@
     "title": "Nutzung",
     "description": "Kontolimits und Guthaben für verbundene Modellanbieter.",
     "percentRemaining": "{{percent}} % verbleibend",
+    "windowReset": "Zurückgesetzt",
     "creditBalance": "Guthaben",
     "afterPlanLimits": "Nach Erreichen der Tariflimits verfügbar",
     "apiKeyConnected": "Mit API-Schlüssel verbunden",

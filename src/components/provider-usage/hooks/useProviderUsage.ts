@@ -21,6 +21,8 @@ type UsageFetchState = {
 // so opening both surfaces back-to-back costs one round-trip. The server keeps
 // its own cache; this only avoids duplicate requests from the same page.
 const CLIENT_CACHE_TTL_MS = 60_000;
+/** Settling time after a window's reset before asking the server for it. */
+const RESET_REFRESH_GRACE_MS = 30_000;
 const usageCache = new Map<LLMProvider, { data: ProviderUsageStatus; lastSuccessAtMs: number }>();
 const usageInFlight = new Map<LLMProvider, Promise<ProviderUsageStatus>>();
 
@@ -164,6 +166,27 @@ export function useProviderUsage(
 
     void load(false);
   }, [provider, isCacheFresh, load]);
+
+  // A window that reaches its own reset while a surface is open would keep
+  // painting the pre-reset numbers until something else triggered a fetch, and
+  // this PWA can sit on one screen for hours. Re-fetch just past the boundary,
+  // clear of the server's 15-second floor on upstream calls.
+  useEffect(() => {
+    if (!provider || !enabled || !state.usage) return undefined;
+
+    const nextResetAtMs = Math.min(
+      ...(state.usage.windows ?? [])
+        .map((usageWindow) => Date.parse(usageWindow.resetsAt ?? ''))
+        .filter((resetAtMs) => Number.isFinite(resetAtMs) && resetAtMs > Date.now()),
+    );
+    if (!Number.isFinite(nextResetAtMs)) return undefined;
+
+    const timer = window.setTimeout(
+      () => { void load(true); },
+      nextResetAtMs - Date.now() + RESET_REFRESH_GRACE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [enabled, load, provider, state.usage]);
 
   useEffect(() => {
     if (!provider || !enabled) return undefined;

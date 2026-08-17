@@ -3,6 +3,7 @@
     "title": "Kullanım",
     "description": "Bağlı model sağlayıcılarının hesap limitleri ve bakiyeleri.",
     "percentRemaining": "%{{percent}} kaldı",
+    "windowReset": "Sıfırlandı",
     "creditBalance": "Kredi bakiyesi",
     "afterPlanLimits": "Plan limitlerinden sonra kullanılabilir",
     "apiKeyConnected": "API anahtarıyla bağlı",

@@ -67,6 +67,21 @@ export const formatResetsIn = (resetsAt: string | null): string | null => {
   return `${minutes}m`;
 };
 
+/**
+ * True once a window's own reset timestamp has passed.
+ *
+ * The snapshot then predates its own reset: the provider zeroed that window at
+ * `resetsAt`, so the utilization we hold describes a window that no longer
+ * exists. Surfaces render the row as reset-and-updating instead of replaying
+ * the pre-reset number, which is what left a "0% remaining" bar sitting there
+ * after the limit had already come back.
+ */
+export const isUsageWindowResetPending = (resetsAt: string | null | undefined): boolean => {
+  if (!resetsAt) return false;
+  const timestamp = Date.parse(resetsAt);
+  return Number.isFinite(timestamp) && timestamp <= Date.now();
+};
+
 export const formatResetLocal = (resetsAt: string | null): string | null => {
   if (!resetsAt) return null;
   const timestamp = Date.parse(resetsAt);

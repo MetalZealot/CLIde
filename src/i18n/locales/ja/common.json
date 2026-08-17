@@ -3,6 +3,7 @@
     "title": "使用状況",
     "description": "接続済みモデルプロバイダーのアカウント制限と残高です。",
     "percentRemaining": "残り {{percent}}%",
+    "windowReset": "リセット済み",
     "creditBalance": "クレジット残高",
     "afterPlanLimits": "プラン上限後に利用可能",
     "apiKeyConnected": "API キーで接続済み",

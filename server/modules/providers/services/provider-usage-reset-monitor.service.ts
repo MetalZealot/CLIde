@@ -24,6 +24,8 @@ type ScheduledReset = {
 type ProviderMonitor = {
   pollTimer: ReturnType<typeof setInterval>;
   resetTimers: Map<string, ReturnType<typeof setTimeout>>;
+  /** Outstanding post-reset re-fetches; not keyed, they only need cancelling. */
+  postResetTimers: Set<ReturnType<typeof setTimeout>>;
 };
 
 type ResetMonitorDependencies = {
@@ -50,6 +52,18 @@ const MAX_PERSISTED_IDENTITIES = 256;
  * Anything beyond the ceiling is re-armed in stages instead.
  */
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
+/**
+ * Delays for the re-fetch that follows a reset, which is the one fetch a user
+ * actually reads — they open the dashboard *because* the alert fired.
+ *
+ * It is retried because the first attempt is the likeliest to come back empty:
+ * the usage cache refuses any upstream call within 15s of the previous one, so
+ * a poll shortly before the boundary silently turns the immediate re-fetch into
+ * a cache read, and a provider token that expired while idle fails every
+ * attempt until something renews it. Without retries the panel kept showing
+ * pre-reset numbers until the next five-minute poll.
+ */
+const POST_RESET_REFRESH_DELAYS_MS = [20_000, 60_000, 180_000];
 
 const labelWindow = (window: ProviderUsageWindow): string => {
   if (window.label) return window.label;
@@ -106,6 +120,7 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
     if (!monitor) return;
     dependencies.clearInterval(monitor.pollTimer);
     for (const timer of monitor.resetTimers.values()) dependencies.clearTimeout(timer);
+    for (const timer of monitor.postResetTimers) dependencies.clearTimeout(timer);
     monitors.delete(key);
   };
 
@@ -122,6 +137,35 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
     monitor.resetTimers.set(identity, dependencies.setTimeout(() => {
       armResetTimer(monitor, identity, fireAtMs, fire);
     }, MAX_TIMER_DELAY_MS));
+  };
+
+  /**
+   * Re-fetches usage after a reset fired, backing off until one attempt comes
+   * back with real data. A `stale` or errored result means the panel is still
+   * showing the pre-reset snapshot, so it is worth another try.
+   */
+  const schedulePostResetRefresh = (
+    userId: number,
+    provider: LLMProvider,
+    monitor: ProviderMonitor,
+    attempt: number,
+  ) => {
+    const delayMs = POST_RESET_REFRESH_DELAYS_MS[attempt];
+    if (delayMs === undefined) return;
+
+    const timer = dependencies.setTimeout(() => {
+      monitor.postResetTimers.delete(timer);
+      void dependencies.getUsage(provider).then((usage) => {
+        scheduleUsage(userId, provider, usage);
+        if (usage.stale || usage.error) {
+          schedulePostResetRefresh(userId, provider, monitor, attempt + 1);
+        }
+      }).catch((error) => {
+        console.error('[UsageResetMonitor] Post-reset refresh failed', { provider, error });
+        schedulePostResetRefresh(userId, provider, monitor, attempt + 1);
+      });
+    }, delayMs);
+    monitor.postResetTimers.add(timer);
   };
 
   const scheduleUsage = (userId: number, provider: LLMProvider, usage: ProviderUsageStatus) => {
@@ -155,11 +199,7 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
           notified: [...latestNotified, reset.identity].slice(-MAX_PERSISTED_IDENTITIES),
         });
         dependencies.notify(userId, provider, reset);
-        void dependencies.getUsage(provider).then((latestUsage) => {
-          scheduleUsage(userId, provider, latestUsage);
-        }).catch((error) => {
-          console.error('[UsageResetMonitor] Post-reset refresh failed', { provider, error });
-        });
+        schedulePostResetRefresh(userId, provider, monitor, 0);
       });
     }
   };
@@ -185,7 +225,7 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
     const pollTimer = dependencies.setInterval(() => {
       void refreshProvider(userId, provider);
     }, POLL_INTERVAL_MS);
-    monitors.set(key, { pollTimer, resetTimers: new Map() });
+    monitors.set(key, { pollTimer, resetTimers: new Map(), postResetTimers: new Set() });
     void refreshProvider(userId, provider);
   };
 

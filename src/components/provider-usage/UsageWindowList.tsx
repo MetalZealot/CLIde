@@ -9,6 +9,7 @@ import {
   formatResetLocal,
   formatResetsIn,
   formatUsageWindowLabel,
+  isUsageWindowResetPending,
   prettifyUsageId,
   usageBarToneClass,
 } from './format';
@@ -41,7 +42,8 @@ function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
   const displayLabel = formatUsageWindowLabel(window, t);
   const resetsIn = formatResetsIn(window.resetsAt);
   const exactReset = formatResetLocal(window.resetsAt);
-  const clamped = Math.min(100, Math.max(0, window.utilization));
+  const resetPending = isUsageWindowResetPending(window.resetsAt);
+  const clamped = resetPending ? 0 : Math.min(100, Math.max(0, window.utilization));
 
   return (
     <div className="space-y-1.5">
@@ -50,10 +52,12 @@ function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
           {displayLabel}
         </span>
         <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
-          {t('planUsage.percentUsed', {
-            defaultValue: '{{percent}}% used',
-            percent: Math.round(clamped),
-          })}
+          {resetPending
+            ? t('planUsage.windowReset', { defaultValue: 'Reset' })
+            : t('planUsage.percentUsed', {
+              defaultValue: '{{percent}}% used',
+              percent: Math.round(clamped),
+            })}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">

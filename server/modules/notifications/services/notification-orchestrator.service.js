@@ -199,6 +199,15 @@ function buildNotificationPayload(event) {
   };
 }
 
+/**
+ * Push services (FCM in particular) batch normal-urgency messages while a
+ * device is dozing, which can hold a notification back until the browser is
+ * next opened — long past the moment it described. Every CLIde notification is
+ * about something happening right now, so they go out high-urgency, and expire
+ * rather than queue: a 15-minute-old "reset" or "needs approval" is noise.
+ */
+const WEB_PUSH_OPTIONS = { urgency: 'high', TTL: 900 };
+
 function sendWebPushPayload(userId, payload) {
   const subscriptions = pushSubscriptionsDb.getSubscriptions(userId);
   if (!subscriptions.length) return Promise.resolve();
@@ -214,7 +223,8 @@ function sendWebPushPayload(userId, payload) {
             auth: sub.keys_auth
           }
         },
-        serializedPayload
+        serializedPayload,
+        WEB_PUSH_OPTIONS
       )
     )
   ).then((results) => {

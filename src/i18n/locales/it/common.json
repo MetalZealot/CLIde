@@ -3,6 +3,7 @@
     "title": "Utilizzo",
     "description": "Limiti e saldi dell’account per i provider di modelli connessi.",
     "percentRemaining": "{{percent}}% rimanente",
+    "windowReset": "Reimpostato",
     "creditBalance": "Saldo crediti",
     "afterPlanLimits": "Disponibile dopo i limiti del piano",
     "apiKeyConnected": "Connesso con chiave API",

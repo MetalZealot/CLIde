@@ -18,6 +18,7 @@ import {
   formatResetsIn,
   formatUpdatedAgo,
   formatUsageWindowLabel,
+  isUsageWindowResetPending,
   usageBarToneClass,
 } from '../../provider-usage/format';
 import { useProviderUsage } from '../../provider-usage/hooks/useProviderUsage';
@@ -60,15 +61,18 @@ const formatCredits = (credits: ProviderUsageCredits): string => {
 
 function UsageMetric({ window }: { window: ProviderUsageWindow }) {
   const { t } = useTranslation('common');
-  const utilization = Math.max(0, Math.min(100, window.utilization));
+  const resetPending = isUsageWindowResetPending(window.resetsAt);
+  const utilization = resetPending ? 0 : Math.max(0, Math.min(100, window.utilization));
   const remaining = 100 - utilization;
   const resetsIn = formatResetsIn(window.resetsAt);
   const exactReset = formatResetLocal(window.resetsAt);
   const label = formatUsageWindowLabel(window, t);
-  const remainingLabel = t('usageDashboard.percentRemaining', {
-    defaultValue: '{{percent}}% remaining',
-    percent: Math.round(remaining),
-  });
+  const remainingLabel = resetPending
+    ? t('usageDashboard.windowReset', { defaultValue: 'Reset' })
+    : t('usageDashboard.percentRemaining', {
+      defaultValue: '{{percent}}% remaining',
+      percent: Math.round(remaining),
+    });
 
   return (
     <div className="min-w-0 py-4">

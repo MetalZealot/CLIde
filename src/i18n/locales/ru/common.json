@@ -3,6 +3,7 @@
     "title": "Использование",
     "description": "Лимиты и баланс аккаунта для подключённых поставщиков моделей.",
     "percentRemaining": "Осталось {{percent}}%",
+    "windowReset": "Сброшено",
     "creditBalance": "Баланс кредитов",
     "afterPlanLimits": "Доступно после лимитов тарифа",
     "apiKeyConnected": "Подключено через API-ключ",

@@ -3,6 +3,7 @@
     "title": "用量",
     "description": "已連線模型供應商的帳戶限制與餘額。",
     "percentRemaining": "剩餘 {{percent}}%",
+    "windowReset": "已重設",
     "creditBalance": "額度餘額",
     "afterPlanLimits": "方案限制用完後可用",
     "apiKeyConnected": "已透過 API 金鑰連線",
