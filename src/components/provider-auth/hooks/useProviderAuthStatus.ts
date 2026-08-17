@@ -9,6 +9,7 @@ import {
 import type {
   ProviderAuthStatus,
   ProviderAuthStatusMap,
+  ProviderRuntimeVersions,
 } from '../types';
 
 type ProviderAuthStatusPayload = {
@@ -16,6 +17,7 @@ type ProviderAuthStatusPayload = {
   email?: string | null;
   method?: string | null;
   error?: string | null;
+  versions?: ProviderRuntimeVersions | null;
 };
 
 type ProviderAuthStatusApiResponse = {
@@ -39,6 +41,7 @@ const toProviderAuthStatus = (
   method: payload.method ?? null,
   error: payload.error ?? fallbackError,
   loading: false,
+  versions: payload.versions ?? null,
 });
 
 type UseProviderAuthStatusOptions = {
@@ -83,6 +86,7 @@ export function useProviderAuthStatus(
           method: null,
           loading: false,
           error: FALLBACK_STATUS_ERROR,
+          versions: null,
         };
         setProviderStatus(provider, status);
         return status;
@@ -100,6 +104,7 @@ export function useProviderAuthStatus(
         method: null,
         loading: false,
         error: toErrorMessage(caughtError),
+        versions: null,
       };
       setProviderStatus(provider, status);
       return status;

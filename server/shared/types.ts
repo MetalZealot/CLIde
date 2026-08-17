@@ -786,6 +786,24 @@ export type UpsertProviderMcpServerInput = {
  * This shape is consumed by settings/status endpoints to report installation and
  * credential state for each provider.
  */
+/**
+ * The local toolchain versions a provider reports, for providers whose parts
+ * move independently. Claude's are the SDK CLIde imports and the `claude`
+ * binary it spawns: the first moves only on a `package.json` bump, the second
+ * whenever Claude Code self-updates. `previous` carries the pair this one
+ * replaced, so a move that happened while nobody was looking stays visible.
+ */
+export type ProviderRuntimeVersions = {
+  runtime: string | null;
+  sdk: string | null;
+  observedAt: string;
+  previous?: {
+    runtime: string | null;
+    sdk: string | null;
+    observedAt: string;
+  };
+};
+
 export type ProviderAuthStatus = {
   installed: boolean;
   provider: LLMProvider;
@@ -793,6 +811,8 @@ export type ProviderAuthStatus = {
   email: string | null;
   method: string | null;
   error?: string;
+  /** Absent for providers that expose no version pair, or when the check failed. */
+  versions?: ProviderRuntimeVersions;
 };
 
 // ---------------------------

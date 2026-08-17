@@ -366,6 +366,13 @@
       "refreshButton": "Refresh",
       "apiKeyUnavailable": "Plan usage is only available for subscription (OAuth) sign-in, not API-key auth."
     },
+    "runtimeVersions": {
+      "title": "Runtime",
+      "movedRuntime": "{{agent}} runtime moved {{from}} → {{to}}",
+      "movedSdk": "Agent SDK moved {{from}} → {{to}}",
+      "movedAge": "Seen {{age}}",
+      "unknown": "unknown"
+    },
     "providers": {
       "claude": "Claude",
       "cursor": "Cursor",

@@ -215,3 +215,29 @@ Two gates so the next bump costs less than this one did, modelled on Codex's
 - **Verification:** 463 server tests, 0 failures; `lint`, `build:server` clean.
   Live against the built `dist-server`: `getStatus()` reports installed and
   authenticated, and recorded `{ sdk: 0.3.233, runtime: 2.1.233 }`.
+
+## The version pair is visible in Settings — 2026-08-17
+
+The pair was already recorded on every auth check and then dropped: the only
+consumer was a `console.warn`, so the mechanism that exists to catch a silent
+runtime self-update could only be read by someone tailing the server log.
+
+- **What changed.** `checkInstalled` returns the record instead of a boolean, and
+  `ProviderAuthStatus` carries an optional `versions` (runtime, sdk, observedAt,
+  and the pair it replaced). Claude's account card renders one **Runtime** row —
+  `2.1.233 · SDK 0.3.233` — plus a warning line naming the half that moved, for
+  seven days after a move. No new endpoint, no new process, no new fetch.
+- **Read-only on purpose.** Codex's equivalent is a whole sub-screen because
+  CLIde installs, pins and rolls back that binary (ADR 0034). CLIde only
+  *observes* the `claude` on `PATH`, so there is nothing to act on and nowhere
+  to drill into; a row that navigated nowhere would imply controls that cannot
+  exist.
+- **Presence-driven, not provider-driven.** The row renders when a provider
+  reports a pair rather than on `provider === 'claude'`, per the capability rule
+  that provider facts do not belong in React branches.
+- **The notice decays.** `previous` is kept indefinitely in the store, so the
+  move line is gated on a seven-day window — otherwise the first self-update
+  would leave permanent furniture on the card.
+- **Verification:** typecheck, focused lint (0 errors), 473 server tests and 182
+  client tests, 0 failures. Eight new tests cover the pair formatting, which half
+  moved, the window, a corrupt timestamp, and the three render states.

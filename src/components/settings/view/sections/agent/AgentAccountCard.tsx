@@ -15,6 +15,11 @@ import {
 import type { AgentProviderId } from '../../../registry/registry';
 import type { AuthStatus, NotificationPreferencesState } from '../../../types/types';
 import { toProviderStatus } from '../../../utils/providerStatus';
+import {
+  describeVersionMoves,
+  formatVersionAge,
+  formatVersionPair,
+} from '../../../utils/providerVersions';
 import { SettingsGroup, SettingsRow, SettingsStatus, SettingsToggle } from '../../primitives';
 
 type AgentAccountCardProps = {
@@ -57,6 +62,10 @@ const formatUpdatedAgo = (fetchedAt: string): string | null => {
  *
  * Codex's runtime and transport detail live on the Runtime sub-screen. What
  * remains here is the exception: a healthy transport says nothing at all.
+ *
+ * A provider that reports version numbers gets one Runtime row here instead of
+ * a sub-screen, because CLIde manages Codex's binary but only observes Claude's
+ * — there is nothing to act on, so there is nowhere to drill into.
  */
 export default function AgentAccountCard({
   provider,
@@ -85,6 +94,11 @@ export default function AgentAccountCard({
   );
   const usageUpdatedAgo = planUsage.usage?.fetchedAt
     ? formatUpdatedAgo(planUsage.usage.fetchedAt)
+    : null;
+  const versionPair = authStatus.versions ? formatVersionPair(authStatus.versions) : null;
+  const versionMoves = authStatus.versions ? describeVersionMoves(authStatus.versions) : [];
+  const versionMovedAge = authStatus.versions && versionMoves.length > 0
+    ? formatVersionAge(authStatus.versions.observedAt)
     : null;
   const codexTransport = useCodexTransport(provider === 'codex');
   const transportAlert = isTransportDegraded(codexTransport)
@@ -141,6 +155,49 @@ export default function AgentAccountCard({
               {authStatus.authenticated ? t('agents.login.reLoginButton') : t('agents.login.button')}
             </Button>
           </SettingsRow>
+        )}
+
+        {/*
+          Driven by whether the provider reported a pair, not by `provider ===
+          'claude'`: Claude is the only one that does today, and the row lights
+          up for any provider that starts.
+        */}
+        {versionPair && (
+          <SettingsRow label={t('agents.runtimeVersions.title', { defaultValue: 'Runtime' })}>
+            <span className="text-sm text-muted-foreground">{versionPair}</span>
+          </SettingsRow>
+        )}
+
+        {versionMoves.length > 0 && (
+          <div className="flex items-start gap-2 px-4 py-3 text-sm text-warning">
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <div className="min-w-0">
+              {versionMoves.map((move) => (
+                <div key={move.half}>
+                  {move.half === 'runtime'
+                    ? t('agents.runtimeVersions.movedRuntime', {
+                      defaultValue: '{{agent}} runtime moved {{from}} → {{to}}',
+                      agent: providerName,
+                      from: move.from ?? t('agents.runtimeVersions.unknown', { defaultValue: 'unknown' }),
+                      to: move.to ?? t('agents.runtimeVersions.unknown', { defaultValue: 'unknown' }),
+                    })
+                    : t('agents.runtimeVersions.movedSdk', {
+                      defaultValue: 'Agent SDK moved {{from}} → {{to}}',
+                      from: move.from ?? t('agents.runtimeVersions.unknown', { defaultValue: 'unknown' }),
+                      to: move.to ?? t('agents.runtimeVersions.unknown', { defaultValue: 'unknown' }),
+                    })}
+                </div>
+              ))}
+              {versionMovedAge && (
+                <div className="mt-0.5 text-xs text-warning/80">
+                  {t('agents.runtimeVersions.movedAge', {
+                    defaultValue: 'Seen {{age}}',
+                    age: versionMovedAge,
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {transportAlert && (

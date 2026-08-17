@@ -4,7 +4,10 @@ import {
   loadClaudeSettingsEnv,
   readClaudeOAuthCredentials,
 } from '@/modules/providers/list/claude/claude-credentials.js';
-import { observeClaudeVersionPair } from '@/modules/providers/list/claude/claude-version-pair.js';
+import {
+  type ClaudeVersionPairRecord,
+  observeClaudeVersionPair,
+} from '@/modules/providers/list/claude/claude-version-pair.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
@@ -22,18 +25,20 @@ export class ClaudeProviderAuth implements IProviderAuth {
    * Checks whether the Claude Code CLI is available on this host, and records
    * the version it reports against the SDK's — a missing binary surfaces as
    * `spawn.sync` returning an error, never as a throw.
+   *
+   * The recorded pair is returned rather than dropped, because the settings
+   * screen is the only place a silent runtime self-update becomes visible.
    */
-  private checkInstalled(): boolean {
+  private checkInstalled(): { installed: boolean; versions: ClaudeVersionPairRecord | null } {
     const cliPath = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
     try {
       const result = spawn.sync(cliPath, ['--version'], { encoding: 'utf8', timeout: 5000 });
       if (result.error || result.status !== 0) {
-        return false;
+        return { installed: false, versions: null };
       }
-      observeClaudeVersionPair(result.stdout ?? '');
-      return true;
+      return { installed: true, versions: observeClaudeVersionPair(result.stdout ?? '') };
     } catch {
-      return false;
+      return { installed: false, versions: null };
     }
   }
 
@@ -41,7 +46,7 @@ export class ClaudeProviderAuth implements IProviderAuth {
    * Returns Claude installation and credential status using Claude Code's auth priority.
    */
   async getStatus(): Promise<ProviderAuthStatus> {
-    const installed = this.checkInstalled();
+    const { installed, versions } = this.checkInstalled();
 
     if (!installed) {
       return {
@@ -63,6 +68,7 @@ export class ClaudeProviderAuth implements IProviderAuth {
       email: credentials.authenticated ? credentials.email || 'Authenticated' : credentials.email,
       method: credentials.method,
       error: credentials.authenticated ? undefined : credentials.error || 'Not authenticated',
+      ...(versions ? { versions } : {}),
     };
   }
 
