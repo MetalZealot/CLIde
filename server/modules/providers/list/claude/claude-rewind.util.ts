@@ -205,3 +205,24 @@ export function readTranscriptEntries(jsonlPath: string): RewindTranscriptEntry[
   }
   return entries;
 }
+
+/** Longest encoded project directory the runtime writes before it truncates. */
+const CLAUDE_PROJECT_DIR_MAX = 200;
+
+/**
+ * Mirrors Claude Code's `~/.claude/projects` directory encoder, decoded from
+ * the CLI binary, 2.1.233. Past the length limit it truncates the encoded form
+ * and appends a base-36 `h*31 + c` hash of the ORIGINAL path, not the encoded
+ * one. Only reached when a session row carries no `jsonlPath`.
+ */
+export function encodeClaudeProjectDir(cwd: string): string {
+  const encoded = cwd.replace(/[^a-zA-Z0-9]/g, '-');
+  if (encoded.length <= CLAUDE_PROJECT_DIR_MAX) {
+    return encoded;
+  }
+  let hash = 0;
+  for (let i = 0; i < cwd.length; i += 1) {
+    hash = ((hash << 5) - hash + cwd.charCodeAt(i)) | 0;
+  }
+  return `${encoded.slice(0, CLAUDE_PROJECT_DIR_MAX)}-${Math.abs(hash).toString(36)}`;
+}

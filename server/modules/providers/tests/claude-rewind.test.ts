@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   computeResumeAnchor,
+  encodeClaudeProjectDir,
   extractBaseTranscriptUuid,
   filterToActiveBranch,
   type RewindTranscriptEntry,
@@ -186,5 +187,21 @@ describe('supportsRewind capability', () => {
         provider,
       );
     }
+  });
+});
+
+describe('encodeClaudeProjectDir', () => {
+  it('replaces non-alphanumerics, and truncates with a hash past 200 characters', () => {
+    assert.equal(
+      encodeClaudeProjectDir('/home/user/Projects/cloudcli'),
+      '-home-user-Projects-cloudcli',
+    );
+
+    // Golden case: runtime 2.1.233 wrote exactly this directory for this cwd.
+    const deep = `/tmp/clide-encoder-probe/${Array.from({ length: 40 }, (_, i) => `seg${String(i).padStart(2, '0')}`).join('/')}`;
+    const encoded = encodeClaudeProjectDir(deep);
+    assert.equal(encoded.length, 207);
+    assert.equal(encoded.slice(200), '-rpzdak');
+    assert.ok(encoded.startsWith('-tmp-clide-encoder-probe-seg00-'));
   });
 });

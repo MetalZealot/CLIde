@@ -1,0 +1,85 @@
+# Claude Agent SDK 0.3.165 → 0.3.233
+
+- Status: 3/4
+- Next: phase 4's live gate — SSH restart, then one Chat turn, a rewind, and a context-gauge read on 3001.
+- Context: [Claude upgrade ledger](../maps/claude-upgrade-ledger.md), [Claude SDK map](../maps/claude-agent-sdk.md), [maps maintenance flow](../maps/README.md), [usage dashboard](usage-dashboard.md).
+
+## What this bump actually is
+
+A library-layer bump, not a runtime move. The plan was opened believing `query()`
+spawns the SDK's own bundled `claude` binary, which would have put Chat 68
+releases behind Shell. It does not: CLIde always sets
+`pathToClaudeCodeExecutable` (`'claude'` on non-Windows) and the SDK resolves its
+bundled binary only in the `if (!pathToClaudeCodeExecutable)` branch, so Chat has
+always run the same `PATH` runtime as Shell. Confirmed three ways in
+[the ledger](../maps/claude-upgrade-ledger.md), including 203 transcripts on this
+host spanning 2.1.212–2.1.233 with none at the bundled 2.1.165.
+
+Measured 2026-08-16, before and after:
+
+| | Before | After |
+|---|---|---|
+| `package.json` pin | `^0.3.165` | `^0.3.233` |
+| Lockfile / installed SDK | 0.3.165 | 0.3.233 |
+| SDK-bundled runtime (fallback only) | 2.1.165 | 2.1.233 |
+| Runtime on `PATH` (what Chat and Shell run) | 2.1.233 | 2.1.233 |
+
+So what moves is the control-protocol client, the exported types, and the binary
+that would be used only if `claude` left `PATH`. Source blast radius is small:
+one `import { query }` in `claude-runtime.provider.js`, plus
+`scripts/verify-context-usage-sdk.ts` and `scripts/verify-rewind-sdk.ts`.
+
+## Phases
+
+- [x] 1. **Baseline and bump.** Record the four versions above as the ledger's
+  "previous" set. Back up `auth.db`. `npm install @anthropic-ai/claude-agent-sdk@0.3.233`
+  in the main checkout, on its own branch and its own commit — `package.json` is a
+  rebase-conflict magnet and this change should be revertable alone. Confirm the
+  new bundled binary reports 2.1.233
+  (`node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/claude --version`);
+  it is ~245 MB, so check `df -h` first. Worktrees symlink the main checkout's
+  `node_modules`, so they inherit the bump with no second install.
+
+- [x] 2. **Compatibility sweep.** Four exported types disappear between the two
+  versions — `ConnectRemoteControlError`, `ConnectRemoteControlOptions`,
+  `ConnectRemoteControlResult`, `InboundPrompt` — and the `assistant` entrypoint
+  (`assistant.d.ts` / `assistant.mjs`) is no longer in the published tarball.
+  A repo-wide grep on 2026-08-16 found CLIde using none of them; re-run it rather
+  than trusting that. Then diff the full exported surface old vs new and classify
+  anything material against the canonical map (maintenance flow step 3).
+
+- [x] 3. **Runtime-delta re-checks.** Three open TODO items are runtime-gated and
+  currently bite only Shell, because Chat still runs 2.1.165. After this bump they
+  reach Chat, so re-test each against the new runtime and close or re-scope it:
+  forked subagents and `isSidechain` (2.1.232), `CLAUDE_CODE_DISABLE_1M_CONTEXT`
+  holding 1M models to 200K (2.1.223), and `resolveClaudeTranscriptPath` missing
+  the 200-character encoded-path branch (2.1.224). Also refresh the model facts in
+  `claude-context-window.ts` from the new `sdk.mjs` registry — its header says
+  0.3.220 and must never be written from memory.
+
+- [~] 4. **Verify and document.** `npm run typecheck`, `lint`, `check:docs`,
+  `build:server`, the test suite, then both `scripts/verify-*-sdk.ts`. Live: one
+  real Chat session end to end on the worktree port, plus a rewind and a context-usage
+  read, since those lean hardest on the control protocol. Append one compact ledger
+  entry (previous and current version set, sources, changes, disposition, evidence),
+  update the SDK map's measured-at line, and move the TODO item.
+
+## Done when
+
+- The pin, lockfile, installed SDK and bundled runtime all read 0.3.233 / 2.1.233,
+  and Chat and Shell run the same Claude Code version.
+- No CLIde code depends on a removed export, and the exported-surface diff is
+  classified against the map.
+- The three runtime-gated TODO items are re-tested against 2.1.233, and the model
+  registry in `claude-context-window.ts` is refreshed from the new `sdk.mjs`.
+- Checks, both verify scripts, and one live Chat session with a rewind pass.
+- The ledger has its entry and the map its new measured-at version set.
+
+## Not doing
+
+- Consuming `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()`. The bump
+  makes it reachable; spending it belongs to [the usage dashboard](usage-dashboard.md),
+  behind a one-function adapter, because the SDK will rename it.
+- Pinning the SDK exactly, or pinning the runtime to it. Both are deliberately
+  unpinned; see the ledger.
+- Touching the Codex runtime, the `PATH` `claude`, or the production service.

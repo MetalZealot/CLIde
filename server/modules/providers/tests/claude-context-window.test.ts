@@ -35,7 +35,7 @@ const withoutEnv = (keys: string[], run: () => void): void => {
 
 const ceiling = (input: Parameters<typeof resolveClaudeContextCeiling>[0] = {}): number => {
   let result = 0;
-  withoutEnv(['CONTEXT_WINDOW', 'CLAUDE_CODE_AUTO_COMPACT_WINDOW'], () => {
+  withoutEnv(['CONTEXT_WINDOW', 'CLAUDE_CODE_AUTO_COMPACT_WINDOW', 'CLAUDE_CODE_DISABLE_1M_CONTEXT'], () => {
     resetClaudeContextWindowCache();
     result = resolveClaudeContextCeiling({ settingsPath: NO_SETTINGS, ...input });
   });
@@ -163,6 +163,34 @@ test('CLAUDE_CODE_AUTO_COMPACT_WINDOW caps the window before the reserve', () =>
       }
     }
   });
+});
+
+test('CLAUDE_CODE_DISABLE_1M_CONTEXT holds every model to the default window', () => {
+  const disabled = (model: string, contextWindow?: number): number => {
+    let result = 0;
+    withoutEnv(['CONTEXT_WINDOW', 'CLAUDE_CODE_AUTO_COMPACT_WINDOW'], () => {
+      const saved = process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT;
+      process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT = 'true';
+      try {
+        resetClaudeContextWindowCache();
+        result = resolveClaudeContextCeiling({ model, contextWindow, settingsPath: NO_SETTINGS });
+      } finally {
+        if (saved === undefined) {
+          delete process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT;
+        } else {
+          process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT = saved;
+        }
+      }
+    });
+    return result;
+  };
+
+  // Native 1M, the [1m] suffix, and an SDK-reported 1M window all collapse to
+  // 200k with no reserve — the runtime fails all three paths while this is set.
+  assert.equal(disabled('claude-opus-5'), 200_000);
+  assert.equal(disabled('claude-sonnet-4-5[1m]'), 200_000);
+  assert.equal(disabled('claude-unicorn-9', 2_000_000), 200_000);
+  assert.equal(disabled('claude-haiku-4-5'), 200_000);
 });
 
 test('settings.json autoCompactWindow caps the window when no env cap is set', async () => {

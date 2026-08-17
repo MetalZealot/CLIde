@@ -129,3 +129,62 @@ live behavior take precedence over documentation. See the map's evidence policy.
 - **Verification:** read-only inspection; no CLIde code changed. Live evidence
   that the pairing works — 25 Claude sessions in CLIde's database in the four days
   to 2026-08-14, most recent 13:34, all on runtime 2.1.232 against SDK 0.3.165.
+
+## SDK 0.3.165 → 0.3.233 — 2026-08-16
+
+- **From/to:** pin `^0.3.165` → `^0.3.233`, lockfile and installed SDK 0.3.165 →
+  0.3.233, SDK-bundled runtime 2.1.165 → 2.1.233. The runtime on `PATH` was
+  already 2.1.233 and is unchanged.
+- **Correction — the bump does not move Chat's runtime.** The plan was written on
+  the premise that `query()` spawns the SDK's bundled binary, so Chat was 68
+  releases behind Shell. It is not: CLIde always sets
+  `pathToClaudeCodeExecutable` (`'claude'` on non-Windows), and the SDK resolves
+  its bundled binary only in the `if (!pathToClaudeCodeExecutable)` branch. Three
+  lines of evidence agree — the adapter source, that branch in `sdk.mjs`, and
+  203 transcripts on this host carrying 16 distinct runtime versions from 2.1.212
+  to 2.1.233 with **not one** at the bundled 2.1.165. So this is a library-layer
+  bump: control-protocol client, types, and the fallback binary used only if
+  `claude` ever leaves `PATH`. The map's snapshot row was right all along, and
+  the three runtime-gated items below were already reaching Chat, not waiting on
+  this bump to start.
+- **Sources:** old and new `sdk.d.ts` / `sdk-tools.d.ts` / `agentSdkTypes.d.ts`,
+  the new `sdk.mjs` model registry, `strings`/`grep -a` over the bundled 2.1.233
+  binary for the context-window and project-path encoders, and both
+  `scripts/verify-*-sdk.ts` run against the new SDK.
+- **Exported surface:** four `ConnectRemoteControl*` / `InboundPrompt` types and
+  the `assistant` entrypoint were removed; a repo-wide grep confirms CLIde binds
+  none of them. Everything else is additive: `Options` 62 → 64
+  (`resumeDropsTurn`, `supportedDialogKinds`), `Query` +`reinitialize`,
+  +`setMcpPermissionModeOverride`, +`usage_EXPERIMENTAL…`, `SDKMessage` 32 → 39,
+  `HookEvent` 30 → 31 (`DirectoryAdded`), `PermissionMode` unchanged at 6, 17
+  exported functions unchanged, 22 new `sdk-tools` input/output pairs.
+- **Model registry re-read from 0.3.233 `sdk.mjs`:** all 17 entries and the four
+  family aliases are byte-identical to the table in `claude-context-window.ts`.
+  The stale 0.3.220 provenance line is now 0.3.233.
+- **`CLAUDE_CODE_DISABLE_1M_CONTEXT` decoded and implemented.** The mechanism is
+  not the credit latch the 2026-08-14 entry assumed: the flag fails every 1M path
+  (`[1m]` suffix, beta header, native) so the window falls through to a flat
+  200,000 for every model. `resolveClaudeContextCeiling` now mirrors that, using
+  the runtime's own truthy vocabulary (`1`/`true`/`yes`/`on`).
+- **The 200-character project-directory hash is identified.** `h*31 + c` over the
+  ORIGINAL path, `Math.abs(...).toString(36)`, appended to the encoded path cut
+  at 200. Verified by running the bundled 2.1.233 binary from a 264-character
+  cwd: `encodeClaudeProjectDir` reproduces the written directory byte for byte.
+- **Forked subagents no longer reach the parent transcript at all (closes the
+  `isSidechain` watch).** One subagent run on 2.1.233 wrote its 5 rows to
+  `<project>/<session-id>/subagents/agent-<id>.jsonl`, every row
+  `isSidechain: true`, and left 0 sidechain rows in the parent. CLIde reads only
+  the parent, so the four guards are unaffected and token accounting is unchanged.
+- **Disposition:** `resumeDropsTurn` is a mapped candidate — it is the companion
+  guard to the `resumeSessionAt` rewind path (ADR 0007), not needed for the bump.
+  `usage_EXPERIMENTAL…` stays deliberately unspent (usage dashboard plan).
+  `supportedDialogKinds` fails closed when absent, which is CLIde's current
+  behaviour, so no action.
+- **Verification:** `typecheck`, `lint` (0 errors), `check:docs`, `build:server`,
+  and the full suite — 458 server + 173 client, 0 failures. Both probes reproduce
+  their recorded findings on 0.3.233: `getContextUsage()` still resolves at init
+  and mid-stream but not after `result`, and `resumeSessionAt` still accepts only
+  assistant uuids while keeping the session id. `sonnet` now resolves to
+  `claude-sonnet-5` and both the SDK and CLIde report a 200,000 ceiling for it —
+  this host's `~/.claude/settings.json` sets `autoCompactWindow: 200000`, so that
+  is agreement, not a regression. All probe transcripts and rows were removed.

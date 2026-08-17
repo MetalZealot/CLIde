@@ -10,9 +10,13 @@ import path from 'node:path';
  * its own ceiling and auto-compact threshold — authoritative, and free of the
  * mirroring problem below. See `claude-context-usage.ts`.
  *
- * Claude Code's algorithm, decoded from the CLI binary, 2026-07-26:
+ * Claude Code's algorithm, decoded from the CLI binary, 2026-07-26, re-decoded
+ * from 2.1.233:
  *
  *   window = the model's registry `context.window`
+ *   window = 200,000 flat when env CLAUDE_CODE_DISABLE_1M_CONTEXT is truthy —
+ *            it fails every 1M path (`[1m]` suffix, beta header, native), so
+ *            even a native-1M model falls through to the default window
  *   window = min(window, first cap that is set):
  *              env CLAUDE_CODE_AUTO_COMPACT_WINDOW
  *              → settings.json `autoCompactWindow`
@@ -23,7 +27,7 @@ import path from 'node:path';
  *            LONG_CONTEXT_RESERVE — measured, not decoded)
  *
  * The model facts below are copied verbatim from the registry in
- * `@anthropic-ai/claude-agent-sdk` 0.3.220 (`sdk.mjs`): `context.window`,
+ * `@anthropic-ai/claude-agent-sdk` 0.3.233 (`sdk.mjs`): `context.window`,
  * `max_output_tokens.default`, and whether the entry declares 1M support. Never
  * write them from memory; refresh from that registry when the SDK is bumped.
  */
@@ -117,6 +121,12 @@ const readPositiveInteger = (value: unknown): number | undefined => {
   const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
 };
+
+/** Claude Code's boolean env vocabulary, decoded from the CLI binary. */
+const TRUTHY_ENV_VALUES = new Set(['1', 'true', 'yes', 'on']);
+
+const readBooleanEnv = (value: string | undefined): boolean =>
+  TRUTHY_ENV_VALUES.has(String(value ?? '').trim().toLowerCase());
 
 /**
  * Reduces any model string we might see — picker alias, canonical id, dated
@@ -227,13 +237,20 @@ export const resolveClaudeContextCeiling = (
 
   const { wantsLongContext } = normalizeClaudeModelId(input.model);
   const spec = resolveClaudeModelContextSpec(input.model);
+  const longContextDisabled = readBooleanEnv(process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT);
 
   let window = readPositiveInteger(input.contextWindow)
     ?? spec?.window
     ?? FALLBACK_WINDOW;
 
-  if (wantsLongContext && (spec?.supportsLongContext ?? false)) {
+  if (wantsLongContext && (spec?.supportsLongContext ?? false) && !longContextDisabled) {
     window = Math.max(window, LONG_CONTEXT_WINDOW);
+  }
+
+  // The runtime resolves every model to the default window while this is set,
+  // so it outranks both the registry and an SDK-reported window.
+  if (longContextDisabled) {
+    window = Math.min(window, MODEL_DEFAULT_WINDOW_CLAMP);
   }
 
   const configuredCap = readPositiveInteger(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW)

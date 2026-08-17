@@ -42,6 +42,7 @@ import {
 } from '@/modules/notifications/index.js';
 import {
   computeResumeAnchor,
+  encodeClaudeProjectDir,
   extractBaseTranscriptUuid,
   readTranscriptEntries,
 } from '@/modules/providers/list/claude/claude-rewind.util.js';
@@ -559,8 +560,13 @@ function resolveClaudeTranscriptPath(options, providerSessionId) {
   if (!options.cwd || !providerSessionId) {
     return null;
   }
-  const encodedCwd = String(options.cwd).replace(/[^a-zA-Z0-9]/g, '-');
-  return path.join(os.homedir(), '.claude', 'projects', encodedCwd, `${providerSessionId}.jsonl`);
+  return path.join(
+    os.homedir(),
+    '.claude',
+    'projects',
+    encodeClaudeProjectDir(String(options.cwd)),
+    `${providerSessionId}.jsonl`,
+  );
 }
 
 /**
