@@ -30,7 +30,7 @@ interface ChatMessagesPaneProps {
   hasMoreMessages: boolean;
   visibleMessageCount: number;
   visibleMessages: ChatMessage[];
-  loadAllMessages: () => void;
+  loadAllMessages: () => Promise<ChatMessage[] | null>;
   isLoadingAllMessages: boolean;
   createDiff: any;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
@@ -119,6 +119,7 @@ function ChatMessagesPane({
     (message: ChatMessage) => messageKeyMap.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
     [messageKeyMap],
   );
+  const exportProvider = selectedSession?.__provider ?? provider;
 
   return (
     <div
@@ -129,7 +130,14 @@ function ChatMessagesPane({
       {chatMessages.length > 0 && (
         <div className="pointer-events-none sticky right-4 top-3 z-10 mb-2 flex justify-end sm:px-4">
           <div className="pointer-events-auto">
-            <ChatExportMenu messages={chatMessages} sessionTitle={selectedSession?.title} />
+            <ChatExportMenu
+              messages={chatMessages}
+              sessionTitle={selectedSession?.title}
+              assistantLabel={t(`messageTypes.${exportProvider}`, { defaultValue: exportProvider })}
+              hasMoreMessages={hasMoreMessages}
+              isLoadingAllMessages={isLoadingAllMessages}
+              loadAllMessages={loadAllMessages}
+            />
           </div>
         </div>
       )}

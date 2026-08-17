@@ -904,9 +904,9 @@ export function useChatSessionState({
     };
   }, [handleScroll]);
 
-  const loadAllMessages = useCallback(async () => {
-    if (!selectedSession || !selectedProject) return;
-    if (isLoadingAllMessages) return;
+  const loadAllMessages = useCallback(async (): Promise<ChatMessage[] | null> => {
+    if (!selectedSession || !selectedProject) return null;
+    if (isLoadingAllMessages) return null;
     const requestSessionId = selectedSession.id;
     isLoadingMoreRef.current = true;
     setIsLoadingAllMessages(true);
@@ -921,9 +921,9 @@ export function useChatSessionState({
         offset: 0,
       });
 
-      if (currentSessionId !== requestSessionId) return;
+      if (currentSessionId !== requestSessionId) return null;
 
-      if (slot) {
+      if (slot && slot.status !== 'error') {
         if (scrollRestore) {
           pendingScrollRestoreRef.current = scrollRestore;
           capturedScrollRestoreRef.current = null;
@@ -932,9 +932,16 @@ export function useChatSessionState({
 
         setVisibleMessageCount(Infinity);
         setAllMessagesLoaded(true);
+
+        const all = normalizedToChatMessages(sessionStore.getMessages(requestSessionId));
+        return viewHiddenCount > 0 && viewHiddenCount < all.length
+          ? all.slice(0, -viewHiddenCount)
+          : all;
       }
+      return null;
     } catch (error) {
       console.error('Error loading all messages:', error);
+      return null;
     } finally {
       if (capturedScrollRestoreRef.current === scrollRestore) {
         capturedScrollRestoreRef.current = null;
@@ -942,7 +949,7 @@ export function useChatSessionState({
       isLoadingMoreRef.current = false;
       setIsLoadingAllMessages(false);
     }
-  }, [selectedSession, selectedProject, isLoadingAllMessages, currentSessionId, sessionStore]);
+  }, [selectedSession, selectedProject, isLoadingAllMessages, currentSessionId, sessionStore, viewHiddenCount]);
 
   return {
     chatMessages,

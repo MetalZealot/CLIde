@@ -13,8 +13,69 @@ import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 
 import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
+import ChatExportMenu from './ChatExportMenu';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import TokenUsageSummary from './TokenUsageSummary';
+
+describe('ChatExportMenu', () => {
+  test('enables results only with tool calls and loads complete history before export', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    let loadAllCalls = 0;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const originalAnchorClick = window.HTMLAnchorElement.prototype.click;
+    URL.createObjectURL = () => 'blob:chat-export-test';
+    URL.revokeObjectURL = () => undefined;
+    window.HTMLAnchorElement.prototype.click = () => undefined;
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <ChatExportMenu
+            messages={[{ type: 'assistant', content: 'Loaded page', timestamp: '2026-08-17T12:00:00.000Z' }]}
+            sessionTitle="Export test"
+            assistantLabel="Codex"
+            hasMoreMessages
+            isLoadingAllMessages={false}
+            loadAllMessages={async () => {
+              loadAllCalls += 1;
+              return [{ type: 'assistant', content: 'Complete session', timestamp: '2026-08-17T12:00:00.000Z' }];
+            }}
+          />,
+        );
+      });
+
+      await React.act(async () => {
+        container.querySelector<HTMLButtonElement>('button[aria-label="Export chat"]')?.click();
+      });
+
+      const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+      assert.equal(checkboxes.length, 3);
+      assert.equal(checkboxes[1]?.disabled, true);
+
+      await React.act(async () => {
+        checkboxes[0]?.click();
+      });
+      assert.equal(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1]?.disabled, false);
+
+      const markdownButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.includes('Markdown'));
+      await React.act(async () => {
+        markdownButton?.click();
+        await Promise.resolve();
+      });
+      assert.equal(loadAllCalls, 1);
+    } finally {
+      await React.act(async () => root.unmount());
+      container.remove();
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+      window.HTMLAnchorElement.prototype.click = originalAnchorClick;
+    }
+  });
+});
 
 describe('TokenUsageSummary', () => {
   let root: Root | null = null;

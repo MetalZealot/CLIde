@@ -8,6 +8,7 @@ import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
 
 import { extractInternalMemoryCitation, formatMemoryCitationSource } from './chatFormatting';
+import { exportToHTML, exportToMarkdown } from './chatExport';
 import { getLauncherCheckoutLabel, resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
 
 describe('chatFormatting', () => {
@@ -82,6 +83,87 @@ describe('chatFormatting', () => {
     ]);
     assert.equal(messages[1]?.content, citation);
     assert.equal(messages[1]?.memoryCitations, undefined);
+  });
+});
+
+describe('chatExport', () => {
+  const messages = [
+    {
+      type: 'user',
+      content: 'Run the check.',
+      timestamp: '2026-08-17T12:00:00.000Z',
+    },
+    {
+      type: 'assistant',
+      content: '',
+      timestamp: '2026-08-17T12:00:01.000Z',
+      isToolUse: true,
+      toolName: 'Bash',
+      toolInput: '{"command":"pwd"}',
+      toolResult: { content: '<workspace>\n```nested```', isError: false },
+      subagentState: {
+        currentToolIndex: 0,
+        isComplete: true,
+        childTools: [{
+          toolId: 'child-1',
+          toolName: 'Read',
+          toolInput: { path: '/tmp/example' },
+          toolResult: { content: 'child result', isError: false },
+          timestamp: new Date('2026-08-17T12:00:02.000Z'),
+        }],
+      },
+    },
+    {
+      type: 'assistant',
+      content: 'private reasoning',
+      timestamp: '2026-08-17T12:00:03.000Z',
+      isThinking: true,
+    },
+    {
+      type: 'assistant',
+      content: 'The check passed.',
+      timestamp: '2026-08-17T12:00:04.000Z',
+    },
+  ];
+
+  test('uses the owning provider label and excludes trace data by default', () => {
+    const markdown = exportToMarkdown(messages, 'Codex session', {
+      includeMeta: false,
+      assistantLabel: 'Codex',
+    });
+
+    assert.match(markdown, /## Codex\n\nThe check passed\./);
+    assert.doesNotMatch(markdown, /Claude|Bash|workspace|private reasoning/);
+  });
+
+  test('projects selected tool calls, results, child tools and reasoning into both formats', () => {
+    const options = {
+      includeMeta: false,
+      assistantLabel: '<Codex>',
+      includeToolCalls: true,
+      includeToolResults: true,
+      includeThinking: true,
+    };
+    const markdown = exportToMarkdown(messages, 'Codex session', options);
+    const html = exportToHTML(messages, 'Codex session', options);
+
+    for (const value of ['Bash', 'command', '<workspace>', 'Read', 'child result', 'private reasoning']) {
+      assert.match(markdown, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+    assert.match(markdown, /````\n<workspace>\n```nested```\n````/);
+    assert.match(html, /&lt;Codex&gt;/);
+    assert.match(html, /&lt;workspace&gt;/);
+    assert.match(html, /private reasoning/);
+  });
+
+  test('never emits tool results without their tool calls', () => {
+    const markdown = exportToMarkdown(messages, undefined, {
+      includeMeta: false,
+      includeToolCalls: false,
+      includeToolResults: true,
+    });
+
+    assert.doesNotMatch(markdown, /workspace|child result/);
   });
 });
 
