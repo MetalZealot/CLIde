@@ -1,8 +1,8 @@
 # Usage dashboard and reset notifications
 
 - Status: complete
-- Next: merge to `main`. Accepted live on `:3002` 2026-08-17, after the branch was rebased onto Claude Agent SDK 0.3.233. Delivery of a real provider reset notification remains unobserved and is recorded as such below, not as a blocker.
-- Context: [code anchors](../maps/code-anchors.md), [provider capability map](../maps/clide-provider-capability-map.md), [Claude SDK map](../maps/claude-agent-sdk.md), [ADR 0032](../decisions/0032-summary-first-composer-usage-popover.md), and [background-session notifications](background-session-notifications.md).
+- Next: nothing. Merged to `main` 2026-08-17 and archived; [ADR 0039](../../decisions/0039-provider-reset-timestamps-no-catch-up.md) and the provider maps are the authority. Delivery of a real provider reset notification remains unobserved and is recorded as such below, not as a blocker.
+- Context: [code anchors](../../maps/code-anchors.md), [provider capability map](../../maps/clide-provider-capability-map.md), [Claude SDK map](../../maps/claude-agent-sdk.md), [ADR 0032](../../decisions/0032-summary-first-composer-usage-popover.md), and [background-session notifications](../background-session-notifications.md).
 
 ## Phases
 
@@ -17,13 +17,13 @@
 - **Acceptance (2026-08-17).** Accepted live by Grayson on `:3002`. The branch was
   first rebased onto `main`'s Claude Agent SDK 0.3.233 work, so acceptance covers the
   combination that ships, not the pre-bump branch; the one rebase conflict was the
-  SDK surface-counts table in [the SDK map](../maps/claude-agent-sdk.md), resolved to
+  SDK surface-counts table in [the SDK map](../../maps/claude-agent-sdk.md), resolved to
   the re-measured 0.3.233 counts plus this branch's `rate_limit_event` consumption.
   Verified on the rebased branch: typecheck, `check:docs`, `lint` (0 errors), 473/473
-  server tests, `build:server`. Client tests were **not** run — `NODE_ENV=production`
-  is inherited from the hosting CLIde service, which makes React's `act()` unavailable,
-  so they need an SSH run. No provider reset fell inside the window, so notification
-  delivery is still unobserved.
+  server tests, `build:server`, and 174/174 client tests. The client run first failed on
+  React's `act()` because that shell had inherited `NODE_ENV=production` from the hosting
+  CLIde service; it passes in a shell without it. No provider reset fell inside the
+  window, so notification delivery is still unobserved.
 
 ## Done when
 
