@@ -4,6 +4,7 @@ import {
   loadClaudeSettingsEnv,
   readClaudeOAuthCredentials,
 } from '@/modules/providers/list/claude/claude-credentials.js';
+import { observeClaudeVersionPair } from '@/modules/providers/list/claude/claude-version-pair.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
@@ -18,12 +19,18 @@ type ClaudeCredentialsStatus = {
 
 export class ClaudeProviderAuth implements IProviderAuth {
   /**
-   * Checks whether the Claude Code CLI is available on this host.
+   * Checks whether the Claude Code CLI is available on this host, and records
+   * the version it reports against the SDK's — a missing binary surfaces as
+   * `spawn.sync` returning an error, never as a throw.
    */
   private checkInstalled(): boolean {
     const cliPath = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
     try {
-      spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
+      const result = spawn.sync(cliPath, ['--version'], { encoding: 'utf8', timeout: 5000 });
+      if (result.error || result.status !== 0) {
+        return false;
+      }
+      observeClaudeVersionPair(result.stdout ?? '');
       return true;
     } catch {
       return false;

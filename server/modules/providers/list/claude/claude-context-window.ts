@@ -28,8 +28,9 @@ import path from 'node:path';
  *
  * The model facts below are copied verbatim from the registry in
  * `@anthropic-ai/claude-agent-sdk` 0.3.233 (`sdk.mjs`): `context.window`,
- * `max_output_tokens.default`, and whether the entry declares 1M support. Never
- * write them from memory; refresh from that registry when the SDK is bumped.
+ * `max_output_tokens.default`, and whether the entry declares 1M support.
+ * `claude-context-window.test.ts` re-parses that registry and fails on any
+ * divergence, so a bumped SDK reports the drift rather than hiding it.
  */
 
 /**
@@ -100,10 +101,10 @@ export const CLAUDE_MODEL_CONTEXT_SPECS: Readonly<Record<string, ClaudeModelCont
  * Non-canonical model strings that reach us, mapped onto registry ids.
  *
  * Floating family aliases come from the registry's own `aliases` block and
- * re-point on every SDK bump, so refresh them alongside the specs. The
- * `claude-opus-4` / `claude-sonnet-4` entries exist because those dated wire ids
- * reduce to a stem that is not the registry id; every other dated id reduces
- * cleanly.
+ * re-point on every SDK bump; the drift test holds them to it. `mythos` has no
+ * registry alias, and the `claude-opus-4` / `claude-sonnet-4` entries exist
+ * because those dated wire ids reduce to a stem that is not the registry id;
+ * every other dated id reduces cleanly.
  */
 export const CLAUDE_MODEL_ID_ALIASES: Readonly<Record<string, string>> = {
   opus: 'claude-opus-5',

@@ -1,15 +1,24 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
 import {
+  CLAUDE_MODEL_CONTEXT_SPECS,
+  CLAUDE_MODEL_ID_ALIASES,
   normalizeClaudeModelId,
   resetClaudeContextWindowCache,
   resolveClaudeContextCeiling,
   resolveClaudeModelContextSpec,
 } from '@/modules/providers/list/claude/claude-context-window.js';
+import {
+  parseClaudeRuntimeVersion,
+  readClaudeSdkVersion,
+  recordClaudeVersionPair,
+} from '@/modules/providers/list/claude/claude-version-pair.js';
 
 // Every case runs against a settings.json that does not exist, so the
 // model-default clamp is the only cap in play unless a test says otherwise.
@@ -207,6 +216,141 @@ test('settings.json autoCompactWindow caps the window when no env cap is set', a
     // Junk in the settings file is ignored, not fatal.
     await writeFile(settingsPath, '{ not json', 'utf8');
     assert.equal(ceiling({ model: 'claude-opus-5', settingsPath }), 967_000);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// The specs above are transcribed by hand from the SDK's model registry, so a
+// bumped SDK can invalidate them silently. Re-parse the installed bundle and
+// diff, rather than trusting the header comment's "refresh this" instruction.
+
+type RegistryEntry = {
+  window: number | null;
+  maxOutputTokens: number;
+  supportsLongContext: boolean;
+};
+
+const readSdkRegistry = (): { models: Record<string, RegistryEntry>; aliases: Record<string, string> } => {
+  const sdkPath = createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk');
+  const bundle = readFileSync(sdkPath, 'utf8');
+
+  const modelsStart = bundle.indexOf('models:[{id:"claude-');
+  const aliasesStart = bundle.indexOf('],aliases:{', modelsStart);
+  const aliasesEnd = bundle.indexOf(',defaults:', aliasesStart);
+  assert.ok(
+    modelsStart >= 0 && aliasesStart > modelsStart && aliasesEnd > aliasesStart,
+    'model registry not found in sdk.mjs; the parser below needs updating, not deleting',
+  );
+
+  const modelsBlock = bundle.slice(modelsStart, aliasesStart);
+  const ids = [...modelsBlock.matchAll(/id:"(claude-[a-z0-9.-]+)",family:"/g)];
+  const models: Record<string, RegistryEntry> = {};
+
+  ids.forEach((match, index) => {
+    // Minified entries carry no separator of their own, so bound each at the next
+    // id; an unbounded slice reads the following entry's fields.
+    const entry = modelsBlock.slice(match.index, ids[index + 1]?.index ?? modelsBlock.length);
+    const context = /context:\{([^}]*)\}/.exec(entry)?.[1];
+    const window = context ? /window:([0-9e.+]+)/.exec(context)?.[1] : undefined;
+    const maxOutputTokens = /max_output_tokens:\{default:([0-9]+)/.exec(entry)?.[1];
+    assert.ok(maxOutputTokens, `no max_output_tokens parsed for ${match[1]}`);
+
+    models[match[1]] = {
+      window: window === undefined ? null : Number(window),
+      maxOutputTokens: Number(maxOutputTokens),
+      supportsLongContext: context
+        ? /native_1m:!0|supports_1m_beta:!0|supports_1m_suffix:!0/.test(context)
+        : false,
+    };
+  });
+
+  const aliasEntries = [
+    ...bundle.slice(aliasesStart, aliasesEnd).matchAll(/([a-z0-9_]+):\{default:"([^"]+)"/g),
+  ];
+  return { models, aliases: Object.fromEntries(aliasEntries.map((m) => [m[1], m[2]])) };
+};
+
+test('CLAUDE_MODEL_CONTEXT_SPECS matches the installed SDK model registry', () => {
+  const { models } = readSdkRegistry();
+
+  // A parser that silently matched nothing would make this test vacuous.
+  assert.ok(Object.keys(models).length >= 10, `parsed only ${Object.keys(models).length} registry entries`);
+
+  const recorded = Object.fromEntries(
+    Object.entries(CLAUDE_MODEL_CONTEXT_SPECS).map(([id, spec]) => [
+      id,
+      {
+        window: spec.window ?? null,
+        maxOutputTokens: spec.maxOutputTokens,
+        supportsLongContext: spec.supportsLongContext,
+      },
+    ]),
+  );
+
+  // One diff covers drifted values, models added to the registry, and specs left
+  // behind for models it has dropped.
+  assert.deepEqual(recorded, models);
+});
+
+test('CLAUDE_MODEL_ID_ALIASES matches the registry aliases block', () => {
+  const { models, aliases } = readSdkRegistry();
+
+  assert.ok(Object.keys(aliases).length > 0, 'parsed no registry aliases');
+  for (const [name, target] of Object.entries(aliases)) {
+    assert.equal(CLAUDE_MODEL_ID_ALIASES[name], target, `registry alias "${name}" now points at ${target}`);
+  }
+
+  // CLIde carries aliases the registry has none for: a family with no alias
+  // entry, and the two dated wire ids whose stem is not the registry id. They
+  // are deliberate, but must still resolve to a model that exists.
+  for (const [name, target] of Object.entries(CLAUDE_MODEL_ID_ALIASES)) {
+    assert.ok(target in models, `alias "${name}" points at ${target}, which the registry no longer lists`);
+  }
+});
+
+// The runtime on PATH self-updates on its own schedule, so the pair it forms
+// with the pinned SDK is recorded rather than asserted.
+
+test('parseClaudeRuntimeVersion reads the version out of --version output', () => {
+  assert.equal(parseClaudeRuntimeVersion('2.1.233 (Claude Code)\n'), '2.1.233');
+  assert.equal(parseClaudeRuntimeVersion('2.2.0-rc.1 (Claude Code)'), '2.2.0-rc.1');
+  assert.equal(parseClaudeRuntimeVersion('command not found'), null);
+  assert.equal(parseClaudeRuntimeVersion(''), null);
+});
+
+test('readClaudeSdkVersion reports the installed SDK', () => {
+  const version = readClaudeSdkVersion();
+  assert.match(String(version), /^\d+\.\d+\.\d+/);
+});
+
+test('the version pair is written once and rewritten only when it moves', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'claude-version-pair-test-'));
+  const storePath = path.join(dir, 'claude-version-pair.json');
+  try {
+    const first = recordClaudeVersionPair({ sdk: '0.3.233', runtime: '2.1.233' }, storePath);
+    assert.equal(first.drift, null, 'a first observation has nothing to drift from');
+    assert.equal(first.record.previous, undefined);
+
+    // An unchanged pair must not rewrite the file — this runs on every auth poll.
+    const repeat = recordClaudeVersionPair({ sdk: '0.3.233', runtime: '2.1.233' }, storePath);
+    assert.equal(repeat.drift, null);
+    assert.equal(repeat.record.observedAt, first.record.observedAt);
+
+    const moved = recordClaudeVersionPair({ sdk: '0.3.233', runtime: '2.1.240' }, storePath);
+    assert.equal(moved.drift, 'Claude Code runtime 2.1.233 -> 2.1.240');
+    assert.deepEqual(moved.record.previous, {
+      sdk: '0.3.233',
+      runtime: '2.1.233',
+      observedAt: first.record.observedAt,
+    });
+
+    // Both halves can move at once, and the stored record is what is compared.
+    const bumped = recordClaudeVersionPair({ sdk: '0.3.240', runtime: '2.1.241' }, storePath);
+    assert.equal(
+      bumped.drift,
+      'Claude Code runtime 2.1.240 -> 2.1.241; Agent SDK 0.3.233 -> 0.3.240',
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

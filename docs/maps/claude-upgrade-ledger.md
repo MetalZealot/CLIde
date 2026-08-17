@@ -188,3 +188,30 @@ live behavior take precedence over documentation. See the map's evidence policy.
   `claude-sonnet-5` and both the SDK and CLIde report a 200,000 ceiling for it —
   this host's `~/.claude/settings.json` sets `autoCompactWindow: 200000`, so that
   is agreement, not a regression. All probe transcripts and rows were removed.
+
+## Update-safety mechanisms — 2026-08-16
+
+Two gates so the next bump costs less than this one did, modelled on Codex's
+`EXPECTED_CODEX_VERSION` pin and protocol-drift check.
+
+- **Registry drift is now a test, not an instruction.** The 0.3.233 re-read above
+  was a manual re-parse of `sdk.mjs` that the header comment demanded and nothing
+  enforced. `claude-context-window.test.ts` re-parses the registry out of the
+  installed bundle (bounded `models:[` … `],aliases:{`, each entry bounded at the
+  next id — an unbounded slice reads the following entry's fields) and diffs it
+  against `CLAUDE_MODEL_CONTEXT_SPECS` and `CLAUDE_MODEL_ID_ALIASES`. One
+  `deepEqual` covers drifted values, new models, and specs left behind; the alias
+  case allows CLIde's deliberate extras but requires them to resolve to a live id.
+  It fails loudly if the parser matches nothing, so it cannot pass vacuously.
+- **The (SDK, runtime) pair is recorded.** Both are deliberately unpinned and move
+  independently, so a pinned test would be wrong and a runtime that self-updated
+  underneath a session was previously invisible.
+  `claude-version-pair.ts` writes `~/.cloudcli/claude-version-pair.json` — the
+  pair, when it was observed, and the pair it replaced — and logs the move once.
+  It costs no new process: `ClaudeProviderAuth.checkInstalled` already ran
+  `claude --version` and discarded the output. That call also treated a missing
+  binary as installed, because `spawn.sync` reports ENOENT in its result rather
+  than throwing; it now checks the result.
+- **Verification:** 463 server tests, 0 failures; `lint`, `build:server` clean.
+  Live against the built `dist-server`: `getStatus()` reports installed and
+  authenticated, and recorded `{ sdk: 0.3.233, runtime: 2.1.233 }`.
