@@ -1,8 +1,10 @@
+import { AlertTriangle, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Badge, Button } from '../../../../shared/view/ui';
-import { authenticatedFetch } from '../../../../utils/api';
+import { cn } from '../../../../../lib/utils';
+import { Badge, Button } from '../../../../../shared/view/ui';
+import { authenticatedFetch } from '../../../../../utils/api';
 import {
   type CodexTransportDiagnostics,
   type CodexTransportKind,
@@ -13,9 +15,9 @@ import {
   toRuntimeErrorMessage,
   useCodexRuntimeStatus,
   useCodexTransport,
-} from '../../hooks/useCodexRuntime';
-import SettingsRow from '../SettingsRow';
-import { SettingsGroup, SettingsScreen } from '../primitives';
+} from '../../../hooks/useCodexRuntime';
+import { formatVersionPair } from '../../../utils/providerVersions';
+import SettingsRow from '../../SettingsRow';
 
 type BusyAction = {
   action: 'check' | 'use' | 'rollback';
@@ -163,18 +165,29 @@ function InstallationRow({
   );
 }
 
+/** A hairline-separated caption for a run of rows inside the expanded body. */
+function RuntimeSubheading({ children }: { children: string }) {
+  return (
+    <div className="px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
 /**
- * Codex's runtime and chat transport, off the provider screen.
+ * Codex's runtime, collapsed into the account card's version row.
  *
- * They were inline on the account card, where a five-badge installation list and
- * a permanently visible version footer sat above the rows a user actually came
- * for. Diagnostics belong one level down: the account card now shows only the
- * exception (`isTransportDegraded`), and everything else is here.
+ * Claude's card states its version pair and stops, because CLIde only observes
+ * that binary. Codex's is selectable (ADR 0034), so the same row expands in
+ * place to the installation list and transport diagnostics rather than pushing
+ * a screen: one row reads the same for both providers, and the detail only
+ * exists where there is something to act on.
  */
-export default function AgentCodexRuntimeScreen() {
+export default function AgentCodexRuntimeSection() {
   const { t, transportLabel, healthLabel } = useRuntimeCopy();
   const { status, error, setError, applyStatus } = useCodexRuntimeStatus(true);
   const transport = useCodexTransport(true);
+  const [expanded, setExpanded] = useState(false);
   const [checks, setChecks] = useState<Record<string, RuntimeCheck>>({});
   const [busy, setBusy] = useState<BusyAction | null>(null);
   const [expandedPathId, setExpandedPathId] = useState<string | null>(null);
@@ -215,79 +228,104 @@ export default function AgentCodexRuntimeScreen() {
 
   if (!status) {
     return (
-      <SettingsScreen>
-        <SettingsGroup tone={error ? 'danger' : 'default'}>
-          <div className={error ? 'px-4 py-3 text-sm text-destructive' : 'px-4 py-3 text-sm text-muted-foreground'}>
-            {error ?? t('agents.codexRuntime.loading')}
-          </div>
-        </SettingsGroup>
-      </SettingsScreen>
+      <div className={error ? 'px-4 py-3 text-sm text-destructive' : 'px-4 py-3 text-sm text-muted-foreground'}>
+        {error ?? t('agents.codexRuntime.loading')}
+      </div>
     );
   }
 
+  const active = status.installations
+    .find((installation) => installation.id === status.activeInstallationId);
+  const versionPair = formatVersionPair({ runtime: active?.version ?? null, sdk: status.sdkVersion });
   const failureMessage = status.activeError || error;
 
   return (
-    <SettingsScreen description={t('agents.codexRuntime.description')}>
-      <SettingsGroup title={t('agents.codexRuntime.installationsTitle')} divided>
-        {status.installations.map((installation) => (
-          <InstallationRow
-            key={installation.id}
-            installation={installation}
-            status={status}
-            check={checks[installation.id]}
-            busy={busy}
-            pathExpanded={expandedPathId === installation.id}
-            onTogglePath={() => setExpandedPathId(
-              expandedPathId === installation.id ? null : installation.id,
-            )}
-            onCheck={() => void runCheck(installation)}
-            onSelect={(action) => void select(installation.id, action)}
-          />
-        ))}
-      </SettingsGroup>
-
-      {failureMessage && (
-        <SettingsGroup tone="danger">
-          <div className="px-4 py-3 text-sm text-destructive">{failureMessage}</div>
-        </SettingsGroup>
-      )}
-
-      <SettingsGroup title={t('agents.codexRuntime.diagnosticsTitle')} divided>
-        {transport && (
-          <SettingsRow
-            label={t('agents.codexTransport.title')}
-            description={t('agents.codexTransport.detail', {
-              configured: transportLabel(transport.configured),
-              health: healthLabel(transport.health),
-            })}
-          >
-            <Badge
-              variant="secondary"
-              className={transport.actual === transport.configured
-                ? 'bg-muted'
-                : 'border-warning/40 bg-warning/10 text-warning'}
-            >
-              {transportLabel(transport.actual)}
-            </Badge>
-          </SettingsRow>
+    <>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        className="flex w-full touch-manipulation items-center gap-3 px-4 py-4 text-left transition-colors duration-150 hover:bg-accent/50 active:bg-accent/50"
+      >
+        <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+          {t('agents.runtimeVersions.title')}
+        </span>
+        {versionPair && (
+          <span className="max-w-[50%] flex-shrink-0 truncate text-sm text-muted-foreground">
+            {versionPair}
+          </span>
         )}
+        {failureMessage && !expanded && (
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 text-warning" />
+        )}
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform duration-150',
+            expanded && 'rotate-180',
+          )}
+        />
+      </button>
 
-        <SettingsRow label={t('agents.codexRuntime.sdkVersion')}>
-          <span className="text-sm text-muted-foreground">
-            {status.sdkVersion ?? t('agents.codexRuntime.unknown')}
-          </span>
-        </SettingsRow>
+      {expanded && (
+        <div className="divide-y divide-border bg-muted/20">
+          <div className="pb-1">
+            <RuntimeSubheading>{t('agents.codexRuntime.installationsTitle')}</RuntimeSubheading>
+            <p className="px-4 pb-2 text-xs text-muted-foreground">
+              {t('agents.codexRuntime.description')}
+            </p>
+          </div>
 
-        <SettingsRow
-          label={t('agents.codexRuntime.liveProcess')}
-          description={status.updatePending ? t('agents.codexRuntime.updatePending') : undefined}
-        >
-          <span className="text-sm text-muted-foreground">
-            {status.liveProcessVersion ?? t('agents.codexRuntime.none')}
-          </span>
-        </SettingsRow>
-      </SettingsGroup>
-    </SettingsScreen>
+          {status.installations.map((installation) => (
+            <InstallationRow
+              key={installation.id}
+              installation={installation}
+              status={status}
+              check={checks[installation.id]}
+              busy={busy}
+              pathExpanded={expandedPathId === installation.id}
+              onTogglePath={() => setExpandedPathId(
+                expandedPathId === installation.id ? null : installation.id,
+              )}
+              onCheck={() => void runCheck(installation)}
+              onSelect={(action) => void select(installation.id, action)}
+            />
+          ))}
+
+          {failureMessage && (
+            <div className="px-4 py-3 text-sm text-destructive">{failureMessage}</div>
+          )}
+
+          <RuntimeSubheading>{t('agents.codexRuntime.diagnosticsTitle')}</RuntimeSubheading>
+
+          {transport && (
+            <SettingsRow
+              label={t('agents.codexTransport.title')}
+              description={t('agents.codexTransport.detail', {
+                configured: transportLabel(transport.configured),
+                health: healthLabel(transport.health),
+              })}
+            >
+              <Badge
+                variant="secondary"
+                className={transport.actual === transport.configured
+                  ? 'bg-muted'
+                  : 'border-warning/40 bg-warning/10 text-warning'}
+              >
+                {transportLabel(transport.actual)}
+              </Badge>
+            </SettingsRow>
+          )}
+
+          <SettingsRow
+            label={t('agents.codexRuntime.liveProcess')}
+            description={status.updatePending ? t('agents.codexRuntime.updatePending') : undefined}
+          >
+            <span className="text-sm text-muted-foreground">
+              {status.liveProcessVersion ?? t('agents.codexRuntime.none')}
+            </span>
+          </SettingsRow>
+        </div>
+      )}
+    </>
   );
 }

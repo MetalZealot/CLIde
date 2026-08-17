@@ -30,7 +30,6 @@ export type SettingsIconName =
   | 'permissions'
   | 'mcp'
   | 'skills'
-  | 'runtime'
   | 'defaultModel';
 
 export type SettingsGroupId = 'agents' | 'app' | 'extensions' | 'system';
@@ -73,15 +72,16 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
  */
 export type AgentProviderId = 'claude' | 'cursor' | 'codex' | 'opencode';
 
-export type AgentSubsystem = 'model' | 'permissions' | 'mcp' | 'skills' | 'runtime';
+export type AgentSubsystem = 'model' | 'permissions' | 'mcp' | 'skills';
 
 type AgentProviderDescriptor = {
   id: AgentProviderId;
   icon: SettingsIconName;
   /**
    * OpenCode has neither a permissions UI nor per-provider skills, so it gets
-   * neither row — the pre-existing capability shape, not a new decision. Only
-   * Codex has a selectable native runtime (ADR 0034).
+   * neither row — the pre-existing capability shape, not a new decision.
+   * Codex's selectable runtime (ADR 0034) is not a subsystem: it expands in
+   * place on the account card rather than pushing a screen.
    */
   subsystems: AgentSubsystem[];
 };
@@ -89,7 +89,7 @@ type AgentProviderDescriptor = {
 export const AGENT_PROVIDERS: AgentProviderDescriptor[] = [
   { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
   { id: 'cursor', icon: 'providerCursor', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
-  { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'mcp', 'skills', 'runtime'] },
+  { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
   { id: 'opencode', icon: 'providerOpenCode', subsystems: ['model', 'mcp'] },
 ];
 
@@ -115,11 +115,6 @@ const SUBSYSTEM_NODES: Record<AgentSubsystem, { labelKey: string; icon: Settings
     labelKey: 'tabs.skills',
     icon: 'skills',
     keywords: 'skills upload folder markdown',
-  },
-  runtime: {
-    labelKey: 'tabs.runtime',
-    icon: 'runtime',
-    keywords: 'runtime native executable binary version install path transport app server sdk rollback',
   },
 };
 
@@ -276,6 +271,7 @@ export const LEGACY_SCREEN_IDS: Record<string, string> = {
   'api-tokens': 'credentials',
   voice: 'chat.voice',
   git: 'projects-git',
+  'agent.codex.runtime': 'agent.codex',
 };
 
 const SCREENS_BY_ID = new Map(SETTINGS_SCREENS.map((screen) => [screen.id, screen]));

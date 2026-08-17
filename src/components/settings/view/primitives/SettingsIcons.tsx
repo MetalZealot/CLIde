@@ -66,6 +66,5 @@ export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?
   permissions: ShieldCheck,
   mcp: Server,
   skills: FileCode2,
-  runtime: TerminalSquare,
   defaultModel: Brain,
 };

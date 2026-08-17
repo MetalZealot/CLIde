@@ -21,6 +21,7 @@ import {
   formatVersionPair,
 } from '../../../utils/providerVersions';
 import { SettingsGroup, SettingsRow, SettingsStatus, SettingsToggle } from '../../primitives';
+import AgentCodexRuntimeSection from './AgentCodexRuntimeSection';
 
 type AgentAccountCardProps = {
   provider: AgentProviderId;
@@ -60,12 +61,9 @@ const formatUpdatedAgo = (fetchedAt: string): string | null => {
  * are gone: the provider's identity is carried by its logo, and everything else
  * is theme tokens, per the restructure's no-hardcoded-colour rule.
  *
- * Codex's runtime and transport detail live on the Runtime sub-screen. What
- * remains here is the exception: a healthy transport says nothing at all.
- *
- * A provider that reports version numbers gets one Runtime row here instead of
- * a sub-screen, because CLIde manages Codex's binary but only observes Claude's
- * — there is nothing to act on, so there is nowhere to drill into.
+ * Every provider's runtime sits in one Runtime row here, reading the same when
+ * collapsed. Codex's expands, because CLIde manages that binary and only
+ * observes the others; a healthy transport still says nothing at all.
  */
 export default function AgentAccountCard({
   provider,
@@ -158,11 +156,17 @@ export default function AgentAccountCard({
         )}
 
         {/*
+          Codex's runtime is selectable, so its row expands in place instead of
+          stating a pair; every other provider's is observed only.
+        */}
+        {provider === 'codex' && <AgentCodexRuntimeSection />}
+
+        {/*
           Driven by whether the provider reported a pair, not by `provider ===
           'claude'`: Claude is the only one that does today, and the row lights
           up for any provider that starts.
         */}
-        {versionPair && (
+        {provider !== 'codex' && versionPair && (
           <SettingsRow label={t('agents.runtimeVersions.title', { defaultValue: 'Runtime' })}>
             <span className="text-sm text-muted-foreground">{versionPair}</span>
           </SettingsRow>

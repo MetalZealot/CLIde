@@ -7,7 +7,7 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { initReactI18next } from 'react-i18next';
 
-import AgentCodexRuntimeScreen from './AgentCodexRuntimeScreen';
+import AgentCodexRuntimeSection from './AgentCodexRuntimeSection';
 
 const bundledId = 'runtime_111111111111111111111111';
 const candidateId = 'runtime_222222222222222222222222';
@@ -45,7 +45,7 @@ const originalFetch = globalThis.fetch;
 
 before(async () => {
   const settingsTranslations = JSON.parse(readFileSync(
-    new URL('../../../../i18n/locales/en/settings.json', import.meta.url),
+    new URL('../../../../../i18n/locales/en/settings.json', import.meta.url),
     'utf8',
   )) as Record<string, unknown>;
   await i18next.use(initReactI18next).init({
@@ -90,7 +90,7 @@ const installationRow = (host: HTMLElement, fullPath: string): HTMLElement => {
   return pathButton.parentElement;
 };
 
-test('runtime screen gates Use behind Check and offers rollback on the previous install', async () => {
+test('runtime section expands in place, gates Use behind Check, and rolls back the previous install', async () => {
   let activeInstallationId = bundledId;
   let previousInstallationId: string | null = null;
   const selectionRequests: string[] = [];
@@ -145,7 +145,17 @@ test('runtime screen gates Use behind Check and offers rollback on the previous 
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  await React.act(async () => root?.render(<AgentCodexRuntimeScreen />));
+  await React.act(async () => root?.render(<AgentCodexRuntimeSection />));
+  await flush();
+
+  // Collapsed, it reads exactly like Claude's row: the version pair and nothing
+  // else. The installation list only exists once the row is expanded.
+  assert.match(container.textContent ?? '', /0\.147\.0 · SDK 0\.147\.0/);
+  assert.equal(container.querySelectorAll('button').length, 1);
+
+  const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+  assert.ok(toggle);
+  await React.act(async () => toggle.click());
   await flush();
 
   // Paths are compacted to version + binary, and no raw enum reaches the user.

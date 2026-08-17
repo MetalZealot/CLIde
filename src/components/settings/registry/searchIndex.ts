@@ -57,6 +57,13 @@ const AGENT_ENTRIES: SettingsSearchEntry[] = AGENT_PROVIDERS.flatMap((provider) 
       labelKey,
     }))
     : []),
+  ...(provider.id === 'codex'
+    ? [{
+      screenId: agentScreenId('codex'),
+      labelKey: 'agents.codexRuntime.title',
+      keywords: 'runtime native executable binary version install path transport app server sdk rollback',
+    }]
+    : []),
   ...(provider.subsystems.includes('mcp')
     ? [{ screenId: agentScreenId(provider.id, 'mcp'), labelKey: 'mcpServers.addButton' }]
     : []),
