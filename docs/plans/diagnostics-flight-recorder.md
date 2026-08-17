@@ -40,10 +40,12 @@ constraints are **runtime inertness, privacy, event quality, and maintenance**.
       listeners under Strict Mode or remounts. Keep provider-specific logic behind
       adapters or typed categories; shared diagnostic events must not become
       Claude-only.
-- [ ] **3. Settings screen.** Register Diagnostics and its search metadata;
-      toggle, status, count, Copy, Clear, Reload; an enabled-only compact
-      affordance placed outside remount-prone content; i18n keys in every locale;
-      accessibility and safe-area coverage.
+- [ ] **3. Settings screen.** Extend the Diagnostics destination from the
+      [system diagnostics plan](system-diagnostics.md) with the recorder toggle,
+      status, count, Copy, Clear and Reload actions; if that plan has not landed,
+      register the same destination once. Add an enabled-only compact affordance
+      outside remount-prone content; retain one scroll container, i18n keys in
+      every locale, accessibility and safe-area coverage.
 - [ ] **4. Isolated live acceptance.** Serve the worktree on the branch-test
       server, have Grayson run the real device flows and copy a report. Fix only
       diagnostic-mode defects on this branch — do not opportunistically repair
