@@ -55,6 +55,37 @@
  *      must not be awaited inline in the message loop.
  */
 
+/*
+ * RE-RUN — 2026-08-17, SDK 0.3.233, runtime 2.1.233, one turn per model.
+ * Ran from a CLIde-hosted shell, so the probe inherited that session's
+ * CLAUDE_CODE_* environment; CLAUDE_CODE_DISABLE_1M_CONTEXT was not set.
+ *
+ * C1/C2 — UNCHANGED, and this is the constraint to design around. Mid-turn only:
+ *             at system/init  -> OK (939ms haiku, 951ms sonnet)
+ *             at assistant    -> OK (863ms haiku, 917ms sonnet)
+ *             at result       -> "Query closed before response received"
+ *             after the loop  -> "ProcessTransport is not ready for writing"
+ *         An idle surface cannot pull a control request on demand. Anything that
+ *         wants this data outside a turn must capture it during one and cache.
+ *
+ * C3 — NOW MATCHES, both models: SDK maxTokens === rawMaxTokens ===
+ *      resolveClaudeContextCeiling === 200000, for haiku AND claude-sonnet-5.
+ *      The 2026-07-27 run disagreed in both directions (haiku 200000/180000,
+ *      sonnet 967000/980000). Two things moved: the derived side was refreshed
+ *      from the new registry with the 1M env var honored (`a3d7aac2`), and the
+ *      SDK now reports 200000 for sonnet rather than 967000. The second is this
+ *      host's own setting, not an SDK change — `~/.claude/settings.json` sets
+ *      `autoCompactWindow: 200000`, so the runtime clamps its reported window.
+ *      Read this as agreement on this host, not as "1M is gone".
+ *
+ * C4 — unchanged: isAutoCompactEnabled true, threshold === maxTokens - 33000
+ *      (167000 for both models this run).
+ *
+ * C5 — still agrees to within a few tokens (21991 vs 21987, 29422 vs 29421).
+ *
+ * C6 — 863-951ms, same band as before.
+ */
+
 import fs from 'node:fs';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { resolveClaudeCodeExecutablePath } from '../server/shared/claude-cli-path.js';
