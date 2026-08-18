@@ -1,6 +1,8 @@
 # Per-session effort follows the conversation
 
-- Status: phases 1-3 done, unverified in the app
+- Status: phases 1-3 done; per-session effort accepted live by the maintainer
+  2026-08-18. Phase 4's matrix — refresh, two clients, Codex, precedence
+  against a newer provider turn, unsupported provider — is still unverified.
 - Next: phase 4 — the coverage matrix, then live PWA testing of Claude and
   Codex. Queued turns needed no change: `buildSendOptions` already snapshots
   effort at queue time and the send reuses that record verbatim.
