@@ -50,6 +50,12 @@ export type SessionEffortOptions = {
   providerDefault?: string | null;
 };
 
+/**
+ * The stored value meaning "send no effort override". A real choice, distinct
+ * from NULL, and the runtimes drop it rather than passing it through.
+ */
+const NO_OVERRIDE_EFFORT = 'default';
+
 const defaultStore: SessionEffortPickStore = {
   getSessionEffortPick: (sessionId, provider) => sessionsDb.getSessionEffortPick(sessionId, provider),
   setSessionEffortPick: (sessionId, provider, effort, updatedAt) =>
@@ -218,7 +224,13 @@ export function resolveSessionEffort(params: {
     ...(evidence?.timestamp ? { effectiveAt: evidence.timestamp } : {}),
   };
 
-  if (requested && pickSupersedesTranscript(pick?.updatedAt, evidence?.timestamp)) {
+  // `default` is a standing instruction — let the provider choose each turn — so
+  // every turn it produces reports a concrete effort that disagrees with it.
+  // Ageing it out against that evidence would retire the choice after one turn,
+  // so only a newer pick replaces it.
+  const isStandingDefault = requested === NO_OVERRIDE_EFFORT;
+  if (requested
+    && (isStandingDefault || pickSupersedesTranscript(pick?.updatedAt, evidence?.timestamp))) {
     return { ...base, effort: requested, source: 'pick' };
   }
 

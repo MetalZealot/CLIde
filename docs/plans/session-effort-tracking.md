@@ -1,10 +1,9 @@
 # Per-session effort follows the conversation
 
-- Status: phases 1-2 done, unverified in the app
-- Next: phase 3 — separate drag preview from pointer-release commit, reconcile
-  a stored effort a model change invalidates, snapshot effort into queued
-  turns, and show the cache-reuse notice. The thin read/write effort routes
-  landed early in phase 2; the client store had nothing to read without them.
+- Status: phases 1-3 done, unverified in the app
+- Next: phase 4 — the coverage matrix, then live PWA testing of Claude and
+  Codex. Queued turns needed no change: `buildSendOptions` already snapshots
+  effort at queue time and the send reuses that record verbatim.
 - Context: [session/model anchors](../maps/code-anchors.md);
   [provider capabilities](../maps/clide-provider-capability-map.md);
   [ADR 0003](../decisions/0003-per-session-model-tracking.md);
@@ -30,7 +29,7 @@
       onto the row when the app allocates the first session ID; on an existing
       session, omit effort while its settings are unresolved so the backend
       resolves the row/transcript instead of leaking another session's value.
-- [ ] **3. Persist deliberate choices without slider-write races.** Add thin
+- [x] **3. Persist deliberate choices without slider-write races.** Add thin
       effort read/write routes backed by the resolver, save keyboard/click
       choices immediately, and separate drag preview from pointer-release
       commit so moving across the effort track does not issue competing writes.

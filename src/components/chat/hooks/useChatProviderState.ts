@@ -740,6 +740,7 @@ export function useChatProviderState({
     selectProviderModel,
     selectProviderEffort,
     setStoredProviderEffort,
+    reconcileStoredEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
     getSupportsForkForProvider,

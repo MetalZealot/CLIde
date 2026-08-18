@@ -61,8 +61,11 @@ export default function ComposerModelMenu({
   const [selectingModel, setSelectingModel] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const effortTrackRef = useRef<HTMLDivElement | null>(null);
-  const effortDragRef = useRef({ active: false, moved: false, startX: 0, lastValue: effort });
+  const effortDragRef = useRef({ active: false, moved: false, startX: 0 });
   const suppressEffortClickRef = useRef(false);
+  // A drag paints the track locally and commits once, on release. Committing
+  // per step would fire a write per stop crossed, and those writes race.
+  const [effortPreview, setEffortPreview] = useState<string | null>(null);
   const close = useCallback(() => {
     setIsOpen(false);
     setView('models');
@@ -83,7 +86,8 @@ export default function ComposerModelMenu({
     () => (effortOptions.length > 0 ? [{ value: DEFAULT_EFFORT_VALUE }, ...effortOptions] : []),
     [effortOptions],
   );
-  const effortLabel = effort === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : effort;
+  const displayedEffort = effortPreview ?? effort;
+  const effortLabel = displayedEffort === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : displayedEffort;
   const modelLabel = modelOptions.find((option) => option.value === model)?.label || model;
   const primaryModels = useMemo(
     () => modelOptions.filter((option) => option.group !== 'legacy'),
@@ -120,30 +124,21 @@ export default function ComposerModelMenu({
       setSelectingModel(null);
     }
   }, [onSelectModel, t]);
-  const selectEffortAt = useCallback((clientX: number) => {
+  const effortValueAt = useCallback((clientX: number): string | null => {
     const rect = effortTrackRef.current?.getBoundingClientRect();
-    if (!rect || rect.width <= 0 || resolvedEffortOptions.length === 0) return;
+    if (!rect || rect.width <= 0 || resolvedEffortOptions.length === 0) return null;
 
     const offset = Math.min(Math.max(clientX - rect.left, 0), Math.max(0, rect.width - 0.01));
     const index = Math.floor((offset / rect.width) * resolvedEffortOptions.length);
-    const nextEffort = resolvedEffortOptions[index]?.value;
-    if (!nextEffort || nextEffort === effortDragRef.current.lastValue) return;
-
-    effortDragRef.current.lastValue = nextEffort;
-    onSelectEffort(nextEffort);
-  }, [onSelectEffort, resolvedEffortOptions]);
+    return resolvedEffortOptions[index]?.value ?? null;
+  }, [resolvedEffortOptions]);
 
   const handleEffortPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
 
-    effortDragRef.current = {
-      active: true,
-      moved: false,
-      startX: event.clientX,
-      lastValue: effort,
-    };
+    effortDragRef.current = { active: true, moved: false, startX: event.clientX };
     event.currentTarget.setPointerCapture?.(event.pointerId);
-  }, [effort]);
+  }, []);
 
   const handleEffortPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = effortDragRef.current;
@@ -151,29 +146,34 @@ export default function ComposerModelMenu({
     if (!drag.moved && Math.abs(event.clientX - drag.startX) < 4) return;
 
     drag.moved = true;
-    selectEffortAt(event.clientX);
-  }, [selectEffortAt]);
+    const nextEffort = effortValueAt(event.clientX);
+    if (nextEffort) setEffortPreview(nextEffort);
+  }, [effortValueAt]);
 
   const handleEffortPointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = effortDragRef.current;
     if (!drag.active) return;
 
-    if (drag.moved) {
-      selectEffortAt(event.clientX);
-      suppressEffortClickRef.current = true;
-      queueMicrotask(() => {
-        suppressEffortClickRef.current = false;
-      });
-    }
     drag.active = false;
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-  }, [selectEffortAt]);
+    if (!drag.moved) return;
+
+    const nextEffort = effortValueAt(event.clientX) ?? effortPreview;
+    setEffortPreview(null);
+    // The tap that ends a drag would otherwise re-fire on the button underneath.
+    suppressEffortClickRef.current = true;
+    queueMicrotask(() => {
+      suppressEffortClickRef.current = false;
+    });
+    if (nextEffort && nextEffort !== effort) onSelectEffort(nextEffort);
+  }, [effort, effortPreview, effortValueAt, onSelectEffort]);
 
   const handleEffortPointerCancel = useCallback(() => {
     effortDragRef.current.active = false;
     effortDragRef.current.moved = false;
+    setEffortPreview(null);
   }, []);
 
   if (!hasEffortSection && !hasModelSection && !canSwitchProvider) return null;
@@ -368,7 +368,7 @@ export default function ComposerModelMenu({
                     >
                       {resolvedEffortOptions.map((option) => {
                         const label = option.value === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : option.value;
-                        const isSelected = option.value === effort;
+                        const isSelected = option.value === displayedEffort;
                         return (
                           <button
                             key={option.value}
@@ -379,7 +379,6 @@ export default function ComposerModelMenu({
                             title={option.description || label}
                             onClick={() => {
                               if (suppressEffortClickRef.current) return;
-                              effortDragRef.current.lastValue = option.value;
                               onSelectEffort(option.value);
                             }}
                             className="group flex min-w-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -54,6 +54,30 @@ test('a newer turn supersedes an older pick', () => {
   assert.equal(resolved.source, 'transcript');
 });
 
+test('an explicit default is a standing choice no turn can age out', () => {
+  // Picking "default" means "let the provider choose each turn", so every turn
+  // it produces stamps a concrete effort that disagrees with it. Superseding on
+  // that would retire the choice after one turn.
+  const resolved = resolveClaude(
+    { effort: 'default', updatedAt: EARLIER },
+    { effort: 'high', timestamp: LATER },
+  );
+
+  assert.equal(resolved.effort, 'default');
+  assert.equal(resolved.source, 'pick');
+  assert.equal(resolved.effective, 'high', 'what actually ran is still reported');
+});
+
+test('a newer concrete pick replaces a standing default', () => {
+  const resolved = resolveClaude(
+    { effort: 'low', updatedAt: LATER },
+    { effort: 'high', timestamp: EARLIER },
+  );
+
+  assert.equal(resolved.effort, 'low');
+  assert.equal(resolved.source, 'pick');
+});
+
 test('a pick that lost its timestamp defers to turn evidence', () => {
   const resolved = resolveClaude(
     { effort: 'medium' },

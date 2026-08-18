@@ -420,7 +420,7 @@ describe('useSessionStore.sessionSettings', () => {
   const SESSION_A = 'session-a';
   const SESSION_B = 'session-b';
 
-  type SettingsResponse = { model?: unknown; effort?: unknown };
+  type SettingsResponse = { model?: unknown; effort?: unknown; source?: unknown };
 
   let requestedUrls: string[];
   let responses: Map<string, SettingsResponse>;
