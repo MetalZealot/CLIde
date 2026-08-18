@@ -86,6 +86,11 @@
 
     /* Height of every top bar — see .app-bar */
     --app-bar-height: 56px;
+
+    /* Height of every bottom bar — see .app-footer. Taller than the top bar
+       because a thumb reaching the bottom edge has less precision than the same
+       thumb mid-screen, and the gesture strip sits directly below. */
+    --app-footer-height: 64px;
   }
   
   /* Fallback for older iOS versions */
@@ -768,6 +773,18 @@
     flex-shrink: 0;
     padding-top: env(safe-area-inset-top, 0px);
     height: calc(var(--app-bar-height) + env(safe-area-inset-top, 0px));
+  }
+
+  /* The bottom-edge counterpart of .app-bar: one fixed height with its contents
+     centred, owning the bottom safe-area inset so its background paints under
+     the gesture strip while its controls clear it. Any bar sitting on the
+     viewport's bottom edge uses this, so they all share one centreline. */
+  .app-footer {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(var(--app-footer-height) + env(safe-area-inset-bottom, 0px));
   }
 
   /* For a full-bleed overlay whose own content starts at the top edge and which

@@ -34,7 +34,7 @@ export default function SidebarFooter({
   t,
 }: SidebarFooterProps) {
   return (
-    <div className="flex-shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
+    <div className="flex-shrink-0">
       {/* Restart-required banner: the running server version differs from the
           installed/frontend version (updated but not restarted). */}
       {restartRequired && (
@@ -100,7 +100,7 @@ export default function SidebarFooter({
       */}
       <div className="nav-divider" />
 
-      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+      <div className="app-footer justify-between gap-2 px-2">
         <SidebarAccountMenu
           onShowSettings={onShowSettings}
           onShowUsage={onShowUsage}
