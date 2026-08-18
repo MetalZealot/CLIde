@@ -2,9 +2,8 @@ import { ArrowDown, ArrowUp, CalendarClock, Check, RotateCcw, TreeDeciduous, Typ
 import type { LucideIcon } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { ContextMenuOverlay, type ContextMenuAnchor } from '../../../../shared/view/ui';
+import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, type ContextMenuAnchor } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
-import type { Project } from '../../../../types/app';
 import type {
   RepositoryEntry,
   RepositoryViewOptions,
@@ -13,7 +12,7 @@ import type {
 } from '../../types/types';
 import {
   DEFAULT_SORT_DIRECTION,
-  getCheckoutRefLabel,
+  getCheckoutLabel,
   isDefaultRepositoryView,
   isDiscoveredCheckout,
 } from '../../utils/utils';
@@ -43,11 +42,14 @@ function MenuSectionLabel({ label }: { label: string }) {
  */
 function MenuChoice({
   label,
+  sublabel,
   icon: Icon,
   isSelected,
   onSelect,
 }: {
   label: string;
+  /** Second line, muted — the checkout's place under its branch. */
+  sublabel?: string | null;
   icon?: LucideIcon;
   isSelected: boolean;
   onSelect: () => void;
@@ -64,7 +66,10 @@ function MenuChoice({
         {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
       </span>
       {Icon && <Icon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />}
-      <span className={cn('truncate', isSelected && 'font-medium')}>{label}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className={cn('truncate', isSelected && 'font-medium')}>{label}</span>
+        {sublabel && <span className="truncate text-xs text-muted-foreground">{sublabel}</span>}
+      </span>
     </button>
   );
 }
@@ -193,9 +198,6 @@ export default function SidebarSessionViewMenu({
     onChange({ ...options, sort: key, direction });
   };
 
-  const worktreeLabel = (checkout: Project) =>
-    getCheckoutRefLabel(checkout) ?? checkout.displayName ?? checkout.projectId;
-
   /**
    * Filtering to every worktree is the same view as filtering to none of them,
    * so it collapses back to "all" — that keeps the header's active-filter
@@ -245,17 +247,25 @@ export default function SidebarSessionViewMenu({
         <>
           <div className="my-1 border-t border-border" />
           <MenuSectionLabel label={t('sessionView.filterByWorktree', 'Filter by worktree')} />
-          {filterableCheckouts.map((checkout) => (
-            <MenuChoice
-              key={checkout.projectId}
-              label={worktreeLabel(checkout)}
-              isSelected={
-                options.worktreeProjectIds === null ||
-                options.worktreeProjectIds.includes(checkout.projectId)
-              }
-              onSelect={() => toggleWorktree(checkout.projectId)}
-            />
-          ))}
+          {/* The only data-driven section here, so it scrolls and the sort rows
+              above and Reset below keep their place. */}
+          <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: MENU_LIST_MAX_HEIGHT }}>
+            {filterableCheckouts.map((checkout) => {
+              const label = getCheckoutLabel(checkout);
+              return (
+                <MenuChoice
+                  key={checkout.projectId}
+                  label={label.state ?? label.place}
+                  sublabel={label.state ? label.place : null}
+                  isSelected={
+                    options.worktreeProjectIds === null ||
+                    options.worktreeProjectIds.includes(checkout.projectId)
+                  }
+                  onSelect={() => toggleWorktree(checkout.projectId)}
+                />
+              );
+            })}
+          </div>
         </>
       )}
 

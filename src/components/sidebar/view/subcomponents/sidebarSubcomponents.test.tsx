@@ -250,7 +250,7 @@ describe('SidebarProjectList', () => {
           browseSessions={[{
             session,
             checkout: project,
-            branchLabel: null,
+            checkoutLabel: null,
             repositoryName: 'Project',
             repositoryAccentColor: 'blue',
           }]}
@@ -360,7 +360,7 @@ describe('SidebarProjectSessions', () => {
         __provider: 'claude',
       } satisfies SessionWithProvider,
       checkout: project,
-      branchLabel: null,
+      checkoutLabel: null,
     }));
   }
 

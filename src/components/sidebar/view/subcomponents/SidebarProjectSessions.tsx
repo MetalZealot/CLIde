@@ -137,12 +137,12 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          {visibleSessions.map(({ session, checkout, branchLabel }) => (
+          {visibleSessions.map(({ session, checkout, checkoutLabel }) => (
             <SidebarSessionItem
               key={session.id}
               project={checkout}
               session={session}
-              branchLabel={branchLabel}
+              checkoutLabel={checkoutLabel}
               selectedSession={selectedSession}
               isProcessing={activeSessions.has(session.id)}
               needsAttention={attentionSessionIds.has(session.id)}

@@ -78,3 +78,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0038 — The sidebar view menu owns Archive and global sorting](0038-global-sessions-menu-sorts-only.md)
 - [0039 — Usage reset alerts follow provider timestamps without catch-up](0039-provider-reset-timestamps-no-catch-up.md)
 - [0040 — Mobile Settings root owns the Back gesture](0040-settings-root-owns-back-gesture.md)
+- [0041 — A checkout is named by its folder, with its branch as state](0041-checkouts-are-named-by-place-and-state.md)

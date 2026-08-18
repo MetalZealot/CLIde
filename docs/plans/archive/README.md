@@ -4,6 +4,7 @@ Nothing here is read by default. Completed plans are frozen; current behavior be
 
 | Plan | Archived | Current authority |
 |---|---|---|
+| [Checkout naming](2026-08-17-checkout-naming.md) | 2026-08-17 | [ADR 0041](../../decisions/0041-checkouts-are-named-by-place-and-state.md) and source/tests |
 | [Chat export](2026-08-17-chat-export.md) | 2026-08-17 | Chat export source and focused client tests |
 | [Usage dashboard and reset notifications](2026-08-17-usage-dashboard.md) | 2026-08-17 | [ADR 0039](../../decisions/0039-provider-reset-timestamps-no-catch-up.md), [provider capability map](../../maps/clide-provider-capability-map.md), and source/tests |
 | [Claude Agent SDK 0.3.165 → 0.3.233](2026-08-17-claude-sdk-0.3.233-upgrade.md) | 2026-08-17 | [Claude upgrade ledger](../../maps/claude-upgrade-ledger.md) and [Claude SDK map](../../maps/claude-agent-sdk.md) |

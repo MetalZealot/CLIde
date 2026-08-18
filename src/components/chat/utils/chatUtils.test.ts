@@ -9,7 +9,7 @@ import { normalizedToChatMessages } from '../hooks/useChatMessages';
 
 import { extractInternalMemoryCitation, formatMemoryCitationSource } from './chatFormatting';
 import { exportToHTML, exportToMarkdown } from './chatExport';
-import { getLauncherCheckoutLabel, resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
+import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
 
 describe('chatFormatting', () => {
   const citation = `<oai-mem-citation>
@@ -188,12 +188,6 @@ describe('newSessionLauncher', () => {
     const [entry] = buildRepositoryEntries([worktree, mainCheckout]);
 
     assert.equal(resolvePrimaryCheckout(entry).projectId, 'main-project');
-    assert.equal(getLauncherCheckoutLabel(mainCheckout), 'Main — master');
-    assert.equal(getLauncherCheckoutLabel(worktree), 'feature/launcher');
-  });
-
-  test('main does not repeat the checkout and branch name', () => {
-    assert.equal(getLauncherCheckoutLabel({ ...mainCheckout, branch: 'main' }), 'Main');
   });
 
   test('repositories without a registered main checkout retain the lead fallback', () => {
@@ -206,17 +200,6 @@ describe('newSessionLauncher', () => {
     const [entry] = buildRepositoryEntries([worktree, secondWorktree]);
 
     assert.equal(resolvePrimaryCheckout(entry).projectId, 'feature-project');
-  });
-
-  test('non-Git projects are labelled as the project root', () => {
-    const plainFolder: Project = {
-      projectId: 'plain-project',
-      displayName: 'notes',
-      fullPath: '/workspace/notes',
-      repositoryId: null,
-    };
-
-    assert.equal(getLauncherCheckoutLabel(plainFolder), 'Project root');
   });
 
   test('registered worktrees remain valid session targets without adoption', async () => {

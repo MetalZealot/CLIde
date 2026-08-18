@@ -199,7 +199,7 @@ export default function SidebarProjectList({
 
   /** A flat Sessions-view row labelled with the repository it belongs to. */
   const renderFlatSession = (
-    { session, checkout, branchLabel, repositoryName, repositoryAccentColor }: BrowseSession,
+    { session, checkout, checkoutLabel, repositoryName, repositoryAccentColor }: BrowseSession,
   ) => {
     const sessionsSelection = { kind: 'sessions' } as const;
     const isSessionsSelectionMode = sessionSelection?.scope.kind === 'sessions';
@@ -211,7 +211,7 @@ export default function SidebarProjectList({
         session={session}
         projectLabel={repositoryName}
         accentColor={readProjectAccentColor(repositoryAccentColor)}
-        branchLabel={branchLabel}
+        checkoutLabel={checkoutLabel}
         isSectionItem
         selectedSession={selectedSession}
         isProcessing={activeSessions.has(session.id)}

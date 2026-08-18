@@ -4,15 +4,16 @@ import { AlertTriangle, Check, ChevronDown, Folder, GitBranch, Loader2, Plus } f
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../../lib/utils';
-import { ContextMenuOverlay, anchorFromElement } from '../../../../shared/view/ui';
+import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
 import type { Project } from '../../../../types/app';
 import type { CreateWorktreeOptions, CreateWorktreeOutcome, RepositoryEntry } from '../../../sidebar/types/types';
-import { buildRepositoryEntries, isDiscoveredCheckout, repositoryEntryKey } from '../../../sidebar/utils/utils';
 import {
-  getLauncherCheckoutLabel,
-  resolveLauncherCheckoutSelection,
-  resolvePrimaryCheckout,
-} from '../../utils/newSessionLauncher';
+  buildRepositoryEntries,
+  getCheckoutLabel,
+  isDiscoveredCheckout,
+  repositoryEntryKey,
+} from '../../../sidebar/utils/utils';
+import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from '../../utils/newSessionLauncher';
 import ProjectCreationWizard from '../../../project-creation-wizard';
 import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import WorktreeManagerModal from '../../../sidebar/view/subcomponents/WorktreeManagerModal';
@@ -129,9 +130,13 @@ export default function NewSessionLauncher({
     defaultValue: 'Start the next task',
   });
   const projectLabel = selectedEntry?.displayName ?? t('launcher.selectProject', { defaultValue: 'Project' });
-  const worktreeLabel = selectedProject
-    ? getLauncherCheckoutLabel(selectedProject)
+  const selectedCheckout = selectedProject ? getCheckoutLabel(selectedProject) : null;
+  // The trigger has room for one line, so it shows state and carries place in
+  // its title and accessible name; the menu rows below show both.
+  const worktreeLabel = selectedCheckout
+    ? (selectedCheckout.state ?? selectedCheckout.place)
     : t('launcher.worktreeBranch', { defaultValue: 'Worktree' });
+  const worktreeTitle = selectedCheckout?.state ? `${selectedCheckout.state} — ${selectedCheckout.place}` : worktreeLabel;
 
   return (
     <>
@@ -183,7 +188,8 @@ export default function NewSessionLauncher({
               'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground',
               openMenu === 'worktree' && 'text-foreground',
             )}
-            title={worktreeLabel}
+            title={worktreeTitle}
+            aria-label={worktreeTitle}
           >
             <GitBranch className="h-4 w-4 flex-shrink-0" />
             <span className={cn('truncate', selectedProject && 'font-medium text-foreground')}>{worktreeLabel}</span>
@@ -203,7 +209,8 @@ export default function NewSessionLauncher({
             defaultValue: 'Choose a project',
           })}
           placement="above"
-          className="sidebar-context-menu max-h-[min(65vh,24rem)] min-w-56 max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-xl py-1"
+          maxHeight={MENU_LIST_MAX_HEIGHT}
+          className="sidebar-context-menu min-w-56 max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-xl py-1"
           measureKey={`${entries.length}:${selectedEntry?.key ?? 'none'}`}
         >
           {entries.map((entry) => {
@@ -248,13 +255,15 @@ export default function NewSessionLauncher({
               defaultValue: 'Choose a worktree or branch',
             })}
             placement="above"
-          className="sidebar-context-menu max-h-[min(65vh,24rem)] min-w-56 max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-xl py-1"
+          maxHeight={MENU_LIST_MAX_HEIGHT}
+          className="sidebar-context-menu min-w-56 max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-xl py-1"
           measureKey={`${selectedEntry.checkouts.length}:${selectedProject?.projectId ?? 'none'}:${checkoutError ?? ''}`}
         >
           {selectedEntry.checkouts.map((checkout) => {
             const isSelected = checkout.projectId === selectedProject?.projectId;
             const isDiscovered = isDiscoveredCheckout(checkout);
             const isAdopting = adoptingCheckoutPath === checkout.fullPath;
+            const label = getCheckoutLabel(checkout);
             return (
               <button
                 key={checkout.projectId}
@@ -271,9 +280,17 @@ export default function NewSessionLauncher({
                     : isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
                 </span>
                 <GitBranch className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                <span className={cn('min-w-0 flex-1 truncate', isSelected && 'font-medium')}>
-                  {getLauncherCheckoutLabel(checkout)}
+                {/* State on top, place beneath: the branch is what you pick by,
+                    the folder is what you hunt for. */}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className={cn('truncate', isSelected && 'font-medium')}>{label.state ?? label.place}</span>
+                  {label.state && <span className="truncate text-xs text-muted-foreground">{label.place}</span>}
                 </span>
+                {label.isMain && (
+                  <span className="ml-auto flex-shrink-0 rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {sidebarT('worktrees.main', 'main')}
+                  </span>
+                )}
                 {isDiscovered && (
                   <span
                     title={sidebarT('worktrees.discoveredHint', 'Found on disk, not added to CLIde yet.')}

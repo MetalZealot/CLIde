@@ -13,6 +13,7 @@ import {
   DEFAULT_REPOSITORY_VIEW_OPTIONS,
   filterProjectsBySessionTitle,
   getCheckoutContextLabel,
+  getCheckoutLabel,
   isDefaultBrowseSessionView,
   isDefaultRepositoryView,
   isMainCheckout,
@@ -180,21 +181,22 @@ test('a merged session keeps the checkout it belongs to, not the lead', () => {
   // Selecting this row has to switch the app to the worktree that session runs
   // in; pointing it at the lead checkout would run it against the wrong tree.
   assert.equal(ttsSession?.checkout.projectId, 'p-tts');
-  assert.equal(ttsSession?.branchLabel, 'feature/tts-and-stt');
+  // The folder, not the branch: the row answers "which working tree is this?".
+  assert.equal(ttsSession?.checkoutLabel, 'cloudcli-wt-tts');
 });
 
-test('a single-checkout row labels no branch on its sessions', () => {
+test('a single-checkout row labels no checkout on its sessions', () => {
   const [entry] = buildRepositoryEntries([soloRepository]);
   const merged = mergeCheckoutSessions(entry);
 
   assert.equal(
-    merged[0].branchLabel,
+    merged[0].checkoutLabel,
     null,
     'there is nothing to disambiguate, so the label would only be noise',
   );
 });
 
-test('a detached checkout labels its sessions with a short SHA, not "HEAD"', () => {
+test('a detached checkout still labels its sessions by folder', () => {
   const detached = project({
     projectId: 'p-detached',
     fullPath: '/home/user/Projects/cloudcli-wt-detached',
@@ -207,7 +209,8 @@ test('a detached checkout labels its sessions with a short SHA, not "HEAD"', () 
   const [entry] = buildRepositoryEntries([mainCheckout, detached]);
   const merged = mergeCheckoutSessions(entry);
 
-  assert.equal(merged[0].branchLabel, 'detached @ a1b2c3d');
+  // A checkout with no branch is exactly where a state-only label breaks down.
+  assert.equal(merged[0].checkoutLabel, 'cloudcli-wt-detached');
 });
 
 test('starred sessions lead the merged list regardless of checkout', () => {
@@ -491,17 +494,18 @@ test('title sorts by displayed name, and reverses on demand', () => {
   );
 });
 
-test('worktree sort groups by branch label, newest first inside a group', () => {
+test('worktree sort groups by folder, newest first inside a group', () => {
   const grouped = applyRepositoryViewOptions(
     mergedRow(),
     { sort: 'worktree', direction: 'asc', worktreeProjectIds: null },
     fallbackName,
   );
 
-  // feature/tts-and-stt < main < test/codex
+  // cloudcli < cloudcli-wt-codex < cloudcli-wt-tts, which is not the order their
+  // branches would give.
   assert.deepEqual(
     grouped.map(({ checkout }) => checkout.branch),
-    ['feature/tts-and-stt', 'main', 'test/codex'],
+    ['main', 'test/codex', 'feature/tts-and-stt'],
   );
 
   const reversed = applyRepositoryViewOptions(
@@ -511,7 +515,7 @@ test('worktree sort groups by branch label, newest first inside a group', () => 
   );
   assert.deepEqual(
     reversed.map(({ checkout }) => checkout.branch),
-    ['test/codex', 'main', 'feature/tts-and-stt'],
+    ['feature/tts-and-stt', 'test/codex', 'main'],
   );
 });
 
@@ -605,6 +609,41 @@ test('a detached checkout is labelled by its commit, never as a branch', () => {
     getCheckoutContextLabel(detached, [mainCheckout, detached]),
     'cloudcli-wt-detached · detached @ c496391',
   );
+});
+
+test('a checkout is named by both the branch it holds and the folder it is', () => {
+  assert.deepEqual(getCheckoutLabel(mainCheckout), {
+    state: 'main',
+    place: 'cloudcli',
+    isMain: true,
+  });
+  // Branch and folder differ, which is the case the branch alone cannot answer.
+  assert.deepEqual(getCheckoutLabel(worktreeA), {
+    state: 'feature/tts-and-stt',
+    place: 'cloudcli-wt-tts',
+    isMain: false,
+  });
+});
+
+test('the place survives a rename and a detached HEAD', () => {
+  const renamed = project({
+    projectId: 'p-voice',
+    displayName: 'Voice',
+    fullPath: '/home/user/Projects/cloudcli-wt-tts',
+    repositoryId: CLOUDCLI_REPO,
+    detachedHead: 'c496391',
+  });
+
+  assert.deepEqual(getCheckoutLabel(renamed), {
+    state: 'detached @ c496391',
+    place: 'cloudcli-wt-tts',
+    isMain: false,
+  });
+});
+
+test('a non-repository project has a place but no state', () => {
+  // `/home/user`, displayed as "home" in CLIde: the place is still the directory.
+  assert.deepEqual(getCheckoutLabel(plainFolder), { state: null, place: 'user', isMain: false });
 });
 
 // --- worktreeManager --------------------------------------------------------

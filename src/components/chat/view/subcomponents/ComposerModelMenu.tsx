@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { MENU_LIST_MAX_HEIGHT } from '../../../../shared/view/ui';
 import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import { DEFAULT_EFFORT_VALUE } from '../../constants/providerEffort';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
@@ -255,14 +256,16 @@ export default function ComposerModelMenu({
                   t('composer.backToModels', { defaultValue: 'Back to models' }),
                 )}
                 <ComposerMenuSeparator />
-                {providerOptions.map((option) => (
-                  <ComposerMenuItem
-                    key={option.value}
-                    label={option.label}
-                    isSelected={option.value === provider}
-                    onSelect={() => handleSelectProvider(option.value)}
-                  />
-                ))}
+                <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: MENU_LIST_MAX_HEIGHT }}>
+                  {providerOptions.map((option) => (
+                    <ComposerMenuItem
+                      key={option.value}
+                      label={option.label}
+                      isSelected={option.value === provider}
+                      onSelect={() => handleSelectProvider(option.value)}
+                    />
+                  ))}
+                </div>
               </div>
             ) : view === 'legacy' ? (
               <div className="py-0.5">
@@ -271,7 +274,9 @@ export default function ComposerModelMenu({
                   t('composer.backToModels', { defaultValue: 'Back to models' }),
                 )}
                 <ComposerMenuSeparator />
-                {legacyModels.map(renderModelItem)}
+                <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: MENU_LIST_MAX_HEIGHT }}>
+                  {legacyModels.map(renderModelItem)}
+                </div>
                 {selectionError && (
                   <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
                     {selectionError}
@@ -308,25 +313,30 @@ export default function ComposerModelMenu({
                       {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
                     </p>
                   )}
-                  {primaryModels.map(renderModelItem)}
-                  {legacyModels.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setView('legacy')}
-                      aria-haspopup="menu"
-                      className="flex w-full items-center gap-1 rounded-lg px-2.5 py-1.5 text-left text-sm text-foreground/90 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                    >
-                      <span className="min-w-0 flex-1 truncate">
-                        {legacyLabel}
-                        {selectedLegacyModel && (
-                          <span className="ml-1.5 text-xs text-muted-foreground">
-                            {selectedLegacyModel.label || selectedLegacyModel.value}
-                          </span>
-                        )}
-                      </span>
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                    </button>
-                  )}
+                  {/* The list scrolls, not the menu: the provider row above and
+                      the effort slider below stay reachable however many models
+                      a provider offers. */}
+                  <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: MENU_LIST_MAX_HEIGHT }}>
+                    {primaryModels.map(renderModelItem)}
+                    {legacyModels.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setView('legacy')}
+                        aria-haspopup="menu"
+                        className="flex w-full items-center gap-1 rounded-lg px-2.5 py-1.5 text-left text-sm text-foreground/90 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {legacyLabel}
+                          {selectedLegacyModel && (
+                            <span className="ml-1.5 text-xs text-muted-foreground">
+                              {selectedLegacyModel.label || selectedLegacyModel.value}
+                            </span>
+                          )}
+                        </span>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                      </button>
+                    )}
+                  </div>
                   {selectionError && (
                     <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
                       {selectionError}

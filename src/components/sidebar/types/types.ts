@@ -96,10 +96,10 @@ export type CheckoutSession = {
   session: SessionWithProvider;
   checkout: Project;
   /**
-   * Branch shown beneath the session title. Null when the row needs no
-   * disambiguation, so an ordinary single-checkout project stays uncluttered.
+   * Folder the session runs in, shown beneath its title. Null when the row needs
+   * no disambiguation, so an ordinary single-checkout project stays uncluttered.
    */
-  branchLabel: string | null;
+  checkoutLabel: string | null;
 };
 
 /** A session in the flat Sessions view, labelled with its repository. */

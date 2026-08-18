@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
-import { Check, GitBranch, Pin, X } from 'lucide-react';
+import { Check, Folder, Pin, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import {
@@ -30,7 +30,7 @@ type SidebarSessionItemProps = {
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
-  /** Shown under the session name in flat lists that mix projects. */
+  /** Shown above the session name in flat lists that mix projects. */
   projectLabel?: string;
   /** Repository identity marker for a standalone row in the flat Sessions view. */
   accentColor?: ProjectAccentColor | null;
@@ -41,7 +41,7 @@ type SidebarSessionItemProps = {
    * row merges several checkouts (ADR 0016). Null when there is nothing to
    * disambiguate.
    */
-  branchLabel?: string | null;
+  checkoutLabel?: string | null;
   onEditingSessionNameChange: (value: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
@@ -104,7 +104,7 @@ export default function SidebarSessionItem({
   projectLabel,
   accentColor = null,
   isSectionItem = false,
-  branchLabel,
+  checkoutLabel,
   onEditingSessionNameChange,
   onCancelEditingSession,
   onSaveEditingSession,
@@ -124,14 +124,24 @@ export default function SidebarSessionItem({
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   // Shares the metadata line with the message-count badge rather than claiming a
   // line of its own, so a merged repository row is no taller per session.
-  const branchBadge = branchLabel ? (
+  // ADR 0016: a checkout and a branch never share an icon, and this badge names
+  // the folder.
+  const checkoutBadge = checkoutLabel ? (
     <span
       className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
-      title={branchLabel}
+      title={checkoutLabel}
     >
-      <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
-      <span className="truncate">{branchLabel}</span>
+      <Folder className="h-2.5 w-2.5 flex-shrink-0" />
+      <span className="truncate">{checkoutLabel}</span>
     </span>
+  ) : null;
+  // Repository above the title, checkout below it: the row reads place, then
+  // subject, then which tree it ran in. Nested rows never get the prop, because
+  // the enclosing repository row already says it.
+  const projectEyebrow = projectLabel ? (
+    <div className="min-w-0 truncate text-xs text-muted-foreground" title={projectLabel}>
+      {projectLabel}
+    </div>
   ) : null;
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const mobileEditRef = useRef<HTMLDivElement>(null);
@@ -299,6 +309,7 @@ export default function SidebarSessionItem({
             {accentStrip}
             <div className="min-w-0">
               <div className="min-w-0 flex-1">
+                {projectEyebrow}
                 <div className="flex items-center gap-1.5">
                   {selectionBox}
                   {isStarred && (
@@ -327,10 +338,7 @@ export default function SidebarSessionItem({
                       {sessionView.messageCount}
                     </Badge>
                   )}
-                  {projectLabel && (
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">{projectLabel}</span>
-                  )}
-                  {branchBadge}
+                  {checkoutBadge}
                   <span className="ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center">
                     <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
                   </span>
@@ -381,6 +389,7 @@ export default function SidebarSessionItem({
           {accentStrip}
           <div className="w-full min-w-0">
             <div className="min-w-0 flex-1">
+              {projectEyebrow}
               <div className="flex items-center gap-1.5">
                 {selectionBox}
                 {isStarred && (
@@ -416,10 +425,7 @@ export default function SidebarSessionItem({
               </div>
               <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
-                {projectLabel && (
-                  <span className="min-w-0 truncate text-xs text-muted-foreground">{projectLabel}</span>
-                )}
-                {branchBadge}
+                {checkoutBadge}
                 <span className="ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center">
                   <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
                 </span>

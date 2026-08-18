@@ -141,6 +141,12 @@ type ContextMenuOverlayProps = {
   measureKey?: string | number;
   /** Keep the menu on the row's upper side instead of choosing by available space. */
   placement?: 'auto' | 'above';
+  /**
+   * Cap for a menu whose length is data-driven, in px (see `MENU_LIST_MAX_HEIGHT`).
+   * The placement's own limit still applies; this only stops a long list from
+   * taking every pixel that limit allows. Requires the caller to scroll.
+   */
+  maxHeight?: number;
 };
 
 /**
@@ -158,6 +164,7 @@ export default function ContextMenuOverlay({
   className,
   measureKey,
   placement = 'auto',
+  maxHeight,
 }: ContextMenuOverlayProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -306,10 +313,13 @@ export default function ContextMenuOverlay({
           left: position?.x ?? 0,
           top: position?.y ?? 0,
           // A forced-above menu scrolls within the space above its row rather
-          // than growing through it.
+          // than growing through it; a capped one stops short of even that.
           maxHeight: placement === 'above'
-            ? Math.max(0, liveAnchor.top - ANCHOR_GAP - VIEWPORT_PADDING)
-            : undefined,
+            ? Math.min(
+                Math.max(0, liveAnchor.top - ANCHOR_GAP - VIEWPORT_PADDING),
+                maxHeight ?? Number.POSITIVE_INFINITY,
+              )
+            : maxHeight,
           // Hidden for the single layout pass that measures it.
           visibility: position ? 'visible' : 'hidden',
         }}

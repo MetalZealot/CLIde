@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft, Loader2, RefreshCw } from 'lucide-react';
 
+import { READING_SURFACE_MAX_HEIGHT } from '../../../../shared/view/ui';
 import type { ContextCommandData, ContextNamedTokens } from '../../hooks/useChatComposerState';
 
 const formatNumber = (value: number): string => (
@@ -162,6 +163,9 @@ export default function ContextBreakdownView({
         )}
       </div>
 
+      {/* Eleven sections is long by nature, so the reading area scrolls and the
+          back button and refresh stay put. */}
+      <div className="space-y-3 overflow-y-auto overscroll-contain" style={{ maxHeight: READING_SURFACE_MAX_HEIGHT }}>
       {loading && (
         <p className="flex items-center gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -277,6 +281,7 @@ export default function ContextBreakdownView({
           {readingAge && <p className="border-t border-border/60 pt-3 text-[11px] text-muted-foreground">{readingAge}</p>}
         </>
       )}
+      </div>
     </div>
   );
 }

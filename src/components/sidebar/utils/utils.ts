@@ -288,6 +288,32 @@ export const getCheckoutRefLabel = (project: Project): string | null => {
 };
 
 /**
+ * How a checkout is named: the branch it currently holds, and the folder it is.
+ *
+ * Git names a checkout by place and treats the branch as state the place holds;
+ * a surface that shows only the branch cannot answer "which folder is this?".
+ */
+export interface CheckoutLabel {
+  /** Branch, or `detached @ sha`; null when the project is not a repository. */
+  state: string | null;
+  /** Folder basename — the only name the checkout answers to on disk. */
+  place: string;
+  isMain: boolean;
+}
+
+export const getCheckoutLabel = (project: Project): CheckoutLabel => {
+  // The directory, never displayName: a project renamed in CLIde would otherwise
+  // leave its folder unfindable under any name shown.
+  const directory = (project.fullPath || project.path || '').split('/').filter(Boolean).pop();
+
+  return {
+    state: getCheckoutRefLabel(project),
+    place: directory || project.displayName || project.projectId,
+    isMain: isMainCheckout(project),
+  };
+};
+
+/**
  * Which sidebar row a project belongs to. Deliberately a pure function of the
  * project alone: deriving it from the visible list would let a search that hides
  * one checkout re-key the surviving one, collapsing the open row.
@@ -341,10 +367,11 @@ export const getCheckoutContextLabel = (
     return null;
   }
 
-  const refLabel = getCheckoutRefLabel(selectedProject);
-  const checkoutName = selectedProject.displayName || selectedProject.projectId;
+  // Place then state, the same pair and order the new-session picker shows, so a
+  // renamed project cannot make the two surfaces disagree about which tree this is.
+  const { state, place } = getCheckoutLabel(selectedProject);
 
-  return refLabel ? `${checkoutName} · ${refLabel}` : checkoutName;
+  return state ? `${place} · ${state}` : place;
 };
 
 /**
@@ -404,16 +431,18 @@ export const buildRepositoryEntries = (projects: Project[]): RepositoryEntry[] =
  * Every session across an entry's checkouts, newest first, starred pinned to the
  * top — the flattened list that replaces a tier of checkout rows.
  *
- * The branch label is attached here rather than read off the row's own project,
+ * The checkout label is attached here rather than read off the row's own project,
  * so a single-checkout entry stays free of a label with nothing to disambiguate.
+ * A session row has room for one value, and the question it answers is which
+ * working tree the session runs in, so that value is the place.
  */
 export const mergeCheckoutSessions = (entry: RepositoryEntry): CheckoutSession[] => {
-  const needsBranchLabel = entry.checkouts.length > 1;
+  const needsCheckoutLabel = entry.checkouts.length > 1;
 
   return entry.checkouts
     .flatMap((checkout) => {
-      const branchLabel = needsBranchLabel ? getCheckoutRefLabel(checkout) : null;
-      return getAllSessions(checkout).map((session) => ({ session, checkout, branchLabel }));
+      const checkoutLabel = needsCheckoutLabel ? getCheckoutLabel(checkout).place : null;
+      return getAllSessions(checkout).map((session) => ({ session, checkout, checkoutLabel }));
     })
     .sort((a, b) => compareSessionsStarredFirst(a.session, b.session));
 };
@@ -562,8 +591,9 @@ export const applyRepositoryViewOptions = (
       break;
     case 'worktree':
       sorted.sort(pinnedFirst((a, b) => {
-        const label = (entry: CheckoutSession) =>
-          getCheckoutRefLabel(entry.checkout) ?? entry.checkout.displayName ?? entry.checkout.projectId;
+        // Sorts on the place the rows show; ordering by branch would look
+        // arbitrary against a list labelled by folder.
+        const label = (entry: CheckoutSession) => getCheckoutLabel(entry.checkout).place;
         const byWorktree = sign * label(a).localeCompare(label(b));
         return byWorktree !== 0 ? byWorktree : -oldestFirst(a, b);
       }));
