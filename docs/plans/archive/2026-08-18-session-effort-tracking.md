@@ -1,8 +1,13 @@
 # Per-session effort follows the conversation
 
-- Status: not started
-- Next: add the durable effort fields and provider-neutral requested/effective
-  resolver, with database and service tests, before changing the composer.
+- Status: complete
+- Live gate complete: the maintainer confirmed 2026-08-18 that effort sticks
+  per session for Claude and Codex, survives a mid-session refresh and the
+  same session open in two clients, that a newer provider turn supersedes an
+  earlier pick, and that Cursor offers no effort control.
+- Next: none — merge the branch. Queued turns needed no code change:
+  `buildSendOptions` already snapshots effort at queue time and the send
+  reuses that record verbatim.
 - Context: [session/model anchors](../maps/code-anchors.md);
   [provider capabilities](../maps/clide-provider-capability-map.md);
   [ADR 0003](../decisions/0003-per-session-model-tracking.md);
@@ -10,7 +15,7 @@
 
 ## Phases
 
-- [ ] **1. Give effort durable session ownership.** Add nullable `effort` and
+- [x] **1. Give effort durable session ownership.** Add nullable `effort` and
       `effort_updated_at` columns through the schema and migration system, plus
       provider-scoped repository reads and writes. Add provider-neutral
       requested/effective effort types and a resolver with the same recency
@@ -20,7 +25,7 @@
       turn evidence must report only the stored request or provider default,
       never invent effective state. Cursor remains unsupported through the
       capability contract.
-- [ ] **2. Make one client store own model and effort.** Extend `SessionSlot`
+- [x] **2. Make one client store own model and effort.** Extend `SessionSlot`
       with effort value, source, loading state, and fetch timestamp; remove the
       duplicate active-model fetch in `useChatProviderState` at the same time
       so display and send read one session-settings owner. Keep provider-level
@@ -28,7 +33,7 @@
       onto the row when the app allocates the first session ID; on an existing
       session, omit effort while its settings are unresolved so the backend
       resolves the row/transcript instead of leaking another session's value.
-- [ ] **3. Persist deliberate choices without slider-write races.** Add thin
+- [x] **3. Persist deliberate choices without slider-write races.** Add thin
       effort read/write routes backed by the resolver, save keyboard/click
       choices immediately, and separate drag preview from pointer-release
       commit so moving across the effort track does not issue competing writes.
@@ -38,7 +43,7 @@
       show one non-blocking message: **Changing model or effort may reduce
       cached-input reuse on the next turn.** Do not claim that the conversation
       or cache was erased.
-- [ ] **4. Prove isolation, precedence, and degradation.** Cover migration,
+- [x] **4. Prove isolation, precedence, and degradation.** Cover migration,
       provider/id scoping, pick-versus-transcript timestamps, fresh-session
       promotion, stale fetches, session switching, refresh, queued sends,
       model/effort compatibility, unsupported providers, and two clients

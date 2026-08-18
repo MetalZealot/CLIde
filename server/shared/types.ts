@@ -293,6 +293,79 @@ export type ProviderSessionActiveModelChange = {
 };
 
 /**
+ * Input payload used when one session should run at a different reasoning
+ * effort on its next turn.
+ *
+ * `effort` carries the provider's own vocabulary (`low`/`high`/`xhigh`/...),
+ * plus the literal `default`, which is a deliberate choice meaning "send no
+ * effort override" and is stored as such rather than being erased.
+ */
+export type ProviderChangeSessionEffortInput = {
+  sessionId: string;
+  effort: string;
+};
+
+/**
+ * Effective effort as recorded by a provider's own turn evidence.
+ *
+ * Only adapters that can actually read what a turn ran at produce this —
+ * Claude's transcript stamps `effort` on each entry, Codex writes it on
+ * `turn_context`. `timestamp` is when that turn happened, which is what a
+ * stored request has to beat to still apply.
+ */
+export type ProviderSessionEffortEvidence = {
+  effort: string;
+  timestamp?: string;
+};
+
+/**
+ * Where a resolved effort value came from.
+ *
+ * - `pick`: the user's stored request, still recent enough to stand.
+ * - `transcript`: effective truth read from the provider's own turn record.
+ * - `default`: nothing chosen or recorded; the provider's default applies.
+ * - `none`: the provider has no effort control, or the session is unknown.
+ */
+export type ProviderSessionEffortSource = 'pick' | 'transcript' | 'default' | 'none';
+
+/**
+ * One session's stored effort request, before it is weighed against anything.
+ *
+ * Mirrors `ProviderSessionActiveModelChange`: `changed` is the persisted
+ * boolean, and `updatedAt` is what decides an argument with a later turn.
+ */
+export type ProviderSessionEffortPick = {
+  provider: LLMProvider;
+  sessionId: string;
+  supported: boolean;
+  changed: boolean;
+  effort: string | null;
+  updatedAt?: string;
+};
+
+/**
+ * Provider-neutral resolved effort for one session.
+ *
+ * `requested` is what the user asked for and `effective` is what the provider
+ * records having actually run. They are kept apart deliberately: an adapter
+ * with no reliable turn evidence reports `effective: null` rather than echoing
+ * the request back as though the runtime had confirmed it. `effort` is the one
+ * value the UI shows and the next turn sends, and `source` says which input
+ * won.
+ */
+export type ProviderSessionEffort = {
+  provider: LLMProvider;
+  sessionId: string;
+  supported: boolean;
+  requested: string | null;
+  requestedAt?: string;
+  effective: string | null;
+  effectiveAt?: string;
+  effort: string | null;
+  source: ProviderSessionEffortSource;
+};
+
+/**
  * Message/event variants emitted by provider adapters and normalized transports.
  *
  * Keep this union in sync with event kinds produced by provider session adapters.

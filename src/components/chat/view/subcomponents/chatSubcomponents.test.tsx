@@ -434,6 +434,99 @@ describe('ComposerMenus', () => {
     );
   });
 
+  test('dragging across the effort track previews locally and commits once on release', async () => {
+    const effortSelections: string[] = [];
+    const host = await mount(
+      <ComposerModelMenu
+        effort="high"
+        effortOptions={[{ value: 'low' }, { value: 'high' }]}
+        onSelectEffort={(value) => effortSelections.push(value)}
+        model="model-a"
+        modelOptions={[{ value: 'model-a', label: 'Model A' }]}
+        onSelectModel={async () => {}}
+        modelsLoading={false}
+        openRequest={0}
+        provider="claude"
+        providerLabel="Claude"
+      />,
+    );
+
+    const trigger = host.querySelector('button');
+    assert.ok(trigger);
+    await React.act(async () => trigger.click());
+
+    // Three stops across 208px: default 0-69, low 69-138, high 138-208.
+    const effortTrack = document.querySelector<HTMLElement>('[role="radiogroup"]');
+    assert.ok(effortTrack);
+    effortTrack.getBoundingClientRect = () => ({
+      x: 0, y: 0, left: 0, right: 208, top: 0, bottom: 32, width: 208, height: 32,
+      toJSON: () => ({}),
+    });
+    const checkedLabel = () => document
+      .querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')
+      ?.getAttribute('aria-label');
+
+    await React.act(async () => {
+      effortTrack.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 190 }));
+      effortTrack.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, button: 0, clientX: 10 }));
+    });
+    assert.equal(checkedLabel(), 'Default', 'the track paints the dragged-over stop');
+    assert.deepEqual(effortSelections, [], 'a drag in progress writes nothing');
+
+    await React.act(async () => {
+      effortTrack.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, button: 0, clientX: 100 }));
+    });
+    assert.equal(checkedLabel(), 'low');
+    assert.deepEqual(effortSelections, [], 'crossing three stops is still one choice');
+
+    await React.act(async () => {
+      effortTrack.dispatchEvent(new window.MouseEvent('pointerup', { bubbles: true, button: 0, clientX: 100 }));
+    });
+    assert.deepEqual(effortSelections, ['low'], 'release commits exactly once');
+  });
+
+  test('a drag returning to where it started commits nothing', async () => {
+    const effortSelections: string[] = [];
+    const host = await mount(
+      <ComposerModelMenu
+        effort="high"
+        effortOptions={[{ value: 'low' }, { value: 'high' }]}
+        onSelectEffort={(value) => effortSelections.push(value)}
+        model="model-a"
+        modelOptions={[{ value: 'model-a', label: 'Model A' }]}
+        onSelectModel={async () => {}}
+        modelsLoading={false}
+        openRequest={0}
+        provider="claude"
+        providerLabel="Claude"
+      />,
+    );
+
+    const trigger = host.querySelector('button');
+    assert.ok(trigger);
+    await React.act(async () => trigger.click());
+
+    const effortTrack = document.querySelector<HTMLElement>('[role="radiogroup"]');
+    assert.ok(effortTrack);
+    effortTrack.getBoundingClientRect = () => ({
+      x: 0, y: 0, left: 0, right: 208, top: 0, bottom: 32, width: 208, height: 32,
+      toJSON: () => ({}),
+    });
+
+    await React.act(async () => {
+      effortTrack.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 190 }));
+      effortTrack.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, button: 0, clientX: 10 }));
+      effortTrack.dispatchEvent(new window.MouseEvent('pointermove', { bubbles: true, button: 0, clientX: 190 }));
+      effortTrack.dispatchEvent(new window.MouseEvent('pointerup', { bubbles: true, button: 0, clientX: 190 }));
+    });
+    assert.deepEqual(effortSelections, []);
+    assert.equal(
+      document.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')?.getAttribute('aria-label'),
+      'high',
+      'the preview clears back to the committed value',
+    );
+  });
+
   test('model trigger opens one menu containing reasoning and model choices', async () => {
     const effortSelections: string[] = [];
     const modelSelections: string[] = [];

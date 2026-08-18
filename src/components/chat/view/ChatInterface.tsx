@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownIcon } from 'lucide-react';
+import { ArrowDownIcon, XIcon } from 'lucide-react';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
@@ -82,6 +82,11 @@ function ChatInterface({
     accumulatedStreamRef.current = '';
   }, []);
 
+  const settingsSessionId = selectedSession?.id ?? null;
+  const settingsSlot = settingsSessionId
+    ? sessionStore.getSessionSlot(settingsSessionId)
+    : undefined;
+
   const {
     provider,
     selectProvider,
@@ -101,13 +106,18 @@ function ChatInterface({
     togglePermissionMode,
     providerModelsLoading,
     selectProviderModel,
-    setStoredProviderEffort,
+    selectProviderEffort,
+    reconcileStoredEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
     getSupportsForkForProvider,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
+    // SessionStore is the single owner of both; the provider-level values in
+    // the hook are only seeds for a chat that has no session of its own yet.
+    sessionModel: settingsSlot?.model ?? null,
+    sessionEffort: settingsSlot?.effort ?? null,
   });
 
   const {
@@ -154,9 +164,24 @@ function ChatInterface({
   // in the URL — this id never changes again, so there is no later handoff.
   const handleSessionEstablished = useCallback<NonNullable<ChatInterfaceProps['onSessionEstablished']>>((sessionId, context) => {
     setCurrentSessionId(sessionId);
+    // Until this id existed the chat ran on the provider seed. Hand that effort
+    // to the session now, so the conversation keeps what it started with when
+    // the seed later moves on with some other chat.
+    sessionStore.setEffort(sessionId, currentProviderEffort);
+    void selectProviderEffort(provider, currentProviderEffort, sessionId).catch((error) => {
+      console.error('Error recording the initial reasoning effort:', error);
+    });
     onSessionEstablished?.(sessionId, context);
     onNavigateToSession?.(sessionId);
-  }, [setCurrentSessionId, onSessionEstablished, onNavigateToSession]);
+  }, [
+    currentProviderEffort,
+    onNavigateToSession,
+    onSessionEstablished,
+    provider,
+    selectProviderEffort,
+    sessionStore,
+    setCurrentSessionId,
+  ]);
 
   const {
     input,
@@ -266,6 +291,22 @@ function ChatInterface({
     });
   }, [selectedProject, selectedSession, sendMessage, sessionStore, getReplayProgress]);
 
+  // Shown after a model or effort change made mid-conversation. Both alter the
+  // prefix the provider caches against, so the next turn may re-read tokens it
+  // would otherwise have reused; nothing in the conversation is lost. Before
+  // the first turn there is no cached prefix to lose, so setting up a chat says
+  // nothing.
+  const [settingsChangeNotice, setSettingsChangeNotice] = useState(false);
+  const showSettingsChangeNotice = useCallback(() => {
+    if (!(currentSessionId || selectedSession?.id) || chatMessages.length === 0) return;
+    setSettingsChangeNotice(true);
+  }, [chatMessages.length, currentSessionId, selectedSession?.id]);
+  useEffect(() => {
+    if (!settingsChangeNotice) return undefined;
+    const timer = window.setTimeout(() => setSettingsChangeNotice(false), 8000);
+    return () => window.clearTimeout(timer);
+  }, [settingsChangeNotice]);
+
   const handleSelectProviderModel = useCallback(async (targetProvider: typeof provider, model: string, sessionId?: string | null) => {
     const result = await selectProviderModel(targetProvider, model, sessionId);
     if (result.scope === 'session' && sessionId) {
@@ -274,9 +315,64 @@ function ChatInterface({
     return result;
   }, [selectProviderModel, sessionStore]);
 
+  const applySessionEffort = useCallback(async (
+    nextEffort: string,
+    sessionId: string | null,
+  ): Promise<boolean> => {
+    const previousEffort = sessionId
+      ? sessionStore.getSessionSlot(sessionId)?.effort ?? null
+      : null;
+
+    // Move the control now: a round-trip's worth of lag on an effort choice
+    // reads as a dropped input.
+    if (sessionId) {
+      sessionStore.setEffort(sessionId, nextEffort);
+    }
+
+    try {
+      await selectProviderEffort(provider, nextEffort, sessionId);
+      return true;
+    } catch (error) {
+      console.error('Error changing the reasoning effort:', error);
+      if (sessionId) {
+        sessionStore.setEffort(sessionId, previousEffort);
+      }
+      return false;
+    }
+  }, [provider, selectProviderEffort, sessionStore]);
+
+  const handleSelectComposerEffort = useCallback(async (nextEffort: string) => {
+    const sessionId = currentSessionId || selectedSession?.id || null;
+    if (await applySessionEffort(nextEffort, sessionId)) {
+      showSettingsChangeNotice();
+    }
+  }, [applySessionEffort, currentSessionId, selectedSession?.id, showSettingsChangeNotice]);
+
   const handleSelectComposerModel = useCallback(async (model: string) => {
-    await handleSelectProviderModel(provider, model, currentSessionId || selectedSession?.id || null);
-  }, [currentSessionId, handleSelectProviderModel, provider, selectedSession?.id]);
+    const sessionId = currentSessionId || selectedSession?.id || null;
+    await handleSelectProviderModel(provider, model, sessionId);
+
+    // The new model may not offer the effort this session was on. Write the
+    // fallback rather than only displaying it, so the stored pick, the composer
+    // and the next turn agree on one value.
+    const storedEffort = sessionId ? sessionStore.getSessionSlot(sessionId)?.effort ?? null : null;
+    if (storedEffort) {
+      const reconciled = reconcileStoredEffort(provider, model, storedEffort);
+      if (reconciled !== storedEffort) {
+        await applySessionEffort(reconciled, sessionId);
+      }
+    }
+    showSettingsChangeNotice();
+  }, [
+    applySessionEffort,
+    currentSessionId,
+    handleSelectProviderModel,
+    provider,
+    reconcileStoredEffort,
+    selectedSession?.id,
+    sessionStore,
+    showSettingsChangeNotice,
+  ]);
 
   // Latest composer text, read from a ref so the realtime listener does not
   // rebind on every keystroke.
@@ -467,6 +563,26 @@ function ChatInterface({
             </div>
           )}
 
+          {settingsChangeNotice && (
+            <div className="px-3 pb-1" role="status">
+              <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/40 px-2.5 py-1.5 text-xs leading-4 text-muted-foreground">
+                <span className="min-w-0 flex-1">
+                  {t('composer.settingsChangeCacheNotice', {
+                    defaultValue: 'Changing model or effort may reduce cached-input reuse on the next turn.',
+                  })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSettingsChangeNotice(false)}
+                  aria-label={t('composer.dismissNotice', { defaultValue: 'Dismiss' })}
+                  className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <XIcon className="h-3 w-3" aria-hidden />
+                </button>
+              </div>
+            </div>
+          )}
+
           <CompactionWarningBanner
             tokenBudget={tokenBudget}
             sessionId={currentSessionId || selectedSession?.id || null}
@@ -510,7 +626,7 @@ function ChatInterface({
             onSelectProvider={canSelectProvider ? selectProvider : null}
             effort={currentProviderEffort}
             availableEffortOptions={currentProviderEffortOptions}
-            onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
+            onSelectEffort={handleSelectComposerEffort}
             model={currentProviderModel}
             availableModelOptions={currentProviderModelOptions}
             onSelectModel={handleSelectComposerModel}

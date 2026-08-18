@@ -329,6 +329,61 @@ export const sessionsDb = {
     };
   },
 
+  /**
+   * Records the reasoning effort the user explicitly picked for one session.
+   *
+   * Provider-scoped for the same reason as the model pick: effort vocabularies
+   * differ per provider (`max` exists for Claude, not Codex), so a row whose
+   * provider no longer matches must not inherit a level that provider cannot
+   * run. Returns whether a row was written so a caller can report a missing
+   * session honestly rather than pretending the pick stuck.
+   */
+  setSessionEffortPick(sessionId: string, provider: string, effort: string, updatedAt: string): boolean {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        `UPDATE sessions
+         SET effort = ?, effort_updated_at = ?
+         WHERE session_id = ? AND provider = ?`
+      )
+      .run(effort, updatedAt, sessionId, provider);
+
+    return result.changes > 0;
+  },
+
+  /**
+   * Reads back one session's effort pick and when it was made.
+   *
+   * The timestamp decides whether the pick still describes the session or has
+   * been overtaken by a turn that ran with something else (ADR 0003), so a pick
+   * that somehow lost its timestamp is returned without one and loses that
+   * argument rather than silently winning it.
+   */
+  getSessionEffortPick(
+    sessionId: string,
+    provider: string
+  ): { effort: string; updatedAt: string | null } | null {
+    const db = getConnection();
+    const row = db
+      .prepare(
+        `SELECT effort, effort_updated_at
+         FROM sessions
+         WHERE session_id = ? AND provider = ?
+         LIMIT 1`
+      )
+      .get(sessionId, provider) as { effort: string | null; effort_updated_at: string | null } | undefined;
+
+    const effort = row?.effort?.trim();
+    if (!effort) {
+      return null;
+    }
+
+    return {
+      effort,
+      updatedAt: normalizeTimestamp(row?.effort_updated_at ?? undefined),
+    };
+  },
+
   getSessionById(sessionId: string): SessionRow | null {
     const db = getConnection();
     const row = db

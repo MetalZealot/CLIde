@@ -7,6 +7,10 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import {
+  getProviderSessionEffort,
+  writeProviderSessionEffortPick,
+} from '@/modules/providers/services/provider-session-effort.service.js';
 import { providerUsageService } from '@/modules/providers/services/provider-usage.service.js';
 import { providerTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
@@ -17,6 +21,7 @@ import type {
   McpScope,
   McpTransport,
   ProviderChangeActiveModelInput,
+  ProviderChangeSessionEffortInput,
   ProviderSkillCreateFile,
   ProviderSkillCreateInput,
   UpsertProviderMcpServerInput,
@@ -427,6 +432,48 @@ router.post(
       sessionId,
     });
     res.json(createApiSuccessResponse(result));
+  }),
+);
+
+const parseChangeSessionEffortPayload = (payload: unknown): ProviderChangeSessionEffortInput => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const effort = readOptionalQueryString((payload as Record<string, unknown>).effort);
+  if (!effort) {
+    throw new AppError('effort is required.', {
+      code: 'EFFORT_REQUIRED',
+      statusCode: 400,
+    });
+  }
+
+  return { sessionId: '', effort };
+};
+
+// Effort mirrors the active-model pair above and stays thin: both ends defer to
+// the resolver, so the precedence rule lives in one place (ADR 0003).
+router.post(
+  '/:provider/sessions/:sessionId/effort',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const payload = parseChangeSessionEffortPayload(req.body);
+    const result = await writeProviderSessionEffortPick(provider, { ...payload, sessionId });
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.get(
+  '/:provider/sessions/:sessionId/effort',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const resolved = await getProviderSessionEffort(provider, sessionId);
+    res.json(createApiSuccessResponse(resolved));
   }),
 );
 

@@ -30,6 +30,20 @@ const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
 
 const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode'];
 
+/**
+ * Holds an effort to what the chosen model actually offers. An explicit
+ * `default` is a standing choice and stays one; anything the model does not
+ * offer falls back to `default` rather than being sent as-is.
+ */
+export const reconcileEffortForAllowedValues = (
+  currentEffort: string,
+  allowedValues: string[],
+): string => {
+  if (allowedValues.length === 0) return DEFAULT_EFFORT_VALUE;
+  if (!currentEffort || currentEffort === DEFAULT_EFFORT_VALUE) return DEFAULT_EFFORT_VALUE;
+  return allowedValues.includes(currentEffort) ? currentEffort : DEFAULT_EFFORT_VALUE;
+};
+
 const readStoredProvider = (): LLMProvider => {
   const storedProvider = localStorage.getItem('selected-provider');
   return PROVIDERS.includes(storedProvider as LLMProvider)
@@ -63,6 +77,14 @@ const FALLBACK_COLLABORATION_MODES: Record<LLMProvider, CollaborationMode[]> = {
 interface UseChatProviderStateArgs {
   selectedSession: ProjectSession | null;
   selectedProject: Project | null;
+  /**
+   * The open session's own model and effort, owned by `SessionStore`. Null
+   * while unresolved or when the session has nothing of its own, which is what
+   * makes the provider-level values below seeds rather than state: they apply
+   * only until the session answers for itself.
+   */
+  sessionModel: string | null;
+  sessionEffort: string | null;
 }
 
 type ProviderModelsApiResponse = {
@@ -88,7 +110,21 @@ type SessionModelApiResponse = {
   };
 };
 
-export function useChatProviderState({ selectedSession, selectedProject: _selectedProject }: UseChatProviderStateArgs) {
+type SessionEffortApiResponse = {
+  success?: boolean;
+  data?: {
+    supported?: boolean;
+    effort?: string | null;
+    source?: 'pick' | 'transcript' | 'default' | 'none';
+  };
+};
+
+export function useChatProviderState({
+  selectedSession,
+  selectedProject: _selectedProject,
+  sessionModel,
+  sessionEffort,
+}: UseChatProviderStateArgs) {
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default');
   const [collaborationMode, setCollaborationMode] = useState<CollaborationMode>('build');
   const [pendingPermissionRequests, setPendingPermissionRequests] = useState<PendingPermissionRequest[]>([]);
@@ -339,22 +375,10 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     targetProvider: LLMProvider,
     model: string,
     currentEffort: string,
-  ): string => {
-    const allowedValues = getAllowedEffortValues(targetProvider, model);
-    if (allowedValues.length === 0) {
-      return DEFAULT_EFFORT_VALUE;
-    }
-
-    if (currentEffort === DEFAULT_EFFORT_VALUE || !currentEffort) {
-      return DEFAULT_EFFORT_VALUE;
-    }
-
-    if (allowedValues.includes(currentEffort)) {
-      return currentEffort;
-    }
-
-    return DEFAULT_EFFORT_VALUE;
-  }, [getAllowedEffortValues]);
+  ): string => reconcileEffortForAllowedValues(
+    currentEffort,
+    getAllowedEffortValues(targetProvider, model),
+  ), [getAllowedEffortValues]);
 
   const providerModels = useMemo<Record<LLMProvider, string>>(() => ({
     claude: claudeModel,
@@ -567,51 +591,6 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   }, [getDefaultPermissionModeForProvider, getPermissionModesForProvider]);
 
   /**
-   * Model the open session runs with, as reported by the backend. Null while no
-   * session is open, or when the backend has nothing recorded for it and only
-   * offered the catalog default — the per-provider selection covers that case.
-   */
-  const [sessionModel, setSessionModel] = useState<string | null>(null);
-
-  useEffect(() => {
-    const sessionId = selectedSession?.id;
-    if (!sessionId) {
-      setSessionModel(null);
-      return;
-    }
-
-    let cancelled = false;
-    const targetProvider = selectedSession?.__provider ?? provider;
-
-    const loadSessionModel = async () => {
-      try {
-        const response = await authenticatedFetch(
-          `/api/providers/${targetProvider}/sessions/${encodeURIComponent(sessionId)}/active-model`,
-        );
-        const body = (await response.json()) as SessionModelApiResponse;
-        if (cancelled) {
-          return;
-        }
-
-        const resolvedModel = body.data?.model?.trim();
-        setSessionModel(
-          body.success && resolvedModel && body.data?.source !== 'default' ? resolvedModel : null,
-        );
-      } catch (error) {
-        if (!cancelled) {
-          console.error('Error loading the session model:', error);
-          setSessionModel(null);
-        }
-      }
-    };
-
-    void loadSessionModel();
-    return () => {
-      cancelled = true;
-    };
-  }, [provider, selectedSession?.__provider, selectedSession?.id]);
-
-  /**
    * Re-seeds a new chat from the default set in Settings, so that default beats
    * the last-used model `selectProviderModel` records. Keyed on the session id
    * rather than running continuously: it fires when a chat is opened or cleared,
@@ -665,9 +644,51 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     }
 
     const storedModel = body.data?.model?.trim() || model;
-    setSessionModel(storedModel);
     return { scope: 'session' as const, model: storedModel };
   }, [setStoredProviderModel]);
+
+  /**
+   * Applies an effort choice.
+   *
+   * Mirrors `selectProviderModel`: the value becomes the per-provider seed so
+   * the next new chat inherits it, and — when a session is open — is recorded
+   * against that session so it survives a reload and stays that session's
+   * alone. A provider without effort support reports it rather than throwing;
+   * its controls are hidden anyway.
+   */
+  const selectProviderEffort = useCallback(async (
+    targetProvider: LLMProvider,
+    effort: string,
+    sessionId?: string | null,
+  ) => {
+    setStoredProviderEffort(targetProvider, effort);
+
+    const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
+    if (!normalizedSessionId) {
+      return { scope: 'default' as const, effort };
+    }
+
+    const response = await authenticatedFetch(
+      `/api/providers/${targetProvider}/sessions/${encodeURIComponent(normalizedSessionId)}/effort`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ effort }),
+      },
+    );
+
+    const body = (await response.json()) as SessionEffortApiResponse;
+    if (!response.ok || !body.success) {
+      throw new Error('Unable to change the reasoning effort for this session.');
+    }
+
+    // A session with no row yet (a brand-new chat before its first send) is not
+    // a failure: the seed still applies, and the promotion runs once the id
+    // exists.
+    const storedEffort = body.data?.effort?.trim();
+    return storedEffort
+      ? { scope: 'session' as const, effort: storedEffort }
+      : { scope: 'default' as const, effort };
+  }, [setStoredProviderEffort]);
 
   // The open session's model wins over the per-provider default, so switching
   // sessions shows (and sends) what each session actually runs with.
@@ -675,13 +696,15 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const currentProviderEffortOptions = useMemo(() => {
     return getEffortOptionsForModel(provider, currentProviderModel);
   }, [currentProviderModel, getEffortOptionsForModel, provider]);
+  // As with the model: the open session's own effort wins over the provider
+  // seed, so switching sessions shows and sends what each one runs with.
   const currentProviderEffort = useMemo(() => {
     return reconcileStoredEffort(
       provider,
       currentProviderModel,
-      providerEfforts[provider] ?? DEFAULT_EFFORT_VALUE,
+      sessionEffort ?? providerEfforts[provider] ?? DEFAULT_EFFORT_VALUE,
     );
-  }, [currentProviderModel, provider, providerEfforts, reconcileStoredEffort]);
+  }, [currentProviderModel, provider, providerEfforts, reconcileStoredEffort, sessionEffort]);
   const currentProviderModelOptions = useMemo(
     () => providerModelCatalog[provider]?.OPTIONS ?? [],
     [provider, providerModelCatalog],
@@ -717,7 +740,9 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     providerModelCatalog,
     providerModelsLoading,
     selectProviderModel,
+    selectProviderEffort,
     setStoredProviderEffort,
+    reconcileStoredEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
     getSupportsForkForProvider,

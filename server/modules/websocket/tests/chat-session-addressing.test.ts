@@ -249,3 +249,110 @@ test('chat.send forwards validated mixed attachments through the runtime contrac
     assert.deepEqual(receivedOptions[0].files, [file]);
   });
 });
+
+/**
+ * Effort reaching the runtime is a session-scoped decision, not a client one.
+ *
+ * The composer sends an effort only when it knows the open session's own, so
+ * the gateway has to fill the gap from the session's stored pick rather than
+ * letting the runtime fall back to a provider default — otherwise omitting the
+ * value to avoid leaking one session's effort would silently discard it.
+ */
+test('chat.send resolves the session\'s own effort when the client sends none', async () => {
+  await withIsolatedDatabase(async () => {
+    const appSessionId = 'app-effort-1';
+    sessionsDb.createAppSession(appSessionId, 'claude', '/workspace/demo');
+    sessionsDb.setSessionEffortPick(appSessionId, 'claude', 'medium', new Date().toISOString());
+
+    const efforts: Array<unknown> = [];
+    const dependencies: ChatDependencies = {
+      runtime: {
+        hasRuntime: () => true,
+        run: async (_provider, _command, options) => {
+          efforts.push(options.effort);
+        },
+        abort: async () => true,
+        resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+        getPendingApprovalsForSession: () => [],
+      },
+    };
+
+    const connection = new FakeConnection();
+    handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+
+    connection.emit('message', JSON.stringify({
+      type: 'chat.send',
+      sessionId: appSessionId,
+      content: 'work on this',
+    }));
+    await flush();
+
+    assert.deepEqual(efforts, ['medium']);
+  });
+});
+
+test('chat.send keeps an effort the client did send', async () => {
+  await withIsolatedDatabase(async () => {
+    const appSessionId = 'app-effort-2';
+    sessionsDb.createAppSession(appSessionId, 'claude', '/workspace/demo');
+    sessionsDb.setSessionEffortPick(appSessionId, 'claude', 'medium', new Date().toISOString());
+
+    const efforts: Array<unknown> = [];
+    const dependencies: ChatDependencies = {
+      runtime: {
+        hasRuntime: () => true,
+        run: async (_provider, _command, options) => {
+          efforts.push(options.effort);
+        },
+        abort: async () => true,
+        resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+        getPendingApprovalsForSession: () => [],
+      },
+    };
+
+    const connection = new FakeConnection();
+    handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+
+    connection.emit('message', JSON.stringify({
+      type: 'chat.send',
+      sessionId: appSessionId,
+      content: 'work on this',
+      options: { effort: 'high' },
+    }));
+    await flush();
+
+    assert.deepEqual(efforts, ['high'], 'an explicit client effort is not second-guessed');
+  });
+});
+
+test('chat.send leaves effort unset for a session that has none', async () => {
+  await withIsolatedDatabase(async () => {
+    const appSessionId = 'app-effort-3';
+    sessionsDb.createAppSession(appSessionId, 'claude', '/workspace/demo');
+
+    const efforts: Array<unknown> = [];
+    const dependencies: ChatDependencies = {
+      runtime: {
+        hasRuntime: () => true,
+        run: async (_provider, _command, options) => {
+          efforts.push(options.effort);
+        },
+        abort: async () => true,
+        resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+        getPendingApprovalsForSession: () => [],
+      },
+    };
+
+    const connection = new FakeConnection();
+    handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+
+    connection.emit('message', JSON.stringify({
+      type: 'chat.send',
+      sessionId: appSessionId,
+      content: 'work on this',
+    }));
+    await flush();
+
+    assert.deepEqual(efforts, [undefined], 'nothing recorded means the provider default applies');
+  });
+});

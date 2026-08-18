@@ -180,6 +180,8 @@
     "model": "Model",
     "permissions": "Permissions",
     "effortDefault": "Default",
+    "settingsChangeCacheNotice": "Changing model or effort may reduce cached-input reuse on the next turn.",
+    "dismissNotice": "Dismiss",
     "loadingModels": "Loading models…",
     "modelMenu": "Select model and reasoning effort",
     "provider": "Provider",

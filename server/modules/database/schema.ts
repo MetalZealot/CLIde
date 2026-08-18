@@ -130,6 +130,16 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- above the transcript; ADR 0025 takes the column and keeps our precedence.
     model TEXT,
     model_updated_at DATETIME,
+    -- The reasoning effort the user last explicitly picked for this session,
+    -- and when. Same nature and same precedence as \`model\` above: a desire, not
+    -- a record of what ran, so it only outranks the provider's own turn
+    -- evidence while it is at least as recent (ADR 0003). Both columns stay
+    -- NULL for a session that has never had an effort picked, or whose provider
+    -- has no effort control at all. The literal \`default\` is a real stored
+    -- value meaning "send no effort override", which is not the same as NULL
+    -- meaning "never chosen".
+    effort TEXT,
+    effort_updated_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (session_id),

@@ -455,6 +455,27 @@ const addSessionModelColumns = (db: Database): { addedModelColumn: boolean } => 
   return { addedModelColumn };
 };
 
+/**
+ * Adds the per-session reasoning-effort columns.
+ *
+ * Effort follows the same storage shape as the model pick above, for the same
+ * reason: the stored value is what the user asked for, and `effort_updated_at`
+ * is the only thing that can settle a disagreement with a later provider turn
+ * (ADR 0003). Both are ours — upstream has no effort column.
+ *
+ * There is nothing to import. Before this change effort lived in the browser's
+ * localStorage under `<provider>-effort`, one value per provider rather than
+ * per session, so no on-disk record of a *session's* effort exists to migrate.
+ * The provider-level value keeps its client-side job of seeding a fresh chat.
+ */
+const addSessionEffortColumns = (db: Database): void => {
+  const sessionsTableInfo = getTableInfo(db, 'sessions');
+  const columnNames = sessionsTableInfo.map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'effort', 'TEXT');
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'effort_updated_at', 'DATETIME');
+};
+
 type LegacyActiveModelChangeEntry = {
   provider?: unknown;
   sessionId?: unknown;
@@ -580,6 +601,7 @@ export const runMigrations = (db: Database) => {
     if (addSessionModelColumns(db).addedModelColumn) {
       importLegacySessionModelPicks(db);
     }
+    addSessionEffortColumns(db);
     ensureProjectsForSessionPaths(db);
 
     db.exec(SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL);
