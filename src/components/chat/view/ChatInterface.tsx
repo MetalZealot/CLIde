@@ -82,6 +82,11 @@ function ChatInterface({
     accumulatedStreamRef.current = '';
   }, []);
 
+  const settingsSessionId = selectedSession?.id ?? null;
+  const settingsSlot = settingsSessionId
+    ? sessionStore.getSessionSlot(settingsSessionId)
+    : undefined;
+
   const {
     provider,
     selectProvider,
@@ -101,13 +106,17 @@ function ChatInterface({
     togglePermissionMode,
     providerModelsLoading,
     selectProviderModel,
-    setStoredProviderEffort,
+    selectProviderEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
     getSupportsForkForProvider,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
+    // SessionStore is the single owner of both; the provider-level values in
+    // the hook are only seeds for a chat that has no session of its own yet.
+    sessionModel: settingsSlot?.model ?? null,
+    sessionEffort: settingsSlot?.effort ?? null,
   });
 
   const {
@@ -154,9 +163,24 @@ function ChatInterface({
   // in the URL — this id never changes again, so there is no later handoff.
   const handleSessionEstablished = useCallback<NonNullable<ChatInterfaceProps['onSessionEstablished']>>((sessionId, context) => {
     setCurrentSessionId(sessionId);
+    // Until this id existed the chat ran on the provider seed. Hand that effort
+    // to the session now, so the conversation keeps what it started with when
+    // the seed later moves on with some other chat.
+    sessionStore.setEffort(sessionId, currentProviderEffort);
+    void selectProviderEffort(provider, currentProviderEffort, sessionId).catch((error) => {
+      console.error('Error recording the initial reasoning effort:', error);
+    });
     onSessionEstablished?.(sessionId, context);
     onNavigateToSession?.(sessionId);
-  }, [setCurrentSessionId, onSessionEstablished, onNavigateToSession]);
+  }, [
+    currentProviderEffort,
+    onNavigateToSession,
+    onSessionEstablished,
+    provider,
+    selectProviderEffort,
+    sessionStore,
+    setCurrentSessionId,
+  ]);
 
   const {
     input,
@@ -273,6 +297,28 @@ function ChatInterface({
     }
     return result;
   }, [selectProviderModel, sessionStore]);
+
+  const handleSelectComposerEffort = useCallback(async (nextEffort: string) => {
+    const sessionId = currentSessionId || selectedSession?.id || null;
+    const previousEffort = sessionId
+      ? sessionStore.getSessionSlot(sessionId)?.effort ?? null
+      : null;
+
+    // Move the control now: a round-trip's worth of lag on an effort choice
+    // reads as a dropped input.
+    if (sessionId) {
+      sessionStore.setEffort(sessionId, nextEffort);
+    }
+
+    try {
+      await selectProviderEffort(provider, nextEffort, sessionId);
+    } catch (error) {
+      console.error('Error changing the reasoning effort:', error);
+      if (sessionId) {
+        sessionStore.setEffort(sessionId, previousEffort);
+      }
+    }
+  }, [currentSessionId, provider, selectProviderEffort, selectedSession?.id, sessionStore]);
 
   const handleSelectComposerModel = useCallback(async (model: string) => {
     await handleSelectProviderModel(provider, model, currentSessionId || selectedSession?.id || null);
@@ -510,7 +556,7 @@ function ChatInterface({
             onSelectProvider={canSelectProvider ? selectProvider : null}
             effort={currentProviderEffort}
             availableEffortOptions={currentProviderEffortOptions}
-            onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
+            onSelectEffort={handleSelectComposerEffort}
             model={currentProviderModel}
             availableModelOptions={currentProviderModelOptions}
             onSelectModel={handleSelectComposerModel}

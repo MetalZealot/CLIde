@@ -407,3 +407,168 @@ describe('sessionMessageReconciliation', () => {
     assert.deepEqual(removeOptimisticUserEchoes([persisted], [local]), []);
   });
 });
+
+describe('useSessionStore.sessionSettings', () => {
+  /**
+   * One owner for a session's model and effort.
+   *
+   * Effort used to live in localStorage under `<provider>-effort`, one value
+   * per provider, so every session on a provider displayed and sent whatever
+   * the last one picked. These assert the replacement: a value reaches a slot
+   * only when the backend says it belongs to that session.
+   */
+  const SESSION_A = 'session-a';
+  const SESSION_B = 'session-b';
+
+  type SettingsResponse = { model?: unknown; effort?: unknown };
+
+  let requestedUrls: string[];
+  let responses: Map<string, SettingsResponse>;
+  let originalFetch: typeof globalThis.fetch;
+  let container: HTMLElement;
+  let root: Root;
+  let store: SessionStore;
+
+  const jsonResponse = (data: unknown) =>
+    ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ success: true, data }),
+    }) as unknown as Response;
+
+  const respondFor = (url: string): Response => {
+    const key = url.includes('/active-model') ? 'model' : 'effort';
+    const sessionId = url.includes(SESSION_B) ? SESSION_B : SESSION_A;
+    const configured = responses.get(`${sessionId}:${key}`) ?? {};
+    return jsonResponse(configured);
+  };
+
+  beforeEach(async () => {
+    requestedUrls = [];
+    responses = new Map();
+
+    originalFetch = globalThis.fetch;
+    Object.defineProperty(globalThis, 'fetch', {
+      value: async (url: string) => {
+        requestedUrls.push(url);
+        return respondFor(url);
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    const Probe = () => {
+      store = useSessionStore();
+      store.setActiveSession(SESSION_A);
+      return null;
+    };
+
+    await React.act(async () => {
+      root.render(React.createElement(Probe, null));
+    });
+  });
+
+  afterEach(async () => {
+    await React.act(async () => {
+      root.unmount();
+    });
+    container.remove();
+    Object.defineProperty(globalThis, 'fetch', {
+      value: originalFetch,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  const fetchSettings = async (sessionId: string) => {
+    await React.act(async () => {
+      await store.fetchSessionSettings(sessionId, 'claude');
+    });
+  };
+
+  test('one fetch fills both the model and the effort for a session', async () => {
+    responses.set(`${SESSION_A}:model`, { model: 'opus', source: 'pick' });
+    responses.set(`${SESSION_A}:effort`, { effort: 'medium', source: 'pick' });
+
+    await fetchSettings(SESSION_A);
+
+    const slot = store.getSessionSlot(SESSION_A)!;
+    assert.equal(slot.model, 'opus');
+    assert.equal(slot.effort, 'medium');
+    assert.equal(slot.effortSource, 'pick');
+    assert.equal(slot.effortStatus, 'idle');
+  });
+
+  test('effort recorded by the provider transcript is session-scoped too', async () => {
+    responses.set(`${SESSION_A}:effort`, { effort: 'xhigh', source: 'transcript' });
+
+    await fetchSettings(SESSION_A);
+
+    assert.equal(store.getSessionSlot(SESSION_A)!.effort, 'xhigh');
+    assert.equal(store.getSessionSlot(SESSION_A)!.effortSource, 'transcript');
+  });
+
+  test('a backend fallback is not adopted as the session\'s own', async () => {
+    responses.set(`${SESSION_A}:model`, { model: 'sonnet', source: 'default' });
+    responses.set(`${SESSION_A}:effort`, { effort: 'high', source: 'default' });
+
+    await fetchSettings(SESSION_A);
+
+    // Storing the fallback would feed it back into the send path and override
+    // the user's own provider-level choice.
+    const slot = store.getSessionSlot(SESSION_A)!;
+    assert.equal(slot.model, null);
+    assert.equal(slot.effort, null);
+    assert.equal(slot.effortSource, null);
+  });
+
+  test('two sessions hold their own effort', async () => {
+    responses.set(`${SESSION_A}:effort`, { effort: 'medium', source: 'pick' });
+    responses.set(`${SESSION_B}:effort`, { effort: 'high', source: 'pick' });
+
+    await fetchSettings(SESSION_A);
+    await fetchSettings(SESSION_B);
+
+    assert.equal(store.getSessionSlot(SESSION_A)!.effort, 'medium');
+    assert.equal(store.getSessionSlot(SESSION_B)!.effort, 'high');
+  });
+
+  test('a cached settings read is reused, and a cleared effort is refetched', async () => {
+    responses.set(`${SESSION_A}:model`, { model: 'opus', source: 'pick' });
+    responses.set(`${SESSION_A}:effort`, { effort: 'medium', source: 'pick' });
+
+    await fetchSettings(SESSION_A);
+    const afterFirst = requestedUrls.length;
+
+    await fetchSettings(SESSION_A);
+    assert.equal(requestedUrls.length, afterFirst, 'a fresh slot should not refetch');
+
+    // Rolling back a failed write has to look unresolved again, or the TTL
+    // suppresses the very refetch that would restore the real value.
+    await React.act(async () => {
+      store.setEffort(SESSION_A, null);
+    });
+    responses.set(`${SESSION_A}:effort`, { effort: 'high', source: 'pick' });
+    await fetchSettings(SESSION_A);
+
+    assert.equal(store.getSessionSlot(SESSION_A)!.effort, 'high');
+    assert.ok(
+      requestedUrls.filter((url) => url.includes('/effort')).length > 1,
+      'a cleared effort should be refetched',
+    );
+  });
+
+  test('an optimistic effort is owned by its own session', async () => {
+    await React.act(async () => {
+      store.setEffort(SESSION_A, 'max');
+    });
+
+    assert.equal(store.getSessionSlot(SESSION_A)!.effort, 'max');
+    assert.equal(store.getSessionSlot(SESSION_B)?.effort ?? null, null);
+  });
+});

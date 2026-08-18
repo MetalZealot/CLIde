@@ -1,8 +1,10 @@
 # Per-session effort follows the conversation
 
-- Status: phase 1 done
-- Next: phase 2 — make `SessionSlot` the one owner of model and effort, and
-  remove the duplicate `/active-model` fetch in `useChatProviderState`.
+- Status: phases 1-2 done, unverified in the app
+- Next: phase 3 — separate drag preview from pointer-release commit, reconcile
+  a stored effort a model change invalidates, snapshot effort into queued
+  turns, and show the cache-reuse notice. The thin read/write effort routes
+  landed early in phase 2; the client store had nothing to read without them.
 - Context: [session/model anchors](../maps/code-anchors.md);
   [provider capabilities](../maps/clide-provider-capability-map.md);
   [ADR 0003](../decisions/0003-per-session-model-tracking.md);
@@ -20,7 +22,7 @@
       turn evidence must report only the stored request or provider default,
       never invent effective state. Cursor remains unsupported through the
       capability contract.
-- [ ] **2. Make one client store own model and effort.** Extend `SessionSlot`
+- [x] **2. Make one client store own model and effort.** Extend `SessionSlot`
       with effort value, source, loading state, and fetch timestamp; remove the
       duplicate active-model fetch in `useChatProviderState` at the same time
       so display and send read one session-settings owner. Keep provider-level

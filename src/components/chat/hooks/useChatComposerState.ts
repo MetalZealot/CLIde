@@ -885,10 +885,16 @@ export function useChatComposerState({
     // leaked model choices across sessions.
     const sessionSlotModel = sessionKey ? sessionStore.getSlot(sessionKey)?.model : null;
     const model = sessionSlotModel ?? (sessionKey ? undefined : currentProviderModel);
+    // Effort follows the model exactly: an existing session sends its own, or
+    // nothing at all so the server resolves from its pick/transcript. Sending
+    // the provider-level value here is what leaked one session's effort onto
+    // every other session of that provider.
+    const sessionSlotEffort = sessionKey ? sessionStore.getSlot(sessionKey)?.effort : null;
+    const effort = sessionSlotEffort ?? (sessionKey ? undefined : currentProviderEffort);
 
     return {
       model,
-      effort: currentProviderEffort,
+      effort,
       permissionMode: resolvePermissionModeForProvider(provider, permissionMode),
       ...(collaborationMode ? { collaborationMode } : {}),
       toolsSettings,

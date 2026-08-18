@@ -130,6 +130,16 @@ export interface SessionSlot {
   model: string | null;
   modelStatus: 'idle' | 'loading' | 'error';
   modelFetchedAt: number;
+  /**
+   * Reasoning effort this session runs at, and where that came from. Null until
+   * the backend resolves it, and null afterwards when nothing session-scoped
+   * exists — the composer's provider-level seed covers both, and storing the
+   * seed here would make one session's choice look like every session's.
+   */
+  effort: string | null;
+  effortSource: 'pick' | 'transcript' | null;
+  effortStatus: 'idle' | 'loading' | 'error';
+  effortFetchedAt: number;
 }
 
 const EMPTY: NormalizedMessage[] = [];
@@ -150,6 +160,10 @@ function createEmptySlot(): SessionSlot {
     model: null,
     modelStatus: 'idle',
     modelFetchedAt: 0,
+    effort: null,
+    effortSource: null,
+    effortStatus: 'idle',
+    effortFetchedAt: 0,
     _fetchSeq: 0,
     _appliedFetchSeq: 0,
   };
@@ -160,9 +174,9 @@ function createEmptySlot(): SessionSlot {
  * assistant echo (same trimmed text), so finalized stream rows do not stack
  * on top of the persisted copy before realtime is cleared.
  */
-// Reading a session's active model can mean parsing its whole transcript
+// Reading a session's model or effort can mean parsing its whole transcript
 // server-side, so a fresh-enough cached value is reused on session switches.
-const MODEL_FETCH_TTL_MS = 30_000;
+const SETTINGS_FETCH_TTL_MS = 30_000;
 
 function readMessageTime(m: NormalizedMessage): number | null {
   const time = Date.parse(m.timestamp);
@@ -735,40 +749,83 @@ export function useSessionStore() {
   }, [notify]);
 
   /**
-   * Fetch and cache the active model for a session.
+   * Fetch and cache one session's own model and effort.
+   *
+   * Both come from the same question — what is this session set to run with —
+   * so they are fetched together and cached under one TTL. This store is their
+   * only owner: a second fetch elsewhere is how display and send came to
+   * disagree about the model.
    */
-  const fetchModel = useCallback(async (sessionId: string, provider: LLMProvider) => {
+  const fetchSessionSettings = useCallback(async (sessionId: string, provider: LLMProvider) => {
     const slot = getSlot(sessionId);
-    if (
-      slot.modelStatus === 'loading'
-      || (slot.model && Date.now() - slot.modelFetchedAt < MODEL_FETCH_TTL_MS)
-    ) {
+    const modelIsFresh = slot.modelStatus === 'loading'
+      || (slot.model && Date.now() - slot.modelFetchedAt < SETTINGS_FETCH_TTL_MS);
+    const effortIsFresh = slot.effortStatus === 'loading'
+      || (slot.effort && Date.now() - slot.effortFetchedAt < SETTINGS_FETCH_TTL_MS);
+    if (modelIsFresh && effortIsFresh) {
       return slot;
     }
 
-    slot.modelStatus = 'loading';
+    if (!modelIsFresh) {
+      slot.modelStatus = 'loading';
+    }
+    if (!effortIsFresh) {
+      slot.effortStatus = 'loading';
+    }
     notify(sessionId);
-    try {
-      const response = await authenticatedFetch(
-        `/api/providers/${provider}/sessions/${sessionId}/active-model`,
-      );
-      const body = await response.json();
-      if (body.success && body.data?.model) {
-        // Only a genuinely session-scoped model (a stored pick or the session's
-        // own transcript) may become this session's model. A `default` source is
-        // a global fallback; storing it would feed it back into the send path
-        // and override the user's provider-level choice.
-        const isSessionScoped = body.data.source === 'pick' || body.data.source === 'transcript';
-        slot.model = isSessionScoped ? body.data.model : null;
-        slot.modelStatus = 'idle';
-        slot.modelFetchedAt = Date.now();
-      } else {
+
+    const loadModel = async () => {
+      if (modelIsFresh) return;
+      try {
+        const response = await authenticatedFetch(
+          `/api/providers/${provider}/sessions/${sessionId}/active-model`,
+        );
+        const body = await response.json();
+        if (body.success && body.data?.model) {
+          // Only a genuinely session-scoped model (a stored pick or the session's
+          // own transcript) may become this session's model. A `default` source is
+          // a global fallback; storing it would feed it back into the send path
+          // and override the user's provider-level choice.
+          const isSessionScoped = body.data.source === 'pick' || body.data.source === 'transcript';
+          slot.model = isSessionScoped ? body.data.model : null;
+          slot.modelStatus = 'idle';
+          slot.modelFetchedAt = Date.now();
+        } else {
+          slot.modelStatus = 'error';
+        }
+      } catch (error) {
+        console.error(`[SessionStore] model fetch failed for ${sessionId}:`, error);
         slot.modelStatus = 'error';
       }
-    } catch (error) {
-      console.error(`[SessionStore] fetchModel failed for ${sessionId}:`, error);
-      slot.modelStatus = 'error';
-    }
+    };
+
+    const loadEffort = async () => {
+      if (effortIsFresh) return;
+      try {
+        const response = await authenticatedFetch(
+          `/api/providers/${provider}/sessions/${sessionId}/effort`,
+        );
+        const body = await response.json();
+        if (body.success) {
+          // Same rule as the model: only a pick or the provider's own turn
+          // evidence is this session's. Anything else leaves the slot empty so
+          // the composer keeps showing the provider seed.
+          const source = body.data?.source;
+          const isSessionScoped = source === 'pick' || source === 'transcript';
+          slot.effort = isSessionScoped ? body.data?.effort ?? null : null;
+          slot.effortSource = isSessionScoped ? source : null;
+          slot.effortStatus = 'idle';
+          slot.effortFetchedAt = Date.now();
+        } else {
+          slot.effortStatus = 'error';
+        }
+      } catch (error) {
+        console.error(`[SessionStore] effort fetch failed for ${sessionId}:`, error);
+        slot.effortStatus = 'error';
+      }
+    };
+
+    await Promise.all([loadModel(), loadEffort()]);
     notify(sessionId);
     return slot;
   }, [getSlot, notify]);
@@ -781,6 +838,21 @@ export function useSessionStore() {
     slot.model = model;
     slot.modelFetchedAt = Date.now();
     slot.modelStatus = 'idle';
+    notify(sessionId);
+  }, [getSlot, notify]);
+
+  /**
+   * Optimistically set the effort for a session, after the user picks one or
+   * after a fresh chat's seed is promoted onto its new session id.
+   */
+  const setEffort = useCallback((sessionId: string, effort: string | null) => {
+    const slot = getSlot(sessionId);
+    slot.effort = effort;
+    slot.effortSource = effort ? 'pick' : null;
+    // A cleared effort has to look unresolved again, not freshly fetched, or the
+    // TTL suppresses the refetch that would restore the real value.
+    slot.effortFetchedAt = effort ? Date.now() : 0;
+    slot.effortStatus = 'idle';
     notify(sessionId);
   }, [getSlot, notify]);
 
@@ -895,8 +967,9 @@ export function useSessionStore() {
     clearRealtime,
     getMessages,
     getSessionSlot,
-    fetchModel,
+    fetchSessionSettings,
     setModel,
+    setEffort,
     patchToolResult,
     truncateFromMessageId,
     retractUndeliveredUserTurn,
@@ -904,7 +977,8 @@ export function useSessionStore() {
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
-    clearRealtime, getMessages, getSessionSlot, fetchModel, setModel, patchToolResult,
+    clearRealtime, getMessages, getSessionSlot, fetchSessionSettings, setModel, setEffort,
+    patchToolResult,
     truncateFromMessageId, retractUndeliveredUserTurn,
   ]);
 }

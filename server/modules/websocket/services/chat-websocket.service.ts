@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { WebSocket } from 'ws';
 
 import { sessionsDb } from '@/modules/database/index.js';
-import { providerCapabilitiesService } from '@/modules/providers/index.js';
+import { getProviderSessionEffort, providerCapabilitiesService } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import {
@@ -236,8 +236,20 @@ async function handleChatSend(
   // Brand-new sessions have no provider id yet, so the runtime starts fresh
   // and announces one, which the gateway writer captures and maps back to the
   // app session id.
+  // The composer sends an effort only when it knows this session's own; an
+  // unresolved one omits it rather than leaking the provider-level seed that
+  // every session on a provider shares. Resolve the gap here, from the stored
+  // pick weighed against the provider's own turn evidence.
+  const clientEffort = typeof clientOptions.effort === 'string' && clientOptions.effort.trim()
+    ? clientOptions.effort.trim()
+    : null;
+  const resolvedEffort = clientEffort
+    ?? (await getProviderSessionEffort(provider, sessionId)).effort
+    ?? undefined;
+
   const runtimeOptions: AnyRecord = {
     ...clientOptions,
+    effort: resolvedEffort,
     // Attachments are re-validated server-side: only direct children of the
     // global upload store may reach provider runtimes or their file tools.
     attachments: uniqueAttachments,

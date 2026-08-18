@@ -846,13 +846,13 @@ export function useChatSessionState({
     fetchInitialTokenUsage();
   }, [selectedSession?.id]);
 
-  // Fetch the active model for this session on switch.
+  // Fetch this session's own model and effort on switch.
   useEffect(() => {
     if (!selectedProject || !selectedSession?.id) {
       return;
     }
     const provider = selectedSession.__provider ?? 'claude';
-    sessionStore.fetchModel(selectedSession.id, provider);
+    sessionStore.fetchSessionSettings(selectedSession.id, provider);
   }, [selectedProject, selectedSession?.id, selectedSession?.__provider, sessionStore]);
 
   const visibleMessages = useMemo(() => {
