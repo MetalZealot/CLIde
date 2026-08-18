@@ -1,8 +1,8 @@
 # Per-session effort follows the conversation
 
-- Status: not started
-- Next: add the durable effort fields and provider-neutral requested/effective
-  resolver, with database and service tests, before changing the composer.
+- Status: phase 1 done
+- Next: phase 2 — make `SessionSlot` the one owner of model and effort, and
+  remove the duplicate `/active-model` fetch in `useChatProviderState`.
 - Context: [session/model anchors](../maps/code-anchors.md);
   [provider capabilities](../maps/clide-provider-capability-map.md);
   [ADR 0003](../decisions/0003-per-session-model-tracking.md);
@@ -10,7 +10,7 @@
 
 ## Phases
 
-- [ ] **1. Give effort durable session ownership.** Add nullable `effort` and
+- [x] **1. Give effort durable session ownership.** Add nullable `effort` and
       `effort_updated_at` columns through the schema and migration system, plus
       provider-scoped repository reads and writes. Add provider-neutral
       requested/effective effort types and a resolver with the same recency
