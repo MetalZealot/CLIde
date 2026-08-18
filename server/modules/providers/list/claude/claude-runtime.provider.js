@@ -31,6 +31,7 @@ import {
 import {
   captureClaudeContextUsage,
   getClaudeContextCeiling,
+  loadClaudeContextCeiling,
 } from '@/modules/providers/list/claude/claude-context-usage.js';
 import { CLAUDE_FALLBACK_MODELS } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { normalizeClaudeRateLimitEvent } from '@/modules/providers/list/claude/claude-usage.provider.js';
@@ -827,6 +828,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     if (sessionKey()) {
       addSession(sessionKey(), queryInstance, ws);
     }
+
+    // Frames resolve their ceiling from memory only, which a restart empties
+    // while the session's last reading is still on disk. One read here keeps a
+    // resumed session on its real threshold from the first frame instead of
+    // falling back to the derived window until a capture lands. A reading from
+    // before a model switch is superseded by the first capture of this run.
+    await loadClaudeContextCeiling(capturedSessionId);
 
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
