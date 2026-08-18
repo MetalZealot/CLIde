@@ -82,6 +82,10 @@ test('token usage lookup requires only the app-facing session id for Claude', as
       cacheTokens: 25,
       autoCompactThreshold: undefined,
       isAutoCompactEnabled: undefined,
+      // No cap set in this environment, so the ceiling is the model's own.
+      ceilingSource: 'auto',
+      ceilingCap: undefined,
+      modelContextWindow: undefined,
       breakdown: { input: 125, output: 30 },
     });
   } finally {

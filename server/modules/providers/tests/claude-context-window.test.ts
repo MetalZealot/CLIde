@@ -11,6 +11,7 @@ import {
   CLAUDE_MODEL_ID_ALIASES,
   normalizeClaudeModelId,
   resetClaudeContextWindowCache,
+  resolveClaudeCeilingProvenance,
   resolveClaudeContextCeiling,
   resolveClaudeModelContextSpec,
 } from '@/modules/providers/list/claude/claude-context-window.js';
@@ -354,4 +355,30 @@ test('the version pair is written once and rewritten only when it moves', async 
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('provenance names the cap in force and the model window behind it', () => {
+  withoutEnv(['CLAUDE_CODE_AUTO_COMPACT_WINDOW', 'CLAUDE_CODE_DISABLE_1M_CONTEXT'], () => {
+    resetClaudeContextWindowCache();
+    // No settings file: nothing caps the window, which is what `auto` means.
+    const auto = resolveClaudeCeilingProvenance({
+      model: 'claude-opus-5',
+      settingsPath: path.join(os.tmpdir(), 'clide-no-such-settings.json'),
+    });
+    assert.equal(auto.source, 'auto');
+    assert.equal(auto.cap, undefined);
+    assert.equal(auto.modelWindow, 1_000_000);
+
+    // The env cap outranks settings, and the model window is reported beside it
+    // so a capped 1M model can never be shown as a 200K one.
+    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '200000';
+    try {
+      const capped = resolveClaudeCeilingProvenance({ model: 'claude-opus-5' });
+      assert.equal(capped.source, 'env');
+      assert.equal(capped.cap, 200_000);
+      assert.equal(capped.modelWindow, 1_000_000);
+    } finally {
+      delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
+    }
+  });
 });

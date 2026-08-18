@@ -1,7 +1,7 @@
 # Auto-compact is visible and its numbers are honest
 
-- Status: 1/3
-- Next: phase 2 — derive the ceiling's source locally and label it
+- Status: 2/3
+- Next: phase 3 — auto-compact settable in Settings → Agent
 - Context: [code anchors](../maps/code-anchors.md), [Claude Code settings surface audit](../maps/2026-07-28-claude-code-settings-surface-audit.md)
 
 The ring has two sources for its ceiling and silently swaps between them. The
@@ -22,7 +22,7 @@ Showing the cap and the model's window as two numbers is what makes that legible
       restarted server streams the fallback until a fresh mid-turn capture lands
       — while a valid reading sits on disk. Warm it once per run with
       `loadClaudeContextCeiling`.
-- [ ] 2. The popover says where its number came from. Retire the `· Auto` tag:
+- [x] 2. The popover says where its number came from. Retire the `· Auto` tag:
       it reports only that auto-compact is *enabled*, while `/autocompact` uses
       "auto" for "no user setting" — so it read as "Claude's auto value" with a
       user override in force. Carry Claude Code's own source instead (`from

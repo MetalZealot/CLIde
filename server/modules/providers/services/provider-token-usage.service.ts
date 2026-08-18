@@ -10,7 +10,9 @@ import { loadClaudeContextCeiling } from '@/modules/providers/list/claude/claude
 import {
   normalizeClaudeModelId,
   readClaudeContextWindowOverride,
+  resolveClaudeCeilingProvenance,
   resolveClaudeContextCeiling,
+  toCeilingProvenanceFields,
 } from '@/modules/providers/list/claude/claude-context-window.js';
 import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
@@ -29,6 +31,7 @@ type ProviderTokenUsageServiceDependencies = {
   readTextFile: (filePath: string) => Promise<string>;
   /** `CONTEXT_WINDOW`, which outranks every derived ceiling when set. */
   readClaudeContextWindowOverride: () => number | undefined;
+  readClaudeCeilingProvenance: typeof resolveClaudeCeilingProvenance;
   /** The SDK's own reading for a session, cached per provider-native id. */
   loadClaudeContextCeiling: typeof loadClaudeContextCeiling;
   /** Model-table fallback for history reads and post-restart sessions. */
@@ -71,6 +74,7 @@ const defaultDependencies: ProviderTokenUsageServiceDependencies = {
   readDirectory: (directoryPath) => fsp.readdir(directoryPath, { withFileTypes: true }),
   readTextFile: (filePath) => fsp.readFile(filePath, 'utf8'),
   readClaudeContextWindowOverride,
+  readClaudeCeilingProvenance: resolveClaudeCeilingProvenance,
   loadClaudeContextCeiling,
   resolveClaudeContextCeiling,
   getChangedActiveModel: (sessionId) => providerModelsService.getChangedActiveModel('claude', sessionId),
@@ -437,6 +441,7 @@ export function createProviderTokenUsageService(
         cacheTokens: usage.cacheReadTokens + usage.cacheCreationTokens,
         autoCompactThreshold: sdkCeiling?.autoCompactThreshold,
         isAutoCompactEnabled: sdkCeiling?.isAutoCompactEnabled,
+        ...toCeilingProvenanceFields(dependencies.readClaudeCeilingProvenance({ model: ceilingModel })),
         breakdown: { input: usage.inputTokens, output: usage.outputTokens },
       };
     },

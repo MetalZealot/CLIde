@@ -348,13 +348,23 @@ export default function TokenUsageSummary({
     : undefined;
   const creditMarkerVisible = creditsAreAvailable(providerUsage?.credits);
   const managementUrl = usageProvider ? PROVIDER_USAGE_MANAGEMENT_URLS[usageProvider] : undefined;
-  const autoCompactStatus = provider === 'claude'
-    && usage?.isAutoCompactEnabled === true
-    && autoCompactThreshold > 0
-    ? ' · Auto'
-    : provider === 'claude' && usage?.isAutoCompactEnabled === false
-      ? ' · Auto off'
-      : '';
+  // Claude's own vocabulary: "auto" means no cap is configured, NOT "auto-compact
+  // is enabled". Reporting the enabled flag under that word read as Claude's own
+  // window while a user cap was in force, hiding an 80% cut. Name the source.
+  const ceilingSource = typeof usage?.ceilingSource === 'string' ? usage.ceilingSource : null;
+  const ceilingCap = readUsageNumber(usage?.ceilingCap);
+  const modelContextWindow = readUsageNumber(usage?.modelContextWindow);
+  const isCapped = ceilingCap > 0 && modelContextWindow > 0 && ceilingCap < modelContextWindow;
+  const CEILING_SOURCE_LABELS: Record<string, string> = {
+    auto: ' · auto',
+    settings: ' · from settings',
+    env: ' · from environment',
+  };
+  const autoCompactStatus = provider !== 'claude' || !hasMeasuredCeiling
+    ? ''
+    : usage?.isAutoCompactEnabled === false
+      ? ' · auto-compact off'
+      : (ceilingSource && CEILING_SOURCE_LABELS[ceilingSource]) ?? '';
 
   const title =
     fraction === null || !hasMeasuredCeiling
@@ -362,7 +372,9 @@ export default function TokenUsageSummary({
       : compactsAutomatically
         ? `${usedTokens.toLocaleString()} / ${autoCompactThreshold.toLocaleString()} tokens before auto-compact (${Math.round(
             Math.min(fraction, 1) * 100,
-          )}%)\nAuto-compact rewrites the conversation here. Window: ${contextWindow.toLocaleString()}.`
+          )}%)\nAuto-compact rewrites the conversation here. Window: ${contextWindow.toLocaleString()}${
+            isCapped ? `, capped from the model's ${modelContextWindow.toLocaleString()}` : ''
+          }.`
         : `${usedTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${Math.round(
             Math.min(fraction, 1) * 100,
           )}% of context window)`;
@@ -470,6 +482,11 @@ export default function TokenUsageSummary({
                     </button>
                   )}
                 </div>
+                {isCapped && (
+                  <div className="text-xs text-muted-foreground">
+                    {`capped at ${ceilingCap.toLocaleString()} · model window ${modelContextWindow.toLocaleString()}`}
+                  </div>
+                )}
               </section>
 
               {planWindows.map((window) => {

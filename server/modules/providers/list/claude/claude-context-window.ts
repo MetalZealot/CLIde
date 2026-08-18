@@ -267,3 +267,65 @@ export const resolveClaudeContextCeiling = (
     ? Math.max(0, window - LONG_CONTEXT_RESERVE)
     : window;
 };
+
+/** Where the auto-compact window in force came from, in Claude Code's order. */
+export type ClaudeCeilingSource = 'env' | 'settings' | 'auto';
+
+export type ClaudeCeilingProvenance = {
+  source: ClaudeCeilingSource;
+  /** The cap in force. Absent under `auto`, which sets none. */
+  cap?: number;
+  /** The model's window before any cap. Absent for a model not in the table. */
+  modelWindow?: number;
+};
+
+/**
+ * Why the ceiling is the number it is.
+ *
+ * A cap collapses the SDK's `maxTokens` AND `rawMaxTokens` onto itself, so no
+ * field of a live reading distinguishes "this model is 200K" from "this 1M
+ * model is capped to 200K" (measured: `scripts/verify-context-usage-sdk.ts`).
+ * Reading the same two inputs Claude Code reads is the only way to tell, and
+ * showing a capped ceiling as though it were the model's own hid an 80% cut.
+ */
+export const resolveClaudeCeilingProvenance = (
+  input: { model?: string | null; settingsPath?: string } = {},
+): ClaudeCeilingProvenance => {
+  const { wantsLongContext } = normalizeClaudeModelId(input.model);
+  const spec = resolveClaudeModelContextSpec(input.model);
+  const longContextDisabled = readBooleanEnv(process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT);
+
+  let modelWindow = spec?.window;
+  if (modelWindow !== undefined) {
+    if (wantsLongContext && (spec?.supportsLongContext ?? false) && !longContextDisabled) {
+      modelWindow = Math.max(modelWindow, LONG_CONTEXT_WINDOW);
+    }
+    if (longContextDisabled) {
+      modelWindow = Math.min(modelWindow, MODEL_DEFAULT_WINDOW_CLAMP);
+    }
+  }
+
+  const envCap = readPositiveInteger(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW);
+  if (envCap !== undefined) {
+    return { source: 'env', cap: envCap, modelWindow };
+  }
+
+  const settingsCap = readSettingsAutoCompactWindow(input.settingsPath);
+  if (settingsCap !== undefined) {
+    return { source: 'settings', cap: settingsCap, modelWindow };
+  }
+
+  return { source: 'auto', modelWindow };
+};
+
+/**
+ * Provenance as the token-budget payload carries it. One shaper, because the
+ * live-stream path and the REST path must not drift on these field names.
+ */
+export const toCeilingProvenanceFields = (
+  provenance: ClaudeCeilingProvenance,
+): { ceilingSource: ClaudeCeilingSource; ceilingCap?: number; modelContextWindow?: number } => ({
+  ceilingSource: provenance.source,
+  ceilingCap: provenance.cap,
+  modelContextWindow: provenance.modelWindow,
+});

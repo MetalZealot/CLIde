@@ -230,6 +230,7 @@ describe('TokenUsageSummary', () => {
           total: 967_000,
           autoCompactThreshold: 934_000,
           isAutoCompactEnabled: true,
+          ceilingSource: 'auto',
         }}
         request={{ id: 0, view: 'summary' }}
         onRequestBreakdown={() => { breakdownOpens += 1; }}
@@ -245,7 +246,7 @@ describe('TokenUsageSummary', () => {
     assert.equal(trigger.getAttribute('aria-label'), 'Show usage; credits available');
     assert.match(text, /Context & Usage/);
     assert.match(trigger.textContent || '', /\$/);
-    assert.match(text, /Session13% used117,721 \/ 934,000 · AutoBreakdown/);
+    assert.match(text, /Session13% used117,721 \/ 934,000 · autoBreakdown/);
     assert.match(text, /5-hour limit75% usedResets in \d+h \d+m/);
     assert.match(text, /Weekly25% usedResets in \d+d \d+h/);
     assert.ok(text.indexOf('5-hour limit') < text.indexOf('Weekly'));
@@ -342,6 +343,61 @@ describe('TokenUsageSummary', () => {
     assert.match(dialog.textContent || '', /Session0% used0 tokens/);
     assert.doesNotMatch(dialog.textContent || '', /200,000/);
     assert.equal(trigger.getAttribute('title')?.split('\n')[0], '0 tokens used');
+  });
+
+  test('a capped ceiling names its source and the model window behind it', async () => {
+    const host = await mount(
+      <TokenUsageSummary
+        provider="claude"
+        usage={{
+          used: 114_222,
+          total: 200_000,
+          autoCompactThreshold: 167_000,
+          isAutoCompactEnabled: true,
+          ceilingSource: 'settings',
+          ceilingCap: 200_000,
+          modelContextWindow: 1_000_000,
+        }}
+        request={{ id: 0, view: 'summary' }}
+        onRequestBreakdown={() => {}}
+        onRefreshBreakdown={() => {}}
+        isRefreshingBreakdown={false}
+        canRefreshBreakdown={false}
+      />,
+    );
+    const { dialog } = await openPopover(host);
+    const text = dialog.textContent || '';
+
+    assert.match(text, /114,222 \/ 167,000 · from settings/);
+    // The cut is only legible next to what it cut: 200,000 alone reads as the model.
+    assert.match(text, /capped at 200,000 · model window 1,000,000/);
+    assert.doesNotMatch(text, /· Auto/);
+  });
+
+  test('an uncapped ceiling says auto and shows no cap line', async () => {
+    const host = await mount(
+      <TokenUsageSummary
+        provider="claude"
+        usage={{
+          used: 122_942,
+          total: 1_000_000,
+          autoCompactThreshold: 967_000,
+          isAutoCompactEnabled: true,
+          ceilingSource: 'auto',
+          modelContextWindow: 1_000_000,
+        }}
+        request={{ id: 0, view: 'summary' }}
+        onRequestBreakdown={() => {}}
+        onRefreshBreakdown={() => {}}
+        isRefreshingBreakdown={false}
+        canRefreshBreakdown={false}
+      />,
+    );
+    const { dialog } = await openPopover(host);
+    const text = dialog.textContent || '';
+
+    assert.match(text, /122,942 \/ 967,000 · auto/);
+    assert.doesNotMatch(text, /capped at/);
   });
 
   test('Codex omits breakdown and links weekly usage to account activity', async () => {

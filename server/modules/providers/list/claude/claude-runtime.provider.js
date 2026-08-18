@@ -26,7 +26,9 @@ import {
 } from '@/shared/image-attachments.js';
 import {
   readClaudeContextWindowOverride,
+  resolveClaudeCeilingProvenance,
   resolveClaudeContextCeiling,
+  toCeilingProvenanceFields,
 } from '@/modules/providers/list/claude/claude-context-window.js';
 import {
   captureClaudeContextUsage,
@@ -371,6 +373,14 @@ function pickContextWindow(ceiling, derivedInput) {
 }
 
 /**
+ * Where the ceiling came from, for the same frame. Derived rather than read off
+ * the reading: a cap collapses every window field the SDK reports onto itself.
+ */
+function pickCeilingProvenance(derivedInput) {
+  return toCeilingProvenanceFields(resolveClaudeCeilingProvenance(derivedInput));
+}
+
+/**
  * Extracts token usage from SDK messages.
  * Prefers per-step `message.usage` (Claude message payload), then falls back
  * to result-level usage/modelUsage for compatibility across SDK versions.
@@ -417,6 +427,7 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
       // auto-compact marker", not zero.
       autoCompactThreshold: ceiling?.autoCompactThreshold,
       isAutoCompactEnabled: ceiling?.isAutoCompactEnabled,
+      ...pickCeilingProvenance({ model: sdkMessage.message?.model ?? sdkMessage.model }),
       breakdown: {
         input: inputTokens,
         output: outputTokens,
@@ -453,6 +464,7 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
     outputTokens,
     autoCompactThreshold: ceiling?.autoCompactThreshold,
     isAutoCompactEnabled: ceiling?.isAutoCompactEnabled,
+    ...pickCeilingProvenance({ model: modelData.canonicalModel ?? modelKey }),
     breakdown: {
       input: inputTokens,
       output: outputTokens,
