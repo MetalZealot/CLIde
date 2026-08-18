@@ -291,11 +291,16 @@ function ChatInterface({
     });
   }, [selectedProject, selectedSession, sendMessage, sessionStore, getReplayProgress]);
 
-  // Shown once after a model or effort change. Both alter the prefix the
-  // provider caches against, so the next turn may re-read tokens it would
-  // otherwise have reused; nothing in the conversation is lost.
+  // Shown after a model or effort change made mid-conversation. Both alter the
+  // prefix the provider caches against, so the next turn may re-read tokens it
+  // would otherwise have reused; nothing in the conversation is lost. Before
+  // the first turn there is no cached prefix to lose, so setting up a chat says
+  // nothing.
   const [settingsChangeNotice, setSettingsChangeNotice] = useState(false);
-  const showSettingsChangeNotice = useCallback(() => setSettingsChangeNotice(true), []);
+  const showSettingsChangeNotice = useCallback(() => {
+    if (!(currentSessionId || selectedSession?.id) || chatMessages.length === 0) return;
+    setSettingsChangeNotice(true);
+  }, [chatMessages.length, currentSessionId, selectedSession?.id]);
   useEffect(() => {
     if (!settingsChangeNotice) return undefined;
     const timer = window.setTimeout(() => setSettingsChangeNotice(false), 8000);
