@@ -33,10 +33,29 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
 }) => {
   const trimmedOutput = (output || '').replace(/\s+$/, '');
   const hasOutput = trimmedOutput.length > 0;
+  const isMultilineCommand = command.includes('\n');
   const outputLineCount = hasOutput ? trimmedOutput.split('\n').length : 0;
   const isRunning = status === 'running';
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // The header is a summary: one truncated line, never a scroll surface — a
+  // 16px row is impossible to drag, and its retained scrollLeft would clip the
+  // text once collapsing swaps the overflow away. Anything the ellipsis hides
+  // is read in the expanded block instead, so overflow alone makes a row
+  // expandable even when the command produced no output.
+  const commandRef = useRef<HTMLSpanElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  useEffect(() => {
+    const element = commandRef.current;
+    if (!element) return;
+    const measure = () => setIsOverflowing(element.scrollWidth > element.clientWidth + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [command]);
+  const canExpand = hasOutput || isMultilineCommand || isOverflowing;
 
   // Output often arrives after this component first mounts, so apply the
   // auto-open intent once when there is finally something to show. After that
@@ -52,7 +71,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   }, [hasOutput, defaultOpen]);
 
   const toggle = () => {
-    if (hasOutput) {
+    if (canExpand) {
       setOpen((prev) => !prev);
     }
   };
@@ -70,25 +89,25 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
       className={cn(
         'group/cmd overflow-hidden rounded-lg border bg-muted/40 transition-all duration-200',
         isError ? 'border-red-500/30' : 'border-border/60',
-        hasOutput && !open && 'hover:border-border hover:bg-muted/60',
+        canExpand && !open && 'hover:border-border hover:bg-muted/60',
         open && 'bg-muted/50 shadow-sm',
       )}
     >
       {/* Command header — clickable when there is output to expand */}
       <div
-        role={hasOutput ? 'button' : undefined}
-        tabIndex={hasOutput ? 0 : undefined}
-        aria-expanded={hasOutput ? open : undefined}
+        role={canExpand ? 'button' : undefined}
+        tabIndex={canExpand ? 0 : undefined}
+        aria-expanded={canExpand ? open : undefined}
         onClick={toggle}
         onKeyDown={(event) => {
-          if (hasOutput && (event.key === 'Enter' || event.key === ' ')) {
+          if (canExpand && (event.key === 'Enter' || event.key === ' ')) {
             event.preventDefault();
             toggle();
           }
         }}
         className={cn(
           'flex items-center gap-2 px-2.5 py-1.5 outline-none',
-          hasOutput && 'cursor-pointer focus-visible:ring-1 focus-visible:ring-ring',
+          canExpand && 'cursor-pointer focus-visible:ring-1 focus-visible:ring-ring',
         )}
       >
         {isRunning ? (
@@ -98,22 +117,18 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
             className={cn(
               'mt-px h-3.5 w-3.5 flex-shrink-0 self-start text-muted-foreground/70 transition-transform duration-200',
               open && 'rotate-90',
-              !hasOutput && 'opacity-0',
+              !canExpand && 'opacity-0',
             )}
           />
         )}
         <span className="flex-shrink-0 self-start select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
           $
         </span>
-        {/* Not a <code> tag: the global `.chat-message code` rule forces
-            `white-space: pre-wrap !important`, which would defeat `truncate`
-            and render collapsed multi-line commands in full. */}
-        <span
-          className={cn(
-            'min-w-0 flex-1 font-mono text-xs text-foreground',
-            open ? 'whitespace-pre-wrap break-all' : 'truncate',
-          )}
-        >
+        {/* The header is the call's identity, so it carries the same truncated
+            command in both states; expanding adds the readable copy below it.
+            Not a <code> tag: the global inline-code rule wraps, which would
+            render a multi-line command here in full. */}
+        <span ref={commandRef} className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
           {command}
         </span>
 
@@ -130,14 +145,14 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         </button>
       </div>
 
-      {!open && (description || (hasOutput && !isRunning)) && (
+      {(description || (!open && hasOutput && !isRunning)) && (
         <div className="flex items-center gap-2 px-2.5 pb-1 pl-[2.4rem] leading-none">
           {description && (
             <span className="min-w-0 flex-1 truncate text-[11px] italic leading-none text-muted-foreground/70">
               {description}
             </span>
           )}
-          {hasOutput && !isRunning && (
+          {!open && hasOutput && !isRunning && (
             <span
               className={cn(
                 'flex-shrink-0 text-[10px] leading-none tabular-nums text-muted-foreground/70',
@@ -150,15 +165,20 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         </div>
       )}
 
+      {/* Expanded command — full width, capped so a long heredoc scrolls in
+          place instead of pushing the conversation off screen. */}
+      {open && (
+        <pre className="settings-content-enter max-h-72 overflow-auto border-t border-border/50 px-3 py-2 font-mono text-xs leading-relaxed text-foreground whitespace-pre">
+          {command}
+        </pre>
+      )}
+
       {/* Expanded output */}
       {open && hasOutput && (
         <div className="settings-content-enter border-t border-border/50 bg-background/50">
-          {description && (
-            <div className="px-3 pt-2 text-[11px] italic text-muted-foreground/70">{description}</div>
-          )}
           <pre
             className={cn(
-              'max-h-80 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-xs leading-relaxed',
+              'max-h-80 overflow-auto whitespace-pre px-3 py-2 font-mono text-xs leading-relaxed',
               isError ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
             )}
           >

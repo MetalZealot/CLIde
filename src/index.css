@@ -784,18 +784,22 @@
     overflow-wrap: break-word;
   }
 
-  /* Force wrap long URLs and code */
-  .chat-message pre,
-  .chat-message code {
-    white-space: pre-wrap !important;
-    word-break: break-all;
+  /* Only code sitting inside prose wraps. A fenced block keeps its line
+     structure and scrolls sideways, as every code surface does. */
+  .chat-message :not(pre) > code {
+    white-space: pre-wrap;
     overflow-wrap: break-word;
   }
 
-  /* Prevent horizontal scroll in chat area */
+  /* Keep chat content inside the column, but never clamp the contents of a
+     scroll container — that is what it has to overflow to scroll. */
   .chat-message * {
     max-width: 100%;
     box-sizing: border-box;
+  }
+
+  .chat-message pre * {
+    max-width: none;
   }
 
   /* Hide scrollbar utility for horizontal scroll */
