@@ -1,7 +1,7 @@
 # 0018 — Settings navigates by a history-backed drill-down stack, and each screen owns exactly one scroll container
 
 - Date: 2026-07-29
-- Status: Accepted
+- Status: Superseded by 0040
 
 ## Decision
 

@@ -55,7 +55,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0015 — The composer ring opens `/context`; `/cost` became `/usage`](0015-ring-opens-context-and-usage-rename.md) *(superseded by 0032)*
 - [0016 — Projects group checkouts by repository; a project is not a directory](0016-repository-grouped-checkouts.md)
 - [0017 — A batch move preflights everything, then rolls back in reverse](0017-batch-move-preflight-then-rollback.md)
-- [0018 — Settings navigates by a history-backed drill-down stack, and each screen owns exactly one scroll container](0018-settings-drill-down-one-scroll-container.md)
+- [0018 — Settings navigates by a history-backed drill-down stack, and each screen owns exactly one scroll container](0018-settings-drill-down-one-scroll-container.md) *(superseded by 0040)*
 - [0019 — QuickSettings panel removed; no second settings surface](0019-quicksettings-removal.md)
 - [0020 — The one-scroll-container rule has no exceptions; Plugins never needed one](0020-no-plugin-exception-to-one-scroll-container.md)
 - [0021 — Save confirmation is local to the action, and only where an action can fail](0021-local-save-confirmation-no-global-indicator.md)
@@ -77,3 +77,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0037 — The sidebar view menu owns Archive and global list controls](0037-sidebar-view-menu-owns-archive-and-global-list-controls.md)
 - [0038 — The sidebar view menu owns Archive and global sorting](0038-global-sessions-menu-sorts-only.md)
 - [0039 — Usage reset alerts follow provider timestamps without catch-up](0039-provider-reset-timestamps-no-catch-up.md)
+- [0040 — Mobile Settings root owns the Back gesture](0040-settings-root-owns-back-gesture.md)

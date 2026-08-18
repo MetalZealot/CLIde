@@ -27,11 +27,10 @@ const HISTORY_MARKER = '__clideSettingsDepth';
 /**
  * Owns the navigation stack plus its browser-history integration.
  *
- * The contract: each push adds one history entry, each pop consumes one, and
- * closing from depth 2 unwinds *all* of them. Every downward transition goes
- * through `history.back()` and lands in the popstate handler, so exactly one
- * path mutates the stack downward — dispatching on click *and* on popstate
- * double-pops the moment a real back gesture arrives.
+ * The contract: opening Settings and each screen push add one history entry,
+ * each pop consumes one, and closing unwinds *all* of them. Every downward
+ * transition goes through browser history and lands in the popstate handler,
+ * so exactly one path mutates the stack downward.
  */
 export function useSettingsNavigation({
   isOpen,
@@ -56,9 +55,9 @@ export function useSettingsNavigation({
     ownedEntriesRef.current += 1;
   }, []);
 
-  // Seed the stack whenever Settings opens, honouring a deep link. Opening
-  // straight to a sub-screen still needs history entries beneath it, or the first
-  // back gesture would close Settings from depth 2.
+  // Seed the stack whenever Settings opens, honouring a deep link. The root
+  // entry makes Back close Settings without leaving the app; deeper screens
+  // each add one entry above it.
   useEffect(() => {
     if (!isOpen) return;
 
@@ -67,6 +66,7 @@ export function useSettingsNavigation({
     dispatch({ type: 'open', id: target });
 
     if (!usesHistory) return;
+    pushHistoryEntry(0);
     for (let depth = 1; depth <= navDepth(seeded); depth += 1) {
       pushHistoryEntry(depth);
     }
@@ -103,15 +103,20 @@ export function useSettingsNavigation({
         return;
       }
 
-      // A genuine back gesture. If it consumed one of ours, pop a screen;
-      // otherwise the user navigated out from under an open Settings, so close
-      // rather than strand a modal over a different page.
+      // A genuine back gesture. The final owned entry is the Settings root
+      // guard, so consuming it closes the overlay instead of leaving the app.
       if (ownedEntriesRef.current > 0) {
         ownedEntriesRef.current -= 1;
+        if (ownedEntriesRef.current === 0) {
+          dispatch({ type: 'reset' });
+          onCloseRef.current();
+          return;
+        }
         dispatch({ type: 'pop' });
         return;
       }
 
+      // The user navigated out from under an open Settings overlay.
       onCloseRef.current();
     };
 
@@ -138,8 +143,8 @@ export function useSettingsNavigation({
    * Jump straight to a screen at any depth, expanding its ancestors — what a
    * search result needs, since `push` only accepts a child of the current screen.
    *
-   * Search is only offered at the root list, so this is reached with no entries
-   * owned and seeds the whole path as a deep link does. It never unwinds.
+   * Search is only offered at the root list, so this is reached with only the
+   * root guard owned and seeds the whole path as a deep link does.
    */
   const jumpTo = useCallback((id: string) => {
     const next = settingsNavReducer(state, { type: 'open', id });
@@ -148,7 +153,7 @@ export function useSettingsNavigation({
     dispatch({ type: 'open', id });
 
     if (!usesHistory) return;
-    for (let depth = ownedEntriesRef.current + 1; depth <= next.stack.length; depth += 1) {
+    for (let depth = ownedEntriesRef.current; depth <= next.stack.length; depth += 1) {
       pushHistoryEntry(depth);
     }
   }, [pushHistoryEntry, state, usesHistory]);
