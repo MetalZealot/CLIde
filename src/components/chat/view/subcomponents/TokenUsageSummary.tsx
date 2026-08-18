@@ -318,6 +318,11 @@ export default function TokenUsageSummary({
     reportedWindow > 0
       ? reportedWindow
       : (provider ? PROVIDER_DEFAULT_CONTEXT_WINDOW[provider] ?? 0 : 0);
+  // A ceiling only means something once the runtime has reported one. Before a
+  // session's first frame the fallback window is a guess that the first response
+  // replaces with the real auto-compact threshold, so the ceiling is withheld
+  // rather than printed as a number about to change.
+  const hasMeasuredCeiling = reportedWindow > 0 || usedTokens > 0;
   const autoCompactThreshold = readUsageNumber(usage?.autoCompactThreshold);
   const compactsAutomatically = usage?.isAutoCompactEnabled === true && autoCompactThreshold > 0;
 
@@ -352,7 +357,7 @@ export default function TokenUsageSummary({
       : '';
 
   const title =
-    fraction === null
+    fraction === null || !hasMeasuredCeiling
       ? `${usedTokens.toLocaleString()} tokens used`
       : compactsAutomatically
         ? `${usedTokens.toLocaleString()} / ${autoCompactThreshold.toLocaleString()} tokens before auto-compact (${Math.round(
@@ -445,7 +450,7 @@ export default function TokenUsageSummary({
                 {percentUsed !== null && <UsageBar utilization={percentUsed} />}
                 <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                   <span className="min-w-0 truncate">
-                    {effectiveCeiling > 0
+                    {effectiveCeiling > 0 && hasMeasuredCeiling
                       ? `${usedTokens.toLocaleString()} / ${effectiveCeiling.toLocaleString()}${autoCompactStatus}`
                       : `${usedTokens.toLocaleString()} tokens`}
                   </span>

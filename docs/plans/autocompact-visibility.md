@@ -1,7 +1,7 @@
 # Auto-compact is visible and its numbers are honest
 
 - Status: 1/3
-- Next: phase 2 — the popover names both the compact point and the window
+- Next: phase 2 — derive the ceiling's source locally and label it
 - Context: [code anchors](../maps/code-anchors.md), [Claude Code settings surface audit](../maps/2026-07-28-claude-code-settings-surface-audit.md)
 
 The ring has two sources for its ceiling and silently swaps between them. The
@@ -26,7 +26,10 @@ Showing the cap and the model's window as two numbers is what makes that legible
       it reports only that auto-compact is *enabled*, while `/autocompact` uses
       "auto" for "no user setting" — so it read as "Claude's auto value" with a
       user override in force. Carry Claude Code's own source instead (`from
-      settings`, `default for this model`, `auto`), show the compact point and
+      settings`, `default for this model`, `auto`) — derived locally, since a
+      cap collapses both `maxTokens` and `rawMaxTokens` and no response field
+      reveals it (measured, see `scripts/verify-context-usage-sdk.ts`) — show
+      the compact point and
       the window together, and give the fallback a label too, since today it
       emits nothing exactly when the user most needs telling. Also reconcile the
       derived fallback, which returns window − 33,000 and calls it the window —

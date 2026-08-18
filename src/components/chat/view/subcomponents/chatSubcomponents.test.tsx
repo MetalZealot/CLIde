@@ -323,6 +323,27 @@ describe('TokenUsageSummary', () => {
     assert.doesNotMatch(breakdownText, /5-hour limit|Weekly|Credits\/Tokens|Manage Plan/);
   });
 
+  test('a session with no live frame yet shows no ceiling', async () => {
+    const host = await mount(
+      <TokenUsageSummary
+        provider="claude"
+        usage={{ used: 0 }}
+        request={{ id: 0, view: 'summary' }}
+        onRequestBreakdown={() => {}}
+        onRefreshBreakdown={() => {}}
+        isRefreshingBreakdown={false}
+        canRefreshBreakdown={false}
+      />,
+    );
+    const { trigger, dialog } = await openPopover(host);
+
+    // The fallback window would read 200,000 here, and the first response
+    // replaces it with the real auto-compact threshold.
+    assert.match(dialog.textContent || '', /Session0% used0 tokens/);
+    assert.doesNotMatch(dialog.textContent || '', /200,000/);
+    assert.equal(trigger.getAttribute('title')?.split('\n')[0], '0 tokens used');
+  });
+
   test('Codex omits breakdown and links weekly usage to account activity', async () => {
     const host = await mount(
       <TokenUsageSummary
