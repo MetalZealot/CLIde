@@ -1,11 +1,16 @@
 # Per-session effort follows the conversation
 
-- Status: phases 1-3 done; per-session effort accepted live by the maintainer
-  2026-08-18. Phase 4's matrix — refresh, two clients, Codex, precedence
-  against a newer provider turn, unsupported provider — is still unverified.
-- Next: phase 4 — the coverage matrix, then live PWA testing of Claude and
-  Codex. Queued turns needed no change: `buildSendOptions` already snapshots
-  effort at queue time and the send reuses that record verbatim.
+- Status: 3/4
+- Live gate complete: the maintainer confirmed 2026-08-18 that effort sticks
+  per session for Claude and Codex, survives a mid-session refresh and the
+  same session open in two clients, that a newer provider turn supersedes an
+  earlier pick, and that Cursor offers no effort control.
+- Next: the automated half of phase 4 — tests for fresh-session promotion,
+  the queued-send effort snapshot, and effort reconciliation after an
+  incompatible model change — then `npm test`, typecheck and builds, since
+  this touches session ids, providers and the protocol. Queued turns needed no
+  code change: `buildSendOptions` already snapshots effort at queue time and
+  the send reuses that record verbatim.
 - Context: [session/model anchors](../maps/code-anchors.md);
   [provider capabilities](../maps/clide-provider-capability-map.md);
   [ADR 0003](../decisions/0003-per-session-model-tracking.md);
