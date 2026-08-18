@@ -205,6 +205,21 @@ export function resolveUsagePopoverView(
   return null;
 }
 
+/**
+ * Picks the model or effort a send carries. An established session sends its
+ * own tracked value, or nothing at all so the server resolves from its
+ * pick/transcript; only a chat with no id yet may carry the provider seed.
+ * Sending the seed for an established session is what leaked one session's
+ * choice onto every other session of that provider.
+ */
+export function resolveSessionSendSetting(
+  sessionValue: string | null | undefined,
+  providerSeed: string | undefined,
+  hasSession: boolean,
+): string | undefined {
+  return sessionValue ?? (hasSession ? undefined : providerSeed);
+}
+
 const createFakeSubmitEvent = () => {
   return { preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>;
 };
@@ -879,18 +894,10 @@ export function useChatComposerState({
     };
 
     const toolsSettings = getToolsSettings();
-    // The provider-level model is only a seed for brand-new sessions. An
-    // existing session sends its own tracked model, or none at all so the server
-    // resolves from its pick/transcript — sending the global value here is what
-    // leaked model choices across sessions.
     const sessionSlotModel = sessionKey ? sessionStore.getSlot(sessionKey)?.model : null;
-    const model = sessionSlotModel ?? (sessionKey ? undefined : currentProviderModel);
-    // Effort follows the model exactly: an existing session sends its own, or
-    // nothing at all so the server resolves from its pick/transcript. Sending
-    // the provider-level value here is what leaked one session's effort onto
-    // every other session of that provider.
+    const model = resolveSessionSendSetting(sessionSlotModel, currentProviderModel, Boolean(sessionKey));
     const sessionSlotEffort = sessionKey ? sessionStore.getSlot(sessionKey)?.effort : null;
-    const effort = sessionSlotEffort ?? (sessionKey ? undefined : currentProviderEffort);
+    const effort = resolveSessionSendSetting(sessionSlotEffort, currentProviderEffort, Boolean(sessionKey));
 
     return {
       model,

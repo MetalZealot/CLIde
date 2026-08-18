@@ -1,16 +1,13 @@
 # Per-session effort follows the conversation
 
-- Status: 3/4
+- Status: complete
 - Live gate complete: the maintainer confirmed 2026-08-18 that effort sticks
   per session for Claude and Codex, survives a mid-session refresh and the
   same session open in two clients, that a newer provider turn supersedes an
   earlier pick, and that Cursor offers no effort control.
-- Next: the automated half of phase 4 — tests for fresh-session promotion,
-  the queued-send effort snapshot, and effort reconciliation after an
-  incompatible model change — then `npm test`, typecheck and builds, since
-  this touches session ids, providers and the protocol. Queued turns needed no
-  code change: `buildSendOptions` already snapshots effort at queue time and
-  the send reuses that record verbatim.
+- Next: none — merge the branch. Queued turns needed no code change:
+  `buildSendOptions` already snapshots effort at queue time and the send
+  reuses that record verbatim.
 - Context: [session/model anchors](../maps/code-anchors.md);
   [provider capabilities](../maps/clide-provider-capability-map.md);
   [ADR 0003](../decisions/0003-per-session-model-tracking.md);
@@ -46,7 +43,7 @@
       show one non-blocking message: **Changing model or effort may reduce
       cached-input reuse on the next turn.** Do not claim that the conversation
       or cache was erased.
-- [ ] **4. Prove isolation, precedence, and degradation.** Cover migration,
+- [x] **4. Prove isolation, precedence, and degradation.** Cover migration,
       provider/id scoping, pick-versus-transcript timestamps, fresh-session
       promotion, stale fetches, session switching, refresh, queued sends,
       model/effort compatibility, unsupported providers, and two clients

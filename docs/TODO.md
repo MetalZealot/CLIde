@@ -66,7 +66,6 @@ Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md
 
 This section is the complete outstanding model-picker list (2026-07-13 and 2026-07-16 reviews).
 
-- [~] **Per-session effort tracking.** Existing sessions inherit the browser's last provider effort. Persist requested effort, resolve it behind newer transcript truth, and make `SessionStore` the one model/effort owner. [Plan](plans/session-effort-tracking.md). **M**
 - [ ] **#8 PRIORITY — live-verify the per-session model stack** (`8771eea` + `5d9da84`). Three tests: (a) leak — A on Fable, B picks Haiku without sending, back to A must still send Fable; (b) stale-pick resume — popup pick X, then change via Shell `/model`, the newer choice must win; (c) fresh-session popup/header agreement. **S to run**
 - [ ] #2 — Shell `/model` stdout regex over-captures: a Default pick in the CLI's own picker shows the raw sentence "Default (recommended)" with no card highlight until the next turn. The `(.+?)\.?$` capture in `claude-models.provider.ts` takes too much. **S**
 - [ ] #4 — `getCurrentActiveModel` reads and parses the entire session JSONL (4.5 MB on a long session) on every `/models` open, even when a fresh pick wins anyway. Stat the file and skip when the pick is newer than mtime, or read only the tail. **S/M**

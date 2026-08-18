@@ -4,6 +4,7 @@ Nothing here is read by default. Completed plans are frozen; current behavior be
 
 | Plan | Archived | Current authority |
 |---|---|---|
+| [Per-session effort tracking](2026-08-18-session-effort-tracking.md) | 2026-08-18 | [ADR 0003](../../decisions/0003-per-session-model-tracking.md), [ADR 0025](../../decisions/0025-session-model-picks-live-in-the-database.md), and source/tests |
 | [Checkout naming](2026-08-17-checkout-naming.md) | 2026-08-17 | [ADR 0041](../../decisions/0041-checkouts-are-named-by-place-and-state.md) and source/tests |
 | [Chat export](2026-08-17-chat-export.md) | 2026-08-17 | Chat export source and focused client tests |
 | [Usage dashboard and reset notifications](2026-08-17-usage-dashboard.md) | 2026-08-17 | [ADR 0039](../../decisions/0039-provider-reset-timestamps-no-catch-up.md), [provider capability map](../../maps/clide-provider-capability-map.md), and source/tests |

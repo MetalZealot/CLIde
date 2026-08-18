@@ -563,6 +563,27 @@ describe('useSessionStore.sessionSettings', () => {
     );
   });
 
+  test('a promoted seed becomes the new session\'s own effort, not a refetchable blank', async () => {
+    // A brand-new chat runs on the provider seed until the gateway allocates
+    // its stable id; promotion hands that effort to the session, and the
+    // backend has no row to resolve against yet.
+    const NEW_SESSION = SESSION_B;
+    await React.act(async () => {
+      store.setEffort(NEW_SESSION, 'high');
+    });
+
+    responses.set(`${NEW_SESSION}:effort`, { effort: 'low', source: 'default' });
+    await fetchSettings(NEW_SESSION);
+
+    assert.equal(store.getSessionSlot(NEW_SESSION)!.effort, 'high');
+    assert.equal(store.getSessionSlot(NEW_SESSION)!.effortSource, 'pick');
+    assert.equal(
+      requestedUrls.filter((url) => url.includes('/effort')).length,
+      0,
+      'a promoted effort is already resolved, so nothing refetches over it',
+    );
+  });
+
   test('an optimistic effort is owned by its own session', async () => {
     await React.act(async () => {
       store.setEffort(SESSION_A, 'max');

@@ -30,6 +30,20 @@ const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
 
 const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode'];
 
+/**
+ * Holds an effort to what the chosen model actually offers. An explicit
+ * `default` is a standing choice and stays one; anything the model does not
+ * offer falls back to `default` rather than being sent as-is.
+ */
+export const reconcileEffortForAllowedValues = (
+  currentEffort: string,
+  allowedValues: string[],
+): string => {
+  if (allowedValues.length === 0) return DEFAULT_EFFORT_VALUE;
+  if (!currentEffort || currentEffort === DEFAULT_EFFORT_VALUE) return DEFAULT_EFFORT_VALUE;
+  return allowedValues.includes(currentEffort) ? currentEffort : DEFAULT_EFFORT_VALUE;
+};
+
 const readStoredProvider = (): LLMProvider => {
   const storedProvider = localStorage.getItem('selected-provider');
   return PROVIDERS.includes(storedProvider as LLMProvider)
@@ -361,22 +375,10 @@ export function useChatProviderState({
     targetProvider: LLMProvider,
     model: string,
     currentEffort: string,
-  ): string => {
-    const allowedValues = getAllowedEffortValues(targetProvider, model);
-    if (allowedValues.length === 0) {
-      return DEFAULT_EFFORT_VALUE;
-    }
-
-    if (currentEffort === DEFAULT_EFFORT_VALUE || !currentEffort) {
-      return DEFAULT_EFFORT_VALUE;
-    }
-
-    if (allowedValues.includes(currentEffort)) {
-      return currentEffort;
-    }
-
-    return DEFAULT_EFFORT_VALUE;
-  }, [getAllowedEffortValues]);
+  ): string => reconcileEffortForAllowedValues(
+    currentEffort,
+    getAllowedEffortValues(targetProvider, model),
+  ), [getAllowedEffortValues]);
 
   const providerModels = useMemo<Record<LLMProvider, string>>(() => ({
     claude: claudeModel,

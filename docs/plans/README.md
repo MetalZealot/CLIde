@@ -22,7 +22,6 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main` |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
-| [Per-session effort tracking](session-effort-tracking.md) | not started | Add durable effort fields and the requested/effective resolver |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.
