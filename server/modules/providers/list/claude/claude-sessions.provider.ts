@@ -8,7 +8,11 @@ import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMess
 import { parseFilesInputTag } from '@/shared/image-attachments.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
-import { resolveClaudeContextCeiling } from './claude-context-window.js';
+import {
+  resolveClaudeCeilingProvenance,
+  resolveClaudeDerivedCeiling,
+  toCeilingProvenanceFields,
+} from './claude-context-window.js';
 import { filterToActiveBranch, type RewindTranscriptEntry } from './claude-rewind.util.js';
 
 const PROVIDER = 'claude';
@@ -84,18 +88,23 @@ function extractHistoryTokenUsage(rawMessages: AnyRecord[]): AnyRecord | undefin
       continue;
     }
     // The ceiling belongs to the model that produced this reading, so it comes
-    // off the same row rather than a global constant.
-    const contextWindow = resolveClaudeContextCeiling({
-      model: typeof message?.model === 'string' ? message.model : undefined,
-    });
+    // off the same row rather than a global constant. It carries the threshold
+    // and provenance too: this payload and the token-usage endpoint both land on
+    // session entry, and a window-only reading here overwrites the other with a
+    // ceiling 33,000 tokens too high.
+    const model = typeof message?.model === 'string' ? message.model : undefined;
+    const ceiling = resolveClaudeDerivedCeiling({ model });
     return {
       used: inputTokens + outputTokens,
-      total: contextWindow,
+      total: ceiling.contextWindow,
       inputTokens,
       outputTokens,
       cacheReadTokens,
       cacheCreationTokens,
       cacheTokens,
+      autoCompactThreshold: ceiling.autoCompactThreshold,
+      isAutoCompactEnabled: ceiling.isAutoCompactEnabled,
+      ...toCeilingProvenanceFields(resolveClaudeCeilingProvenance({ model })),
       breakdown: { input: inputTokens, output: outputTokens },
     };
   }
