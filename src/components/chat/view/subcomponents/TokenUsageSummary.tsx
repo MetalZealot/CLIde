@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActivityIcon, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
+import { ActivityIcon, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { LLMProvider } from '../../../../types/app';
@@ -242,28 +242,28 @@ function PlanWindowRow({
   const resetLabel = formatResetAt(window);
   const utilization = Math.min(100, Math.max(0, window.utilization));
 
+  // Label, reset and percentage share one line: three stacked lines per window
+  // pushed the panel past a phone's popover height once there were three.
   return (
-    <section className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-3 text-sm">
+    <section className="space-y-1">
+      <div className="flex items-baseline justify-between gap-2 text-sm">
         <span className="min-w-0 truncate font-medium text-foreground">{formatWindowLabel(window)}</span>
-        <span className="shrink-0 text-muted-foreground">{Math.round(utilization)}% used</span>
-      </div>
-      <UsageBar utilization={utilization} />
-      {(resetLabel || onViewUsage) && (
-        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>{resetLabel}</span>
+        <span className="flex shrink-0 items-baseline gap-2">
+          {resetLabel && <span className="text-xs text-muted-foreground">{resetLabel}</span>}
+          <span className="text-muted-foreground">{Math.round(utilization)}%</span>
           {onViewUsage && (
             <button
               type="button"
               onClick={onViewUsage}
-              className="inline-flex shrink-0 items-center transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`View ${formatWindowLabel(window)} usage`}
+              className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Usage
-              <ChevronRight className="h-3 w-3" aria-hidden />
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
             </button>
           )}
-        </div>
-      )}
+        </span>
+      </div>
+      <UsageBar utilization={utilization} />
     </section>
   );
 }
@@ -280,6 +280,9 @@ export default function TokenUsageSummary({
   const { t } = useTranslation('common');
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<UsagePopoverView>('summary');
+  // The breakdown expands in place rather than replacing the panel, so the
+  // session line it explains stays on screen beside it.
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [contextData, setContextData] = useState<ContextCommandData | null>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const handledRequestId = useRef(0);
@@ -295,7 +298,10 @@ export default function TokenUsageSummary({
     if (request.id <= handledRequestId.current) return;
 
     handledRequestId.current = request.id;
-    setView(request.view);
+    // `/context` asks for the breakdown; it opens the panel with the section
+    // already expanded rather than on a view of its own.
+    setView(request.view === 'breakdown' ? 'summary' : request.view);
+    setBreakdownOpen(request.view === 'breakdown');
     if (request.view === 'breakdown') {
       setContextData(request.context ?? null);
       setBreakdownLoading(request.context === undefined);
@@ -338,7 +344,16 @@ export default function TokenUsageSummary({
   const utilization = fraction === null ? null : Math.min(Math.max(fraction, 0), 1);
   const percentUsed = utilization === null ? null : Math.round(utilization * 100);
   const providerUsage = planUsage.usage?.supported === true ? planUsage.usage : null;
-  const planWindows = [...(providerUsage?.windows ?? [])].sort(
+  // An unrecognised id renders as a humanised slug ("Nimbus quill") with no way
+  // to say what it limits. The usage dashboard lists every window; this panel
+  // shows the ones it can name. Adding an id here is how a new one appears.
+  const planWindows = [...(providerUsage?.windows ?? [])]
+    .filter((window) => (
+      window.id in KNOWN_WINDOW_LABELS
+      || window.durationMinutes === 300
+      || window.durationMinutes === 10_080
+    ))
+    .sort(
     (left, right) => usageWindowOrder(left) - usageWindowOrder(right),
   );
   const activityWindowId = providerUsage?.activity
@@ -424,11 +439,7 @@ export default function TokenUsageSummary({
           role="dialog"
           fillAnchorWidth
           className="px-4 py-3"
-          ariaLabel={view === 'summary'
-            ? 'Session and plan usage'
-            : view === 'breakdown'
-              ? 'Session breakdown'
-              : 'Usage activity'}
+          ariaLabel={view === 'summary' ? 'Session and plan usage' : 'Usage activity'}
         >
           <div className="mb-3 flex items-center justify-between gap-3">
             <span className="text-[11px] font-medium text-muted-foreground">
@@ -469,16 +480,24 @@ export default function TokenUsageSummary({
                   {provider === 'claude' && (
                     <button
                       type="button"
+                      aria-expanded={breakdownOpen}
                       onClick={() => {
+                        if (breakdownOpen) {
+                          setBreakdownOpen(false);
+                          return;
+                        }
                         setContextData(null);
                         setBreakdownLoading(true);
-                        setView('breakdown');
+                        setBreakdownOpen(true);
                         onRequestBreakdown();
                       }}
-                      className="inline-flex shrink-0 items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="inline-flex shrink-0 items-center gap-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       Breakdown
-                      <ChevronRight className="h-3 w-3" aria-hidden />
+                      <ChevronDown
+                        className={cn('h-3 w-3 transition-transform', breakdownOpen && 'rotate-180')}
+                        aria-hidden
+                      />
                     </button>
                   )}
                 </div>
@@ -486,6 +505,15 @@ export default function TokenUsageSummary({
                   <div className="text-xs text-muted-foreground">
                     {`capped at ${ceilingCap.toLocaleString()} · model window ${modelContextWindow.toLocaleString()}`}
                   </div>
+                )}
+                {breakdownOpen && provider === 'claude' && (
+                  <ContextBreakdownView
+                    data={contextData}
+                    loading={breakdownLoading}
+                    onRefresh={onRefreshBreakdown}
+                    isRefreshing={isRefreshingBreakdown}
+                    canRefresh={canRefreshBreakdown}
+                  />
                 )}
               </section>
 
@@ -547,17 +575,6 @@ export default function TokenUsageSummary({
                 </a>
               )}
             </div>
-          )}
-
-          {view === 'breakdown' && (
-            <ContextBreakdownView
-              data={contextData}
-              loading={breakdownLoading}
-              onBack={() => setView('summary')}
-              onRefresh={onRefreshBreakdown}
-              isRefreshing={isRefreshingBreakdown}
-              canRefresh={canRefreshBreakdown}
-            />
           )}
 
           {view === 'activity' && (

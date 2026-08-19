@@ -247,8 +247,9 @@ describe('TokenUsageSummary', () => {
     assert.match(text, /Context & Usage/);
     assert.match(trigger.textContent || '', /\$/);
     assert.match(text, /Session13% used117,721 \/ 934,000 · autoBreakdown/);
-    assert.match(text, /5-hour limit75% usedResets in \d+h \d+m/);
-    assert.match(text, /Weekly25% usedResets in \d+d \d+h/);
+    // Label, reset and percentage on one line.
+    assert.match(text, /5-hour limitResets in \d+h \d+m75%/);
+    assert.match(text, /WeeklyResets in \d+d \d+h25%/);
     assert.ok(text.indexOf('5-hour limit') < text.indexOf('Weekly'));
     assert.match(text, /Credits\/Tokens\$0\.00/);
     assert.doesNotMatch(text, /Plan usage limits|Full usage|Refresh/);
@@ -318,10 +319,12 @@ describe('TokenUsageSummary', () => {
       />,
     ));
     const breakdownText = document.querySelector('[role="dialog"]')?.textContent || '';
-    assert.match(breakdownText, /Session breakdown/);
     assert.match(breakdownText, /What is in the window/);
     assert.match(breakdownText, /Messages97,721/);
-    assert.doesNotMatch(breakdownText, /5-hour limit|Weekly|Credits\/Tokens|Manage Plan/);
+    // Expanded in place, so the session line it explains and the plan windows
+    // stay on screen beside it rather than being swapped out.
+    assert.match(breakdownText, /117,721 \/ 934,000Breakdown/);
+    assert.match(breakdownText, /5-hour limit|Weekly/);
   });
 
   test('a session with no live frame yet shows no ceiling', async () => {
@@ -418,7 +421,11 @@ describe('TokenUsageSummary', () => {
     assert.match(text, /Context & Usage/);
     assert.match(text, /Session16% used42,000 \/ 258,400/);
     assert.doesNotMatch(text, /Breakdown/);
-    assert.match(text, /Weekly52% used.*Usage/);
+    assert.match(text, /WeeklyResets in \d+d \d+h52%/);
+    // The per-window usage link is a chevron now, so it is named, not labelled.
+    const labels = [...dialog.querySelectorAll('[aria-label]')]
+      .map((node) => node.getAttribute('aria-label'));
+    assert.ok(labels.includes('View Weekly usage'));
     assert.doesNotMatch(text, /5-hour/);
     assert.doesNotMatch(text, /Auto(?: off)?/);
     assert.match(text, /Credits\/Tokens\$25\.00/);
@@ -428,7 +435,7 @@ describe('TokenUsageSummary', () => {
     );
 
     const usageButton = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
-      .find((button) => button.textContent?.trim() === 'Usage');
+      .find((button) => button.getAttribute('aria-label') === 'View Weekly usage');
     assert.ok(usageButton);
     await React.act(async () => usageButton.click());
     const activityText = document.querySelector('[role="dialog"]')?.textContent || '';

@@ -103,7 +103,8 @@ export default function ContextBreakdownView({
 }: {
   data: ContextCommandData | null;
   loading: boolean;
-  onBack: () => void;
+  /** Omitted when the breakdown is expanded in place and owns no header. */
+  onBack?: () => void;
   onRefresh?: () => void;
   isRefreshing: boolean;
   canRefresh: boolean;
@@ -140,7 +141,8 @@ export default function ContextBreakdownView({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className={onBack ? 'flex items-center justify-between gap-3' : 'flex items-center justify-end'}>
+        {onBack && (
         <button
           type="button"
           onClick={onBack}
@@ -149,6 +151,7 @@ export default function ContextBreakdownView({
           <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
           Session breakdown
         </button>
+        )}
         {onRefresh && (
           <button
             type="button"
