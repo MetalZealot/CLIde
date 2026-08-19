@@ -148,3 +148,15 @@ test('auto-compact is offered for Claude alone', () => {
   const screens = SETTINGS_SCREENS.filter((screen) => screen.id.endsWith('.autoCompact'));
   assert.deepEqual(screens.map((screen) => screen.id), ['agent.claude.autoCompact']);
 });
+
+test('every registered screen has a real label, not an echoed key', () => {
+  // A screen whose label is missing still renders — as its own dotted key —
+  // and still matches search, so nothing else here would catch it.
+  for (const screen of SETTINGS_SCREENS) {
+    assert.notEqual(
+      translate(screen.labelKey),
+      screen.labelKey,
+      `${screen.id} has no translation for "${screen.labelKey}"`,
+    );
+  }
+});
