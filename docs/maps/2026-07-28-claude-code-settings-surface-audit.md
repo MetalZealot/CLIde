@@ -2,6 +2,9 @@
 
 Date: 2026-07-28
 Status: assessment only, no implementation
+Superseded in part by the [Claude command surface map](claude-command-surface.md),
+measured 2026-08-19 at CLI 2.1.235: the `/config` row list, the two-store split, and
+the key inventory are current there. This audit remains the per-key tier analysis.
 Related: `docs/specs/archive/2026-07-28-settings-information-architecture.md`
 (the IA revamp, which explicitly declares "no new settings are introduced" — this
 audit is the follow-on that decides which new settings are worth introducing);
@@ -57,12 +60,14 @@ to two of them transparently.
 | **CLI global config** | `~/.claude.json` (`globalConfig`) | ~45 keys | **No** — CLI-process-local only |
 | **CLIde's own prefs** | browser `localStorage` (`claude-settings`, `cursor-tools-settings`, `codex-settings`) + `/api/settings` (SQLite) | ~20 keys | Yes, but as *SDK options*, not settings |
 
-`~/.claude.json` holds `editorMode`, `diffTool`, `autoConnectIde`,
-`autoInstallIdeExtension`, `tipsHistory`, `hasCompletedProjectOnboarding`,
-`showExpandedTodos`, `messageIdleNotifThresholdMs`, `copyOnSelect`,
-`leftArrowOpensAgents`, `defaultToAgentsView`, `lspRecommendation*`,
-`shiftEnterKeyBindingInstalled`, and friends. **None of it reaches a CLIde
-session.** Anything CLIde surfaces from this store would be decorative.
+`~/.claude.json` no longer nests a `globalConfig` object; as of 2.1.235 its 67
+top-level keys are nearly all cache, onboarding, and telemetry state, plus a
+shrinking set of prefs (`diffTool`, `autoConnectIde`, `copyOnSelect`,
+`leftArrowOpensAgents`, `defaultToAgentsView`, `externalEditorContext`).
+**None of it reaches a CLIde session.** Anything CLIde surfaces from this store
+would be decorative. Prefs the CLI has since moved into the cascade — `editorMode`,
+`autoScrollEnabled`, `defaultView` — are reachable; check the current list rather
+than this one.
 
 Note also that CLIde's Settings → Plugins tab manages *CLIde* plugins
 (`server/routes/plugins.js`, its own `getPluginsConfig`/`savePluginsConfig`), which
@@ -252,8 +257,8 @@ a UI writing them to user settings would produce no effect.
 
 ### `/config` panel coverage
 
-The interactive panel exposes ~50 rows — roughly a third of the schema, and it
-mixes the two stores freely. Mapped against the tiers above: ~12 rows are Tier A,
+The interactive panel exposes 58 rows (measured 2.1.235; 43 visible in the current
+build, the rest platform- or flag-gated), and it mixes the two stores freely. Mapped against the tiers above: ~12 rows are Tier A,
 ~4 are Tier B, and ~34 are Tier C. **`/config` is therefore a poor template for
 CLIde's UI** — it is a terminal-shaped menu, and copying it would import mostly
 terminal-only toggles. The schema, filtered by "does this survive headless," is

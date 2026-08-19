@@ -14,6 +14,7 @@ CLIde or its provider runtimes change.
 | [CLIde provider capability map](clide-provider-capability-map.md) | Canonical normalized behavior, implementation state, and provider/runtime bindings | Foundation baseline started 2026-07-30 |
 | [Provider permission and mode surfaces](provider-permission-modes.md) | How Claude and Codex permission concepts differ and how CLIde exposes them | CLIde mapping revalidated 2026-08-12 against Codex 0.147.0 |
 | [Claude Code and Agent SDK map](claude-agent-sdk.md) | Claude-native SDK/CLI/control surface and CLIde destinations | Snapshot re-measured at SDK 0.3.233 / runtime 2.1.233, 2026-08-16; the prose below it still reads 0.3.165 / 2.1.220 |
+| [Claude command surface](claude-command-surface.md) | The 100 `/help` commands and 58 `/config` rows, each with a CLIde destination | Measured 2026-08-19 at CLI 2.1.235 / SDK 0.3.233 |
 | [Claude upgrade ledger](claude-upgrade-ledger.md) | Compact audit decisions and verification history | Current through SDK 0.3.233 / runtime 2.1.233, 2026-08-16 |
 | [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Current through 0.147.0 and managed runtime selection |
 | [Codex upgrade ledger](codex-upgrade-ledger.md) | Compact release decisions and verification history | Current through 0.147.0 |
