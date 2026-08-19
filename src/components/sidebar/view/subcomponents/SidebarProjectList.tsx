@@ -61,6 +61,8 @@ export type SidebarProjectListProps = {
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onCreateProject: () => void;
   onOpenProjectActionsMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
+  /** Starts a session from a repository row, without leaving the list. */
+  onNewSession?: (project: Project) => void;
   onOpenSessionActionsMenu?: (
     session: SessionWithProvider,
     anchor: ContextMenuAnchor,
@@ -114,6 +116,7 @@ export default function SidebarProjectList({
   onSaveEditingSession,
   onCreateProject,
   onOpenProjectActionsMenu,
+  onNewSession,
   onOpenSessionActionsMenu,
   activeContextMenuKey,
   sessionSelection,
@@ -184,6 +187,7 @@ export default function SidebarProjectList({
       onCancelEditingSession={onCancelEditingSession}
       onSaveEditingSession={onSaveEditingSession}
       onOpenProjectActionsMenu={onOpenProjectActionsMenu}
+      onNewSession={onNewSession}
       onOpenSessionActionsMenu={onOpenSessionActionsMenu}
       activeContextMenuKey={activeContextMenuKey}
       batchSelectedIds={

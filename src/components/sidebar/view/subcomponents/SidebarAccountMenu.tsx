@@ -11,6 +11,8 @@ type SidebarAccountMenuProps = {
   /** Opens Settings; the account row deep-links straight to its own screen. */
   onShowSettings: (screenId?: string) => void;
   onShowUsage: () => void;
+  /** Avatar only, for the collapsed rail, where there is no room for a name. */
+  isCompact?: boolean;
   t: TFunction;
 };
 
@@ -52,6 +54,7 @@ function MenuRow({
 export default function SidebarAccountMenu({
   onShowSettings,
   onShowUsage,
+  isCompact = false,
   t,
 }: SidebarAccountMenuProps) {
   const { user, logout } = useAuth();
@@ -74,10 +77,16 @@ export default function SidebarAccountMenu({
         aria-expanded={isOpen}
         aria-label={t('actions.accountMenu', 'Account menu')}
         onClick={() => setIsOpen((current) => !current)}
-        className="flex min-h-11 min-w-0 max-w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent/60 active:bg-accent/60"
+        title={isCompact ? username : undefined}
+        className={cn(
+          'flex items-center rounded-lg transition-colors hover:bg-accent/60 active:bg-accent/60',
+          isCompact
+            ? 'h-8 w-8 flex-shrink-0 justify-center'
+            : 'min-h-11 min-w-0 max-w-full gap-2.5 px-2 py-1.5 text-left',
+        )}
       >
         <AccountAvatar avatar={user?.avatar} username={username} className="h-7 w-7 text-xs" />
-        <span className="min-w-0 truncate text-sm text-foreground">{username}</span>
+        {!isCompact && <span className="min-w-0 truncate text-sm text-foreground">{username}</span>}
       </button>
 
       {isOpen && buttonRef.current && (

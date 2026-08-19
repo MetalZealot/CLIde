@@ -70,9 +70,6 @@
     "archive": "Архивировать",
     "rename": "Переименовать"
   },
-  "branding": {
-    "openSource": "Открытый исходный код"
-  },
   "status": {
     "active": "Активен",
     "inactive": "Неактивен",

@@ -44,9 +44,10 @@ query can temporarily replace either active list with conversation results.
 | New Project | Last in the list it adds to, deliberately faded |
 
 **Repository row** (`SidebarRepositoryItem.tsx`) — accent strip · display name ·
-session count · branch (with its glyph) or worktree count (a `·` separator, no
-glyph — ADR 0016 still holds: a branch and a checkout never share an icon) ·
-"Filtered" cue when the row's view is non-default · activity roll-up · kebab
+session count ·
+branch (with its glyph) or worktree count (a `·` separator, no glyph — ADR 0016
+still holds: a branch and a checkout never share an icon) · "Filtered" cue when
+the row's view is non-default · activity roll-up · New Session and kebab
 (desktop, hover/focus) · chevron. Expanded, the header sticks to the top of the
 scroll area and the row grows nothing else: the list carries no permanent
 controls of its own. Expanding past the first five sessions pins “Show less” to
@@ -58,14 +59,20 @@ only) · pin · name (`font-medium` marks unread and nothing else) · status sym
 view only) · branch badge · provider logo · kebab (desktop). Nested Projects-view
 sessions use the repository rail instead of repeating the strip. Desktop is a
 real `<a href>` for modified clicks, while right-click opens the session actions
-menu.
+menu, and a clipped title earns a hover tooltip carrying the whole name.
 
 **Footer** (`SidebarFooter.tsx`) — restart-required banner · update banner ·
-account button (Account, Settings, Log out) · New Session (mobile only) · version
-and OSS line (desktop).
+account button (Account, Usage, Settings, Log out) · New Session (mobile only).
+The version lives in Settings → About, which is reachable at both breakpoints.
 
-**Collapsed rail** (`SidebarCollapsed.tsx`) — expand, Settings, activity
-summary, version.
+**Collapsed rail** (`SidebarCollapsed.tsx`) — mirrors the expanded spine: expand
+and New Session at the top, activity and restart cues below them, update
+indicator and the account avatar pinned to the bottom.
+
+**Width** — desktop only, dragged from the sidebar's right edge
+(`SidebarResizeHandle.tsx`), clamped 240–480px, double-click to reset, remembered
+in its own `sidebarWidth` localStorage key because `useUiPreferences` coerces
+every value through a boolean parser.
 
 ## Tier 2 — anchored menus
 
@@ -75,7 +82,7 @@ menu. All use `ContextMenuOverlay` (ADR 0009).
 | Menu | Opened from | Items |
 |---|---|---|
 | Session actions | Long-press, kebab, right-click | Pin · Rename · Copy session ID ‖ Select… ‖ Archive · Delete |
-| Repository actions | Long-press, kebab, right-click | Rename · Customize · Sort and filter sessions · Worktrees ‖ Archive · Delete |
+| Repository actions | Long-press, kebab, right-click | New session ‖ Rename · Customize · Sort and filter sessions · Worktrees ‖ Archive · Delete |
 | Global view | Header Sort | Projects: sort by name or date · Sessions: sort by date, title, or project · Reset |
 | Repository session view | Repository actions, or the row's "Filtered" cue | Sort by date, title, or worktree — retap the active one to reverse it · filter by worktree · Reset |
 
@@ -118,10 +125,11 @@ manager. `SidebarCollapsed` is desktop-only by nature.
 | Affordance | Mobile | Desktop | Status |
 |---|---|---|---|
 | Row action menu | Long-press | Kebab or right-click | Parity — one menu builder, three anchors |
-| New Session | Footer, in the thumb zone | Header | Deliberate; the drawer's header is the far corner |
+| New Session | Footer, in the thumb zone | Header, plus a hover control on every repository row | Deliberate; the drawer's header is the far corner, and mobile reaches the per-row one through that row's menu |
+| Repository chevron | Row's trailing edge | Row's trailing edge | Parity — tried beside the name 2026-08-18 and reverted; the maintainer reads it as state, not identity |
 | Repository row tap | Expands | Selects **and** expands | Undocumented divergence |
 | Session count | "3 sessions" | "3" | Inconsistent, no stated reason |
-| Version / OSS line | Absent | Present | Gap — the version is unreachable on mobile |
+| Version | Settings → About | Settings → About | Parity — the desktop-only footer line was removed |
 | `⌘K` hint | Absent | Present | Deliberate |
 | Footer while renaming | Hidden | Shown | Deliberate — keyboard room |
 | Status symbol and age | Always shown | Fade on hover, ceding the slot to the kebab | Deliberate |

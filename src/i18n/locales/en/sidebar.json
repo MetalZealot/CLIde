@@ -34,6 +34,7 @@
   },
   "sessions": {
     "newSession": "New Session",
+    "newSessionHere": "New session in {{name}}",
     "deleteSession": "Delete Session",
     "renameSession": "Rename Session",
     "noSessions": "No sessions yet",
@@ -62,7 +63,8 @@
     "clearSearch": "Clear search",
     "openCommandPalette": "Open command palette",
     "toggleSearch": "Search",
-    "attentionRequiredIndicator": "Session needs attention"
+    "attentionRequiredIndicator": "Session needs attention",
+    "resizeSidebar": "Resize sidebar"
   },
   "navigation": {
     "chat": "Chat",
@@ -89,9 +91,6 @@
     "accountMenu": "Account menu",
     "logOut": "Log out",
     "select": "Select…"
-  },
-  "branding": {
-    "openSource": "Open Source"
   },
   "status": {
     "active": "Active",

@@ -1,10 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, ListChecks, ListFilter, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
+import { Archive, Copy, ListChecks, ListFilter, MessageSquarePlus, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
+import { useSidebarWidth } from '../../../hooks/useSidebarWidth';
 import { useSidebarController } from '../hooks/useSidebarController';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
@@ -70,6 +71,7 @@ function Sidebar({
     'claudecodeui',
   );
   const { preferences, setPreference } = useUiPreferences();
+  const { width: sidebarWidth, setWidth: setSidebarWidth, resetWidth: resetSidebarWidth } = useSidebarWidth();
   const { sidebarVisible } = preferences;
   const { setCurrentProject } = useTaskMaster() as TaskMasterSidebarContext;
   const paletteOps = usePaletteOps();
@@ -396,6 +398,15 @@ function Sidebar({
     const { entry } = contextMenu;
     return [
       {
+        // The desktop row reveals this on hover; the menu is how a touch device
+        // reaches it.
+        key: 'new-session',
+        label: t('sessions.newSession'),
+        icon: MessageSquarePlus,
+        onSelect: () => onNewSession(entry.leadCheckout),
+      },
+      {
+        showDividerBefore: true,
         // Renaming relabels the row, which is the lead worktree's display name.
         // Renaming a *particular* worktree is a job for the manager below.
         key: 'rename',
@@ -450,7 +461,7 @@ function Sidebar({
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextMenu, t]);
+  }, [contextMenu, onNewSession, t]);
 
   const projectListProps: SidebarProjectListProps = {
     projects,
@@ -502,6 +513,7 @@ function Sidebar({
       void updateSessionSummary(projectName, sessionId, summary, provider);
     },
     onOpenProjectActionsMenu: handleProjectActionsMenu,
+    onNewSession,
     onOpenSessionActionsMenu: handleSessionActionsMenu,
     activeContextMenuKey,
     sessionSelection,
@@ -594,7 +606,9 @@ function Sidebar({
       {isSidebarCollapsed ? (
         <SidebarCollapsed
           onExpand={handleExpandSidebar}
+          onOpenNewSession={onOpenNewSession}
           onShowSettings={onShowSettings}
+          onShowUsage={onShowUsage}
           updateAvailable={updateAvailable}
           restartRequired={restartRequired}
           activitySummary={activitySummary}
@@ -686,10 +700,12 @@ function Sidebar({
             restartRequired={restartRequired}
             releaseInfo={releaseInfo}
             latestVersion={latestVersion}
-            currentVersion={currentVersion}
             onShowVersionModal={() => setShowVersionModal(true)}
             onShowSettings={onShowSettings}
             onShowUsage={onShowUsage}
+            sidebarWidth={sidebarWidth}
+            onSidebarWidthChange={setSidebarWidth}
+            onSidebarWidthReset={resetSidebarWidth}
             projectListProps={projectListProps}
             selectionBar={sessionSelection && (
               <SidebarSelectionBar
