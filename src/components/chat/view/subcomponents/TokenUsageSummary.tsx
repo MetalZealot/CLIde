@@ -15,6 +15,7 @@ import type {
   ProviderUsageWindow,
 } from '../../../provider-usage/types';
 import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
+import { authenticatedFetch } from '../../../../utils/api';
 import { agentScreenId } from '../../../settings/registry/registry';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 import type {
@@ -34,6 +35,8 @@ type TokenUsageSummaryProps = {
   isRefreshingBreakdown: boolean;
   canRefreshBreakdown: boolean;
   provider?: string;
+  /** Model the next turn would run, used to derive a ceiling before one exists. */
+  model?: string;
 };
 
 // A fresh session has no `token_budget` frame yet, so `usage` is null until the
@@ -289,6 +292,7 @@ export default function TokenUsageSummary({
   isRefreshingBreakdown,
   canRefreshBreakdown,
   provider,
+  model,
 }: TokenUsageSummaryProps) {
   const { t } = useTranslation('common');
   const [isOpen, setIsOpen] = useState(false);
@@ -297,6 +301,7 @@ export default function TokenUsageSummary({
   // session line it explains stays on screen beside it.
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [contextData, setContextData] = useState<ContextCommandData | null>(null);
+  const [derivedCeiling, setDerivedCeiling] = useState<Record<string, unknown> | null>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const handledRequestId = useRef(0);
   const popoverId = useId();
@@ -337,18 +342,37 @@ export default function TokenUsageSummary({
   const inputTokens = readUsageNumber(usage?.inputTokens ?? breakdown?.input);
   const outputTokens = readUsageNumber(usage?.outputTokens ?? breakdown?.output);
   const usedTokens = readUsageNumber(usage?.used) || inputTokens + outputTokens;
-  const reportedWindow = readUsageNumber(usage?.total);
+  const usageHasCeiling = readUsageNumber(usage?.total) > 0;
+  // A session that has never streamed reports no usage at all, and a bare "0
+  // tokens" says nothing about the window it will run in or where compaction
+  // will fire. The server derives both from the model and settings.json.
+  useEffect(() => {
+    if (!isOpen || provider !== 'claude' || usageHasCeiling) return undefined;
+
+    let cancelled = false;
+    const query = model ? `?model=${encodeURIComponent(model)}` : '';
+    authenticatedFetch(`/api/providers/claude/context-ceiling${query}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled && payload?.data) setDerivedCeiling(payload.data as Record<string, unknown>);
+      })
+      .catch(() => undefined);
+
+    return () => { cancelled = true; };
+  }, [isOpen, provider, usageHasCeiling, model]);
+
+  const ceilingReading = usageHasCeiling ? usage : derivedCeiling ?? usage;
+  const reportedWindow = readUsageNumber(ceilingReading?.total);
   const contextWindow =
     reportedWindow > 0
       ? reportedWindow
       : (provider ? PROVIDER_DEFAULT_CONTEXT_WINDOW[provider] ?? 0 : 0);
-  // A ceiling only means something once the runtime has reported one. Before a
-  // session's first frame the fallback window is a guess that the first response
-  // replaces with the real auto-compact threshold, so the ceiling is withheld
-  // rather than printed as a number about to change.
+  // Withheld only while no window is known at all — printing the static
+  // per-provider guess as a ceiling would show a number about to change.
   const hasMeasuredCeiling = reportedWindow > 0 || usedTokens > 0;
-  const autoCompactThreshold = readUsageNumber(usage?.autoCompactThreshold);
-  const compactsAutomatically = usage?.isAutoCompactEnabled === true && autoCompactThreshold > 0;
+  const autoCompactThreshold = readUsageNumber(ceilingReading?.autoCompactThreshold);
+  const compactsAutomatically = ceilingReading?.isAutoCompactEnabled === true
+    && autoCompactThreshold > 0;
 
   // The ceiling that actually matters is where auto-compact fires, not the raw
   // window: at that point the conversation is summarised out from under the
@@ -384,9 +408,11 @@ export default function TokenUsageSummary({
   // Claude's own vocabulary: "auto" means no cap is configured, NOT "auto-compact
   // is enabled". Reporting the enabled flag under that word read as Claude's own
   // window while a user cap was in force, hiding an 80% cut. Name the source.
-  const ceilingSource = typeof usage?.ceilingSource === 'string' ? usage.ceilingSource : null;
-  const ceilingCap = readUsageNumber(usage?.ceilingCap);
-  const modelContextWindow = readUsageNumber(usage?.modelContextWindow);
+  const ceilingSource = typeof ceilingReading?.ceilingSource === 'string'
+    ? ceilingReading.ceilingSource
+    : null;
+  const ceilingCap = readUsageNumber(ceilingReading?.ceilingCap);
+  const modelContextWindow = readUsageNumber(ceilingReading?.modelContextWindow);
   const isCapped = ceilingCap > 0 && modelContextWindow > 0 && ceilingCap < modelContextWindow;
   const CEILING_SOURCE_LABELS: Record<string, string> = {
     auto: 'Auto',

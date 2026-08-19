@@ -171,30 +171,43 @@ export const resolveClaudeModelContextSpec = (
   return id ? CLAUDE_MODEL_CONTEXT_SPECS[id] ?? null : null;
 };
 
-type CachedSettingsWindow = { filePath: string; mtimeMs: number; window?: number };
+type CachedSettings = {
+  filePath: string;
+  mtimeMs: number;
+  window?: number;
+  /** Claude Code treats a missing key as on. */
+  enabled: boolean;
+};
 
 /**
  * settings.json is re-read only when its mtime moves, so the live-stream path
  * can call this once per assistant frame without a parse each time.
  */
-let settingsWindowCache: CachedSettingsWindow | null = null;
+let settingsWindowCache: CachedSettings | null = null;
 
-const readSettingsAutoCompactWindow = (settingsPath?: string): number | undefined => {
+const readAutoCompactSettings = (settingsPath?: string): { window?: number; enabled: boolean } => {
   const filePath = settingsPath ?? path.join(os.homedir(), '.claude', 'settings.json');
   try {
     const { mtimeMs } = statSync(filePath);
     if (settingsWindowCache?.filePath === filePath && settingsWindowCache.mtimeMs === mtimeMs) {
-      return settingsWindowCache.window;
+      return settingsWindowCache;
     }
-    const settings = JSON.parse(readFileSync(filePath, 'utf8')) as { autoCompactWindow?: unknown };
+    const settings = JSON.parse(readFileSync(filePath, 'utf8')) as {
+      autoCompactWindow?: unknown;
+      autoCompactEnabled?: unknown;
+    };
     const window = readPositiveInteger(settings.autoCompactWindow);
-    settingsWindowCache = { filePath, mtimeMs, window };
-    return window;
+    const enabled = settings.autoCompactEnabled !== false;
+    settingsWindowCache = { filePath, mtimeMs, window, enabled };
+    return settingsWindowCache;
   } catch {
     // No settings file, unreadable, or malformed JSON — no cap configured.
-    return undefined;
+    return { enabled: true };
   }
 };
+
+const readSettingsAutoCompactWindow = (settingsPath?: string): number | undefined =>
+  readAutoCompactSettings(settingsPath).window;
 
 /** Test seam: drops the memoized settings.json read. */
 export const resetClaudeContextWindowCache = (): void => {
@@ -266,6 +279,37 @@ export const resolveClaudeContextCeiling = (
   return window >= LONG_CONTEXT_WINDOW
     ? Math.max(0, window - LONG_CONTEXT_RESERVE)
     : window;
+};
+
+/**
+ * Gap between the usable window and the point auto-compact fires. Measured as
+ * the `maxTokens`/`autoCompactThreshold` distance on both a 200K and a 1M model
+ * (`scripts/verify-context-usage-sdk.ts`), so it holds whether or not the window
+ * already carries the 1M reserve. Numerically equal to that reserve by
+ * coincidence, not by derivation.
+ */
+const AUTO_COMPACT_RESERVE = 33_000;
+
+export type ClaudeDerivedCeiling = {
+  contextWindow: number;
+  autoCompactThreshold: number;
+  isAutoCompactEnabled: boolean;
+};
+
+/**
+ * The full ceiling picture for a session with no live SDK reading — resumed but
+ * not yet streamed, or never run at all. Reporting only the window makes the
+ * ring divide by a limit 33,000 tokens later than the one that fires.
+ */
+export const resolveClaudeDerivedCeiling = (
+  input: ClaudeContextCeilingInput = {},
+): ClaudeDerivedCeiling => {
+  const contextWindow = resolveClaudeContextCeiling(input);
+  return {
+    contextWindow,
+    autoCompactThreshold: Math.max(0, contextWindow - AUTO_COMPACT_RESERVE),
+    isAutoCompactEnabled: readAutoCompactSettings(input.settingsPath).enabled,
+  };
 };
 
 /** Where the auto-compact window in force came from, in Claude Code's order. */

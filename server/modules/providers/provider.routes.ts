@@ -6,6 +6,11 @@ import {
   readClaudeAutoCompactSettings,
   writeClaudeAutoCompactSettings,
 } from '@/modules/providers/list/claude/claude-autocompact.settings.js';
+import {
+  resolveClaudeCeilingProvenance,
+  resolveClaudeDerivedCeiling,
+  toCeilingProvenanceFields,
+} from '@/modules/providers/list/claude/claude-context-window.js';
 import { refreshClaudeContextUsage } from '@/modules/providers/list/claude/claude-runtime.provider.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
@@ -881,6 +886,25 @@ router.put(
     }
 
     res.json(createApiSuccessResponse(await writeClaudeAutoCompactSettings(update)));
+  }),
+);
+
+/**
+ * The ceiling a session on `model` would run under, derived without a reading.
+ * A session that has never streamed has no usage row to read one from, so the
+ * composer asks for the numbers directly rather than showing "0 tokens".
+ */
+router.get(
+  '/claude/context-ceiling',
+  asyncHandler(async (req: Request, res: Response) => {
+    const model = typeof req.query.model === 'string' ? req.query.model : undefined;
+    const derived = resolveClaudeDerivedCeiling({ model });
+    res.json(createApiSuccessResponse({
+      total: derived.contextWindow,
+      autoCompactThreshold: derived.autoCompactThreshold,
+      isAutoCompactEnabled: derived.isAutoCompactEnabled,
+      ...toCeilingProvenanceFields(resolveClaudeCeilingProvenance({ model })),
+    }));
   }),
 );
 

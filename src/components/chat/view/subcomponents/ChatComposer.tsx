@@ -499,6 +499,7 @@ export default function ChatComposer({
               isRefreshingBreakdown={isRefreshingContextBreakdown}
               canRefreshBreakdown={isLoading}
               provider={provider}
+              model={model}
             />
 
             <PromptInputSubmit

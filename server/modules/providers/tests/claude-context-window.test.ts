@@ -13,6 +13,7 @@ import {
   resetClaudeContextWindowCache,
   resolveClaudeCeilingProvenance,
   resolveClaudeContextCeiling,
+  resolveClaudeDerivedCeiling,
   resolveClaudeModelContextSpec,
 } from '@/modules/providers/list/claude/claude-context-window.js';
 import {
@@ -381,4 +382,37 @@ test('provenance names the cap in force and the model window behind it', () => {
       delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
     }
   });
+});
+
+test('the derived ceiling carries the threshold and the enabled flag', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'claude-derived-ceiling-test-'));
+  const settingsPath = path.join(dir, 'settings.json');
+  const derived = (model: string) => {
+    let result = resolveClaudeDerivedCeiling();
+    withoutEnv(['CONTEXT_WINDOW', 'CLAUDE_CODE_AUTO_COMPACT_WINDOW', 'CLAUDE_CODE_DISABLE_1M_CONTEXT'], () => {
+      resetClaudeContextWindowCache();
+      result = resolveClaudeDerivedCeiling({ model, settingsPath });
+    });
+    return result;
+  };
+
+  try {
+    // A cap moves the threshold with it: the window is where compaction is
+    // measured from, never where it fires.
+    await writeFile(settingsPath, JSON.stringify({ autoCompactWindow: 200000 }), 'utf8');
+    assert.deepEqual(derived('claude-opus-5'), {
+      contextWindow: 200_000,
+      autoCompactThreshold: 167_000,
+      isAutoCompactEnabled: true,
+    });
+
+    await writeFile(settingsPath, JSON.stringify({ autoCompactEnabled: false }), 'utf8');
+    assert.deepEqual(derived('claude-opus-5'), {
+      contextWindow: 967_000,
+      autoCompactThreshold: 934_000,
+      isAutoCompactEnabled: false,
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
