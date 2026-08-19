@@ -126,6 +126,14 @@ behaviour stays behind adapter interfaces.
   patterns; do not broaden scope, add speculative abstractions, or compromise working
   behaviour merely to reach completion.
 
+### UI standards
+
+**Before building, say which bucket each part of a UI change falls in — external
+standard, house convention, or the maintainer's taste.**  A convention stated
+confidently is indistinguishable from a published standard to someone who cannot
+check it, and most layout decisions here are taste.  Sources and findings:
+[the UI standards map](docs/maps/ui-standards.md).
+
 ## Code comments
 
 Fork-authored comments run ~30% wordier than upstream's, and every stale file path in
