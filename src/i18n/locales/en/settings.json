@@ -6,7 +6,8 @@
     "skills": "Skills",
     "appearance": "Appearance",
     "defaultModel": "Default Model",
-    "runtime": "Runtime"
+    "runtime": "Runtime",
+    "autoCompact": "Auto-compact"
   },
   "account": {
     "title": "Account",
@@ -738,5 +739,13 @@
       "saved": "Password changed.",
       "mismatch": "The new passwords do not match."
     }
+  },
+  "autoCompact": {
+    "enabled": "Auto-compact",
+    "window": "Context window cap",
+    "auto": "Auto (recommended)",
+    "description": "Auto-compact summarises the conversation before it fills the context window. The window below is a cap: Claude compacts below whichever is smaller, this or the model’s own window. Shared with Claude Code’s /autocompact.",
+    "envLocked": "CLAUDE_CODE_AUTO_COMPACT_WINDOW is set in the environment and outranks this file, so changes here will not take effect until it is unset.",
+    "saveError": "Couldn't read or write Claude Code's settings file."
   }
 }

@@ -132,3 +132,19 @@ test('every screen label and keyword set resolves to a real en string', () => {
     assert.ok(screen.keywords.trim().length > 0, `${screen.id} has no keywords`);
   }
 });
+
+test('auto-compact is findable by the words a confused user would type', () => {
+  // The setting is Claude-only and named nowhere else in the UI, so search is
+  // the only way most people will reach it.
+  for (const query of ['autocompact', 'compact', 'context window']) {
+    assert.ok(
+      screenIds(query).includes('agent.claude.autoCompact'),
+      `"${query}" should reach the auto-compact screen`,
+    );
+  }
+});
+
+test('auto-compact is offered for Claude alone', () => {
+  const screens = SETTINGS_SCREENS.filter((screen) => screen.id.endsWith('.autoCompact'));
+  assert.deepEqual(screens.map((screen) => screen.id), ['agent.claude.autoCompact']);
+});

@@ -13,6 +13,7 @@ import type { SettingsProps } from '../types/types';
 import AboutScreen from './screens/AboutScreen';
 import AccountScreen from './screens/AccountScreen';
 import AgentMcpScreen from './screens/AgentMcpScreen';
+import AgentAutoCompactScreen from './screens/AgentAutoCompactScreen';
 import AgentDefaultModelScreen from './screens/AgentDefaultModelScreen';
 import AgentPermissionsScreen from './screens/AgentPermissionsScreen';
 import AgentProviderScreen from './screens/AgentProviderScreen';
@@ -201,6 +202,9 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
       switch (subsystem) {
         case 'model':
           return <AgentDefaultModelScreen provider={provider} />;
+
+        case 'autoCompact':
+          return <AgentAutoCompactScreen />;
 
         case 'permissions':
           return (

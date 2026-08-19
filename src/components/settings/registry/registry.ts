@@ -72,7 +72,7 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
  */
 export type AgentProviderId = 'claude' | 'cursor' | 'codex' | 'opencode';
 
-export type AgentSubsystem = 'model' | 'permissions' | 'mcp' | 'skills';
+export type AgentSubsystem = 'model' | 'autoCompact' | 'permissions' | 'mcp' | 'skills';
 
 type AgentProviderDescriptor = {
   id: AgentProviderId;
@@ -87,7 +87,9 @@ type AgentProviderDescriptor = {
 };
 
 export const AGENT_PROVIDERS: AgentProviderDescriptor[] = [
-  { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
+  // Auto-compact is Claude's alone: it lives in Claude Code's settings file,
+  // which no other adapter reads.
+  { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'autoCompact', 'permissions', 'mcp', 'skills'] },
   { id: 'cursor', icon: 'providerCursor', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
   { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
   { id: 'opencode', icon: 'providerOpenCode', subsystems: ['model', 'mcp'] },
@@ -100,6 +102,11 @@ const SUBSYSTEM_NODES: Record<AgentSubsystem, { labelKey: string; icon: Settings
     labelKey: 'tabs.defaultModel',
     icon: 'defaultModel',
     keywords: 'default model new session opus sonnet haiku fable legacy picker',
+  },
+  autoCompact: {
+    labelKey: 'tabs.autoCompact',
+    icon: 'defaultModel',
+    keywords: 'autocompact auto-compact compact context window cap threshold tokens summarise',
   },
   permissions: {
     labelKey: 'tabs.permissions',

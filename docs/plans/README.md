@@ -14,7 +14,7 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
-| [Auto-compact visibility](autocompact-visibility.md) | 2/3 | Phase 3: make auto-compact settable in Settings → Agent |
+| [Auto-compact visibility](autocompact-visibility.md) | complete | Verify the settings screen on device, then archive |
 | [Browser MCP hardening](browser-mcp-hardening.md) | not started | Slice 1: ref registry and deterministic snapshot projection |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Typography system](typography-system.md) | not started | Strip Google Fonts from `index.html`, add preloads |

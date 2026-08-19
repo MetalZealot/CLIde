@@ -1,7 +1,7 @@
 # Auto-compact is visible and its numbers are honest
 
-- Status: 2/3
-- Next: phase 3 — auto-compact settable in Settings → Agent
+- Status: complete
+- Next: nothing — archive once the settings screen is verified on device
 - Context: [code anchors](../maps/code-anchors.md), [Claude Code settings surface audit](../maps/2026-07-28-claude-code-settings-surface-audit.md)
 
 The ring has two sources for its ceiling and silently swaps between them. The
@@ -34,7 +34,7 @@ Showing the cap and the model's window as two numbers is what makes that legible
       emits nothing exactly when the user most needs telling. Also reconcile the
       derived fallback, which returns window − 33,000 and calls it the window —
       the same number the SDK calls the threshold.
-- [ ] 3. Auto-compact is settable in Settings → Agent: an on/off toggle and the
+- [x] 3. Auto-compact is settable in Settings → Agent: an on/off toggle and the
       window cap, written to `~/.claude/settings.json` — the same keys and file
       `/autocompact` writes, so Shell and CLIde stay in sync. The cap must be
       shown against the model's own window, never alone, or it reproduces the
