@@ -157,6 +157,19 @@ describe('TokenUsageSummary', () => {
 
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       providerUsageRequests.push(String(input));
+      if (String(input).includes('/context-ceiling')) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            total: 200_000,
+            autoCompactThreshold: 167_000,
+            isAutoCompactEnabled: true,
+            ceilingSource: 'settings',
+            ceilingCap: 200_000,
+            modelContextWindow: 1_000_000,
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       const provider = String(input).includes('/codex/') ? 'codex' : 'claude';
       const data = provider === 'claude'
         ? {
@@ -328,25 +341,31 @@ describe('TokenUsageSummary', () => {
     assert.match(breakdownText, /5-hour limit|Weekly/);
   });
 
-  test('a session with no live frame yet shows no ceiling', async () => {
+  test('a session with no live frame derives its ceiling, and never lends it to another provider', async () => {
+    const props = {
+      request: { id: 0, view: 'summary' as const },
+      onRequestBreakdown: () => {},
+      onRefreshBreakdown: () => {},
+      isRefreshingBreakdown: false,
+      canRefreshBreakdown: false,
+    };
     const host = await mount(
-      <TokenUsageSummary
-        provider="claude"
-        usage={{ used: 0 }}
-        request={{ id: 0, view: 'summary' }}
-        onRequestBreakdown={() => {}}
-        onRefreshBreakdown={() => {}}
-        isRefreshingBreakdown={false}
-        canRefreshBreakdown={false}
-      />,
+      <TokenUsageSummary provider="claude" usage={{ used: 0 }} model="opus" {...props} />,
     );
-    const { trigger, dialog } = await openPopover(host);
+    const { dialog } = await openPopover(host);
 
-    // The fallback window would read 200,000 here, and the first response
-    // replaces it with the real auto-compact threshold.
-    assert.match(dialog.textContent || '', /Session0 tokens0%/);
-    assert.doesNotMatch(dialog.textContent || '', /200,000/);
-    assert.equal(trigger.getAttribute('title')?.split('\n')[0], '0 tokens used');
+    // Nothing has streamed, so the numbers come from the model and settings.json
+    // rather than reading as a bare "0 tokens".
+    assert.match(dialog.textContent || '', /Session0 \/ 167k · Custom0%/);
+
+    // The composer survives a session switch; the Claude ceiling must not.
+    await React.act(async () => {
+      root?.render(<TokenUsageSummary provider="codex" usage={{ used: 0 }} {...props} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    const codexText = document.querySelector('[role="dialog"]')?.textContent || '';
+    assert.match(codexText, /Session0 tokens0%/);
+    assert.doesNotMatch(codexText, /167k|Custom/);
   });
 
   test('a capped ceiling names its source and the model window behind it', async () => {

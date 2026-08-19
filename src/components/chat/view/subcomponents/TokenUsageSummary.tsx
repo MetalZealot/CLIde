@@ -347,7 +347,12 @@ export default function TokenUsageSummary({
   // tokens" says nothing about the window it will run in or where compaction
   // will fire. The server derives both from the model and settings.json.
   useEffect(() => {
-    if (!isOpen || provider !== 'claude' || usageHasCeiling) return undefined;
+    // The composer outlives a session switch, so a ceiling fetched for one
+    // provider must not stand in for the next one's.
+    if (!isOpen || provider !== 'claude' || usageHasCeiling) {
+      setDerivedCeiling(null);
+      return undefined;
+    }
 
     let cancelled = false;
     const query = model ? `?model=${encodeURIComponent(model)}` : '';
@@ -361,7 +366,9 @@ export default function TokenUsageSummary({
     return () => { cancelled = true; };
   }, [isOpen, provider, usageHasCeiling, model]);
 
-  const ceilingReading = usageHasCeiling ? usage : derivedCeiling ?? usage;
+  const ceilingReading = usageHasCeiling || provider !== 'claude'
+    ? usage
+    : derivedCeiling ?? usage;
   const reportedWindow = readUsageNumber(ceilingReading?.total);
   const contextWindow =
     reportedWindow > 0
