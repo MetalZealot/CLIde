@@ -55,13 +55,14 @@ main checkout only).
 
 Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md). Decide the tier before designing the control.
 
-- [ ] **Adopt a tier-1 budget, or decide not to.** The map names three tiers; nothing yet says the permanent tier is fixed-size, so every new control still only has to clear "is this useful?" — which it always does. If adopted, it's an ADR. **S — decision, blocks the three below**
+- [ ] **Nine touch control sites miss the 44px hit area** — search field, its two in-field buttons, mobile Close sidebar, the batch bar's three, archive restore/delete, rename save/cancel, New Project. `.sidebar-utility-hit-target` is the existing one-class fix; table in [the sidebar map](maps/sidebar-surface.md). **S**
+- [ ] **The session row's provider logo trails but is identity, not state** (ADR 0042 rule 2). Leading the title would also take it out of the desktop kebab's path permanently. **S**
+- [ ] **ADR 0042 budgets controls, not marks.** The session row carries two permanent trailing marks on touch — relative age and provider logo. Decide whether marks get a budget too, or stay deliberately unbounded. **S — decision**
 - [ ] **`sidebar.json` is ~40% untranslated in all nine non-`en` locales.** The `worktrees`, `sessionView`, `browseView` and `selection` blocks — 79 keys, every fork-built sidebar feature — exist only in `en` and render through `defaultValue`. **M**
 - [ ] **A repository row tap does different things per breakpoint** — mobile `onClick` only expands, desktop also selects the project (`SidebarRepositoryItem`, `toggleProject` vs `selectAndToggleProject`). No comment says why. Either is defensible; the divergence being undocumented is not. Parity table: [the sidebar map](maps/sidebar-surface.md). **S**
 - [ ] **The version is unreachable on mobile** — the OSS/version line is `hidden md:block` in the footer, and the version modal only opens from the update banner. A phone with no update pending can't see what it's running. **S**
 - [ ] **Session count reads "3 sessions" on mobile and "3" on desktop** from the same `getSessionCountDisplay`. Pick one. **S**
-- [ ] **Archive row actions are 28px at both breakpoints** — restore and delete are `h-7 w-7` in the shared archive tree, against 44px targets everywhere else on mobile, and they're the archive's only affordances. The shared-component risk the [parity table](maps/sidebar-surface.md) describes. **S**
-- [ ] **Should the repository row carry a TaskMaster indicator at all?** `TaskIndicator` rendered nowhere for its whole life (`md:hidden` parent, `md:inline-flex` child) and the dead prop chain is gone; `getTaskIndicatorStatus` and the component remain. Restoring it means spending a tier-1 slot, so it waits on the budget item. **S**
+- [ ] **Should the repository row carry a TaskMaster indicator at all?** `TaskIndicator` rendered nowhere for its whole life (`md:hidden` parent, `md:inline-flex` child) and the dead prop chain is gone; `getTaskIndicatorStatus` and the component remain. ADR 0042 now prices it: a permanent trailing mark on touch. **S**
 
 ## Model picker follow-ups
 

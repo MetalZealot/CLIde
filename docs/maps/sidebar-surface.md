@@ -136,6 +136,49 @@ parses every `.tsx` under `src/` and fails on an element that its own container
 hides at the other breakpoint — the shape that kept `TaskIndicator` off screen.
 It carries a fixture of that original shape as a negative control.
 
+## Budget compliance (ADR 0042)
+
+Measured 2026-08-18, against the three rules in
+[ADR 0042](../decisions/0042-input-type-sets-the-sidebar-budget.md).
+
+**Only rule 3 is an external standard** — 44px is Apple's published guideline,
+48dp is Google's. Rules 1 and 2 are house conventions: defensible, widely
+followed, and overrulable without anything breaking. Read the two lists
+differently.
+
+**Rule 1 — one permanent trailing control on touch.** Every row passes. No row
+carries more than one permanent trailing control at either breakpoint, and the
+repository and session rows carry none: their trailing slot holds a transient
+status symbol, and the desktop's New Session and kebab are hover-revealed.
+*Known gap:* the rule governs controls. The session row's trailing **marks** —
+relative age and provider logo — are permanent on touch and unbudgeted.
+
+**Rule 2 — identity leads, state trails.** The expand chevron is *state*, so its
+trailing position is compliant; ADR 0042's example list was wrong to call it
+identity. One violation remains: the session row's
+provider logo trails, but a provider is what the session *is*, not what is true
+now. Leading the title would satisfy the rule and take the logo out of the
+desktop kebab's path for good.
+
+**Rule 3 — 44px hit area on touch.** Nine control sites fall short, all on touch.
+`.sidebar-utility-hit-target` (`index.css`) is the existing fix and reconciles a
+32px visual with a 44px hit area without resizing anything.
+
+| Control | Where | Visible | Hit area |
+|---|---|---|---|
+| Search field | header utility row | 32px | 32px |
+| Search-inside-messages toggle | inside the field | 24px | 24px |
+| Clear search | inside the field | 24px | 24px |
+| Close sidebar | mobile app bar | 32px | 32px |
+| Cancel | batch selection bar | 28px | 28px |
+| Archive / Delete | batch selection bar | 32px | 32px |
+| Restore / Delete | archive view rows | 28px | 28px |
+| Save / Cancel rename | repository row, editing | 32px | 32px |
+| New Project | end of the project list | ~40px | ~40px |
+
+The browse selector and Sort button are the compliant pair to copy: both are 32px
+visuals already wearing the helper class.
+
 ## Dead surface
 
 `TaskIndicator` had exactly one render site, inside the repository row's
