@@ -14,6 +14,8 @@ import type {
   ProviderUsageSpendCredits,
   ProviderUsageWindow,
 } from '../../../provider-usage/types';
+import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
+import { agentScreenId } from '../../../settings/registry/registry';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 import type {
   ContextCommandData,
@@ -49,6 +51,17 @@ const PROVIDER_DEFAULT_CONTEXT_WINDOW: Record<string, number> = {
 const PROVIDER_USAGE_MANAGEMENT_URLS: Partial<Record<LLMProvider, string>> = {
   claude: 'https://claude.ai/new#settings/usage',
   codex: 'https://chatgpt.com/#settings/Usage',
+};
+
+// The session row carries three numbers plus a status word; full digits push the
+// label out of the row. The breakdown prints them in full.
+const formatCompactTokens = (value: number): string => {
+  const trim = (scaled: number, decimals: number): string =>
+    scaled.toFixed(decimals).replace(/\.0+$/, '');
+
+  if (value >= 1_000_000) return `${trim(value / 1_000_000, 1)}M`;
+  if (value >= 1_000) return `${trim(value / 1_000, value < 100_000 ? 1 : 0)}k`;
+  return String(Math.round(value));
 };
 
 const KNOWN_WINDOW_LABELS: Record<string, string> = {
@@ -288,6 +301,11 @@ export default function TokenUsageSummary({
   const handledRequestId = useRef(0);
   const popoverId = useId();
   const close = useCallback(() => setIsOpen(false), []);
+  const { openSettings } = usePaletteOps();
+  const openAutoCompactSettings = useCallback(() => {
+    setIsOpen(false);
+    openSettings(agentScreenId('claude', 'autoCompact'));
+  }, [openSettings]);
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 19 * 16);
   const usageProvider = toUsageProvider(provider);
   const planUsage = useProviderUsage(usageProvider);
@@ -371,15 +389,15 @@ export default function TokenUsageSummary({
   const modelContextWindow = readUsageNumber(usage?.modelContextWindow);
   const isCapped = ceilingCap > 0 && modelContextWindow > 0 && ceilingCap < modelContextWindow;
   const CEILING_SOURCE_LABELS: Record<string, string> = {
-    auto: ' · auto',
-    settings: ' · from settings',
-    env: ' · from environment',
+    auto: 'Auto',
+    settings: 'Custom',
+    env: 'Env',
   };
   const autoCompactStatus = provider !== 'claude' || !hasMeasuredCeiling
-    ? ''
+    ? null
     : usage?.isAutoCompactEnabled === false
-      ? ' · auto-compact off'
-      : (ceilingSource && CEILING_SOURCE_LABELS[ceilingSource]) ?? '';
+      ? 'Off'
+      : (ceilingSource && CEILING_SOURCE_LABELS[ceilingSource]) ?? null;
 
   const title =
     fraction === null || !hasMeasuredCeiling
@@ -464,52 +482,64 @@ export default function TokenUsageSummary({
           {view === 'summary' && (
             <div className="space-y-4">
               <section className="space-y-1.5">
-                <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="font-medium text-foreground">Session</span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {percentUsed === null ? '—' : `${percentUsed}% used`}
+                {/* Tokens sit beside the percentage, as the reset time does on a
+                    plan row, so the meter reads directly under its own numbers. */}
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="shrink-0 font-medium text-foreground">Session</span>
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="truncate text-xs text-muted-foreground">
+                      {effectiveCeiling > 0 && hasMeasuredCeiling
+                        ? `${formatCompactTokens(usedTokens)} / ${formatCompactTokens(effectiveCeiling)}`
+                        : `${formatCompactTokens(usedTokens)} tokens`}
+                      {autoCompactStatus && (
+                        <>
+                          {' · '}
+                          <button
+                            type="button"
+                            onClick={openAutoCompactSettings}
+                            title="Auto-compact settings"
+                            className="underline underline-offset-2 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {autoCompactStatus}
+                          </button>
+                        </>
+                      )}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {percentUsed === null ? '—' : `${percentUsed}%`}
+                    </span>
+                    {provider === 'claude' && (
+                      <button
+                        type="button"
+                        aria-expanded={breakdownOpen}
+                        aria-label="Session breakdown"
+                        title="Session breakdown"
+                        onClick={() => {
+                          if (breakdownOpen) {
+                            setBreakdownOpen(false);
+                            return;
+                          }
+                          setContextData(null);
+                          setBreakdownLoading(true);
+                          setBreakdownOpen(true);
+                          onRequestBreakdown();
+                        }}
+                        className="inline-flex shrink-0 items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <ChevronDown
+                          className={cn('h-3.5 w-3.5 transition-transform', breakdownOpen && 'rotate-180')}
+                          aria-hidden
+                        />
+                      </button>
+                    )}
                   </span>
                 </div>
                 {percentUsed !== null && <UsageBar utilization={percentUsed} />}
-                <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span className="min-w-0 truncate">
-                    {effectiveCeiling > 0 && hasMeasuredCeiling
-                      ? `${usedTokens.toLocaleString()} / ${effectiveCeiling.toLocaleString()}${autoCompactStatus}`
-                      : `${usedTokens.toLocaleString()} tokens`}
-                  </span>
-                  {provider === 'claude' && (
-                    <button
-                      type="button"
-                      aria-expanded={breakdownOpen}
-                      onClick={() => {
-                        if (breakdownOpen) {
-                          setBreakdownOpen(false);
-                          return;
-                        }
-                        setContextData(null);
-                        setBreakdownLoading(true);
-                        setBreakdownOpen(true);
-                        onRequestBreakdown();
-                      }}
-                      className="inline-flex shrink-0 items-center gap-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      Breakdown
-                      <ChevronDown
-                        className={cn('h-3 w-3 transition-transform', breakdownOpen && 'rotate-180')}
-                        aria-hidden
-                      />
-                    </button>
-                  )}
-                </div>
-                {isCapped && (
-                  <div className="text-xs text-muted-foreground">
-                    {`capped at ${ceilingCap.toLocaleString()} · model window ${modelContextWindow.toLocaleString()}`}
-                  </div>
-                )}
                 {breakdownOpen && provider === 'claude' && (
                   <ContextBreakdownView
                     data={contextData}
                     loading={breakdownLoading}
+                    cap={isCapped ? { cap: ceilingCap, modelWindow: modelContextWindow } : undefined}
                     onRefresh={onRefreshBreakdown}
                     isRefreshing={isRefreshingBreakdown}
                     canRefresh={canRefreshBreakdown}

@@ -246,7 +246,7 @@ describe('TokenUsageSummary', () => {
     assert.equal(trigger.getAttribute('aria-label'), 'Show usage; credits available');
     assert.match(text, /Context & Usage/);
     assert.match(trigger.textContent || '', /\$/);
-    assert.match(text, /Session13% used117,721 \/ 934,000 · autoBreakdown/);
+    assert.match(text, /Session118k \/ 934k · Auto13%/);
     // Label, reset and percentage on one line.
     assert.match(text, /5-hour limitResets in \d+h \d+m75%/);
     assert.match(text, /WeeklyResets in \d+d \d+h25%/);
@@ -268,8 +268,9 @@ describe('TokenUsageSummary', () => {
     assert.equal(link?.textContent?.trim(), 'Manage Plan and Balance');
     assert.equal(link?.href, 'https://claude.ai/new#settings/usage');
 
-    const breakdown = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
-      .find((button) => button.textContent?.includes('Breakdown'));
+    const breakdown = dialog.querySelector<HTMLButtonElement>(
+      'button[aria-label="Session breakdown"]',
+    );
     assert.ok(breakdown);
     await React.act(async () => breakdown.click());
     assert.equal(breakdownOpens, 1);
@@ -323,7 +324,7 @@ describe('TokenUsageSummary', () => {
     assert.match(breakdownText, /Messages97,721/);
     // Expanded in place, so the session line it explains and the plan windows
     // stay on screen beside it rather than being swapped out.
-    assert.match(breakdownText, /117,721 \/ 934,000Breakdown/);
+    assert.match(breakdownText, /118k \/ 934k13%/);
     assert.match(breakdownText, /5-hour limit|Weekly/);
   });
 
@@ -343,7 +344,7 @@ describe('TokenUsageSummary', () => {
 
     // The fallback window would read 200,000 here, and the first response
     // replaces it with the real auto-compact threshold.
-    assert.match(dialog.textContent || '', /Session0% used0 tokens/);
+    assert.match(dialog.textContent || '', /Session0 tokens0%/);
     assert.doesNotMatch(dialog.textContent || '', /200,000/);
     assert.equal(trigger.getAttribute('title')?.split('\n')[0], '0 tokens used');
   });
@@ -371,10 +372,12 @@ describe('TokenUsageSummary', () => {
     const { dialog } = await openPopover(host);
     const text = dialog.textContent || '';
 
-    assert.match(text, /114,222 \/ 167,000 · from settings/);
-    // The cut is only legible next to what it cut: 200,000 alone reads as the model.
-    assert.match(text, /capped at 200,000 · model window 1,000,000/);
+    assert.match(text, /114k \/ 167k · Custom/);
+    // The cap belongs to the breakdown, so no row gains a second line here.
+    assert.doesNotMatch(text, /capped at/);
     assert.doesNotMatch(text, /· Auto/);
+    // The source word is the way in to the setting that produced it.
+    assert.ok(dialog.querySelector('button[title="Auto-compact settings"]'));
   });
 
   test('an uncapped ceiling says auto and shows no cap line', async () => {
@@ -399,7 +402,7 @@ describe('TokenUsageSummary', () => {
     const { dialog } = await openPopover(host);
     const text = dialog.textContent || '';
 
-    assert.match(text, /122,942 \/ 967,000 · auto/);
+    assert.match(text, /123k \/ 967k · Auto/);
     assert.doesNotMatch(text, /capped at/);
   });
 
@@ -419,8 +422,8 @@ describe('TokenUsageSummary', () => {
     const text = dialog.textContent || '';
 
     assert.match(text, /Context & Usage/);
-    assert.match(text, /Session16% used42,000 \/ 258,400/);
-    assert.doesNotMatch(text, /Breakdown/);
+    assert.match(text, /Session42k \/ 258k16%/);
+    assert.equal(dialog.querySelector('button[aria-label="Session breakdown"]'), null);
     assert.match(text, /WeeklyResets in \d+d \d+h52%/);
     // The per-window usage link is a chevron now, so it is named, not labelled.
     const labels = [...dialog.querySelectorAll('[aria-label]')]
