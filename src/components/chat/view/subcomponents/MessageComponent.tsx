@@ -16,6 +16,7 @@ import { ToolRenderer, ToolErrorDisplay, shouldHideToolResult } from '../../tool
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../shared/view/ui';
 
 import ChatMessageImages from './ChatMessageImages';
+import CompactBoundaryDivider from './CompactBoundaryDivider';
 import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
@@ -108,6 +109,14 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
   if (shouldHideThinkingMessage) {
     return null;
+  }
+
+  if (message.isCompactBoundary) {
+    return (
+      <div className="chat-message px-3 sm:px-0">
+        <CompactBoundaryDivider boundary={message.compactBoundary} />
+      </div>
+    );
   }
 
   return (

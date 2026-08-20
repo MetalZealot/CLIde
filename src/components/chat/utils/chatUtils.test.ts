@@ -7,7 +7,7 @@ import { type Project } from '../../../types/app';
 import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
 
-import { extractInternalMemoryCitation, formatMemoryCitationSource } from './chatFormatting';
+import { extractInternalMemoryCitation, formatMemoryCitationSource, splitLeadingCommand } from './chatFormatting';
 import { exportToHTML, exportToMarkdown } from './chatExport';
 import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
 
@@ -83,6 +83,38 @@ describe('chatFormatting', () => {
     ]);
     assert.equal(messages[1]?.content, citation);
     assert.equal(messages[1]?.memoryCitations, undefined);
+  });
+});
+
+describe('splitLeadingCommand', () => {
+  const names = new Set(['/compact', '/fork', '$review-diff']);
+
+  test('splits a leading command from its argument and rebuilds the input exactly', () => {
+    const match = splitLeadingCommand('/compact focus on the auth work', names);
+    assert.deepEqual(match, { command: '/compact', separator: ' ', rest: 'focus on the auth work' });
+    assert.equal(`${match!.command}${match!.separator}${match!.rest}`, '/compact focus on the auth work');
+  });
+
+  test('reports an empty argument so the hint can show, with or without a trailing space', () => {
+    assert.deepEqual(splitLeadingCommand('/compact', names), { command: '/compact', separator: '', rest: '' });
+    assert.deepEqual(splitLeadingCommand('/compact ', names), { command: '/compact', separator: ' ', rest: '' });
+  });
+
+  test('matches whole names only, at the start, for either provider prefix', () => {
+    assert.equal(splitLeadingCommand('/compacted the notes', names), null);
+    assert.equal(splitLeadingCommand('/unknown thing', names), null);
+    assert.equal(splitLeadingCommand('please /compact this', names), null);
+    assert.equal(splitLeadingCommand(' /compact', names), null);
+    assert.equal(splitLeadingCommand('', names), null);
+    assert.equal(splitLeadingCommand('$review-diff', names)?.command, '$review-diff');
+  });
+
+  test('keeps a newline in the argument so the overlay stays aligned with the textarea', () => {
+    assert.deepEqual(splitLeadingCommand('/compact\nkeep the ADRs', names), {
+      command: '/compact',
+      separator: '',
+      rest: '\nkeep the ADRs',
+    });
   });
 });
 

@@ -34,6 +34,8 @@ import {
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
 
+import { splitLeadingCommand } from '../../utils/chatFormatting';
+
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
 import ComposerAttachment from './ComposerAttachment';
@@ -57,6 +59,7 @@ interface SlashCommand {
   namespace?: string;
   path?: string;
   type?: string;
+  argumentHint?: string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -129,6 +132,7 @@ interface ChatComposerProps {
   onCloseCommandMenu: () => void;
   isCommandMenuOpen: boolean;
   frequentCommands: SlashCommand[];
+  slashCommands: SlashCommand[];
   getRootProps: (...args: unknown[]) => Record<string, unknown>;
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
   inputHighlightRef: RefObject<HTMLDivElement>;
@@ -206,6 +210,7 @@ export default function ChatComposer({
   onCloseCommandMenu,
   isCommandMenuOpen,
   frequentCommands,
+  slashCommands,
   getRootProps,
   getInputProps,
   inputHighlightRef,
@@ -226,6 +231,16 @@ export default function ChatComposer({
   enterToSend,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
+
+  const leadingCommand = useMemo(
+    () => splitLeadingCommand(input, new Set(slashCommands.map((command) => command.name))),
+    [input, slashCommands],
+  );
+  // Only while the argument slot is still empty, as in the CLI.
+  const argumentHint = leadingCommand && !leadingCommand.rest
+    ? slashCommands.find((command) => command.name === leadingCommand.command)?.argumentHint
+    : undefined;
+
   const commandMenuPosition = useMemo(() => {
     if (!isCommandMenuOpen) {
       return { top: 0, left: 16, bottom: 90 };
@@ -412,7 +427,22 @@ export default function ChatComposer({
           <PromptInputBody>
             <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
               <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent">
-                {renderInputWithMentions(input)}
+                {leadingCommand ? (
+                  <>
+                    <span className="-ml-0.5 box-decoration-clone rounded-md bg-violet-200/70 px-0.5 text-transparent dark:bg-violet-400/30">
+                      {leadingCommand.command}
+                    </span>
+                    {leadingCommand.separator}
+                    {renderInputWithMentions(leadingCommand.rest)}
+                    {argumentHint && (
+                      <span className="text-muted-foreground/70">
+                        {leadingCommand.separator ? argumentHint : ` ${argumentHint}`}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  renderInputWithMentions(input)
+                )}
               </div>
             </div>
 

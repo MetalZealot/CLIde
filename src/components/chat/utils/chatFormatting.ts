@@ -24,6 +24,27 @@ export type ExtractedMemoryCitation = {
   citations: MemoryCitation[];
 };
 
+/** Abbreviates a token count for a chip or a one-line label ("158K", "1.2M"). */
+export const formatTokenCount = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0';
+  }
+
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
+  }
+
+  if (value >= 10_000) {
+    return `${Math.round(value / 1_000)}K`;
+  }
+
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+
+  return value.toLocaleString();
+};
+
 export function formatMemoryCitationSource(source: string): string {
   return source.replace(/:(\d+)-(\d+)$/, ':$1–$2');
 }
@@ -140,4 +161,29 @@ export function formatUsageLimitText(text: string) {
   } catch {
     return text;
   }
+}
+
+export interface LeadingCommandMatch {
+  command: string;
+  /** Whitespace the user typed between the command and its argument. */
+  separator: string;
+  rest: string;
+}
+
+/**
+ * Only a command at the very start of the composer counts: that is the only
+ * position a runtime parses one, so marking a mid-message token would promise
+ * a dispatch that never happens. Names are matched whole, prefix included, so
+ * this holds for Claude's `/name` and Codex's `$name` alike.
+ */
+export function splitLeadingCommand(
+  text: string,
+  commandNames: ReadonlySet<string>,
+): LeadingCommandMatch | null {
+  const match = /^(\S+)([^\S\n]*)([\s\S]*)$/.exec(text);
+  if (!match || !commandNames.has(match[1])) {
+    return null;
+  }
+
+  return { command: match[1], separator: match[2], rest: match[3] };
 }

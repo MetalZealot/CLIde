@@ -310,6 +310,12 @@ export function useChatProviderState({
     return providerCapabilities?.[targetProvider]?.supportsFork === true;
   }, [providerCapabilities]);
 
+  const getSupportsCompactCommandForProvider = useCallback((targetProvider: LLMProvider): boolean => {
+    // Same rule as rewind: no command in the menu until the backend confirms
+    // the runtime understands it.
+    return providerCapabilities?.[targetProvider]?.supportsCompactCommand === true;
+  }, [providerCapabilities]);
+
   const pickStoredOrCurrent = (
     storageKey: string,
     current: string,
@@ -746,5 +752,6 @@ export function useChatProviderState({
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
     getSupportsForkForProvider,
+    getSupportsCompactCommandForProvider,
   };
 }

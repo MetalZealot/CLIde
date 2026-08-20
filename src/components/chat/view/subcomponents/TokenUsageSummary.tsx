@@ -18,6 +18,7 @@ import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
 import { authenticatedFetch } from '../../../../utils/api';
 import { agentScreenId } from '../../../settings/registry/registry';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
+import { formatTokenCount } from '../../utils/chatFormatting';
 import type {
   ContextCommandData,
   UsagePopoverRequest,
@@ -74,26 +75,6 @@ const KNOWN_WINDOW_LABELS: Record<string, string> = {
   seven_day: 'Weekly',
   seven_day_opus: 'Weekly (Opus)',
   seven_day_sonnet: 'Weekly (Sonnet)',
-};
-
-const formatTokenCount = (value: number) => {
-  if (!Number.isFinite(value) || value <= 0) {
-    return '0';
-  }
-
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
-  }
-
-  if (value >= 10_000) {
-    return `${Math.round(value / 1_000)}K`;
-  }
-
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}K`;
-  }
-
-  return value.toLocaleString();
 };
 
 const readUsageNumber = (value: unknown) => {
@@ -546,7 +527,9 @@ export default function TokenUsageSummary({
                           <button
                             type="button"
                             onClick={openAutoCompactSettings}
-                            title="Auto-compact settings"
+                            title={autoCompactStatus === 'Off'
+                              ? 'Auto-compact is off: this session stops at the context limit instead of being summarised. Tap to change.'
+                              : 'Auto-compact rewrites the conversation at the compact point. Tap to change.'}
                             className="underline underline-offset-2 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
                             {autoCompactStatus}

@@ -119,7 +119,7 @@ Predicted membership only. Read `terminal_slash_commands` and hide what it names
 Per-session actions. A composer kebab is the obvious home for most; none of them is
 a durable preference.
 
-`compact` (open TODO item) · `export` · `copy` · `branch` · `btw` · `subtask` ·
+`compact` (shipped: menu command plus a boundary divider) · `export` · `copy` · `branch` · `btw` · `subtask` ·
 `background` (pairs with [background-session notifications](../plans/background-session-notifications.md)) ·
 `focus` · `color` · `goal` · `recap` · `tasks` · `list-agents` ·
 `add-dir` and `cd` (project scope, and CLIde already owns checkout identity — ADR 0033/0041)

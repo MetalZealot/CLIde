@@ -373,5 +373,9 @@
   "compactSummary": {
     "label": "Compaction summary",
     "references": "Referenced:"
+  },
+  "compactBoundary": {
+    "auto": "Context auto-compacted",
+    "manual": "Context compacted"
   }
 }

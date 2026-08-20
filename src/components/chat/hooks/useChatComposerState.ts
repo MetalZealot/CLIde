@@ -83,6 +83,8 @@ interface UseChatComposerStateArgs {
   supportsRewind?: boolean;
   /** From the provider capability matrix; gates /fork in the command menu. */
   supportsFork?: boolean;
+  /** From the provider capability matrix; gates /compact in the command menu. */
+  supportsCompactCommand?: boolean;
 }
 
 interface MentionableFile {
@@ -346,6 +348,7 @@ export function useChatComposerState({
   setPendingPermissionRequests: _setPendingPermissionRequests,
   supportsRewind = false,
   supportsFork = false,
+  supportsCompactCommand = false,
 }: UseChatComposerStateArgs) {
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
@@ -756,6 +759,7 @@ export function useChatComposerState({
     onExecuteCommand: executeCommand,
     supportsRewind,
     supportsFork,
+    supportsCompactCommand,
   });
 
   const {
@@ -1050,7 +1054,9 @@ export function useChatComposerState({
                 metadata: { type: 'builtin' },
               } as SlashCommand)
             : undefined);
-        if (matchedCommand && matchedCommand.type !== 'skill') {
+        // Skills and `sendAsPrompt` commands (e.g. /compact) are the runtime's
+        // to interpret — they fall through and go out as the turn's text.
+        if (matchedCommand && matchedCommand.type !== 'skill' && matchedCommand.sendAsPrompt !== true) {
           executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
           setInput('');
           inputValueRef.current = '';
@@ -1674,6 +1680,7 @@ export function useChatComposerState({
     isTextareaExpanded,
     filteredCommands,
     frequentCommands,
+    slashCommands,
     commandQuery,
     showCommandMenu,
     selectedCommandIndex,

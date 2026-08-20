@@ -15,6 +15,7 @@ import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
 import ChatExportMenu from './ChatExportMenu';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
+import CompactBoundaryDivider from './CompactBoundaryDivider';
 import TokenUsageSummary from './TokenUsageSummary';
 
 describe('ChatExportMenu', () => {
@@ -396,7 +397,7 @@ describe('TokenUsageSummary', () => {
     assert.doesNotMatch(text, /capped at/);
     assert.doesNotMatch(text, /· Auto/);
     // The source word is the way in to the setting that produced it.
-    assert.ok(dialog.querySelector('button[title="Auto-compact settings"]'));
+    assert.ok(dialog.querySelector('button[title^="Auto-compact"]'));
   });
 
   test('an uncapped ceiling says auto and shows no cap line', async () => {
@@ -999,5 +1000,24 @@ describe('NativeImageAttachmentPicker', () => {
     assert.doesNotMatch(html, /<button/);
     assert.match(html, /lucide-plus/);
     assert.doesNotMatch(html, /lucide-paperclip/);
+  });
+});
+
+describe('CompactBoundaryDivider', () => {
+  test('states the trigger, the tokens saved, and how long it took', () => {
+    const html = renderToStaticMarkup(
+      <CompactBoundaryDivider
+        boundary={{ trigger: 'auto', preTokens: 122537, postTokens: 15517, durationMs: 119489 }}
+      />,
+    );
+    assert.match(html, /123K → 16K/);
+    assert.match(html, /1m 59s/);
+    assert.match(html, /auto-compacted/i);
+  });
+
+  test('renders the divider with whatever the provider reported, and nothing more', () => {
+    const html = renderToStaticMarkup(<CompactBoundaryDivider boundary={{ trigger: 'manual', preTokens: null, postTokens: null, durationMs: null }} />);
+    assert.doesNotMatch(html, /→|NaN|null/);
+    assert.doesNotMatch(html, /auto-compacted/i);
   });
 });

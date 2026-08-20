@@ -369,9 +369,12 @@ export function useChatRealtimeHandlers({
             if (sid === activeViewSessionId) {
               setTokenBudget(msg.tokenBudget as Record<string, unknown>);
             }
-          } else if (msg.text && sid) {
+          } else if (typeof msg.text === 'string' && sid) {
+            // An empty text is a deliberate clear: the run is still going, but
+            // whatever the provider was announcing is over, so the indicator
+            // returns to its own cycling label.
             onSessionProcessing?.(sid, {
-              statusText: msg.text as string,
+              statusText: msg.text || null,
               canInterrupt: msg.canInterrupt !== false,
             });
           }

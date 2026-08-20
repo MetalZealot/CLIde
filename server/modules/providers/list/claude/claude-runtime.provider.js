@@ -895,6 +895,28 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       const transformedMessage = transformMessage(message);
       const sid = capturedSessionId || sessionId || null;
 
+      // Compaction is a minutes-long silence in the stream unless it is
+      // announced: the CLI reports it as a status message, `compacting` while
+      // it runs and another value once the turn resumes. An empty status text
+      // hands the label back to the indicator's own cycling words.
+      if (message?.type === 'system' && message.subtype === 'status') {
+        const isCompacting = message.status === 'compacting';
+        ws.send(createNormalizedMessage({
+          kind: 'status',
+          text: isCompacting ? 'Compacting conversation' : '',
+          sessionId: capturedSessionId || sessionId || null,
+          provider: 'claude',
+        }));
+        if (message.compact_result === 'failed') {
+          ws.send(createNormalizedMessage({
+            kind: 'error',
+            content: `Compaction failed: ${message.compact_error || 'no reason reported'}`,
+            sessionId: capturedSessionId || sessionId || null,
+            provider: 'claude',
+          }));
+        }
+      }
+
       // Account-level usage push, not a transcript row: sent as a gateway
       // event (no message id, no session id) so no chat surface files it
       // under the conversation that happened to trigger it.

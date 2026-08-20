@@ -370,6 +370,19 @@ export type ProviderSessionEffort = {
  *
  * Keep this union in sync with event kinds produced by provider session adapters.
  */
+/**
+ * Where a compaction cut the conversation, and what it cost.
+ *
+ * Providers that compact without reporting numbers may send trigger alone; the
+ * UI renders whichever fields are present.
+ */
+export type CompactBoundaryInfo = {
+  trigger: 'auto' | 'manual';
+  preTokens: number | null;
+  postTokens: number | null;
+  durationMs: number | null;
+};
+
 export type MessageKind =
   | 'text'
   | 'tool_use'
@@ -384,7 +397,8 @@ export type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'interactive_prompt'
-  | 'task_notification';
+  | 'task_notification'
+  | 'compact_boundary';
 
 /**
  * Event kinds added by the chat gateway layer on top of provider message kinds.
@@ -529,6 +543,8 @@ export type NormalizedMessage = {
    * transcript order. Only set on `isCompactSummary` rows.
    */
   compactReferences?: string[];
+  /** What a compaction cost and saved. Only set on `compact_boundary` rows. */
+  compactBoundary?: CompactBoundaryInfo;
   /**
    * CLI-fabricated assistant notices (usage-limit banners, API-error
    * placeholders — rows with `model: "<synthetic>"` / `isApiErrorMessage`).
