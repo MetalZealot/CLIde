@@ -37,6 +37,8 @@ type TokenUsageSummaryProps = {
   provider?: string;
   /** Model the next turn would run, used to derive a ceiling before one exists. */
   model?: string;
+  /** Conversation the composer is on; changing it invalidates the breakdown. */
+  sessionKey?: string | null;
 };
 
 // A fresh session has no `token_budget` frame yet, so `usage` is null until the
@@ -293,6 +295,7 @@ export default function TokenUsageSummary({
   canRefreshBreakdown,
   provider,
   model,
+  sessionKey = null,
 }: TokenUsageSummaryProps) {
   const { t } = useTranslation('common');
   const [isOpen, setIsOpen] = useState(false);
@@ -304,6 +307,7 @@ export default function TokenUsageSummary({
   const [derivedCeiling, setDerivedCeiling] = useState<Record<string, unknown> | null>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const handledRequestId = useRef(0);
+  const sessionKeyRef = useRef(sessionKey);
   const popoverId = useId();
   const close = useCallback(() => setIsOpen(false), []);
   const { openSettings } = usePaletteOps();
@@ -316,6 +320,18 @@ export default function TokenUsageSummary({
   const planUsage = useProviderUsage(usageProvider);
   const refreshPlanUsage = planUsage.refresh;
   const refreshPlanUsageIfStale = planUsage.refreshIfStale;
+
+  // The composer outlives a session switch, so an expanded breakdown would keep
+  // rendering the previous session's reading. A new chat gaining its id is the
+  // same conversation, not a switch.
+  useEffect(() => {
+    const previousKey = sessionKeyRef.current;
+    sessionKeyRef.current = sessionKey;
+    if (previousKey === null || previousKey === sessionKey) return;
+    setBreakdownOpen(false);
+    setContextData(null);
+    setBreakdownLoading(false);
+  }, [sessionKey]);
 
   useEffect(() => {
     if (request.id <= handledRequestId.current) return;

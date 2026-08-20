@@ -103,6 +103,8 @@ interface ChatComposerProps {
   onShowContextBreakdown: () => void;
   onRefreshContextBreakdown: () => void;
   isRefreshingContextBreakdown: boolean;
+  /** Active conversation id, or null on a chat with no session yet. */
+  sessionKey: string | null;
   provider: LLMProvider;
   hasInput: boolean;
   onClearInput: () => void;
@@ -179,6 +181,7 @@ export default function ChatComposer({
   onShowContextBreakdown,
   onRefreshContextBreakdown,
   isRefreshingContextBreakdown,
+  sessionKey,
   provider,
   hasInput,
   onClearInput,
@@ -498,6 +501,7 @@ export default function ChatComposer({
               onRefreshBreakdown={onRefreshContextBreakdown}
               isRefreshingBreakdown={isRefreshingContextBreakdown}
               canRefreshBreakdown={isLoading}
+              sessionKey={sessionKey}
               provider={provider}
               model={model}
             />

@@ -637,6 +637,7 @@ function ChatInterface({
             onShowContextBreakdown={showContextPopover}
             onRefreshContextBreakdown={refreshContextPopover}
             isRefreshingContextBreakdown={isRefreshingContext}
+            sessionKey={currentSessionId || selectedSession?.id || null}
             provider={provider}
             hasInput={Boolean(input.trim())}
             onClearInput={handleClearInput}

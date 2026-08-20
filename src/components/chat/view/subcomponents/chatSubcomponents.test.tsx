@@ -492,6 +492,44 @@ describe('TokenUsageSummary', () => {
       Date.now = realDateNow;
     }
   });
+
+  test('an expanded breakdown does not carry one session\'s reading into the next', async () => {
+    const summary = (sessionKey: string) => (
+      <TokenUsageSummary
+        provider="claude"
+        usage={{ used: 10_000, total: 200_000 }}
+        request={{
+          id: 1,
+          view: 'breakdown',
+          context: {
+            provider: 'claude',
+            detail: 'full',
+            usedTokens: 10_000,
+            breakdown: { categories: [{ name: 'Session A memory', tokens: 4_000 }] },
+          },
+        }}
+        onRequestBreakdown={() => {}}
+        onRefreshBreakdown={() => {}}
+        isRefreshingBreakdown={false}
+        canRefreshBreakdown={false}
+        sessionKey={sessionKey}
+      />
+    );
+    // The `/context` request opens the panel itself, so no trigger click here.
+    await mount(summary('session-a'));
+    const dialog = document.querySelector('[role="dialog"]');
+    assert.ok(dialog);
+    assert.match(dialog.textContent || '', /Session A memory/);
+
+    await React.act(async () => root?.render(summary('session-b')));
+    const switched = document.querySelector('[role="dialog"]');
+    assert.ok(switched);
+    assert.doesNotMatch(switched.textContent || '', /Session A memory/);
+    assert.equal(
+      switched.querySelector('button[aria-label="Session breakdown"]')?.getAttribute('aria-expanded'),
+      'false',
+    );
+  });
 });
 
 describe('ComposerMenus', () => {
