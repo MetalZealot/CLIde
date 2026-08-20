@@ -59,6 +59,34 @@ const buildUnchanged = (
 });
 
 /**
+ * Whether a stored popup pick still represents the session. The pick wins only
+ * when it is at least as recent as the last transcript turn; a newer turn means
+ * the model changed by a path the cache never observed, so the transcript wins.
+ * Missing timestamps bias toward the trustworthy signal: no turn to compare
+ * against -> the pick stands; an undateable pick -> defer to the transcript.
+ */
+export const pickSupersedesTranscript = (
+  pickUpdatedAt?: string,
+  transcriptTimestamp?: string,
+): boolean => {
+  if (!transcriptTimestamp) {
+    return true;
+  }
+  const turnTime = Date.parse(transcriptTimestamp);
+  if (Number.isNaN(turnTime)) {
+    return true;
+  }
+  if (!pickUpdatedAt) {
+    return false;
+  }
+  const pickTime = Date.parse(pickUpdatedAt);
+  if (Number.isNaN(pickTime)) {
+    return false;
+  }
+  return pickTime >= turnTime;
+};
+
+/**
  * Reads the model the user explicitly picked for one session.
  *
  * Absence is normalized to `{ changed: false }` so callers can treat "no pick"

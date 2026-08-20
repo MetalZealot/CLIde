@@ -14,7 +14,7 @@ import {
   resolveClaudeDerivedCeiling,
   toCeilingProvenanceFields,
 } from '@/modules/providers/list/claude/claude-context-window.js';
-import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
+import { pickSupersedesTranscript } from '@/modules/providers/services/provider-session-model.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 import type { AnyRecord, ProviderSessionActiveModelChange } from '@/shared/types.js';
