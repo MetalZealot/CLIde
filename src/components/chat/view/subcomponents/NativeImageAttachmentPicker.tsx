@@ -44,7 +44,7 @@ export default function NativeImageAttachmentPicker({
         className={buttonVariants({
           variant: 'ghost',
           size: 'icon',
-          className: 'relative h-8 w-8 focus-within:ring-1 focus-within:ring-ring [&_svg]:size-4',
+          className: 'relative h-8 w-8 text-muted-foreground has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-ring [&_svg]:size-5',
         })}
       >
         <PlusIcon aria-hidden="true" />

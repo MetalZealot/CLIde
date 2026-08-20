@@ -426,7 +426,7 @@ export default function ChatComposer({
 
           <PromptInputBody>
             <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent">
+              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 pb-1 pt-2 text-sm leading-6 text-transparent">
                 {leadingCommand ? (
                   <>
                     <span className="-ml-0.5 box-decoration-clone rounded-md bg-violet-200/70 px-0.5 text-transparent dark:bg-violet-400/30">
@@ -563,12 +563,12 @@ export default function ChatComposer({
               }
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
-              className="ml-1.5 h-10 w-10 sm:ml-2 sm:h-10 sm:w-10"
+              className="composer-send-hit-target ml-4 [&_svg]:size-5"
             >
               {isTranscribing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <ArrowUpIcon className="h-4 w-4" />
+                <ArrowUpIcon className="h-5 w-5" />
               )}
             </PromptInputSubmit>
           </div>

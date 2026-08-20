@@ -140,7 +140,7 @@
     "loading": "Loading…"
   },
   "input": {
-    "placeholder": "Type / for commands, @ for files, or ask {{provider}} anything...",
+    "placeholder": "Ask anything, @ to mention, / for actions",
     "placeholderDefault": "Type your message...",
     "disabled": "Input disabled",
     "attachFiles": "Attach files",

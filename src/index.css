@@ -320,6 +320,17 @@
     content: '';
   }
   
+  /* 32px visual, 44px touch area (WCAG 2.5.8 floor is met by the visual alone). */
+  .composer-send-hit-target {
+    position: relative;
+  }
+
+  .composer-send-hit-target::before {
+    position: absolute;
+    inset: -0.375rem;
+    content: '';
+  }
+
   /* Modal and dropdown transitions */
   .modal-transition {
     transition: opacity 200ms ease-in-out,
