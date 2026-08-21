@@ -97,7 +97,7 @@ export const PromptInputTextarea = React.forwardRef<
     // autosize hook only ever sets height back to `auto` when the input clears.
     rows={1}
     className={cn(
-      'chat-input-placeholder block max-h-[40vh] w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3 text-sm leading-6 text-foreground placeholder-muted-foreground/50 focus:outline-none sm:max-h-[300px]',
+      'chat-input-placeholder block max-h-[160px] w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3 text-base leading-6 text-foreground placeholder-muted-foreground/50 focus:outline-none sm:max-h-[300px]',
       className
     )}
     {...props}

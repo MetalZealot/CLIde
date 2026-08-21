@@ -106,6 +106,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     [message.timestamp],
   );
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
+  const usesMobileReadingInset =
+    (message.type === 'user' || message.type === 'assistant') &&
+    !message.isToolUse &&
+    !message.isThinking &&
+    !message.isCompactSummary;
 
   if (shouldHideThinkingMessage) {
     return null;
@@ -123,7 +128,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     <div
       ref={messageRef}
       data-message-timestamp={message.timestamp || undefined}
-      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'}`}
+      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end' : ''} ${usesMobileReadingInset ? 'px-1 sm:px-0' : 'px-3 sm:px-0'}`}
     >
       {message.type === 'user' ? (
         /* User turn on the right: claude.ai-style attachment cards above the bubble */
@@ -146,12 +151,13 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     isRewindEditTarget ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
                   }`}
                 >
-                  <div dir="auto" className="break-words font-serif text-sm">
+                  <div dir="auto" className="break-words font-serif text-base leading-[22px] sm:text-sm sm:leading-6">
                     {/* `breaks` keeps a typed single newline meaningful now that
                         user turns render as Markdown rather than pre-wrapped text. */}
                     <Markdown
                       breaks
-                      className="prose prose-on-accent prose-sm prose-invert max-w-none font-serif [&_a]:text-blue-100 [&_a]:underline"
+                      mobileReadingDensity
+                      className="prose prose-on-accent prose-sm prose-invert max-w-none font-serif text-base leading-[22px] sm:text-sm sm:leading-6 [&_a]:text-blue-100 [&_a]:underline"
                     >
                       {message.content}
                     </Markdown>
@@ -459,7 +465,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
                   // Normal rendering for non-JSON content
                   return message.type === 'assistant' ? (
-                    <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
+                    <Markdown
+                      mobileReadingDensity
+                      insetFencedCode
+                      className="prose prose-sm prose-gray max-w-none font-serif text-base leading-[22px] sm:text-sm sm:leading-6 dark:prose-invert"
+                    >
                       {content}
                     </Markdown>
                   ) : (

@@ -72,16 +72,16 @@ do it as one tidy commit, ideally not adjacent to a rebase.
 
 ## Tune the scale live, don't pre-commit it
 
-The family swap and the size bump are separable. Do the swap first, then judge
-sizes on the actual phone via the dev server on 5173. These are targets to
-evaluate, not commitments:
+The family swap and the size bump are separable. Mobile density is being trialled
+against Merriweather first; recheck it after the family swap on the actual phone.
+These are targets to evaluate, not commitments:
 
 | Role | Current | Target | Notes |
 |---|---|---|---|
-| Chat prose | 14px (`prose-sm`) | 15–16px, lh 1.5 | biggest density change — judge on device |
-| Code blocks | highlighter default | 13px, lh 1.6 | floor 12.5px |
+| Chat prose | phone trial: 16px/22px; 14px/24px at `sm`+ | 15–16px, lh 1.5 | recheck with Figtree on device |
+| Code blocks | 14px highlighter | 13px, lh 1.6 | floor 12.5px |
 | Inline code | — | 0.9em of surrounding | |
-| Composer input | 14px (`text-sm`) | 16px | see below |
+| Composer input | 16px/24px | 16px | see below |
 | Meta/timestamps | various `text-xs` | 11–12px, weight 500, muted | 11px is the floor |
 | Buttons/chips | 13–14px | unchanged, weight 500–600 | already fine |
 
@@ -94,6 +94,28 @@ synthesise an oblique.
 already. 16px is a *prerequisite* for removing `user-scalable=no` later, which is
 an accessibility question — pinch-zoom currently does not work at all. Decide
 that in the UI overhaul, not here.
+
+## Deferred reading-size customization
+
+This is not part of the family swap. The colour-token migration is not a
+prerequisite either, but its future Appearance preference owner should carry both
+colour and typography settings rather than creating another persistence path.
+
+- Route `--chat-text-size`, `--chat-line-height`, `--chat-paragraph-gap`, and
+  `--chat-code-size` from the shared `ChatInterface` boundary. Normal user and
+  assistant prose consume them; metadata, provider labels, reasoning, system
+  notices, and tool controls remain fixed.
+- Offer **Compact / Default / Large** presets, not an unconstrained slider. A
+  preset coordinates body size, line-height, paragraph and heading rhythm, and
+  code size so users cannot create broken combinations.
+- Keep the composer at a 16px minimum. Inline code remains relative to prose;
+  fenced code uses a clamped size; tables and headings follow the reading preset.
+- Own the value in a typed Appearance preference model and apply variables or a
+  data attribute at the shared boundary. `ThemeContext` currently owns only
+  light/dark/system, `useUiPreferences` accepts booleans only, and the editor's
+  font-size storage is deliberately editor-specific; none is the complete owner.
+- Verify every preset at 320px and in the installed PWA with headings, paragraphs,
+  lists, tables, inline/fenced code, user bubbles, and a scrolling composer.
 
 ## Done when
 

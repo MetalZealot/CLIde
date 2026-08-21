@@ -18,6 +18,10 @@ type MarkdownProps = {
   className?: string;
   /** Render single newlines as hard line breaks (for user-typed messages). */
   breaks?: boolean;
+  /** Use the phone reading rhythm without changing secondary Markdown surfaces. */
+  mobileReadingDensity?: boolean;
+  /** Preserve a wider phone scroll gutter around horizontally scrollable code. */
+  insetFencedCode?: boolean;
 };
 
 // Links to the wider web (or in-page anchors) keep normal browser navigation;
@@ -60,9 +64,10 @@ type CodeBlockProps = {
   inline?: boolean;
   className?: string;
   children?: React.ReactNode;
+  insetFencedCode?: boolean;
 };
 
-const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockProps) => {
+const CodeBlock = ({ node, inline, className, children, insetFencedCode = false, ...props }: CodeBlockProps) => {
   const { t } = useTranslation('chat');
   const { isDarkMode } = useTheme();
   const [copied, setCopied] = useState(false);
@@ -74,7 +79,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   if (shouldInline) {
     return (
       <code
-        className={`inline-block max-w-full whitespace-pre-wrap break-words align-bottom rounded-md border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono text-[0.9em] text-gray-900 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100 ${className || ''
+        className={`inline-block max-w-full whitespace-pre-wrap break-words align-baseline rounded-md bg-gray-100 px-1.5 py-0 font-mono text-[0.9em] leading-[1.375] text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800/60 dark:text-gray-100 dark:ring-gray-700 ${className || ''
           }`}
         {...props}
       >
@@ -87,7 +92,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   const language = match ? match[1] : 'text';
 
   return (
-    <div className="group relative my-2">
+    <div className={`group relative my-2 ${insetFencedCode ? 'mx-2 sm:mx-0' : ''}`}>
       {language && language !== 'text' && (
         <div className="absolute left-3 top-2 z-10 text-xs font-medium uppercase text-gray-400">{language}</div>
       )}
@@ -182,7 +187,7 @@ const markdownComponents = {
   li: ({ children }: { children?: React.ReactNode }) => <li className="[&>div:last-child]:mb-0 [&>div]:mb-1">{children}</li>,
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-2 overflow-x-auto">
-      <table className="min-w-full border-collapse border border-gray-200 dark:border-gray-700">{children}</table>
+      <table className="my-0 min-w-full border-collapse border border-gray-200 dark:border-gray-700">{children}</table>
     </div>
   ),
   thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-gray-50 dark:bg-gray-800">{children}</thead>,
@@ -194,7 +199,13 @@ const markdownComponents = {
   ),
 };
 
-export function Markdown({ children, className, breaks = false }: MarkdownProps) {
+export function Markdown({
+  children,
+  className,
+  breaks = false,
+  mobileReadingDensity = false,
+  insetFencedCode = false,
+}: MarkdownProps) {
   const content = normalizeInlineCodeFences(String(children ?? ''));
   const remarkPlugins = useMemo(
     () => (breaks
@@ -208,6 +219,18 @@ export function Markdown({ children, className, breaks = false }: MarkdownProps)
   const components = useMemo(
     () => ({
       ...markdownComponents,
+      code: (props: CodeBlockProps) => (
+        <CodeBlock {...props} insetFencedCode={insetFencedCode} />
+      ),
+      p: ({ children: paragraphChildren }: { children?: React.ReactNode }) => (
+        <div
+          className={mobileReadingDensity
+            ? 'mb-3 last:mb-0 sm:mb-2 sm:last:mb-0'
+            : 'mb-2 last:mb-0'}
+        >
+          {paragraphChildren}
+        </div>
+      ),
       a: ({ href, children: linkChildren }: { href?: string; children?: React.ReactNode }) => {
         // Prefer the href when it is a real path; otherwise fall back to the
         // link text, since models often emit `[src/foo.ts]()` with an empty href.
@@ -241,7 +264,7 @@ export function Markdown({ children, className, breaks = false }: MarkdownProps)
         );
       },
     }),
-    [openFileInEditor],
+    [insetFencedCode, mobileReadingDensity, openFileInEditor],
   );
 
   return (
