@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 import { authenticatedFetch } from '../../../../utils/api';
 import type { ChatImage } from '../../types/types';
@@ -85,17 +85,33 @@ function useChatImageSrc(image: ChatImage, projectId?: string | null): { src: st
  * Fullscreen image overlay in the claude.ai style: dark backdrop, centered
  * image, closes on backdrop click, close button, or Escape.
  */
-export function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+type ImageLightboxProps = {
+  src: string;
+  alt: string;
+  onClose: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+};
+
+export function ImageLightbox({ src, alt, onClose, onPrevious, onNext }: ImageLightboxProps) {
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
         onClose();
+      } else if (event.key === 'ArrowLeft' && onPrevious) {
+        event.preventDefault();
+        event.stopPropagation();
+        onPrevious();
+      } else if (event.key === 'ArrowRight' && onNext) {
+        event.preventDefault();
+        event.stopPropagation();
+        onNext();
       }
     };
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [onClose]);
+  }, [onClose, onNext, onPrevious]);
 
   return createPortal(
     <div
@@ -107,12 +123,41 @@ export function ImageLightbox({ src, alt, onClose }: { src: string; alt: string;
     >
       <button
         type="button"
-        onClick={onClose}
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose();
+        }}
         aria-label="Close image preview"
-        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+        className="absolute right-4 top-4 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
       >
-        <X className="h-5 w-5" />
+        <X className="h-6 w-6" aria-hidden />
       </button>
+      {onPrevious && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onPrevious();
+          }}
+          aria-label="Previous image"
+          className="absolute left-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:left-4"
+        >
+          <ChevronLeft className="h-7 w-7" aria-hidden />
+        </button>
+      )}
+      {onNext && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onNext();
+          }}
+          aria-label="Next image"
+          className="absolute right-2 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-4"
+        >
+          <ChevronRight className="h-7 w-7" aria-hidden />
+        </button>
+      )}
       <img
         src={src}
         alt={alt}
@@ -124,10 +169,35 @@ export function ImageLightbox({ src, alt, onClose }: { src: string; alt: string;
   );
 }
 
-function ChatMessageImage({ image, projectId }: { image: ChatImage; projectId?: string | null }) {
+type ChatMessageImageProps = {
+  image: ChatImage;
+  imageKey: string;
+  projectId?: string | null;
+  expanded: boolean;
+  onExpand: () => void;
+  onClose: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  onAvailabilityChange: (imageKey: string, available: boolean) => void;
+};
+
+function ChatMessageImage({
+  image,
+  imageKey,
+  projectId,
+  expanded,
+  onExpand,
+  onClose,
+  onPrevious,
+  onNext,
+  onAvailabilityChange,
+}: ChatMessageImageProps) {
   const { src, failed } = useChatImageSrc(image, projectId);
-  const [expanded, setExpanded] = useState(false);
   const alt = image.name || 'Attached image';
+
+  useEffect(() => {
+    onAvailabilityChange(imageKey, Boolean(src && !failed));
+  }, [failed, imageKey, onAvailabilityChange, src]);
 
   if (failed) {
     return (
@@ -145,7 +215,7 @@ function ChatMessageImage({ image, projectId }: { image: ChatImage; projectId?: 
     <>
       <button
         type="button"
-        onClick={() => setExpanded(true)}
+        onClick={onExpand}
         aria-label={`Expand ${alt}`}
         className="block overflow-hidden rounded-xl border border-border/50 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/60"
       >
@@ -155,7 +225,15 @@ function ChatMessageImage({ image, projectId }: { image: ChatImage; projectId?: 
           className="h-28 w-28 cursor-zoom-in object-cover transition-transform duration-200 hover:scale-105"
         />
       </button>
-      {expanded && <ImageLightbox src={src} alt={alt} onClose={() => setExpanded(false)} />}
+      {expanded && (
+        <ImageLightbox
+          src={src}
+          alt={alt}
+          onClose={onClose}
+          onPrevious={onPrevious}
+          onNext={onNext}
+        />
+      )}
     </>
   );
 }
@@ -166,15 +244,65 @@ function ChatMessageImage({ image, projectId }: { image: ChatImage; projectId?: 
  * expands to a fullscreen lightbox on click.
  */
 export default function ChatMessageImages({ images, projectId }: ChatMessageImagesProps) {
+  const [activeImageKey, setActiveImageKey] = useState<string | null>(null);
+  const [availableImageKeys, setAvailableImageKeys] = useState<Set<string>>(() => new Set());
+
+  const handleAvailabilityChange = useCallback((imageKey: string, available: boolean) => {
+    if (!available) {
+      setActiveImageKey((current) => current === imageKey ? null : current);
+    }
+    setAvailableImageKeys((current) => {
+      const hasImage = current.has(imageKey);
+      if (hasImage === available) {
+        return current;
+      }
+
+      const next = new Set(current);
+      if (available) {
+        next.add(imageKey);
+      } else {
+        next.delete(imageKey);
+      }
+      return next;
+    });
+  }, []);
+
   if (!images || images.length === 0) {
     return null;
   }
 
+  const keyedImages = images.map((image, index) => ({
+    image,
+    key: `${image.path || image.name || 'image'}:${index}`,
+  }));
+  const navigableKeys = keyedImages
+    .filter(({ key }) => availableImageKeys.has(key))
+    .map(({ key }) => key);
+
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      {images.map((image, index) => (
-        <ChatMessageImage key={image.path || image.name || index} image={image} projectId={projectId} />
-      ))}
+      {keyedImages.map(({ image, key }) => {
+        const galleryIndex = navigableKeys.indexOf(key);
+        const previousKey = galleryIndex > 0 ? navigableKeys[galleryIndex - 1] : undefined;
+        const nextKey = galleryIndex >= 0 && galleryIndex < navigableKeys.length - 1
+          ? navigableKeys[galleryIndex + 1]
+          : undefined;
+
+        return (
+          <ChatMessageImage
+            key={key}
+            image={image}
+            imageKey={key}
+            projectId={projectId}
+            expanded={activeImageKey === key}
+            onExpand={() => setActiveImageKey(key)}
+            onClose={() => setActiveImageKey(null)}
+            onPrevious={previousKey ? () => setActiveImageKey(previousKey) : undefined}
+            onNext={nextKey ? () => setActiveImageKey(nextKey) : undefined}
+            onAvailabilityChange={handleAvailabilityChange}
+          />
+        );
+      })}
     </div>
   );
 }

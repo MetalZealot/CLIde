@@ -38,7 +38,7 @@ import { splitLeadingCommand } from '../../utils/chatFormatting';
 
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
-import ComposerAttachment from './ComposerAttachment';
+import { ComposerAttachmentGallery } from './ComposerAttachment';
 import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
@@ -409,17 +409,12 @@ export default function ChatComposer({
           {attachedFiles.length > 0 && (
             <PromptInputHeader>
               <div className="rounded-xl bg-muted/40 p-2">
-                <div className="flex flex-wrap gap-2">
-                  {attachedFiles.map((file, index) => (
-                    <ComposerAttachment
-                      key={index}
-                      file={file}
-                      onRemove={() => onRemoveAttachment(index)}
-                      uploadProgress={uploadingFiles.get(file.name)}
-                      error={fileErrors.get(file.name)}
-                    />
-                  ))}
-                </div>
+                <ComposerAttachmentGallery
+                  files={attachedFiles}
+                  onRemove={onRemoveAttachment}
+                  uploadingFiles={uploadingFiles}
+                  fileErrors={fileErrors}
+                />
               </div>
             </PromptInputHeader>
           )}

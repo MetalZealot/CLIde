@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FileIcon, XIcon } from 'lucide-react';
 
 import { ImageLightbox } from './ChatMessageImages';
@@ -8,6 +8,19 @@ interface ComposerAttachmentProps {
   onRemove: () => void;
   uploadProgress?: number;
   error?: string;
+  expanded?: boolean;
+  onExpand?: () => void;
+  onClose?: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  onPreviewAvailabilityChange?: (file: File, available: boolean) => void;
+}
+
+interface ComposerAttachmentGalleryProps {
+  files: File[];
+  onRemove: (index: number) => void;
+  uploadingFiles: Map<string, number>;
+  fileErrors: Map<string, string>;
 }
 
 const formatFileSize = (size: number) => {
@@ -16,9 +29,19 @@ const formatFileSize = (size: number) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const ComposerAttachment = ({ file, onRemove, uploadProgress, error }: ComposerAttachmentProps) => {
+const ComposerAttachment = ({
+  file,
+  onRemove,
+  uploadProgress,
+  error,
+  expanded = false,
+  onExpand,
+  onClose,
+  onPrevious,
+  onNext,
+  onPreviewAvailabilityChange,
+}: ComposerAttachmentProps) => {
   const [preview, setPreview] = useState<string | undefined>(undefined);
-  const [expanded, setExpanded] = useState(false);
   const isImage = file.type.startsWith('image/');
 
   useEffect(() => {
@@ -31,12 +54,16 @@ const ComposerAttachment = ({ file, onRemove, uploadProgress, error }: ComposerA
     return () => URL.revokeObjectURL(url);
   }, [file, isImage]);
 
+  useEffect(() => {
+    onPreviewAvailabilityChange?.(file, Boolean(preview));
+  }, [file, onPreviewAvailabilityChange, preview]);
+
   return (
     <div className="group relative max-w-full">
       {isImage ? (
         <button
           type="button"
-          onClick={() => preview && setExpanded(true)}
+          onClick={() => preview && onExpand?.()}
           aria-label={`Expand ${file.name}`}
           className="block overflow-hidden rounded-xl border border-border/50 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/60"
         >
@@ -76,10 +103,76 @@ const ComposerAttachment = ({ file, onRemove, uploadProgress, error }: ComposerA
         <XIcon className="h-3 w-3" aria-hidden />
       </button>
       {expanded && preview && (
-        <ImageLightbox src={preview} alt={file.name} onClose={() => setExpanded(false)} />
+        <ImageLightbox
+          src={preview}
+          alt={file.name}
+          onClose={() => onClose?.()}
+          onPrevious={onPrevious}
+          onNext={onNext}
+        />
       )}
     </div>
   );
 };
+
+export function ComposerAttachmentGallery({
+  files,
+  onRemove,
+  uploadingFiles,
+  fileErrors,
+}: ComposerAttachmentGalleryProps) {
+  const [activeFile, setActiveFile] = useState<File | null>(null);
+  const [availableImages, setAvailableImages] = useState<Set<File>>(() => new Set());
+
+  const handlePreviewAvailabilityChange = useCallback((file: File, available: boolean) => {
+    if (!available) {
+      setActiveFile((current) => current === file ? null : current);
+    }
+    setAvailableImages((current) => {
+      const hasImage = current.has(file);
+      if (hasImage === available) {
+        return current;
+      }
+
+      const next = new Set(current);
+      if (available) {
+        next.add(file);
+      } else {
+        next.delete(file);
+      }
+      return next;
+    });
+  }, []);
+
+  const navigableImages = files.filter((file) => file.type.startsWith('image/') && availableImages.has(file));
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {files.map((file, index) => {
+        const galleryIndex = navigableImages.indexOf(file);
+        const previousFile = galleryIndex > 0 ? navigableImages[galleryIndex - 1] : undefined;
+        const nextFile = galleryIndex >= 0 && galleryIndex < navigableImages.length - 1
+          ? navigableImages[galleryIndex + 1]
+          : undefined;
+
+        return (
+          <ComposerAttachment
+            key={`${file.name}:${file.size}:${file.lastModified}:${index}`}
+            file={file}
+            onRemove={() => onRemove(index)}
+            uploadProgress={uploadingFiles.get(file.name)}
+            error={fileErrors.get(file.name)}
+            expanded={activeFile === file}
+            onExpand={() => setActiveFile(file)}
+            onClose={() => setActiveFile(null)}
+            onPrevious={previousFile ? () => setActiveFile(previousFile) : undefined}
+            onNext={nextFile ? () => setActiveFile(nextFile) : undefined}
+            onPreviewAvailabilityChange={handlePreviewAvailabilityChange}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 export default ComposerAttachment;

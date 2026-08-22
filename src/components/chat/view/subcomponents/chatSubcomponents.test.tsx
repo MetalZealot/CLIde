@@ -14,6 +14,8 @@ import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
 import ChatExportMenu from './ChatExportMenu';
+import ChatMessageImages from './ChatMessageImages';
+import { ComposerAttachmentGallery } from './ComposerAttachment';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
 import TokenUsageSummary from './TokenUsageSummary';
@@ -36,6 +38,128 @@ describe('configurable chat typography', () => {
     assert.match(markdownSource, /chat-reading-paragraph/);
     assert.match(globalStyles, /--chat-prose-size: 15px;/);
     assert.match(globalStyles, /--chat-prose-line-height: 22px;/);
+  });
+});
+
+describe('image attachment galleries', () => {
+  const mount = async (element: React.ReactNode) => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await React.act(async () => {
+      root.render(element);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    return { container, root };
+  };
+
+  test('navigates only viewable images in one chat message and stops at the ends', async () => {
+    const { container, root } = await mount(
+      <ChatMessageImages
+        images={[
+          { name: 'first.png', data: 'data:image/png;base64,first' },
+          { name: 'unavailable.png' },
+          { name: 'last.png', data: 'data:image/png;base64,last' },
+        ]}
+      />,
+    );
+
+    try {
+      const firstThumbnail = container.querySelector<HTMLButtonElement>('[aria-label="Expand first.png"]');
+      assert.ok(firstThumbnail);
+      await React.act(async () => firstThumbnail.click());
+
+      let dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+      assert.equal(dialog?.getAttribute('aria-label'), 'first.png');
+      assert.equal(dialog?.querySelector('[aria-label="Previous image"]'), null);
+      const nextButton = dialog?.querySelector<HTMLButtonElement>('[aria-label="Next image"]');
+      assert.ok(nextButton);
+
+      await React.act(async () => nextButton.click());
+      dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+      assert.equal(dialog?.getAttribute('aria-label'), 'last.png');
+      assert.equal(dialog?.querySelector('[aria-label="Next image"]'), null);
+      assert.ok(dialog?.querySelector('[aria-label="Previous image"]'));
+
+      await React.act(async () => {
+        document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      });
+      assert.equal(document.querySelector('[role="dialog"]')?.getAttribute('aria-label'), 'first.png');
+
+      await React.act(async () => {
+        document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      });
+      assert.equal(document.querySelector('[role="dialog"]'), null);
+    } finally {
+      await React.act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  test('keeps a single-image preview free of navigation and closes from the backdrop', async () => {
+    const { container, root } = await mount(
+      <ChatMessageImages images={[{ name: 'only.png', data: 'data:image/png;base64,only' }]} />,
+    );
+
+    try {
+      const thumbnail = container.querySelector<HTMLButtonElement>('[aria-label="Expand only.png"]');
+      assert.ok(thumbnail);
+      await React.act(async () => thumbnail.click());
+
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+      assert.ok(dialog);
+      assert.equal(dialog.querySelector('[aria-label="Previous image"]'), null);
+      assert.equal(dialog.querySelector('[aria-label="Next image"]'), null);
+
+      await React.act(async () => dialog.click());
+      assert.equal(document.querySelector('[role="dialog"]'), null);
+    } finally {
+      await React.act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  test('keeps mixed composer files out of navigation and revokes image previews', async () => {
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const revokedUrls: string[] = [];
+    URL.createObjectURL = (value) => `blob:${(value as File).name}`;
+    URL.revokeObjectURL = (url) => revokedUrls.push(url);
+
+    const first = new File(['first'], 'first.png', { type: 'image/png', lastModified: 1 });
+    const documentFile = new File(['document'], 'notes.pdf', { type: 'application/pdf', lastModified: 2 });
+    const last = new File(['last'], 'last.png', { type: 'image/png', lastModified: 3 });
+    const { container, root } = await mount(
+      <ComposerAttachmentGallery
+        files={[first, documentFile, last]}
+        onRemove={() => {}}
+        uploadingFiles={new Map()}
+        fileErrors={new Map()}
+      />,
+    );
+
+    try {
+      const firstThumbnail = container.querySelector<HTMLButtonElement>('[aria-label="Expand first.png"]');
+      assert.ok(firstThumbnail);
+      await React.act(async () => firstThumbnail.click());
+
+      let dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+      assert.equal(dialog?.getAttribute('aria-label'), 'first.png');
+      const nextButton = dialog?.querySelector<HTMLButtonElement>('[aria-label="Next image"]');
+      assert.ok(nextButton);
+      await React.act(async () => nextButton.click());
+
+      dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+      assert.equal(dialog?.getAttribute('aria-label'), 'last.png');
+      assert.equal(dialog?.querySelector('[aria-label="Next image"]'), null);
+    } finally {
+      await React.act(async () => root.unmount());
+      container.remove();
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
+
+    assert.deepEqual(revokedUrls.sort(), ['blob:first.png', 'blob:last.png']);
   });
 });
 
