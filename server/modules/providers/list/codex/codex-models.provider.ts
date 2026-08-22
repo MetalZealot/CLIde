@@ -4,11 +4,18 @@ import path from 'node:path';
 
 import TOML from '@iarna/toml';
 
+import { sessionsDb } from '@/modules/database/index.js';
 import {
   readCodexModelList,
   type CodexLiveModel,
 } from '@/modules/providers/list/codex/codex-app-server.client.js';
-import { writeProviderSessionModelPick } from '@/modules/providers/services/provider-session-model.service.js';
+import { readCodexSessionModelFromRollout } from '@/modules/providers/list/codex/codex-session-model.js';
+import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
+import {
+  readProviderSessionModelPick,
+  writeProviderSessionModelPick,
+  type SessionModelPickStore,
+} from '@/modules/providers/services/provider-session-model.service.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -178,17 +185,26 @@ type CodexProviderModelsOptions = {
   readLiveModels?: () => Promise<CodexLiveModel[]>;
   modelsCachePath?: string;
   configPath?: string;
+  modelPickStore?: SessionModelPickStore;
+  lookupSessionRow?: (sessionId: string) => {
+    provider_session_id?: string | null;
+    jsonl_path?: string | null;
+  } | null;
 };
 
 export class CodexProviderModels implements IProviderModels {
   private readonly readLiveModels: () => Promise<CodexLiveModel[]>;
   private readonly modelsCachePath: string;
   private readonly configPath: string;
+  private readonly modelPickStore?: SessionModelPickStore;
+  private readonly lookupSessionRow: NonNullable<CodexProviderModelsOptions['lookupSessionRow']>;
 
   constructor(options: CodexProviderModelsOptions = {}) {
     this.readLiveModels = options.readLiveModels ?? (() => readCodexModelList());
     this.modelsCachePath = options.modelsCachePath ?? CODEX_MODELS_CACHE_PATH;
     this.configPath = options.configPath ?? CODEX_CONFIG_PATH;
+    this.modelPickStore = options.modelPickStore;
+    this.lookupSessionRow = options.lookupSessionRow ?? ((sessionId) => sessionsDb.getSessionById(sessionId));
   }
 
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
@@ -216,7 +232,42 @@ export class CodexProviderModels implements IProviderModels {
     }
   }
 
-  async getCurrentActiveModel(): Promise<ProviderCurrentActiveModel> {
+  async getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel> {
+    const normalizedSessionId = sessionId?.trim();
+    if (normalizedSessionId) {
+      const picked = await readProviderSessionModelPick('codex', normalizedSessionId, {
+        store: this.modelPickStore,
+      });
+
+      let transcriptModel = null;
+      try {
+        const rolloutPath = this.lookupSessionRow(normalizedSessionId)?.jsonl_path;
+        transcriptModel = rolloutPath
+          ? await readCodexSessionModelFromRollout(rolloutPath)
+          : null;
+      } catch {
+        transcriptModel = null;
+      }
+
+      if (
+        picked.changed
+        && picked.model?.trim()
+        && pickSupersedesTranscript(picked.updatedAt, transcriptModel?.timestamp)
+      ) {
+        return {
+          model: picked.model.trim(),
+          source: 'pick',
+        };
+      }
+
+      if (transcriptModel?.model) {
+        return {
+          model: transcriptModel.model,
+          source: 'transcript',
+        };
+      }
+    }
+
     try {
       const raw = await readFile(this.configPath, 'utf8');
       const parsed = readObjectRecord(TOML.parse(raw));
@@ -239,6 +290,23 @@ export class CodexProviderModels implements IProviderModels {
   async changeActiveModel(
     input: ProviderChangeActiveModelInput,
   ): Promise<ProviderSessionActiveModelChange> {
-    return writeProviderSessionModelPick('codex', input);
+    return writeProviderSessionModelPick('codex', input, { store: this.modelPickStore });
+  }
+
+  async getTranscriptTurnTimestamp(sessionId: string): Promise<string | undefined> {
+    const normalizedSessionId = sessionId.trim();
+    if (!normalizedSessionId) {
+      return undefined;
+    }
+
+    try {
+      const rolloutPath = this.lookupSessionRow(normalizedSessionId)?.jsonl_path;
+      const transcriptModel = rolloutPath
+        ? await readCodexSessionModelFromRollout(rolloutPath)
+        : null;
+      return transcriptModel?.timestamp;
+    } catch {
+      return undefined;
+    }
   }
 }

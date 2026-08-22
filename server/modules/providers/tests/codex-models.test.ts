@@ -9,6 +9,7 @@ import {
   CodexProviderModels,
 } from '@/modules/providers/list/codex/codex-models.provider.js';
 import type { CodexLiveModel } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import type { SessionModelPickStore } from '@/modules/providers/services/provider-session-model.service.js';
 
 const LIVE_MODEL: CodexLiveModel = {
   id: 'gpt-live-id',
@@ -85,4 +86,82 @@ test('Codex models label the hardcoded catalog as fallback', async () => {
   });
   assert.deepEqual(await provider.getSupportedModels(), CODEX_FALLBACK_MODELS);
   assert.equal((await provider.getSupportedModels()).source, 'fallback');
+});
+
+test('Codex reads each session model from that session rollout', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'clide-codex-session-models-'));
+  const firstPath = path.join(root, 'first.jsonl');
+  const secondPath = path.join(root, 'second.jsonl');
+  await writeFile(firstPath, [
+    JSON.stringify({
+      type: 'turn_context',
+      timestamp: '2026-08-21T20:00:00.000Z',
+      payload: { model: 'gpt-5.4', effort: 'high' },
+    }),
+    '{"type":"turn_context"',
+  ].join('\n'), 'utf8');
+  await writeFile(secondPath, JSON.stringify({
+    type: 'turn_context',
+    timestamp: '2026-08-21T20:01:00.000Z',
+    payload: { model: 'gpt-5.6-sol', effort: 'high' },
+  }), 'utf8');
+
+  const provider = new CodexProviderModels({
+    lookupSessionRow: (sessionId) => ({
+      jsonl_path: sessionId === 'session-a' ? firstPath : secondPath,
+    }),
+  });
+
+  try {
+    assert.deepEqual(await provider.getCurrentActiveModel('session-a'), {
+      model: 'gpt-5.4',
+      source: 'transcript',
+    });
+    assert.deepEqual(await provider.getCurrentActiveModel('session-b'), {
+      model: 'gpt-5.6-sol',
+      source: 'transcript',
+    });
+    assert.equal(
+      await provider.getTranscriptTurnTimestamp('session-b'),
+      '2026-08-21T20:01:00.000Z',
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Codex uses a newer session pick but keeps a newer rollout turn as truth', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'clide-codex-model-precedence-'));
+  const rolloutPath = path.join(root, 'session.jsonl');
+  await writeFile(rolloutPath, JSON.stringify({
+    type: 'turn_context',
+    timestamp: '2026-08-21T20:00:00.000Z',
+    payload: { model: 'gpt-5.6-sol' },
+  }), 'utf8');
+
+  const picks = new Map([
+    ['newer-pick', { model: 'gpt-5.4', updatedAt: '2026-08-21T20:01:00.000Z' }],
+    ['older-pick', { model: 'gpt-5.4', updatedAt: '2026-08-21T19:59:00.000Z' }],
+  ]);
+  const modelPickStore: SessionModelPickStore = {
+    getSessionModelPick: (sessionId) => picks.get(sessionId) ?? null,
+    setSessionModelPick: () => true,
+  };
+  const provider = new CodexProviderModels({
+    modelPickStore,
+    lookupSessionRow: () => ({ jsonl_path: rolloutPath }),
+  });
+
+  try {
+    assert.deepEqual(await provider.getCurrentActiveModel('newer-pick'), {
+      model: 'gpt-5.4',
+      source: 'pick',
+    });
+    assert.deepEqual(await provider.getCurrentActiveModel('older-pick'), {
+      model: 'gpt-5.6-sol',
+      source: 'transcript',
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

@@ -230,6 +230,17 @@ export type ProviderCurrentActiveModel = {
 };
 
 /**
+ * Provider-recorded evidence of the model that ran a session's latest turn.
+ *
+ * Model adapters use the timestamp to compare effective provider state with a
+ * newer app-side pick; it may be absent for older transcript formats.
+ */
+export type ProviderSessionModelEvidence = {
+  model: string;
+  timestamp?: string;
+};
+
+/**
  * Where a resolved session model came from.
  *
  * `session` means the app has recorded a model for this session (the user
