@@ -35,7 +35,7 @@
     <!-- Prevent zoom on iOS -->
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Apply saved appearance before first paint so theme and reading size do
+    <!-- Apply saved appearance before first paint so theme and typography do
          not flash their fallbacks before React hydrates. -->
     <script>
       (function () {
@@ -50,13 +50,24 @@
           var savedTheme = appearance && ['light', 'dark', 'system'].includes(appearance.theme)
             ? appearance.theme
             : legacyTheme;
-          var readingSize = appearance && ['compact', 'default', 'large'].includes(appearance.chatReadingSize)
-            ? appearance.chatReadingSize
-            : 'default';
+          var storedReadingSize = appearance && appearance.chatReadingSize;
+          var readingSize = storedReadingSize === 'compact'
+            ? 'smallest'
+            : ['smallest', 'small', 'default', 'large'].includes(storedReadingSize)
+              ? storedReadingSize
+              : 'default';
+          var fontFamily = appearance && ['clide', 'system'].includes(appearance.fontFamily)
+            ? appearance.fontFamily
+            : 'clide';
+          var lineSpacing = appearance && ['condensed', 'standard', 'relaxed', 'spacious'].includes(appearance.chatLineSpacing)
+            ? appearance.chatLineSpacing
+            : 'standard';
           var isDark = savedTheme === 'dark' || savedTheme === 'light'
             ? savedTheme === 'dark'
             : Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
           document.documentElement.dataset.chatReadingSize = readingSize;
+          document.documentElement.dataset.chatLineSpacing = lineSpacing;
+          document.documentElement.dataset.fontFamily = fontFamily;
           if (isDark) {
             document.documentElement.classList.add('dark');
           }

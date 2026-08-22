@@ -73,8 +73,10 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   ...AGENT_ENTRIES,
 
   { screenId: 'appearance', labelKey: 'appearanceSettings.theme.title', keywords: 'dark light system mode' },
-  { screenId: 'appearance', labelKey: 'appearanceSettings.typography.readingSize.label', keywords: 'font text compact default large readability density' },
-  { screenId: 'appearance', labelKey: 'appearanceSettings.language.title', keywords: 'locale translation' },
+  { screenId: 'appearance', labelKey: 'appearanceSettings.typography.fontFamily.label', keywords: 'font family clide system device interface prose' },
+  { screenId: 'appearance', labelKey: 'appearanceSettings.typography.readingSize.label', keywords: 'font text smallest small default large compact readability density preview pixels' },
+  { screenId: 'appearance', labelKey: 'appearanceSettings.typography.lineSpacing.label', keywords: 'font text line height leading condensed relaxed spacious readability preview pixels' },
+  { screenId: 'appearance', labelKey: 'appearanceSettings.language.title', keywords: 'locale translation picker dropdown popover' },
 
   { screenId: 'appearance.editor', labelKey: 'appearanceSettings.codeEditor.wordWrap.label' },
   { screenId: 'appearance.editor', labelKey: 'appearanceSettings.codeEditor.showMinimap.label' },

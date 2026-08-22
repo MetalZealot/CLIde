@@ -68,6 +68,19 @@ test('reading-size customization resolves to Appearance', () => {
   assert.deepEqual(result?.matchedSettingLabelKeys, ['appearanceSettings.typography.readingSize.label']);
 });
 
+test('typeface customization resolves to Appearance', () => {
+  const [result] = search('typeface');
+  assert.equal(result?.screenId, 'appearance');
+  assert.deepEqual(result?.matchedSettingLabelKeys, ['appearanceSettings.typography.fontFamily.label']);
+});
+
+test('line-spacing customization resolves to Appearance', () => {
+  const [result] = search('line spacing');
+  assert.equal(result?.screenId, 'appearance');
+  assert.deepEqual(result?.matchedSettingLabelKeys, ['appearanceSettings.typography.lineSpacing.label']);
+  assert.ok(screenIds('condensed text').includes('appearance'));
+});
+
 test('all tokens must match, but not contiguously', () => {
   assert.ok(screenIds('enter send').includes('chat'));
   assert.ok(screenIds('enter to send').includes('chat'));

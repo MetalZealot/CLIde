@@ -8,6 +8,8 @@ export { default as SettingsTextField } from './SettingsTextField';
 export { default as SettingsSearchField } from './SettingsSearchField';
 export { default as SettingsSegmentedControl } from './SettingsSegmentedControl';
 export type { SegmentedOption } from './SettingsSegmentedControl';
+export { default as SettingsChoicePopover } from './SettingsChoicePopover';
+export type { SettingsChoiceOption } from './SettingsChoicePopover';
 export { default as SettingsStatus } from './SettingsStatus';
 export type { SettingsStatusState } from './SettingsStatus';
 export { SETTINGS_ICONS } from './SettingsIcons';

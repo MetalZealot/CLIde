@@ -36,8 +36,12 @@ describe('configurable chat typography', () => {
     assert.match(markdownSource, /fontSize: readingTypography \? 'var\(--chat-code-size\)'/);
     assert.match(markdownSource, /chat-reading-table-cell/);
     assert.match(markdownSource, /chat-reading-paragraph/);
-    assert.match(globalStyles, /--chat-prose-size: 15px;/);
-    assert.match(globalStyles, /--chat-prose-line-height: 22px;/);
+    assert.match(globalStyles, /--chat-prose-size: 16px;/);
+    assert.match(globalStyles, /--chat-prose-base-line-height: 24px;/);
+    assert.match(globalStyles, /--chat-prose-line-height: calc\(var\(--chat-prose-base-line-height\) \+ var\(--chat-line-height-offset\)\);/);
+    assert.match(globalStyles, /data-chat-line-spacing="condensed"[^}]+--chat-line-height-offset: -2px;/s);
+    assert.match(globalStyles, /data-chat-line-spacing="relaxed"[^}]+--chat-line-height-offset: 2px;/s);
+    assert.match(globalStyles, /data-chat-line-spacing="spacious"[^}]+--chat-line-height-offset: 4px;/s);
   });
 });
 

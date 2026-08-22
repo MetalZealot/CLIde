@@ -8,18 +8,24 @@ import React, {
 } from 'react';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
-export type ChatReadingSize = 'compact' | 'default' | 'large';
+export type ChatReadingSize = 'smallest' | 'small' | 'default' | 'large';
+export type ChatLineSpacing = 'condensed' | 'standard' | 'relaxed' | 'spacious';
+export type FontFamilyPreference = 'clide' | 'system';
 
 export type AppearancePreferences = {
-  version: 1;
+  version: 3;
   theme: ThemePreference;
   chatReadingSize: ChatReadingSize;
+  chatLineSpacing: ChatLineSpacing;
+  fontFamily: FontFamilyPreference;
 };
 
 type AppearancePreferencesContextValue = AppearancePreferences & {
   isDarkMode: boolean;
   setTheme: (theme: ThemePreference) => void;
   setChatReadingSize: (size: ChatReadingSize) => void;
+  setChatLineSpacing: (spacing: ChatLineSpacing) => void;
+  setFontFamily: (fontFamily: FontFamilyPreference) => void;
   toggleDarkMode: () => void;
 };
 
@@ -28,9 +34,11 @@ const LEGACY_THEME_STORAGE_KEY = 'theme';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
 export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
-  version: 1,
+  version: 3,
   theme: 'system',
   chatReadingSize: 'default',
+  chatLineSpacing: 'standard',
+  fontFamily: 'clide',
 };
 
 const AppearancePreferencesContext = createContext<AppearancePreferencesContextValue | null>(null);
@@ -39,7 +47,18 @@ const isThemePreference = (value: unknown): value is ThemePreference =>
   value === 'light' || value === 'dark' || value === 'system';
 
 const isChatReadingSize = (value: unknown): value is ChatReadingSize =>
-  value === 'compact' || value === 'default' || value === 'large';
+  value === 'smallest' || value === 'small' || value === 'default' || value === 'large';
+
+const parseChatReadingSize = (value: unknown): ChatReadingSize => {
+  if (value === 'compact') return 'smallest';
+  return isChatReadingSize(value) ? value : DEFAULT_APPEARANCE_PREFERENCES.chatReadingSize;
+};
+
+const isChatLineSpacing = (value: unknown): value is ChatLineSpacing =>
+  value === 'condensed' || value === 'standard' || value === 'relaxed' || value === 'spacious';
+
+const isFontFamilyPreference = (value: unknown): value is FontFamilyPreference =>
+  value === 'clide' || value === 'system';
 
 const readLegacyTheme = (): ThemePreference => {
   try {
@@ -59,11 +78,15 @@ export const parseAppearancePreferences = (
     : {};
 
   return {
-    version: 1,
+    version: 3,
     theme: isThemePreference(stored.theme) ? stored.theme : legacyTheme,
-    chatReadingSize: isChatReadingSize(stored.chatReadingSize)
-      ? stored.chatReadingSize
-      : DEFAULT_APPEARANCE_PREFERENCES.chatReadingSize,
+    chatReadingSize: parseChatReadingSize(stored.chatReadingSize),
+    chatLineSpacing: isChatLineSpacing(stored.chatLineSpacing)
+      ? stored.chatLineSpacing
+      : DEFAULT_APPEARANCE_PREFERENCES.chatLineSpacing,
+    fontFamily: isFontFamilyPreference(stored.fontFamily)
+      ? stored.fontFamily
+      : DEFAULT_APPEARANCE_PREFERENCES.fontFamily,
   };
 };
 
@@ -100,13 +123,15 @@ export function AppearancePreferencesProvider({ children }: { children: React.Re
     const root = document.documentElement;
     root.classList.toggle('dark', isDarkMode);
     root.dataset.chatReadingSize = preferences.chatReadingSize;
+    root.dataset.chatLineSpacing = preferences.chatLineSpacing;
+    root.dataset.fontFamily = preferences.fontFamily;
 
     const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
     statusBarMeta?.setAttribute('content', isDarkMode ? 'black-translucent' : 'default');
 
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     themeColorMeta?.setAttribute('content', isDarkMode ? '#141414' : '#f6f4ef');
-  }, [isDarkMode, preferences.chatReadingSize]);
+  }, [isDarkMode, preferences.chatLineSpacing, preferences.chatReadingSize, preferences.fontFamily]);
 
   useEffect(() => {
     try {
@@ -152,6 +177,20 @@ export function AppearancePreferencesProvider({ children }: { children: React.Re
       : { ...current, chatReadingSize });
   }, []);
 
+  const setChatLineSpacing = useCallback((chatLineSpacing: ChatLineSpacing) => {
+    if (!isChatLineSpacing(chatLineSpacing)) return;
+    setPreferences((current) => current.chatLineSpacing === chatLineSpacing
+      ? current
+      : { ...current, chatLineSpacing });
+  }, []);
+
+  const setFontFamily = useCallback((fontFamily: FontFamilyPreference) => {
+    if (!isFontFamilyPreference(fontFamily)) return;
+    setPreferences((current) => current.fontFamily === fontFamily
+      ? current
+      : { ...current, fontFamily });
+  }, []);
+
   const toggleDarkMode = useCallback(() => {
     setTheme(isDarkMode ? 'light' : 'dark');
   }, [isDarkMode, setTheme]);
@@ -161,8 +200,18 @@ export function AppearancePreferencesProvider({ children }: { children: React.Re
     isDarkMode,
     setTheme,
     setChatReadingSize,
+    setChatLineSpacing,
+    setFontFamily,
     toggleDarkMode,
-  }), [isDarkMode, preferences, setChatReadingSize, setTheme, toggleDarkMode]);
+  }), [
+    isDarkMode,
+    preferences,
+    setChatLineSpacing,
+    setChatReadingSize,
+    setFontFamily,
+    setTheme,
+    toggleDarkMode,
+  ]);
 
   return (
     <AppearancePreferencesContext.Provider value={value}>

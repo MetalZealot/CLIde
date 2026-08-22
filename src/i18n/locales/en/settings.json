@@ -179,12 +179,31 @@
     },
     "typography": {
       "title": "Typography",
+      "fontFamily": {
+        "label": "Typeface",
+        "description": "Use CLIde's font pairing or your device's interface font.",
+        "clide": "CLIde",
+        "system": "System"
+      },
       "readingSize": {
         "label": "Reading size",
         "description": "Adjust message text without changing the rest of the interface.",
-        "compact": "Compact",
+        "smallest": "Smallest",
+        "small": "Small",
         "default": "Default",
         "large": "Large"
+      },
+      "preview": {
+        "label": "Preview",
+        "text": "Adjust this text until longer conversations feel comfortable to read on your device."
+      },
+      "lineSpacing": {
+        "label": "Line spacing",
+        "description": "Tighten or increase the space between lines of message text.",
+        "condensed": "Condensed",
+        "standard": "Standard",
+        "relaxed": "Relaxed",
+        "spacious": "Spacious"
       }
     },
     "language": {
