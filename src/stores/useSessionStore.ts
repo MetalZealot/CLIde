@@ -30,7 +30,16 @@ export type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'interactive_prompt'
-  | 'task_notification';
+  | 'task_notification'
+  | 'compact_boundary';
+
+/** Where a compaction cut the conversation, and what it cost — see server types. */
+export type CompactBoundaryInfo = {
+  trigger: 'auto' | 'manual';
+  preTokens: number | null;
+  postTokens: number | null;
+  durationMs: number | null;
+};
 
 export interface NormalizedMessage {
   id: string;
@@ -65,6 +74,8 @@ export interface NormalizedMessage {
   isCompactSummary?: boolean;
   /** Files a compaction carried across the boundary — see server types. */
   compactReferences?: string[];
+  /** What a compaction cost and saved — see server types. */
+  compactBoundary?: CompactBoundaryInfo;
   /** CLI-fabricated notice rows (usage limits, API errors) — see server types. */
   isSystemNotice?: boolean;
   /**

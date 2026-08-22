@@ -25,13 +25,13 @@ const formatReadingAge = (fetchedAt: number | undefined): string | null => {
   if (!fetchedAt) return null;
 
   const minutes = Math.round((Date.now() - fetchedAt) / 60_000);
-  if (minutes < 1) return 'Measured just now.';
-  if (minutes < 60) return `Measured ${minutes} min ago.`;
+  if (minutes < 1) return 'Measured just now';
+  if (minutes < 60) return `Measured ${minutes} min ago`;
 
   const hours = Math.round(minutes / 60);
   return hours < 24
-    ? `Measured ${hours} h ago.`
-    : `Measured ${Math.round(hours / 24)} d ago.`;
+    ? `Measured ${hours} h ago`
+    : `Measured ${Math.round(hours / 24)} d ago`;
 };
 
 type BreakdownEntry = {
@@ -96,6 +96,7 @@ function BreakdownSection({
 export default function ContextBreakdownView({
   data,
   loading,
+  cap,
   onBack,
   onRefresh,
   isRefreshing,
@@ -103,7 +104,10 @@ export default function ContextBreakdownView({
 }: {
   data: ContextCommandData | null;
   loading: boolean;
-  onBack: () => void;
+  /** A configured auto-compact cap that shrinks the model's own window. */
+  cap?: { cap: number; modelWindow: number };
+  /** Omitted when the breakdown is expanded in place and owns no header. */
+  onBack?: () => void;
   onRefresh?: () => void;
   isRefreshing: boolean;
   canRefresh: boolean;
@@ -140,7 +144,8 @@ export default function ContextBreakdownView({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className={onBack ? 'flex items-center justify-between gap-3' : 'flex items-center justify-end'}>
+        {onBack && (
         <button
           type="button"
           onClick={onBack}
@@ -149,6 +154,10 @@ export default function ContextBreakdownView({
           <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
           Session breakdown
         </button>
+        )}
+        {readingAge && (
+          <span className="ml-auto mr-2 shrink-0 text-[11px] text-muted-foreground">{readingAge}</span>
+        )}
         {onRefresh && (
           <button
             type="button"
@@ -166,6 +175,12 @@ export default function ContextBreakdownView({
       {/* Eleven sections is long by nature, so the reading area scrolls and the
           back button and refresh stay put. */}
       <div className="space-y-3 overflow-y-auto overscroll-contain" style={{ maxHeight: READING_SURFACE_MAX_HEIGHT }}>
+      {cap && (
+        <p className="border-t border-border/60 pt-3 text-xs leading-5 text-muted-foreground">
+          {`Auto-compact capped at ${formatNumber(cap.cap)} of the model's ${formatNumber(cap.modelWindow)} window.`}
+        </p>
+      )}
+
       {loading && (
         <p className="flex items-center gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -278,7 +293,6 @@ export default function ContextBreakdownView({
               ].filter((entry) => entry.tokens > 0)}
             />
           )}
-          {readingAge && <p className="border-t border-border/60 pt-3 text-[11px] text-muted-foreground">{readingAge}</p>}
         </>
       )}
       </div>

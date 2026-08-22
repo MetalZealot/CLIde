@@ -16,6 +16,7 @@ import { ToolRenderer, ToolErrorDisplay, shouldHideToolResult } from '../../tool
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../shared/view/ui';
 
 import ChatMessageImages from './ChatMessageImages';
+import CompactBoundaryDivider from './CompactBoundaryDivider';
 import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
@@ -105,16 +106,29 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     [message.timestamp],
   );
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
+  const usesMobileReadingInset =
+    (message.type === 'user' || message.type === 'assistant') &&
+    !message.isToolUse &&
+    !message.isThinking &&
+    !message.isCompactSummary;
 
   if (shouldHideThinkingMessage) {
     return null;
+  }
+
+  if (message.isCompactBoundary) {
+    return (
+      <div className="chat-message px-3 sm:px-0">
+        <CompactBoundaryDivider boundary={message.compactBoundary} />
+      </div>
+    );
   }
 
   return (
     <div
       ref={messageRef}
       data-message-timestamp={message.timestamp || undefined}
-      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'}`}
+      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end' : ''} ${usesMobileReadingInset ? 'px-1 sm:px-0' : 'px-3 sm:px-0'}`}
     >
       {message.type === 'user' ? (
         /* User turn on the right: claude.ai-style attachment cards above the bubble */
@@ -137,12 +151,13 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     isRewindEditTarget ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
                   }`}
                 >
-                  <div dir="auto" className="break-words font-serif text-sm">
+                  <div dir="auto" className="break-words">
                     {/* `breaks` keeps a typed single newline meaningful now that
                         user turns render as Markdown rather than pre-wrapped text. */}
                     <Markdown
                       breaks
-                      className="prose prose-on-accent prose-sm prose-invert max-w-none font-serif [&_a]:text-blue-100 [&_a]:underline"
+                      readingTypography
+                      className="chat-reading prose-on-accent prose prose-sm prose-invert max-w-none font-prose [&_a]:text-blue-100 [&_a]:underline"
                     >
                       {message.content}
                     </Markdown>
@@ -239,7 +254,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <>
                 <div className="flex flex-col">
                   <div className="flex flex-col">
-                    <Markdown className="prose prose-sm max-w-none font-serif dark:prose-invert">
+                    <Markdown className="prose prose-sm max-w-none font-prose dark:prose-invert">
                       {String(message.displayText || '')}
                     </Markdown>
                   </div>
@@ -380,7 +395,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   )}
                 />
                 <ReasoningContent>
-                  <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
+                  <Markdown className="prose prose-sm prose-gray max-w-none font-prose dark:prose-invert">
                     {formattedMessageContent}
                   </Markdown>
                   <div className="mt-3 flex items-center text-[11px]">
@@ -393,7 +408,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
               <Reasoning defaultOpen={false}>
                 <ReasoningTrigger />
                 <ReasoningContent>
-                  <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
+                  <Markdown className="prose prose-sm prose-gray max-w-none font-prose dark:prose-invert">
                     {message.content}
                   </Markdown>
                   <div className="mt-3 flex items-center text-[11px]">
@@ -436,7 +451,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                           </div>
                           <div className="overflow-hidden rounded-lg border border-border bg-muted">
                             <pre className="overflow-x-auto p-4">
-                              <code className="block whitespace-pre font-mono text-sm text-foreground">
+                              <code className="chat-reading-code block whitespace-pre font-mono text-foreground">
                                 {formatted}
                               </code>
                             </pre>
@@ -450,7 +465,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
                   // Normal rendering for non-JSON content
                   return message.type === 'assistant' ? (
-                    <Markdown className="prose prose-sm prose-gray max-w-none font-serif dark:prose-invert">
+                    <Markdown
+                      readingTypography
+                      insetFencedCode
+                      className="chat-reading prose prose-sm prose-gray max-w-none font-prose dark:prose-invert"
+                    >
                       {content}
                     </Markdown>
                   ) : (

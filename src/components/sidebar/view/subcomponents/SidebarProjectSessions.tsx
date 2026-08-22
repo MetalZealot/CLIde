@@ -47,7 +47,7 @@ function SessionListSkeleton() {
   return (
     <>
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="my-[3px] rounded-md py-2 pl-5 pr-3">
+        <div key={index} className="my-[3px] rounded-md py-2 pl-5 pr-3 md:pl-3">
           <div className="flex items-start gap-2">
             <div className="mt-0.5 h-3 w-3 animate-pulse rounded-full bg-muted" />
             <div className="flex-1 space-y-1">
@@ -115,24 +115,28 @@ export default function SidebarProjectSessions({
   const canShowLess = !canShowMore && visibleSessionCount > SESSION_PAGE_SIZE;
 
   // The rail starts at the same x as the repository row's accent strip (`w-1`
-  // inside an `mx-3` row), so an open project and its sessions read as one spine.
-  // It carries the project's colour for the same reason — that, not a background
-  // tint, is what marks the row expanded.
+  // inside the mobile row's `mx-3`), so an open project and its sessions read as
+  // one spine. It carries the project's colour for the same reason — that, not a
+  // background tint, is what marks the row expanded.
   //
   // Narrower than the strip on purpose: at a matching 4px it read as a second UI
   // element competing with the rows. `pl-0.5` gives back the 2px, so the session
   // labels' text edge does not move.
   //
+  // The desktop repository row carries no horizontal margin of its own, so the
+  // rail pulls in by 4px there to hold both breakpoints to the same 12px step
+  // between a repository label and its sessions'.
+  //
   // No `space-y`: rows own their spacing through their vertical margin.
   return (
     <div
-      className="ml-3 border-l-2 border-border pl-0.5"
+      className="ml-3 border-l-2 border-border pl-0.5 md:ml-2"
       style={accentColor ? { borderColor: projectAccentColorValue(accentColor) } : undefined}
     >
       {!initialSessionsLoaded ? (
         <SessionListSkeleton />
       ) : !hasSessions ? (
-        <div className="py-2 pl-5 pr-3 text-left">
+        <div className="py-2 pl-5 pr-3 text-left md:pl-3">
           <p className="text-xs text-muted-foreground">{t('sessions.noSessions')}</p>
         </div>
       ) : (
@@ -173,11 +177,11 @@ export default function SidebarProjectSessions({
             <Button
               variant="ghost"
               size="sm"
-              // pl-5 lands on the session labels' text edge (their ml-2 plus
-              // px-3), so this reads as part of the list, not a control hanging
-              // off it.
+              // Lands on the session labels' text edge at each breakpoint —
+              // their `ml-2 px-3` on mobile, `px-3` alone on desktop — so this
+              // reads as part of the list, not a control hanging off it.
               className={cn(
-                'my-0.5 h-7 w-full justify-start pl-5 pr-3 text-xs text-muted-foreground hover:text-foreground',
+                'my-0.5 h-7 w-full justify-start pl-5 pr-3 text-xs text-muted-foreground hover:text-foreground md:pl-3',
                 canShowLess && 'sticky bottom-0 z-10 bg-background',
               )}
               onClick={() => (canShowMore ? onShowAllSessions(entry) : onCollapseSessions(entry))}

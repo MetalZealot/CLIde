@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActivityIcon, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
+import { ActivityIcon, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { LLMProvider } from '../../../../types/app';
@@ -14,7 +14,11 @@ import type {
   ProviderUsageSpendCredits,
   ProviderUsageWindow,
 } from '../../../provider-usage/types';
+import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
+import { authenticatedFetch } from '../../../../utils/api';
+import { agentScreenId } from '../../../settings/registry/registry';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
+import { formatTokenCount } from '../../utils/chatFormatting';
 import type {
   ContextCommandData,
   UsagePopoverRequest,
@@ -32,6 +36,10 @@ type TokenUsageSummaryProps = {
   isRefreshingBreakdown: boolean;
   canRefreshBreakdown: boolean;
   provider?: string;
+  /** Model the next turn would run, used to derive a ceiling before one exists. */
+  model?: string;
+  /** Conversation the composer is on; changing it invalidates the breakdown. */
+  sessionKey?: string | null;
 };
 
 // A fresh session has no `token_budget` frame yet, so `usage` is null until the
@@ -51,31 +59,22 @@ const PROVIDER_USAGE_MANAGEMENT_URLS: Partial<Record<LLMProvider, string>> = {
   codex: 'https://chatgpt.com/#settings/Usage',
 };
 
+// The session row carries three numbers plus a status word; full digits push the
+// label out of the row. The breakdown prints them in full.
+const formatCompactTokens = (value: number): string => {
+  const trim = (scaled: number, decimals: number): string =>
+    scaled.toFixed(decimals).replace(/\.0+$/, '');
+
+  if (value >= 1_000_000) return `${trim(value / 1_000_000, 1)}M`;
+  if (value >= 1_000) return `${trim(value / 1_000, value < 100_000 ? 1 : 0)}k`;
+  return String(Math.round(value));
+};
+
 const KNOWN_WINDOW_LABELS: Record<string, string> = {
   five_hour: '5-hour limit',
   seven_day: 'Weekly',
   seven_day_opus: 'Weekly (Opus)',
   seven_day_sonnet: 'Weekly (Sonnet)',
-};
-
-const formatTokenCount = (value: number) => {
-  if (!Number.isFinite(value) || value <= 0) {
-    return '0';
-  }
-
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
-  }
-
-  if (value >= 10_000) {
-    return `${Math.round(value / 1_000)}K`;
-  }
-
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}K`;
-  }
-
-  return value.toLocaleString();
 };
 
 const readUsageNumber = (value: unknown) => {
@@ -242,28 +241,28 @@ function PlanWindowRow({
   const resetLabel = formatResetAt(window);
   const utilization = Math.min(100, Math.max(0, window.utilization));
 
+  // Label, reset and percentage share one line: three stacked lines per window
+  // pushed the panel past a phone's popover height once there were three.
   return (
-    <section className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-3 text-sm">
+    <section className="space-y-1">
+      <div className="flex items-baseline justify-between gap-2 text-sm">
         <span className="min-w-0 truncate font-medium text-foreground">{formatWindowLabel(window)}</span>
-        <span className="shrink-0 text-muted-foreground">{Math.round(utilization)}% used</span>
-      </div>
-      <UsageBar utilization={utilization} />
-      {(resetLabel || onViewUsage) && (
-        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>{resetLabel}</span>
+        <span className="flex shrink-0 items-baseline gap-2">
+          {resetLabel && <span className="text-xs text-muted-foreground">{resetLabel}</span>}
+          <span className="text-muted-foreground">{Math.round(utilization)}%</span>
           {onViewUsage && (
             <button
               type="button"
               onClick={onViewUsage}
-              className="inline-flex shrink-0 items-center transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`View ${formatWindowLabel(window)} usage`}
+              className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Usage
-              <ChevronRight className="h-3 w-3" aria-hidden />
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
             </button>
           )}
-        </div>
-      )}
+        </span>
+      </div>
+      <UsageBar utilization={utilization} />
     </section>
   );
 }
@@ -276,26 +275,53 @@ export default function TokenUsageSummary({
   isRefreshingBreakdown,
   canRefreshBreakdown,
   provider,
+  model,
+  sessionKey = null,
 }: TokenUsageSummaryProps) {
   const { t } = useTranslation('common');
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<UsagePopoverView>('summary');
+  // The breakdown expands in place rather than replacing the panel, so the
+  // session line it explains stays on screen beside it.
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [contextData, setContextData] = useState<ContextCommandData | null>(null);
+  const [derivedCeiling, setDerivedCeiling] = useState<Record<string, unknown> | null>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const handledRequestId = useRef(0);
+  const sessionKeyRef = useRef(sessionKey);
   const popoverId = useId();
   const close = useCallback(() => setIsOpen(false), []);
+  const { openSettings } = usePaletteOps();
+  const openAutoCompactSettings = useCallback(() => {
+    setIsOpen(false);
+    openSettings(agentScreenId('claude', 'autoCompact'));
+  }, [openSettings]);
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 19 * 16);
   const usageProvider = toUsageProvider(provider);
   const planUsage = useProviderUsage(usageProvider);
   const refreshPlanUsage = planUsage.refresh;
   const refreshPlanUsageIfStale = planUsage.refreshIfStale;
 
+  // The composer outlives a session switch, so an expanded breakdown would keep
+  // rendering the previous session's reading. A new chat gaining its id is the
+  // same conversation, not a switch.
+  useEffect(() => {
+    const previousKey = sessionKeyRef.current;
+    sessionKeyRef.current = sessionKey;
+    if (previousKey === null || previousKey === sessionKey) return;
+    setBreakdownOpen(false);
+    setContextData(null);
+    setBreakdownLoading(false);
+  }, [sessionKey]);
+
   useEffect(() => {
     if (request.id <= handledRequestId.current) return;
 
     handledRequestId.current = request.id;
-    setView(request.view);
+    // `/context` asks for the breakdown; it opens the panel with the section
+    // already expanded rather than on a view of its own.
+    setView(request.view === 'breakdown' ? 'summary' : request.view);
+    setBreakdownOpen(request.view === 'breakdown');
     if (request.view === 'breakdown') {
       setContextData(request.context ?? null);
       setBreakdownLoading(request.context === undefined);
@@ -313,13 +339,44 @@ export default function TokenUsageSummary({
   const inputTokens = readUsageNumber(usage?.inputTokens ?? breakdown?.input);
   const outputTokens = readUsageNumber(usage?.outputTokens ?? breakdown?.output);
   const usedTokens = readUsageNumber(usage?.used) || inputTokens + outputTokens;
-  const reportedWindow = readUsageNumber(usage?.total);
+  const usageHasCeiling = readUsageNumber(usage?.total) > 0;
+  // A session that has never streamed reports no usage at all, and a bare "0
+  // tokens" says nothing about the window it will run in or where compaction
+  // will fire. The server derives both from the model and settings.json.
+  useEffect(() => {
+    // The composer outlives a session switch, so a ceiling fetched for one
+    // provider must not stand in for the next one's.
+    if (!isOpen || provider !== 'claude' || usageHasCeiling) {
+      setDerivedCeiling(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const query = model ? `?model=${encodeURIComponent(model)}` : '';
+    authenticatedFetch(`/api/providers/claude/context-ceiling${query}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!cancelled && payload?.data) setDerivedCeiling(payload.data as Record<string, unknown>);
+      })
+      .catch(() => undefined);
+
+    return () => { cancelled = true; };
+  }, [isOpen, provider, usageHasCeiling, model]);
+
+  const ceilingReading = usageHasCeiling || provider !== 'claude'
+    ? usage
+    : derivedCeiling ?? usage;
+  const reportedWindow = readUsageNumber(ceilingReading?.total);
   const contextWindow =
     reportedWindow > 0
       ? reportedWindow
       : (provider ? PROVIDER_DEFAULT_CONTEXT_WINDOW[provider] ?? 0 : 0);
-  const autoCompactThreshold = readUsageNumber(usage?.autoCompactThreshold);
-  const compactsAutomatically = usage?.isAutoCompactEnabled === true && autoCompactThreshold > 0;
+  // Withheld only while no window is known at all — printing the static
+  // per-provider guess as a ceiling would show a number about to change.
+  const hasMeasuredCeiling = reportedWindow > 0 || usedTokens > 0;
+  const autoCompactThreshold = readUsageNumber(ceilingReading?.autoCompactThreshold);
+  const compactsAutomatically = ceilingReading?.isAutoCompactEnabled === true
+    && autoCompactThreshold > 0;
 
   // The ceiling that actually matters is where auto-compact fires, not the raw
   // window: at that point the conversation is summarised out from under the
@@ -333,7 +390,16 @@ export default function TokenUsageSummary({
   const utilization = fraction === null ? null : Math.min(Math.max(fraction, 0), 1);
   const percentUsed = utilization === null ? null : Math.round(utilization * 100);
   const providerUsage = planUsage.usage?.supported === true ? planUsage.usage : null;
-  const planWindows = [...(providerUsage?.windows ?? [])].sort(
+  // An unrecognised id renders as a humanised slug ("Nimbus quill") with no way
+  // to say what it limits. The usage dashboard lists every window; this panel
+  // shows the ones it can name. Adding an id here is how a new one appears.
+  const planWindows = [...(providerUsage?.windows ?? [])]
+    .filter((window) => (
+      window.id in KNOWN_WINDOW_LABELS
+      || window.durationMinutes === 300
+      || window.durationMinutes === 10_080
+    ))
+    .sort(
     (left, right) => usageWindowOrder(left) - usageWindowOrder(right),
   );
   const activityWindowId = providerUsage?.activity
@@ -343,21 +409,35 @@ export default function TokenUsageSummary({
     : undefined;
   const creditMarkerVisible = creditsAreAvailable(providerUsage?.credits);
   const managementUrl = usageProvider ? PROVIDER_USAGE_MANAGEMENT_URLS[usageProvider] : undefined;
-  const autoCompactStatus = provider === 'claude'
-    && usage?.isAutoCompactEnabled === true
-    && autoCompactThreshold > 0
-    ? ' · Auto'
-    : provider === 'claude' && usage?.isAutoCompactEnabled === false
-      ? ' · Auto off'
-      : '';
+  // Claude's own vocabulary: "auto" means no cap is configured, NOT "auto-compact
+  // is enabled". Reporting the enabled flag under that word read as Claude's own
+  // window while a user cap was in force, hiding an 80% cut. Name the source.
+  const ceilingSource = typeof ceilingReading?.ceilingSource === 'string'
+    ? ceilingReading.ceilingSource
+    : null;
+  const ceilingCap = readUsageNumber(ceilingReading?.ceilingCap);
+  const modelContextWindow = readUsageNumber(ceilingReading?.modelContextWindow);
+  const isCapped = ceilingCap > 0 && modelContextWindow > 0 && ceilingCap < modelContextWindow;
+  const CEILING_SOURCE_LABELS: Record<string, string> = {
+    auto: 'Auto',
+    settings: 'Custom',
+    env: 'Env',
+  };
+  const autoCompactStatus = provider !== 'claude' || !hasMeasuredCeiling
+    ? null
+    : usage?.isAutoCompactEnabled === false
+      ? 'Off'
+      : (ceilingSource && CEILING_SOURCE_LABELS[ceilingSource]) ?? null;
 
   const title =
-    fraction === null
+    fraction === null || !hasMeasuredCeiling
       ? `${usedTokens.toLocaleString()} tokens used`
       : compactsAutomatically
         ? `${usedTokens.toLocaleString()} / ${autoCompactThreshold.toLocaleString()} tokens before auto-compact (${Math.round(
             Math.min(fraction, 1) * 100,
-          )}%)\nAuto-compact rewrites the conversation here. Window: ${contextWindow.toLocaleString()}.`
+          )}%)\nAuto-compact rewrites the conversation here. Window: ${contextWindow.toLocaleString()}${
+            isCapped ? `, capped from the model's ${modelContextWindow.toLocaleString()}` : ''
+          }.`
         : `${usedTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${Math.round(
             Math.min(fraction, 1) * 100,
           )}% of context window)`;
@@ -407,11 +487,7 @@ export default function TokenUsageSummary({
           role="dialog"
           fillAnchorWidth
           className="px-4 py-3"
-          ariaLabel={view === 'summary'
-            ? 'Session and plan usage'
-            : view === 'breakdown'
-              ? 'Session breakdown'
-              : 'Usage activity'}
+          ariaLabel={view === 'summary' ? 'Session and plan usage' : 'Usage activity'}
         >
           <div className="mb-3 flex items-center justify-between gap-3">
             <span className="text-[11px] font-medium text-muted-foreground">
@@ -436,35 +512,71 @@ export default function TokenUsageSummary({
           {view === 'summary' && (
             <div className="space-y-4">
               <section className="space-y-1.5">
-                <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="font-medium text-foreground">Session</span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {percentUsed === null ? '—' : `${percentUsed}% used`}
+                {/* Tokens sit beside the percentage, as the reset time does on a
+                    plan row, so the meter reads directly under its own numbers. */}
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="shrink-0 font-medium text-foreground">Session</span>
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="truncate text-xs text-muted-foreground">
+                      {effectiveCeiling > 0 && hasMeasuredCeiling
+                        ? `${formatCompactTokens(usedTokens)} / ${formatCompactTokens(effectiveCeiling)}`
+                        : `${formatCompactTokens(usedTokens)} tokens`}
+                      {autoCompactStatus && (
+                        <>
+                          {' · '}
+                          <button
+                            type="button"
+                            onClick={openAutoCompactSettings}
+                            title={autoCompactStatus === 'Off'
+                              ? 'Auto-compact is off: this session stops at the context limit instead of being summarised. Tap to change.'
+                              : 'Auto-compact rewrites the conversation at the compact point. Tap to change.'}
+                            className="underline underline-offset-2 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {autoCompactStatus}
+                          </button>
+                        </>
+                      )}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {percentUsed === null ? '—' : `${percentUsed}%`}
+                    </span>
+                    {provider === 'claude' && (
+                      <button
+                        type="button"
+                        aria-expanded={breakdownOpen}
+                        aria-label="Session breakdown"
+                        title="Session breakdown"
+                        onClick={() => {
+                          if (breakdownOpen) {
+                            setBreakdownOpen(false);
+                            return;
+                          }
+                          setContextData(null);
+                          setBreakdownLoading(true);
+                          setBreakdownOpen(true);
+                          onRequestBreakdown();
+                        }}
+                        className="inline-flex shrink-0 items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <ChevronDown
+                          className={cn('h-3.5 w-3.5 transition-transform', breakdownOpen && 'rotate-180')}
+                          aria-hidden
+                        />
+                      </button>
+                    )}
                   </span>
                 </div>
                 {percentUsed !== null && <UsageBar utilization={percentUsed} />}
-                <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span className="min-w-0 truncate">
-                    {effectiveCeiling > 0
-                      ? `${usedTokens.toLocaleString()} / ${effectiveCeiling.toLocaleString()}${autoCompactStatus}`
-                      : `${usedTokens.toLocaleString()} tokens`}
-                  </span>
-                  {provider === 'claude' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setContextData(null);
-                        setBreakdownLoading(true);
-                        setView('breakdown');
-                        onRequestBreakdown();
-                      }}
-                      className="inline-flex shrink-0 items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      Breakdown
-                      <ChevronRight className="h-3 w-3" aria-hidden />
-                    </button>
-                  )}
-                </div>
+                {breakdownOpen && provider === 'claude' && (
+                  <ContextBreakdownView
+                    data={contextData}
+                    loading={breakdownLoading}
+                    cap={isCapped ? { cap: ceilingCap, modelWindow: modelContextWindow } : undefined}
+                    onRefresh={onRefreshBreakdown}
+                    isRefreshing={isRefreshingBreakdown}
+                    canRefresh={canRefreshBreakdown}
+                  />
+                )}
               </section>
 
               {planWindows.map((window) => {
@@ -525,17 +637,6 @@ export default function TokenUsageSummary({
                 </a>
               )}
             </div>
-          )}
-
-          {view === 'breakdown' && (
-            <ContextBreakdownView
-              data={contextData}
-              loading={breakdownLoading}
-              onBack={() => setView('summary')}
-              onRefresh={onRefreshBreakdown}
-              isRefreshing={isRefreshingBreakdown}
-              canRefresh={canRefreshBreakdown}
-            />
           )}
 
           {view === 'activity' && (

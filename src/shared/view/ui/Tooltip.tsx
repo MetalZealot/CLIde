@@ -13,6 +13,16 @@ type TooltipProps = {
   align?: TooltipAlign;
   className?: string;
   delay?: number;
+  /** Applied to the wrapper around `children`, for a tooltip inside a flex row. */
+  containerClassName?: string;
+  /**
+   * Keeps the tooltip on pointer hover only. The touch long-press path is a
+   * second gesture on the child, so it must be off wherever the child already
+   * owns one.
+   */
+  hoverOnly?: boolean;
+  /** False renders the wrapper but never shows the bubble, so the tree is stable. */
+  enabled?: boolean;
 };
 
 function getArrowClasses(position: TooltipPosition, align: TooltipAlign): string {
@@ -48,6 +58,9 @@ function Tooltip({
   align = 'center',
   className = '',
   delay = 350,
+  containerClassName,
+  hoverOnly = false,
+  enabled = true,
 }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   // Store the timer id without forcing re-renders while hovering.
@@ -143,7 +156,7 @@ function Tooltip({
   // events have no pointer-event counterparts, so pointerType is reliable
   // here; touch gets the long-press path below instead.
   const handlePointerEnter = (event: React.PointerEvent) => {
-    if (event.pointerType !== 'mouse') {
+    if (!enabled || event.pointerType !== 'mouse') {
       return;
     }
     clearTooltipTimer();
@@ -161,6 +174,9 @@ function Tooltip({
   };
 
   const handleTouchStart = (event: React.TouchEvent) => {
+    if (!enabled) {
+      return;
+    }
     const touch = event.touches[0];
     clearTooltipTimer();
     setIsVisible(false);
@@ -241,8 +257,23 @@ function Tooltip({
       longPressTriggeredRef.current = false;
     };
 
+    // WCAG 1.4.13: hover/focus content must be dismissable without moving the
+    // pointer.
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      clearTooltipTimer();
+      setIsVisible(false);
+      longPressTriggeredRef.current = false;
+    };
+
     document.addEventListener('pointerdown', handlePointerDown, true);
-    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
   }, [isVisible]);
 
   useEffect(() => {
@@ -271,18 +302,18 @@ function Tooltip({
   return (
     <div
       ref={containerRef}
-      className="relative inline-flex items-center"
+      className={cn('relative inline-flex items-center', containerClassName)}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
-      onClickCapture={handleClickCapture}
-      onContextMenu={handleContextMenu}
+      onTouchStart={hoverOnly ? undefined : handleTouchStart}
+      onTouchMove={hoverOnly ? undefined : handleTouchMove}
+      onTouchEnd={hoverOnly ? undefined : handleTouchEnd}
+      onTouchCancel={hoverOnly ? undefined : handleTouchEnd}
+      onClickCapture={hoverOnly ? undefined : handleClickCapture}
+      onContextMenu={hoverOnly ? undefined : handleContextMenu}
     >
       {children}
-      {isVisible && typeof document !== 'undefined' && createPortal(
+      {isVisible && enabled && typeof document !== 'undefined' && createPortal(
         <div
           ref={tooltipRef}
           style={tooltipStyle || { position: 'fixed', top: '-9999px', left: '-9999px', opacity: 0 }}

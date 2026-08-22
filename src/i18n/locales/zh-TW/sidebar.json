@@ -69,9 +69,6 @@
     "archive": "封存",
     "rename": "重新命名"
   },
-  "branding": {
-    "openSource": "開源"
-  },
   "status": {
     "active": "使用中",
     "inactive": "非使用中",

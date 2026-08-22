@@ -62,11 +62,11 @@ only once an index says it is the one you need; never read a directory to find o
   at `server/`'s root are gone — be suspicious of any doc or memory that names them.
   `ls server/modules/` lists the 19 current ones.
 - Providers are adapters.  Claude is the daily driver, but shared UI, protocol,
-  database, and provider-interface work must continue to work for Codex, Cursor, and
-  OpenCode.  Prototype against Claude first, then check how each other adapter
-  implements the equivalent behaviour and design the integration point so each can plug
-  in or explicitly no-op.  Add capability flags or clean degradation instead of leaking
-  Claude-only concepts into shared code.  Purely Claude-specific files are exempt.
+  database, and provider-interface work must keep working for Codex, Cursor, and
+  OpenCode.  Prototype against Claude, then check how each other adapter implements
+  the equivalent behaviour and design the integration point so each can plug in or
+  explicitly no-op.  Add capability flags or clean degradation rather than leaking
+  Claude-only concepts into shared code; purely Claude-specific files are exempt.
 - The app owns stable `session_id`s; `provider_session_id` is the provider's native ID.
   **Runtimes are addressed by the app id, never the provider one** — this flipped in
   v1.37 and caused three separate merge defects.  Details and commits:
@@ -118,14 +118,21 @@ behaviour stays behind adapter interfaces.
 - "I have no login credentials" is never a reason to skip live verification.  Stand the
   right server up, hand over the URL, and say what to look for — the user clicks
   through, not you.
-- Use a real device for touch behaviour.  In particular, CSS `:active` is not a
-  reliable long-press visual state; use the explicit `isPressing` state from
-  `useLongPress`.
+- Use a real device for touch behaviour.  CSS `:active` is not a reliable
+  long-press visual state; use `useLongPress`'s `isPressing`.
 - Distinguish source inspection, automated checks, build output, running-service state,
   live behaviour, and user acceptance.  Say which one you actually have.
 - Make the smallest coherent change that fully solves the request.  Follow existing
   patterns; do not broaden scope, add speculative abstractions, or compromise working
   behaviour merely to reach completion.
+
+### UI standards
+
+**Before building, say which bucket each part of a UI change falls in — external
+standard, house convention, or the maintainer's taste.**  A convention stated
+confidently is indistinguishable from a published standard to someone who cannot
+check it, and most layout decisions here are taste.  Sources and findings:
+[the UI standards map](docs/maps/ui-standards.md).
 
 ## Code comments
 
@@ -190,22 +197,20 @@ one defect, so these rules target length.
   correction, re-measurement, or audit section to preserve the wrong text — git holds
   the old version, and that habit turned the v1.37 integration document into 79 KB
   whose two largest sections were both audits.
-- **Git's conflict set is an anti-signal when merging upstream.**  Only 5 files
-  conflicted textually in the final v1.37 merge, yet every genuine defect was in a
-  file that merged cleanly.  When both sides refactor toward the same shape, diff the
-  *contract* surfaces — runtime options, gateway addressing, provider context — and
-  write one test per contract driving every provider with the ids deliberately
-  unequal (`server/modules/websocket/tests/chat-session-addressing.test.ts`).
+- **Git's conflict set is an anti-signal when merging upstream.**  In the v1.37
+  merge every genuine defect was in a file that merged cleanly.  Diff the
+  *contract* surfaces — runtime options, gateway addressing, provider context —
+  and write one test per contract driving every provider with the ids
+  deliberately unequal (`server/modules/websocket/tests/chat-session-addressing.test.ts`).
 - Categorize fixes as fork-only or upstreamable in `docs/upstream-candidates.md`.
   Before describing a defect as upstream-wide, inspect upstream code as well as
   searching issues/PRs.  Never open, push, or update an upstream PR without the user's
   explicit approval.
-- **Never end a turn by asking "worth an ADR?"** — that spends a whole reply asking
-  permission to write a document.  Write one only when asked, or when a decision is
-  the kind a future session would otherwise undo (a deliberate constraint that looks
-  like a bug); then write it in the same batch as the work, unasked, in five
-  sentences.  Otherwise the commit message is the record.  ADRs are append-only:
-  supersede, never rewrite.
+- **Never end a turn by asking "worth an ADR?"** — write one only when asked, or
+  when a decision is the kind a future session would otherwise undo (a deliberate
+  constraint that looks like a bug); then write it in the same batch as the work,
+  unasked, in five sentences.  Otherwise the commit message is the record.  ADRs
+  are append-only: supersede, never rewrite.
 
 ## Keeping the guides honest
 
@@ -219,17 +224,15 @@ whichever file you happen to have open.  Ownership:
   (`docs/maps/`) "how does this work today", an **ADR** (`docs/decisions/`) "what did
   we choose and why", a **plan** (`docs/plans/`) "what is left, in what order".
   Something answering a different question does not need a document.  `docs/specs/`
-  is **retired** — the name invited an essay and eighteen reached 317 KB.  The
-  replacement rules (byte caps, banned ceremony sections) live in
-  `docs/plans/README.md`, enforced by `npm run check:docs`.  Do not invent a fourth
-  type to escape them.
+  is **retired** — the name invited an essay and eighteen reached 317 KB.  Byte
+  caps and banned ceremony sections live in `docs/plans/README.md`, enforced by
+  `npm run check:docs`.  Do not invent a fourth type to escape them.
 - **Host-local guides**, ignored by git, own the host: paths, ports, services, the
   deploy loop.  There are two, one per agent, and **they are not shared**: Claude
   reads `CLAUDE.md` files and never an agent-global `AGENTS.md`; Codex reads
   `AGENTS.md` files — this one plus its own global one — and **never any
-  `CLAUDE.md`**.  A host fact recorded for only one of them is invisible to the other,
-  which is how Codex ended up not knowing where the user database lives.  Record it in
-  both, or accept that the other agent cannot know it.
+  `CLAUDE.md`**.  Record a host fact in both, or accept that the other agent
+  cannot know it.
 
 Restating a rule a linter, type checker, or test already enforces is not documentation
 — make the gate executable instead.

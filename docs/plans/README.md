@@ -14,9 +14,9 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
+| [Auto-compact visibility](autocompact-visibility.md) | complete | Verify the settings screen on device, then archive |
 | [Browser MCP hardening](browser-mcp-hardening.md) | not started | Slice 1: ref registry and deterministic snapshot projection |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
-| [Typography system](typography-system.md) | not started | Strip Google Fonts from `index.html`, add preloads |
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |
 | [Cross-provider chat handoff](cross-provider-chat-handoff.md) | not started | Re-verify its four assumed contracts |
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |

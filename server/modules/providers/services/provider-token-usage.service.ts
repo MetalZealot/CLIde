@@ -10,9 +10,11 @@ import { loadClaudeContextCeiling } from '@/modules/providers/list/claude/claude
 import {
   normalizeClaudeModelId,
   readClaudeContextWindowOverride,
-  resolveClaudeContextCeiling,
+  resolveClaudeCeilingProvenance,
+  resolveClaudeDerivedCeiling,
+  toCeilingProvenanceFields,
 } from '@/modules/providers/list/claude/claude-context-window.js';
-import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
+import { pickSupersedesTranscript } from '@/modules/providers/services/provider-session-model.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 import type { AnyRecord, ProviderSessionActiveModelChange } from '@/shared/types.js';
@@ -29,10 +31,11 @@ type ProviderTokenUsageServiceDependencies = {
   readTextFile: (filePath: string) => Promise<string>;
   /** `CONTEXT_WINDOW`, which outranks every derived ceiling when set. */
   readClaudeContextWindowOverride: () => number | undefined;
+  readClaudeCeilingProvenance: typeof resolveClaudeCeilingProvenance;
   /** The SDK's own reading for a session, cached per provider-native id. */
   loadClaudeContextCeiling: typeof loadClaudeContextCeiling;
   /** Model-table fallback for history reads and post-restart sessions. */
-  resolveClaudeContextCeiling: typeof resolveClaudeContextCeiling;
+  resolveClaudeDerivedCeiling: typeof resolveClaudeDerivedCeiling;
   /** The active-model sidecar pick, keyed by app session id. */
   getChangedActiveModel: (sessionId: string) => Promise<ProviderSessionActiveModelChange>;
 };
@@ -71,8 +74,9 @@ const defaultDependencies: ProviderTokenUsageServiceDependencies = {
   readDirectory: (directoryPath) => fsp.readdir(directoryPath, { withFileTypes: true }),
   readTextFile: (filePath) => fsp.readFile(filePath, 'utf8'),
   readClaudeContextWindowOverride,
+  readClaudeCeilingProvenance: resolveClaudeCeilingProvenance,
   loadClaudeContextCeiling,
-  resolveClaudeContextCeiling,
+  resolveClaudeDerivedCeiling,
   getChangedActiveModel: (sessionId) => providerModelsService.getChangedActiveModel('claude', sessionId),
 };
 
@@ -423,9 +427,18 @@ export function createProviderTokenUsageService(
           || normalizeClaudeModelId(cachedCeiling!.model).id === normalizeClaudeModelId(ceilingModel).id);
       const sdkCeiling = cachedModelStillApplies ? cachedCeiling : null;
 
-      const contextWindow = dependencies.readClaudeContextWindowOverride()
-        ?? sdkCeiling?.maxTokens
-        ?? dependencies.resolveClaudeContextCeiling({ model: ceilingModel });
+      // A session that has not streamed since the last restart has no reading,
+      // and reporting its window without its threshold shows a limit 33,000
+      // tokens later than the one that fires — which then jumps on the first
+      // frame of the next turn. Derive the whole picture instead of part of it.
+      // `CONTEXT_WINDOW` pins the window without saying where compaction fires,
+      // so it leaves the threshold unknown rather than deriving one from a
+      // window the operator overrode.
+      const windowOverride = dependencies.readClaudeContextWindowOverride();
+      const derived = sdkCeiling || windowOverride !== undefined
+        ? null
+        : dependencies.resolveClaudeDerivedCeiling({ model: ceilingModel });
+      const contextWindow = windowOverride ?? sdkCeiling?.maxTokens ?? derived!.contextWindow;
 
       return {
         used: usage.inputTokens + usage.outputTokens,
@@ -435,8 +448,9 @@ export function createProviderTokenUsageService(
         cacheReadTokens: usage.cacheReadTokens,
         cacheCreationTokens: usage.cacheCreationTokens,
         cacheTokens: usage.cacheReadTokens + usage.cacheCreationTokens,
-        autoCompactThreshold: sdkCeiling?.autoCompactThreshold,
-        isAutoCompactEnabled: sdkCeiling?.isAutoCompactEnabled,
+        autoCompactThreshold: sdkCeiling?.autoCompactThreshold ?? derived?.autoCompactThreshold,
+        isAutoCompactEnabled: sdkCeiling?.isAutoCompactEnabled ?? derived?.isAutoCompactEnabled,
+        ...toCeilingProvenanceFields(dependencies.readClaudeCeilingProvenance({ model: ceilingModel })),
         breakdown: { input: usage.inputTokens, output: usage.outputTokens },
       };
     },

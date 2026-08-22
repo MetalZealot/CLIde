@@ -27,6 +27,26 @@ const COMMIT_VELOCITY = 0.4;
 const SNAP_MS = 260;
 
 /**
+ * True when some ancestor of `target` is a horizontal scroller that still has
+ * room to move in the drag's direction — code blocks, tables, tab strips. That
+ * scroll is the gesture's owner; the drawer must not take it.
+ */
+const scrollerOwnsDrag = (target: EventTarget | null, dx: number): boolean => {
+  let node = target instanceof Element ? target : null;
+  while (node && node !== document.body) {
+    if (node.scrollWidth - node.clientWidth > 1) {
+      const overflowX = window.getComputedStyle(node).overflowX;
+      if (overflowX === 'auto' || overflowX === 'scroll') {
+        const remaining = dx > 0 ? node.scrollLeft : node.scrollWidth - node.clientWidth - node.scrollLeft;
+        if (remaining > 1) return true;
+      }
+    }
+    node = node.parentElement;
+  }
+  return false;
+};
+
+/**
  * Drag-to-follow gesture for the mobile sidebar (ChatGPT/Discord style): the
  * panel tracks the finger in real time and snaps open/closed on release. The
  * open swipe may start anywhere in the left half of the screen, so it never
@@ -72,6 +92,7 @@ export function useSidebarSwipe({
     let velocity = 0;
     let width = 0;
     let translate = 0;
+    let target: EventTarget | null = null;
     let candidate = false; // touch could still become a drag
     let dragging = false; // horizontal drag claimed
     let snapToken = 0;
@@ -143,6 +164,7 @@ export function useSidebarSwipe({
         return;
       }
       const touch = event.touches[0];
+      target = event.target;
       startX = lastX = touch.clientX;
       startY = touch.clientY;
       lastT = event.timeStamp;
@@ -166,6 +188,10 @@ export function useSidebarSwipe({
         }
         if (!isOpenRef.current && dx <= 0) {
           candidate = false; // opening only tracks a rightward pull
+          return;
+        }
+        if (scrollerOwnsDrag(target, dx)) {
+          candidate = false;
           return;
         }
         dragging = true;

@@ -15,10 +15,10 @@ import type {
   ProviderSessionModel,
 } from '@/shared/types.js';
 import {
+  pickSupersedesTranscript,
   readProviderSessionModelPick,
   type SessionModelPickStore,
 } from '@/modules/providers/services/provider-session-model.service.js';
-import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const PROVIDER_MODELS_CACHE_VERSION = 2;

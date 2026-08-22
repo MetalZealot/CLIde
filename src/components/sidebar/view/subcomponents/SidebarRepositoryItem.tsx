@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
-import { Check, ChevronDown, ChevronRight, GitBranch, ListFilter, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, GitBranch, ListFilter, MessageSquarePlus, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import {
@@ -66,6 +66,8 @@ type SidebarRepositoryItemProps = {
    * to its kebab, or to the cursor (right-click). One menu, several ways in.
    */
   onOpenProjectActionsMenu?: (entry: RepositoryEntry, anchor: ContextMenuAnchor) => void;
+  /** Starts a session in this repository's lead checkout, from the row itself. */
+  onNewSession?: (project: Project) => void;
   /**
    * Repository scope keeps Projects-view batch selection inside this row.
    */
@@ -152,6 +154,7 @@ export default function SidebarRepositoryItem({
   onCancelEditingSession,
   onSaveEditingSession,
   onOpenProjectActionsMenu,
+  onNewSession,
   onOpenSessionActionsMenu,
   activeContextMenuKey,
   batchSelectedIds,
@@ -554,10 +557,33 @@ export default function SidebarRepositoryItem({
                   />
                 )}
                 {/*
-                  `as="div"`: the desktop header is itself a <button>, so a
-                  nested one would be invalid markup — the same reason the
-                  rename and delete controls this replaces were divs.
+                  `as="div"` / `role="button"` throughout: the desktop header is
+                  itself a <button>, so a nested one would be invalid markup.
                 */}
+                {onNewSession && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={t('sessions.newSessionHere', 'New session in {{name}}', { name: entry.displayName })}
+                    title={t('sessions.newSessionHere', 'New session in {{name}}', { name: entry.displayName })}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onNewSession(project);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') {
+                        return;
+                      }
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onNewSession(project);
+                    }}
+                    className="touch:opacity-100 flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground opacity-0 transition-all duration-200 hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover:opacity-100"
+                  >
+                    <MessageSquarePlus className="h-3.5 w-3.5" />
+                  </div>
+                )}
                 {onOpenProjectActionsMenu && (
                   <RowActionsTrigger
                     as="div"

@@ -70,9 +70,6 @@
     "archive": "Archivia",
     "rename": "Rinomina"
   },
-  "branding": {
-    "openSource": "Open Source"
-  },
   "status": {
     "active": "Attivo",
     "inactive": "Inattivo",

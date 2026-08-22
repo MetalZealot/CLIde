@@ -26,6 +26,7 @@ export type ProviderCapabilities = {
   supportsEffort?: boolean;
   supportsRewind?: boolean;
   supportsFork?: boolean;
+  supportsCompactCommand?: boolean;
 };
 
 export type ProviderCapabilityMap = Partial<Record<LLMProvider, ProviderCapabilities>>;

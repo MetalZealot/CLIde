@@ -3,6 +3,7 @@ import type {
   CreateWorktreeOptions,
   CreateWorktreeOutcome,
 } from '../../sidebar/types/types';
+import type { CompactBoundaryInfo } from '../../../stores/useSessionStore';
 import type {
   MarkSessionIdle,
   MarkSessionProcessing,
@@ -79,6 +80,10 @@ export interface ChatMessage {
   isCompactSummary?: boolean;
   /** Files a compaction carried across the boundary; rendered like memory citations. */
   compactReferences?: string[];
+  /** Marks the divider row where a compaction cut the conversation. */
+  isCompactBoundary?: boolean;
+  /** What that compaction cost and saved, when the provider reported it. */
+  compactBoundary?: CompactBoundaryInfo;
   /** CLI-fabricated notice rows (usage limits, API errors) — muted banner, not a Claude bubble. */
   isSystemNotice?: boolean;
   /** Parsed from Codex's trailing provenance envelope; rendered as compact sources. */

@@ -16,7 +16,6 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
 import NewSessionLauncher from './subcomponents/NewSessionLauncher';
-import CompactionWarningBanner from './subcomponents/CompactionWarningBanner';
 import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
 
@@ -111,6 +110,7 @@ function ChatInterface({
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
     getSupportsForkForProvider,
+    getSupportsCompactCommandForProvider,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
@@ -191,6 +191,7 @@ function ChatInterface({
     isTextareaExpanded,
     filteredCommands,
     frequentCommands,
+    slashCommands,
     commandQuery,
     showCommandMenu,
     selectedCommandIndex,
@@ -270,6 +271,7 @@ function ChatInterface({
     resolvePermissionModeForProvider,
     supportsRewind: getSupportsRewindForProvider(provider),
     supportsFork: getSupportsForkForProvider(provider),
+    supportsCompactCommand: getSupportsCompactCommandForProvider(provider),
   });
 
   // On WebSocket reconnect, re-fetch the current session's messages from the
@@ -583,13 +585,6 @@ function ChatInterface({
             </div>
           )}
 
-          <CompactionWarningBanner
-            tokenBudget={tokenBudget}
-            sessionId={currentSessionId || selectedSession?.id || null}
-            provider={provider}
-            onShowContext={showContextPopover}
-          />
-
           {isNewSession && (
             <NewSessionLauncher
               projects={projects}
@@ -637,6 +632,7 @@ function ChatInterface({
             onShowContextBreakdown={showContextPopover}
             onRefreshContextBreakdown={refreshContextPopover}
             isRefreshingContextBreakdown={isRefreshingContext}
+            sessionKey={currentSessionId || selectedSession?.id || null}
             provider={provider}
             hasInput={Boolean(input.trim())}
             onClearInput={handleClearInput}
@@ -663,6 +659,7 @@ function ChatInterface({
             onCloseCommandMenu={resetCommandMenuState}
             isCommandMenuOpen={showCommandMenu}
             frequentCommands={commandQuery ? [] : frequentCommands}
+            slashCommands={slashCommands}
             getRootProps={getRootProps as (...args: unknown[]) => Record<string, unknown>}
             getInputProps={getInputProps as (...args: unknown[]) => Record<string, unknown>}
             inputHighlightRef={inputHighlightRef}

@@ -69,6 +69,8 @@ test('token usage lookup requires only the app-facing session id for Claude', as
       getSessionById: () => createSessionRow({ jsonl_path: sessionFilePath }),
       readClaudeContextWindowOverride: () => 180_000,
       loadClaudeContextCeiling: async () => null,
+      // Pinned, so the assertion does not depend on the host's settings.json.
+      readClaudeCeilingProvenance: () => ({ source: 'auto' }),
       getChangedActiveModel: unchangedActiveModel,
     });
 
@@ -82,6 +84,9 @@ test('token usage lookup requires only the app-facing session id for Claude', as
       cacheTokens: 25,
       autoCompactThreshold: undefined,
       isAutoCompactEnabled: undefined,
+      ceilingSource: 'auto',
+      ceilingCap: undefined,
+      modelContextWindow: undefined,
       breakdown: { input: 125, output: 30 },
     });
   } finally {
@@ -224,7 +229,11 @@ test('the Claude ceiling prefers the SDK reading over the model table, and CONTE
     const baseDependencies = {
       getSessionById: () => createSessionRow({ jsonl_path: sessionFilePath }),
       getChangedActiveModel: unchangedActiveModel,
-      resolveClaudeContextCeiling: () => 111_111,
+      resolveClaudeDerivedCeiling: () => ({
+        contextWindow: 111_111,
+        autoCompactThreshold: 78_111,
+        isAutoCompactEnabled: true,
+      }),
     };
 
     // No override: the SDK's own cached reading for this session wins.
@@ -241,7 +250,12 @@ test('the Claude ceiling prefers the SDK reading over the model table, and CONTE
       readClaudeContextWindowOverride: () => undefined,
       loadClaudeContextCeiling: async () => null,
     });
-    assert.equal((await tableService.getSessionTokenUsage('app-session')).total, 111_111);
+    const tableUsage = await tableService.getSessionTokenUsage('app-session');
+    assert.equal(tableUsage.total, 111_111);
+    // The threshold comes with it: reporting the window alone puts the limit
+    // 33,000 tokens later than the one that fires, until the next turn streams.
+    assert.equal(tableUsage.autoCompactThreshold, 78_111);
+    assert.equal(tableUsage.isAutoCompactEnabled, true);
 
     // CONTEXT_WINDOW outranks everything.
     const overrideService = createProviderTokenUsageService({

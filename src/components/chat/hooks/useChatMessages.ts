@@ -226,6 +226,17 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         }
         break;
 
+      case 'compact_boundary':
+        converted.push({
+          type: 'assistant',
+          content: '',
+          timestamp: msg.timestamp,
+          isCompactBoundary: true,
+          compactBoundary: msg.compactBoundary,
+          ...sharedMetadata,
+        });
+        break;
+
       case 'error':
         converted.push({
           type: 'error',

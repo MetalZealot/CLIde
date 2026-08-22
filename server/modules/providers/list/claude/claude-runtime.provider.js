@@ -26,11 +26,14 @@ import {
 } from '@/shared/image-attachments.js';
 import {
   readClaudeContextWindowOverride,
+  resolveClaudeCeilingProvenance,
   resolveClaudeContextCeiling,
+  toCeilingProvenanceFields,
 } from '@/modules/providers/list/claude/claude-context-window.js';
 import {
   captureClaudeContextUsage,
   getClaudeContextCeiling,
+  loadClaudeContextCeiling,
 } from '@/modules/providers/list/claude/claude-context-usage.js';
 import { CLAUDE_FALLBACK_MODELS } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { normalizeClaudeRateLimitEvent } from '@/modules/providers/list/claude/claude-usage.provider.js';
@@ -370,6 +373,14 @@ function pickContextWindow(ceiling, derivedInput) {
 }
 
 /**
+ * Where the ceiling came from, for the same frame. Derived rather than read off
+ * the reading: a cap collapses every window field the SDK reports onto itself.
+ */
+function pickCeilingProvenance(derivedInput) {
+  return toCeilingProvenanceFields(resolveClaudeCeilingProvenance(derivedInput));
+}
+
+/**
  * Extracts token usage from SDK messages.
  * Prefers per-step `message.usage` (Claude message payload), then falls back
  * to result-level usage/modelUsage for compatibility across SDK versions.
@@ -416,6 +427,7 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
       // auto-compact marker", not zero.
       autoCompactThreshold: ceiling?.autoCompactThreshold,
       isAutoCompactEnabled: ceiling?.isAutoCompactEnabled,
+      ...pickCeilingProvenance({ model: sdkMessage.message?.model ?? sdkMessage.model }),
       breakdown: {
         input: inputTokens,
         output: outputTokens,
@@ -452,6 +464,7 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
     outputTokens,
     autoCompactThreshold: ceiling?.autoCompactThreshold,
     isAutoCompactEnabled: ceiling?.isAutoCompactEnabled,
+    ...pickCeilingProvenance({ model: modelData.canonicalModel ?? modelKey }),
     breakdown: {
       input: inputTokens,
       output: outputTokens,
@@ -828,6 +841,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       addSession(sessionKey(), queryInstance, ws);
     }
 
+    // Frames resolve their ceiling from memory only, which a restart empties
+    // while the session's last reading is still on disk. One read here keeps a
+    // resumed session on its real threshold from the first frame instead of
+    // falling back to the derived window until a capture lands. A reading from
+    // before a model switch is superseded by the first capture of this run.
+    await loadClaudeContextCeiling(capturedSessionId);
+
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
     let lastContextUsageAt = 0;
@@ -874,6 +894,28 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // Transform and normalize message via adapter
       const transformedMessage = transformMessage(message);
       const sid = capturedSessionId || sessionId || null;
+
+      // Compaction is a minutes-long silence in the stream unless it is
+      // announced: the CLI reports it as a status message, `compacting` while
+      // it runs and another value once the turn resumes. An empty status text
+      // hands the label back to the indicator's own cycling words.
+      if (message?.type === 'system' && message.subtype === 'status') {
+        const isCompacting = message.status === 'compacting';
+        ws.send(createNormalizedMessage({
+          kind: 'status',
+          text: isCompacting ? 'Compacting conversation' : '',
+          sessionId: capturedSessionId || sessionId || null,
+          provider: 'claude',
+        }));
+        if (message.compact_result === 'failed') {
+          ws.send(createNormalizedMessage({
+            kind: 'error',
+            content: `Compaction failed: ${message.compact_error || 'no reason reported'}`,
+            sessionId: capturedSessionId || sessionId || null,
+            provider: 'claude',
+          }));
+        }
+      }
 
       // Account-level usage push, not a transcript row: sent as a gateway
       // event (no message id, no session id) so no chat surface files it

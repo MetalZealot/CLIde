@@ -1,7 +1,7 @@
 import { sessionsDb } from '@/modules/database/index.js';
 import { readClaudeSessionEffortFromJsonl } from '@/modules/providers/list/claude/claude-session-effort.js';
 import { readCodexSessionEffortFromRollout } from '@/modules/providers/list/codex/codex-session-effort.js';
-import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
+import { pickSupersedesTranscript } from '@/modules/providers/services/provider-session-model.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import type {
   LLMProvider,

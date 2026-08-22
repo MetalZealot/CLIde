@@ -70,9 +70,6 @@
     "archive": "Archiver",
     "rename": "Renommer"
   },
-  "branding": {
-    "openSource": "Open Source"
-  },
   "status": {
     "active": "Actif",
     "inactive": "Inactif",

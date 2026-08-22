@@ -2,6 +2,15 @@ import express, { type Request, type Response } from 'express';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import codexNativeRuntimeRoutes from '@/modules/providers/codex-native-runtime.routes.js';
+import {
+  readClaudeAutoCompactSettings,
+  writeClaudeAutoCompactSettings,
+} from '@/modules/providers/list/claude/claude-autocompact.settings.js';
+import {
+  resolveClaudeCeilingProvenance,
+  resolveClaudeDerivedCeiling,
+  toCeilingProvenanceFields,
+} from '@/modules/providers/list/claude/claude-context-window.js';
 import { refreshClaudeContextUsage } from '@/modules/providers/list/claude/claude-runtime.provider.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
@@ -831,5 +840,72 @@ router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) 
     }
   }
 }));
+
+
+
+/**
+ * Claude's auto-compact settings. Claude-only by nature: they live in Claude
+ * Code's own settings file, which no other adapter reads.
+ */
+router.get(
+  '/claude/auto-compact',
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.json(createApiSuccessResponse(await readClaudeAutoCompactSettings()));
+  }),
+);
+
+router.put(
+  '/claude/auto-compact',
+  asyncHandler(async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const update: { enabled?: boolean; window?: number | null } = {};
+
+    if (body.enabled !== undefined) {
+      if (typeof body.enabled !== 'boolean') {
+        throw new AppError('enabled must be a boolean.', {
+          code: 'INVALID_REQUEST_BODY',
+          statusCode: 400,
+        });
+      }
+      update.enabled = body.enabled;
+    }
+
+    if (body.window !== undefined) {
+      if (body.window === null) {
+        update.window = null;
+      } else {
+        const window = Number(body.window);
+        if (!Number.isInteger(window) || window <= 0) {
+          throw new AppError('window must be a positive integer, or null for auto.', {
+            code: 'INVALID_REQUEST_BODY',
+            statusCode: 400,
+          });
+        }
+        update.window = window;
+      }
+    }
+
+    res.json(createApiSuccessResponse(await writeClaudeAutoCompactSettings(update)));
+  }),
+);
+
+/**
+ * The ceiling a session on `model` would run under, derived without a reading.
+ * A session that has never streamed has no usage row to read one from, so the
+ * composer asks for the numbers directly rather than showing "0 tokens".
+ */
+router.get(
+  '/claude/context-ceiling',
+  asyncHandler(async (req: Request, res: Response) => {
+    const model = typeof req.query.model === 'string' ? req.query.model : undefined;
+    const derived = resolveClaudeDerivedCeiling({ model });
+    res.json(createApiSuccessResponse({
+      total: derived.contextWindow,
+      autoCompactThreshold: derived.autoCompactThreshold,
+      isAutoCompactEnabled: derived.isAutoCompactEnabled,
+      ...toCeilingProvenanceFields(resolveClaudeCeilingProvenance({ model })),
+    }));
+  }),
+);
 
 export default router;

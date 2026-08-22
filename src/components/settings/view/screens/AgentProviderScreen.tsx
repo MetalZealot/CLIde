@@ -100,31 +100,18 @@ function SkillsSubsystemRow({ provider, projects, onOpenScreen }: SubsystemRowPr
   );
 }
 
-function PermissionsSubsystemRow({ provider, onOpenScreen }: Omit<SubsystemRowProps, 'projects'>) {
-  const { t } = useTranslation('settings');
-  const screen = getScreen(agentScreenId(provider, 'permissions'));
-
-  if (!screen) {
-    return null;
-  }
-
-  return (
-    <SettingsNavRow
-      label={t(screen.labelKey)}
-      icon={SETTINGS_ICONS[screen.icon]}
-      onClick={() => onOpenScreen(screen.id)}
-    />
-  );
-}
-
 /**
- * No count or preview value here on purpose: reading it would mean fetching the
- * provider's whole model catalog to render one row, and the destination screen
- * fetches it anyway.
+ * Every subsystem whose row carries no preview value. Reading one would mean
+ * fetching the whole model catalog, or the settings file, to render a single
+ * row that the destination screen fetches anyway.
  */
-function DefaultModelSubsystemRow({ provider, onOpenScreen }: Omit<SubsystemRowProps, 'projects'>) {
+function PlainSubsystemRow({
+  provider,
+  subsystem,
+  onOpenScreen,
+}: Omit<SubsystemRowProps, 'projects'> & { subsystem: AgentSubsystem }) {
   const { t } = useTranslation('settings');
-  const screen = getScreen(agentScreenId(provider, 'model'));
+  const screen = getScreen(agentScreenId(provider, subsystem));
 
   if (!screen) {
     return null;
@@ -176,18 +163,39 @@ export default function AgentProviderScreen({
 
       {subsystems.length > 0 && (
         <SettingsGroup divided>
-          {subsystems.includes('model') && (
-            <DefaultModelSubsystemRow provider={provider} onOpenScreen={onOpenScreen} />
-          )}
-          {subsystems.includes('permissions') && (
-            <PermissionsSubsystemRow provider={provider} onOpenScreen={onOpenScreen} />
-          )}
-          {subsystems.includes('mcp') && (
-            <McpSubsystemRow provider={provider} projects={projects} onOpenScreen={onOpenScreen} />
-          )}
-          {subsystems.includes('skills') && (
-            <SkillsSubsystemRow provider={provider} projects={projects} onOpenScreen={onOpenScreen} />
-          )}
+          {/* Rendered from the registry list, in its order, so registering a
+              subsystem is the whole job — an unlisted one has no way in. Only
+              the two rows that preview a count need a component of their own. */}
+          {subsystems.map((subsystem) => {
+            if (subsystem === 'mcp') {
+              return (
+                <McpSubsystemRow
+                  key={subsystem}
+                  provider={provider}
+                  projects={projects}
+                  onOpenScreen={onOpenScreen}
+                />
+              );
+            }
+            if (subsystem === 'skills') {
+              return (
+                <SkillsSubsystemRow
+                  key={subsystem}
+                  provider={provider}
+                  projects={projects}
+                  onOpenScreen={onOpenScreen}
+                />
+              );
+            }
+            return (
+              <PlainSubsystemRow
+                key={subsystem}
+                provider={provider}
+                subsystem={subsystem}
+                onOpenScreen={onOpenScreen}
+              />
+            );
+          })}
         </SettingsGroup>
       )}
     </SettingsScreen>

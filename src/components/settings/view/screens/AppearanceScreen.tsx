@@ -1,5 +1,10 @@
 import { useTranslation } from 'react-i18next';
 
+import {
+  useAppearancePreferences,
+  type ChatReadingSize,
+  type ThemePreference,
+} from '../../../../contexts/AppearancePreferencesContext';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
 import { getScreen } from '../../registry/registry';
@@ -11,13 +16,6 @@ import {
   SettingsScreen,
   SettingsSegmentedControl,
 } from '../primitives';
-
-type ThemePreference = 'light' | 'dark' | 'system';
-
-type ThemeContextValue = {
-  theme: ThemePreference;
-  setTheme: (value: ThemePreference) => void;
-};
 
 type AppearanceScreenProps = {
   onOpenScreen: (screenId: string) => void;
@@ -34,7 +32,8 @@ export default function AppearanceScreen({
   onOpenScreen,
 }: AppearanceScreenProps) {
   const { t } = useTranslation('settings');
-  const { theme, setTheme } = useTheme() as ThemeContextValue;
+  const { theme, setTheme } = useTheme();
+  const { chatReadingSize, setChatReadingSize } = useAppearancePreferences();
 
   const editorScreen = getScreen('appearance.editor');
 
@@ -55,6 +54,26 @@ export default function AppearanceScreen({
               { value: 'light', label: t('appearanceSettings.theme.light') },
               { value: 'dark', label: t('appearanceSettings.theme.dark') },
               { value: 'system', label: t('appearanceSettings.theme.system') },
+            ]}
+          />
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup title={t('appearanceSettings.typography.title')}>
+        <SettingsRow
+          stacked
+          label={t('appearanceSettings.typography.readingSize.label')}
+          description={t('appearanceSettings.typography.readingSize.description')}
+        >
+          <SettingsSegmentedControl<ChatReadingSize>
+            value={chatReadingSize}
+            className="w-full justify-between"
+            ariaLabel={t('appearanceSettings.typography.readingSize.label')}
+            onChange={setChatReadingSize}
+            options={[
+              { value: 'compact', label: t('appearanceSettings.typography.readingSize.compact') },
+              { value: 'default', label: t('appearanceSettings.typography.readingSize.default') },
+              { value: 'large', label: t('appearanceSettings.typography.readingSize.large') },
             ]}
           />
         </SettingsRow>

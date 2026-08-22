@@ -10,8 +10,8 @@ import {
   type CodexLiveModel,
 } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import { readCodexSessionModelFromRollout } from '@/modules/providers/list/codex/codex-session-model.js';
-import { pickSupersedesTranscript } from '@/modules/providers/list/claude/claude-models.provider.js';
 import {
+  pickSupersedesTranscript,
   readProviderSessionModelPick,
   writeProviderSessionModelPick,
   type SessionModelPickStore,

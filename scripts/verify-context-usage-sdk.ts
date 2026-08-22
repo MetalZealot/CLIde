@@ -78,6 +78,13 @@
  *      `autoCompactWindow: 200000`, so the runtime clamps its reported window.
  *      Read this as agreement on this host, not as "1M is gone".
  *
+ *      2026-08-18, re-run with CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000 against
+ *      claude-sonnet-5 (registry window 1e6): maxTokens 200000, rawMaxTokens
+ *      200000. A cap collapses BOTH, so no field of this response reveals the
+ *      model's uncapped window or that a cap is in force. Anything wanting to
+ *      show "capped at X of Y" must read the env var and settings.json itself
+ *      and take Y from the registry table.
+ *
  * C4 — unchanged: isAutoCompactEnabled true, threshold === maxTokens - 33000
  *      (167000 for both models this run).
  *

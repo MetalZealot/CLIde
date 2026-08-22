@@ -239,7 +239,10 @@ export default function ComposerModelMenu({
         {hasModelSection && hasEffortSection && (
           <span className="shrink-0 capitalize text-muted-foreground">{effortLabel}</span>
         )}
-        <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+        <ChevronDown
+          className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
       </button>
 
       {isOpen && anchor && createPortal(

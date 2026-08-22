@@ -18,6 +18,10 @@ type MarkdownProps = {
   className?: string;
   /** Render single newlines as hard line breaks (for user-typed messages). */
   breaks?: boolean;
+  /** Use the configurable reading rhythm without changing secondary Markdown surfaces. */
+  readingTypography?: boolean;
+  /** Preserve a wider phone scroll gutter around horizontally scrollable code. */
+  insetFencedCode?: boolean;
 };
 
 // Links to the wider web (or in-page anchors) keep normal browser navigation;
@@ -60,9 +64,19 @@ type CodeBlockProps = {
   inline?: boolean;
   className?: string;
   children?: React.ReactNode;
+  insetFencedCode?: boolean;
+  readingTypography?: boolean;
 };
 
-const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockProps) => {
+const CodeBlock = ({
+  node,
+  inline,
+  className,
+  children,
+  insetFencedCode = false,
+  readingTypography = false,
+  ...props
+}: CodeBlockProps) => {
   const { t } = useTranslation('chat');
   const { isDarkMode } = useTheme();
   const [copied, setCopied] = useState(false);
@@ -74,7 +88,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   if (shouldInline) {
     return (
       <code
-        className={`inline-block max-w-full whitespace-pre-wrap break-words align-bottom rounded-md border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono text-[0.9em] text-gray-900 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100 ${className || ''
+        className={`inline-block max-w-full whitespace-pre-wrap break-words rounded-md bg-gray-100 px-1.5 py-0 align-baseline font-mono text-[0.9em] leading-snug text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800/60 dark:text-gray-100 dark:ring-gray-700 ${className || ''
           }`}
         {...props}
       >
@@ -87,7 +101,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   const language = match ? match[1] : 'text';
 
   return (
-    <div className="group relative my-2">
+    <div className={`group relative my-2 ${insetFencedCode ? 'mx-2 sm:mx-0' : ''}`}>
       {language && language !== 'text' && (
         <div className="absolute left-3 top-2 z-10 text-xs font-medium uppercase text-gray-400">{language}</div>
       )}
@@ -142,15 +156,17 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
         customStyle={{
           margin: 0,
           borderRadius: '0.75rem',
-          fontSize: '0.875rem',
+          fontSize: readingTypography ? 'var(--chat-code-size)' : '0.875rem',
           padding: language && language !== 'text' ? '2rem 1rem 1rem 1rem' : '1rem',
           // ChatGPT-style soft grey block in light mode; keep oneDark's own bg in dark.
           ...(isDarkMode ? {} : { background: 'hsl(var(--muted))' }),
         }}
         codeTagProps={{
           style: {
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            fontFamily: 'var(--font-mono)',
+            fontFeatureSettings: 'var(--font-mono-features)',
+            fontWeight: 'var(--font-weight-normal)',
+            letterSpacing: 'var(--font-mono-tracking)',
             ...(isDarkMode ? {} : { background: 'transparent' }),
           },
         }}
@@ -182,7 +198,7 @@ const markdownComponents = {
   li: ({ children }: { children?: React.ReactNode }) => <li className="[&>div:last-child]:mb-0 [&>div]:mb-1">{children}</li>,
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-2 overflow-x-auto">
-      <table className="min-w-full border-collapse border border-gray-200 dark:border-gray-700">{children}</table>
+      <table className="my-0 min-w-full border-collapse border border-gray-200 dark:border-gray-700">{children}</table>
     </div>
   ),
   thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-gray-50 dark:bg-gray-800">{children}</thead>,
@@ -194,7 +210,13 @@ const markdownComponents = {
   ),
 };
 
-export function Markdown({ children, className, breaks = false }: MarkdownProps) {
+export function Markdown({
+  children,
+  className,
+  breaks = false,
+  readingTypography = false,
+  insetFencedCode = false,
+}: MarkdownProps) {
   const content = normalizeInlineCodeFences(String(children ?? ''));
   const remarkPlugins = useMemo(
     () => (breaks
@@ -208,6 +230,32 @@ export function Markdown({ children, className, breaks = false }: MarkdownProps)
   const components = useMemo(
     () => ({
       ...markdownComponents,
+      code: (props: CodeBlockProps) => (
+        <CodeBlock
+          {...props}
+          insetFencedCode={insetFencedCode}
+          readingTypography={readingTypography}
+        />
+      ),
+      p: ({ children: paragraphChildren }: { children?: React.ReactNode }) => (
+        <div
+          className={readingTypography
+            ? 'chat-reading-paragraph'
+            : 'mb-2 last:mb-0'}
+        >
+          {paragraphChildren}
+        </div>
+      ),
+      th: ({ children: cellChildren }: { children?: React.ReactNode }) => (
+        <th className={`border border-gray-200 px-3 py-2 text-left font-semibold dark:border-gray-700 ${readingTypography ? 'chat-reading-table-cell' : 'text-sm'}`}>
+          {cellChildren}
+        </th>
+      ),
+      td: ({ children: cellChildren }: { children?: React.ReactNode }) => (
+        <td className={`border border-gray-200 px-3 py-2 align-top dark:border-gray-700 ${readingTypography ? 'chat-reading-table-cell' : 'text-sm'}`}>
+          {cellChildren}
+        </td>
+      ),
       a: ({ href, children: linkChildren }: { href?: string; children?: React.ReactNode }) => {
         // Prefer the href when it is a real path; otherwise fall back to the
         // link text, since models often emit `[src/foo.ts]()` with an empty href.
@@ -241,7 +289,7 @@ export function Markdown({ children, className, breaks = false }: MarkdownProps)
         );
       },
     }),
-    [openFileInEditor],
+    [insetFencedCode, openFileInEditor, readingTypography],
   );
 
   return (

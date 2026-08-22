@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   collectCompactReferencesByRowId,
   dropDuplicateLocalCommandEchoes,
+  readClaudeCompactBoundary,
 } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import type { NormalizedMessage } from '@/shared/types.js';
 
@@ -92,4 +93,40 @@ test('claude compaction: a summary with no file attachments yields no references
   ];
 
   assert.equal(collectCompactReferencesByRowId(rawMessages).has('summary'), false);
+});
+
+// The same boundary reaches us twice with two spellings: the live SDK stream
+// sends snake_case, the transcript on disk stores camelCase. Both must produce
+// the divider, or a reloaded session loses a marker it showed live.
+test('claude compaction: a boundary row is read in both the live and transcript spellings', () => {
+  const live = readClaudeCompactBoundary({
+    type: 'system',
+    subtype: 'compact_boundary',
+    compact_metadata: { trigger: 'auto', pre_tokens: 122537, post_tokens: 15517, duration_ms: 119489 },
+  });
+  const stored = readClaudeCompactBoundary({
+    type: 'system',
+    subtype: 'compact_boundary',
+    compactMetadata: { trigger: 'auto', preTokens: 122537, postTokens: 15517, durationMs: 119489 },
+  });
+
+  assert.deepEqual(live, { trigger: 'auto', preTokens: 122537, postTokens: 15517, durationMs: 119489 });
+  assert.deepEqual(stored, live);
+});
+
+test('claude compaction: a partial boundary keeps its trigger and nulls what is missing', () => {
+  assert.deepEqual(
+    readClaudeCompactBoundary({
+      type: 'system',
+      subtype: 'compact_boundary',
+      compactMetadata: { trigger: 'manual', preTokens: 90_000 },
+    }),
+    { trigger: 'manual', preTokens: 90_000, postTokens: null, durationMs: null },
+  );
+});
+
+test('claude compaction: non-boundary system rows are not mistaken for one', () => {
+  assert.equal(readClaudeCompactBoundary({ type: 'system', subtype: 'status', status: 'compacting' }), null);
+  assert.equal(readClaudeCompactBoundary({ type: 'system', subtype: 'compact_boundary' }), null);
+  assert.equal(readClaudeCompactBoundary({ message: { role: 'user', content: '/compact' } }), null);
 });

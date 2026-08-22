@@ -22,6 +22,21 @@ const REWIND_COMMAND = {
   type: 'built-in',
 } as const;
 
+/**
+ * Listed like a built-in but never executed by CLIde: compaction happens inside
+ * the runtime, so the command is only inserted into the composer and sent as
+ * the turn's text. Optional instructions follow it, as in the CLI.
+ */
+const COMPACT_COMMAND = {
+  name: '/compact',
+  description: 'Summarise the conversation now and free up context',
+  argumentHint: '<optional custom summarization instructions>',
+  namespace: 'builtin',
+  metadata: { type: 'builtin' },
+  type: 'built-in',
+  sendAsPrompt: true,
+} as const;
+
 const FORK_COMMAND = {
   name: '/fork',
   description: 'Create a separate conversation from a selected earlier message',
@@ -36,6 +51,10 @@ export interface SlashCommand {
   namespace?: string;
   path?: string;
   type?: 'built-in' | 'custom' | 'skill' | string;
+  /** Goes to the runtime as the turn's text; CLIde has no handler for it. */
+  sendAsPrompt?: boolean;
+  /** Ghost text shown after the command until the user types its argument. */
+  argumentHint?: string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -55,6 +74,8 @@ interface UseSlashCommandsOptions {
   supportsRewind?: boolean;
   /** Capability-gated: adds the client-side /fork command to the menu. */
   supportsFork?: boolean;
+  /** Capability-gated: adds the runtime-executed /compact command to the menu. */
+  supportsCompactCommand?: boolean;
 }
 
 type ProviderSkill = {
@@ -107,7 +128,8 @@ const isPromiseLike = (value: unknown): value is Promise<unknown> =>
 // arguments and only display data or open a panel, so it's safe to run them
 // straight from the menu instead of making the user press Enter again.
 const isBuiltInCommand = (command: SlashCommand) =>
-  command.namespace === 'builtin' || command.type === 'built-in';
+  (command.namespace === 'builtin' || command.type === 'built-in')
+  && command.sendAsPrompt !== true;
 
 const dedupeProviderSkills = (skills: ProviderSkill[]): ProviderSkill[] => {
   const seenCommands = new Set<string>();
@@ -184,6 +206,7 @@ export function useSlashCommands({
   onExecuteCommand,
   supportsRewind = false,
   supportsFork = false,
+  supportsCompactCommand = false,
 }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -252,6 +275,7 @@ export function useSlashCommands({
         const allCommands: SlashCommand[] = [
           ...(supportsRewind ? [{ ...REWIND_COMMAND } as SlashCommand] : []),
           ...(supportsFork ? [{ ...FORK_COMMAND } as SlashCommand] : []),
+          ...(supportsCompactCommand ? [{ ...COMPACT_COMMAND } as SlashCommand] : []),
           ...((data.builtIn || []) as SlashCommand[]).map((command) => ({
             ...command,
             type: 'built-in',
@@ -285,7 +309,7 @@ export function useSlashCommands({
     return () => {
       cancelled = true;
     };
-  }, [selectedProject, provider, supportsFork, supportsRewind]);
+  }, [selectedProject, provider, supportsCompactCommand, supportsFork, supportsRewind]);
 
   useEffect(() => {
     if (!showCommandMenu) {

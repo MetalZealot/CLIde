@@ -7,6 +7,7 @@ import {
   buttonVariants,
   anchorFromElement,
   RowActionsTrigger,
+  Tooltip,
   type ContextMenuAnchor,
 } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
@@ -15,6 +16,7 @@ import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel, resolveActivityState } from '../../utils/utils';
 import { projectAccentColorValue, type ProjectAccentColor } from '../../utils/accentColors';
 import { useLongPress } from '../../../../hooks/useLongPress';
+import { useIsTruncated } from '../../../../hooks/useIsTruncated';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 
 import SidebarStatusIndicator from './SidebarStatusIndicator';
@@ -143,6 +145,8 @@ export default function SidebarSessionItem({
       {projectLabel}
     </div>
   ) : null;
+  // Desktop only: a clipped title earns a hover tooltip carrying the whole name.
+  const { ref: desktopTitleRef, isTruncated: isDesktopTitleTruncated } = useIsTruncated<HTMLDivElement>();
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const mobileEditRef = useRef<HTMLDivElement>(null);
   // Anchor the menu to the row's box, not the finger, so it opens attached to
@@ -157,8 +161,9 @@ export default function SidebarSessionItem({
   const isContextActive = isPressing || isMenuOpen;
   const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread });
   const toggleBatchSelected = () => onToggleBatchSelected?.(session.id);
-  // The trailing slot yields to whatever replaces it. Batch mode replaces it
-  // with nothing, so it must stay put.
+  // The trailing slot yields to whatever replaces it: on hover the kebab takes
+  // it, so both lines' trailing marks fade together rather than being drawn
+  // under it. Batch mode replaces it with nothing, so it must stay put.
   const trailingFadeClass = isEditing
     ? 'opacity-0'
     : isSelectionMode ? undefined : 'group-hover:opacity-0';
@@ -395,7 +400,19 @@ export default function SidebarSessionItem({
                 {isStarred && (
                   <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
                 )}
-                <div
+                <Tooltip
+                  content={sessionView.sessionName}
+                  // The row already owns long-press and right-click, so the
+                  // tooltip takes hover and nothing else.
+                  enabled={isDesktopTitleTruncated}
+                  hoverOnly
+                  position="right"
+                  delay={500}
+                  containerClassName="min-w-0 flex-1"
+                  className="max-w-xs whitespace-normal break-words"
+                >
+                  <div
+                    ref={desktopTitleRef}
                     className={cn(
                       'min-w-0 flex-1 truncate text-sm text-foreground',
                       // Weight is the scarcest signal in a 30-row list, so it
@@ -406,6 +423,7 @@ export default function SidebarSessionItem({
                   >
                     {sessionView.sessionName}
                   </div>
+                </Tooltip>
                 {activityState ? (
                   <SidebarStatusIndicator
                     status={activityState}
@@ -426,7 +444,12 @@ export default function SidebarSessionItem({
               <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
                 {checkoutBadge}
-                <span className="ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                <span
+                  className={cn(
+                    'ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-200',
+                    trailingFadeClass,
+                  )}
+                >
                   <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
                 </span>
               </div>

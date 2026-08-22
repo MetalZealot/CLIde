@@ -23,6 +23,24 @@
 
 @layer base {
   :root {
+    --font-ui: "Encode Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-prose: Merriweather, Georgia, Cambria, "Times New Roman", serif;
+    --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-ui-features: normal;
+    --font-prose-features: normal;
+    --font-mono-features: normal;
+    --font-ui-tracking: 0em;
+    --font-prose-tracking: 0em;
+    --font-mono-tracking: 0em;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    --chat-prose-size: 15px;
+    --chat-prose-line-height: 22px;
+    --chat-paragraph-gap: 12px;
+    --chat-code-size: 14px;
     --background: 44 22% 96%;
     --foreground: 36 25% 4%;
     --card: 0 0% 100%;
@@ -86,6 +104,45 @@
 
     /* Height of every top bar — see .app-bar */
     --app-bar-height: 56px;
+
+    /* Height of every bottom bar — see .app-footer. Taller than the top bar
+       because a thumb reaching the bottom edge has less precision than the same
+       thumb mid-screen, and the gesture strip sits directly below. */
+    --app-footer-height: 64px;
+  }
+
+  :root[data-chat-reading-size="compact"] {
+    --chat-prose-size: 14px;
+    --chat-prose-line-height: 21px;
+    --chat-paragraph-gap: 8px;
+    --chat-code-size: 13px;
+  }
+
+  :root[data-chat-reading-size="large"] {
+    --chat-prose-size: 17px;
+    --chat-prose-line-height: 26px;
+    --chat-paragraph-gap: 12px;
+    --chat-code-size: 15px;
+  }
+
+  @media (min-width: 640px) {
+    :root {
+      --chat-prose-size: 14px;
+      --chat-prose-line-height: 24px;
+      --chat-paragraph-gap: 8px;
+    }
+
+    :root[data-chat-reading-size="compact"] {
+      --chat-prose-size: 13px;
+      --chat-prose-line-height: 21px;
+      --chat-paragraph-gap: 8px;
+    }
+
+    :root[data-chat-reading-size="large"] {
+      --chat-prose-size: 16px;
+      --chat-prose-line-height: 26px;
+      --chat-paragraph-gap: 10px;
+    }
   }
   
   /* Fallback for older iOS versions */
@@ -154,11 +211,13 @@
     box-sizing: border-box;
     transition: none;
   }
-  
+
   body {
     @apply bg-background text-foreground;
 
-    font-family: "Encode Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-ui);
+    font-feature-settings: var(--font-ui-features);
+    letter-spacing: var(--font-ui-tracking);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
@@ -315,6 +374,17 @@
     content: '';
   }
   
+  /* 32px visual, 44px touch area (WCAG 2.5.8 floor is met by the visual alone). */
+  .composer-send-hit-target {
+    position: relative;
+  }
+
+  .composer-send-hit-target::before {
+    position: absolute;
+    inset: -0.375rem;
+    content: '';
+  }
+
   /* Modal and dropdown transitions */
   .modal-transition {
     transition: opacity 200ms ease-in-out,
@@ -770,6 +840,18 @@
     height: calc(var(--app-bar-height) + env(safe-area-inset-top, 0px));
   }
 
+  /* The bottom-edge counterpart of .app-bar: one fixed height with its contents
+     centred, owning the bottom safe-area inset so its background paints under
+     the gesture strip while its controls clear it. Any bar sitting on the
+     viewport's bottom edge uses this, so they all share one centreline. */
+  .app-footer {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(var(--app-footer-height) + env(safe-area-inset-bottom, 0px));
+  }
+
   /* For a full-bleed overlay whose own content starts at the top edge and which
      has no app bar to carry the inset. Never put this on a scrim — a scrim must
      cover the status bar, not stop below it. */
@@ -784,18 +866,22 @@
     overflow-wrap: break-word;
   }
 
-  /* Force wrap long URLs and code */
-  .chat-message pre,
-  .chat-message code {
-    white-space: pre-wrap !important;
-    word-break: break-all;
+  /* Only code sitting inside prose wraps. A fenced block keeps its line
+     structure and scrolls sideways, as every code surface does. */
+  .chat-message :not(pre) > code {
+    white-space: pre-wrap;
     overflow-wrap: break-word;
   }
 
-  /* Prevent horizontal scroll in chat area */
+  /* Keep chat content inside the column, but never clamp the contents of a
+     scroll container — that is what it has to overflow to scroll. */
   .chat-message * {
     max-width: 100%;
     box-sizing: border-box;
+  }
+
+  .chat-message pre * {
+    max-width: none;
   }
 
   /* Hide scrollbar utility for horizontal scroll */
@@ -814,6 +900,46 @@
 .prose code::after {
   content: "" !important;
   display: none !important;
+}
+
+:where(.font-sans) {
+  font-feature-settings: var(--font-ui-features);
+  letter-spacing: var(--font-ui-tracking);
+}
+
+:where(.font-prose) {
+  font-feature-settings: var(--font-prose-features);
+  letter-spacing: var(--font-prose-tracking);
+}
+
+:where(.font-mono) {
+  font-feature-settings: var(--font-mono-features);
+  letter-spacing: var(--font-mono-tracking);
+}
+
+.chat-reading {
+  font-family: var(--font-prose);
+  font-feature-settings: var(--font-prose-features);
+  font-size: var(--chat-prose-size);
+  line-height: var(--chat-prose-line-height);
+  letter-spacing: var(--font-prose-tracking);
+}
+
+.chat-reading-paragraph {
+  margin-bottom: var(--chat-paragraph-gap);
+}
+
+.chat-reading-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.chat-reading-code {
+  font-size: var(--chat-code-size);
+}
+
+.chat-reading-table-cell {
+  font-size: inherit;
+  line-height: inherit;
 }
 
 /* User turns render as Markdown inside the solid blue bubble. `prose-invert`

@@ -73,6 +73,7 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   ...AGENT_ENTRIES,
 
   { screenId: 'appearance', labelKey: 'appearanceSettings.theme.title', keywords: 'dark light system mode' },
+  { screenId: 'appearance', labelKey: 'appearanceSettings.typography.readingSize.label', keywords: 'font text compact default large readability density' },
   { screenId: 'appearance', labelKey: 'appearanceSettings.language.title', keywords: 'locale translation' },
 
   { screenId: 'appearance.editor', labelKey: 'appearanceSettings.codeEditor.wordWrap.label' },

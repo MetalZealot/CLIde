@@ -46,6 +46,12 @@ type ProviderCapabilities = {
   supportsRewind: boolean;
   /** Whether the provider can create a separate sibling conversation. */
   supportsFork: boolean;
+  /**
+   * Whether the runtime compacts on request when a turn's text is `/compact`.
+   * The command is sent as an ordinary prompt, so this reports that the
+   * provider understands it — not that CLIde handles it.
+   */
+  supportsCompactCommand: boolean;
   /** Runtime diagnostics for integrations with multiple execution surfaces. */
   chatTransport?: CodexChatTransportDiagnostics;
 };
@@ -72,6 +78,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsEffort: true,
     supportsRewind: true,
     supportsFork: false,
+    supportsCompactCommand: true,
   },
   cursor: {
     provider: 'cursor',
@@ -88,6 +95,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsEffort: false,
     supportsRewind: false,
     supportsFork: false,
+    supportsCompactCommand: false,
   },
   codex: {
     provider: 'codex',
@@ -104,6 +112,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsEffort: true,
     supportsRewind: false,
     supportsFork: false,
+    supportsCompactCommand: false,
   },
   opencode: {
     provider: 'opencode',
@@ -123,6 +132,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsEffort: true,
     supportsRewind: false,
     supportsFork: false,
+    supportsCompactCommand: false,
   },
 };
 

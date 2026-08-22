@@ -69,9 +69,6 @@
     "archive": "보관",
     "rename": "이름 변경"
   },
-  "branding": {
-    "openSource": "오픈 소스"
-  },
   "status": {
     "active": "활성",
     "inactive": "비활성",

@@ -1,13 +1,16 @@
-import { Settings, Sparkles, PanelLeftOpen, AlertTriangle } from 'lucide-react';
+import { MessageSquarePlus, Sparkles, PanelLeftOpen, AlertTriangle } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import type { ActivitySummary } from '../../types/types';
 
+import SidebarAccountMenu from './SidebarAccountMenu';
 import SidebarStatusIndicator from './SidebarStatusIndicator';
 
 type SidebarCollapsedProps = {
   onExpand: () => void;
-  onShowSettings: () => void;
+  onOpenNewSession: () => void;
+  onShowSettings: (screenId?: string) => void;
+  onShowUsage: () => void;
   updateAvailable: boolean;
   restartRequired: boolean;
   activitySummary: ActivitySummary;
@@ -15,9 +18,17 @@ type SidebarCollapsedProps = {
   t: TFunction;
 };
 
+/**
+ * The rail mirrors the expanded sidebar's spine: New Session at the top where
+ * the header carries it, identity at the bottom where the footer does, and any
+ * update banner directly above that identity. Settings is not repeated here —
+ * it lives inside the account menu, the same as when expanded.
+ */
 export default function SidebarCollapsed({
   onExpand,
+  onOpenNewSession,
   onShowSettings,
+  onShowUsage,
   updateAvailable,
   restartRequired,
   activitySummary,
@@ -46,14 +57,14 @@ export default function SidebarCollapsed({
 
       <div className="nav-divider my-1 w-6" />
 
-      {/* Settings */}
+      {/* New Session */}
       <button
-        onClick={onShowSettings}
+        onClick={onOpenNewSession}
         className="group flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-accent/80"
-        aria-label={t('actions.settings')}
-        title={t('actions.settings')}
+        aria-label={t('sessions.newSession')}
+        title={t('sessions.newSession')}
       >
-        <Settings className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+        <MessageSquarePlus className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
       </button>
 
       {/* Highest-urgency transient activity, matching the expanded summary. */}
@@ -78,7 +89,9 @@ export default function SidebarCollapsed({
         </div>
       )}
 
-      {/* Update indicator */}
+      <div className="flex-1" />
+
+      {/* Update indicator, directly above the account icon it precedes when expanded */}
       {updateAvailable && (
         <button
           onClick={onShowVersionModal}
@@ -90,6 +103,13 @@ export default function SidebarCollapsed({
           <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
         </button>
       )}
+
+      <SidebarAccountMenu
+        isCompact
+        onShowSettings={onShowSettings}
+        onShowUsage={onShowUsage}
+        t={t}
+      />
     </div>
   );
 }

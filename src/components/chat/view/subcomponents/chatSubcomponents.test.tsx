@@ -15,7 +15,29 @@ import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
 import ChatExportMenu from './ChatExportMenu';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
+import CompactBoundaryDivider from './CompactBoundaryDivider';
 import TokenUsageSummary from './TokenUsageSummary';
+
+describe('configurable chat typography', () => {
+  test('only ordinary user and assistant content opts into the reading scale', () => {
+    const messageSource = readFileSync(new URL('./MessageComponent.tsx', import.meta.url), 'utf8');
+    const markdownSource = readFileSync(new URL('./Markdown.tsx', import.meta.url), 'utf8');
+    const globalStyles = readFileSync(new URL('../../../../index.css', import.meta.url), 'utf8');
+
+    assert.equal((messageSource.match(/readingTypography/g) || []).length, 2);
+    assert.equal((messageSource.match(/className="chat-reading [^"]*prose/g) || []).length, 2);
+    assert.match(messageSource, /className="chat-reading prose/);
+    assert.match(messageSource, /className="chat-reading prose-on-accent prose/);
+    assert.doesNotMatch(messageSource, /className="chat-reading break-words"/);
+    assert.match(messageSource, /className="chat-reading-code/);
+    assert.doesNotMatch(messageSource, /mobileReadingDensity/);
+    assert.match(markdownSource, /fontSize: readingTypography \? 'var\(--chat-code-size\)'/);
+    assert.match(markdownSource, /chat-reading-table-cell/);
+    assert.match(markdownSource, /chat-reading-paragraph/);
+    assert.match(globalStyles, /--chat-prose-size: 15px;/);
+    assert.match(globalStyles, /--chat-prose-line-height: 22px;/);
+  });
+});
 
 describe('ChatExportMenu', () => {
   test('enables results only with tool calls and loads complete history before export', async () => {
@@ -157,6 +179,19 @@ describe('TokenUsageSummary', () => {
 
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       providerUsageRequests.push(String(input));
+      if (String(input).includes('/context-ceiling')) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            total: 200_000,
+            autoCompactThreshold: 167_000,
+            isAutoCompactEnabled: true,
+            ceilingSource: 'settings',
+            ceilingCap: 200_000,
+            modelContextWindow: 1_000_000,
+          },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       const provider = String(input).includes('/codex/') ? 'codex' : 'claude';
       const data = provider === 'claude'
         ? {
@@ -230,6 +265,7 @@ describe('TokenUsageSummary', () => {
           total: 967_000,
           autoCompactThreshold: 934_000,
           isAutoCompactEnabled: true,
+          ceilingSource: 'auto',
         }}
         request={{ id: 0, view: 'summary' }}
         onRequestBreakdown={() => { breakdownOpens += 1; }}
@@ -245,9 +281,10 @@ describe('TokenUsageSummary', () => {
     assert.equal(trigger.getAttribute('aria-label'), 'Show usage; credits available');
     assert.match(text, /Context & Usage/);
     assert.match(trigger.textContent || '', /\$/);
-    assert.match(text, /Session13% used117,721 \/ 934,000 · AutoBreakdown/);
-    assert.match(text, /5-hour limit75% usedResets in \d+h \d+m/);
-    assert.match(text, /Weekly25% usedResets in \d+d \d+h/);
+    assert.match(text, /Session118k \/ 934k · Auto13%/);
+    // Label, reset and percentage on one line.
+    assert.match(text, /5-hour limitResets in \d+h \d+m75%/);
+    assert.match(text, /WeeklyResets in \d+d \d+h25%/);
     assert.ok(text.indexOf('5-hour limit') < text.indexOf('Weekly'));
     assert.match(text, /Credits\/Tokens\$0\.00/);
     assert.doesNotMatch(text, /Plan usage limits|Full usage|Refresh/);
@@ -266,8 +303,9 @@ describe('TokenUsageSummary', () => {
     assert.equal(link?.textContent?.trim(), 'Manage Plan and Balance');
     assert.equal(link?.href, 'https://claude.ai/new#settings/usage');
 
-    const breakdown = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
-      .find((button) => button.textContent?.includes('Breakdown'));
+    const breakdown = dialog.querySelector<HTMLButtonElement>(
+      'button[aria-label="Session breakdown"]',
+    );
     assert.ok(breakdown);
     await React.act(async () => breakdown.click());
     assert.equal(breakdownOpens, 1);
@@ -317,10 +355,96 @@ describe('TokenUsageSummary', () => {
       />,
     ));
     const breakdownText = document.querySelector('[role="dialog"]')?.textContent || '';
-    assert.match(breakdownText, /Session breakdown/);
     assert.match(breakdownText, /What is in the window/);
     assert.match(breakdownText, /Messages97,721/);
-    assert.doesNotMatch(breakdownText, /5-hour limit|Weekly|Credits\/Tokens|Manage Plan/);
+    // Expanded in place, so the session line it explains and the plan windows
+    // stay on screen beside it rather than being swapped out.
+    assert.match(breakdownText, /118k \/ 934k13%/);
+    assert.match(breakdownText, /5-hour limit|Weekly/);
+  });
+
+  test('a session with no live frame derives its ceiling, and never lends it to another provider', async () => {
+    const props = {
+      request: { id: 0, view: 'summary' as const },
+      onRequestBreakdown: () => {},
+      onRefreshBreakdown: () => {},
+      isRefreshingBreakdown: false,
+      canRefreshBreakdown: false,
+    };
+    const host = await mount(
+      <TokenUsageSummary provider="claude" usage={{ used: 0 }} model="opus" {...props} />,
+    );
+    const { dialog } = await openPopover(host);
+
+    // Nothing has streamed, so the numbers come from the model and settings.json
+    // rather than reading as a bare "0 tokens".
+    assert.match(dialog.textContent || '', /Session0 \/ 167k · Custom0%/);
+
+    // The composer survives a session switch; the Claude ceiling must not.
+    await React.act(async () => {
+      root?.render(<TokenUsageSummary provider="codex" usage={{ used: 0 }} {...props} />);
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    const codexText = document.querySelector('[role="dialog"]')?.textContent || '';
+    assert.match(codexText, /Session0 tokens0%/);
+    assert.doesNotMatch(codexText, /167k|Custom/);
+  });
+
+  test('a capped ceiling names its source and the model window behind it', async () => {
+    const host = await mount(
+      <TokenUsageSummary
+        provider="claude"
+        usage={{
+          used: 114_222,
+          total: 200_000,
+          autoCompactThreshold: 167_000,
+          isAutoCompactEnabled: true,
+          ceilingSource: 'settings',
+          ceilingCap: 200_000,
+          modelContextWindow: 1_000_000,
+        }}
+        request={{ id: 0, view: 'summary' }}
+        onRequestBreakdown={() => {}}
+        onRefreshBreakdown={() => {}}
+        isRefreshingBreakdown={false}
+        canRefreshBreakdown={false}
+      />,
+    );
+    const { dialog } = await openPopover(host);
+    const text = dialog.textContent || '';
+
+    assert.match(text, /114k \/ 167k · Custom/);
+    // The cap belongs to the breakdown, so no row gains a second line here.
+    assert.doesNotMatch(text, /capped at/);
+    assert.doesNotMatch(text, /· Auto/);
+    // The source word is the way in to the setting that produced it.
+    assert.ok(dialog.querySelector('button[title^="Auto-compact"]'));
+  });
+
+  test('an uncapped ceiling says auto and shows no cap line', async () => {
+    const host = await mount(
+      <TokenUsageSummary
+        provider="claude"
+        usage={{
+          used: 122_942,
+          total: 1_000_000,
+          autoCompactThreshold: 967_000,
+          isAutoCompactEnabled: true,
+          ceilingSource: 'auto',
+          modelContextWindow: 1_000_000,
+        }}
+        request={{ id: 0, view: 'summary' }}
+        onRequestBreakdown={() => {}}
+        onRefreshBreakdown={() => {}}
+        isRefreshingBreakdown={false}
+        canRefreshBreakdown={false}
+      />,
+    );
+    const { dialog } = await openPopover(host);
+    const text = dialog.textContent || '';
+
+    assert.match(text, /123k \/ 967k · Auto/);
+    assert.doesNotMatch(text, /capped at/);
   });
 
   test('Codex omits breakdown and links weekly usage to account activity', async () => {
@@ -339,9 +463,13 @@ describe('TokenUsageSummary', () => {
     const text = dialog.textContent || '';
 
     assert.match(text, /Context & Usage/);
-    assert.match(text, /Session16% used42,000 \/ 258,400/);
-    assert.doesNotMatch(text, /Breakdown/);
-    assert.match(text, /Weekly52% used.*Usage/);
+    assert.match(text, /Session42k \/ 258k16%/);
+    assert.equal(dialog.querySelector('button[aria-label="Session breakdown"]'), null);
+    assert.match(text, /WeeklyResets in \d+d \d+h52%/);
+    // The per-window usage link is a chevron now, so it is named, not labelled.
+    const labels = [...dialog.querySelectorAll('[aria-label]')]
+      .map((node) => node.getAttribute('aria-label'));
+    assert.ok(labels.includes('View Weekly usage'));
     assert.doesNotMatch(text, /5-hour/);
     assert.doesNotMatch(text, /Auto(?: off)?/);
     assert.match(text, /Credits\/Tokens\$25\.00/);
@@ -351,7 +479,7 @@ describe('TokenUsageSummary', () => {
     );
 
     const usageButton = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
-      .find((button) => button.textContent?.trim() === 'Usage');
+      .find((button) => button.getAttribute('aria-label') === 'View Weekly usage');
     assert.ok(usageButton);
     await React.act(async () => usageButton.click());
     const activityText = document.querySelector('[role="dialog"]')?.textContent || '';
@@ -385,6 +513,44 @@ describe('TokenUsageSummary', () => {
       claudeCreditSpend = 0;
       Date.now = realDateNow;
     }
+  });
+
+  test('an expanded breakdown does not carry one session\'s reading into the next', async () => {
+    const summary = (sessionKey: string) => (
+      <TokenUsageSummary
+        provider="claude"
+        usage={{ used: 10_000, total: 200_000 }}
+        request={{
+          id: 1,
+          view: 'breakdown',
+          context: {
+            provider: 'claude',
+            detail: 'full',
+            usedTokens: 10_000,
+            breakdown: { categories: [{ name: 'Session A memory', tokens: 4_000 }] },
+          },
+        }}
+        onRequestBreakdown={() => {}}
+        onRefreshBreakdown={() => {}}
+        isRefreshingBreakdown={false}
+        canRefreshBreakdown={false}
+        sessionKey={sessionKey}
+      />
+    );
+    // The `/context` request opens the panel itself, so no trigger click here.
+    await mount(summary('session-a'));
+    const dialog = document.querySelector('[role="dialog"]');
+    assert.ok(dialog);
+    assert.match(dialog.textContent || '', /Session A memory/);
+
+    await React.act(async () => root?.render(summary('session-b')));
+    const switched = document.querySelector('[role="dialog"]');
+    assert.ok(switched);
+    assert.doesNotMatch(switched.textContent || '', /Session A memory/);
+    assert.equal(
+      switched.querySelector('button[aria-label="Session breakdown"]')?.getAttribute('aria-expanded'),
+      'false',
+    );
   });
 });
 
@@ -855,5 +1021,24 @@ describe('NativeImageAttachmentPicker', () => {
     assert.doesNotMatch(html, /<button/);
     assert.match(html, /lucide-plus/);
     assert.doesNotMatch(html, /lucide-paperclip/);
+  });
+});
+
+describe('CompactBoundaryDivider', () => {
+  test('states the trigger, the tokens saved, and how long it took', () => {
+    const html = renderToStaticMarkup(
+      <CompactBoundaryDivider
+        boundary={{ trigger: 'auto', preTokens: 122537, postTokens: 15517, durationMs: 119489 }}
+      />,
+    );
+    assert.match(html, /123K → 16K/);
+    assert.match(html, /1m 59s/);
+    assert.match(html, /auto-compacted/i);
+  });
+
+  test('renders the divider with whatever the provider reported, and nothing more', () => {
+    const html = renderToStaticMarkup(<CompactBoundaryDivider boundary={{ trigger: 'manual', preTokens: null, postTokens: null, durationMs: null }} />);
+    assert.doesNotMatch(html, /→|NaN|null/);
+    assert.doesNotMatch(html, /auto-compacted/i);
   });
 });

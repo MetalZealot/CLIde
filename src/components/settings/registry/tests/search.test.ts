@@ -62,6 +62,12 @@ test('a row label resolves to the screen that renders it', () => {
   assert.deepEqual(rest, []);
 });
 
+test('reading-size customization resolves to Appearance', () => {
+  const [result] = search('reading size');
+  assert.equal(result?.screenId, 'appearance');
+  assert.deepEqual(result?.matchedSettingLabelKeys, ['appearanceSettings.typography.readingSize.label']);
+});
+
 test('all tokens must match, but not contiguously', () => {
   assert.ok(screenIds('enter send').includes('chat'));
   assert.ok(screenIds('enter to send').includes('chat'));
@@ -130,5 +136,33 @@ test('every screen label and keyword set resolves to a real en string', () => {
   for (const screen of SETTINGS_SCREENS) {
     assert.notEqual(translate(screen.labelKey), screen.labelKey, `${screen.id} has no en label`);
     assert.ok(screen.keywords.trim().length > 0, `${screen.id} has no keywords`);
+  }
+});
+
+test('auto-compact is findable by the words a confused user would type', () => {
+  // The setting is Claude-only and named nowhere else in the UI, so search is
+  // the only way most people will reach it.
+  for (const query of ['autocompact', 'compact', 'context window']) {
+    assert.ok(
+      screenIds(query).includes('agent.claude.autoCompact'),
+      `"${query}" should reach the auto-compact screen`,
+    );
+  }
+});
+
+test('auto-compact is offered for Claude alone', () => {
+  const screens = SETTINGS_SCREENS.filter((screen) => screen.id.endsWith('.autoCompact'));
+  assert.deepEqual(screens.map((screen) => screen.id), ['agent.claude.autoCompact']);
+});
+
+test('every registered screen has a real label, not an echoed key', () => {
+  // A screen whose label is missing still renders — as its own dotted key —
+  // and still matches search, so nothing else here would catch it.
+  for (const screen of SETTINGS_SCREENS) {
+    assert.notEqual(
+      translate(screen.labelKey),
+      screen.labelKey,
+      `${screen.id} has no translation for "${screen.labelKey}"`,
+    );
   }
 });

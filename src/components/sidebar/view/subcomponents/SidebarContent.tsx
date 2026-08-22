@@ -18,6 +18,7 @@ import { getAllSessions } from '../../utils/utils';
 
 import SidebarFooter from './SidebarFooter';
 import SidebarHeader from './SidebarHeader';
+import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarProjectList, { type SidebarProjectListProps } from './SidebarProjectList';
 
 function HighlightedSnippet({ snippet, highlights }: { snippet: string; highlights: { start: number; end: number }[] }) {
@@ -152,10 +153,13 @@ type SidebarContentProps = {
   restartRequired: boolean;
   releaseInfo: ReleaseInfo | null;
   latestVersion: string | null;
-  currentVersion: string;
   onShowVersionModal: () => void;
   onShowSettings: (screenId?: string) => void;
   onShowUsage: () => void;
+  /** Desktop width in px, owned by the sidebar and dragged from its right edge. */
+  sidebarWidth: number;
+  onSidebarWidthChange: (width: number) => void;
+  onSidebarWidthReset: () => void;
   projectListProps: SidebarProjectListProps;
   /** Batch mode's toolbar; replaces the footer while a selection is live. */
   selectionBar: ReactNode;
@@ -195,10 +199,12 @@ export default function SidebarContent({
   restartRequired,
   releaseInfo,
   latestVersion,
-  currentVersion,
   onShowVersionModal,
   onShowSettings,
   onShowUsage,
+  sidebarWidth,
+  onSidebarWidthChange,
+  onSidebarWidthReset,
   projectListProps,
   selectionBar,
   t,
@@ -213,9 +219,16 @@ export default function SidebarContent({
 
   return (
     <div
-      className="flex h-full flex-col bg-background md:w-72 md:select-none"
-      style={{}}
+      className="relative flex h-full flex-col bg-background md:select-none"
+      // Width applies from `md` up only; the mobile drawer sizes itself.
+      style={isMobile ? undefined : { width: sidebarWidth }}
     >
+      <SidebarResizeHandle
+        width={sidebarWidth}
+        onWidthChange={onSidebarWidthChange}
+        onReset={onSidebarWidthReset}
+        t={t}
+      />
       <SidebarHeader
         browseMode={browseMode}
         onBrowseModeChange={onBrowseModeChange}
@@ -601,7 +614,6 @@ export default function SidebarContent({
           restartRequired={restartRequired}
           releaseInfo={releaseInfo}
           latestVersion={latestVersion}
-          currentVersion={currentVersion}
           onShowVersionModal={onShowVersionModal}
           onShowSettings={onShowSettings}
           onShowUsage={onShowUsage}

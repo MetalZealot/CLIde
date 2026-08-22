@@ -34,6 +34,8 @@ import {
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
 
+import { splitLeadingCommand } from '../../utils/chatFormatting';
+
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
 import ComposerAttachment from './ComposerAttachment';
@@ -57,6 +59,7 @@ interface SlashCommand {
   namespace?: string;
   path?: string;
   type?: string;
+  argumentHint?: string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -103,6 +106,8 @@ interface ChatComposerProps {
   onShowContextBreakdown: () => void;
   onRefreshContextBreakdown: () => void;
   isRefreshingContextBreakdown: boolean;
+  /** Active conversation id, or null on a chat with no session yet. */
+  sessionKey: string | null;
   provider: LLMProvider;
   hasInput: boolean;
   onClearInput: () => void;
@@ -127,6 +132,7 @@ interface ChatComposerProps {
   onCloseCommandMenu: () => void;
   isCommandMenuOpen: boolean;
   frequentCommands: SlashCommand[];
+  slashCommands: SlashCommand[];
   getRootProps: (...args: unknown[]) => Record<string, unknown>;
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
   inputHighlightRef: RefObject<HTMLDivElement>;
@@ -179,6 +185,7 @@ export default function ChatComposer({
   onShowContextBreakdown,
   onRefreshContextBreakdown,
   isRefreshingContextBreakdown,
+  sessionKey,
   provider,
   hasInput,
   onClearInput,
@@ -203,6 +210,7 @@ export default function ChatComposer({
   onCloseCommandMenu,
   isCommandMenuOpen,
   frequentCommands,
+  slashCommands,
   getRootProps,
   getInputProps,
   inputHighlightRef,
@@ -223,6 +231,16 @@ export default function ChatComposer({
   enterToSend,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
+
+  const leadingCommand = useMemo(
+    () => splitLeadingCommand(input, new Set(slashCommands.map((command) => command.name))),
+    [input, slashCommands],
+  );
+  // Only while the argument slot is still empty, as in the CLI.
+  const argumentHint = leadingCommand && !leadingCommand.rest
+    ? slashCommands.find((command) => command.name === leadingCommand.command)?.argumentHint
+    : undefined;
+
   const commandMenuPosition = useMemo(() => {
     if (!isCommandMenuOpen) {
       return { top: 0, left: 16, bottom: 90 };
@@ -408,8 +426,23 @@ export default function ChatComposer({
 
           <PromptInputBody>
             <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent">
-                {renderInputWithMentions(input)}
+              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 pb-1 pt-2 text-base leading-6 text-transparent">
+                {leadingCommand ? (
+                  <>
+                    <span className="-ml-0.5 box-decoration-clone rounded-md bg-violet-200/70 px-0.5 text-transparent dark:bg-violet-400/30">
+                      {leadingCommand.command}
+                    </span>
+                    {leadingCommand.separator}
+                    {renderInputWithMentions(leadingCommand.rest)}
+                    {argumentHint && (
+                      <span className="text-muted-foreground/70">
+                        {leadingCommand.separator ? argumentHint : ` ${argumentHint}`}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  renderInputWithMentions(input)
+                )}
               </div>
             </div>
 
@@ -498,7 +531,9 @@ export default function ChatComposer({
               onRefreshBreakdown={onRefreshContextBreakdown}
               isRefreshingBreakdown={isRefreshingContextBreakdown}
               canRefreshBreakdown={isLoading}
+              sessionKey={sessionKey}
               provider={provider}
+              model={model}
             />
 
             <PromptInputSubmit
@@ -528,12 +563,12 @@ export default function ChatComposer({
               }
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
-              className="ml-1.5 h-10 w-10 sm:ml-2 sm:h-10 sm:w-10"
+              className="composer-send-hit-target ml-4 [&_svg]:size-5"
             >
               {isTranscribing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <ArrowUpIcon className="h-4 w-4" />
+                <ArrowUpIcon className="h-5 w-5" />
               )}
             </PromptInputSubmit>
           </div>

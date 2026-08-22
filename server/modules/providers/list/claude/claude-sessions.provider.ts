@@ -4,11 +4,15 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import type { IProviderSessions } from '@/shared/interfaces.js';
-import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
+import type { AnyRecord, CompactBoundaryInfo, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 import { parseFilesInputTag } from '@/shared/image-attachments.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
-import { resolveClaudeContextCeiling } from './claude-context-window.js';
+import {
+  resolveClaudeCeilingProvenance,
+  resolveClaudeDerivedCeiling,
+  toCeilingProvenanceFields,
+} from './claude-context-window.js';
 import { filterToActiveBranch, type RewindTranscriptEntry } from './claude-rewind.util.js';
 
 const PROVIDER = 'claude';
@@ -84,18 +88,23 @@ function extractHistoryTokenUsage(rawMessages: AnyRecord[]): AnyRecord | undefin
       continue;
     }
     // The ceiling belongs to the model that produced this reading, so it comes
-    // off the same row rather than a global constant.
-    const contextWindow = resolveClaudeContextCeiling({
-      model: typeof message?.model === 'string' ? message.model : undefined,
-    });
+    // off the same row rather than a global constant. It carries the threshold
+    // and provenance too: this payload and the token-usage endpoint both land on
+    // session entry, and a window-only reading here overwrites the other with a
+    // ceiling 33,000 tokens too high.
+    const model = typeof message?.model === 'string' ? message.model : undefined;
+    const ceiling = resolveClaudeDerivedCeiling({ model });
     return {
       used: inputTokens + outputTokens,
-      total: contextWindow,
+      total: ceiling.contextWindow,
       inputTokens,
       outputTokens,
       cacheReadTokens,
       cacheCreationTokens,
       cacheTokens,
+      autoCompactThreshold: ceiling.autoCompactThreshold,
+      isAutoCompactEnabled: ceiling.isAutoCompactEnabled,
+      ...toCeilingProvenanceFields(resolveClaudeCeilingProvenance({ model })),
       breakdown: { input: inputTokens, output: outputTokens },
     };
   }
@@ -444,6 +453,38 @@ function isCompactionBookkeepingRow(row: AnyRecord): boolean {
   );
 }
 
+/**
+ * Reads a compaction boundary row's metadata.
+ *
+ * The same row reaches us two ways with two spellings: the live SDK stream
+ * sends `compact_metadata`/`pre_tokens`, the transcript stores
+ * `compactMetadata`/`preTokens`. Returns null for anything that is not a
+ * boundary row.
+ */
+export function readClaudeCompactBoundary(rawMessage: unknown): CompactBoundaryInfo | null {
+  const raw = readObjectRecord(rawMessage);
+  if (!raw || raw.type !== 'system' || raw.subtype !== 'compact_boundary') {
+    return null;
+  }
+
+  const metadata = readObjectRecord(raw.compactMetadata) || readObjectRecord(raw.compact_metadata);
+  if (!metadata) {
+    return null;
+  }
+
+  const readTokens = (camel: unknown, snake: unknown): number | null => {
+    const value = typeof camel === 'number' ? camel : snake;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
+
+  return {
+    trigger: metadata.trigger === 'manual' ? 'manual' : 'auto',
+    preTokens: readTokens(metadata.preTokens, metadata.pre_tokens),
+    postTokens: readTokens(metadata.postTokens, metadata.post_tokens),
+    durationMs: readTokens(metadata.durationMs, metadata.duration_ms),
+  };
+}
+
 export function collectCompactReferencesByRowId(rawMessages: AnyRecord[]): Map<string, string[]> {
   const referencesByRowId = new Map<string, string[]>();
 
@@ -509,6 +550,20 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     }
     if (raw.type === 'content_block_stop') {
       return [createNormalizedMessage({ kind: 'stream_end', sessionId, provider: PROVIDER })];
+    }
+
+    // The boundary row is written to the transcript and streamed live, so one
+    // branch gives the divider both on reload and as compaction finishes.
+    const compactBoundary = readClaudeCompactBoundary(raw);
+    if (compactBoundary) {
+      return [createNormalizedMessage({
+        id: typeof raw.uuid === 'string' ? raw.uuid : undefined,
+        sessionId,
+        timestamp: raw.timestamp || new Date().toISOString(),
+        provider: PROVIDER,
+        kind: 'compact_boundary',
+        compactBoundary,
+      })];
     }
 
     const messages: NormalizedMessage[] = [];

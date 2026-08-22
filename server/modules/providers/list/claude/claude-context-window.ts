@@ -171,30 +171,43 @@ export const resolveClaudeModelContextSpec = (
   return id ? CLAUDE_MODEL_CONTEXT_SPECS[id] ?? null : null;
 };
 
-type CachedSettingsWindow = { filePath: string; mtimeMs: number; window?: number };
+type CachedSettings = {
+  filePath: string;
+  mtimeMs: number;
+  window?: number;
+  /** Claude Code treats a missing key as on. */
+  enabled: boolean;
+};
 
 /**
  * settings.json is re-read only when its mtime moves, so the live-stream path
  * can call this once per assistant frame without a parse each time.
  */
-let settingsWindowCache: CachedSettingsWindow | null = null;
+let settingsWindowCache: CachedSettings | null = null;
 
-const readSettingsAutoCompactWindow = (settingsPath?: string): number | undefined => {
+const readAutoCompactSettings = (settingsPath?: string): { window?: number; enabled: boolean } => {
   const filePath = settingsPath ?? path.join(os.homedir(), '.claude', 'settings.json');
   try {
     const { mtimeMs } = statSync(filePath);
     if (settingsWindowCache?.filePath === filePath && settingsWindowCache.mtimeMs === mtimeMs) {
-      return settingsWindowCache.window;
+      return settingsWindowCache;
     }
-    const settings = JSON.parse(readFileSync(filePath, 'utf8')) as { autoCompactWindow?: unknown };
+    const settings = JSON.parse(readFileSync(filePath, 'utf8')) as {
+      autoCompactWindow?: unknown;
+      autoCompactEnabled?: unknown;
+    };
     const window = readPositiveInteger(settings.autoCompactWindow);
-    settingsWindowCache = { filePath, mtimeMs, window };
-    return window;
+    const enabled = settings.autoCompactEnabled !== false;
+    settingsWindowCache = { filePath, mtimeMs, window, enabled };
+    return settingsWindowCache;
   } catch {
     // No settings file, unreadable, or malformed JSON — no cap configured.
-    return undefined;
+    return { enabled: true };
   }
 };
+
+const readSettingsAutoCompactWindow = (settingsPath?: string): number | undefined =>
+  readAutoCompactSettings(settingsPath).window;
 
 /** Test seam: drops the memoized settings.json read. */
 export const resetClaudeContextWindowCache = (): void => {
@@ -267,3 +280,96 @@ export const resolveClaudeContextCeiling = (
     ? Math.max(0, window - LONG_CONTEXT_RESERVE)
     : window;
 };
+
+/**
+ * Gap between the usable window and the point auto-compact fires. Measured as
+ * the `maxTokens`/`autoCompactThreshold` distance on both a 200K and a 1M model
+ * (`scripts/verify-context-usage-sdk.ts`), so it holds whether or not the window
+ * already carries the 1M reserve. Numerically equal to that reserve by
+ * coincidence, not by derivation.
+ */
+const AUTO_COMPACT_RESERVE = 33_000;
+
+export type ClaudeDerivedCeiling = {
+  contextWindow: number;
+  autoCompactThreshold: number;
+  isAutoCompactEnabled: boolean;
+};
+
+/**
+ * The full ceiling picture for a session with no live SDK reading — resumed but
+ * not yet streamed, or never run at all. Reporting only the window makes the
+ * ring divide by a limit 33,000 tokens later than the one that fires.
+ */
+export const resolveClaudeDerivedCeiling = (
+  input: ClaudeContextCeilingInput = {},
+): ClaudeDerivedCeiling => {
+  const contextWindow = resolveClaudeContextCeiling(input);
+  return {
+    contextWindow,
+    autoCompactThreshold: Math.max(0, contextWindow - AUTO_COMPACT_RESERVE),
+    isAutoCompactEnabled: readAutoCompactSettings(input.settingsPath).enabled,
+  };
+};
+
+/** Where the auto-compact window in force came from, in Claude Code's order. */
+export type ClaudeCeilingSource = 'env' | 'settings' | 'auto';
+
+export type ClaudeCeilingProvenance = {
+  source: ClaudeCeilingSource;
+  /** The cap in force. Absent under `auto`, which sets none. */
+  cap?: number;
+  /** The model's window before any cap. Absent for a model not in the table. */
+  modelWindow?: number;
+};
+
+/**
+ * Why the ceiling is the number it is.
+ *
+ * A cap collapses the SDK's `maxTokens` AND `rawMaxTokens` onto itself, so no
+ * field of a live reading distinguishes "this model is 200K" from "this 1M
+ * model is capped to 200K" (measured: `scripts/verify-context-usage-sdk.ts`).
+ * Reading the same two inputs Claude Code reads is the only way to tell, and
+ * showing a capped ceiling as though it were the model's own hid an 80% cut.
+ */
+export const resolveClaudeCeilingProvenance = (
+  input: { model?: string | null; settingsPath?: string } = {},
+): ClaudeCeilingProvenance => {
+  const { wantsLongContext } = normalizeClaudeModelId(input.model);
+  const spec = resolveClaudeModelContextSpec(input.model);
+  const longContextDisabled = readBooleanEnv(process.env.CLAUDE_CODE_DISABLE_1M_CONTEXT);
+
+  let modelWindow = spec?.window;
+  if (modelWindow !== undefined) {
+    if (wantsLongContext && (spec?.supportsLongContext ?? false) && !longContextDisabled) {
+      modelWindow = Math.max(modelWindow, LONG_CONTEXT_WINDOW);
+    }
+    if (longContextDisabled) {
+      modelWindow = Math.min(modelWindow, MODEL_DEFAULT_WINDOW_CLAMP);
+    }
+  }
+
+  const envCap = readPositiveInteger(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW);
+  if (envCap !== undefined) {
+    return { source: 'env', cap: envCap, modelWindow };
+  }
+
+  const settingsCap = readSettingsAutoCompactWindow(input.settingsPath);
+  if (settingsCap !== undefined) {
+    return { source: 'settings', cap: settingsCap, modelWindow };
+  }
+
+  return { source: 'auto', modelWindow };
+};
+
+/**
+ * Provenance as the token-budget payload carries it. One shaper, because the
+ * live-stream path and the REST path must not drift on these field names.
+ */
+export const toCeilingProvenanceFields = (
+  provenance: ClaudeCeilingProvenance,
+): { ceilingSource: ClaudeCeilingSource; ceilingCap?: number; modelContextWindow?: number } => ({
+  ceilingSource: provenance.source,
+  ceilingCap: provenance.cap,
+  modelContextWindow: provenance.modelWindow,
+});

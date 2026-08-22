@@ -43,7 +43,8 @@ main checkout only).
 ## Mobile UX polish
 
 - [~] **One owner for safe-area insets.** `body.pwa-mode .fixed.inset-0` (index.css) offsets the app shell and 40 other overlays by `safe+8`; the drawer opts out inline; `#root`'s padding is dead against a fixed shell; nothing applies the bottom inset at shell level. Do this before the bottom nav. **M**
-- [ ] **Move the top tab strip to a bottom nav** — core tabs go in a bottom bar, design decided 2026-07-22 (ADR 0005). Supersedes the old "plugin buttons cramp the conversation title" item. Blocked on the inset item above; `--mobile-nav-*`, `.mobile-nav-float` and `.chat-input-mobile` are dead tokens from an earlier attempt. **M**
+- [ ] **Move the top tab strip to a bottom nav** — core tabs go in a bottom bar, design decided 2026-07-22 (ADR 0005). Blocked on the inset item above; `--mobile-nav-*`, `.mobile-nav-float` and `.chat-input-mobile` are dead tokens from an earlier attempt; the live height is `--app-footer-height`/`.app-footer` (index.css), already used by the sidebar footer. **M**
+- [ ] **Consider floating New Session above the sidebar footer instead of inside it.** The footer went 56px → `--app-footer-height: 64px` on 2026-08-17 and the button now clears the gesture strip, but ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if 64px still misfires in use. **S — on trial, don't act unprompted**
 - [ ] Kebab menu: add "Copy session ID" for the **current** session. The long-press sidebar menu covers other sessions; copying the id of the chat you're in still means hunting for it. **S**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client**. Opening deliberately preserves unresolved attention; it clears only when this client receives `permission_cancelled` or the session is removed. Acceptable for now. **S**
@@ -54,13 +55,13 @@ main checkout only).
 
 Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md). Decide the tier before designing the control.
 
-- [ ] **Adopt a tier-1 budget, or decide not to.** The map names three tiers; nothing yet says the permanent tier is fixed-size, so every new control still only has to clear "is this useful?" — which it always does. If adopted, it's an ADR. **S — decision, blocks the three below**
+- [ ] **Nine touch control sites miss the 44px hit area** — search field, its two in-field buttons, mobile Close sidebar, the batch bar's three, archive restore/delete, rename save/cancel, New Project. `.sidebar-utility-hit-target` is the existing one-class fix; table in [the sidebar map](maps/sidebar-surface.md). **S**
+- [ ] **The session row's provider logo trails but is identity, not state** (ADR 0042 rule 2). Leading the title would also take it out of the desktop kebab's path permanently. **S**
+- [ ] **ADR 0042 budgets controls, not marks.** The session row carries two permanent trailing marks on touch — relative age and provider logo. Decide whether marks get a budget too, or stay deliberately unbounded. **S — decision**
 - [ ] **`sidebar.json` is ~40% untranslated in all nine non-`en` locales.** The `worktrees`, `sessionView`, `browseView` and `selection` blocks — 79 keys, every fork-built sidebar feature — exist only in `en` and render through `defaultValue`. **M**
 - [ ] **A repository row tap does different things per breakpoint** — mobile `onClick` only expands, desktop also selects the project (`SidebarRepositoryItem`, `toggleProject` vs `selectAndToggleProject`). No comment says why. Either is defensible; the divergence being undocumented is not. Parity table: [the sidebar map](maps/sidebar-surface.md). **S**
-- [ ] **The version is unreachable on mobile** — the OSS/version line is `hidden md:block` in the footer, and the version modal only opens from the update banner. A phone with no update pending can't see what it's running. **S**
 - [ ] **Session count reads "3 sessions" on mobile and "3" on desktop** from the same `getSessionCountDisplay`. Pick one. **S**
-- [ ] **Archive row actions are 28px at both breakpoints** — restore and delete are `h-7 w-7` in the shared archive tree, against 44px targets everywhere else on mobile, and they're the archive's only affordances. The shared-component risk the [parity table](maps/sidebar-surface.md) describes. **S**
-- [ ] **Should the repository row carry a TaskMaster indicator at all?** `TaskIndicator` rendered nowhere for its whole life (`md:hidden` parent, `md:inline-flex` child) and the dead prop chain is gone; `getTaskIndicatorStatus` and the component remain. Restoring it means spending a tier-1 slot, so it waits on the budget item. **S**
+- [ ] **Should the repository row carry a TaskMaster indicator at all?** `TaskIndicator` rendered nowhere for its whole life (`md:hidden` parent, `md:inline-flex` child) and the dead prop chain is gone; `getTaskIndicatorStatus` and the component remain. ADR 0042 now prices it: a permanent trailing mark on touch. **S**
 
 ## Model picker follow-ups
 
@@ -70,7 +71,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [ ] #2 — Shell `/model` stdout regex over-captures: a Default pick in the CLI's own picker shows the raw sentence "Default (recommended)" with no card highlight until the next turn. The `(.+?)\.?$` capture in `claude-models.provider.ts` takes too much. **S**
 - [ ] #4 — `getCurrentActiveModel` reads and parses the entire session JSONL (4.5 MB on a long session) on every `/models` open, even when a fresh pick wins anyway. Stat the file and skip when the pick is newer than mtime, or read only the tail. **S/M**
 - [ ] #7 — client-side race: a `fetchModel` GET in flight when the user makes a popup pick resolves *after* `setModel` and clobbers the optimistic slot value, possibly to null. Display-only — the server's pick-recency gate still resolves correctly. **S**
-- [ ] #10 — housekeeping: `pickSupersedesTranscript` lives in `claude-models.provider.ts` but is imported by the provider-agnostic `provider-models.service.ts`. The function is generic; move it. **S**
 - [ ] #11 — upstreaming opportunity: upstream issue #981 and PR #996 hit the same bug family as the `85ddd7e`/`5d9da84`/`8771eea` stack. Consider a PR — needs Grayson's go-ahead. **S**
 
 ## Shell sync
@@ -79,7 +79,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 
 ## Theming
 
-- [ ] **Typography overhaul** — self-hosted Figtree + Commit Mono, removing Merriweather and the Google Fonts CDN. [Plan](plans/typography-system.md). **M**
 - [ ] **Colour theming overhaul** — OKLCH tokens, monochrome/accent/full-colour presets with derived light and dark, a corner-radius dial, and provider accents. Supersedes the old accent-picker and provider-branding items. Cost is Phase 0: 2,335 hardcoded palette classes across 118 files bypass the token layer. [Plan](plans/colour-theming-system.md). **L**
 - [ ] **Custom project icon**, second half of Customize after the colour strip. Pick an image from the project (or upload) via a modal reusing `useFileTreeData` + `isImageFile`, not a Files-tab detour — the tab has no pick mode and the cross-tab return trip is the real cost. Store a downscaled data URI on the project row, path as provenance only: a file in the repo breaks on worktrees. **M**
 
@@ -88,20 +87,23 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**
-- [ ] **Claude Code settings are almost entirely unreachable from CLIde** — ~140 settings-cascade keys, `/config` exposes ~50, CLIde exposes zero. The plumbing already exists: `settingSources` means `~/.claude/settings.json` is already in force in every session. Inventory: [the settings audit map](maps/2026-07-28-claude-code-settings-surface-audit.md). **L**
+- [ ] **Claude Code settings are almost entirely unreachable from CLIde** — 146 cascade keys, 58 `/config` rows, CLIde exposes zero, though `settingSources` already puts `~/.claude/settings.json` in force every session. Destinations: [command surface map](maps/claude-command-surface.md); per-key tiers: [settings audit](maps/2026-07-28-claude-code-settings-surface-audit.md). **L**
 - [~] **Source Control: manage worktrees and integrate branches without leaving CLIde.** Identity and grouping shipped (ADRs 0016, 0028, 0029); truthfulness and lifecycle remain. [Plan](plans/source-control-truthfulness.md). **L**
 - [~] **Worktree manager selection and discovered-checkout targeting.** Session totals, compact row menus, registered-only batch Archive/Delete, and Add-before-select are built for isolated live verification. [ADR 0035](decisions/0035-discovered-checkout-selection-registers-first.md). **M**
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
 - [ ] **Subagent tracking in the UI.** Claude writes subagent transcripts to `<slug>/<session-id>/subagents/agent-<id>.jsonl`; the synchronizer *deliberately* skips them (`isSubagentTranscript`) so a spawned agent never becomes its own sidebar session. Within a session they're grouped under the parent via `parent_tool_use_id`. **M/L**
 - [ ] **Does usage tracking count subagent tokens?** Answered — two systems, two behaviours. Plan-window % and credits come live from Anthropic's OAuth endpoint and **already include** agent tokens. The per-session context ring skips `isSidechain` rows by design. Remaining work is deciding whether to surface that difference. **S — decision**
-- [ ] **Compaction is inherited but unsurfaced** — no `/compact`, no auto-compact signal, no boundary marker. The SDK already reads `autoCompactEnabled`/`autoCompactWindow` via `settingSources`, and CLIde already renders compaction summaries. What's missing is the command and the visible boundary. **M**
+- [~] **Auto-compact reads as two different ceilings.** The ring shows a window or a compact point as one bare number, so an `autoCompactWindow` cap is indistinguishable from the model's own window — which hid an 80% context cut on a 1M model. Also add the setting to Settings → Agent. [Plan](plans/autocompact-visibility.md). **M**
 - [ ] `/context`: use the SDK breakdown's `gridRows` for a closer match to the CLI's square-grid panel. CLIde parses it away and rebuilds a stacked bar. **S**
 - [ ] `/usage`: per-model cost breakdown like the CLI's — plan bars, a "This session" line, then a per-model table. **M**
 - [ ] **`/stats`: put the SDK's account usage stats in Context & Usage.** Probe `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` with `scripts/verify-context-usage-sdk.ts` first — is `behaviors` populated on this account? The [live gate](plans/archive/2026-08-17-claude-sdk-0.3.233-upgrade.md) is the constraint: an idle surface can't hold a query open. **M/?**
 - [ ] `!` shell mode in the conversation window. **M**
 - [ ] Conversation "map" sidebar: a minimap of where user/assistant messages sit, tap to scroll. Depends on the scroll residuals above. **L**
 - [~] **Double-tap Esc to stop mid-send and immediately edit.** The stop-and-recover half landed (`e5ede32` + `adab285`, ADR 0013). Remaining: (a) the Esc gesture itself — today it's the Stop button only; (b) editing a turn the provider *did* take, which is a rewind, not a retraction. **M**
-- [ ] `/rewind` shipped; the broader audit of which Claude Code CLI commands CLIde is missing stays open, plus the Codex equivalent. **L**
+- [ ] Codex equivalent of the Claude command-surface audit — which of its commands and config keys CLIde is missing. **L**
+- [~] **Slash commands look like plain typed text in the composer.** A recognised leading command now gets a pill in the mention overlay plus ghost text for its argument (`argumentHint`). Left: live verification. **S**
+- [ ] **The activity indicator's changed state isn't legible.** A provider status like "Compacting conversation" phases in the same grey as the idle Thinking/Processing cycle, so it reads as normal waiting. Part of the wider indicator/panel rework: distinct treatment for a real status. **M**
+- [ ] **CLIde's slash menu is 9 hardcoded commands; `supportedCommands()` returns 52 for free** and `system:init` carries `terminal_slash_commands` telling remote UIs what to hide. Replacing the hardcoded list is the cheapest item in the [command surface map](maps/claude-command-surface.md). **M**
 - [~] **Rewind via the transcript.** Phase A (conversation-only) shipped and live-verified 2026-07-22 (`daea812`…`845ed24`), ADR 0007. `enableFileCheckpointing` is on so checkpoints accumulate for Phase B — file-state rewind — which is the remaining half. **L**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**

@@ -21,11 +21,14 @@ import {
   DEFAULT_BROWSE_SESSION_VIEW_OPTIONS,
   DEFAULT_PROJECT_VIEW_OPTIONS,
 } from '../../utils/utils';
+import { clampSidebarWidth, SIDEBAR_MIN_WIDTH } from '../../../../hooks/useSidebarWidth';
 
 import SidebarContextMenu from './SidebarContextMenu';
 import SidebarHeader from './SidebarHeader';
 import SidebarProjectList from './SidebarProjectList';
 import SidebarProjectSessions from './SidebarProjectSessions';
+import SidebarRepositoryItem from './SidebarRepositoryItem';
+import SidebarResizeHandle from './SidebarResizeHandle';
 import SidebarSessionItem from './SidebarSessionItem';
 import SidebarStatusIndicator from './SidebarStatusIndicator';
 
@@ -599,5 +602,158 @@ describe('SidebarStatusIndicator', () => {
 
     assert.match(html, /aria-label="Activity: Unread finished"/);
     assert.match(html, /rounded-full bg-status-unread/);
+  });
+});
+
+describe('SidebarRepositoryItem', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+
+  afterEach(async () => {
+    await React.act(async () => root?.unmount());
+    container?.remove();
+    root = null;
+    container = null;
+  });
+
+  // Interpolates like i18next, so a label built from the row's name is asserted
+  // as the user reads it.
+  const t = ((key: string, fallback?: string, values?: Record<string, string>) =>
+    (fallback ?? key).replace(/{{(\w+)}}/g, (_, name: string) => values?.[name] ?? '')) as unknown as TFunction;
+
+  const project: Project = {
+    projectId: 'project-1',
+    displayName: 'cloudcli',
+    fullPath: '/home/user/cloudcli',
+    accentColor: null,
+  };
+
+  const entry: RepositoryEntry = {
+    key: 'repository-1',
+    repositoryId: null,
+    displayName: 'cloudcli',
+    leadCheckout: project,
+    checkouts: [project],
+  };
+
+  const renderRow = async (
+    overrides: Partial<React.ComponentProps<typeof SidebarRepositoryItem>> = {},
+  ) => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await React.act(async () => {
+      root?.render(
+        <SidebarRepositoryItem
+          entry={entry}
+          selectedProject={null}
+          selectedSession={null}
+          isExpanded={false}
+          isDeleting={false}
+          editingProject={null}
+          editingName=""
+          sessions={[]}
+          initialSessionsLoaded
+          isLoadingMoreSessions={false}
+          currentTime={new Date('2026-08-18T12:00:00.000Z')}
+          editingSession={null}
+          editingSessionName=""
+          onEditingNameChange={() => {}}
+          onToggleProject={() => {}}
+          onProjectSelect={() => {}}
+          onCancelEditingProject={() => {}}
+          onSaveProjectName={() => {}}
+          onSessionSelect={() => {}}
+          visibleSessionCount={5}
+          onShowAllSessions={() => {}}
+          onCollapseSessions={() => {}}
+          activeSessions={new Map()}
+          attentionSessionIds={new Set()}
+          unreadSessionIds={new Set()}
+          viewOptions={{ sort: 'date', direction: 'desc', worktreeProjectIds: null }}
+          onEditingSessionNameChange={() => {}}
+          onCancelEditingSession={() => {}}
+          onSaveEditingSession={() => {}}
+          batchSelectedIds={null}
+          onToggleBatchSelected={() => {}}
+          t={t}
+          {...overrides}
+        />,
+      );
+    });
+  };
+
+  test('the row New Session control starts a session without toggling the row', async () => {
+    const started: Project[] = [];
+    let toggleCount = 0;
+
+    await renderRow({
+      onNewSession: (target) => started.push(target),
+      onToggleProject: () => { toggleCount += 1; },
+    });
+
+    const trigger = container?.querySelector('[aria-label="New session in cloudcli"]');
+    assert.ok(trigger, 'expected the repository row to offer New Session');
+
+    await React.act(async () => {
+      trigger?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+
+    assert.deepEqual(started, [project]);
+    assert.equal(toggleCount, 0, 'New Session must not expand or collapse the row');
+  });
+
+  test('the desktop chevron stays in the trailing cluster beside the kebab', async () => {
+    await renderRow({ onNewSession: () => {}, onOpenProjectActionsMenu: () => {} });
+
+    const desktopRow = container?.querySelector('button.md\\:flex');
+    assert.ok(desktopRow, 'expected the desktop repository row');
+
+    const chevron = desktopRow?.querySelector('.lucide-chevron-right');
+    const kebab = desktopRow?.querySelector('[aria-haspopup="menu"]');
+    const name = desktopRow?.querySelector('[title="cloudcli"]');
+    assert.ok(chevron && kebab && name, 'expected a chevron, a kebab and the name');
+    assert.equal(
+      chevron?.parentElement,
+      kebab?.parentElement,
+      'the chevron shares the trailing cluster with the row actions trigger',
+    );
+    assert.notEqual(chevron?.parentElement, name?.parentElement);
+  });
+});
+
+describe('SidebarResizeHandle', () => {
+  const t = ((key: string, fallback?: string) => fallback ?? key) as TFunction;
+
+  test('arrow keys nudge the width and stay inside the clamp', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const widths: number[] = [];
+
+    await React.act(async () => {
+      root.render(
+        <SidebarResizeHandle
+          width={SIDEBAR_MIN_WIDTH}
+          onWidthChange={(next) => widths.push(clampSidebarWidth(next))}
+          onReset={() => {}}
+          t={t}
+        />,
+      );
+    });
+
+    const handle = container.querySelector('[role="separator"]');
+    assert.ok(handle);
+
+    await React.act(async () => {
+      handle?.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      handle?.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    });
+
+    assert.deepEqual(widths, [SIDEBAR_MIN_WIDTH + 16, SIDEBAR_MIN_WIDTH]);
+
+    await React.act(async () => root.unmount());
+    container.remove();
   });
 });
