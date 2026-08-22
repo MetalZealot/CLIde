@@ -177,6 +177,16 @@
       "dark": "Dark",
       "system": "System"
     },
+    "typography": {
+      "title": "Typography",
+      "readingSize": {
+        "label": "Reading size",
+        "description": "Adjust message text without changing the rest of the interface.",
+        "compact": "Compact",
+        "default": "Default",
+        "large": "Large"
+      }
+    },
     "language": {
       "title": "Language"
     }

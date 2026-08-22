@@ -62,6 +62,12 @@ test('a row label resolves to the screen that renders it', () => {
   assert.deepEqual(rest, []);
 });
 
+test('reading-size customization resolves to Appearance', () => {
+  const [result] = search('reading size');
+  assert.equal(result?.screenId, 'appearance');
+  assert.deepEqual(result?.matchedSettingLabelKeys, ['appearanceSettings.typography.readingSize.label']);
+});
+
 test('all tokens must match, but not contiguously', () => {
   assert.ok(screenIds('enter send').includes('chat'));
   assert.ok(screenIds('enter to send').includes('chat'));

@@ -35,16 +35,28 @@
     <!-- Prevent zoom on iOS -->
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Apply the saved/system theme before first paint so the auth loading
-         screen and PWA status bar don't flash the light theme before React
-         hydrates. Mirrors the logic in ThemeContext (kept in sync there). -->
+    <!-- Apply saved appearance before first paint so theme and reading size do
+         not flash their fallbacks before React hydrates. -->
     <script>
       (function () {
         try {
-          var saved = localStorage.getItem('theme');
-          var isDark = saved === 'dark' || saved === 'light'
-            ? saved === 'dark'
+          var appearance = null;
+          try {
+            appearance = JSON.parse(localStorage.getItem('appearancePreferences') || 'null');
+          } catch (e) {
+            /* malformed appearance data — use legacy/default values below */
+          }
+          var legacyTheme = localStorage.getItem('theme');
+          var savedTheme = appearance && ['light', 'dark', 'system'].includes(appearance.theme)
+            ? appearance.theme
+            : legacyTheme;
+          var readingSize = appearance && ['compact', 'default', 'large'].includes(appearance.chatReadingSize)
+            ? appearance.chatReadingSize
+            : 'default';
+          var isDark = savedTheme === 'dark' || savedTheme === 'light'
+            ? savedTheme === 'dark'
             : Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.chatReadingSize = readingSize;
           if (isDark) {
             document.documentElement.classList.add('dark');
           }

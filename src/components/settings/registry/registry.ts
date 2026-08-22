@@ -165,7 +165,7 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
     labelKey: 'mainTabs.appearance',
     icon: 'appearance',
     group: 'app',
-    keywords: 'appearance theme dark light system language',
+    keywords: 'appearance theme dark light system language typography font text reading size',
   },
   {
     kind: 'screen',

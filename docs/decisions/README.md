@@ -80,3 +80,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0040 — Mobile Settings root owns the Back gesture](0040-settings-root-owns-back-gesture.md)
 - [0041 — A checkout is named by its folder, with its branch as state](0041-checkouts-are-named-by-place-and-state.md)
 - [0042 — Input type sets the row budget; hover is a reveal channel](0042-input-type-sets-the-sidebar-budget.md)
+- [0043 — Reading size is content-scoped and device-local](0043-reading-size-is-content-scoped-and-device-local.md)

@@ -11,6 +11,7 @@ CLIde or its provider runtimes change.
 | [Test suite](test-suite.md) | What the suites own, their measured cost, and what they cannot establish | Measured 2026-08-15 after consolidation to 82 files |
 | [Sidebar surface](sidebar-surface.md) | Every sidebar affordance, the tier it sits in, and where the tiers and the code disagree | Inventory taken 2026-08-11 |
 | [UI standards](ui-standards.md) | What the interface is objectively required to do, what is only house convention, and which is which | Written 2026-08-18 with ADR 0042 |
+| [Typography](typography.md) | Font-family routing, unchanged interface sizing, reading presets, and fixed-metric boundaries | Implemented and accepted 2026-08-21 |
 | [CLIde provider capability map](clide-provider-capability-map.md) | Canonical normalized behavior, implementation state, and provider/runtime bindings | Foundation baseline started 2026-07-30 |
 | [Provider permission and mode surfaces](provider-permission-modes.md) | How Claude and Codex permission concepts differ and how CLIde exposes them | CLIde mapping revalidated 2026-08-12 against Codex 0.147.0 |
 | [Claude Code and Agent SDK map](claude-agent-sdk.md) | Claude-native SDK/CLI/control surface and CLIde destinations | Snapshot re-measured at SDK 0.3.233 / runtime 2.1.233, 2026-08-16; the prose below it still reads 0.3.165 / 2.1.220 |

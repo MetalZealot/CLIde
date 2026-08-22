@@ -18,6 +18,27 @@ import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
 import TokenUsageSummary from './TokenUsageSummary';
 
+describe('configurable chat typography', () => {
+  test('only ordinary user and assistant content opts into the reading scale', () => {
+    const messageSource = readFileSync(new URL('./MessageComponent.tsx', import.meta.url), 'utf8');
+    const markdownSource = readFileSync(new URL('./Markdown.tsx', import.meta.url), 'utf8');
+    const globalStyles = readFileSync(new URL('../../../../index.css', import.meta.url), 'utf8');
+
+    assert.equal((messageSource.match(/readingTypography/g) || []).length, 2);
+    assert.equal((messageSource.match(/className="chat-reading [^"]*prose/g) || []).length, 2);
+    assert.match(messageSource, /className="chat-reading prose/);
+    assert.match(messageSource, /className="chat-reading prose-on-accent prose/);
+    assert.doesNotMatch(messageSource, /className="chat-reading break-words"/);
+    assert.match(messageSource, /className="chat-reading-code/);
+    assert.doesNotMatch(messageSource, /mobileReadingDensity/);
+    assert.match(markdownSource, /fontSize: readingTypography \? 'var\(--chat-code-size\)'/);
+    assert.match(markdownSource, /chat-reading-table-cell/);
+    assert.match(markdownSource, /chat-reading-paragraph/);
+    assert.match(globalStyles, /--chat-prose-size: 15px;/);
+    assert.match(globalStyles, /--chat-prose-line-height: 22px;/);
+  });
+});
+
 describe('ChatExportMenu', () => {
   test('enables results only with tool calls and loads complete history before export', async () => {
     const container = document.createElement('div');
