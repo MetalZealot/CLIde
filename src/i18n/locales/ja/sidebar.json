@@ -32,7 +32,12 @@
     "loadingSessions": "セッションを読み込んでいます...",
     "unnamed": "名称未設定",
     "loading": "読み込み中...",
-    "showMore": "さらにセッションを表示"
+    "showMore": "さらにセッションを表示",
+    "count_one": "{{count}} 件のセッション",
+    "count_other": "{{count}} 件のセッション",
+    "pinned": "ピン留め済み",
+    "messageCount_one": "{{count}} 件のメッセージ",
+    "messageCount_other": "{{count}} 件のメッセージ"
   },
   "tooltips": {
     "viewEnvironments": "環境を表示",

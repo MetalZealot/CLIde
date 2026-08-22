@@ -179,7 +179,11 @@ export default function SidebarRepositoryItem({
   // away from still says so on return.
   const hasCustomView = !isDefaultRepositoryView(viewOptions);
   const totalSessionCount = getSessionCountDisplay(entry, sessions, hasCustomView);
-  const sessionCountLabel = `${totalSessionCount} session${totalSessionCount === 1 ? '' : 's'}`;
+  const sessionCountLabel = t(
+    'sessions.count',
+    `${totalSessionCount} session${totalSessionCount === 1 ? '' : 's'}`,
+    { count: totalSessionCount },
+  );
   // A merged row names its checkouts, not a branch: each session below already
   // carries the one it belongs to.
   const rowSubtitle = isMerged
@@ -500,7 +504,7 @@ export default function SidebarRepositoryItem({
                     {entry.displayName}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <span className="flex-shrink-0">{totalSessionCount}</span>
+                    <span className="flex-shrink-0">{sessionCountLabel}</span>
                     {rowSubtitle ? (
                       // The branch (or checkout count) identifies the row better
                       // than a filesystem path.

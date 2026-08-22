@@ -32,7 +32,12 @@
     "loadingSessions": "加载会话中...",
     "unnamed": "未命名",
     "loading": "加载中...",
-    "showMore": "显示更多会话"
+    "showMore": "显示更多会话",
+    "count_one": "{{count}} 个会话",
+    "count_other": "{{count}} 个会话",
+    "pinned": "已置顶",
+    "messageCount_one": "{{count}} 条消息",
+    "messageCount_other": "{{count}} 条消息"
   },
   "tooltips": {
     "viewEnvironments": "查看环境",

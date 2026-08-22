@@ -124,6 +124,13 @@ export default function SidebarSessionItem({
   const isEditing = editingSession === session.id && !isSelectionMode;
   const isStarred = Boolean(session.isStarred);
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
+  const messageCountLabel = sessionView.messageCount > 0
+    ? t(
+        'sessions.messageCount',
+        `${sessionView.messageCount} message${sessionView.messageCount === 1 ? '' : 's'}`,
+        { count: sessionView.messageCount },
+      )
+    : null;
   // Shares the metadata line with the message-count badge rather than claiming a
   // line of its own, so a merged repository row is no taller per session.
   // ADR 0016: a checkout and a branch never share an icon, and this badge names
@@ -161,12 +168,31 @@ export default function SidebarSessionItem({
   const isContextActive = isPressing || isMenuOpen;
   const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread });
   const toggleBatchSelected = () => onToggleBatchSelected?.(session.id);
-  // The trailing slot yields to whatever replaces it: on hover the kebab takes
-  // it, so both lines' trailing marks fade together rather than being drawn
-  // under it. Batch mode replaces it with nothing, so it must stay put.
-  const trailingFadeClass = isEditing
-    ? 'opacity-0'
-    : isSelectionMode ? undefined : 'group-hover:opacity-0';
+  const hasDesktopActions = Boolean(onOpenActionsMenu && !isSelectionMode && !isEditing);
+  // The trigger remains outside the session link, but this slot makes the title
+  // or metadata row reserve its exact width.
+  const desktopActionSlot = hasDesktopActions
+    ? <span aria-hidden="true" className="h-6 w-6 flex-shrink-0" />
+    : null;
+
+  const renderTrailingMetadata = () => (
+    <span
+      className="ml-auto flex flex-shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+    >
+      {isStarred && (
+        <>
+          {/* The desktop row's blanket SVG size must not override this metadata-relative mark. */}
+          <Pin className="!h-[1em] !w-[1em] text-primary" />
+          <span className="sr-only">{t('sessions.pinned', 'Pinned')}</span>
+        </>
+      )}
+      {activityState ? (
+        <SidebarStatusIndicator status={activityState} t={t} />
+      ) : compactSessionAge ? (
+        <span>{compactSessionAge}</span>
+      ) : null}
+    </span>
+  );
 
   // Flat Sessions-view rows stand alone, so they repeat the repository strip.
   // Nested Projects-view rows omit this prop because the enclosing rail already
@@ -208,9 +234,7 @@ export default function SidebarSessionItem({
     });
   };
 
-  // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
-  // would visually hide it. While editing, dismiss only when the user clicks outside
-  // the panel (matches Escape / cancel-button behaviour).
+  // Matches Escape and the cancel button when focus leaves the rename controls.
   useEffect(() => {
     if (!isEditing) {
       return;
@@ -314,12 +338,15 @@ export default function SidebarSessionItem({
             {accentStrip}
             <div className="min-w-0">
               <div className="min-w-0 flex-1">
-                {projectEyebrow}
+                {projectEyebrow && (
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {projectEyebrow}
+                    {renderTrailingMetadata()}
+                  </div>
+                )}
                 <div className="flex items-center gap-1.5">
                   {selectionBox}
-                  {isStarred && (
-                    <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
-                  )}
+                  <SessionProviderLogo provider={session.__provider} className="h-3 w-3 flex-shrink-0" />
                   <div
                     className={cn(
                       'min-w-0 flex-1 truncate text-sm text-foreground',
@@ -331,22 +358,19 @@ export default function SidebarSessionItem({
                   >
                     {sessionView.sessionName}
                   </div>
-                  {activityState ? (
-                    <SidebarStatusIndicator status={activityState} t={t} className="ml-auto" />
-                  ) : compactSessionAge && (
-                    <span className="ml-auto flex-shrink-0 text-xs text-muted-foreground">{compactSessionAge}</span>
-                  )}
+                  {!projectEyebrow && renderTrailingMetadata()}
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5">
                   {sessionView.messageCount > 0 && (
-                    <Badge variant="secondary" className="px-1 py-0 text-xs">
-                      {sessionView.messageCount}
+                    <Badge
+                      variant="secondary"
+                      className="px-1 py-0 text-xs"
+                    >
+                      <span aria-hidden="true">{sessionView.messageCount}</span>
+                      <span className="sr-only">{messageCountLabel}</span>
                     </Badge>
                   )}
                   {checkoutBadge}
-                  <span className="ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center">
-                    <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
-                  </span>
                 </div>
               </div>
             </div>
@@ -394,12 +418,15 @@ export default function SidebarSessionItem({
           {accentStrip}
           <div className="w-full min-w-0">
             <div className="min-w-0 flex-1">
-              {projectEyebrow}
+              {projectEyebrow && (
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {projectEyebrow}
+                  {renderTrailingMetadata()}
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
                 {selectionBox}
-                {isStarred && (
-                  <Pin className="h-3 w-3 flex-shrink-0 text-primary" />
-                )}
+                <SessionProviderLogo provider={session.__provider} className="h-3 w-3 flex-shrink-0" />
                 <Tooltip
                   content={sessionView.sessionName}
                   // The row already owns long-press and right-click, so the
@@ -424,48 +451,36 @@ export default function SidebarSessionItem({
                     {sessionView.sessionName}
                   </div>
                 </Tooltip>
-                {activityState ? (
-                  <SidebarStatusIndicator
-                    status={activityState}
-                    t={t}
-                    className={cn('ml-auto transition-opacity duration-200', trailingFadeClass)}
-                  />
-                ) : compactSessionAge && (
-                  <span
-                    className={cn(
-                      'ml-auto flex-shrink-0 text-xs text-muted-foreground transition-opacity duration-200',
-                      trailingFadeClass,
-                    )}
-                  >
-                    {compactSessionAge}
-                  </span>
-                )}
+                {!projectEyebrow && renderTrailingMetadata()}
+                {projectEyebrow && desktopActionSlot}
               </div>
               <div className="mt-0.5 flex items-center gap-1.5">
-                {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
+                {sessionView.messageCount > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="px-1 py-0 text-xs"
+                  >
+                    <span aria-hidden="true">{sessionView.messageCount}</span>
+                    <span className="sr-only">{messageCountLabel}</span>
+                  </Badge>
+                )}
                 {checkoutBadge}
-                <span
-                  className={cn(
-                    'ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center transition-opacity duration-200',
-                    trailingFadeClass,
-                  )}
-                >
-                  <SessionProviderLogo provider={session.__provider} className="h-3 w-3" />
-                </span>
+                {!projectEyebrow && desktopActionSlot}
               </div>
             </div>
           </div>
         </a>
 
-        {/*
-          No opacity on this container: the kebab owns its own hover/focus
-          reveal, and a parent stuck at `opacity-0` would swallow the
-          `focus-visible` escape that keeps it reachable from the keyboard.
-        */}
-        <div
-          ref={editingContainerRef}
-          className="absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1"
-        >
+        {(isEditing || hasDesktopActions) && (
+          <div
+            ref={editingContainerRef}
+            className={cn(
+              'absolute right-2 flex items-center gap-1',
+              isEditing
+                ? 'top-1/2 -translate-y-1/2 transform'
+                : projectEyebrow ? 'top-6' : 'bottom-2',
+            )}
+          >
             {isEditing ? (
               <>
                 <input
@@ -515,6 +530,7 @@ export default function SidebarSessionItem({
               )
             )}
           </div>
+        )}
       </div>
     </div>
   );

@@ -32,7 +32,16 @@
     "loadingSessions": "Загрузка сеансов...",
     "unnamed": "Без имени",
     "loading": "Загрузка...",
-    "showMore": "Показать больше сеансов"
+    "showMore": "Показать больше сеансов",
+    "count_one": "{{count}} сеанс",
+    "count_few": "{{count}} сеанса",
+    "count_many": "{{count}} сеансов",
+    "count_other": "{{count}} сеансов",
+    "pinned": "Закреплено",
+    "messageCount_one": "{{count}} сообщение",
+    "messageCount_few": "{{count}} сообщения",
+    "messageCount_many": "{{count}} сообщений",
+    "messageCount_other": "{{count}} сообщений"
   },
   "tooltips": {
     "viewEnvironments": "Просмотр окружений",

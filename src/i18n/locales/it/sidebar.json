@@ -32,7 +32,12 @@
     "loadingSessions": "Caricamento sessioni...",
     "unnamed": "Senza nome",
     "loading": "Caricamento...",
-    "showMore": "Mostra più sessioni"
+    "showMore": "Mostra più sessioni",
+    "count_one": "{{count}} sessione",
+    "count_other": "{{count}} sessioni",
+    "pinned": "Fissata",
+    "messageCount_one": "{{count}} messaggio",
+    "messageCount_other": "{{count}} messaggi"
   },
   "tooltips": {
     "viewEnvironments": "Visualizza ambienti",

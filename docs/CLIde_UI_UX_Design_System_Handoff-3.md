@@ -448,8 +448,8 @@ A useful classification is:
 
 - **Identity** — provider/agent marks such as Claude or Codex.
 - **Category** — identifies what an adjacent value represents, such as branch/worktree context.
-- **State** — running, awaiting approval, unread, error, warning, etc.
-- **Action** — pin, archive, close, menu, stop, and other controls.
+- **State** — pinned, running, awaiting approval, unread, error, warning, etc.
+- **Action** — pin/unpin, archive, close, menu, stop, and other controls.
 - **Decorative/redundant** — icons that repeat information already made obvious by text, position, typography, or formatting. Avoid these.
 
 Recommended rule:
@@ -478,6 +478,8 @@ Use:
 - **No persistent icon** when hierarchy, typography, or progressive disclosure communicates the same information more quietly.
 
 Provider logos deserve slightly different treatment from generic utility icons. They function as identity badges, so they may legitimately carry more visual weight. Generic metadata icons should generally be more subdued so every glyph does not become an equal attention anchor.
+
+Size a state icon beside metadata relative to that text, so browser text scaling preserves their visual proportion across input and viewport modes.
 
 ## Iconography may adapt across layouts
 
@@ -518,7 +520,7 @@ This should be treated as an intentional responsive transformation:
 
 rather than a desktop card squeezed until it fits.
 
-The exact Session-card implementation remains a product decision, but this exploration provides a concrete test case for the broader iconography and hierarchy rules.
+The accepted Session-card implementation now provides a concrete test case for the broader iconography and hierarchy rules.
 
 ---
 

@@ -1,7 +1,7 @@
 # 0042 — Input type sets the row budget; hover is a reveal channel, not a licence
 
 - Date: 2026-08-18
-- Status: Accepted
+- Status: Superseded by 0044
 
 ## Decision
 

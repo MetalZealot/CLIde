@@ -32,7 +32,12 @@
     "loadingSessions": "Sitzungen werden geladen...",
     "unnamed": "Unbenannt",
     "loading": "Lädt...",
-    "showMore": "Weitere Sitzungen anzeigen"
+    "showMore": "Weitere Sitzungen anzeigen",
+    "count_one": "{{count}} Sitzung",
+    "count_other": "{{count}} Sitzungen",
+    "pinned": "Angeheftet",
+    "messageCount_one": "{{count}} Nachricht",
+    "messageCount_other": "{{count}} Nachrichten"
   },
   "tooltips": {
     "viewEnvironments": "Umgebungen anzeigen",

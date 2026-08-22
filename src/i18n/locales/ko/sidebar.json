@@ -32,7 +32,12 @@
     "loadingSessions": "세션 로딩 중...",
     "unnamed": "이름 없음",
     "loading": "로딩 중...",
-    "showMore": "더 많은 세션 보기"
+    "showMore": "더 많은 세션 보기",
+    "count_one": "세션 {{count}}개",
+    "count_other": "세션 {{count}}개",
+    "pinned": "고정됨",
+    "messageCount_one": "메시지 {{count}}개",
+    "messageCount_other": "메시지 {{count}}개"
   },
   "tooltips": {
     "viewEnvironments": "환경 보기",

@@ -44,7 +44,12 @@
     "showMore": "Show more sessions",
     "showAll": "Show all sessions",
     "showAllCount": "Show all ({{count}} more)",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "count_one": "{{count}} session",
+    "count_other": "{{count}} sessions",
+    "pinned": "Pinned",
+    "messageCount_one": "{{count}} message",
+    "messageCount_other": "{{count}} messages"
   },
   "tooltips": {
     "viewEnvironments": "View Environments",

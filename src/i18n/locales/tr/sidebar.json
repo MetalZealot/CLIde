@@ -32,7 +32,12 @@
     "loadingSessions": "Oturumlar yükleniyor...",
     "unnamed": "Adsız",
     "loading": "Yükleniyor...",
-    "showMore": "Daha fazla oturum göster"
+    "showMore": "Daha fazla oturum göster",
+    "count_one": "{{count}} oturum",
+    "count_other": "{{count}} oturum",
+    "pinned": "Sabitlendi",
+    "messageCount_one": "{{count}} mesaj",
+    "messageCount_other": "{{count}} mesaj"
   },
   "tooltips": {
     "viewEnvironments": "Ortamları Görüntüle",

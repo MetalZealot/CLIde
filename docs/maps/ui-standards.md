@@ -6,7 +6,7 @@ stated confidently reads exactly like a published standard to anyone who cannot
 check — so every UI proposal names its bucket before it is built.
 
 Row budgets, where identity sits, and the input-type reasoning behind them are
-[ADR 0042](../decisions/0042-input-type-sets-the-sidebar-budget.md), which is
+[ADR 0044](../decisions/0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md), which is
 convention, not standard.
 
 ## External, and objectively checkable
@@ -33,6 +33,9 @@ Overrulable; say so when citing one.
   non-hover path** — long-press, kebab, right-click, all feeding one menu
   definition. Remove the alternative path and the hover control becomes a real
   accessibility defect rather than a style choice.
+- **A row normally gets one permanent trailing touch control.** One primary
+  shortcut may sit beside the overflow menu when removing it would require a
+  subheader, another row, or a duplicate list entry.
 - **A resizable panel gets a 4–6px visible handle with a wider hit zone and
   double-click to reset**, following VS Code and JetBrains.
 - **Desktop rows answer right-click.**

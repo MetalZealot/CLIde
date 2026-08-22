@@ -53,13 +53,14 @@ scroll area and the row grows nothing else: the list carries no permanent
 controls of its own. Expanding past the first five sessions pins “Show less” to
 the bottom of the visible list until its natural position scrolls into view.
 
-**Session row** (`SidebarSessionItem.tsx`) — project accent strip (Sessions view
-only) · pin · name (`font-medium` marks unread and nothing else) · status symbol
-**or** relative age, never both · message-count badge · project label (Sessions
-view only) · branch badge · provider logo · kebab (desktop). Nested Projects-view
-sessions use the repository rail instead of repeating the strip. Desktop is a
-real `<a href>` for modified clicks, while right-click opens the session actions
-menu, and a clipped title earns a hover tooltip carrying the whole name.
+**Session row** (`SidebarSessionItem.tsx`) — project accent strip and label
+(Sessions view only) · pin plus status symbol **or** relative age, never both ·
+provider logo plus name (`font-medium` marks unread and nothing else) ·
+message-count badge · branch badge · kebab (desktop, in a reserved slot below
+the timestamp). Nested Projects-view sessions use the repository rail instead
+of repeating the strip. Desktop is a real `<a href>` for modified clicks, while
+right-click opens the session actions menu, and a clipped title earns a hover
+tooltip carrying the whole name.
 
 **Footer** (`SidebarFooter.tsx`) — restart-required banner · update banner ·
 account button (Account, Usage, Settings, Log out) · New Session (mobile only).
@@ -128,14 +129,14 @@ manager. `SidebarCollapsed` is desktop-only by nature.
 | New Session | Footer, in the thumb zone | Header, plus a hover control on every repository row | Deliberate; the drawer's header is the far corner, and mobile reaches the per-row one through that row's menu |
 | Repository chevron | Row's trailing edge | Row's trailing edge | Parity — tried beside the name 2026-08-18 and reverted; the maintainer reads it as state, not identity |
 | Repository row tap | Expands | Selects **and** expands | Undocumented divergence |
-| Session count | "3 sessions" | "3" | Inconsistent, no stated reason |
+| Session count | "3 sessions" | "3 sessions" | Parity |
 | Version | Settings → About | Settings → About | Parity — the desktop-only footer line was removed |
 | `⌘K` hint | Absent | Present | Deliberate |
 | Footer while renaming | Hidden | Shown | Deliberate — keyboard room |
-| Status symbol and age | Always shown | Fade on hover, ceding the slot to the kebab | Deliberate |
+| Status symbol and age | Always shown | Always shown; the kebab has a separate reserved slot | Deliberate |
 
 A touch device at desktop width gets the desktop tree, so long-press is absent
-there. The kebab covers it: `touch:opacity-100` (`src/index.css`) reveals it
+there. The kebab supplies action access: `touch:opacity-100` (`src/index.css`) reveals it
 wherever `hover: none` matches, with a `.samsung-browser` fallback for the phone
 browser that misreports itself as a fine pointer.
 
@@ -144,31 +145,26 @@ parses every `.tsx` under `src/` and fails on an element that its own container
 hides at the other breakpoint — the shape that kept `TaskIndicator` off screen.
 It carries a fixture of that original shape as a negative control.
 
-## Budget compliance (ADR 0042)
+## Budget compliance (ADR 0044)
 
-Measured 2026-08-18, against the three rules in
-[ADR 0042](../decisions/0042-input-type-sets-the-sidebar-budget.md).
+Measured 2026-08-18 and updated 2026-08-22 against
+[ADR 0044](../decisions/0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md).
 
-**Only rule 3 is an external standard** — 44px is Apple's published guideline,
-48dp is Google's. Rules 1 and 2 are house conventions: defensible, widely
-followed, and overrulable without anything breaking. Read the two lists
-differently.
+**Only the touch-target floor is an external platform guideline** — 44px is
+Apple's and 48dp is Google's. Shortcut count and identity/state placement are
+house conventions: defensible and overrulable. Read the two lists differently.
 
-**Rule 1 — one permanent trailing control on touch.** Every row passes. No row
-carries more than one permanent trailing control at either breakpoint, and the
-repository and session rows carry none: their trailing slot holds a transient
-status symbol, and the desktop's New Session and kebab are hover-revealed.
-*Known gap:* the rule governs controls. The session row's trailing **marks** —
-relative age and provider logo — are permanent on touch and unbudgeted.
+**Rule 1 — row shortcuts stay bounded.** A touch row normally keeps one
+permanent trailing control. The repository row deliberately keeps New Session
+beside its overflow menu: both are high-value entry points, while the rejected
+alternatives added a subheader or duplicated New Session inside the list. Pin,
+status and relative age are marks rather than controls.
 
-**Rule 2 — identity leads, state trails.** The expand chevron is *state*, so its
-trailing position is compliant; ADR 0042's example list was wrong to call it
-identity. One violation remains: the session row's
-provider logo trails, but a provider is what the session *is*, not what is true
-now. Leading the title would satisfy the rule and take the logo out of the
-desktop kebab's path for good.
+**Rule 2 — identity leads, state trails.** The session provider logo leads its
+title; pin, status, relative age and the expand chevron trail.
 
-**Rule 3 — 44px hit area on touch.** Nine control sites fall short, all on touch.
+**Rule 3 — 44px hit area on touch.** Fifteen controls across eleven locations
+fall short, all on touch.
 `.sidebar-utility-hit-target` (`index.css`) is the existing fix and reconciles a
 32px visual with a 44px hit area without resizing anything.
 
@@ -183,6 +179,8 @@ desktop kebab's path for good.
 | Restore / Delete | archive view rows | 28px | 28px |
 | Save / Cancel rename | repository row, editing | 32px | 32px |
 | New Project | end of the project list | ~40px | ~40px |
+| New Session / kebab | repository row in touch-driven desktop layout | 24px | 24px |
+| Kebab | session row in touch-driven desktop layout | 24px | 24px |
 
 The browse selector and Sort button are the compliant pair to copy: both are 32px
 visuals already wearing the helper class.

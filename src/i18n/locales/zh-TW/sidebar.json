@@ -32,7 +32,12 @@
     "loadingSessions": "載入工作階段中...",
     "unnamed": "未命名",
     "loading": "載入中...",
-    "showMore": "顯示更多工作階段"
+    "showMore": "顯示更多工作階段",
+    "count_one": "{{count}} 個工作階段",
+    "count_other": "{{count}} 個工作階段",
+    "pinned": "已釘選",
+    "messageCount_one": "{{count}} 則訊息",
+    "messageCount_other": "{{count}} 則訊息"
   },
   "tooltips": {
     "viewEnvironments": "查看環境",

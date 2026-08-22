@@ -38,7 +38,6 @@ main checkout only).
 - [ ] **Duplicate-session double-send:** pressing send twice on a brand-new chat creates two sessions running the same message. `handleSubmit` (`useChatComposerState.ts`) awaits `POST /api/providers/sessions` before anything visible happens — no optimistic append, no processing state, and **no in-flight guard**. Observed 2026-07-16, two JSONLs 250 ms apart. **S/M**
 - [ ] **Project force-delete orphans subagent transcripts on disk.** It unlinks each session's top-level `<slug>/<session-id>.jsonl`, but nested `<slug>/<session-id>/subagents/agent-*.jsonl` were never session rows, so they survive and keep the whole `<slug>/` tree alive against the non-recursive prune. Pre-existing, not caused by `0a738ae`. **S/M**
 - [ ] **Browser MCP hardening** — snapshot-first, reference-based automation replacing selector and coordinate targeting. [Plan](plans/browser-mcp-hardening.md). **L**
-- [ ] **The desktop row kebab overlaps the row's timestamp and provider logo.** `RowActionsTrigger` (`db5a92f`) renders on top of the right-hand metadata instead of displacing or hiding it while hovered. Found during live verification 2026-08-11. **S**
 - [ ] **The usage popover is not translated.** `ContextBreakdownView` has no `useTranslation` at all (~12 visible strings: section titles, "Reserved", "Not counted — loaded on demand"), and `TokenUsageSummary` mixes `t()` with hardcoded English ("Context & Usage", "Session", window labels, "Resets at"). Every other chat surface is translated; ADR 0032 shipped it ahead of its keys. **S**
 
 ## Mobile UX polish
@@ -56,13 +55,10 @@ main checkout only).
 
 Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md). Decide the tier before designing the control.
 
-- [ ] **Nine touch control sites miss the 44px hit area** — search field, its two in-field buttons, mobile Close sidebar, the batch bar's three, archive restore/delete, rename save/cancel, New Project. `.sidebar-utility-hit-target` is the existing one-class fix; table in [the sidebar map](maps/sidebar-surface.md). **S**
-- [ ] **The session row's provider logo trails but is identity, not state** (ADR 0042 rule 2). Leading the title would also take it out of the desktop kebab's path permanently. **S**
-- [ ] **ADR 0042 budgets controls, not marks.** The session row carries two permanent trailing marks on touch — relative age and provider logo. Decide whether marks get a budget too, or stay deliberately unbounded. **S — decision**
+- [ ] **Fifteen controls across eleven locations miss the 44px touch hit area** — including repository New Session/kebab and session kebab in touch-driven Desktop View. Keep their compact visuals; enlarge only the invisible hit area. Table and helper in [the sidebar map](maps/sidebar-surface.md). **S**
 - [ ] **`sidebar.json` is ~40% untranslated in all nine non-`en` locales.** The `worktrees`, `sessionView`, `browseView` and `selection` blocks — 79 keys, every fork-built sidebar feature — exist only in `en` and render through `defaultValue`. **M**
 - [ ] **A repository row tap does different things per breakpoint** — mobile `onClick` only expands, desktop also selects the project (`SidebarRepositoryItem`, `toggleProject` vs `selectAndToggleProject`). No comment says why. Either is defensible; the divergence being undocumented is not. Parity table: [the sidebar map](maps/sidebar-surface.md). **S**
-- [ ] **Session count reads "3 sessions" on mobile and "3" on desktop** from the same `getSessionCountDisplay`. Pick one. **S**
-- [ ] **Should the repository row carry a TaskMaster indicator at all?** `TaskIndicator` rendered nowhere for its whole life (`md:hidden` parent, `md:inline-flex` child) and the dead prop chain is gone; `getTaskIndicatorStatus` and the component remain. ADR 0042 now prices it: a permanent trailing mark on touch. **S**
+- [ ] **Should the repository row carry a TaskMaster indicator at all?** `TaskIndicator` rendered nowhere for its whole life (`md:hidden` parent, `md:inline-flex` child) and the dead prop chain is gone; `getTaskIndicatorStatus` and the component remain. ADR 0044 leaves marks outside the control budget, but the icon still has to earn permanent space. **S**
 
 ## Model picker follow-ups
 

@@ -79,5 +79,6 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0039 — Usage reset alerts follow provider timestamps without catch-up](0039-provider-reset-timestamps-no-catch-up.md)
 - [0040 — Mobile Settings root owns the Back gesture](0040-settings-root-owns-back-gesture.md)
 - [0041 — A checkout is named by its folder, with its branch as state](0041-checkouts-are-named-by-place-and-state.md)
-- [0042 — Input type sets the row budget; hover is a reveal channel](0042-input-type-sets-the-sidebar-budget.md)
+- [0042 — Input type sets the row budget; hover is a reveal channel](0042-input-type-sets-the-sidebar-budget.md) *(superseded by 0044)*
 - [0043 — Reading size is content-scoped and device-local](0043-reading-size-is-content-scoped-and-device-local.md)
+- [0044 — Input capability sets targets; row shortcuts stay bounded](0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md)

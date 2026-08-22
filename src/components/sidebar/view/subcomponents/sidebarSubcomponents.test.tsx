@@ -217,7 +217,11 @@ describe('SidebarProjectList', () => {
     container = null;
   });
 
-  const t = ((_: string, fallback?: string) => fallback ?? '') as TFunction;
+  const t = ((_: string, fallback?: string, values?: Record<string, string | number>) =>
+    (fallback ?? '').replace(
+      /{{(\w+)}}/g,
+      (_match, name: string) => String(values?.[name] ?? ''),
+    )) as unknown as TFunction;
 
   test('Sessions view gives flat rows the global batch-selection scope', async () => {
     const project: Project = {
@@ -453,6 +457,8 @@ describe('SidebarSessionItem', () => {
       summary: 'Session one',
       createdAt: '2026-08-11T12:00:00.000Z',
       __provider: 'claude',
+      isStarred: true,
+      messageCount: 4,
     };
     let opened: { session: SessionWithProvider; anchor: ContextMenuAnchor } | null = null;
 
@@ -500,6 +506,97 @@ describe('SidebarSessionItem', () => {
       session,
       anchor: { top: 240, bottom: 240, left: 120 },
     });
+
+    const providerLogos = container.querySelectorAll('svg[aria-label="Claude"]');
+    const pinIcons = container.querySelectorAll('.lucide-pin');
+    assert.equal(providerLogos.length, 2);
+    assert.equal(pinIcons.length, 2);
+    const accessibleMetadata = [...container.querySelectorAll('.sr-only')]
+      .map((element) => element.textContent);
+    assert.deepEqual(accessibleMetadata, ['Pinned', '4 messages', 'Pinned', '4 messages']);
+
+    providerLogos.forEach((providerLogo, index) => {
+      const titleRow = providerLogo.parentElement;
+      const pinMetadata = pinIcons[index]?.parentElement;
+      assert.ok(titleRow?.textContent?.includes('Session one'));
+      assert.equal(pinMetadata?.parentElement, titleRow);
+      assert.ok(pinMetadata?.textContent?.includes('5m'));
+    });
+
+    const desktopActionSlot = desktopLink.querySelector('span[aria-hidden="true"].h-6.w-6');
+    const desktopProviderLogo = desktopLink.querySelector('svg[aria-label="Claude"]');
+    const desktopActionTrigger = container.querySelector('[aria-haspopup="menu"]');
+    assert.ok(desktopActionSlot);
+    assert.notEqual(desktopActionSlot.parentElement, desktopProviderLogo?.parentElement);
+    assert.equal(desktopActionTrigger?.parentElement?.classList.contains('bottom-2'), true);
+  });
+
+  test('keeps flat Sessions-view metadata on the project row above the provider and title', async () => {
+    const project: Project = {
+      projectId: 'project-1',
+      displayName: 'Project',
+      fullPath: '/project',
+    };
+    const session: SessionWithProvider = {
+      id: 'session-1',
+      summary: 'Session one',
+      createdAt: '2026-08-11T12:00:00.000Z',
+      __provider: 'claude',
+      isStarred: true,
+    };
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => {
+      root?.render(
+        <SidebarSessionItem
+          project={project}
+          session={session}
+          projectLabel="Repository one"
+          selectedSession={null}
+          isProcessing={false}
+          needsAttention={false}
+          isUnread={false}
+          currentTime={new Date('2026-08-11T12:05:00.000Z')}
+          editingSession={null}
+          editingSessionName=""
+          onEditingSessionNameChange={() => {}}
+          onCancelEditingSession={() => {}}
+          onSaveEditingSession={() => {}}
+          onProjectSelect={() => {}}
+          onSessionSelect={() => {}}
+          onOpenActionsMenu={() => {}}
+          t={t}
+        />,
+      );
+    });
+
+    const providerLogos = container.querySelectorAll('svg[aria-label="Claude"]');
+    const pinIcons = container.querySelectorAll('.lucide-pin');
+    assert.equal(providerLogos.length, 2);
+    assert.equal(pinIcons.length, 2);
+    pinIcons.forEach((pinIcon) => {
+      assert.equal(pinIcon.classList.contains('!h-[1em]'), true);
+      assert.equal(pinIcon.classList.contains('!w-[1em]'), true);
+    });
+
+    providerLogos.forEach((providerLogo, index) => {
+      const titleRow = providerLogo.parentElement;
+      const metadataRow = pinIcons[index]?.parentElement?.parentElement;
+      assert.ok(titleRow?.textContent?.includes('Session one'));
+      assert.ok(metadataRow?.textContent?.includes('Repository one'));
+      assert.ok(metadataRow?.textContent?.includes('5m'));
+      assert.equal(metadataRow?.textContent?.includes('Session one'), false);
+    });
+
+    const desktopLink = container.querySelector<HTMLAnchorElement>('a[href="/session/session-1"]');
+    const desktopActionSlot = desktopLink?.querySelector('span[aria-hidden="true"].h-6.w-6');
+    const desktopProviderLogo = desktopLink?.querySelector('svg[aria-label="Claude"]');
+    const desktopActionTrigger = container.querySelector('[aria-haspopup="menu"]');
+    assert.ok(desktopActionSlot);
+    assert.equal(desktopActionSlot.parentElement, desktopProviderLogo?.parentElement);
+    assert.equal(desktopActionTrigger?.parentElement?.classList.contains('top-6'), true);
   });
 });
 
@@ -618,8 +715,11 @@ describe('SidebarRepositoryItem', () => {
 
   // Interpolates like i18next, so a label built from the row's name is asserted
   // as the user reads it.
-  const t = ((key: string, fallback?: string, values?: Record<string, string>) =>
-    (fallback ?? key).replace(/{{(\w+)}}/g, (_, name: string) => values?.[name] ?? '')) as unknown as TFunction;
+  const t = ((key: string, fallback?: string, values?: Record<string, string | number>) =>
+    (fallback ?? key).replace(
+      /{{(\w+)}}/g,
+      (_match, name: string) => String(values?.[name] ?? ''),
+    )) as unknown as TFunction;
 
   const project: Project = {
     projectId: 'project-1',
@@ -702,6 +802,25 @@ describe('SidebarRepositoryItem', () => {
 
     assert.deepEqual(started, [project]);
     assert.equal(toggleCount, 0, 'New Session must not expand or collapse the row');
+  });
+
+  test('shows the full session-count wording at both breakpoints', async () => {
+    const sessions: CheckoutSession[] = [1, 2].map((index) => ({
+      session: {
+        id: `session-${index}`,
+        summary: `Session ${index}`,
+        createdAt: '2026-08-22T12:00:00.000Z',
+        __provider: 'claude',
+      },
+      checkout: project,
+      checkoutLabel: null,
+    }));
+
+    await renderRow({ sessions });
+
+    const countLabels = [...container!.querySelectorAll('span')]
+      .filter((element) => element.textContent === '2 sessions');
+    assert.equal(countLabels.length, 2);
   });
 
   test('the desktop chevron stays in the trailing cluster beside the kebab', async () => {
