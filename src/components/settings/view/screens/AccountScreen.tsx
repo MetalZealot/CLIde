@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { LogOut } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { useAuth } from '../../../auth';
+import { useAuth } from '../../../auth/context/AuthContext';
 import AccountAvatar from '../../../auth/view/AccountAvatar';
 import { fileToAvatarDataUrl } from '../../../auth/avatar';
 import { Button } from '../../../../shared/view/ui';
@@ -38,7 +39,7 @@ function FeedbackLine({ feedback }: { feedback: SectionFeedback }) {
  */
 export default function AccountScreen() {
   const { t } = useTranslation('settings');
-  const { user, updateProfile, changePassword } = useAuth();
+  const { user, updateProfile, changePassword, logout } = useAuth();
 
   const [username, setUsername] = useState(user?.username ?? '');
   const [usernameFeedback, setUsernameFeedback] = useState<SectionFeedback>(null);
@@ -223,6 +224,18 @@ export default function AccountScreen() {
           </Button>
         </div>
         <FeedbackLine feedback={passwordFeedback} />
+      </SettingsGroup>
+
+      <SettingsGroup
+        title={t('accountScreen.logout.title')}
+        description={t('accountScreen.logout.description')}
+      >
+        <div className="p-4">
+          <Button type="button" variant="destructive" size="sm" className="min-h-11" onClick={logout}>
+            <LogOut className="h-4 w-4" />
+            {t('accountScreen.logout.action')}
+          </Button>
+        </div>
       </SettingsGroup>
     </SettingsScreen>
   );

@@ -1,8 +1,8 @@
 import { useRef, useState, type ComponentType } from 'react';
-import { BarChart3, CircleUser, LogOut, Settings } from 'lucide-react';
+import { BarChart3, CircleUser, Settings } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { useAuth } from '../../../auth';
+import { useAuth } from '../../../auth/context/AuthContext';
 import AccountAvatar from '../../../auth/view/AccountAvatar';
 import { ContextMenuOverlay, anchorFromElement } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
@@ -19,12 +19,10 @@ type SidebarAccountMenuProps = {
 function MenuRow({
   label,
   icon: Icon,
-  isDestructive,
   onSelect,
 }: {
   label: string;
   icon: ComponentType<{ className?: string }>;
-  isDestructive?: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -32,14 +30,9 @@ function MenuRow({
       type="button"
       role="menuitem"
       onClick={onSelect}
-      className={cn(
-        'flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition-colors',
-        isDestructive
-          ? 'text-red-600 hover:bg-red-50 focus-visible:bg-red-50 active:bg-red-50 dark:text-red-400 dark:hover:bg-red-950 dark:focus-visible:bg-red-950 dark:active:bg-red-950'
-          : 'text-foreground hover:bg-accent focus-visible:bg-accent active:bg-accent',
-      )}
+      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-accent focus-visible:bg-accent active:bg-accent"
     >
-      <Icon className={cn('h-4 w-4 flex-shrink-0', !isDestructive && 'text-muted-foreground')} />
+      <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
       <span className="truncate">{label}</span>
     </button>
   );
@@ -57,7 +50,7 @@ export default function SidebarAccountMenu({
   isCompact = false,
   t,
 }: SidebarAccountMenuProps) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -113,14 +106,6 @@ export default function SidebarAccountMenu({
             label={t('actions.settings')}
             icon={Settings}
             onSelect={() => choose(() => onShowSettings())}
-          />
-          <div className="my-1 border-t border-border" />
-
-          <MenuRow
-            label={t('actions.logOut', 'Log out')}
-            icon={LogOut}
-            isDestructive
-            onSelect={() => choose(logout)}
           />
         </ContextMenuOverlay>
       )}

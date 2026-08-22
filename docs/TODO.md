@@ -23,6 +23,7 @@ main checkout only).
 
 ## Bugs
 
+- [~] **Log out is kept off the sidebar Account popover.** It now lives at the bottom of Account settings, away from routine navigation; automated verification complete, awaiting live acceptance. **S**
 - [ ] **Paste is image-only — you can't paste a PDF or text file into the composer.** `handlePaste` (`useChatComposerState.ts`) keeps an `image/` filter and a `clipboardData.files` fallback that were never widened when upstream `06e7ee9` dropped the dropzone's `accept` map. Both filters go; `handleAttachmentFiles` already validates size and count. [upstreamable] **S**
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**

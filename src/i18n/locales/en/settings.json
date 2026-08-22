@@ -767,6 +767,11 @@
       "save": "Change password",
       "saved": "Password changed.",
       "mismatch": "The new passwords do not match."
+    },
+    "logout": {
+      "title": "Session",
+      "description": "Sign out of CLIde on this device.",
+      "action": "Log out"
     }
   },
   "autoCompact": {
