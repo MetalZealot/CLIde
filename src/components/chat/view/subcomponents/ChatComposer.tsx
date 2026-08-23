@@ -90,7 +90,7 @@ interface ChatComposerProps {
   availableCollaborationModes: CollaborationMode[];
   onSelectCollaborationMode: (mode: CollaborationMode) => void;
   providerLabel: string;
-  providerOptions: { value: LLMProvider; label: string }[];
+  providerOptions: { value: LLMProvider; label: string; connected: boolean; loading: boolean }[];
   /** Null once the session exists — its provider can no longer change. */
   onSelectProvider: ((provider: LLMProvider) => void) | null;
   effort: string;

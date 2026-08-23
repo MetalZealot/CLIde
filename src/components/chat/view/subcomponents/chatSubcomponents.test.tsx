@@ -952,10 +952,10 @@ describe('ComposerMenus', () => {
       provider="claude"
       providerLabel="Claude"
       providerOptions={[
-        { value: 'claude', label: 'Claude' },
-        { value: 'codex', label: 'Codex' },
-        { value: 'cursor', label: 'Cursor' },
-        { value: 'opencode', label: 'OpenCode' },
+        { value: 'claude', label: 'Claude', connected: true, loading: false },
+        { value: 'codex', label: 'Codex', connected: true, loading: false },
+        { value: 'cursor', label: 'Cursor', connected: false, loading: false },
+        { value: 'opencode', label: 'OpenCode', connected: false, loading: false },
       ]}
       {...overrides}
     />,
@@ -972,11 +972,15 @@ describe('ComposerMenus', () => {
     const providerRow = document.querySelector<HTMLButtonElement>('[role="menu"] [aria-label="Select model provider"]');
     assert.ok(providerRow, 'the model menu heads with the provider');
     assert.match(providerRow.textContent || '', /Claude/);
+    assert.ok(providerRow.querySelector('svg[aria-label="Claude"]'), 'the provider row carries its logo');
     await React.act(async () => providerRow.click());
 
     const menu = document.querySelector('[role="menu"]');
     assert.match(menu?.textContent || '', /Codex/);
-    assert.match(menu?.textContent || '', /OpenCode/);
+    assert.doesNotMatch(menu?.textContent || '', /Cursor/);
+    assert.doesNotMatch(menu?.textContent || '', /OpenCode/);
+    assert.ok(menu?.querySelector('svg[aria-label="Claude"]'), 'the current provider choice carries its logo');
+    assert.ok(menu?.querySelector('svg[aria-label="Codex"]'), 'the other provider choice carries its logo');
     assert.doesNotMatch(menu?.textContent || '', /Model A/, 'the provider list replaces the model list');
 
     const codexButton = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
@@ -1001,11 +1005,56 @@ describe('ComposerMenus', () => {
 
     const menu = document.querySelector('[role="menu"]');
     assert.match(menu?.textContent || '', /Claude/, 'the provider stays visible as a label');
+    assert.ok(menu?.querySelector('svg[aria-label="Claude"]'), 'the static provider row carries its logo');
     assert.equal(
       document.querySelector('[role="menu"] [aria-label="Select model provider"]'),
       null,
       'no provider switcher once the session exists',
     );
+  });
+
+  test('a disconnected new-chat provider can switch to the sole connected provider', async () => {
+    const host = await mountModelMenu({
+      provider: 'claude',
+      providerLabel: 'Claude',
+      providerOptions: [
+        { value: 'claude', label: 'Claude', connected: false, loading: false },
+        { value: 'codex', label: 'Codex', connected: true, loading: false },
+      ],
+      onSelectProvider: () => {},
+    });
+
+    const trigger = host.querySelector<HTMLButtonElement>('button');
+    assert.ok(trigger);
+    await React.act(async () => trigger.click());
+
+    const providerRow = document.querySelector<HTMLButtonElement>('[role="menu"] [aria-label="Select model provider"]');
+    assert.ok(providerRow, 'the sole connected alternative remains reachable');
+    await React.act(async () => providerRow.click());
+
+    const menu = document.querySelector('[role="menu"]');
+    assert.match(menu?.textContent || '', /Codex/);
+    assert.doesNotMatch(menu?.textContent || '', /Claude/);
+  });
+
+  test('a new chat retains provider selection while connection checks load', async () => {
+    const host = await mountModelMenu({
+      providerOptions: [
+        { value: 'claude', label: 'Claude', connected: false, loading: true },
+        { value: 'codex', label: 'Codex', connected: false, loading: true },
+      ],
+      onSelectProvider: () => {},
+    });
+
+    const trigger = host.querySelector<HTMLButtonElement>('button');
+    assert.ok(trigger);
+    await React.act(async () => trigger.click());
+
+    const providerRow = document.querySelector<HTMLButtonElement>('[role="menu"] [aria-label="Select model provider"]');
+    assert.ok(providerRow, 'connection loading never removes provider selection');
+    await React.act(async () => providerRow.click());
+
+    assert.match(document.querySelector('[role="menu"]')?.textContent || '', /Checking connected providers/);
   });
 
   test('permission trigger toggles routine access while the chevron opens every mode', async () => {

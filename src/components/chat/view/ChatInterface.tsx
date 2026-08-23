@@ -12,6 +12,7 @@ import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionStore } from '../../../stores/useSessionStore';
+import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
@@ -51,6 +52,10 @@ function ChatInterface({
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
   const { t } = useTranslation('chat');
+  const {
+    providerAuthStatus,
+    refreshProviderAuthStatuses,
+  } = useProviderAuthStatus();
 
   // "Connection lost" is only meaningful after a first successful connect —
   // without this guard the banner would flash on every cold page load while
@@ -496,10 +501,20 @@ function ChatInterface({
   );
   const selectedProviderLabel = getProviderLabel(provider);
   const providerOptions = useMemo(
-    () => availableProviders.map((value) => ({ value, label: getProviderLabel(value) })),
-    [availableProviders, getProviderLabel],
+    () => availableProviders.map((value) => ({
+      value,
+      label: getProviderLabel(value),
+      connected: providerAuthStatus[value].authenticated,
+      loading: providerAuthStatus[value].loading,
+    })),
+    [availableProviders, getProviderLabel, providerAuthStatus],
   );
   const isNewSession = !selectedSession && !currentSessionId;
+  useEffect(() => {
+    if (isNewSession) {
+      void refreshProviderAuthStatuses(availableProviders);
+    }
+  }, [availableProviders, isNewSession, refreshProviderAuthStatuses]);
   // A session belongs to the runtime that started it, so the provider can only
   // be chosen while the chat is still brand new.
   const canSelectProvider = isNewSession;

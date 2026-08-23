@@ -8,6 +8,7 @@ import { MENU_LIST_MAX_HEIGHT } from '../../../../shared/view/ui';
 import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import { DEFAULT_EFFORT_VALUE } from '../../constants/providerEffort';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
+import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 
 import {
   ComposerMenuItem,
@@ -16,7 +17,7 @@ import {
 } from './ComposerMenuPrimitives';
 
 type EffortOption = NonNullable<ProviderModelOption['effort']>['values'][number];
-type ProviderOption = { value: LLMProvider; label: string };
+type ProviderOption = { value: LLMProvider; label: string; connected: boolean; loading: boolean };
 
 interface ComposerModelMenuProps {
   effort: string;
@@ -100,7 +101,14 @@ export default function ComposerModelMenu({
   const selectedLegacyModel = legacyModels.find((option) => option.value === model) ?? null;
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
-  const canSwitchProvider = Boolean(onSelectProvider) && providerOptions.length > 1;
+  const connectedProviderOptions = useMemo(
+    () => providerOptions.filter((option) => option.connected),
+    [providerOptions],
+  );
+  // A new chat always retains the provider drill-in. Connection status filters
+  // its choices; it never owns whether the selector itself exists.
+  const canSwitchProvider = Boolean(onSelectProvider);
+  const providerConnectionsLoading = providerOptions.some((option) => option.loading);
   const ariaLabel = t('composer.modelMenu', { defaultValue: 'Select model and reasoning effort' });
   const providerAriaLabel = t('composer.providerMenu', { defaultValue: 'Select model provider' });
   const legacyLabel = t('composer.legacyModels', { defaultValue: 'Legacy' });
@@ -260,14 +268,28 @@ export default function ComposerModelMenu({
                 )}
                 <ComposerMenuSeparator />
                 <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: MENU_LIST_MAX_HEIGHT }}>
-                  {providerOptions.map((option) => (
+                  {connectedProviderOptions.map((option) => (
                     <ComposerMenuItem
                       key={option.value}
-                      label={option.label}
+                      label={(
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span aria-hidden="true" className="shrink-0">
+                            <SessionProviderLogo provider={option.value} className="h-4 w-4" />
+                          </span>
+                          <span className="truncate">{option.label}</span>
+                        </span>
+                      )}
                       isSelected={option.value === provider}
                       onSelect={() => handleSelectProvider(option.value)}
                     />
                   ))}
+                  {connectedProviderOptions.length === 0 && (
+                    <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
+                      {providerConnectionsLoading
+                        ? t('composer.loadingProviders', { defaultValue: 'Checking connected providers…' })
+                        : t('composer.noConnectedProviders', { defaultValue: 'No connected providers.' })}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : view === 'legacy' ? (
@@ -298,12 +320,18 @@ export default function ComposerModelMenu({
                     title={providerAriaLabel}
                     className="flex w-full items-center gap-1 rounded-lg px-1.5 py-1 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                   >
+                    <span aria-hidden="true" className="shrink-0">
+                      <SessionProviderLogo provider={provider} className="h-4 w-4" />
+                    </span>
                     <span className="truncate">{providerLabel}</span>
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   </button>
                 ) : (
-                  <span className="block truncate px-1.5 py-1 text-sm font-medium text-muted-foreground">
-                    {providerLabel}
+                  <span className="flex items-center gap-1 px-1.5 py-1 text-sm font-medium text-muted-foreground">
+                    <span aria-hidden="true" className="shrink-0">
+                      <SessionProviderLogo provider={provider} className="h-4 w-4" />
+                    </span>
+                    <span className="truncate">{providerLabel}</span>
                   </span>
                 )}
               </div>
