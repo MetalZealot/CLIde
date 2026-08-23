@@ -86,6 +86,8 @@ PromptInputBody.displayName = 'PromptInputBody';
 
 /* ─── PromptInputTextarea ────────────────────────────────────────── */
 
+export const PROMPT_INPUT_TEXT_LAYOUT = 'font-sans px-4 pb-1 pt-3 text-base leading-6';
+
 export const PromptInputTextarea = React.forwardRef<
   HTMLTextAreaElement,
   React.TextareaHTMLAttributes<HTMLTextAreaElement>
@@ -97,7 +99,8 @@ export const PromptInputTextarea = React.forwardRef<
     // autosize hook only ever sets height back to `auto` when the input clears.
     rows={1}
     className={cn(
-      'chat-input-placeholder block max-h-[160px] w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3 text-base leading-6 text-foreground placeholder-muted-foreground/50 focus:outline-none sm:max-h-[300px]',
+      'chat-input-placeholder block max-h-[160px] w-full resize-none overflow-y-auto bg-transparent text-foreground placeholder-muted-foreground/50 focus:outline-none sm:max-h-[300px]',
+      PROMPT_INPUT_TEXT_LAYOUT,
       className
     )}
     {...props}

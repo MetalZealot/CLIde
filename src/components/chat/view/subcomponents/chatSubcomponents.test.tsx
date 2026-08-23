@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { initReactI18next } from 'react-i18next';
 
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
+import { PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../shared/view/ui';
 
 import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
@@ -21,6 +22,15 @@ import CompactBoundaryDivider from './CompactBoundaryDivider';
 import TokenUsageSummary from './TokenUsageSummary';
 
 describe('configurable chat typography', () => {
+  test('keeps composer text and its highlight overlay on one layout contract', () => {
+    const composerSource = readFileSync(new URL('./ChatComposer.tsx', import.meta.url), 'utf8');
+    const textareaMarkup = renderToStaticMarkup(<PromptInputTextarea />);
+
+    assert.match(composerSource, /PROMPT_INPUT_TEXT_LAYOUT/);
+    assert.ok(textareaMarkup.includes(PROMPT_INPUT_TEXT_LAYOUT));
+    assert.equal(PROMPT_INPUT_TEXT_LAYOUT, 'font-sans px-4 pb-1 pt-3 text-base leading-6');
+  });
+
   test('only ordinary user and assistant content opts into the reading scale', () => {
     const messageSource = readFileSync(new URL('./MessageComponent.tsx', import.meta.url), 'utf8');
     const markdownSource = readFileSync(new URL('./Markdown.tsx', import.meta.url), 'utf8');

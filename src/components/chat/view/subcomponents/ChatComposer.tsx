@@ -24,6 +24,7 @@ import type {
 import type { CollaborationMode, PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import {
+  PROMPT_INPUT_TEXT_LAYOUT,
   PromptInput,
   PromptInputHeader,
   PromptInputBody,
@@ -421,7 +422,7 @@ export default function ChatComposer({
 
           <PromptInputBody>
             <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 pb-1 pt-2 text-base leading-6 text-transparent">
+              <div className={`chat-input-placeholder block w-full whitespace-pre-wrap break-words text-transparent ${PROMPT_INPUT_TEXT_LAYOUT}`}>
                 {leadingCommand ? (
                   <>
                     <span className="-ml-0.5 box-decoration-clone rounded-md bg-violet-200/70 px-0.5 text-transparent dark:bg-violet-400/30">

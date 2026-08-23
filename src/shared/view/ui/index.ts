@@ -18,7 +18,7 @@ export { ScrollArea } from './ScrollArea';
 export { Reasoning, ReasoningTrigger, ReasoningContent, useReasoning } from './Reasoning';
 export { Shimmer } from './Shimmer';
 export { default as Tooltip } from './Tooltip';
-export { PromptInput, PromptInputHeader, PromptInputBody, PromptInputTextarea, PromptInputFooter, PromptInputTools, PromptInputButton, PromptInputSubmit } from './PromptInput';
+export { PROMPT_INPUT_TEXT_LAYOUT, PromptInput, PromptInputHeader, PromptInputBody, PromptInputTextarea, PromptInputFooter, PromptInputTools, PromptInputButton, PromptInputSubmit } from './PromptInput';
 export { PillBar, Pill } from './PillBar';
 export { Queue, QueueItem, QueueItemIndicator, QueueItemContent } from './Queue';
 export type { QueueItemStatus } from './Queue';
