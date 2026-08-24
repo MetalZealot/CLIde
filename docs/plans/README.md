@@ -14,7 +14,8 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
-| [Auto-compact visibility](autocompact-visibility.md) | complete | Verify the settings screen on device, then archive |
+| [Codex Chat-Shell ownership](codex-chat-shell-ownership.md) | not started | Agree the visible handoff state, then prove 0.147/0.149 release timing |
+| [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Browser MCP hardening](browser-mcp-hardening.md) | not started | Slice 1: ref registry and deterministic snapshot projection |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |

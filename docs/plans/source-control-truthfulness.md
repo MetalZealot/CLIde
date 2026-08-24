@@ -42,7 +42,8 @@ layout, and standalone tab.
      unborn-branch state distinctly.
   5. Preserve canonical local and remote refs end to end, keeping `origin`,
      `upstream`, and other remotes distinguishable.
-  6. Build **one** shared checkout-mutation preflight — refusing dirty or
+  6. Let users choose a new repository's initial branch; suggest Git's setting or `main`.
+  7. Build **one** shared checkout-mutation preflight — refusing dirty or
      conflicted switches, reporting a branch occupied by another linked worktree,
      and refusing or elevating mutations of the checkout serving CLIde. The
      branch switcher and the later merge flow both use it rather than

@@ -101,7 +101,7 @@ Predicted membership only. Read `terminal_slash_commands` and hide what it names
 
 | Command | Destination | Note |
 |---|---|---|
-| `autocompact` | Agents → Claude | In flight, [plan](../plans/autocompact-visibility.md) phase 3 |
+| `autocompact` | Agents → Claude | Shipped, [plan](../plans/archive/2026-08-23-autocompact-visibility.md) |
 | `fast` | Agents → Claude | `fastMode`; no CLIde surface at all today |
 | `sandbox` | Agents → Claude | Needs its own design; `bubblewrap` on Linux |
 | `hooks` | Agents → Claude | View-only first; a JSON editor is a project of its own |

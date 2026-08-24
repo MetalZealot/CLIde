@@ -2,8 +2,8 @@
 
 - Status: complete
 - Next: none — archived after live acceptance.
-- Context: [typography map](../maps/typography.md),
-  [ADR 0043](../decisions/0043-reading-size-is-content-scoped-and-device-local.md)
+- Context: [typography map](../../maps/typography.md),
+  [ADR 0043](../../decisions/0043-reading-size-is-content-scoped-and-device-local.md)
 
 ## Phases
 

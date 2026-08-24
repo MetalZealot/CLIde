@@ -2,7 +2,7 @@
 
 - Status: complete
 - Next: nothing; superseded by the test suite map and `AGENTS.md`.
-- Context: [agent guide](../../AGENTS.md) · [package scripts](../../package.json)
+- Context: [agent guide](../../../AGENTS.md) · [package scripts](../../../package.json)
 
 ## Measured baseline
 

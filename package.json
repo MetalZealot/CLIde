@@ -62,7 +62,9 @@
     "postinstall": "node scripts/fix-node-pty.js",
     "prepare": "husky",
     "update:platform": "./update-platform.sh",
-    "check:docs": "node scripts/check-docs.mjs"
+    "check:docs": "node scripts/check-docs.mjs",
+    "docs:dashboard": "node scripts/build-project-dashboard.mjs",
+    "test:docs:dashboard": "node --test scripts/build-project-dashboard.test.mjs"
   },
   "build": {
     "appId": "ai.cloudcli.desktop",

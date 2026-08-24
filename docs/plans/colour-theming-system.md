@@ -8,7 +8,7 @@
   exist (`src/components/sidebar/utils/accentColors.ts`,
   `SidebarAccentColorMenu.tsx`) and Phase 4 extends that, not a parallel system.
   No `backdrop-filter` (ADR 0001). Sibling plan:
-  [typography](typography-system.md) — it touches `src/index.css` and
+  [typography](archive/2026-08-21-typography-system.md) — it touches `src/index.css` and
   `tailwind.config.js` too, so do not run both at once.
 
 The architecture is already right and roughly half the app ignores it. Measured
@@ -80,7 +80,7 @@ phase is small once it lands and impossible before it.
   Its own item.
 - **Syntax highlighting.** `react-syntax-highlighter` and the code editor ship
   independent colour sets; retheming those is separate work.
-- **Typography** — [its own plan](typography-system.md).
+- **Typography** — [its own plan](archive/2026-08-21-typography-system.md).
 - **User-authored themes.** Phase 2 ships a dial over a fixed token set, not an
   arbitrary per-token editor.
 - **Custom project icons** — a separate TODO item, unrelated to colour.

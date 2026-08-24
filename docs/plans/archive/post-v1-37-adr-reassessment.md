@@ -3,7 +3,7 @@
 - Status: complete
 - Next: nothing — both decisions are settled; ADRs 0011, 0012 and 0016 all stand.
 - Context: v1.37 is merged (`658d536`), deployed, and accepted; the model-picker
-  storage divergence closed via [ADR 0025](../decisions/0025-session-model-picks-live-in-the-database.md).
+  storage divergence closed via [ADR 0025](../../decisions/0025-session-model-picks-live-in-the-database.md).
   Everything else v1.37 left behind now has its own plan — see
   [the board](README.md).
 
@@ -17,7 +17,7 @@ follow-up queue after the queued work moved into its own plans.
       `server/modules/projects/services/repository-identity.service.ts`, deriving
       `--git-common-dir` per checkout, and the sidebar groups by it (`175c25a`,
       ADRs 0028/0029/0033/0035). The remaining Git-panel truthfulness gaps 0016
-      names are the [Source Control plan](source-control-truthfulness.md)'s
+      names are the [Source Control plan](../source-control-truthfulness.md)'s
       Phase 0, which this no longer blocks.
 
 - [x] **2. Does the Codex App Server transport earn its maintenance?** (ADRs 0011

@@ -8,10 +8,10 @@
 - Next: none — merge the branch. Queued turns needed no code change:
   `buildSendOptions` already snapshots effort at queue time and the send
   reuses that record verbatim.
-- Context: [session/model anchors](../maps/code-anchors.md);
-  [provider capabilities](../maps/clide-provider-capability-map.md);
-  [ADR 0003](../decisions/0003-per-session-model-tracking.md);
-  [ADR 0025](../decisions/0025-session-model-picks-live-in-the-database.md).
+- Context: [session/model anchors](../../maps/code-anchors.md);
+  [provider capabilities](../../maps/clide-provider-capability-map.md);
+  [ADR 0003](../../decisions/0003-per-session-model-tracking.md);
+  [ADR 0025](../../decisions/0025-session-model-picks-live-in-the-database.md).
 
 ## Phases
 

@@ -1,8 +1,8 @@
 # Auto-compact is visible and its numbers are honest
 
 - Status: complete
-- Next: nothing — archive once the settings screen is verified on device
-- Context: [code anchors](../maps/code-anchors.md), [Claude Code settings surface audit](../maps/2026-07-28-claude-code-settings-surface-audit.md)
+- Next: nothing — archived 2026-08-23, settings screen verified on device
+- Context: [code anchors](../../maps/code-anchors.md), [Claude Code settings surface audit](../../maps/2026-07-28-claude-code-settings-surface-audit.md)
 
 The ring has two sources for its ceiling and silently swaps between them. The
 SDK reading carries a window and a compact point together; the derived fallback

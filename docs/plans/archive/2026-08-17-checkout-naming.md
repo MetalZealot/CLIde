@@ -74,4 +74,4 @@ Full paths in the UI — basenames only; `~/Projects/` on every row is noise.
 Renaming worktree folders, a worktree browser, changes to how sessions are
 grouped under a repository, and anything touching the Source Control branch
 switcher, which performs real checkouts and is a different surface with its own
-[plan](source-control-truthfulness.md).
+[plan](../source-control-truthfulness.md).

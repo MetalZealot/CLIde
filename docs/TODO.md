@@ -11,6 +11,7 @@ main checkout only).
 
 ## Provider maintenance
 
+- [ ] **Codex Chat and Shell can claim the same native thread.** Add App Server-native Chat compaction and a backend-owned single-writer handoff so retained Shell PTYs cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**
 - [~] **Codex App Server is the default interactive Chat transport; rollout verification remains.** Merged `cbf2960`. Retained as the default 2026-08-13; rewind, fork and approvals are gated on it. What's left is verification, not code — protocol drift, recovery, concurrency, resource use, installed-PWA matrix. [Map](maps/2026-07-25-codex-chat-transport-architecture.md). **L**
 - [~] **Codex integration conformance suite.** `npm run test:codex` drives 18 focused files across the seven boundaries the post-v1.37 merge broke, guarding all five regressions. Harness landed; the live acceptance rows in [the map](maps/codex-integration-conformance.md) are unverified since Codex 0.147 and ADR 0034. **M**
 - [~] **Codex's Agent screen is decluttered.** Merged `88543d1`; awaiting live verification. Runtime and transport left the account card for a sub-screen, then came back as one collapsible Runtime row matching Claude's; `agent.codex.runtime` now redirects. One state badge per installation, rollback on the previous install's own row, every API enum mapped to a sentence. **S**
@@ -24,10 +25,8 @@ main checkout only).
 ## Bugs
 
 - [~] **Log out is kept off the sidebar Account popover.** It now lives at the bottom of Account settings, away from routine navigation; automated verification complete, awaiting live acceptance. **S**
-- [ ] **Paste is image-only — you can't paste a PDF or text file into the composer.** `handlePaste` (`useChatComposerState.ts`) keeps an `image/` filter and a `clipboardData.files` fallback that were never widened when upstream `06e7ee9` dropped the dropzone's `accept` map. Both filters go; `handleAttachmentFiles` already validates size and count. [upstreamable] **S**
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
-- [ ] **Composer attachments silently reject oversized or wrong-type files.** No `onDropRejected`, and `imageErrors` renders only on accepted cards. Add rejection feedback without regressing the native Android picker path. [upstreamable] **S**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
 - [~] **Chat scroll-up pagination.** Merged `12ede24`; branch retired 2026-08-04. Re-verified on the PWA 2026-08-11: the provider-logo flash is **gone**, viewport jump at the roof is reduced but still there. Target is smooth enough that no "Load All" button is wanted. Needs a hands-on touch test — the headless harness gave a false PASS once. **M/?**
@@ -81,6 +80,7 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 
 ## Features (bigger ideas)
 
+- [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, maps and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
 - [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**
@@ -90,7 +90,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
 - [ ] **Subagent tracking in the UI.** Claude writes subagent transcripts to `<slug>/<session-id>/subagents/agent-<id>.jsonl`; the synchronizer *deliberately* skips them (`isSubagentTranscript`) so a spawned agent never becomes its own sidebar session. Within a session they're grouped under the parent via `parent_tool_use_id`. **M/L**
 - [ ] **Does usage tracking count subagent tokens?** Answered — two systems, two behaviours. Plan-window % and credits come live from Anthropic's OAuth endpoint and **already include** agent tokens. The per-session context ring skips `isSidechain` rows by design. Remaining work is deciding whether to surface that difference. **S — decision**
-- [~] **Auto-compact reads as two different ceilings.** The ring shows a window or a compact point as one bare number, so an `autoCompactWindow` cap is indistinguishable from the model's own window — which hid an 80% context cut on a 1M model. Also add the setting to Settings → Agent. [Plan](plans/autocompact-visibility.md). **M**
 - [ ] `/context`: use the SDK breakdown's `gridRows` for a closer match to the CLI's square-grid panel. CLIde parses it away and rebuilds a stacked bar. **S**
 - [ ] `/usage`: per-model cost breakdown like the CLI's — plan bars, a "This session" line, then a per-model table. **M**
 - [ ] **`/stats`: put the SDK's account usage stats in Context & Usage.** Probe `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` with `scripts/verify-context-usage-sdk.ts` first — is `behaviors` populated on this account? The [live gate](plans/archive/2026-08-17-claude-sdk-0.3.233-upgrade.md) is the constraint: an idle surface can't hold a query open. **M/?**
