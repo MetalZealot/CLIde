@@ -94,6 +94,7 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [ ] `/usage`: per-model cost breakdown like the CLI's — plan bars, a "This session" line, then a per-model table. **M**
 - [ ] **`/stats`: put the SDK's account usage stats in Context & Usage.** Probe `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` with `scripts/verify-context-usage-sdk.ts` first — is `behaviors` populated on this account? The [live gate](plans/archive/2026-08-17-claude-sdk-0.3.233-upgrade.md) is the constraint: an idle surface can't hold a query open. **M/?**
 - [ ] `!` shell mode in the conversation window. **M**
+- [ ] **Chat renders raw tool calls instead of activities.** A burst of 14 reads/commands is 14 cards; measured, prose-bounded clustering takes 295 calls to 51 rows. Claude and Codex first. [Plan](plans/tool-activity-display.md), [map](maps/tool-activity-stream.md). **L**
 - [ ] Conversation "map" sidebar: a minimap of where user/assistant messages sit, tap to scroll. Depends on the scroll residuals above. **L**
 - [~] **Double-tap Esc to stop mid-send and immediately edit.** The stop-and-recover half landed (`e5ede32` + `adab285`, ADR 0013). Remaining: (a) the Esc gesture itself — today it's the Stop button only; (b) editing a turn the provider *did* take, which is a rewind, not a retraction. **M**
 - [ ] Codex equivalent of the Claude command-surface audit — which of its commands and config keys CLIde is missing. **L**
