@@ -1,4 +1,4 @@
-import { Code2, Download, Eye, Maximize2, Minimize2, Save, Settings as SettingsIcon, X } from 'lucide-react';
+import { Code2, Download, Eye, Maximize2, Minimize2, RefreshCw, Save, Settings as SettingsIcon, X } from 'lucide-react';
 
 import type { CodeEditorFile } from '../../types/types';
 
@@ -9,10 +9,12 @@ type CodeEditorHeaderProps = {
   isMarkdownFile: boolean;
   isHtmlPreviewFile: boolean;
   markdownPreview: boolean;
+  htmlPreview: boolean;
   saving: boolean;
   saveSuccess: boolean;
   onToggleMarkdownPreview: () => void;
-  onOpenHtmlPreview: () => void;
+  onToggleHtmlPreview: () => void;
+  onReloadHtmlPreview: () => void;
   onOpenSettings: () => void;
   onDownload: () => void;
   onSave: () => void;
@@ -23,6 +25,8 @@ type CodeEditorHeaderProps = {
     editMarkdown: string;
     previewMarkdown: string;
     previewHtml: string;
+    editHtml: string;
+    reloadHtmlPreview: string;
     settings: string;
     download: string;
     save: string;
@@ -41,10 +45,12 @@ export default function CodeEditorHeader({
   isMarkdownFile,
   isHtmlPreviewFile,
   markdownPreview,
+  htmlPreview,
   saving,
   saveSuccess,
   onToggleMarkdownPreview,
-  onOpenHtmlPreview,
+  onToggleHtmlPreview,
+  onReloadHtmlPreview,
   onOpenSettings,
   onDownload,
   onSave,
@@ -89,14 +95,33 @@ export default function CodeEditorHeader({
         )}
 
         {isHtmlPreviewFile && (
-          <button
-            type="button"
-            onClick={onOpenHtmlPreview}
-            className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-            title={labels.previewHtml}
-          >
-            <Eye className="h-4 w-4" />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={onToggleHtmlPreview}
+              className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${
+                htmlPreview
+                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
+              }`}
+              aria-label={htmlPreview ? labels.editHtml : labels.previewHtml}
+              title={htmlPreview ? labels.editHtml : labels.previewHtml}
+            >
+              {htmlPreview ? <Code2 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+
+            {htmlPreview && (
+              <button
+                type="button"
+                onClick={onReloadHtmlPreview}
+                className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                aria-label={labels.reloadHtmlPreview}
+                title={labels.reloadHtmlPreview}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            )}
+          </>
         )}
 
         <button

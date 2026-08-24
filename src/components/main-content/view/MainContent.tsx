@@ -276,6 +276,7 @@ function MainContent({
             onResizeStart={handleResizeStart}
             onCloseEditor={handleCloseEditor}
             onToggleEditorExpand={handleToggleEditorExpand}
+            onFileOpen={handleFileOpen}
             projectPath={selectedProject.path}
             fillSpace={activeTab === 'files'}
           />

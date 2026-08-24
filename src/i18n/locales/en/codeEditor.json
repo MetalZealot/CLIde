@@ -22,7 +22,10 @@
     "fullscreen": "Fullscreen",
     "close": "Close",
     "previewMarkdown": "Preview markdown",
-    "editMarkdown": "Edit markdown"
+    "editMarkdown": "Edit markdown",
+    "previewHtml": "Preview HTML",
+    "editHtml": "Edit HTML",
+    "reloadHtmlPreview": "Reload HTML preview"
   },
   "footer": {
     "lines": "Lines:",
@@ -37,5 +40,11 @@
     "loading": "Loading preview...",
     "error": "Unable to display this file.",
     "openInNewTab": "Open in new tab"
+  },
+  "htmlPreview": {
+    "loading": "Preparing HTML preview...",
+    "error": "Unable to render HTML preview.",
+    "assetWarning_one": "Preview could not load {{count}} project asset.",
+    "assetWarning_other": "Preview could not load {{count}} project assets."
   }
 }

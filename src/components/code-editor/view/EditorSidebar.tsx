@@ -13,6 +13,7 @@ type EditorSidebarProps = {
   onResizeStart: (event: MouseEvent<HTMLDivElement>) => void;
   onCloseEditor: () => void;
   onToggleEditorExpand: () => void;
+  onFileOpen?: (filePath: string) => void;
   projectPath?: string;
   fillSpace?: boolean;
 };
@@ -32,6 +33,7 @@ export default function EditorSidebar({
   onResizeStart,
   onCloseEditor,
   onToggleEditorExpand,
+  onFileOpen,
   projectPath,
   fillSpace,
 }: EditorSidebarProps) {
@@ -94,6 +96,7 @@ export default function EditorSidebar({
         }}
         projectPath={projectPath}
         isSidebar={false}
+        onFileOpen={onFileOpen}
       />
     );
   }
@@ -126,6 +129,7 @@ export default function EditorSidebar({
           isExpanded={editorExpanded}
           onToggleExpand={onToggleEditorExpand}
           onPopOut={() => setPoppedOut(true)}
+          onFileOpen={onFileOpen}
         />
       </div>
     </div>

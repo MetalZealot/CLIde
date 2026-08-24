@@ -11,6 +11,7 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [ ] **HTML file preview is an ephemeral popup.** Upstream PR #933 added the same `window.open('', '_blank')` + `srcdoc` implementation while primarily changing media preview: installed Samsung PWA activation is a no-op, refresh destroys the in-memory page, and relative project links/assets have no project base. CLIde now uses an isolated inline static preview with authenticated passive-asset rewriting and project-aware links; executable development-server preview remains separate. Upstream check 2026-08-23: confirmed unchanged on `upstream/main`; open-issue searches for “HTML preview”, “preview HTML”, and `srcdoc` found nothing; PR search found only #933 and closed #1024, whose cookie-authenticated dev-server/Docker proxy addresses dynamic apps instead. Live-accepted on Firefox, Samsung Internet, and a Samsung-installed PWA. **Good standalone PR candidate.**
 - [x] ~~**Account usage dashboard, truthful usage cache, and reset alerts.**~~ **Fork-only.**
   The provider-usage service/hook and CLIde's provider-neutral notification preferences do not
   exist on `upstream/main` (checked by path on 2026-08-16), so neither the stale-timestamp fix

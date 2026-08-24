@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { unifiedMergeView } from '@codemirror/merge';
 import type { Extension } from '@codemirror/state';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
@@ -19,6 +19,7 @@ import CodeEditorHeader from './subcomponents/CodeEditorHeader';
 import CodeEditorLoadingState from './subcomponents/CodeEditorLoadingState';
 import CodeEditorSurface from './subcomponents/CodeEditorSurface';
 import CodeEditorBinaryFile from './subcomponents/CodeEditorBinaryFile';
+import CodeEditorHtmlPreview from './subcomponents/CodeEditorHtmlPreview';
 import CodeEditorMediaPreview from './subcomponents/CodeEditorMediaPreview';
 
 type CodeEditorProps = {
@@ -29,6 +30,7 @@ type CodeEditorProps = {
   isExpanded?: boolean;
   onToggleExpand?: (() => void) | null;
   onPopOut?: (() => void) | null;
+  onFileOpen?: (filePath: string) => void;
 };
 
 export default function CodeEditor({
@@ -39,12 +41,15 @@ export default function CodeEditor({
   isExpanded = false,
   onToggleExpand = null,
   onPopOut = null,
+  onFileOpen,
 }: CodeEditorProps) {
   const { t } = useTranslation('codeEditor');
   const paletteOps = usePaletteOps();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showDiff, setShowDiff] = useState(Boolean(file.diffInfo));
   const [markdownPreview, setMarkdownPreview] = useState(false);
+  const [htmlPreview, setHtmlPreview] = useState(false);
+  const [htmlPreviewReloadKey, setHtmlPreviewReloadKey] = useState(0);
 
   // The code editor follows the app-wide theme; it has no theme of its own.
   const { isDarkMode } = useTheme();
@@ -82,24 +87,6 @@ export default function CodeEditor({
     const extension = file.name.split('.').pop()?.toLowerCase();
     return extension === 'html' || extension === 'htm';
   }, [file.name]);
-
-  const openHtmlPreview = useCallback(() => {
-    const previewWindow = window.open('', '_blank');
-    if (!previewWindow) return;
-
-    previewWindow.opener = null;
-    previewWindow.document.title = file.name;
-    previewWindow.document.body.style.margin = '0';
-
-    const iframe = previewWindow.document.createElement('iframe');
-    iframe.title = file.name;
-    iframe.sandbox.add('allow-forms', 'allow-modals', 'allow-popups', 'allow-scripts');
-    iframe.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;background:white';
-
-    iframe.srcdoc = content;
-
-    previewWindow.document.body.appendChild(iframe);
-  }, [content, file.name]);
 
   const minimapExtension = useMemo(
     () => (
@@ -254,10 +241,12 @@ export default function CodeEditor({
             isMarkdownFile={isMarkdownFile}
             isHtmlPreviewFile={isHtmlPreviewFile}
             markdownPreview={markdownPreview}
+            htmlPreview={htmlPreview}
             saving={saving}
             saveSuccess={saveSuccess}
             onToggleMarkdownPreview={() => setMarkdownPreview((previous) => !previous)}
-            onOpenHtmlPreview={openHtmlPreview}
+            onToggleHtmlPreview={() => setHtmlPreview((previous) => !previous)}
+            onReloadHtmlPreview={() => setHtmlPreviewReloadKey((previous) => previous + 1)}
             onOpenSettings={() => paletteOps.openSettings('appearance')}
             onDownload={handleDownload}
             onSave={handleSave}
@@ -267,7 +256,9 @@ export default function CodeEditor({
               showingChanges: t('header.showingChanges'),
               editMarkdown: t('actions.editMarkdown'),
               previewMarkdown: t('actions.previewMarkdown'),
-              previewHtml: t('actions.previewHtml', 'Open HTML preview in new tab'),
+              previewHtml: t('actions.previewHtml', 'Preview HTML'),
+              editHtml: t('actions.editHtml', 'Edit HTML'),
+              reloadHtmlPreview: t('actions.reloadHtmlPreview', 'Reload HTML preview'),
               settings: t('toolbar.settings'),
               download: t('actions.download'),
               save: t('actions.save'),
@@ -286,24 +277,46 @@ export default function CodeEditor({
           )}
 
           <div className="flex-1 overflow-hidden">
-            <CodeEditorSurface
-              content={content}
-              onChange={setContent}
-              markdownPreview={markdownPreview}
-              isMarkdownFile={isMarkdownFile}
-              isDarkMode={isDarkMode}
-              fontSize={fontSize}
-              showLineNumbers={showLineNumbers}
-              extensions={extensions}
-            />
+            {isHtmlPreviewFile && htmlPreview ? (
+              <CodeEditorHtmlPreview
+                content={content}
+                file={file}
+                projectId={fileProjectId}
+                projectPath={projectPath}
+                reloadKey={htmlPreviewReloadKey}
+                onFileOpen={onFileOpen}
+                labels={{
+                  loading: t('htmlPreview.loading', 'Preparing HTML preview...'),
+                  error: t('htmlPreview.error', 'Unable to render HTML preview.'),
+                  assetWarning: (count) => t(
+                    'htmlPreview.assetWarning',
+                    'Preview could not load {{count}} project asset.',
+                    { count },
+                  ),
+                }}
+              />
+            ) : (
+              <CodeEditorSurface
+                content={content}
+                onChange={setContent}
+                markdownPreview={markdownPreview}
+                isMarkdownFile={isMarkdownFile}
+                isDarkMode={isDarkMode}
+                fontSize={fontSize}
+                showLineNumbers={showLineNumbers}
+                extensions={extensions}
+              />
+            )}
           </div>
 
-          <CodeEditorFooter
-            content={content}
-            linesLabel={t('footer.lines')}
-            charactersLabel={t('footer.characters')}
-            shortcutsLabel={t('footer.shortcuts')}
-          />
+          {!(isHtmlPreviewFile && htmlPreview) && (
+            <CodeEditorFooter
+              content={content}
+              linesLabel={t('footer.lines')}
+              charactersLabel={t('footer.characters')}
+              shortcutsLabel={t('footer.shortcuts')}
+            />
+          )}
         </div>
       </div>
     </>
