@@ -9,7 +9,7 @@ import type {
   SetStateAction,
   TouchEvent,
 } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, type FileRejection } from 'react-dropzone';
 
 import { authenticatedFetch } from '../../../utils/api';
 import { isTouchPrimaryDevice } from '../../../utils/pointer';
@@ -237,6 +237,44 @@ export type PendingRewind = {
 
 const REWIND_SNIPPET_LENGTH = 80;
 
+export type AttachmentRejection =
+  | { reason: 'too-large' | 'unreadable'; fileName: string; count?: never }
+  | { reason: 'too-many'; count: number; fileName?: never };
+
+/**
+ * Clipboard entries that should become attachments. `kind` is the filter, not
+ * the MIME type: string items carry the text being pasted and must stay text,
+ * while any file item is an attachment regardless of type. `files` is the
+ * fallback for platforms that populate it without `items`.
+ */
+export const selectPastedAttachments = (
+  items: readonly { kind: string; getAsFile(): File | null }[],
+  files: readonly File[],
+): File[] => {
+  const fromItems = items
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null);
+
+  if (fromItems.length > 0) {
+    return fromItems;
+  }
+  return items.length === 0 ? [...files] : [];
+};
+
+/** Maps react-dropzone's rejection codes onto the composer's own reasons. */
+export const describeDropRejections = (
+  rejected: readonly { file: { name: string }; errors: readonly { code: string }[] }[],
+): AttachmentRejection[] => {
+  if (rejected.some(({ errors }) => errors.some((error) => error.code === 'too-many-files'))) {
+    return [{ reason: 'too-many', count: rejected.length }];
+  }
+  return rejected.map(({ file, errors }) => ({
+    fileName: file.name || 'Unknown file',
+    reason: errors.some((error) => error.code === 'file-too-large') ? 'too-large' : 'unreadable',
+  }));
+};
+
 const MAX_ATTACHMENT_COUNT = 10;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
@@ -361,6 +399,7 @@ export function useChatComposerState({
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<Map<string, number>>(new Map());
   const [fileErrors, setFileErrors] = useState<Map<string, string>>(new Map());
+  const [attachmentRejections, setAttachmentRejections] = useState<AttachmentRejection[]>([]);
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
   // `/models` opens the composer's unified model/effort menu instead of a
@@ -802,6 +841,7 @@ export function useChatComposerState({
   }, []);
 
   const handleAttachmentFiles = useCallback((files: File[]) => {
+    const rejections: AttachmentRejection[] = [];
     const validFiles = files.filter((file) => {
       try {
         if (!file || typeof file !== 'object') {
@@ -816,41 +856,50 @@ export function useChatComposerState({
             next.set(fileName, 'File too large (max 10MB)');
             return next;
           });
+          rejections.push({ fileName, reason: 'too-large' });
           return false;
         }
 
         return true;
       } catch (error) {
         console.error('Error validating file:', error, file);
+        rejections.push({ fileName: file?.name || 'Unknown file', reason: 'unreadable' });
         return false;
       }
     });
 
     if (validFiles.length > 0) {
-      setAttachedFiles((previous) => [...previous, ...validFiles].slice(0, MAX_ATTACHMENT_COUNT));
+      setAttachedFiles((previous) => {
+        const merged = [...previous, ...validFiles];
+        // The cap is silent truncation, so the dropped tail has to be reported here:
+        // it never reaches a card, and a card is the only place fileErrors renders.
+        const dropped = merged.length - MAX_ATTACHMENT_COUNT;
+        if (dropped > 0) {
+          rejections.push({ reason: 'too-many', count: dropped });
+        }
+        return merged.slice(0, MAX_ATTACHMENT_COUNT);
+      });
     }
+
+    setAttachmentRejections(rejections);
   }, []);
+
+  // react-dropzone enforces maxSize/maxFiles before onDrop, so drag-and-drop
+  // rejections never reach handleAttachmentFiles and need their own path.
+  const handleAttachmentDropRejected = useCallback((rejected: FileRejection[]) => {
+    setAttachmentRejections(describeDropRejections(rejected));
+  }, []);
+
+  const dismissAttachmentRejections = useCallback(() => setAttachmentRejections([]), []);
 
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>) => {
-      const items = Array.from(event.clipboardData.items);
-
-      items.forEach((item) => {
-        if (!item.type.startsWith('image/')) {
-          return;
-        }
-        const file = item.getAsFile();
-        if (file) {
-          handleAttachmentFiles([file]);
-        }
-      });
-
-      if (items.length === 0 && event.clipboardData.files.length > 0) {
-        const files = Array.from(event.clipboardData.files);
-        const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-        if (imageFiles.length > 0) {
-          handleAttachmentFiles(imageFiles);
-        }
+      const pastedFiles = selectPastedAttachments(
+        Array.from(event.clipboardData.items),
+        Array.from(event.clipboardData.files),
+      );
+      if (pastedFiles.length > 0) {
+        handleAttachmentFiles(pastedFiles);
       }
     },
     [handleAttachmentFiles],
@@ -863,6 +912,7 @@ export function useChatComposerState({
     maxSize: MAX_ATTACHMENT_SIZE,
     maxFiles: MAX_ATTACHMENT_COUNT,
     onDrop: handleAttachmentFiles,
+    onDropRejected: handleAttachmentDropRejected,
     noClick: true,
     noKeyboard: true,
   });
@@ -1696,6 +1746,8 @@ export function useChatComposerState({
     setAttachedFiles,
     uploadingFiles,
     fileErrors,
+    attachmentRejections,
+    dismissAttachmentRejections,
     getRootProps,
     getInputProps,
     isDragActive,

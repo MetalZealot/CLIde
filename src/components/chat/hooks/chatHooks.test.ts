@@ -6,7 +6,12 @@ import test from 'node:test';
 
 import type { PendingPermissionRequest } from '../types/types';
 
-import { resolveSessionSendSetting, resolveUsagePopoverView } from './useChatComposerState';
+import {
+  describeDropRejections,
+  resolveSessionSendSetting,
+  resolveUsagePopoverView,
+  selectPastedAttachments,
+} from './useChatComposerState';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
 import { dedupePermissionRequestsById } from './useChatRealtimeHandlers';
 
@@ -39,6 +44,51 @@ test('an established session with no tracked value sends none, so the server res
 test('only a chat with no id yet inherits the provider seed', () => {
   assert.equal(resolveSessionSendSetting(null, 'high', false), 'high');
   assert.equal(resolveSessionSendSetting(null, undefined, false), undefined);
+});
+
+const fileItem = (name: string) => ({ kind: 'file', getAsFile: () => ({ name } as File) });
+const textItem = () => ({ kind: 'string', getAsFile: () => null });
+
+test('a pasted PDF attaches, the same as dropping one', () => {
+  const selected = selectPastedAttachments([fileItem('spec.pdf')], []);
+  assert.deepEqual(selected.map((file) => file.name), ['spec.pdf']);
+});
+
+test('pasted text stays text and attaches nothing', () => {
+  assert.deepEqual(selectPastedAttachments([textItem(), textItem()], []), []);
+});
+
+test('a file pasted alongside its text form still attaches', () => {
+  const selected = selectPastedAttachments([textItem(), fileItem('notes.md')], []);
+  assert.deepEqual(selected.map((file) => file.name), ['notes.md']);
+});
+
+test('the files fallback applies only when the platform reports no items', () => {
+  const dropped = { name: 'photo.png' } as File;
+  assert.deepEqual(selectPastedAttachments([], [dropped]), [dropped]);
+  assert.deepEqual(selectPastedAttachments([textItem()], [dropped]), []);
+});
+
+test('an oversized drop is reported against the file that caused it', () => {
+  assert.deepEqual(
+    describeDropRejections([{ file: { name: 'huge.zip' }, errors: [{ code: 'file-too-large' }] }]),
+    [{ fileName: 'huge.zip', reason: 'too-large' }],
+  );
+});
+
+test('exceeding the count collapses to one message, not one per file', () => {
+  const rejected = ['a.png', 'b.png', 'c.png'].map((name) => ({
+    file: { name },
+    errors: [{ code: 'too-many-files' }],
+  }));
+  assert.deepEqual(describeDropRejections(rejected), [{ reason: 'too-many', count: 3 }]);
+});
+
+test('an unnamed rejected file still produces a message', () => {
+  assert.deepEqual(
+    describeDropRejections([{ file: { name: '' }, errors: [{ code: 'file-invalid-type' }] }]),
+    [{ fileName: 'Unknown file', reason: 'unreadable' }],
+  );
 });
 
 // --- useChatProviderState ---------------------------------------------------

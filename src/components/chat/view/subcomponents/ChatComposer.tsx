@@ -40,6 +40,7 @@ import { splitLeadingCommand } from '../../utils/chatFormatting';
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
 import { ComposerAttachmentGallery } from './ComposerAttachment';
+import type { AttachmentRejection } from '../../hooks/useChatComposerState';
 import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
@@ -123,6 +124,8 @@ interface ChatComposerProps {
   onRemoveAttachment: (index: number) => void;
   uploadingFiles: Map<string, number>;
   fileErrors: Map<string, string>;
+  attachmentRejections: AttachmentRejection[];
+  onDismissAttachmentRejections: () => void;
   showFileDropdown: boolean;
   filteredFiles: MentionableFile[];
   selectedFileIndex: number;
@@ -201,6 +204,8 @@ export default function ChatComposer({
   onRemoveAttachment,
   uploadingFiles,
   fileErrors,
+  attachmentRejections,
+  onDismissAttachmentRejections,
   showFileDropdown,
   filteredFiles,
   selectedFileIndex,
@@ -258,12 +263,23 @@ export default function ChatComposer({
   // recording and send the transcript in one tap, the way the mic button drops it in the box.
   const voiceAvailable = useVoiceAvailable();
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const rejectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleVoiceError = useCallback((msg: string) => {
     setVoiceError(msg);
     if (voiceErrorTimer.current) clearTimeout(voiceErrorTimer.current);
     voiceErrorTimer.current = setTimeout(() => setVoiceError(null), 4000);
   }, []);
+  useEffect(() => {
+    if (attachmentRejections.length === 0) {
+      return;
+    }
+    rejectionTimer.current = setTimeout(onDismissAttachmentRejections, 6000);
+    return () => {
+      if (rejectionTimer.current) clearTimeout(rejectionTimer.current);
+    };
+  }, [attachmentRejections, onDismissAttachmentRejections]);
+
   useEffect(() => () => {
     if (voiceErrorTimer.current) clearTimeout(voiceErrorTimer.current);
   }, []);
@@ -405,6 +421,33 @@ export default function ChatComposer({
                 <p className="text-sm font-medium">Drop images here</p>
               </div>
             </div>
+          )}
+
+          {attachmentRejections.length > 0 && (
+            <PromptInputHeader>
+              <div
+                role="status"
+                className="flex items-start justify-between gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
+                <ul className="min-w-0 space-y-0.5">
+                  {attachmentRejections.map((rejection, index) => (
+                    <li key={`${rejection.reason}:${rejection.fileName ?? index}`} className="truncate">
+                      {rejection.reason === 'too-many'
+                        ? t('input.attachmentRejected.tooMany', { count: rejection.count })
+                        : t(`input.attachmentRejected.${rejection.reason === 'too-large' ? 'tooLarge' : 'unreadable'}`, { fileName: rejection.fileName })}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={onDismissAttachmentRejections}
+                  aria-label={t('input.attachmentRejected.dismiss')}
+                  className="shrink-0 rounded p-0.5 hover:bg-destructive/20"
+                >
+                  <XIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </PromptInputHeader>
           )}
 
           {attachedFiles.length > 0 && (

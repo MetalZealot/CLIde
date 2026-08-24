@@ -145,6 +145,13 @@
     "disabled": "Input disabled",
     "attachFiles": "Attach files",
     "attachImages": "Attach images",
+    "attachmentRejected": {
+      "tooLarge": "{{fileName}} — too large (max 10MB)",
+      "tooMany": "{{count}} file skipped — 10 attachments maximum",
+      "tooMany_other": "{{count}} files skipped — 10 attachments maximum",
+      "unreadable": "{{fileName}} — couldn't be attached",
+      "dismiss": "Dismiss"
+    },
     "send": "Send",
     "selectProjectToSend": "Select a project to send",
     "stop": "Stop",
