@@ -83,3 +83,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0043 — Reading size is content-scoped and device-local](0043-reading-size-is-content-scoped-and-device-local.md)
 - [0044 — Input capability sets targets; row shortcuts stay bounded](0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md)
 - [0045 — HTML file preview is static and isolated](0045-html-file-preview-is-static-and-isolated.md)
+- [0046 — Tool detail leaves the chat column instead of nesting inside it](0046-tool-detail-leaves-the-chat-column.md)

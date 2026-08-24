@@ -34,11 +34,16 @@ things on the two providers and Codex's reasoning summaries are empty.
   (`6 files · 3 commands · 2 edits`), duration, and an error or denial
   indicator that survives collapse; the current operation while running, using
   Claude's per-command description where it exists and the command itself where
-  it does not. Same information on mobile and desktop, denser on mobile.
-- [ ] 4. **Expanding gives compact operation rows, not nested cards.** One line
-  per operation — verb, target, status — each opening the existing
-  `ToolRenderer` for raw parameters, output, and diffs.
-- [ ] 5. **Pagination counts activities.** `visibleMessages` slices 20 raw
+  it does not. Same row on mobile and desktop, denser on mobile.
+- [ ] 4. **Expanding gives compact operation rows, not nested cards.** One
+  line per operation — verb, target, status. Inline on desktop, a bottom sheet
+  on mobile; raw output opens the level below rather than rendering in place
+  ([ADR 0046](../decisions/0046-tool-detail-leaves-the-chat-column.md)).
+- [ ] 5. **Raw detail owns the viewport on mobile.** An operation row opens the
+  existing `ToolRenderer` inline on desktop, and the full-screen code-editor
+  overlay on mobile, which already handles safe areas and highlighting. Back
+  from it returns to the operation list, not to the chat.
+- [ ] 6. **Pagination counts activities.** `visibleMessages` slices 20 raw
   messages, which is three or four activities; the page becomes a count of
   rendered rows so "load more" advances a visible amount.
 
@@ -46,6 +51,8 @@ things on the two providers and Codex's reasoning summaries are empty.
 
 - A session with a 14-call burst renders one row, and expanding it twice
   reaches the same raw output visible today.
+- On a phone, a file read opened from an activity fills the screen and scrolls
+  sideways without wrapping; closing it lands back on the operation list.
 - A failed or denied command inside an otherwise successful burst is visible
   without expanding anything.
 - The same burst on Claude and on Codex renders the same row shape, differing
@@ -63,6 +70,8 @@ things on the two providers and Codex's reasoning summaries are empty.
   Claude's vocabulary and needs only the category map; OpenCode passes raw
   lowercase names that fall through to the `Default` config today, so it needs
   a case-insensitive lookup first. Both are additive once Phases 2–4 exist.
+- **A sheet on desktop.** The chat pane is the wide surface there, so
+  operation rows expand in place; only mobile needs the sheet.
 - **A conversation-density setting.** Ship one representation, then judge
   whether a second is wanted.
 - **Titling activities from prose or reasoning.** The map records why: opposite
