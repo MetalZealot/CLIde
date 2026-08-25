@@ -1,8 +1,8 @@
 # Self-hosted dictation and read-aloud
 
-- Status: 3/6
-- Next: Phase 4's remaining background-playback and hardware-control checks.
-  The [TTS speech front end](tts-speech-front-end.md) is accepted.
+- Status: 4/6
+- Next: Phase 5 — verify each model's licence, agree the user-facing names and
+  initial selection, then replace free-text voice entry with the allowlist.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts), and the host-local voice README,
@@ -23,7 +23,7 @@
 - [x] **3. Durable loopback service.** Install and enable the host-local user
       service, keep it bound to loopback, prove it survives a clean restart, and
       repeat both direct endpoint checks. Do not alter nginx or firewall policy.
-- [~] **4. CLIde wiring and installed-PWA acceptance.** `libritts-r-204`
+- [x] **4. CLIde wiring and installed-PWA acceptance.** `libritts-r-204`
       (LibriTTS-R source 204, Piper speaker 546) is the default. The isolated
       server build and real proxied STT/TTS checks pass. Grayson's phone pass
       confirmed record → stop → editable unsent text, ordinary read-aloud,
@@ -37,8 +37,10 @@
       cross-session playback with no observed errors or inconsistent states.
       Final Markdown and technical-text behavior now depends on the auditable
       [TTS speech front end](tts-speech-front-end.md), which was accepted by
-      listening on 2026-08-24. Remaining: background playback and hardware
-      controls. Listening remains authoritative.
+      listening on 2026-08-24. Grayson's final pass confirmed the last two:
+      playback continues in the background, the earbud button pauses it, and
+      the session appears in the notification shade and on the lock screen.
+      Listening remains authoritative.
 - [ ] **5. Bounded catalog in Settings.** Verify each selected model's license,
       agree the user-facing names and initial selection, then replace free-text
       voice entry with the backend's allowlist. Add a relative speed control

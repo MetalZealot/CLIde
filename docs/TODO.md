@@ -82,7 +82,7 @@ started, sliced, or blocking anything — skip it unless you are deliberately pi
 new work.
 
 - [x] **Build an auditable TTS speech front end.** Markdown, normalization, lexicon, phoneme and voice-model boundaries are separated, measured and editable from Voice Studio. Accepted by listening 2026-08-24. [Plan](plans/tts-speech-front-end.md). **L**
-- [~] **Self-hosted dictation and read-aloud.** Proxy, dictation, playback, controls, timing, cancellation, and cross-session playback pass on phone. The speech front end is accepted; Phase 4 needs background playback and hardware controls, then Phase 5's Settings catalogue. Bluetooth mic diagnosis remains separate. [Plan](plans/self-hosted-voice.md). **L**
+- [~] **Self-hosted dictation and read-aloud.** Proxy, dictation, playback, controls, timing, cancellation, and cross-session playback pass on phone. The speech front end and the installed-PWA pass are accepted, background playback and hardware controls included; Phase 5 is the Settings catalogue. Bluetooth mic diagnosis remains separate. [Plan](plans/self-hosted-voice.md). **L**
 - [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, maps and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**
