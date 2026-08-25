@@ -3,6 +3,7 @@
 
 const clideEl = (id) => document.getElementById(id);
 let clideAudioUrl = null;
+let corpusCases = [];
 
 function clideStatus(message, kind = "") {
   const status = clideEl("clide-status");
@@ -107,6 +108,41 @@ async function runClideSpeech(speak) {
   }
 }
 
+// The listening pass: one reference case per class of failure the speech front
+// end fixes, loaded by name so a case can be replayed in seconds on a phone.
+async function loadCorpus() {
+  const select = clideEl("clide-corpus");
+  try {
+    const response = await fetch("/api/corpus");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not read the corpus");
+    corpusCases = data.cases;
+    for (const [index, testCase] of corpusCases.entries()) {
+      const option = document.createElement("option");
+      option.value = String(index);
+      option.textContent = testCase.name;
+      select.appendChild(option);
+    }
+  } catch (error) {
+    clideStatus(error.message, "error");
+  }
+}
+
+clideEl("clide-corpus").addEventListener("change", (event) => {
+  const listenFor = clideEl("clide-listen-for");
+  const testCase = corpusCases[Number(event.target.value)];
+  if (!testCase) {
+    listenFor.hidden = true;
+    return;
+  }
+  const script = clideEl("clide-script");
+  script.value = testCase.text;
+  script.dispatchEvent(new Event("input"));
+  listenFor.textContent = testCase.listen_for;
+  listenFor.hidden = false;
+  clideStatus(`Loaded "${testCase.name}". Press Speak it.`);
+});
+
 clideEl("clide-speak").addEventListener("click", () => runClideSpeech(true));
 clideEl("clide-prepare").addEventListener("click", () => runClideSpeech(false));
 clideEl("clide-script").addEventListener("input", (event) => {
@@ -114,3 +150,4 @@ clideEl("clide-script").addEventListener("input", (event) => {
     `${event.target.value.length.toLocaleString()} / 6,000`;
 });
 loadClideVoices();
+loadCorpus();

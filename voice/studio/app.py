@@ -43,6 +43,45 @@ def index() -> str:
     return render_template("index.html")
 
 
+CORPUS_PATH = Path(__file__).with_name("reference-corpus.md")
+
+
+CASE_PATTERN = re.compile(
+    r"^## (?P<name>.+?)\n+````\n(?P<text>.*?)\n````(?P<listen>.*?)(?=\n## |\Z)",
+    re.S | re.M,
+)
+
+
+def _reference_corpus() -> list[dict[str, str]]:
+    """The listening-pass cases, parsed out of the Markdown they are written in.
+
+    Each case's spoken text is fenced verbatim with four backticks, because the
+    cases contain Markdown of their own -- one is a heading followed by a list,
+    and splitting on "##" swallowed it. The `>` block after the fence is what
+    to listen for and is never spoken.
+    """
+    source = CORPUS_PATH.read_text(encoding="utf-8")
+    return [
+        {
+            "name": case["name"].strip(),
+            "text": case["text"].strip(),
+            "listen_for": " ".join(
+                line.lstrip("> ").rstrip()
+                for line in case["listen"].strip().splitlines()
+            ).strip(),
+        }
+        for case in CASE_PATTERN.finditer(source)
+    ]
+
+
+@app.get("/api/corpus")
+def corpus() -> Any:
+    try:
+        return jsonify({"cases": _reference_corpus()})
+    except OSError as error:
+        return jsonify({"error": f"Could not read the corpus: {error}"}), 500
+
+
 def _shim_request(path: str, payload: dict[str, Any]) -> tuple[int, bytes, str]:
     request_body = json.dumps(payload).encode()
     shim_request = urllib.request.Request(

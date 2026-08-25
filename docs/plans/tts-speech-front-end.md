@@ -1,8 +1,8 @@
 # Auditable text-to-speech preparation
 
 - Status: 2/3
-- Next: Phase 3 acceptance — listen to the reference corpus on the selected
-  voices; the tooling, tests, and diagnostics are in place
+- Next: Phase 3 acceptance — work through the eight cases in the Voice Studio
+  Speech tab's listening-pass picker (`voice/studio/reference-corpus.md`)
 - Context: [self-hosted voice plan](self-hosted-voice.md),
   [Piper CLI](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md),
   [eSpeak NG dictionaries](https://github.com/espeak-ng/espeak-ng/blob/master/docs/dictionary.md),
@@ -92,7 +92,12 @@ work down two wrong paths.
       depend on the separator word at all; `~` speaks as "home"; a colon only
       ends a sentence when a space follows it, so `build:client` and `16:9`
       survive intact; and clock times are spoken. 53 shim tests. The shim and
-      the studio are now tracked in this repository under `voice/`.
+      the studio are now tracked in this repository under `voice/`. The corpus
+      the acceptance refers to is written down at
+      `voice/studio/reference-corpus.md` — eight cases, one per class of
+      failure, each naming what to listen for — and loads by name from a
+      picker in the Speech tab, so a case can be replayed in seconds on a
+      phone.
 
 ## Done when
 

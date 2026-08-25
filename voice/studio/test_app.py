@@ -10,6 +10,30 @@ from unittest.mock import patch
 from app import _pause_map, app
 
 
+class ReferenceCorpusTests(unittest.TestCase):
+    """The listening pass is only usable if every case survives the parser."""
+
+    def setUp(self) -> None:
+        self.client = app.test_client()
+
+    def test_every_case_has_text_and_something_to_listen_for(self) -> None:
+        cases = self.client.get("/api/corpus").get_json()["cases"]
+        self.assertGreaterEqual(len(cases), 5)
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                self.assertTrue(case["name"])
+                self.assertTrue(case["text"].strip())
+                self.assertIn("Listen for", case["listen_for"])
+
+    def test_a_case_may_contain_markdown_of_its_own(self) -> None:
+        # The pacing case is a heading followed by a list. Splitting the corpus
+        # on "##" swallowed it, which is why the bodies are fenced.
+        cases = {case["name"]: case for case in self.client.get("/api/corpus").get_json()["cases"]}
+        pacing = cases["Markdown structure and pacing"]
+        self.assertTrue(pacing["text"].startswith("## Results"))
+        self.assertIn("- First point here", pacing["text"])
+
+
 class ClideSpeechTabTests(unittest.TestCase):
     """The CLIde tab must ask the real service, never a local copy of the rules."""
 

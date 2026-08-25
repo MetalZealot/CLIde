@@ -36,9 +36,14 @@
             </div>
             <p class="muted">
               This asks the running CLIde voice service, so what you hear here is exactly
-              what the app says. Editing the rules means editing
-              <code>~/voice/shim/normalizer.py</code>.
+              what the app says. Pronunciation and pacing are editable in the
+              <strong>Rules</strong> tab.
             </p>
+            <label class="field field-wide">
+              <span>Listening pass</span>
+              <select id="clide-corpus"><option value="">Pick a reference case…</option></select>
+            </label>
+            <p id="clide-listen-for" class="muted listen-for" hidden></p>
             <textarea id="clide-script" maxlength="6000" spellcheck="true">## Results
 
 - First point here
