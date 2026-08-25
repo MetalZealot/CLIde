@@ -23,6 +23,51 @@ const keyFor = (model, speakerId) =>
 Voices.keyFor = keyFor;
 
 const modelById = (id) => Voices.models.find((model) => model.id === id);
+
+// Piper's own metadata, tidied only where two spellings mean one thing:
+// "en-us" and "en_US" are the same voice pool, and the jane-eyre model spells
+// British English out in full. Anything else is reported as the model declares
+// it rather than guessed at.
+const LANGUAGE_ALIASES = { englishbritish: "en-gb" };
+const REAL_QUALITIES = ["x_low", "low", "medium", "high"];
+
+function languageOf(model) {
+  const raw = String(model.language || "").toLowerCase().replace(/_/g, "-");
+  return LANGUAGE_ALIASES[raw] || raw || "unknown";
+}
+
+function languageLabel(code) {
+  const [language, region] = code.split("-");
+  return region ? `${language}-${region.toUpperCase()}` : language;
+}
+
+const qualityOf = (model) =>
+  REAL_QUALITIES.includes(model.quality) ? model.quality : "other";
+
+// Only facets that some installed model actually has, so adding a model adds
+// its chip and nothing offers an empty result.
+function facetCounts(pick) {
+  const counts = new Map();
+  for (const model of Voices.models) {
+    const value = pick(model);
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return counts;
+}
+
+function qualityChips() {
+  const counts = facetCounts(qualityOf);
+  return [...REAL_QUALITIES, "other"]
+    .filter((quality) => counts.has(quality))
+    .map((quality) => [quality, quality, counts.get(quality)]);
+}
+
+function languageChips() {
+  const counts = facetCounts(languageOf);
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([code, count]) => [code, languageLabel(code), count]);
+}
 const labelFor = (key) => Voices.labels[key] || {};
 Voices.label = labelFor;
 
@@ -167,7 +212,12 @@ function updateTopbar() {
 
 /* The picker sheet --------------------------------------------------- */
 
-const picker = { level: "models", model: null, filter: "all", query: "", shown: PAGE_SIZE };
+// quality and language persist across openings: a sweep is done one
+// criterion at a time, and re-picking it every time is the tax.
+const picker = {
+  level: "models", model: null, filter: "all",
+  quality: "", language: "", query: "", shown: PAGE_SIZE,
+};
 
 const MODEL_CHIPS = [
   ["all", "All"], ["favorite", "★ Kept"], ["male", "Male"],
@@ -178,24 +228,63 @@ const SPEAKER_CHIPS = [
   ["female", "Female"], ["unheard", "Unheard"], ["heard", "Heard"],
 ];
 
+function chipButton(label, count, pressed, onClick) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = `chip${pressed ? " active" : ""}`;
+  chip.setAttribute("aria-pressed", String(pressed));
+  chip.textContent = label;
+  if (count !== undefined) {
+    const tally = document.createElement("small");
+    tally.textContent = String(count);
+    chip.appendChild(tally);
+  }
+  chip.addEventListener("click", () => {
+    onClick();
+    picker.shown = PAGE_SIZE;
+    paintChips();
+    renderPicker();
+  });
+  return chip;
+}
+
 function paintChips() {
   const host = el("voice-chips");
   host.replaceChildren();
   for (const [value, label] of picker.level === "models" ? MODEL_CHIPS : SPEAKER_CHIPS) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = `chip${picker.filter === value ? " active" : ""}`;
-    chip.setAttribute("aria-pressed", String(picker.filter === value));
-    chip.textContent = label;
-    chip.addEventListener("click", () => {
+    host.appendChild(chipButton(label, undefined, picker.filter === value, () => {
       picker.filter = value;
-      picker.shown = PAGE_SIZE;
-      paintChips();
-      renderPicker();
-    });
-    host.appendChild(chip);
+    }));
+  }
+
+  // Quality and language describe a model, so they mean nothing once you are
+  // inside one looking at its speakers.
+  const facets = el("voice-facets");
+  facets.hidden = picker.level !== "models";
+  facets.replaceChildren();
+  if (facets.hidden) return;
+  for (const [value, label, count] of qualityChips()) {
+    facets.appendChild(chipButton(label, count, picker.quality === value, () => {
+      picker.quality = picker.quality === value ? "" : value;
+    }));
+  }
+  const divider = document.createElement("span");
+  divider.className = "chip-divider";
+  facets.appendChild(divider);
+  for (const [value, label, count] of languageChips()) {
+    facets.appendChild(chipButton(label, count, picker.language === value, () => {
+      picker.language = picker.language === value ? "" : value;
+    }));
   }
 }
+
+function matchesFacets(model) {
+  if (!model) return false;
+  if (picker.quality && qualityOf(model) !== picker.quality) return false;
+  return !picker.language || languageOf(model) === picker.language;
+}
+
+const facetsActive = () => Boolean(picker.quality || picker.language);
 
 function matchesLabel(entry, filter) {
   if (filter === "all") return true;
@@ -296,7 +385,7 @@ function pickerRows() {
       if (!matchesLabel(entry, picker.filter)) continue;
       const [modelId, speaker] = key.split("#");
       const model = modelById(modelId);
-      if (!model) continue;
+      if (!model || !matchesFacets(model)) continue;
       const speakerId = speaker === undefined ? null : Number(speaker);
       const named = speakerName(model, speakerId ?? 0);
       const title = speakerId === null
@@ -316,7 +405,9 @@ function pickerRows() {
     return rows;
   }
 
-  for (const preset of Voices.presets) {
+  // A preset is a curated choice, not a catalogue entry, and the studio does
+  // not hold the model behind it -- so a catalogue facet hides the group.
+  for (const preset of facetsActive() ? [] : Voices.presets) {
     if (query && !preset.toLowerCase().includes(query)) continue;
     rows.push({
       group: "CLIde presets",
@@ -330,12 +421,14 @@ function pickerRows() {
   }
 
   for (const model of Voices.models) {
-    const haystack = `${model.id} ${model.dataset} ${model.region} ${model.quality}`.toLowerCase();
+    if (!matchesFacets(model)) continue;
+    const haystack =
+      `${model.id} ${model.dataset} ${model.region} ${model.quality} ${languageOf(model)}`.toLowerCase();
     if (query && !haystack.includes(query)) continue;
     const multi = model.num_speakers > 1;
     const meta = [
-      model.region || "—",
-      model.quality || "",
+      languageLabel(languageOf(model)),
+      qualityOf(model),
       multi ? `${model.num_speakers} speakers` : "single",
       model.verdict || "",
     ].filter(Boolean).join(" · ");
@@ -359,9 +452,28 @@ function renderPicker() {
   list.replaceChildren();
   // A fresh list starts at the top; only "show more" keeps the scroll position.
   if (picker.shown === PAGE_SIZE) list.closest(".sheet-body").scrollTop = 0;
-  el("voice-count").textContent = picker.level === "speakers"
+  // The chip strip scrolls, so an active facet can sit off-screen; this line
+  // never does, and is the only place both filters are visible at once.
+  const count = el("voice-count");
+  count.replaceChildren();
+  const active = [picker.quality, picker.language && languageLabel(picker.language)].filter(Boolean);
+  count.append(picker.level === "speakers"
     ? `${shortName(picker.model)} · ${rows.length} of ${modelById(picker.model).num_speakers} speakers`
-    : `${rows.length} voices`;
+    : [`${rows.length} voices`, ...active].join(" · "));
+  if (picker.level === "models" && active.length) {
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "ghost";
+    clear.textContent = "✕ clear";
+    clear.addEventListener("click", () => {
+      picker.quality = "";
+      picker.language = "";
+      picker.shown = PAGE_SIZE;
+      paintChips();
+      renderPicker();
+    });
+    count.appendChild(clear);
+  }
 
   if (!rows.length) {
     const empty = document.createElement("p");

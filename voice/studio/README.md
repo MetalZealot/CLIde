@@ -15,12 +15,25 @@ four bottom tabs, nothing native, and no menu that runs taller than a thumb.
 
 ## Picking a voice out of ~1,800
 
-39 models are installed and two of them carry 904 speakers each, so the picker
-is a full-screen sheet rather than a dropdown: search, filter chips, and a
-drill-down into a model's speakers. Named casts show their names; a corpus of
-reader ids is numbered instead. Inside a model, **Unheard** hides everything
-already auditioned and **Random unheard** jumps to one, which is the only way a
-900-speaker model gets swept.
+Dozens of models are installed and two of them carry 904 speakers each, so the
+picker is a full-screen sheet rather than a dropdown: search, two rows of filter
+chips, and a drill-down into a model's speakers. Named casts show their names; a
+corpus of reader ids is numbered instead. Inside a model, **Unheard** hides
+everything already auditioned and **Random unheard** jumps to one, which is the
+only way a 900-speaker model gets swept.
+
+The second chip row filters the catalogue itself, by quality (`low`, `medium`,
+`high`, and `other` for a model that names its own) and by language, each chip
+carrying how many models it holds. They combine, they survive closing the sheet,
+and the count line under them names whichever are active — the strip scrolls, so
+that line is the only place both are always visible. The presets group hides
+while a catalogue filter is on, because a preset is a curated choice rather than
+a catalogue entry.
+
+Both facets come from each model's own config. Two spellings are tidied because
+they mean one thing: `en-us` is merged into `en_US`, and the jane-eyre model's
+`EnglishBritish` into `en-GB`. Everything else is reported exactly as declared,
+including `unknown` for the two models that declare no language at all.
 
 ## Labels and favorites
 

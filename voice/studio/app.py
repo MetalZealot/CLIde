@@ -37,8 +37,10 @@ MIN_REPORTED_PAUSE_MS = 80
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
-# The front end is edited live; a stale cached bundle reads as a bug.
+# The front end is edited live; a stale cached bundle or template reads as
+# a bug, and Jinja caches for the life of the process unless told not to.
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 _LOGGER = logging.getLogger("voice-studio")
 inference_lock = threading.Lock()
 labels_lock = threading.Lock()

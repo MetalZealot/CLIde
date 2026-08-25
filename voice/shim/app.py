@@ -675,6 +675,7 @@ def _installed_models() -> list[dict[str, Any]]:
             "verdict": verdicts.get(model_path.stem, ""),
             "quality": (config.get("audio") or {}).get("quality", ""),
             "region": (config.get("language") or {}).get("region", ""),
+            "language": (config.get("language") or {}).get("code", ""),
             "dataset": config.get("dataset", ""),
             # A named cast is worth showing; a corpus of reader ids is not, so
             # large maps are left for the client to number.

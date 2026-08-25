@@ -214,9 +214,12 @@ audio { width: 100%; height: 40px; margin: 8px 0 4px; }
 }
 .sheet-head input[type="search"] { flex: 1; min-height: 44px; }
 .sheet-title { flex: 1; min-width: 0; font-size: 0.95rem; font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet-filters { border-bottom: 1px solid var(--line); padding: 9px 12px; }
+.sheet-filters { display: grid; gap: 7px; border-bottom: 1px solid var(--line); padding: 9px 12px; }
+.chip-divider { flex: 0 0 auto; width: 1px; margin: 6px 3px; background: var(--line); }
+.chip small { margin-left: 5px; opacity: 0.65; font-size: 0.7rem; font-weight: 600; }
 .sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 8px 12px calc(20px + env(safe-area-inset-bottom)); }
-.sheet-count { padding: 4px 2px 8px; font-size: 0.72rem; color: var(--muted); }
+.sheet-count { display: flex; align-items: center; gap: 8px; padding: 2px 2px 6px; font-size: 0.72rem; color: var(--muted); }
+.sheet-count .ghost { min-height: 28px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px; font-size: 0.7rem; }
 
 .row-list { display: grid; }
 .vrow {
