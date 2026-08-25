@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Whisper Test Studio</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Local experiment</p>
+        <h1>Whisper Test Studio</h1>
+        <p class="lede">Record real dictation against the same OpenAI-compatible STT endpoint CLIde will use.</p>
+      </div>
+      <span class="local-badge">tiny.en + base.en · local only</span>
+    </header>
+
+    <main>
+      <section class="panel recorder-panel" aria-labelledby="record-heading">
+        <div class="section-heading">
+          <div><p class="step">01</p><h2 id="record-heading">Record or upload</h2></div>
+          <span id="timer" class="timer">00:00</span>
+        </div>
+        <p class="muted">Your audio is converted and transcribed in a temporary directory, then discarded.</p>
+        <fieldset class="model-mode">
+          <legend>Run mode</legend>
+          <label><input type="radio" name="model-mode" value="tiny.en"> Fast · tiny.en</label>
+          <label><input type="radio" name="model-mode" value="base.en"> Accurate · base.en</label>
+          <label><input type="radio" name="model-mode" value="compare" checked> Compare both</label>
+          <small>Comparison runs one model at a time on the same recording.</small>
+        </fieldset>
+        <div class="recording-controls">
+          <button id="record" class="primary-button" type="button">Start recording</button>
+          <button id="stop" class="secondary-button" type="button" disabled>Stop</button>
+        </div>
+        <label class="upload-control">
+          <span>Or choose a recording</span>
+          <input id="upload" type="file" accept="audio/*,.webm,.opus">
+        </label>
+        <audio id="preview" controls hidden></audio>
+        <p id="status" class="status" role="status" aria-live="polite">Ready to record.</p>
+      </section>
+
+      <section class="panel notes-panel" aria-labelledby="notes-heading">
+        <div class="section-heading"><div><p class="step">02</p><h2 id="notes-heading">Make it a useful test</h2></div></div>
+        <ol>
+          <li>Try ordinary dictation, then names and technical terms.</li>
+          <li>Speak for at least 10 seconds so model-load overhead does not dominate.</li>
+          <li>Notice words that matter, not punctuation alone.</li>
+        </ol>
+        <p class="muted">The Studio exposes both models. The future CLIde default remains <code>tiny.en</code> unless we deliberately change it.</p>
+      </section>
+
+      <section class="panel results-panel" aria-labelledby="results-heading">
+        <div class="section-heading">
+          <div><p class="step">03</p><h2 id="results-heading">Compare takes</h2></div>
+          <button id="clear" class="text-button" type="button">Clear</button>
+        </div>
+        <div id="history" class="history">
+          <div class="empty-state"><span class="empty-icon">⌁</span><p>Transcripts and playable recordings will appear here.</p></div>
+        </div>
+      </section>
+    </main>
+
+    <template id="take-template">
+      <article class="take-card">
+        <div class="take-heading"><span class="take-number"></span><button class="remove" type="button" aria-label="Remove take">×</button></div>
+        <audio controls preload="metadata"></audio>
+        <p class="transcript"></p>
+        <p class="metrics"></p>
+      </article>
+    </template>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

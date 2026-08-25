@@ -156,3 +156,8 @@ tasks/
 cloudcli-sidebar-app-source.tar.gz
 cloudcli-sidebar.html
 electron/*.tar.gz
+
+# Python voice services (data and caches stay under ~/voice)
+voice/**/__pycache__/
+voice/**/*.pyc
+voice/**/speech_rules.json

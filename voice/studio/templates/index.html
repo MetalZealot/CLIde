@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Voice Studio</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Local experiment</p>
+        <h1>Voice Studio</h1>
+        <p class="lede">Audition Piper read-aloud voices and test Whisper dictation from one private local app.</p>
+      </div>
+      <span class="local-badge">Tailnet demo</span>
+    </header>
+
+    <nav class="studio-tabs" aria-label="Voice Studio tools">
+      <button class="studio-tab active" type="button" data-studio-tab="clide" aria-selected="true">Speech <span>What CLIde says</span></button>
+      <button class="studio-tab" type="button" data-studio-tab="rules" aria-selected="false">Rules <span>Edit pronunciation</span></button>
+      <button class="studio-tab" type="button" data-studio-tab="whisper" aria-selected="false">Dictation <span>Whisper</span></button>
+    </nav>
+
+    <main class="studio-main">
+      <section id="clide-studio" class="studio-pane active" aria-label="CLIde speech pipeline">
+        <div class="piper-layout">
+          <section class="panel script-panel" aria-labelledby="clide-script-heading">
+            <div class="section-heading">
+              <div>
+                <p class="step">01</p>
+                <h2 id="clide-script-heading">Paste a reply</h2>
+              </div>
+              <span id="clide-char-count" class="muted">0 / 6,000</span>
+            </div>
+            <p class="muted">
+              This asks the running CLIde voice service, so what you hear here is exactly
+              what the app says. Editing the rules means editing
+              <code>~/voice/shim/normalizer.py</code>.
+            </p>
+            <textarea id="clide-script" maxlength="6000" spellcheck="true">## Results
+
+- First point here
+- Second point here
+
+The runtime lives at `/home/gnuthall/voice`, and this URL is https://example.com/path.
+It took 8.67s. The fix is live.</textarea>
+            <label class="field field-wide">
+              <span>Voice</span>
+              <select id="clide-voice"><option>Loading…</option></select>
+            </label>
+            <div class="recording-controls">
+              <button id="clide-speak" class="primary-button" type="button">Speak it</button>
+              <button id="clide-prepare" class="secondary-button" type="button">Prepare only</button>
+            </div>
+            <p id="clide-status" class="status" role="status" aria-live="polite">Ready.</p>
+          </section>
+
+          <section class="panel output-panel" aria-labelledby="clide-output-heading">
+            <div class="section-heading">
+              <div>
+                <p class="step">02</p>
+                <h2 id="clide-output-heading">What Piper received</h2>
+              </div>
+            </div>
+            <audio id="clide-audio" controls preload="metadata" hidden></audio>
+
+            <details class="settings-block" open>
+              <summary><span><strong>Prepared text</strong><small>after the speech rules</small></span></summary>
+              <pre id="clide-prepared">Speak something to see it.</pre>
+            </details>
+
+            <details class="settings-block">
+              <summary><span><strong>Phonemes</strong><small>what eSpeak produced</small></span></summary>
+              <pre id="clide-phonemes">—</pre>
+            </details>
+
+            <details class="settings-block" open>
+              <summary><span><strong>Pauses</strong><small>measured from the audio</small></span></summary>
+              <div id="clide-pauses" class="history"><p class="muted">—</p></div>
+            </details>
+
+            <details class="settings-block">
+              <summary><span><strong>Which file owns what</strong><small>when something sounds wrong</small></span></summary>
+              <ol class="muted">
+                <li><strong>Prepared text wrong?</strong> The speech rules.
+                  Edit <code>~/voice/shim/normalizer.py</code>.</li>
+                <li><strong>Prepared text right, phonemes wrong?</strong> eSpeak.
+                  Fix by respelling the word in <code>normalizer.py</code>.</li>
+                <li><strong>Both right, still sounds wrong?</strong> The voice model.
+                  Try another voice; record it as a limitation.</li>
+                <li><strong>Pauses too short or long?</strong>
+                  <code>sentence_silence_seconds</code> and
+                  <code>structure_silence_seconds</code> per voice in
+                  <code>~/voice/shim/app.py</code>.</li>
+              </ol>
+              <p class="muted">After editing either file:
+                <code>systemctl --user restart voice-shim</code></p>
+            </details>
+          </section>
+        </div>
+      </section>
+
+      <section id="rules-studio" class="studio-pane" aria-label="Speech rule editor" hidden>
+        <div class="piper-layout">
+          <section class="panel script-panel" aria-labelledby="rules-heading">
+            <div class="section-heading">
+              <div>
+                <p class="step">01</p>
+                <h2 id="rules-heading">Pronunciation</h2>
+              </div>
+              <button id="rules-add" class="text-button" type="button">Add rule</button>
+            </div>
+            <p class="muted">
+              Respell a word the way it should sound. Saving takes effect on the next
+              Speak — no restart. These are applied after Markdown and number handling,
+              so <code>gnuthall</code> also catches the one inside a file path.
+            </p>
+            <div id="rules-list" class="history"><p class="muted">Loading…</p></div>
+          </section>
+
+          <section class="panel controls-panel" aria-labelledby="pacing-heading">
+            <div class="section-heading">
+              <div>
+                <p class="step">02</p>
+                <h2 id="pacing-heading">Voice pacing</h2>
+              </div>
+              <button id="rules-reset" class="text-button" type="button">Undo my changes</button>
+            </div>
+            <p class="muted">
+              Speed and the two pauses, per voice. <strong>Structure</strong> is the gap after a
+              heading, list item, table row, or paragraph; <strong>sentence</strong> is every
+              other full stop.
+            </p>
+            <div id="pacing-list"></div>
+            <div class="recording-controls">
+              <button id="rules-save" class="primary-button" type="button">Save rules</button>
+            </div>
+            <p id="rules-status" class="status" role="status" aria-live="polite">Loading…</p>
+            <p class="muted">
+              Saved to <code>~/voice/shim/speech_rules.json</code>. Delete that file to get
+              the built-in defaults back. A broken file is ignored rather than breaking
+              speech.
+            </p>
+          </section>
+        </div>
+      </section>
+
+      <section id="whisper-studio" class="studio-pane" aria-label="Whisper dictation test" hidden>
+        <div class="whisper-layout">
+          <section class="panel whisper-recorder-panel" aria-labelledby="whisper-record-heading">
+            <div class="section-heading">
+              <div><p class="step">01</p><h2 id="whisper-record-heading">Record or upload</h2></div>
+              <span id="whisper-timer" class="whisper-timer">00:00</span>
+            </div>
+            <p class="muted">Audio is converted and transcribed in a temporary directory, then discarded.</p>
+            <fieldset class="whisper-model-mode">
+              <legend>Run mode</legend>
+              <label><input type="radio" name="whisper-model-mode" value="tiny.en"> Fast · tiny.en</label>
+              <label><input type="radio" name="whisper-model-mode" value="base.en"> Accurate · base.en</label>
+              <label><input type="radio" name="whisper-model-mode" value="compare" checked> Compare both</label>
+              <small>Comparison runs one model at a time on the same recording.</small>
+            </fieldset>
+            <details class="settings-disclosure whisper-settings">
+              <summary><span><strong>Advanced dictation settings</strong><small>Standard decoding and 4 CPU threads</small></span></summary>
+              <div class="settings-content">
+                <label class="field field-wide">
+                  <span>Initial prompt</span>
+                  <input id="whisper-initial-prompt" maxlength="400" placeholder="CLIde, Codex, whisper.cpp, project names…">
+                  <small>A short vocabulary hint for names and technical terms. It does not alter the recording.</small>
+                </label>
+                <div class="whisper-setting-grid">
+                  <label class="field">
+                    <span>Decoder preset</span>
+                    <select id="whisper-decoder-preset">
+                      <option value="standard">Standard — Whisper defaults</option>
+                      <option value="careful">Careful — larger search, slower</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>CPU threads</span>
+                    <select id="whisper-threads">
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4" selected>4 — Pi default</option>
+                    </select>
+                    <small>Benchmark setting; keep it fixed while comparing models.</small>
+                  </label>
+                </div>
+                <fieldset class="whisper-capture-settings">
+                  <legend>Browser microphone processing</legend>
+                  <label><input id="whisper-echo-cancellation" type="checkbox" checked> Echo cancellation</label>
+                  <label><input id="whisper-noise-suppression" type="checkbox" checked> Noise suppression</label>
+                  <label><input id="whisper-auto-gain" type="checkbox"> Automatic gain</label>
+                  <small>Applies only to a new browser recording. Uploaded audio is unchanged.</small>
+                </fieldset>
+              </div>
+            </details>
+            <div class="whisper-recording-controls">
+              <button id="whisper-record" class="primary-button" type="button">Start recording</button>
+              <button id="whisper-stop" class="secondary-button" type="button" disabled>Stop</button>
+            </div>
+            <label class="whisper-upload-control">
+              <span>Or choose a recording</span>
+              <input id="whisper-upload" type="file" accept="audio/*,.webm,.opus">
+            </label>
+            <audio id="whisper-preview" controls hidden></audio>
+            <p id="whisper-status" class="status" role="status" aria-live="polite">Ready to record.</p>
+          </section>
+
+          <section class="panel whisper-notes-panel" aria-labelledby="whisper-notes-heading">
+            <div class="section-heading"><div><p class="step">02</p><h2 id="whisper-notes-heading">Compare usefully</h2></div></div>
+            <ol>
+              <li>Try ordinary dictation, then names and technical terms.</li>
+              <li>Speak for at least 10 seconds so model-load overhead does not dominate.</li>
+              <li>Notice words that matter, not punctuation alone.</li>
+            </ol>
+            <p class="muted">The future CLIde default remains <code>tiny.en</code>. Studio comparisons do not change it.</p>
+          </section>
+
+          <section class="panel whisper-results-panel" aria-labelledby="whisper-results-heading">
+            <div class="section-heading">
+              <div><p class="step">03</p><h2 id="whisper-results-heading">Compare takes</h2></div>
+              <button id="whisper-clear" class="text-button" type="button">Clear</button>
+            </div>
+            <div id="whisper-history" class="whisper-history">
+              <div class="empty-state"><span class="empty-icon">⌁</span><p>Transcripts and playable recordings will appear here.</p></div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <template id="take-template">
+      <article class="take-card">
+        <div class="take-heading">
+          <div><span class="take-number"></span><h3 class="take-model"></h3></div>
+          <button class="remove-take" type="button" aria-label="Remove take">×</button>
+        </div>
+        <audio controls preload="metadata"></audio>
+        <div class="take-curation" aria-label="Classify and favorite this voice">
+          <span>Keep this voice?</span>
+          <div class="take-curation-actions">
+            <div class="take-gender" role="group" aria-label="Voice gender">
+              <button type="button" data-gender="male" aria-pressed="false">Male</button>
+              <button type="button" data-gender="female" aria-pressed="false">Female</button>
+            </div>
+            <button class="take-favorite" type="button" aria-pressed="false">☆ Favorite</button>
+          </div>
+        </div>
+        <p class="take-settings"></p>
+        <div class="take-footer"><span class="take-metrics"></span><a class="download-take" download>Download WAV</a></div>
+      </article>
+    </template>
+
+    <template id="whisper-take-template">
+      <article class="whisper-take-card">
+        <div class="take-heading"><span class="whisper-take-number"></span><button class="whisper-remove-take" type="button" aria-label="Remove take">×</button></div>
+        <audio controls preload="metadata"></audio>
+        <p class="whisper-transcript"></p>
+        <p class="whisper-metrics"></p>
+      </article>
+    </template>
+
+    <script src="/static/whisper.js" defer></script>
+    <script src="/static/clide.js" defer></script>
+    <script src="/static/rules.js" defer></script>
+  </body>
+</html>

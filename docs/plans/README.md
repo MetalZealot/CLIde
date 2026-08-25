@@ -5,10 +5,13 @@ It is the only document here that is meant to change constantly.
 
 ## The board
 
-Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
+Current active work comes first, followed by the queue Grayson ordered on
+2026-08-03 and the unqueued work below the rule.
 
 | Plan | Status | Next |
 |---|---|---|
+| [Auditable TTS speech preparation](tts-speech-front-end.md) | 2/3 | Phase 3: listen to the reference corpus; tooling and tests are in place |
+| [Self-hosted dictation and read-aloud](self-hosted-voice.md) | 3/6 | Complete the TTS speech-front-end prerequisite, then resume Phase 4 |
 | [Source Control truthfulness](source-control-truthfulness.md) | 1/4 | Phase 0: make server-side Git failures visible in the UI |
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |

@@ -1,0 +1,108 @@
+# Auditable text-to-speech preparation
+
+- Status: 2/3
+- Next: Phase 3 acceptance — listen to the reference corpus on the selected
+  voices; the tooling, tests, and diagnostics are in place
+- Context: [self-hosted voice plan](self-hosted-voice.md),
+  [Piper CLI](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md),
+  [eSpeak NG dictionaries](https://github.com/espeak-ng/espeak-ng/blob/master/docs/dictionary.md),
+  and the host-local voice README, which owns runtime and deployment facts
+
+The speech front end is the speech-only transformation between a stored
+assistant reply and Piper. Whisper, and the visible/copied/exported reply,
+are outside it.
+
+## The measurement that ends the guessing
+
+Synthesize a sentence with and without one word and compare audio duration.
+A word the model renders adds 0.28–0.60 s; a word it drops adds under 0.15 s.
+This is objective, needs three seconds per case, and needs no listening.
+
+A Whisper round trip is **not** valid evidence here: it inserted `slash` into
+the transcript of audio that did not contain it, which is what sent the earlier
+work down two wrong paths.
+
+## Phases
+
+- [x] **1. Locate each failure in the pipeline.** Measured on
+      `en_US-libritts_r-medium`, speaker 546, length 1.35, three runs per case:
+      - **`slash` is dropped by the voice model, and only that word.** eSpeak
+        emits the correct `slˈæʃ` and Piper passes all 83 phoneme ids to the
+        model; the model then allocates it +0.00 s. `lash`, `flash`, `crash`,
+        `splash`, `slap`, `sleep`, `slice`, `sling`, `slow`, `backslash`,
+        `dash` and `stroke` all render normally, so it is not the `sl` cluster
+        and not a phoneme-map gap. It reproduces on speakers 0/100/204/300/
+        546/700/900 and survives `noise_w` 0.333–1.0, so it is neither
+        speaker-specific nor duration-predictor noise. `hfc_male` and
+        `rocket-raccoon` render it at +0.30–0.44 s from the identical ids.
+      - **`URL` is not dropped** (+0.36 s). eSpeak fuses it to
+        `jˌuːˌɑːɹɹˈɛl` — the "oourl" that was heard. Spacing it as `U R L`
+        yields clean letter phonemes (+0.55 s).
+      - **`is live` was never broken.** eSpeak already gives `lˈaɪv` in
+        "the fix is live" and `lˈɪv` in "I live here".
+      - **`lives` as a verb is a real eSpeak error**: "the runtime lives here"
+        gets `lˈaɪvz`, the plural of *life*.
+      - **`200 ms` is fused by eSpeak** into `tˈuːhˈʌndɹɪd ˌɛmˈɛs` with no word
+        boundary, which is the drawn-out "two…… hundred" that was heard.
+      Piper 1.4.2 phonemizes every case correctly, so the runtime version is
+      not implicated in any of them.
+- [x] **2. Cut the rules back to what the evidence supports.** `is live` →
+      `is active` and `URL` → `web address` are gone; both fixed failures that
+      did not exist. `URL` is now spaced to `U R L`, which corrects the actual
+      eSpeak fusion. `diagonal stroke` is gone and a web address is one
+      sentence again — the three-sentence split existed only to stop LibriTTS-R
+      swallowing `slash`. The separator is a per-voice preset carrying a real
+      word: `stroke` for LibriTTS-R and Jenny, `slash` for HFC and Rocket, each
+      measured. The verb `lives` is respelled `livz`, restoring `lˈɪvz`. The
+      normalizer now documents its four stages and every rule cites its
+      measurement. 31 shim tests pass.
+- [~] **3. Regression proof and voice acceptance.** Built: `speech_probe.py`
+      measures word drops across the catalogue and prints stored → prepared →
+      phonemes for any reply; `POST /audio/speech/prepare` returns the same
+      trace live without synthesizing; the prepared text is logged per request.
+      Sentence silence is now rounded to a whole 16-bit frame, with a test, so
+      the static failure cannot recur. Scoring is relative to each voice's own
+      rendering of a one-syllable reference word, because a fixed second-count
+      threshold reported false drops on the faster voices. Recorded across the
+      catalogue over `dot`, `port`, `commit`, `path`, `megabytes`,
+      `milliseconds`, `omitted`, `slash`, `stroke`: the only true drop is
+      `slash` on LibriTTS-R, at 26% of reference. Jenny reads it weak but
+      present at 59%; Grayson could not hear it, so Jenny keeps `stroke` on his
+      listening rather than on the probe. `audition.py` renders a reply, writes
+      the WAV, and prints a measured pause map. Structure pauses — after a
+      heading, list item, table row, or paragraph — are inserted between the
+      sentence chunks of one Piper request, guarded so a sentence-count
+      mismatch degrades to flat rhythm rather than corrupt audio; measured at
+      570-620 ms against 360 ms between prose sentences. Remaining: his
+      listening pass over the corpus, then resume self-hosted voice Phase 4.
+
+      Correction from that pass: `is live` → `is active` was removed on
+      phoneme evidence and is restored. eSpeak phonemises it correctly and the
+      models still render it wrong, so listening outranks phonemes and the
+      rule stays. Arrows, IPA and similar symbols are now dropped whole —
+      eSpeak read `→` aloud as "right arrow" and `lˈaɪv` as "L stress a
+      smallcap I V".
+
+## Done when
+
+- Every remaining transformation names the measured failure it fixes.
+- The prepared speech text is visible for any generated audio.
+- `slash`, `URL`, `lives`, `NutHall`, and fused numbers each either pass the
+  corpus or carry a recorded voice-model limitation and an accepted fallback.
+- The selected voices pass by human listening, with no inserted-silence
+  artifacts.
+- Self-hosted voice Phase 4 can close without new unclassified patches.
+
+## Not doing
+
+- Changing Whisper transcription; this plan owns text-to-speech input.
+- Splitting one reply into several Piper renders and stitching silence between
+  them. It was tried, produced an odd byte count against 16-bit samples, and
+  turned the rest of the message into static. Per-sentence silence is Piper's
+  own setting.
+- Implementing full SSML, or a general document or screen reader.
+- Retraining voice models, or upgrading Piper as part of this work: the
+  measurements put every current failure in eSpeak or the model weights, not
+  in the runtime.
+- Treating a Whisper round trip, a waveform inspection, or any automated audio
+  metric as listening acceptance.
