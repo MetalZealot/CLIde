@@ -22,8 +22,12 @@
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 
+html { overflow-x: clip; }
+
 body {
   margin: 0;
+  max-width: 100vw;
+  overflow-x: clip;
   min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
@@ -33,7 +37,8 @@ body {
 }
 
 button, input, textarea, select { font: inherit; color: inherit; }
-button { touch-action: manipulation; }
+button, a { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.tabbar, .chips, .seg, .vrow, .fav-head, .disclosure > summary { user-select: none; }
 h1 { margin: 0; font-size: 1.1rem; letter-spacing: -0.02em; }
 h2 { margin: 0; font-size: 0.95rem; letter-spacing: -0.01em; }
 h3 { margin: 0; font-size: 0.86rem; }
@@ -53,9 +58,12 @@ p { margin: 0; }
   gap: 12px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
-.topbar-title { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.topbar h1 { white-space: nowrap; font-size: 1.02rem; }
+.topbar-title { flex: 1; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.topbar-title small { flex: 1; }
+@media (max-width: 479px) { .badge { display: none; } }
 .topbar-title small { font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge {
   border: 1px solid var(--line-bright);
@@ -69,6 +77,9 @@ p { margin: 0; }
 
 /* Panes and cards --------------------------------------------------- */
 .studio-main { padding: 12px 12px 24px; display: grid; gap: 12px; }
+/* Grid items default to min-width:auto, so one no-wrap row (the chip strip)
+   would otherwise push the whole pane wider than the phone. */
+.studio-main, .studio-pane, .card, .chips, .vrow-main { min-width: 0; }
 .studio-pane { display: grid; gap: 12px; }
 .studio-pane[hidden] { display: none; }
 .card { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 14px; }
@@ -86,7 +97,7 @@ p { margin: 0; }
 }
 .primary { flex: 1; border: 0; background: var(--accent); color: var(--accent-ink); }
 .secondary { border: 1px solid var(--line); background: var(--panel-soft); color: var(--text); }
-.ghost { border: 0; background: none; color: var(--muted); min-height: 38px; padding: 6px 8px; font-size: 0.78rem; font-weight: 650; }
+.ghost { border: 0; background: none; color: var(--muted); min-height: 38px; padding: 6px 8px; font-size: 0.78rem; font-weight: 650; white-space: nowrap; }
 .ghost:hover { color: var(--text); }
 .primary:disabled, .secondary:disabled { opacity: 0.5; cursor: progress; }
 .button-row { display: flex; gap: 9px; }
@@ -103,6 +114,7 @@ p { margin: 0; }
 .field > span { display: flex; justify-content: space-between; gap: 10px; font-size: 0.8rem; font-weight: 650; }
 input[type="text"], input[type="search"], input[type="number"], textarea {
   width: 100%;
+  font-size: 16px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--sunk);
@@ -147,7 +159,7 @@ input.stepper-value {
 .chips { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
 .chip {
-  flex: 0 0 auto; min-height: 36px;
+  flex: 0 0 auto; min-height: 40px;
   border: 1px solid var(--line); border-radius: 99px;
   background: var(--panel-soft); color: var(--muted);
   padding: 7px 13px; font-size: 0.78rem; font-weight: 700; cursor: pointer;
@@ -155,7 +167,7 @@ input.stepper-value {
 .chip[aria-pressed="true"], .chip.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
 .seg { display: flex; }
 .seg button {
-  flex: 1; min-height: 42px;
+  flex: 1; min-height: 44px;
   border: 1px solid var(--line); background: var(--panel-soft); color: var(--muted);
   font-size: 0.8rem; font-weight: 700; cursor: pointer;
 }
@@ -203,20 +215,21 @@ audio { width: 100%; height: 40px; margin: 8px 0 4px; }
 .sheet-head input[type="search"] { flex: 1; min-height: 44px; }
 .sheet-title { flex: 1; min-width: 0; font-size: 0.95rem; font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet-filters { border-bottom: 1px solid var(--line); padding: 9px 12px; }
-.sheet-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 12px calc(20px + env(safe-area-inset-bottom)); }
+.sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 8px 12px calc(20px + env(safe-area-inset-bottom)); }
 .sheet-count { padding: 4px 2px 8px; font-size: 0.72rem; color: var(--muted); }
 
 .row-list { display: grid; }
 .vrow {
   display: flex; align-items: center; gap: 10px;
-  width: 100%; min-height: 54px;
+  width: 100%; min-height: 50px;
   border: 0; border-bottom: 1px solid var(--line);
   background: none; color: var(--text);
   padding: 9px 4px; text-align: left; cursor: pointer;
 }
 .vrow-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .vrow-main strong { font-size: 0.88rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vrow-meta { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.7rem; }
+.vrow-meta { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 0.7rem; }
+.vrow-meta-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vrow-tag { border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font: 600 0.64rem ui-monospace, monospace; }
 .vrow-tag.male { border-color: #37567a; color: #8fbcf0; }
 .vrow-tag.female { border-color: #6d3a63; color: #e79ad6; }
@@ -225,6 +238,7 @@ audio { width: 100%; height: 40px; margin: 8px 0 4px; }
 .vrow-star { color: var(--accent); font-size: 1rem; }
 .vrow-go { color: var(--muted); font-size: 1.2rem; }
 .vrow.current { background: var(--accent-dim); }
+.vrow:active, .fav-head:active, .picker-button:active { background: var(--panel-soft); }
 .list-more { width: 100%; min-height: 46px; margin-top: 12px; border: 1px dashed var(--line); border-radius: 11px; background: none; color: var(--muted); cursor: pointer; }
 .list-empty { padding: 26px 10px; color: var(--muted); text-align: center; font-size: 0.82rem; }
 .group-label { margin: 14px 2px 4px; color: var(--accent); font: 700 0.66rem ui-monospace, monospace; letter-spacing: 0.12em; text-transform: uppercase; }

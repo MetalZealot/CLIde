@@ -133,9 +133,7 @@ function paintSelection() {
 
   el("speak-speed").hidden = !model;
   if (model && Voices.speed) Voices.speed.set(selection.lengthScale ?? model.length_scale ?? 1);
-  el("voice-sub").textContent = model
-    ? "Audition · label it below"
-    : "CLIde preset · pacing from the Rules tab";
+  el("voice-sub").textContent = model ? "Audition — label it below" : "Preset · pacing in Rules";
   paintLabelRow();
 }
 
@@ -221,7 +219,12 @@ function voiceRow({ title, meta, key, selection, drill }) {
   strong.textContent = title;
   const metaRow = document.createElement("div");
   metaRow.className = "vrow-meta";
-  if (meta) metaRow.append(document.createTextNode(meta));
+  if (meta) {
+    const metaText = document.createElement("span");
+    metaText.className = "vrow-meta-text";
+    metaText.textContent = meta;
+    metaRow.appendChild(metaText);
+  }
   if (entry.gender) {
     const tag = document.createElement("span");
     tag.className = `vrow-tag ${entry.gender}`;
@@ -275,8 +278,10 @@ function pickerRows() {
       rows.push({
         group: null,
         node: () => voiceRow({
-          title: named ? `${named}` : `Speaker ${speakerId}`,
-          meta: named ? `#${speakerId}` : `${speakerId + 1} of ${model.num_speakers}`,
+          title: named || `Speaker ${speakerId}`,
+          // The row number is already in the title; the space is worth more to
+          // the label tags, which are what a sweep of 904 reads.
+          meta: named ? `#${speakerId}` : "",
           key,
           selection: { type: "model", model: model.id, speakerId },
         }),
@@ -506,7 +511,7 @@ function favoriteItem(key, entry) {
     ? shortName(modelId)
     : `${shortName(modelId)} · ${named || speakerId}`;
   const meta = document.createElement("div");
-  meta.className = "vrow-meta";
+  meta.className = "vrow-meta vrow-meta-text";
   meta.textContent = [
     modelId,
     speakerId === null ? null : `speaker ${speakerId}`,
@@ -561,7 +566,12 @@ function favoriteItem(key, entry) {
   actions.append(load, remove);
 
   body.append(notes, actions);
-  head.addEventListener("click", () => { body.hidden = !body.hidden; if (!body.hidden) notes.focus(); });
+  head.addEventListener("click", () => {
+    body.hidden = !body.hidden;
+    if (body.hidden) return;
+    notes.focus();
+    notes.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
   item.append(head, body);
   return item;
 }
