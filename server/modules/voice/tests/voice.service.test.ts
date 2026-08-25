@@ -53,16 +53,19 @@ test('transcribes with injected fetch and request-level credential/model overrid
 
 test('forwards the explicit TTS format and maps backend authentication failures', async () => {
   let requestBody = '';
+  let requestHeaders: RequestInit['headers'];
   const service = createVoiceService({
     defaults,
     timeoutMs: 1_000,
     fetchBackend: async (_url, options) => {
       requestBody = String(options.body);
+      requestHeaders = options.headers;
       return new Response('unauthorized', { status: 401 });
     },
   });
 
   const result = await service.synthesizeSpeech({
+    jobId: 'speech-job-1',
     text: 'Read this',
     overrides: { ttsFormat: 'wav' },
   });
@@ -73,6 +76,7 @@ test('forwards the explicit TTS format and maps backend authentication failures'
     input: 'Read this',
     response_format: 'wav',
   });
+  assert.equal((requestHeaders as Record<string, string>)['X-Voice-Job-ID'], 'speech-job-1');
   assert.deepEqual(result, {
     ok: false,
     status: 502,
@@ -91,8 +95,55 @@ test('blocks link-local metadata destinations before calling the fetch adapter',
     },
   });
 
-  const result = await service.synthesizeSpeech({ text: 'hello', overrides: {} });
+  const result = await service.synthesizeSpeech({
+    jobId: 'speech-job-2',
+    text: 'hello',
+    overrides: {},
+  });
 
   assert.deepEqual(result, { ok: false, status: 400, error: 'Invalid voice backend URL.' });
   assert.equal(fetchCalls, 0);
+});
+
+test('extracts a readable backend error instead of forwarding raw JSON', async () => {
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async () => new Response(
+      JSON.stringify({ error: 'Another local voice job is running; try again shortly' }),
+      { status: 429 },
+    ),
+  });
+
+  const result = await service.synthesizeSpeech({
+    jobId: 'speech-job-3',
+    text: 'hello',
+    overrides: {},
+  });
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 429,
+    error: 'Another local voice job is running; try again shortly',
+  });
+});
+
+test('cancels the matching backend speech job', async () => {
+  let requestedUrl = '';
+  let requestBody = '';
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async (url, options) => {
+      requestedUrl = url;
+      requestBody = String(options.body);
+      return new Response(JSON.stringify({ cancelled: true, released: true }), { status: 200 });
+    },
+  });
+
+  const result = await service.cancelSpeech({ jobId: 'speech-job-4', overrides: {} });
+
+  assert.equal(requestedUrl, 'https://voice.example/v1/audio/speech/cancel');
+  assert.deepEqual(JSON.parse(requestBody), { job_id: 'speech-job-4' });
+  assert.deepEqual(result, { ok: true, value: { cancelled: true } });
 });

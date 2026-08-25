@@ -22,7 +22,12 @@ function pickMime(): string {
   return '';
 }
 
-export type VoiceInputState = 'idle' | 'recording' | 'transcribing';
+export type VoiceInputState = 'idle' | 'starting' | 'recording' | 'transcribing';
+
+export function normalizeVoiceTranscript(value: unknown): string {
+  const text = String(value ?? '').trim();
+  return /^\[BLANK_AUDIO\]$/i.test(text) ? '' : text;
+}
 
 /**
  * Push-to-talk dictation. Records the mic, uploads to /api/voice/transcribe
@@ -62,12 +67,20 @@ export function useVoiceInput(
   const start = useCallback(async () => {
     if (startingRef.current || (recorderRef.current && recorderRef.current.state !== 'inactive')) return;
     startingRef.current = true;
+    setState('starting');
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        onError?.('Microphone requires a secure HTTPS connection.');
+        startingRef.current = false;
+        setState('idle');
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
       if (cancelledRef.current) {
         stream.getTracks().forEach((t) => t.stop());
+        startingRef.current = false;
         return;
       }
       streamRef.current = stream;
@@ -78,6 +91,11 @@ export function useVoiceInput(
 
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      rec.onstart = () => {
+        startingRef.current = false;
+        if (!cancelledRef.current) setState('recording');
       };
 
       rec.onstop = async () => {
@@ -100,7 +118,7 @@ export function useVoiceInput(
           if (!res.ok) throw new Error(`transcribe ${res.status}`);
           const data = await res.json();
           if (cancelledRef.current) return;
-          const text = String(data?.text || '').trim();
+          const text = normalizeVoiceTranscript(data?.text);
           if (text) onTranscript(text, shouldSend);
           else onError?.('No speech detected');
         } catch (e) {
@@ -113,8 +131,8 @@ export function useVoiceInput(
       };
 
       rec.start();
-      setState('recording');
     } catch (e) {
+      startingRef.current = false;
       recorderRef.current = null;
       stopTracks();
       if (cancelledRef.current) return;
@@ -124,8 +142,6 @@ export function useVoiceInput(
       else if (err?.name === 'NotFoundError') msg = 'No microphone found.';
       onError?.(msg);
       setState('idle');
-    } finally {
-      startingRef.current = false;
     }
   }, [onTranscript, onError]);
 

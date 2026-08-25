@@ -58,6 +58,43 @@ describe('chatSubcomponents', () => {
     });
   });
 
+  describe('composer voice controls', () => {
+    test('keeps the mic between usage and Send and bounds readable errors inside the composer', () => {
+      const composerSource = readFileSync(new URL('./ChatComposer.tsx', import.meta.url), 'utf8');
+      const voiceInputSource = readFileSync(new URL('../../hooks/useVoiceInput.ts', import.meta.url), 'utf8');
+      const micMarkup = composerSource.lastIndexOf('<VoiceInputButton');
+      const usageMarkup = composerSource.lastIndexOf('<TokenUsageSummary');
+
+      assert.ok(micMarkup > 0);
+      assert.ok(micMarkup > usageMarkup);
+      assert.match(composerSource, /role="alert"/);
+      assert.match(composerSource, /\[overflow-wrap:anywhere\]/);
+      assert.doesNotMatch(composerSource, /isTranscribing\s*\?\s*\(\s*<Loader2/);
+      assert.match(voiceInputSource, /navigator\.mediaDevices\?\.getUserMedia/);
+      assert.match(voiceInputSource, /Microphone requires a secure HTTPS connection\./);
+      assert.match(voiceInputSource, /rec\.onstart = \(\) => \{[\s\S]+setState\('recording'\)/);
+      assert.doesNotMatch(voiceInputSource, /rec\.start\(\);\s+setState\('recording'\)/);
+    });
+  });
+
+  describe('assistant message voice controls', () => {
+    test('keeps the speaker beside the copy control on narrow screens', () => {
+      const messageSource = readFileSync(new URL('./MessageComponent.tsx', import.meta.url), 'utf8');
+      const copyControlSource = readFileSync(new URL('./MessageCopyControl.tsx', import.meta.url), 'utf8');
+      const speakControlSource = readFileSync(new URL('./MessageSpeakControl.tsx', import.meta.url), 'utf8');
+      const copyMarkup = messageSource.lastIndexOf('<MessageCopyControl content={assistantCopyContent}');
+      const speakerMarkup = messageSource.lastIndexOf('<MessageSpeakControl');
+
+      assert.ok(copyMarkup > 0);
+      assert.ok(speakerMarkup > copyMarkup);
+      assert.doesNotMatch(copyControlSource, /min-w-0 flex-1 items-center/);
+      assert.match(speakControlSource, /voice\.generating/);
+      assert.match(speakControlSource, /voice\.cancelGeneration/);
+      assert.match(speakControlSource, /generationElapsedSeconds/);
+      assert.match(speakControlSource, /max-w-\[min\(240px,calc\(100vw-2rem\)\)\]/);
+    });
+  });
+
   describe('image attachment galleries', () => {
     const mount = async (element: React.ReactNode) => {
       const container = document.createElement('div');

@@ -81,6 +81,8 @@ Queued work first. Below the rule is **someday**: real ideas, but nothing here i
 started, sliced, or blocking anything — skip it unless you are deliberately picking
 new work.
 
+- [~] **Build an auditable TTS speech front end.** Freeze pronunciation patching; define and prove the Markdown, normalization, lexicon, phoneme, and voice-model boundaries before final voice acceptance. [Plan](plans/tts-speech-front-end.md). **L**
+- [~] **Self-hosted dictation and read-aloud.** Proxy, dictation, playback, controls, timing, cancellation, and cross-session playback pass on phone. Phases 4–5 wait on the speech-front-end prerequisite; Bluetooth mic diagnosis remains separate. [Plan](plans/self-hosted-voice.md). **L**
 - [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, maps and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**

@@ -1629,9 +1629,14 @@ export type VoiceService = {
     overrides: VoiceRequestOverrides;
   }): Promise<VoiceServiceResult<{ text: string }>>;
   synthesizeSpeech(input: {
+    jobId: string;
     text: string;
     overrides: VoiceRequestOverrides;
   }): Promise<VoiceServiceResult<VoiceSpeechPayload>>;
+  cancelSpeech(input: {
+    jobId: string;
+    overrides: VoiceRequestOverrides;
+  }): Promise<VoiceServiceResult<{ cancelled: boolean }>>;
 };
 
 // ---------------------------

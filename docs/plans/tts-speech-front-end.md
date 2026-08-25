@@ -83,6 +83,17 @@ work down two wrong paths.
       eSpeak read `→` aloud as "right arrow" and `lˈaɪv` as "L stress a
       smallcap I V".
 
+      Second correction pass, after more listening and an independent check on
+      piper.ttstool.com: `slash` is closed as a voice-model limitation and the
+      shortlist stands — see
+      [the findings](tts-pronunciation-findings.md). Relative paths now render
+      through the same spoken noun phrase as absolute ones
+      (`src/lib/foo.ts` → "the src, lib, foo dot ts path"), so they no longer
+      depend on the separator word at all; `~` speaks as "home"; a colon only
+      ends a sentence when a space follows it, so `build:client` and `16:9`
+      survive intact; and clock times are spoken. 53 shim tests. The shim and
+      the studio are now tracked in this repository under `voice/`.
+
 ## Done when
 
 - Every remaining transformation names the measured failure it fixes.

@@ -31,7 +31,11 @@ export function transcribeVoice(blob: Blob, filename: string): Promise<Response>
   });
 }
 
-export function synthesizeVoice(text: string, signal: AbortSignal): Promise<Response> {
+export function synthesizeVoice(
+  text: string,
+  signal: AbortSignal,
+  jobId: string,
+): Promise<Response> {
   const config = readVoiceConfig();
 
   if (config.baseUrl.trim()) {
@@ -39,6 +43,7 @@ export function synthesizeVoice(text: string, signal: AbortSignal): Promise<Resp
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Voice-Job-ID': jobId,
         ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
       },
       body: JSON.stringify({
@@ -54,7 +59,26 @@ export function synthesizeVoice(text: string, signal: AbortSignal): Promise<Resp
   return authenticatedFetch('/api/voice/tts', {
     method: 'POST',
     body: JSON.stringify({ text }),
-    headers: voiceConfigHeaders(),
+    headers: {
+      ...voiceConfigHeaders(),
+      'X-Voice-Job-ID': jobId,
+    },
     signal,
   });
+}
+
+export async function cancelVoiceSynthesis(jobId: string): Promise<void> {
+  const config = readVoiceConfig();
+  if (config.baseUrl.trim()) {
+    return;
+  }
+
+  const response = await authenticatedFetch('/api/voice/tts/cancel', {
+    method: 'POST',
+    body: JSON.stringify({ jobId }),
+    headers: voiceConfigHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Voice cancellation failed (${response.status})`);
+  }
 }

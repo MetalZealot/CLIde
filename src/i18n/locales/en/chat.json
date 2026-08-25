@@ -137,7 +137,12 @@
     "transcribing": "Transcribing…",
     "speak": "Read aloud",
     "stopSpeaking": "Stop",
-    "loading": "Loading…"
+    "pauseSpeaking": "Pause",
+    "resumeSpeaking": "Resume",
+    "restartSpeaking": "Restart from beginning",
+    "loading": "Loading…",
+    "generating": "Generating · {{seconds}}s",
+    "cancelGeneration": "Cancel generation"
   },
   "input": {
     "placeholder": "Ask anything, @ to mention, / for actions",

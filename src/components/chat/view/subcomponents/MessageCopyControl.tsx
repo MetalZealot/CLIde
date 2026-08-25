@@ -184,7 +184,7 @@ const MessageCopyControl = ({
   const toneClass = 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300';
   const copyTitle = copied ? t('copyMessage.copied') : t('copyMessage.copy');
   const rootClassName = canSelectCopyFormat
-    ? 'relative flex min-w-0 flex-1 items-center gap-0.5 sm:min-w-max sm:flex-none sm:w-auto'
+    ? 'relative flex min-w-0 items-center gap-0.5'
     : 'relative flex items-center gap-0.5';
 
   return (

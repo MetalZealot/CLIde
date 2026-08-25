@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+
 import { voicePlayer, voiceId, type VoiceSnapshot } from '../../../lib/voicePlayer';
 
 export type TtsState = VoiceSnapshot['state'];
@@ -18,7 +19,13 @@ export function useTts(getText: () => string) {
     const update = () =>
       setSnap((prev) => {
         const next = voicePlayer.getSnapshot(id);
-        return prev.state === next.state && prev.error === next.error ? prev : next;
+        return prev.state === next.state
+          && prev.error === next.error
+          && prev.currentTime === next.currentTime
+          && prev.duration === next.duration
+          && prev.generationElapsedSeconds === next.generationElapsedSeconds
+          ? prev
+          : next;
       });
     update();
     return voicePlayer.subscribe(update);
@@ -29,5 +36,15 @@ export function useTts(getText: () => string) {
     voicePlayer.toggle(content);
   }, [content]);
 
-  return { state: snap.state, toggle, error: snap.error };
+  const restart = useCallback(() => voicePlayer.restart(), []);
+
+  return {
+    state: snap.state,
+    toggle,
+    restart,
+    error: snap.error,
+    currentTime: snap.currentTime,
+    duration: snap.duration,
+    generationElapsedSeconds: snap.generationElapsedSeconds,
+  };
 }

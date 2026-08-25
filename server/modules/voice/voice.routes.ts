@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 
 import express from 'express';
@@ -24,6 +25,16 @@ function parseVoiceOverrides(request: express.Request): VoiceRequestOverrides {
     ttsVoice: readHeaderValue(request.headers['x-voice-tts-voice']),
     ttsFormat: readHeaderValue(request.headers['x-voice-tts-format']),
   };
+}
+
+const VOICE_JOB_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+function readVoiceJobId(request: express.Request): string | null {
+  const suppliedId = readHeaderValue(request.headers['x-voice-job-id']);
+  if (!suppliedId) {
+    return randomUUID();
+  }
+  return VOICE_JOB_ID_PATTERN.test(suppliedId) ? suppliedId : null;
 }
 
 function sendFailure<TValue>(
@@ -91,10 +102,31 @@ export function createVoiceRouter(dependencies: VoiceRouterDependencies): expres
       return;
     }
 
+    const jobId = readVoiceJobId(request);
+    if (!jobId) {
+      response.status(400).json({ error: 'Invalid voice job ID' });
+      return;
+    }
+    const overrides = parseVoiceOverrides(request);
+    let generationFinished = false;
+    const cancelOnDisconnect = () => {
+      if (generationFinished || response.writableEnded) {
+        return;
+      }
+      void dependencies.voiceService.cancelSpeech({ jobId, overrides });
+    };
+    response.once('close', cancelOnDisconnect);
+
     const result = await dependencies.voiceService.synthesizeSpeech({
+      jobId,
       text,
-      overrides: parseVoiceOverrides(request),
+      overrides,
     });
+    generationFinished = true;
+    response.off('close', cancelOnDisconnect);
+    if (response.destroyed) {
+      return;
+    }
     if (sendFailure(response, result)) {
       return;
     }
@@ -107,6 +139,23 @@ export function createVoiceRouter(dependencies: VoiceRouterDependencies): expres
     }
 
     Readable.fromWeb(result.value.body).on('error', (error) => response.destroy(error)).pipe(response);
+  }));
+
+  router.post('/tts/cancel', asyncHandler(async (request, response) => {
+    const jobId = request.body?.jobId;
+    if (typeof jobId !== 'string' || !VOICE_JOB_ID_PATTERN.test(jobId)) {
+      response.status(400).json({ error: 'Invalid voice job ID' });
+      return;
+    }
+
+    const result = await dependencies.voiceService.cancelSpeech({
+      jobId,
+      overrides: parseVoiceOverrides(request),
+    });
+    if (sendFailure(response, result)) {
+      return;
+    }
+    response.json(result.value);
   }));
 
   return router;

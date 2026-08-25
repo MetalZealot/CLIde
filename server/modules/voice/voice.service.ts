@@ -65,10 +65,22 @@ function backendFailure(status: number, responseText?: string): VoiceServiceResu
     };
   }
 
+  let error = responseText || 'voice backend error';
+  if (responseText) {
+    try {
+      const parsed = JSON.parse(responseText) as { error?: unknown };
+      if (typeof parsed.error === 'string' && parsed.error.trim()) {
+        error = parsed.error;
+      }
+    } catch {
+      // Plain-text backend errors are already suitable for the client.
+    }
+  }
+
   return {
     ok: false,
     status,
-    error: responseText || 'voice backend error',
+    error,
   };
 }
 
@@ -164,6 +176,7 @@ export function createVoiceService(dependencies: VoiceServiceDependencies): Voic
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Voice-Job-ID': input.jobId,
             ...authorizationHeader(config.apiKey),
           },
           body: JSON.stringify({
@@ -184,6 +197,41 @@ export function createVoiceService(dependencies: VoiceServiceDependencies): Voic
           body: response.body,
         };
         return { ok: true, value };
+      } catch (error) {
+        return unreachableBackendFailure(error, dependencies.timeoutMs);
+      }
+    },
+
+    async cancelSpeech(input) {
+      const config = resolveVoiceConfig(dependencies.defaults, input.overrides);
+      const configurationFailure = validateConfiguredBackend(config);
+      if (configurationFailure) {
+        return configurationFailure;
+      }
+
+      try {
+        const response = await dependencies.fetchBackend(
+          `${config.baseUrl}/audio/speech/cancel`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...authorizationHeader(config.apiKey),
+            },
+            body: JSON.stringify({ job_id: input.jobId }),
+          },
+        );
+        const responseText = await response.text();
+        if (!response.ok) {
+          return backendFailure(response.status, responseText);
+        }
+
+        try {
+          const parsed = JSON.parse(responseText) as { cancelled?: unknown };
+          return { ok: true, value: { cancelled: parsed.cancelled === true } };
+        } catch {
+          return { ok: false, status: 502, error: 'Voice backend returned an invalid cancellation response.' };
+        }
       } catch (error) {
         return unreachableBackendFailure(error, dependencies.timeoutMs);
       }

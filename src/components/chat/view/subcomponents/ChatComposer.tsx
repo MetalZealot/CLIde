@@ -10,7 +10,7 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { XIcon, Loader2, ArrowUpIcon } from 'lucide-react';
+import { XIcon, ArrowUpIcon } from 'lucide-react';
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
@@ -288,6 +288,7 @@ export default function ChatComposer({
     onVoiceTranscript ?? noopTranscript,
     handleVoiceError,
   );
+  const isStartingRecording = voiceState === 'starting';
   const isRecording = voiceState === 'recording';
   const isTranscribing = voiceState === 'transcribing';
 
@@ -450,6 +451,17 @@ export default function ChatComposer({
             </PromptInputHeader>
           )}
 
+          {voiceError && (
+            <PromptInputHeader>
+              <div
+                role="alert"
+                className="max-w-full whitespace-normal rounded-xl bg-destructive/10 px-3 py-2 text-xs leading-4 text-destructive [overflow-wrap:anywhere]"
+              >
+                {voiceError}
+              </div>
+            </PromptInputHeader>
+          )}
+
           {attachedFiles.length > 0 && (
             <PromptInputHeader>
               <div className="rounded-xl bg-muted/40 p-2">
@@ -534,10 +546,6 @@ export default function ChatComposer({
               providerLabel={providerLabel}
             />
 
-            {onVoiceTranscript && voiceAvailable && (
-              <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
-            )}
-
             {hasInput && (
               <PromptInputButton
                 tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
@@ -552,9 +560,9 @@ export default function ChatComposer({
 
           <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
             {/* The hint is the only part of this row allowed to shrink: the tools,
-                ring, and Send are all shrink-0, so without this the row overflows
-                and pushes Send past the composer edge once the clear button
-                mounts. */}
+                ring, mic, and Send are all shrink-0, so without this the row
+                overflows and pushes Send past the composer edge once the clear
+                button mounts. */}
             <div
               className={`hidden min-w-0 truncate text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
                 input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
@@ -575,6 +583,10 @@ export default function ChatComposer({
               model={model}
             />
 
+            {onVoiceTranscript && voiceAvailable && (
+              <VoiceInputButton state={voiceState} onToggle={voiceToggle} />
+            )}
+
             <PromptInputSubmit
               onClick={
                 canQueueDraft
@@ -594,21 +606,19 @@ export default function ChatComposer({
                   ? true
                   : isLoading
                     ? !canQueueDraft
-                    : isRecording
-                      ? false
-                      : isTranscribing
-                        ? true
-                        : !input.trim() && attachedFiles.length === 0
+                    : isStartingRecording
+                      ? true
+                      : isRecording
+                        ? false
+                        : isTranscribing
+                          ? true
+                          : !input.trim() && attachedFiles.length === 0
               }
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
               className="composer-send-hit-target ml-4 [&_svg]:size-5"
             >
-              {isTranscribing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowUpIcon className="h-5 w-5" />
-              )}
+              <ArrowUpIcon className="h-5 w-5" />
             </PromptInputSubmit>
           </div>
         </PromptInputFooter>

@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import type { PendingPermissionRequest } from '../types/types';
+import { formatPlaybackTime, VoicePlayer, voiceId } from '../../../lib/voicePlayer';
 
 import {
   describeDropRejections,
@@ -16,6 +17,7 @@ import {
 import { normalizedToChatMessages } from './useChatMessages';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
 import { appendStreamChunk, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
+import { normalizeVoiceTranscript } from './useVoiceInput';
 
 // --- useChatComposerState ---------------------------------------------------
 
@@ -207,4 +209,216 @@ test('a tool result carrying no content renders instead of throwing', () => {
   ]);
   assert.equal(messages.length, 1);
   assert.equal(messages[0].toolResult?.content, '');
+});
+
+// --- useVoiceInput ---------------------------------------------------------
+
+test('blank-audio sentinels never become composer text', () => {
+  assert.equal(normalizeVoiceTranscript('[BLANK_AUDIO]'), '');
+  assert.equal(normalizeVoiceTranscript('  [blank_audio]  '), '');
+  assert.equal(normalizeVoiceTranscript('Three spoken words'), 'Three spoken words');
+});
+
+test('playback times stay compact beside the message control', () => {
+  assert.equal(formatPlaybackTime(3), '0:03');
+  assert.equal(formatPlaybackTime(62), '1:02');
+  assert.equal(formatPlaybackTime(3723), '1:02:03');
+});
+
+test('read-aloud pauses, resumes, restarts, and follows external media controls', async () => {
+  class FakeAudio {
+    static latest: FakeAudio | null = null;
+    src = '';
+    currentTime = 0;
+    duration = 62;
+    playbackRate = 1;
+    paused = true;
+    private listeners = new Map<string, Set<() => void>>();
+
+    constructor() {
+      FakeAudio.latest = this;
+    }
+
+    addEventListener(type: string, listener: () => void) {
+      const listeners = this.listeners.get(type) ?? new Set<() => void>();
+      listeners.add(listener);
+      this.listeners.set(type, listeners);
+    }
+
+    private emit(type: string) {
+      this.listeners.get(type)?.forEach((listener) => listener());
+    }
+
+    load() {
+      this.emit('loadedmetadata');
+    }
+
+    play(): Promise<void> {
+      this.paused = false;
+      this.emit('play');
+      return Promise.resolve();
+    }
+
+    pause() {
+      if (this.paused) return;
+      this.paused = true;
+      this.emit('pause');
+    }
+
+    seek(seconds: number) {
+      this.currentTime = seconds;
+      this.emit('timeupdate');
+    }
+  }
+
+  const audioDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'Audio');
+  Object.defineProperty(globalThis, 'Audio', {
+    configurable: true,
+    writable: true,
+    value: FakeAudio,
+  });
+
+  try {
+    const content = 'Playback state test';
+    const id = voiceId(content);
+    let resolveSynthesis!: (response: Response) => void;
+    const synthesis = new Promise<Response>((resolve) => {
+      resolveSynthesis = resolve;
+    });
+    let synthesisCalls = 0;
+    const player = new VoicePlayer(() => (
+      synthesisCalls++ === 0
+        ? synthesis
+        : Promise.resolve(new Response(new Blob(['audio'])))
+    ));
+    const waitForState = async (targetId: string, expected: 'playing' | 'paused') => {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        if (player.getSnapshot(targetId).state === expected) return;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    };
+
+    player.unlock();
+    player.toggle(content);
+    const audio = FakeAudio.latest;
+    assert.ok(audio);
+    // A fresh browser can deliver the unlock's Play/Pause events late. They
+    // must not replace Loading with false playback controls.
+    await audio.play();
+    audio.pause();
+    assert.equal(player.getSnapshot(id).state, 'loading');
+
+    resolveSynthesis(new Response(new Blob(['audio'])));
+    await waitForState(id, 'playing');
+    assert.deepEqual(player.getSnapshot(id), {
+      state: 'playing',
+      error: null,
+      currentTime: 0,
+      duration: 62,
+      generationElapsedSeconds: 0,
+    });
+
+    audio.seek(3);
+    assert.deepEqual(player.getSnapshot(id), {
+      state: 'playing',
+      error: null,
+      currentTime: 3,
+      duration: 62,
+      generationElapsedSeconds: 0,
+    });
+
+    audio.pause();
+    assert.equal(player.getSnapshot(id).state, 'paused');
+    player.toggle(content);
+    await waitForState(id, 'playing');
+    assert.equal(player.getSnapshot(id).state, 'playing');
+
+    audio.seek(14);
+    player.pause();
+    player.restart();
+    await waitForState(id, 'playing');
+    assert.equal(player.getSnapshot(id).state, 'playing');
+    assert.equal(player.getSnapshot(id).currentTime, 0);
+
+    const replacement = 'Higher-priority playback';
+    const replacementId = voiceId(replacement);
+    player.toggle(replacement);
+    await waitForState(replacementId, 'playing');
+    assert.equal(player.getSnapshot(id).state, 'idle');
+    assert.equal(player.getSnapshot(replacementId).state, 'playing');
+    player.stop();
+  } finally {
+    if (audioDescriptor) Object.defineProperty(globalThis, 'Audio', audioDescriptor);
+    else Reflect.deleteProperty(globalThis, 'Audio');
+  }
+});
+
+test('a newer read-aloud waits for an explicitly stopped generation to cancel', async () => {
+  class FakeAudio {
+    currentTime = 0;
+    duration = 5;
+    playbackRate = 1;
+    src = '';
+    addEventListener() {}
+    load() {}
+    pause() {}
+    play() { return Promise.resolve(); }
+  }
+
+  const audioDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'Audio');
+  Object.defineProperty(globalThis, 'Audio', {
+    configurable: true,
+    writable: true,
+    value: FakeAudio,
+  });
+
+  try {
+    const synthesisCalls: Array<{ content: string; jobId: string }> = [];
+    const cancelledJobIds: string[] = [];
+    let releaseCancellation!: () => void;
+    const cancellationReleased = new Promise<void>((resolve) => {
+      releaseCancellation = resolve;
+    });
+    const player = new VoicePlayer(
+      (content, signal, jobId) => {
+        synthesisCalls.push({ content, jobId });
+        if (content === 'First generation') {
+          return new Promise<Response>((_resolve, reject) => {
+            signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+          });
+        }
+        return Promise.resolve(new Response(new Blob(['audio'])));
+      },
+      async (jobId) => {
+        cancelledJobIds.push(jobId);
+        await cancellationReleased;
+      },
+    );
+
+    player.toggle('First generation');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    player.toggle('First generation');
+    player.toggle('Second generation');
+    await new Promise((resolve) => setTimeout(resolve, 1_050));
+
+    assert.equal(synthesisCalls.length, 1);
+    assert.deepEqual(cancelledJobIds, [synthesisCalls[0].jobId]);
+    assert.equal(player.getSnapshot(voiceId('Second generation')).state, 'loading');
+    assert.ok(
+      player.getSnapshot(voiceId('Second generation')).generationElapsedSeconds >= 1,
+    );
+
+    releaseCancellation();
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (player.getSnapshot(voiceId('Second generation')).state === 'playing') break;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    assert.equal(synthesisCalls.length, 2);
+    assert.equal(synthesisCalls[1].content, 'Second generation');
+    assert.equal(player.getSnapshot(voiceId('Second generation')).state, 'playing');
+    player.stop();
+  } finally {
+    if (audioDescriptor) Object.defineProperty(globalThis, 'Audio', audioDescriptor);
+    else Reflect.deleteProperty(globalThis, 'Audio');
+  }
 });
