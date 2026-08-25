@@ -384,6 +384,11 @@ def _speak_technical_text(text: str, path_separator: str) -> str:
         text,
     )
     for abbreviation, (_singular, plural) in TECHNICAL_UNITS.items():
+        # Bare one-letter units only ever fire by accident: an apostrophe is a
+        # non-word character, so \bs\b matched the "s" in "That's" and said
+        # "That seconds". A number-attached "8.67s" is handled above.
+        if len(abbreviation) < 2:
+            continue
         text = re.sub(rf"\b{abbreviation}\b", plural, text, flags=re.IGNORECASE)
     text = re.sub(r"\band/or\b", "and or", text, flags=re.IGNORECASE)
     text = re.sub(r"\s*[\u2190-\u21ff\u27f0-\u27ff\u2b00-\u2b11]+\s*", ", ", text)
@@ -474,7 +479,33 @@ def collapse_whitespace(text: str) -> str:
     # The boundary attaches to the sentence it closes, keeping the space that
     # separates it from the next sentence.
     text = re.sub(rf"(?:\s*{BOUNDARY}\s*)+", f"{BOUNDARY} ", text)
-    return text.strip()
+    return capitalize_sentences(text.strip())
+
+
+def capitalize_sentences(text: str) -> str:
+    """Open every sentence with a capital, including the injected ones.
+
+    A substitution can land a lowercase word straight after a full stop --
+    "ones. the src, lib, foo dot ts path" -- and the model reads the pair as
+    one long clause. Measured on libritts-r-204, three runs each: the lowercase
+    form takes 6.58-7.43 s and the capitalised form 6.05-6.38 s, non-
+    overlapping, so the sentence break is genuinely being missed.
+    """
+    def opened(match: re.Match[str]) -> str:
+        word = match.group("word")
+        # "eSpeak", "iPhone", "npm" chose their own case. Only a plainly
+        # lowercase word is one this missed.
+        if word[1:].lower() != word[1:]:
+            return match.group(0)
+        return f"{match.group('lead')}{word[0].upper()}{word[1:]}"
+
+    # Sentence openings only, never the start of the text: the first word is
+    # the author's, and capitalising it renamed "eSpeak" to "ESpeak".
+    return re.sub(
+        rf"(?P<lead>[.!?]{BOUNDARY}?\s+)(?P<word>[a-z]\S*)",
+        opened,
+        text,
+    )
 
 
 def _prepared(text: str, path_separator: str, lexicon=None) -> str:

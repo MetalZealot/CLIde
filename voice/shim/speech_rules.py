@@ -31,7 +31,8 @@ _LOGGER = logging.getLogger("voice-shim")
 #   word    whole word, any case          "URL" -> "U R L"
 #   phrase  literal run of words          "is live" -> "is active"
 #   before  whole word, but only when followed by one of `followed_by`
-MODES = {"word", "phrase", "before"}
+#   unless  whole word, but NOT when preceded by one of `preceded_by`
+MODES = {"word", "phrase", "before", "unless"}
 
 DEFAULT_PRONUNCIATIONS: list[dict[str, Any]] = [
     {
@@ -44,10 +45,17 @@ DEFAULT_PRONUNCIATIONS: list[dict[str, Any]] = [
         "note": "Found by ear. eSpeak's phonemes look correct, but the models "
                 "render them wrong -- do not remove this on phoneme evidence",
     },
-    {"match": "are live", "say": "are active", "mode": "phrase", "note": ""},
-    {"match": "was live", "say": "was active", "mode": "phrase", "note": ""},
-    {"match": "were live", "say": "were active", "mode": "phrase", "note": ""},
-    {"match": "now live", "say": "now active", "mode": "phrase", "note": ""},
+    {
+        "match": "live", "say": "active", "mode": "unless",
+        "preceded_by": ["I", "you", "we", "they", "to", "people", "who", "and",
+                        "or", "a", "an"],
+        "note": "The phrase list only covered is/are/was/were/now, so "
+                "'Verified live' still came out as 'livv'. In CLIde's prose "
+                "'live' is nearly always the adjective; the verb takes a "
+                "subject, so listing the subjects is the shorter list. 'a' "
+                "and 'an' are listed too: 'a active concert' would be worse "
+                "than the mispronunciation it fixes.",
+    },
     {
         "match": "lives", "say": "livz", "mode": "before",
         "followed_by": ["in", "at", "on", "under", "inside", "within", "beside",
@@ -109,6 +117,17 @@ class SpeechRules:
                     ),
                     say,
                 ))
+            elif mode == "unless":
+                preceding = [str(word).strip() for word in rule.get("preceded_by", []) if str(word).strip()]
+                if not preceding:
+                    continue
+                # One lookbehind per word: re needs each to be fixed width, but
+                # it is happy to chain several of different widths.
+                guards = "".join(f"(?<!{re.escape(word)} )" for word in preceding)
+                compiled.append((
+                    re.compile(f"{guards}{self._bounded(match)}", re.IGNORECASE),
+                    say,
+                ))
             else:
                 compiled.append((re.compile(self._bounded(match), re.IGNORECASE), say))
         return compiled
@@ -149,6 +168,11 @@ def validate(payload: Any) -> SpeechRules:
             if not words:
                 raise ValueError(f"Rule {index}: 'before' needs at least one following word")
             entry["followed_by"] = words[:40]
+        if mode == "unless":
+            words = [str(word).strip() for word in rule.get("preceded_by", []) if str(word).strip()]
+            if not words:
+                raise ValueError(f"Rule {index}: 'unless' needs at least one preceding word")
+            entry["preceded_by"] = words[:40]
         pronunciations.append(entry)
 
     voices: dict[str, dict[str, Any]] = {}

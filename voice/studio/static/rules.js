@@ -6,6 +6,7 @@ const MODE_HELP = {
   word: "whole word, any case",
   phrase: "this exact run of words",
   before: "only when followed by one of these words",
+  unless: "every time except after one of these words",
 };
 let rulesState = { pronunciations: [], voices: {}, editable_fields: {} };
 
@@ -89,6 +90,16 @@ function renderPronunciations() {
           rule.followed_by = value.split(",").map((w) => w.trim()).filter(Boolean);
         },
         "in, at, on, here",
+      ));
+    }
+    if (rule.mode === "unless") {
+      card.appendChild(field(
+        "Except after (comma separated)",
+        (rule.preceded_by || []).join(", "),
+        (value) => {
+          rule.preceded_by = value.split(",").map((w) => w.trim()).filter(Boolean);
+        },
+        "I, you, we, they, a, an",
       ));
     }
     card.appendChild(field("Why (note to yourself)", rule.note, (value) => { rule.note = value; }));

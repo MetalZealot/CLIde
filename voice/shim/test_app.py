@@ -95,7 +95,7 @@ class NormalizerTests(unittest.TestCase):
             "Wait two hundred milliseconds. In twenty twenty six, use port "
             "three zero zero one. Commit five four zero zero zero zero zero used "
             "five hundred twelve megabytes and sixty four kilobytes. Open "
-            "example dot com slash path or the home, G NutHall, voice path. now.",
+            "example dot com slash path or the home, G NutHall, voice path. Now.",
         )
 
     def test_relative_paths_are_spoken_like_absolute_ones(self) -> None:
@@ -149,6 +149,29 @@ class NormalizerTests(unittest.TestCase):
             "twenty six.",
         )
 
+    def test_apostrophe_s_is_not_a_unit(self) -> None:
+        # An apostrophe is a non-word character, so \bs\b matched the "s" in
+        # "That's" and the unit rule said "That seconds".
+        result = prepare_speech_text("That's fine. It's here. It took 8.67s.")
+        self.assertEqual(
+            result,
+            "That's fine. It's here. It took eight point six seven seconds.",
+        )
+
+    def test_an_injected_sentence_opens_with_a_capital(self) -> None:
+        # Measured on libritts-r-204, three runs each: the lowercase form runs
+        # 6.58-7.43 s and the capitalised form 6.05-6.38 s, non-overlapping.
+        # The model was reading the two sentences as one long clause.
+        result = prepare_speech_text(
+            "Relative paths render like absolute ones: src/lib/foo.ts reads as a path.",
+            path_separator="stroke",
+        )
+        self.assertEqual(
+            result,
+            "Relative paths render like absolute ones. The src, lib, foo dot "
+            "ts path reads as a path.",
+        )
+
     def test_colons_become_full_spoken_stops(self) -> None:
         result = prepare_speech_text("Test this reply: The next sentence starts here.")
         self.assertEqual(result, "Test this reply. The next sentence starts here.")
@@ -168,6 +191,21 @@ class NormalizerTests(unittest.TestCase):
             result,
             "Meet at three thirty p m. It ran nine oh five to seventeen "
             "hundred. Reset at twelve a m.",
+        )
+
+    def test_live_is_the_adjective_unless_it_has_a_subject(self) -> None:
+        # The phrase list only covered is/are/was/were/now, so "Verified live"
+        # still came out as "livv". Listing the verb's subjects is shorter and
+        # covers the rest; "a"/"an" are listed so "a live concert" is not
+        # turned into "a active concert".
+        result = prepare_speech_text(
+            "Verified live at noon. It is now live. I live here. "
+            "We live there. This is a live concert."
+        )
+        self.assertEqual(
+            result,
+            "Verified active at noon. It is now active. I live here. "
+            "We live there. This is a live concert.",
         )
 
     def test_live_and_lives_follow_the_listening_result(self) -> None:
@@ -206,7 +244,7 @@ class NormalizerTests(unittest.TestCase):
         )
         self.assertEqual(
             result,
-            "This U R L has a path. example dot com slash path. "
+            "This U R L has a path. Example dot com slash path. "
             "These U R Ls differ.",
         )
 
