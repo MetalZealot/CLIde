@@ -3,8 +3,10 @@ from __future__ import annotations
 import array
 import io
 import json
+import tempfile
 import unittest
 import wave
+from pathlib import Path
 from unittest.mock import patch
 
 from app import _pause_map, app
@@ -88,6 +90,57 @@ class ClideSpeechTabTests(unittest.TestCase):
         self.assertEqual(len(pauses), 1)
         self.assertAlmostEqual(pauses[0]["at"], 1.0, places=1)
         self.assertAlmostEqual(pauses[0]["ms"], 500, delta=30)
+
+
+class VoiceLabelTests(unittest.TestCase):
+    """Labels outlive the browser, or auditioning 1,800 voices is wasted."""
+
+    def setUp(self) -> None:
+        self.client = app.test_client()
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        patcher = patch("app.LABELS_PATH", Path(self.directory.name) / "voice-labels.json")
+        self.labels_path = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_a_label_survives_a_reload(self) -> None:
+        self.client.post("/api/voices/labels", json={
+            "key": "en_US-libritts_r-medium#546",
+            "gender": "male",
+            "favorite": True,
+            "notes": "Warm, slightly slow.",
+            "length_scale": 1.35,
+        })
+        voices = self.client.get("/api/voices/labels").get_json()["voices"]
+        entry = voices["en_US-libritts_r-medium#546"]
+        self.assertEqual(entry["gender"], "male")
+        self.assertTrue(entry["favorite"])
+        self.assertEqual(entry["notes"], "Warm, slightly slow.")
+
+    def test_an_entry_with_nothing_left_to_say_is_removed(self) -> None:
+        key = "en_US-amy-medium"
+        self.client.post("/api/voices/labels", json={"key": key, "gender": "female"})
+        self.client.post("/api/voices/labels", json={"key": key, "gender": ""})
+        self.assertNotIn(key, self.client.get("/api/voices/labels").get_json()["voices"])
+
+    def test_a_key_outside_the_model_namespace_is_refused(self) -> None:
+        response = self.client.post("/api/voices/labels", json={"key": "../../etc/passwd"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_an_unreadable_store_is_ignored_rather_than_fatal(self) -> None:
+        self.labels_path.write_text("{not json", encoding="utf-8")
+        self.assertEqual(self.client.get("/api/voices/labels").get_json()["voices"], {})
+
+    def test_export_lists_only_favourites(self) -> None:
+        self.client.post("/api/voices/labels", json={
+            "key": "en_US-libritts_r-medium#546", "favorite": True,
+            "speaker_name": "204", "notes": "keep", "length_scale": 1.35,
+        })
+        self.client.post("/api/voices/labels", json={"key": "en_US-amy-medium", "gender": "female"})
+        exported = self.client.get("/api/voices/export").get_json()
+        self.assertEqual(exported["count"], 1)
+        self.assertIn("en_US-libritts_r-medium", exported["text"])
+        self.assertNotIn("en_US-amy-medium", exported["text"])
 
 
 if __name__ == "__main__":

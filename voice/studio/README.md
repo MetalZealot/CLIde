@@ -1,21 +1,38 @@
 # Voice Studio
 
-Standalone, private experiment for the local voice paths.
+Standalone, private experiment for the local voice paths. Built for a phone:
+four bottom tabs, nothing native, and no menu that runs taller than a thumb.
 
-- **Speech** is what CLIde actually says. It posts to the running `voice-shim`
-  service on 8890 and shows the prepared text, the eSpeak phonemes, and a pause
-  map measured from the returned audio. Nothing is duplicated here, so it
-  cannot drift from the app.
+- **Speak** auditions one voice against one script. It posts to the running
+  `voice-shim` service on 8890, so what you hear is what the app would say.
+  Prepared text, phonemes and the measured pause map are there, collapsed.
+- **Favorites** is the list being compiled for CLIde: every kept voice with its
+  model, speaker, speed, gender label and a free-text note. **Export** prints
+  them as a `VOICE_PRESETS` block to paste into `../shim/app.py`.
 - **Rules** edits the pronunciation lexicon and the per-voice pacing that the
-  service uses. Save, then press Speak — no restart.
+  service uses. Save, then press Speak it — no restart.
 - **Dictation** records or uploads audio and compares `tiny.en` and `base.en`.
 
-The old free-form Read aloud tab is gone; its normalizer was a stale copy and
-auditions there disagreed with the app.
+## Picking a voice out of ~1,800
+
+39 models are installed and two of them carry 904 speakers each, so the picker
+is a full-screen sheet rather than a dropdown: search, filter chips, and a
+drill-down into a model's speakers. Named casts show their names; a corpus of
+reader ids is numbered instead. Inside a model, **Unheard** hides everything
+already auditioned and **Random unheard** jumps to one, which is the only way a
+900-speaker model gets swept.
+
+## Labels and favorites
+
+Every judgement is written to `voice-labels.json` beside the speech rules, not
+to the browser, so it survives a refresh and follows you from phone to desktop.
+A voice is keyed by model and speaker (`en_US-libritts_r-medium#546`); an entry
+that has lost its gender, star, note and heard flag is deleted rather than kept
+empty, so "unlabeled" stays an honest filter. Speaking a voice marks it heard.
 
 ## Changing how CLIde sounds
 
-Most of it is now editable from the **Rules** tab, and saved to
+Most of it is editable from the **Rules** tab, and saved to
 `../shim/speech_rules.json`:
 
 - **Pronunciation** — respell a word. Three match modes: `word` (whole word,

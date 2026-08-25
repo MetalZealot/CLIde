@@ -42,6 +42,7 @@ FFMPEG_TIMEOUT_SECONDS = 30
 WHISPER_TIMEOUT_SECONDS = 120
 ALLOWED_EXTENSIONS = {".aac", ".m4a", ".mp3", ".ogg", ".opus", ".wav", ".webm"}
 SUPPORTED_TTS_MODELS = {"", "tts-1"}
+MAX_NAMED_SPEAKERS = 32
 
 
 @dataclass(frozen=True)
@@ -665,11 +666,23 @@ def _installed_models() -> list[dict[str, Any]]:
             config = json.loads(config_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        speaker_map = config.get("speaker_id_map") or {}
+        num_speakers = int(config.get("num_speakers", 1))
         models.append({
             "id": model_path.stem,
-            "num_speakers": int(config.get("num_speakers", 1)),
+            "num_speakers": num_speakers,
             "length_scale": config.get("inference", {}).get("length_scale", 1.0),
             "verdict": verdicts.get(model_path.stem, ""),
+            "quality": (config.get("audio") or {}).get("quality", ""),
+            "region": (config.get("language") or {}).get("region", ""),
+            "dataset": config.get("dataset", ""),
+            # A named cast is worth showing; a corpus of reader ids is not, so
+            # large maps are left for the client to number.
+            "speakers": (
+                [name for name, _ in sorted(speaker_map.items(), key=lambda pair: pair[1])]
+                if 1 < num_speakers <= MAX_NAMED_SPEAKERS
+                else []
+            ),
         })
     return models
 

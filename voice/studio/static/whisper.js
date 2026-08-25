@@ -1,38 +1,45 @@
-const whisperById = (id) => document.getElementById(id);
+// Dictation tab. Records or uploads audio and compares the two Whisper models
+// on identical input; the settings exist so only one thing varies at a time.
 
 let whisperRecorder;
 let whisperStream;
 let whisperStartedAt = 0;
 let whisperTimerId;
 let whisperRecordingCount = 0;
+let whisperMode = "compare";
 const whisperObjectUrls = new Set();
 
-function activateStudioTab(tabName) {
-  for (const button of document.querySelectorAll("[data-studio-tab]")) {
-    const active = button.dataset.studioTab === tabName;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", String(active));
-  }
-  for (const pane of document.querySelectorAll(".studio-pane")) {
-    const active = pane.id === `${tabName}-studio`;
-    pane.classList.toggle("active", active);
-    pane.hidden = !active;
-  }
-}
+const DECODER_OPTIONS = [
+  { value: "standard", label: "Standard", detail: "Whisper defaults" },
+  { value: "careful", label: "Careful", detail: "larger search, slower" },
+];
+const THREAD_OPTIONS = [
+  { value: "1", label: "1", detail: "one core" },
+  { value: "2", label: "2", detail: "" },
+  { value: "3", label: "3", detail: "" },
+  { value: "4", label: "4", detail: "Pi default" },
+];
 
 function whisperStatus(message, kind = "") {
-  const status = whisperById("whisper-status");
+  const status = el("whisper-status");
   status.textContent = message;
   status.className = `status ${kind}`;
 }
 
+function updateAdvancedSummary() {
+  const decoder = el("whisper-decoder-preset").dataset.value;
+  const threads = el("whisper-threads").dataset.value;
+  el("whisper-advanced-summary").textContent = `${decoder} · ${threads} threads`;
+}
+
 function updateWhisperTimer() {
   const seconds = Math.floor((Date.now() - whisperStartedAt) / 1000);
-  whisperById("whisper-timer").textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  el("whisper-timer").textContent =
+    `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 function updateWhisperPreview(blob) {
-  const preview = whisperById("whisper-preview");
+  const preview = el("whisper-preview");
   if (preview.src) URL.revokeObjectURL(preview.src);
   const url = URL.createObjectURL(blob);
   whisperObjectUrls.add(url);
@@ -47,23 +54,22 @@ function recordingExtension(mimeType) {
 }
 
 function selectedWhisperModels() {
-  const mode = document.querySelector('input[name="whisper-model-mode"]:checked').value;
-  return mode === "compare" ? ["tiny.en", "base.en"] : [mode];
+  return whisperMode === "compare" ? ["tiny.en", "base.en"] : [whisperMode];
 }
 
 function selectedWhisperSettings() {
   return {
-    initialPrompt: whisperById("whisper-initial-prompt").value.trim(),
-    decoderPreset: whisperById("whisper-decoder-preset").value,
-    threads: Number(whisperById("whisper-threads").value),
+    initialPrompt: el("whisper-initial-prompt").value.trim(),
+    decoderPreset: el("whisper-decoder-preset").dataset.value,
+    threads: Number(el("whisper-threads").dataset.value),
   };
 }
 
 function selectedCaptureSettings() {
   return {
-    echoCancellation: whisperById("whisper-echo-cancellation").checked,
-    noiseSuppression: whisperById("whisper-noise-suppression").checked,
-    autoGainControl: whisperById("whisper-auto-gain").checked,
+    echoCancellation: el("whisper-echo-cancellation").checked,
+    noiseSuppression: el("whisper-noise-suppression").checked,
+    autoGainControl: el("whisper-auto-gain").checked,
   };
 }
 
@@ -100,8 +106,8 @@ async function transcribeOne(blob, filename, model, recordingNumber, index, tota
 }
 
 async function transcribeWhisper(blob, filename, captureSettings = undefined) {
-  whisperById("whisper-record").disabled = true;
-  whisperById("whisper-stop").disabled = true;
+  el("whisper-record").disabled = true;
+  el("whisper-stop").disabled = true;
   const models = selectedWhisperModels();
   const settings = selectedWhisperSettings();
   whisperRecordingCount += 1;
@@ -109,17 +115,17 @@ async function transcribeWhisper(blob, filename, captureSettings = undefined) {
     for (const [index, model] of models.entries()) {
       await transcribeOne(blob, filename, model, whisperRecordingCount, index, models.length, settings, captureSettings);
     }
-    whisperStatus(models.length === 2 ? "Comparison ready." : "Transcript ready.", "success");
+    whisperStatus(models.length === 2 ? "Comparison ready." : "Transcript ready.", "ok");
   } catch (error) {
     whisperStatus(error.message || "Transcription failed.", "error");
   } finally {
-    whisperById("whisper-record").disabled = false;
+    el("whisper-record").disabled = false;
   }
 }
 
 async function startWhisperRecording() {
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-    whisperStatus("This browser does not support microphone recording. Upload a file instead.", "error");
+    whisperStatus("This browser cannot record. Upload a file instead.", "error");
     return;
   }
   try {
@@ -127,14 +133,16 @@ async function startWhisperRecording() {
     whisperStream = await navigator.mediaDevices.getUserMedia({ audio: captureSettings });
     const preferred = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
     const mimeType = preferred.find((candidate) => MediaRecorder.isTypeSupported(candidate));
-    whisperRecorder = mimeType ? new MediaRecorder(whisperStream, { mimeType }) : new MediaRecorder(whisperStream);
+    whisperRecorder = mimeType
+      ? new MediaRecorder(whisperStream, { mimeType })
+      : new MediaRecorder(whisperStream);
     const parts = [];
     whisperRecorder.addEventListener("dataavailable", (event) => { if (event.data.size) parts.push(event.data); });
     whisperRecorder.addEventListener("stop", () => {
       whisperStream.getTracks().forEach((track) => track.stop());
       whisperStream = undefined;
       clearInterval(whisperTimerId);
-      whisperById("whisper-timer").textContent = "00:00";
+      el("whisper-timer").textContent = "00:00";
       const blob = new Blob(parts, { type: whisperRecorder.mimeType || "audio/webm" });
       updateWhisperPreview(blob);
       transcribeWhisper(blob, `recording.${recordingExtension(blob.type)}`, captureSettings);
@@ -142,8 +150,8 @@ async function startWhisperRecording() {
     whisperRecorder.start();
     whisperStartedAt = Date.now();
     whisperTimerId = setInterval(updateWhisperTimer, 250);
-    whisperById("whisper-record").disabled = true;
-    whisperById("whisper-stop").disabled = false;
+    el("whisper-record").disabled = true;
+    el("whisper-stop").disabled = false;
     whisperStatus("Recording…", "working");
   } catch (error) {
     whisperStatus(`Microphone unavailable: ${error.message || "permission was not granted"}`, "error");
@@ -152,13 +160,15 @@ async function startWhisperRecording() {
 
 function stopWhisperRecording() {
   if (whisperRecorder?.state === "recording") whisperRecorder.stop();
-  whisperById("whisper-stop").disabled = true;
+  el("whisper-stop").disabled = true;
 }
 
 function addWhisperTake(blob, text, recordingNumber, metrics) {
-  whisperById("whisper-history").querySelector(".empty-state")?.remove();
-  const card = whisperById("whisper-take-template").content.firstElementChild.cloneNode(true);
-  card.querySelector(".whisper-take-number").textContent = `TAKE ${String(recordingNumber).padStart(2, "0")} · ${metrics.model || "tiny.en"}`;
+  const history = el("whisper-history");
+  history.querySelector("p.muted")?.remove();
+  const card = el("whisper-take-template").content.firstElementChild.cloneNode(true);
+  card.querySelector(".whisper-take-number").textContent =
+    `TAKE ${String(recordingNumber).padStart(2, "0")} · ${metrics.model || "tiny.en"}`;
   const url = URL.createObjectURL(blob);
   whisperObjectUrls.add(url);
   card.querySelector("audio").src = url;
@@ -168,8 +178,8 @@ function addWhisperTake(blob, text, recordingNumber, metrics) {
   if (Number.isFinite(metrics.duration) && metrics.duration > 0 && Number.isFinite(metrics.milliseconds)) {
     pieces.push(`${(metrics.milliseconds / 1000 / metrics.duration).toFixed(2)}× real time`);
   }
-  if (Number.isFinite(metrics.peakRssKiB) && metrics.peakRssKiB > 0) pieces.push(`~${Math.round(metrics.peakRssKiB / 1024)} MiB Whisper peak RSS`);
-  if (Number.isFinite(metrics.threads) && metrics.threads > 0) pieces.push(`${metrics.threads} CPU threads`);
+  if (Number.isFinite(metrics.peakRssKiB) && metrics.peakRssKiB > 0) pieces.push(`~${Math.round(metrics.peakRssKiB / 1024)} MiB peak RSS`);
+  if (Number.isFinite(metrics.threads) && metrics.threads > 0) pieces.push(`${metrics.threads} threads`);
   if (metrics.decoderLabel) pieces.push(metrics.decoderLabel);
   if (metrics.initialPrompt) pieces.push(`prompt: ${metrics.initialPrompt}`);
   if (metrics.capture) pieces.push(metrics.capture);
@@ -179,27 +189,37 @@ function addWhisperTake(blob, text, recordingNumber, metrics) {
     whisperObjectUrls.delete(url);
     card.remove();
   });
-  whisperById("whisper-history").prepend(card);
+  history.prepend(card);
 }
 
-for (const button of document.querySelectorAll("[data-studio-tab]")) {
-  button.addEventListener("click", () => activateStudioTab(button.dataset.studioTab));
-}
-whisperById("whisper-record").addEventListener("click", startWhisperRecording);
-whisperById("whisper-stop").addEventListener("click", stopWhisperRecording);
-whisperById("whisper-upload").addEventListener("change", (event) => {
+Studio.bindChips(el("whisper-mode"), "whisper-mode", (value) => { whisperMode = value; });
+Studio.bindPicker(el("whisper-decoder-preset"), {
+  title: "Decoder preset",
+  options: DECODER_OPTIONS,
+  onChange: updateAdvancedSummary,
+});
+Studio.bindPicker(el("whisper-threads"), {
+  title: "CPU threads",
+  options: THREAD_OPTIONS,
+  onChange: updateAdvancedSummary,
+});
+updateAdvancedSummary();
+
+el("whisper-record").addEventListener("click", startWhisperRecording);
+el("whisper-stop").addEventListener("click", stopWhisperRecording);
+el("whisper-upload").addEventListener("change", (event) => {
   const [file] = event.target.files;
   if (!file) return;
   updateWhisperPreview(file);
   transcribeWhisper(file, file.name);
   event.target.value = "";
 });
-whisperById("whisper-clear").addEventListener("click", () => {
-  whisperById("whisper-history").replaceChildren();
+el("whisper-clear").addEventListener("click", () => {
+  el("whisper-history").innerHTML = '<p class="muted" style="font-size:0.8rem">Transcripts appear here.</p>';
   whisperRecordingCount = 0;
   for (const url of whisperObjectUrls) URL.revokeObjectURL(url);
   whisperObjectUrls.clear();
-  whisperById("whisper-preview").hidden = true;
-  whisperById("whisper-preview").removeAttribute("src");
+  el("whisper-preview").hidden = true;
+  el("whisper-preview").removeAttribute("src");
   whisperStatus("History cleared.");
 });

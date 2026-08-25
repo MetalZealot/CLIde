@@ -9,6 +9,7 @@ import base64
 import io
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -27,6 +28,8 @@ from whisper_studio import register_whisper_routes
 # second copy of the speech rules here -- a stale copy is why auditions used to
 # disagree with what the app actually said.
 SHIM_BASE_URL = "http://127.0.0.1:8890"
+VOICE_ROOT = Path(os.environ.get("CLIDE_VOICE_ROOT", "/home/gnuthall/voice"))
+LABELS_PATH = VOICE_ROOT / "voice-labels.json"
 SHIM_TIMEOUT_SECONDS = 300
 SILENCE_AMPLITUDE = 900
 PAUSE_WINDOW_MS = 10
@@ -34,8 +37,26 @@ MIN_REPORTED_PAUSE_MS = 80
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+# The front end is edited live; a stale cached bundle reads as a bug.
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 _LOGGER = logging.getLogger("voice-studio")
 inference_lock = threading.Lock()
+labels_lock = threading.Lock()
+
+# A voice is a model, or a model and one of its speakers: "libritts_r#546".
+VOICE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,80}(#\d{1,4})?$")
+GENDERS = {"", "male", "female", "neutral"}
+MAX_NOTE_CHARS = 2000
+
+
+STATIC_DIR = Path(__file__).with_name("static")
+
+
+@app.context_processor
+def _asset_version() -> dict[str, str]:
+    """Stamp the bundles with their own mtime; the front end is edited live."""
+    newest = max((path.stat().st_mtime for path in STATIC_DIR.glob("*.*")), default=0)
+    return {"asset_version": str(int(newest))}
 
 
 @app.get("/")
@@ -251,6 +272,105 @@ def clide_speech() -> Any:
         "generation_seconds": round(generation_seconds, 3),
         "duration_seconds": round(duration_seconds, 3),
     })
+
+
+def _read_labels() -> dict[str, Any]:
+    """Every judgement made about a voice, keyed by model and speaker.
+
+    Auditioning 1,800 voices is only worth doing once, so this outlives the
+    browser: it is the list being compiled for CLIde, not a UI cache.
+    """
+    try:
+        stored = json.loads(LABELS_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError) as error:
+        _LOGGER.warning("Ignoring unreadable %s: %s", LABELS_PATH.name, error)
+        return {}
+    voices = stored.get("voices") if isinstance(stored, dict) else None
+    return voices if isinstance(voices, dict) else {}
+
+
+def _write_labels(voices: dict[str, Any]) -> None:
+    temporary = LABELS_PATH.with_name(f"{LABELS_PATH.name}.tmp")
+    temporary.write_text(
+        json.dumps({"voices": voices}, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    temporary.replace(LABELS_PATH)
+
+
+@app.get("/api/voices/labels")
+def voice_labels() -> Any:
+    return jsonify({"voices": _read_labels()})
+
+
+@app.post("/api/voices/labels")
+def save_voice_label() -> Any:
+    data = request.get_json(silent=True) or {}
+    key = str(data.get("key", "")).strip()
+    if not VOICE_KEY_PATTERN.match(key):
+        return jsonify({"error": "Unknown voice key"}), 400
+
+    with labels_lock:
+        voices = _read_labels()
+        if data.get("remove"):
+            voices.pop(key, None)
+            _write_labels(voices)
+            return jsonify({"key": key, "entry": None})
+
+        entry = dict(voices.get(key) or {})
+        if "gender" in data:
+            gender = str(data.get("gender") or "")
+            if gender not in GENDERS:
+                return jsonify({"error": "Unknown gender label"}), 400
+            entry["gender"] = gender
+        if "favorite" in data:
+            entry["favorite"] = bool(data.get("favorite"))
+        if "notes" in data:
+            entry["notes"] = str(data.get("notes") or "")[:MAX_NOTE_CHARS]
+        if "heard" in data:
+            entry["heard"] = bool(data.get("heard"))
+        for field in ("model", "speaker_id", "speaker_name", "length_scale"):
+            if field in data and data[field] is not None:
+                entry[field] = data[field]
+        entry["updated"] = round(time.time())
+
+        # An entry with nothing left to say is deleted, so "unlabelled" stays
+        # an honest filter rather than a file of empty records.
+        if not entry.get("gender") and not entry.get("favorite") \
+                and not entry.get("notes") and not entry.get("heard"):
+            voices.pop(key, None)
+            entry = {}
+        else:
+            voices[key] = entry
+        _write_labels(voices)
+    return jsonify({"key": key, "entry": entry or None})
+
+
+@app.get("/api/voices/export")
+def export_favorites() -> Any:
+    """The favorites as a preset block, ready to paste into the shim."""
+    voices = _read_labels()
+    favorites = sorted(
+        ((key, entry) for key, entry in voices.items() if entry.get("favorite")),
+        key=lambda pair: (pair[1].get("gender") or "zz", pair[0]),
+    )
+    lines = [f"# {len(favorites)} favorite voices", ""]
+    for key, entry in favorites:
+        model, _, speaker = key.partition("#")
+        name = entry.get("speaker_name") or speaker or "voice"
+        arguments = [f'"{model}"']
+        if speaker:
+            arguments.append(speaker)
+            arguments.append(f'"{name}"')
+        arguments.append(str(entry.get("length_scale") or 1.0))
+        gender = entry.get("gender") or "no gender"
+        notes = (entry.get("notes") or "").replace("\n", " ").strip()
+        lines.append(f'    "{model.split("-")[-2] if "-" in model else model}-{name}": '
+                     f'VoicePreset({", ".join(arguments)}),')
+        lines.append(f"    # {gender}{' — ' + notes if notes else ''}")
+    return jsonify({"text": "\n".join(lines), "count": len(favorites)})
+
 
 
 @app.errorhandler(413)
