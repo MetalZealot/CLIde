@@ -134,18 +134,16 @@ which also corrupts the pause structure.
 Superseded where it conflicts with the 2026-08-24 decision above: the default voice
 stays `libritts-r-204`, and the substitution rules stay. Relative paths now render
 through `_speak_file_path` like absolute ones and `~` speaks as "home"; a colon only
-breaks a sentence when a space follows it, and clock times are spoken. Still open:
+breaks a sentence when a space follows it, and clock times, decades, ISO dates,
+currency, percentages and proper fractions are all spoken. Still open:
 
-1. **Fix `The 1990s`** — currently "the nineteen ninety *seconds*", collateral from
-   the `s` -> "seconds" unit rule.
-2. **Expand what's still passed through raw**: dates (`2026-08-24` -> "twenty twenty
-   six-08-24"), `$12.50`, `50%`, `3/4`, roman numerals. KittenTTS's `expand_*`
-   helpers (Apache 2.0) cover all of these and would delete a lot of our regex —
-   vendor them as a parts bin, don't build on the rest of it.
-3. **Gate voices on the reference corpus.** Any voice failing the with/without
+1. **Roman numerals.** Deliberately not done: "I" is a pronoun, "MIX", "DID" and
+   "MI" are words, and the false positives would cost more than the misreadings.
+   Revisit only with a measured failure behind it.
+2. **Gate voices on the reference corpus.** Any voice failing the with/without
    duration test is rejected however good it sounds — `speech_probe.py drop` is the
    test. Worth surfacing as a button in the Studio next to the voice picker.
-4. **Upgrade piper-tts 1.4.2 -> 1.7.0** opportunistically. The changelog is other
+3. **Upgrade piper-tts 1.4.2 -> 1.7.0** opportunistically. The changelog is other
    languages' phonemizers and a C++ CLI, no English normalizer work, so it fixes
    nothing here — re-run the sweep after.
 

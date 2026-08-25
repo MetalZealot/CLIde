@@ -40,6 +40,17 @@ ONES = (
     "seventeen", "eighteen", "nineteen",
 )
 TENS = ("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+DECADES = ("", "tens", "twenties", "thirties", "forties", "fifties", "sixties",
+           "seventies", "eighties", "nineties")
+MONTHS = ("", "January", "February", "March", "April", "May", "June", "July",
+          "August", "September", "October", "November", "December")
+ORDINALS = {
+    1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth", 6: "sixth",
+    7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth", 11: "eleventh",
+    12: "twelfth", 13: "thirteenth", 14: "fourteenth", 15: "fifteenth",
+    16: "sixteenth", 17: "seventeenth", 18: "eighteenth", 19: "nineteenth",
+    20: "twentieth", 30: "thirtieth",
+}
 TECHNICAL_UNITS = {
     "ms": ("millisecond", "milliseconds"),
     "s": ("second", "seconds"),
@@ -217,6 +228,72 @@ def _speak_web_address(match: re.Match[str], path_separator: str) -> str:
     return f"{spoken}{trailing}"
 
 
+def _ordinal_words(number: int) -> str:
+    if number in ORDINALS:
+        return ORDINALS[number]
+    tens, ones = divmod(number, 10)
+    return f"{TENS[tens]} {ORDINALS[ones]}"
+
+
+def _speak_decade(match: re.Match[str]) -> str:
+    """"The 1990s" was reaching espeak as "the 1990 seconds"."""
+    year = int(match.group(1))
+    century, remainder = divmod(year, 100)
+    if remainder:
+        return f"{_number_to_words(century)} {DECADES[remainder // 10]}"
+    if year % 1_000 == 0:
+        return f"{_number_to_words(year // 1_000)} thousands"
+    return f"{_number_to_words(century)} hundreds"
+
+
+def _speak_iso_date(match: re.Match[str]) -> str:
+    """Only the unambiguous form. "08/24/2026" and "24/08/2026" are the same
+    eight characters in two countries, so they stay as written."""
+    year, month, day = (int(part) for part in match.groups())
+    if not 1 <= month <= 12 or not 1 <= day <= 31:
+        return match.group(0)
+    return f"{MONTHS[month]} {_ordinal_words(day)}, {_speak_year(str(year))}"
+
+
+def _speak_money(match: re.Match[str]) -> str:
+    amount = match.group(1).replace(",", "")
+    whole, _, cents = amount.partition(".")
+    cents = int((cents + "00")[:2]) if cents else 0
+    dollars = int(whole)
+    parts = []
+    if dollars or not cents:
+        parts.append(f"{_number_to_words(dollars)} dollar{'' if dollars == 1 else 's'}")
+    if cents:
+        parts.append(f"{_number_to_words(cents)} cent{'' if cents == 1 else 's'}")
+    return " ".join(parts)
+
+
+def _speak_decimal(value: str) -> str:
+    whole, _, fraction = value.replace(",", "").partition(".")
+    spoken = _number_to_words(int(whole))
+    if not fraction:
+        return spoken
+    digits = " ".join(ONES[int(digit)] for digit in fraction)
+    return f"{spoken} point {digits}"
+
+
+def _speak_fraction(match: re.Match[str]) -> str:
+    numerator, denominator = int(match.group(1)), int(match.group(2))
+    # Only a proper fraction. "24/7" and "16/9" are ratios, and reading them
+    # as sevenths and ninths is worse than leaving them alone.
+    if not 1 <= numerator < denominator <= 100:
+        return match.group(0)
+    if denominator == 2:
+        name = "half" if numerator == 1 else "halves"
+    elif denominator == 4:
+        name = "quarter" if numerator == 1 else "quarters"
+    else:
+        name = _ordinal_words(denominator)
+        if numerator != 1:
+            name += "s"
+    return f"{_number_to_words(numerator)} {name}"
+
+
 def _speak_clock_time(match: re.Match[str]) -> str:
     hour, minute = int(match.group(1)), int(match.group(2))
     meridiem = match.group(3)
@@ -270,7 +347,21 @@ def _speak_technical_text(text: str, path_separator: str) -> str:
         text,
         flags=re.IGNORECASE,
     )
-    text = re.sub(r"\b(\d+(?:\.\d+)?)\s*s\b", r"\1 seconds", text)
+    # Decades before the unit rules: "1990s" was matching the seconds rule.
+    text = re.sub(r"\b(1\d{2}0|20\d0)s\b", _speak_decade, text)
+    text = re.sub(r"\b(\d{4})-(\d{2})-(\d{2})\b", _speak_iso_date, text)
+    text = re.sub(r"\$(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)", _speak_money, text)
+    text = re.sub(
+        r"\b(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*%",
+        lambda match: f"{_speak_decimal(match.group(1))} percent",
+        text,
+    )
+    text = re.sub(r"\b(\d{1,2})/(\d{1,3})\b(?!/)", _speak_fraction, text)
+    text = re.sub(
+        r"\b(\d+(?:\.\d+)?)\s*s\b",
+        lambda match: f"{_speak_decimal(match.group(1))} seconds",
+        text,
+    )
     # Before the year and three-digit rules, which would otherwise claim the
     # halves of a clock time separately.
     text = re.sub(

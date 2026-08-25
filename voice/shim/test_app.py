@@ -118,12 +118,35 @@ class NormalizerTests(unittest.TestCase):
         # file extension. Everything here is written with a slash and is not a
         # path.
         result = prepare_speech_text(
-            "Roughly 3/4 of it, 24/7, yes/no, TTS/STT.", path_separator="stroke"
+            "Roughly 24/7, yes/no, TTS/STT.", path_separator="stroke"
+        )
+        self.assertEqual(
+            result, "Roughly 24 stroke 7, yes stroke no, TTS stroke STT."
+        )
+
+    def test_decades_dates_money_percentages_and_fractions(self) -> None:
+        # "The 1990s" was reaching espeak as "the 1990 seconds": the decade
+        # suffix matched the unit rule. The rest was passed through raw.
+        result = prepare_speech_text(
+            "The 1990s shipped 2026-08-24. It cost $1,200.50, up 3.5%, "
+            "with 3/4 done and 1/2 left."
         )
         self.assertEqual(
             result,
-            "Roughly 3 stroke 4 of it, 24 stroke 7, yes stroke no, "
-            "TTS stroke STT.",
+            "The nineteen nineties shipped August twenty fourth, twenty twenty "
+            "six. It cost one thousand two hundred dollars fifty cents, up "
+            "three point five percent, with three quarters done and one half "
+            "left.",
+        )
+
+    def test_ratios_and_ambiguous_dates_are_left_alone(self) -> None:
+        # A ratio is not a fraction, and "08/24/2026" is two different dates
+        # depending on the country, so neither is guessed at.
+        result = prepare_speech_text("Ratio 16:9, uptime 24/7, dated 08/24/2026.")
+        self.assertEqual(
+            result,
+            "Ratio 16:9, uptime 24 slash 7, dated 08 slash 24 slash twenty "
+            "twenty six.",
         )
 
     def test_colons_become_full_spoken_stops(self) -> None:
@@ -512,7 +535,10 @@ class UnspeakableCharacterTests(unittest.TestCase):
 
     def test_bare_second_suffix_expands(self) -> None:
         # eSpeak otherwise reads the trailing "s" as the letter "z".
-        self.assertEqual(prepare_speech_text("It took 8.67s."), "It took 8.67 seconds.")
+        self.assertEqual(
+            prepare_speech_text("It took 8.67s."),
+            "It took eight point six seven seconds.",
+        )
 
 
 class StructurePacingTests(unittest.TestCase):
