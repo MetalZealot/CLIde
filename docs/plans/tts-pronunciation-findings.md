@@ -49,23 +49,30 @@ model that happened to be the default.
 one `ʤ` cluster in a nonsense word on 1.4.0, and one of the two voices it names,
 `kristin-medium`, passes this sweep at +1.35. Different phenomenon — don't conflate.)
 
-### Decision, 2026-08-24: closed, keep LibriTTS-R
+### Reopened, 2026-08-24 evening: LibriTTS-R is being replaced
 
-Only "slash" is affected. `lash` `flash` `crash` `splash` `slap` `slice` `slow`
-`backslash` `dash` all render on the same voice, so it is not the `sl` cluster.
-`stroke` measures +0.449s on `libritts-r-204` (122% of that voice's one-syllable
-reference); `slash` +0.093s (25%). Reproduced on <https://piper.ttstool.com/>, so
-it is the published model, not this install — and inconsistently, which is worse:
-alone on a line it sometimes renders.
+The decision below held only as long as "slash" was the single affected word.
+It is not. `:` measures the same way: espeak renders it as the word "colon"
+(`kˈoʊlən`) and libritts-r-204 allocates +0.24 s against hfc_male's +0.43 s for
+identical phonemes, three runs each. Grayson also still hears "livv" for the
+adjective "live", which the substitution only hides.
 
-Respellings ("pslasch") survive one sentence, then hallucinate on repetition. That
-is the word-morphing failure this document exists to stop. Do not reopen it.
+That is three words papered over with substitutions, and the pattern is short
+technical words generally, not a fixed list. A speech front end cannot fix a
+model that will not say the words. Auditioning moved to the shipped catalogue:
+31 of 39 installed voices PASS the word-drop sweep, so the shortlist was never
+as narrow as it felt.
 
-Substitution is the fix, and it is what SSML's `<sub>` is for. Every LibriTTS-R and
-Jenny preset sets `path_separator="stroke"`; HFC and Rocket keep `"slash"`;
-`normalizer.py` routes every `/` through that one per-voice setting. A literal
-"slash" in prose is still dropped — add a `slash` -> `stroke` rule in the Rules tab
-if it ever matters. The voice shortlist stands; no re-selection needed.
+### Superseded decision, 2026-08-24: closed, keep LibriTTS-R
+
+Held while "slash" looked like the only affected word. `stroke` measures +0.449s
+on `libritts-r-204` against `slash` at +0.093s, and `lash` `flash` `crash` `slap`
+`slice` `slow` `dash` all render, so it is not the `sl` cluster. Reproduced on
+<https://piper.ttstool.com/>: the published model, not this install, and
+inconsistent rather than incapable.
+
+Respellings ("pslasch") survive one sentence, then hallucinate on repetition —
+the word-morphing failure this document exists to stop. Do not reopen that.
 
 ## Layer 2: espeak-ng homographs
 

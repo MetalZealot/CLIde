@@ -1,8 +1,10 @@
 # Self-hosted dictation and read-aloud
 
 - Status: 4/6
-- Next: Phase 5 — verify each model's licence, agree the user-facing names and
-  initial selection, then replace free-text voice entry with the allowlist.
+- Next: re-select the default voice. LibriTTS-R swallows short technical words
+  (`slash`, `colon`) and mispronounces "live"; 31 of 39 installed voices pass
+  the word-drop sweep, and the Speech tab now auditions any of them. Phase 5's
+  licences, names and allowlist follow from whatever is chosen.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts), and the host-local voice README,

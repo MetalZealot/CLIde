@@ -4,6 +4,7 @@
 const clideEl = (id) => document.getElementById(id);
 let clideAudioUrl = null;
 let corpusCases = [];
+let auditionModels = [];
 
 function clideStatus(message, kind = "") {
   const status = clideEl("clide-status");
@@ -49,13 +50,17 @@ async function loadClideVoices() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not reach the voice service");
     select.innerHTML = "";
+    const presets = document.createElement("optgroup");
+    presets.label = "Shipped presets";
     for (const voice of data.voices) {
       const option = document.createElement("option");
       option.value = voice;
       option.textContent = voice === data.default_voice ? `${voice} (default)` : voice;
       option.selected = voice === data.default_voice;
-      select.appendChild(option);
+      presets.appendChild(option);
     }
+    select.appendChild(presets);
+    await loadAuditionModels(select);
   } catch (error) {
     select.innerHTML = `<option>${error.message}</option>`;
     clideStatus(error.message, "error");
@@ -72,11 +77,29 @@ async function runClideSpeech(speak) {
   clideEl("clide-speak").disabled = true;
   clideEl("clide-prepare").disabled = true;
   try {
-    const response = await fetch("/api/clide/speech", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, voice: clideEl("clide-voice").value, speak }),
-    });
+    // A "model:" selection is an audition: any installed model, rendered
+    // through the same speech front end as the shipped presets.
+    const choice = clideEl("clide-voice").value;
+    const auditioning = choice.startsWith("model:") && speak;
+    const response = auditioning
+      ? await fetch("/api/clide/audition", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            model: choice.slice(6),
+            speaker_id: Number(clideEl("clide-speaker").value) || 0,
+          }),
+        })
+      : await fetch("/api/clide/speech", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            voice: choice.startsWith("model:") ? undefined : choice,
+            speak,
+          }),
+        });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Request failed");
 
@@ -92,13 +115,13 @@ async function runClideSpeech(speak) {
       audio.hidden = false;
       renderPauses(data.pauses, data.sentences);
       clideStatus(
-        `${data.duration_seconds}s of audio in ${data.generation_seconds}s · ${data.voice}`,
+        `${data.duration_seconds}s of audio in ${data.generation_seconds}s · ${data.voice || data.model}`,
         "ok",
       );
     } else {
       audio.hidden = true;
       renderPauses([], null);
-      clideStatus(`Prepared for ${data.voice} — separator "${data.separator}".`, "ok");
+      clideStatus(`Prepared for ${data.voice || data.model} — separator "${data.separator}".`, "ok");
     }
   } catch (error) {
     clideStatus(error.message, "error");
@@ -107,6 +130,37 @@ async function runClideSpeech(speak) {
     clideEl("clide-prepare").disabled = false;
   }
 }
+
+// Every installed model, so a voice can be tried before it earns a preset.
+// The verdict is the last word-drop sweep: PASS renders the probe words, DROPS
+// swallows them. Advisory only -- a voice can pass and still sound wrong.
+async function loadAuditionModels(select) {
+  const response = await fetch("/api/clide/models");
+  const data = await response.json();
+  if (!response.ok) return;
+  auditionModels = data.models;
+  const group = document.createElement("optgroup");
+  group.label = "All installed models (audition)";
+  for (const model of data.models) {
+    const option = document.createElement("option");
+    option.value = `model:${model.id}`;
+    option.textContent = model.verdict ? `${model.id} — ${model.verdict}` : model.id;
+    group.appendChild(option);
+  }
+  select.appendChild(group);
+}
+
+function showSpeakerField() {
+  const choice = clideEl("clide-voice").value;
+  const field = clideEl("clide-speaker-field");
+  const model = auditionModels.find((entry) => `model:${entry.id}` === choice);
+  field.hidden = !model || model.num_speakers <= 1;
+  if (!field.hidden) {
+    clideEl("clide-speaker").max = String(model.num_speakers - 1);
+  }
+}
+
+clideEl("clide-voice").addEventListener("change", showSpeakerField);
 
 // The listening pass: one reference case per class of failure the speech front
 // end fixes, loaded by name so a case can be replayed in seconds on a phone.

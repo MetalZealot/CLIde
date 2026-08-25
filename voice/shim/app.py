@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import io
 import logging
@@ -632,6 +633,116 @@ def _only_real_overrides(voices: Any) -> dict[str, dict[str, Any]]:
         if changed:
             trimmed[voice_id] = changed
     return trimmed
+
+
+SWEEP_PATH = VOICE_ROOT / "auditions/voice-word-drop-sweep.txt"
+
+
+def _sweep_verdicts() -> dict[str, str]:
+    """PASS/WEAK/DROPS per model from the last catalogue sweep, if it exists.
+
+    Advisory only: it is a measurement, not a gate, and a voice can pass the
+    probe and still sound wrong. Regenerate with `speech_probe.py drop`.
+    """
+    verdicts: dict[str, str] = {}
+    try:
+        lines = SWEEP_PATH.read_text(encoding="utf-8").splitlines()[1:]
+    except OSError:
+        return verdicts
+    for line in lines:
+        parts = line.split()
+        if len(parts) >= 2:
+            verdicts[parts[0]] = parts[-1]
+    return verdicts
+
+
+def _installed_models() -> list[dict[str, Any]]:
+    verdicts = _sweep_verdicts()
+    models = []
+    for model_path in sorted((VOICE_ROOT / "models").glob("*.onnx")):
+        config_path = model_path.with_suffix(".onnx.json")
+        try:
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        models.append({
+            "id": model_path.stem,
+            "num_speakers": int(config.get("num_speakers", 1)),
+            "length_scale": config.get("inference", {}).get("length_scale", 1.0),
+            "verdict": verdicts.get(model_path.stem, ""),
+        })
+    return models
+
+
+@app.get("/api/audition/models")
+def audition_models() -> Response:
+    return jsonify({"models": _installed_models()})
+
+
+@app.post("/audio/speech/audition")
+def speech_audition() -> Response:
+    """Render any installed model through the production speech front end.
+
+    The presets are the shipped catalogue; this is how a voice earns a place
+    in it. Same normalizer, same pacing, same lock -- only the model varies,
+    so what is heard here is what the app would say in that voice.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Expected a JSON request"}), 400
+    raw_text = data.get("input")
+    if not isinstance(raw_text, str) or not raw_text.strip():
+        return jsonify({"error": "Expected non-empty input text"}), 400
+    if len(raw_text) > MAX_TTS_INPUT_CHARS:
+        return jsonify({"error": f"Input is limited to {MAX_TTS_INPUT_CHARS:,} characters"}), 400
+
+    model_id = str(data.get("model", "")).strip()
+    if model_id != Path(model_id).name or not model_id:
+        return jsonify({"error": "Unknown voice model"}), 400
+    model_path = VOICE_ROOT / "models" / f"{model_id}.onnx"
+    if not model_path.is_file():
+        return jsonify({"error": f"{model_id} is not installed"}), 404
+
+    try:
+        speaker_id = int(data.get("speaker_id") or 0)
+        length_scale = float(data.get("length_scale") or _model_default_length_scale(model_id))
+    except (TypeError, ValueError):
+        return jsonify({"error": "speaker_id and length_scale must be numbers"}), 400
+    if not 0.35 <= length_scale <= 2.5:
+        return jsonify({"error": "length_scale must be between 0.35 and 2.5"}), 400
+    separator = str(data.get("path_separator") or "slash").strip()[:24] or "slash"
+
+    preset = VoicePreset(
+        model_id=model_id,
+        speaker_id=speaker_id,
+        length_scale=length_scale,
+        sentence_silence_seconds=float(data.get("sentence_silence_seconds") or 0.20),
+        path_separator=separator,
+    )
+    speech_text, structure_flags = speech_segments(raw_text, separator)
+    if not speech_text:
+        return jsonify({"error": "Nothing speakable remained after normalization"}), 400
+    if not inference_lock.acquire(blocking=False):
+        return jsonify({"error": "Another local voice job is running; try again shortly"}), 429
+    started = time.perf_counter()
+    try:
+        wav_bytes, frames, sample_rate = voice_cache.synthesize(
+            preset, speech_text, None, structure_flags
+        )
+    except SynthesisError as error:
+        return jsonify({"error": str(error)}), 500
+    finally:
+        inference_lock.release()
+    return jsonify({
+        "audio_base64": base64.b64encode(wav_bytes).decode("ascii"),
+        "prepared": speech_text,
+        "model": model_id,
+        "speaker_id": speaker_id,
+        "length_scale": length_scale,
+        "separator": separator,
+        "duration_seconds": round(frames / sample_rate, 3),
+        "generation_seconds": round(time.perf_counter() - started, 3),
+    })
 
 
 @app.get("/api/speech-rules")

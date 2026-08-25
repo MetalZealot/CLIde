@@ -172,6 +172,23 @@ class NormalizerTests(unittest.TestCase):
             "ts path reads as a path.",
         )
 
+    def test_auditioning_reaches_past_the_shipped_presets(self) -> None:
+        # A voice earns a preset by being auditioned, so the endpoint has to
+        # accept any installed model -- but only by bare name, never a path.
+        client = app.test_client()
+        listed = client.get("/api/audition/models").get_json()["models"]
+        self.assertGreater(len(listed), len(VOICE_PRESETS))
+        refused = client.post(
+            "/audio/speech/audition",
+            json={"input": "Hello", "model": "../../etc/passwd"},
+        )
+        self.assertEqual(refused.status_code, 400)
+        missing = client.post(
+            "/audio/speech/audition",
+            json={"input": "Hello", "model": "no-such-voice"},
+        )
+        self.assertEqual(missing.status_code, 404)
+
     def test_colons_become_full_spoken_stops(self) -> None:
         result = prepare_speech_text("Test this reply: The next sentence starts here.")
         self.assertEqual(result, "Test this reply. The next sentence starts here.")

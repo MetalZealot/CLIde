@@ -18,7 +18,7 @@ import wave
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from whisper_studio import register_whisper_routes
 
@@ -124,6 +124,54 @@ def _pause_map(wav_bytes: bytes) -> list[dict[str, float]]:
                 })
             run_start = None
     return pauses
+
+
+def _shim_get(path: str) -> tuple[int, bytes, str]:
+    try:
+        with urllib.request.urlopen(f"{SHIM_BASE_URL}{path}", timeout=SHIM_TIMEOUT_SECONDS) as response:
+            return response.status, response.read(), response.headers.get_content_type()
+    except urllib.error.HTTPError as error:
+        return error.code, error.read(), error.headers.get_content_type()
+
+
+@app.get("/api/clide/models")
+def clide_models() -> Any:
+    """Every installed model, not only the shipped presets.
+
+    Auditioning a voice is how it earns a preset, so the lab has to reach past
+    the catalogue -- but it renders through the shim, so the text it speaks is
+    still the production text.
+    """
+    try:
+        status, body, _ = _shim_get("/api/audition/models")
+    except urllib.error.URLError as error:
+        return jsonify({"error": f"Voice service unreachable: {error.reason}"}), 502
+    return Response(body, status=status, mimetype="application/json")
+
+
+@app.post("/api/clide/audition")
+def clide_audition() -> Any:
+    data = request.get_json(silent=True) or {}
+    text = str(data.get("text", ""))
+    if not text.strip():
+        return jsonify({"error": "Enter some text to synthesize"}), 400
+    payload = {
+        "input": text,
+        "model": data.get("model"),
+        "speaker_id": data.get("speaker_id"),
+        "length_scale": data.get("length_scale"),
+        "path_separator": data.get("path_separator"),
+    }
+    try:
+        status, body, _ = _shim_request("/audio/speech/audition", payload)
+    except urllib.error.URLError as error:
+        return jsonify({"error": f"Voice service unreachable: {error.reason}"}), 502
+    if status != 200:
+        return Response(body, status=status, mimetype="application/json")
+    result = json.loads(body)
+    audio = base64.b64decode(result.pop("audio_base64"))
+    return jsonify({**result, "audio_base64": base64.b64encode(audio).decode("ascii"),
+                    "pauses": _pause_map(audio)})
 
 
 @app.get("/api/clide/voices")
