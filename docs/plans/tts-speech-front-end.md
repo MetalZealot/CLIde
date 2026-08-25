@@ -1,8 +1,7 @@
 # Auditable text-to-speech preparation
 
-- Status: 2/3
-- Next: Phase 3 acceptance — work through the eight cases in the Voice Studio
-  Speech tab's listening-pass picker (`voice/studio/reference-corpus.md`)
+- Status: complete
+- Next: none — resume [self-hosted voice](self-hosted-voice.md) Phase 4
 - Context: [self-hosted voice plan](self-hosted-voice.md),
   [Piper CLI](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md),
   [eSpeak NG dictionaries](https://github.com/espeak-ng/espeak-ng/blob/master/docs/dictionary.md),
@@ -56,7 +55,7 @@ work down two wrong paths.
       measured. The verb `lives` is respelled `livz`, restoring `lˈɪvz`. The
       normalizer now documents its four stages and every rule cites its
       measurement. 31 shim tests pass.
-- [~] **3. Regression proof and voice acceptance.** Built: `speech_probe.py`
+- [x] **3. Regression proof and voice acceptance.** Built: `speech_probe.py`
       measures word drops across the catalogue and prints stored → prepared →
       phonemes for any reply; `POST /audio/speech/prepare` returns the same
       trace live without synthesizing; the prepared text is logged per request.
@@ -98,6 +97,15 @@ work down two wrong paths.
       failure, each naming what to listen for — and loads by name from a
       picker in the Speech tab, so a case can be replayed in seconds on a
       phone.
+
+      Accepted by listening on 2026-08-24, on `libritts-r-204`. Three faults
+      were caught by ear in that pass and fixed in `3c80ca03`: the bare unit
+      rule read "That's" as "That seconds"; the `live` phrase list missed
+      "Verified live", so it became an `unless` rule listing the verb's
+      subjects instead; and a colon-turned-full-stop left the next word
+      lowercase, which the model read as one long clause — measured at
+      6.58-7.43 s against 6.05-6.38 s capitalised, three runs each and
+      non-overlapping.
 
 ## Done when
 

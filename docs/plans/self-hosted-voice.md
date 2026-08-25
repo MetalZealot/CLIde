@@ -1,8 +1,8 @@
 # Self-hosted dictation and read-aloud
 
 - Status: 3/6
-- Next: Complete the [TTS speech front-end prerequisite](tts-speech-front-end.md),
-  then resume Phase 4 listening and continuity acceptance.
+- Next: Phase 4's remaining background-playback and hardware-control checks.
+  The [TTS speech front end](tts-speech-front-end.md) is accepted.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts), and the host-local voice README,
@@ -36,9 +36,9 @@
       Grayson's installed-PWA retest confirmed reliable cancellation and
       cross-session playback with no observed errors or inconsistent states.
       Final Markdown and technical-text behavior now depends on the auditable
-      [TTS speech front end](tts-speech-front-end.md); complete and accept that
-      prerequisite before the remaining background-playback and hardware-control
-      checks. Listening remains authoritative.
+      [TTS speech front end](tts-speech-front-end.md), which was accepted by
+      listening on 2026-08-24. Remaining: background playback and hardware
+      controls. Listening remains authoritative.
 - [ ] **5. Bounded catalog in Settings.** Verify each selected model's license,
       agree the user-facing names and initial selection, then replace free-text
       voice entry with the backend's allowlist. Add a relative speed control
