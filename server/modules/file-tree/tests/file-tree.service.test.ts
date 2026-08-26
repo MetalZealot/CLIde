@@ -218,3 +218,43 @@ test('createEntry performs filesystem mutation only through the injected adapter
   assert.equal(result.path, targetPath);
   assert.deepEqual(writtenFiles, [{ filePath: targetPath, content: '' }]);
 });
+
+test('listProjectFiles does not recurse into system directories, but does into a project\'s own proc/', async () => {
+  const readDirectories: string[] = [];
+  const makeFileSystem = (projectRoot: string, procPath: string) =>
+    createFakeFileSystem({
+      access: async () => undefined,
+      readdir: async (directoryPath) => {
+        readDirectories.push(directoryPath);
+        if (directoryPath === projectRoot) {
+          return [createDirectoryEntry('proc', true)];
+        }
+        if (directoryPath === procPath) {
+          return [createDirectoryEntry('inside.txt', false)];
+        }
+        return [];
+      },
+      lstat: async (candidatePath) => createStats(candidatePath === procPath, 0o755),
+    });
+
+  const systemProc = path.join('/', 'proc');
+  const systemService = createFileTreeService(
+    createDependencies(makeFileSystem('/', systemProc), '/'),
+  );
+  const systemTree = await systemService.listProjectFiles('project-root');
+
+  assert.deepEqual(systemTree.map((entry) => entry.name), ['proc']);
+  assert.equal(systemTree[0]?.children, undefined);
+  assert.equal(readDirectories.includes(systemProc), false);
+
+  readDirectories.length = 0;
+  const projectRoot = path.resolve('file-tree-test-project');
+  const projectProc = path.join(projectRoot, 'proc');
+  const projectService = createFileTreeService(
+    createDependencies(makeFileSystem(projectRoot, projectProc), projectRoot),
+  );
+  const projectTree = await projectService.listProjectFiles('project-1');
+
+  assert.equal(readDirectories.includes(projectProc), true);
+  assert.deepEqual(projectTree[0]?.children?.map((entry) => entry.name), ['inside.txt']);
+});
