@@ -196,7 +196,7 @@ Two gates so the next bump costs less than this one did, modelled on Codex's
 
 - **Registry drift is now a test, not an instruction.** The 0.3.233 re-read above
   was a manual re-parse of `sdk.mjs` that the header comment demanded and nothing
-  enforced. `claude-context-window.test.ts` re-parses the registry out of the
+  enforced. `claude-context.test.ts` re-parses the registry out of the
   installed bundle (bounded `models:[` … `],aliases:{`, each entry bounded at the
   next id — an unbounded slice reads the following entry's fields) and diffs it
   against `CLAUDE_MODEL_CONTEXT_SPECS` and `CLAUDE_MODEL_ID_ALIASES`. One

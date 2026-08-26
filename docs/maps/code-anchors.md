@@ -62,7 +62,7 @@ registrations by the id they were handed, i.e. the app one.
 This flipped in v1.37 and was the source of three separate merge defects. If you are
 touching abort, approval replay, or resume, confirm which id space you are in:
 `fd5d724`, `3e84bd7`, `9a9d47b`; tests in
-`server/modules/websocket/tests/chat-session-addressing.test.ts`. See ADRs 0008, 0012,
+`server/modules/websocket/tests/chat-session.test.ts`. See ADRs 0008, 0012,
 0013.
 
 **Known open defect — aborting a new session's *first* message orphans it into two
@@ -76,7 +76,7 @@ the jsonl, so the synchronizer correctly indexes it as a second session.
 
 The reconciliation already exists and simply never runs: `assignProviderSessionId`
 (`sessions.db.ts`) merges a watcher-created duplicate into the app row in one
-transaction, covered by `sessions-provider-mapping.test.ts`. **This is a missing-trigger
+transaction, covered by `sessions.db.test.ts`. **This is a missing-trigger
 bug, not a missing-mechanism one.** Pre-allocating the id is not available — `query()`
 takes `resume` for existing sessions only and `forkSession` *returns* a new UUID — so
 the fix must be reconciliation on teardown: where `capturedSessionId` is still null,

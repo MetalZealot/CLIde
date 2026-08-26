@@ -37,7 +37,7 @@ only once an index says it is the one you need; never read a directory to find o
 | Abort, approval replay, resume, rewind, or fork | ADRs 0008, 0012, 0013 |
 | The model picker | "Model picker follow-ups" in `docs/TODO.md`, ADRs 0003 and 0025 |
 | Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
-| Adding, merging, or timing tests | `docs/maps/test-suite.md` |
+| Running, adding, or timing tests | `docs/maps/test-suite.md` |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
 | Multi-session work with phases | its plan in `docs/plans/` — the board in that README first |
 
@@ -88,25 +88,13 @@ behaviour stays behind adapter interfaces.
 ## Development and verification
 
 - **Match the checks to what changed.  The full gate is opt-in, not the default ending
-  of a task** — everything together costs 217s on the maintainer's hardware against
-  ~10s for a focused path, and running it after every edit is a session's largest
-  avoidable cost ([test suite map](docs/maps/test-suite.md)).
-
-  | Change | Run |
-  |---|---|
-  | Copy, CSS, one component | that component's test file, `build:client` |
-  | Client logic, store, hook | its test file(s), `typecheck:client`, `build:client` |
-  | One backend module | that module's tests, `build:server` (type-checks it too) |
-  | Session ids, providers, auth, database, protocol | `npm test` — contracts span modules |
-  | Dependency bump, upstream rebase, pre-merge | `npm test`, `typecheck`, `lint`, `build` |
-
-- One file: `npm run test:client:one <path>` / `test:server:one <path>`.  The halves
-  need different tsconfigs — root maps `@/*` to `src/*`, server to `server/*` — so a
-  bare `--test` fails on the alias, and a directory argument fails even with the right
-  tsconfig.
-- **Cost is per test *file*, not per test** (~3s of startup each): add cases to an
-  existing file rather than creating a near-empty new one.  Consolidating files is the
-  lever, never deleting a passing test.
+  of a task** — ~250s all together against seconds for a focused path, and running it
+  after every edit is a session's largest avoidable cost.  Per-change checks, one-file
+  commands, and measured costs: [the test suite map](docs/maps/test-suite.md).
+- **Cost is per test *file*, not per test**: add cases to an existing file, don't create
+  a near-empty new one.  `npm run check:tests` enforces that with a per-half file budget
+  — raise one only deliberately.  Consolidating is the lever, never deleting a passing
+  test.
 - Client bundles need no restart — the server reads `dist/` from disk per request, so
   `build:client` then refresh.  Only `dist-server/` changes need a restart.
 - **Verify on the server that actually serves the checkout you edited.**  The main
@@ -201,7 +189,7 @@ one defect, so these rules target length.
   merge every genuine defect was in a file that merged cleanly.  Diff the
   *contract* surfaces — runtime options, gateway addressing, provider context —
   and write one test per contract driving every provider with the ids
-  deliberately unequal (`server/modules/websocket/tests/chat-session-addressing.test.ts`).
+  deliberately unequal (`server/modules/websocket/tests/chat-session.test.ts`).
 - Categorize fixes as fork-only or upstreamable in `docs/upstream-candidates.md`.
   Before describing a defect as upstream-wide, inspect upstream code as well as
   searching issues/PRs.  Never open, push, or update an upstream PR without the user's

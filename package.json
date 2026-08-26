@@ -48,7 +48,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json",
     "typecheck:client": "tsc --noEmit -p tsconfig.json",
     "typecheck:server": "tsc --noEmit -p server/tsconfig.json",
-    "test": "npm run test:server && npm run test:client",
+    "test": "npm run check:tests && npm run test:server && npm run test:client",
     "test:server": "tsx --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\" \"server/**/*.test.js\"",
     "test:client": "tsx --tsconfig tsconfig.json --import ./src/test/setup-client-env.ts --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
     "test:server:one": "tsx --tsconfig server/tsconfig.json --test",
@@ -63,6 +63,7 @@
     "prepare": "husky",
     "update:platform": "./update-platform.sh",
     "check:docs": "node scripts/check-docs.mjs",
+    "check:tests": "node scripts/check-tests.mjs",
     "docs:dashboard": "node scripts/build-project-dashboard.mjs",
     "test:docs:dashboard": "node --test scripts/build-project-dashboard.test.mjs"
   },
@@ -262,7 +263,8 @@
     "src/**/*.{ts,tsx,js,jsx}": "eslint",
     "server/**/*.{js,ts}": "eslint",
     "docs/**/*.md": "node scripts/check-docs.mjs --",
-    "AGENTS.md": "node scripts/check-docs.mjs --"
+    "AGENTS.md": "node scripts/check-docs.mjs --",
+    "{src,server}/**/*.test.{ts,tsx,js}": "node scripts/check-tests.mjs --"
   },
   "optionalDependencies": {
     "@nut-tree-fork/nut-js": "^4.2.6",

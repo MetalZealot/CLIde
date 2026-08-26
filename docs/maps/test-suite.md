@@ -1,54 +1,83 @@
 # Test suite map
 
 What the automated suites own, what they cost, and what they cannot establish.
-The policy for *which* of them to run is in [`AGENTS.md`](../../AGENTS.md); this
-map is the evidence behind it.
+The policy for *which* of them to run is here too; `AGENTS.md` routes to it.
 
 ## Shape
 
-82 test files, 629 tests, in two halves that need different tsconfigs — the root
+56 test files, 782 tests, in two halves that need different tsconfigs — the root
 maps `@/*` to `src/*`, the server maps it to `server/*`.
 
 | Half | Files | Tests | Command |
 |---|---|---|---|
-| Server | 63 | 456 | `npm run test:server` |
-| Client | 19 | 173 | `npm run test:client` |
+| Server | 39 | 520 | `npm run test:server` |
+| Client | 17 | 262 | `npm run test:client` |
 
-Server tests concentrate where the contracts are: `providers` (25 files),
-`projects` (9), `websocket` (5), `database` (4), with most other modules holding
-one. Client tests are thinner and cover stores, hooks, sidebar and chat
-subcomponents, the settings registry, and formatting utilities.
+Server tests concentrate where the contracts are: `providers` (13 files),
+`projects` (3), `websocket` (3), `database` (2), most other modules one. Client
+tests hold one file per feature area per layer — `chat` and `settings` each have
+hooks, utils and view files; stores, contexts, and single-purpose components hold
+one apiece.
+
+## Which checks to run
+
+Match the checks to what changed. The full gate is opt-in, not the default
+ending of a task.
+
+| Change | Run |
+|---|---|
+| Copy, CSS, one component | that component's test file, `build:client` |
+| Client logic, store, hook | its test file(s), `typecheck:client`, `build:client` |
+| One backend module | that module's tests, `build:server` (type-checks it too) |
+| Session ids, providers, auth, database, protocol | `npm test` — contracts span modules |
+| Dependency bump, upstream rebase, pre-merge | `npm test`, `typecheck`, `lint`, `build` |
+
+One file: `npm run test:client:one <path>` / `test:server:one <path>`. A bare
+`--test` fails on the `@/` alias, and a directory argument fails even with the
+right tsconfig.
 
 ## Measured cost
 
-Taken on the maintainer's Pi (4 GB, microSD), 2026-08-15, after consolidation:
+Taken on the maintainer's Pi (4 GB, microSD), 2026-08-26:
 
 | Path | Cost |
 |---|---|
-| One server test file | ~4s |
-| One client logic file | ~6s |
-| One client component file | ~9s |
-| `typecheck:server` / `typecheck:client` | 9s / 12s |
-| `build:server` / `build:client` | 28s / 50s |
-| `lint` | 9s |
-| `test:server` / `test:client` | 66s / 49s |
-| **Complete gate** (`test`, `typecheck`, `lint`, `build`) | **217s** |
+| `check:tests` | 1s |
+| One server test file | ~2s |
+| One client test file | ~7s |
+| `lint` (warm cache) | 12s |
+| `typecheck:server` / `typecheck:client` | 14s / 17s |
+| `build:server` / `build:client` | 29s / 61s |
+| `test:server` / `test:client` | 56s / 61s |
+| **Complete gate** (`test`, `typecheck`, `lint`, `build`) | **251s**, the sum of the rows |
 
-**Cost is per test *file*, not per test.** Each file pays ~3s of process spawn,
-tsx type-stripping, and JSDOM setup before its first assertion; a 9-test client
-file runs 7.7s wall of which ~0.2s is the tests. So the lever on suite time is
-the number of files, not the number of assertions — adding cases to an existing
-file is nearly free, and a new near-empty file is not.
+**Cost is per test *file*, not per test.** Each file pays process spawn, tsx
+type-stripping, and — on the client — JSDOM setup before its first assertion, and
+the runner spreads files across cores. So wall time tracks the file count, not the
+assertion count: adding cases to an existing file is nearly free, and a new
+near-empty file is not.
 
-Consolidation on 2026-08-15 merged ten clusters, 99 files to 82, with the test
-count unchanged at 456/173. Each merged file's body sits in its own `describe`,
-which scopes its helpers and `before`/`afterEach` hooks so they cannot collide
-or leak between groups.
+## The gate that holds this
 
-Two shapes are deliberately left unmerged: modules holding a single test file,
-where merging would move tests across module boundaries for ~3s, and
-`codex-app-server-chat.test.ts`, which embeds a fake server's source in a
-template literal that mechanical import-rewriting corrupts.
+`npm run check:tests` runs ahead of `npm test` and on staged test files.
+
+- **A per-half file budget.** Adding a file fails the check until the budget is
+  raised deliberately in `scripts/check-tests.mjs`. Merge first; justify the
+  number in the commit message.
+- **No orphans.** A test file the runner's glob cannot match — a `.test.js` under
+  `src/` — fails. It looks like coverage and asserts nothing.
+- It also names the cheapest merges still available: files under three cases
+  sitting beside a larger file in the same directory. A module's sole test file
+  is never flagged, because moving it would cross a module boundary to save
+  seconds.
+
+Each merged file's body sits in its own `describe`, which scopes that group's
+helpers and `before`/`afterEach` hooks so they cannot collide or leak. Path
+literals resolved against `import.meta.url` do not move themselves — recheck any
+`new URL('../…')` after a merge.
+
+`codex-app-server-chat.test.ts` stays unmerged: it embeds a fake server's source
+in a template literal that mechanical import-rewriting corrupts.
 
 ## What the suite does not establish
 
