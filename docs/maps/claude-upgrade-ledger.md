@@ -241,3 +241,30 @@ runtime self-update could only be read by someone tailing the server log.
 - **Verification:** typecheck, focused lint (0 errors), 473 server tests and 182
   client tests, 0 failures. Eight new tests cover the pair formatting, which half
   moved, the window, a corrupt timestamp, and the three render states.
+
+## SDK 0.3.246 / runtime 2.1.246 — 2026-08-26
+
+The model registry left the SDK bundle. Through 0.3.233 `sdk.mjs` carried the
+full `models:[{id:"claude-…}]` table; 0.3.246 ships none of it — no
+`max_output_tokens`, no `native_1m` — and the only copy is the `claude` binary
+CLIde already spawns.
+
+- **What changed.** The registry-drift test now finds the marker by a chunked
+  scan of the runtime executable (`CLAUDE_CLI_PATH`, else the first `claude` on
+  `PATH`, `realpath`-resolved) and decodes a 1 MB window as `latin1`. The parser
+  itself is unchanged: the block's shape is byte-identical to the one the SDK
+  used to carry. This is the better source anyway — the binary is the half that
+  self-updates.
+- **No spec drift.** `CLAUDE_MODEL_CONTEXT_SPECS` and `CLAUDE_MODEL_ID_ALIASES`
+  matched 2.1.246's registry exactly on the first run; no model facts moved.
+- **Type surface.** 101 signature lines changed, none of them used here.
+  Removed: `bypass_permissions_disabled` from `ExitReason`, and the `get_plan`
+  and `get_workspace_diff` control requests — CLIde references none of the
+  three. Added: `account_on_hold` to `SDKAssistantMessageError`, `'max'` to the
+  effort union (CLIde already offers it), and settings rows `promptCacheTtl`,
+  `subagentPromptCacheTtl`, `modelSettings`, `modelPicker`, `modelPricing`,
+  `keybindingFlavor`, `spellcheck`, `autoContinueAtUsageLimit`, `headersHelper`.
+  Those settings are candidates for the command-surface map, not adopted work.
+- **Verification:** typecheck, lint, 520 server and 262 client tests, 0
+  failures; `build` clean. The registry test is the live evidence — it reads the
+  installed 2.1.246 binary rather than a fixture.

@@ -114,3 +114,28 @@ Each stable upgrade records:
   interrupting the running turn.
 - **Production state:** port 3001 was intentionally untouched; branch-server
   evidence is not production acceptance.
+
+## SDK and CLI 0.150.0 — 2026-08-26
+
+- **SDK/CLI:** the pin moves 0.147.0 → 0.150.0; `@openai/codex` follows as a
+  transitive dependency. `ThreadOptions` adds `threadSource`, `CodexOptions`
+  adds raw `configOverrides`, and `ModelReasoningEffort` gains `max` and
+  `ultra`.
+- **App Server:** the committed subset regenerates and verifies unchanged
+  against 0.150.0. Generated experimental client requests grew 136 → 156 and
+  notifications 72 → 81 in both modes; default client requests (98) and server
+  requests (10/11) held. Nothing new is consumed.
+- **Models.** The live cache now lists `gpt-5.6-sol`, `-terra` and `-luna`
+  alongside 5.5/5.4/5.4-mini; the first two support `ultra`, Luna stops at
+  `max`. The live path already carried these through, since each model's own
+  `supported_reasoning_levels` outranks any local list. Both stale fallbacks
+  were refreshed to match: the server catalog and the client's per-provider
+  effort floor.
+- **One pinned literal.** `EXPECTED_CODEX_VERSION` in the drift contract is now
+  the only place the version is asserted; the transport-diagnostics test reads
+  the installed packages instead of repeating it.
+- **Scope of the audit.** Installed artifacts and generated bindings only; the
+  0.148–0.150 release notes and tagged source were not read, so the map's
+  disposition table still dates from 0.147.0.
+- **Verification:** typecheck, lint, 520 server and 262 client tests, 0
+  failures; `build` clean. Not yet exercised in a live Codex turn.

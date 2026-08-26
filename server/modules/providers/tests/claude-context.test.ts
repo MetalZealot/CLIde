@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { promises as fs, readFileSync } from 'node:fs';
+import { closeSync, existsSync, openSync, promises as fs, readSync, realpathSync, statSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
@@ -552,9 +551,13 @@ describe('claude-context-window', () => {
     }
   });
 
-  // The specs above are transcribed by hand from the SDK's model registry, so a
-  // bumped SDK can invalidate them silently. Re-parse the installed bundle and
+  // The specs above are transcribed by hand from the model registry, so a bumped
+  // runtime can invalidate them silently. Re-parse the installed registry and
   // diff, rather than trusting the header comment's "refresh this" instruction.
+  //
+  // The registry lives in the `claude` binary CLIde spawns, not in the SDK
+  // bundle: the SDK stopped carrying it at 0.3.246, and the binary is the half
+  // that self-updates, so it is the half worth diffing against.
 
   type RegistryEntry = {
     window: number | null;
@@ -562,16 +565,75 @@ describe('claude-context-window', () => {
     supportsLongContext: boolean;
   };
 
-  const readSdkRegistry = (): { models: Record<string, RegistryEntry>; aliases: Record<string, string> } => {
-    const sdkPath = createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk');
-    const bundle = readFileSync(sdkPath, 'utf8');
+  const REGISTRY_MARKER = 'models:[{id:"claude-';
 
-    const modelsStart = bundle.indexOf('models:[{id:"claude-');
+  /** Executable named by CLAUDE_CLI_PATH, else the first `claude` on PATH. */
+  const findClaudeExecutable = (): string | null => {
+    const configured = process.env.CLAUDE_CLI_PATH?.trim();
+    if (configured) {
+      return existsSync(configured) ? realpathSync(configured) : null;
+    }
+    for (const dir of (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)) {
+      const candidate = path.join(dir, 'claude');
+      if (existsSync(candidate)) {
+        return realpathSync(candidate);
+      }
+    }
+    return null;
+  };
+
+  /**
+   * The runtime is a ~250 MB native binary, so the marker is found by a chunked
+   * scan and only the matched window is decoded. `latin1` because the surrounding
+   * bytes are not valid UTF-8 and every field parsed below is ASCII.
+   */
+  const readRegistrySource = (filePath: string): string | null => {
+    const CHUNK = 1 << 20;
+    const WINDOW = 1 << 20;
+    const size = statSync(filePath).size;
+    const fd = openSync(filePath, 'r');
+    try {
+      const buffer = Buffer.alloc(CHUNK);
+      let carry = Buffer.alloc(0);
+      let position = 0;
+      while (position < size) {
+        const read = readSync(fd, buffer, 0, CHUNK, position);
+        if (read <= 0) {
+          break;
+        }
+        const scanned = Buffer.concat([carry, buffer.subarray(0, read)]);
+        const hit = scanned.indexOf(REGISTRY_MARKER, 0, 'latin1');
+        if (hit >= 0) {
+          const start = position - carry.length + hit;
+          const block = Buffer.alloc(Math.min(WINDOW, size - start));
+          readSync(fd, block, 0, block.length, start);
+          return block.toString('latin1');
+        }
+        // Overlap by the marker length so a marker straddling two chunks is seen.
+        carry = scanned.subarray(Math.max(0, scanned.length - REGISTRY_MARKER.length));
+        position += read;
+      }
+      return null;
+    } finally {
+      closeSync(fd);
+    }
+  };
+
+  const readModelRegistry = (): { models: Record<string, RegistryEntry>; aliases: Record<string, string> } => {
+    const executable = findClaudeExecutable();
+    assert.ok(executable, 'no `claude` executable found; set CLAUDE_CLI_PATH');
+    const bundle = readRegistrySource(executable);
+    assert.ok(
+      bundle,
+      `model registry not found in ${executable}; the parser below needs updating, not deleting`,
+    );
+
+    const modelsStart = bundle.indexOf(REGISTRY_MARKER);
     const aliasesStart = bundle.indexOf('],aliases:{', modelsStart);
     const aliasesEnd = bundle.indexOf(',defaults:', aliasesStart);
     assert.ok(
-      modelsStart >= 0 && aliasesStart > modelsStart && aliasesEnd > aliasesStart,
-      'model registry not found in sdk.mjs; the parser below needs updating, not deleting',
+      aliasesStart > modelsStart && aliasesEnd > aliasesStart,
+      'registry aliases block not found; the parser below needs updating, not deleting',
     );
 
     const modelsBlock = bundle.slice(modelsStart, aliasesStart);
@@ -602,8 +664,8 @@ describe('claude-context-window', () => {
     return { models, aliases: Object.fromEntries(aliasEntries.map((m) => [m[1], m[2]])) };
   };
 
-  test('CLAUDE_MODEL_CONTEXT_SPECS matches the installed SDK model registry', () => {
-    const { models } = readSdkRegistry();
+  test('CLAUDE_MODEL_CONTEXT_SPECS matches the installed runtime model registry', () => {
+    const { models } = readModelRegistry();
 
     // A parser that silently matched nothing would make this test vacuous.
     assert.ok(Object.keys(models).length >= 10, `parsed only ${Object.keys(models).length} registry entries`);
@@ -625,7 +687,7 @@ describe('claude-context-window', () => {
   });
 
   test('CLAUDE_MODEL_ID_ALIASES matches the registry aliases block', () => {
-    const { models, aliases } = readSdkRegistry();
+    const { models, aliases } = readModelRegistry();
 
     assert.ok(Object.keys(aliases).length > 0, 'parsed no registry aliases');
     for (const [name, target] of Object.entries(aliases)) {

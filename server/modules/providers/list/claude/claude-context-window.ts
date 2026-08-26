@@ -26,11 +26,12 @@ import path from 'node:path';
  *   usable = window, less a 33,000 reserve on the 1M models (see
  *            LONG_CONTEXT_RESERVE — measured, not decoded)
  *
- * The model facts below are copied verbatim from the registry in
- * `@anthropic-ai/claude-agent-sdk` 0.3.233 (`sdk.mjs`): `context.window`,
- * `max_output_tokens.default`, and whether the entry declares 1M support.
- * `claude-context-window.test.ts` re-parses that registry and fails on any
- * divergence, so a bumped SDK reports the drift rather than hiding it.
+ * The model facts below are copied verbatim from the registry in the `claude`
+ * binary, 2.1.246: `context.window`, `max_output_tokens.default`, and whether
+ * the entry declares 1M support. The SDK bundle carried the same registry until
+ * 0.3.246 and no longer does, so the runtime is the only copy.
+ * `claude-context.test.ts` re-parses it and fails on any divergence, so a
+ * self-updated runtime reports the drift rather than hiding it.
  */
 
 /**

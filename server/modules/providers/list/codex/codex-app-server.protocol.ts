@@ -2,9 +2,10 @@
  * Curated Codex App Server protocol subset used by CLIde Chat.
  *
  * Source: `codex app-server generate-ts --experimental` from the CLI bundled
- * with @openai/codex-sdk 0.147.0. Keep this intentionally smaller than the
- * generated surface; `codex-app-server-protocol-drift.test.ts` regenerates
- * bindings in a temporary directory and verifies every required method/field.
+ * with @openai/codex-sdk, verified at 0.150.0. Keep this intentionally smaller
+ * than the generated surface; the `codex-app-server-protocol-drift` suite
+ * regenerates bindings in a temporary directory and verifies every required
+ * method and field.
  */
 
 export type CodexRequestId = string | number;

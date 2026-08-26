@@ -1,8 +1,8 @@
 # Codex CLI, SDK, and App Server living surface map
 
-*Originated 2026-07-24. Last audited 2026-08-12 against CLIde's managed-runtime
-branch, `@openai/codex-sdk` 0.147.0, two Codex CLI/App Server 0.147.0
-installations, generated protocol, the official release, and tagged source.*
+*Originated 2026-07-24. Surface last audited 2026-08-12 against CLIde's
+managed-runtime branch and two 0.147.0 installations; the pin, protocol counts
+and model rows below were re-measured 2026-08-26 against 0.150.0.*
 
 This map records current Codex behavior and CLIde destinations. The
 [upgrade ledger](codex-upgrade-ledger.md) keeps release history; generated
@@ -14,11 +14,11 @@ semantics belong in the
 
 | Evidence | Current value |
 |---|---|
-| Previous audited pair | SDK and bundled CLI 0.146.0 |
-| Repository pin | `@openai/codex-sdk` and `@openai/codex` 0.147.0 |
-| Host installations | Bundled and standalone 0.147.0, distinct by path |
-| Default generated protocol | 98 client requests, 10 server requests, 72 notifications |
-| Experimental generated protocol | 136 client requests, 11 server requests, 72 notifications |
+| Previous audited pair | SDK and bundled CLI 0.147.0 |
+| Repository pin | `@openai/codex-sdk` 0.150.0, with `@openai/codex` 0.150.0 transitively |
+| Host installations | Bundled 0.150.0 and standalone 0.149.1, distinct by path |
+| Default generated protocol | 98 client requests, 10 server requests, 81 notifications |
+| Experimental generated protocol | 156 client requests, 11 server requests, 81 notifications |
 | Interactive Chat | App Server by default; SDK by explicit escape hatch or initialization-only fallback |
 | Runtime selection | Bundled seed, explicit compatible promotion, no silent fallback |
 | Isolated live evidence | New/resumed Chat; every facet resolving one executable; Check, Use, idle promotion, and Roll back on 3002 |
@@ -134,19 +134,24 @@ changed selections do not fall back to bundled.
 | Models, auth, usage, MCP, skills | Their Codex provider facets |
 | Shell | `server/modules/websocket/services/shell-websocket.service.ts` |
 
-## 4. Delta from 0.146.0 to 0.147.0
+## 4. Delta at 0.150.0, and open dispositions
 
 ### Compatibility result
 
-- SDK and bundled CLI pins moved together to 0.147.0.
-- Generated requests increased from 93 to 98 by default and 130 to 136 with
-  experimental types; server requests and notifications stayed 10/11 and 72.
-- `ToolRequestUserInputParams.isBlocking` is now consumed and guarded by the
-  compatibility check.
-- The same structural checker validates every promotion; no second definition
-  of compatibility exists.
+- SDK and bundled CLI pins moved together to 0.150.0.
+- The curated protocol subset regenerates and verifies unchanged: every method
+  and field CLIde consumes survives.
+- Generated experimental client requests grew 136 → 156 and notifications
+  72 → 81 in both modes; default client requests (98) and server requests
+  (10/11) held. None of the additions is consumed yet.
+- `ModelReasoningEffort` gained `max` and `ultra`; `ThreadOptions` gained
+  `threadSource` and `CodexOptions` raw `configOverrides`. Only the effort
+  levels reach a CLIde surface, and the live model list already carried them.
+- Measured from installed artifacts and generated bindings. The 0.148–0.150
+  release notes and tagged source have not been read, so the disposition table
+  below is still the one compiled at 0.147.0.
 
-### Material upstream surfaces
+### Material upstream surfaces, compiled at 0.147.0
 
 | Upstream change | CLIde impact | Disposition |
 |---|---|---|
@@ -173,10 +178,10 @@ separate deployment facts.
 
 Primary current sources:
 
-- [Codex 0.147.0 release](https://github.com/openai/codex/releases/tag/rust-v0.147.0)
-- [OpenAI tag comparison: 0.146.0 to 0.147.0](https://github.com/openai/codex/compare/rust-v0.146.0...rust-v0.147.0)
-- [Tagged TypeScript SDK](https://github.com/openai/codex/tree/rust-v0.147.0/sdk/typescript)
-- [Tagged App Server protocol](https://github.com/openai/codex/tree/rust-v0.147.0/codex-rs/app-server-protocol)
+- [Codex 0.150.0 release](https://github.com/openai/codex/releases/tag/rust-v0.150.0)
+- [OpenAI tag comparison: 0.147.0 to 0.150.0](https://github.com/openai/codex/compare/rust-v0.147.0...rust-v0.150.0)
+- [Tagged TypeScript SDK](https://github.com/openai/codex/tree/rust-v0.150.0/sdk/typescript)
+- [Tagged App Server protocol](https://github.com/openai/codex/tree/rust-v0.150.0/codex-rs/app-server-protocol)
 - [Codex App Server docs](https://developers.openai.com/codex/app-server)
 - [Codex CLI reference](https://developers.openai.com/codex/cli/reference)
 

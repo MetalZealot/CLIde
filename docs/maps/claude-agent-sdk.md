@@ -1,11 +1,11 @@
 # Claude Code and Agent SDK living surface map
 
-*Originated 2026-07-19. Surface re-measured 2026-08-16 against the pinned
-`@anthropic-ai/claude-agent-sdk` 0.3.233, its bundled native runtime
-(`@anthropic-ai/claude-agent-sdk-linux-arm64`, reporting Claude Code 2.1.233),
-the standalone Claude Code 2.1.233 on this host, and CLIde's Claude adapter
-under `server/modules/providers/list/claude/`. The prose below the snapshot was
-last audited 2026-07-30 at 0.3.165 / 2.1.220.*
+*Originated 2026-07-19. Snapshot re-measured 2026-08-26 against the pinned
+`@anthropic-ai/claude-agent-sdk` 0.3.246, its bundled native runtime
+(`@anthropic-ai/claude-agent-sdk-linux-arm64` 0.3.246, reporting Claude Code
+2.1.246), the standalone Claude Code 2.1.246 on this host, and CLIde's Claude
+adapter under `server/modules/providers/list/claude/`. The prose below the
+snapshot was last audited 2026-07-30 at 0.3.165 / 2.1.220.*
 
 This is the current human-maintained map of how Claude surfaces relate to CLIde.
 It is intentionally not a copy of the SDK type declarations or a changelog:
@@ -27,14 +27,14 @@ remains the companion inventory for the settings cascade.
 
 | Evidence | Current value |
 |---|---|
-| Repository pin | `@anthropic-ai/claude-agent-sdk` `^0.3.233`, lockfile 0.3.233 |
-| SDK's own bundled runtime | `@anthropic-ai/claude-agent-sdk-linux-arm64` 0.3.233 → `claude` 2.1.233 — **fallback only**, never spawned while CLIde sets `pathToClaudeCodeExecutable` |
-| Runtime CLIde actually spawns | Standalone Claude Code on `PATH` — 2.1.233 on this host |
+| Repository pin | `@anthropic-ai/claude-agent-sdk` `^0.3.246`, lockfile 0.3.246 |
+| SDK's own bundled runtime | `@anthropic-ai/claude-agent-sdk-linux-arm64` 0.3.246 → `claude` 2.1.246 — **fallback only**, never spawned while CLIde sets `pathToClaudeCodeExecutable` |
+| Runtime CLIde actually spawns | Standalone Claude Code on `PATH` — 2.1.246 on this host |
 | Runtime pairing policy | **Unpinned by design**: `CLAUDE_CLI_PATH` or bare `claude` |
-| SDK `Options` surface | 64 top-level options; CLIde sets 19 |
+| SDK `Options` surface | 65 top-level options (`perTaskStopAffordance` new at 0.3.246); CLIde sets 19 |
 | SDK `Query` control methods | 27; CLIde calls 2 (`interrupt`, `getContextUsage`) |
 | SDK stream message types | 39; CLIde's live normalizer acts on assistant/user shapes plus `rate_limit_event` |
-| SDK top-level exports | 17 functions, 2 classes, 3 constants; CLIde imports `query` only |
+| SDK top-level exports | 17 functions, 2 classes, 7 constants; CLIde imports `query` only |
 | Hook events | 31; CLIde registers 1 (`Notification`) |
 | Settings cascade | In force via `settingSources: ['project','user','local']`; no CLIde UI |
 | Chat transport | One fresh `query()` subprocess per user turn, `resume` to continue |
@@ -44,7 +44,7 @@ compatibility unit. The SDK is a remote control; the runtime it drives is
 whichever Claude Code the host has installed. That is deliberate — CLIde
 sessions and terminal Shell sessions must be the same engine writing the same
 JSONL files — but it means the shipped pair is untested by construction. As of
-the 0.3.233 bump the bundled and spawned runtimes are both 2.1.233; the host's
+the 0.3.246 bump the bundled and spawned runtimes are both 2.1.246; the host's
 `claude` self-updates, so the gap reopens on its own.
 
 The bundled binary is a **fallback, not the engine**. CLIde always passes

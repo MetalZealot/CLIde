@@ -30,8 +30,44 @@ import {
   readOptionalString,
 } from '@/shared/utils.js';
 
+// Only reached when `models_cache.json` and the App Server both fail to answer;
+// the live list carries each model's own reasoning levels. Mirrors the visible
+// models and their supported levels as of Codex 0.150.0.
 export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
+    {
+      value: 'gpt-5.6-sol',
+      label: 'GPT-5.6-Sol',
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low' }, { value: 'medium' }, { value: 'high' },
+          { value: 'xhigh' }, { value: 'max' }, { value: 'ultra' },
+        ],
+      },
+    },
+    {
+      value: 'gpt-5.6-terra',
+      label: 'GPT-5.6-Terra',
+      effort: {
+        default: 'medium',
+        values: [
+          { value: 'low' }, { value: 'medium' }, { value: 'high' },
+          { value: 'xhigh' }, { value: 'max' }, { value: 'ultra' },
+        ],
+      },
+    },
+    {
+      value: 'gpt-5.6-luna',
+      label: 'GPT-5.6-Luna',
+      effort: {
+        default: 'medium',
+        values: [
+          { value: 'low' }, { value: 'medium' }, { value: 'high' },
+          { value: 'xhigh' }, { value: 'max' },
+        ],
+      },
+    },
     {
       value: 'gpt-5.5',
       label: 'gpt-5.5',
@@ -57,7 +93,7 @@ export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
       },
     },
   ],
-  DEFAULT: 'gpt-5.4',
+  DEFAULT: 'gpt-5.6-terra',
   source: 'fallback',
 };
 

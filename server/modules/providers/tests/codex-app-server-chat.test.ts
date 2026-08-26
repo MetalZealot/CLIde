@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import test, { afterEach } from 'node:test';
@@ -165,6 +167,17 @@ for await (const line of lines) {
     } });
   }
 }`;
+
+// Read rather than pinned: `codex-runtime.test.ts` owns the version contract, so
+// a bump touches one literal there instead of every diagnostics assertion.
+const codexPackageVersion = (specifier: string): string => {
+  const require_ = createRequire(import.meta.url);
+  const binPath = require_.resolve('@openai/codex/bin/codex.js');
+  const root = path.resolve(binPath, '../../..');
+  return (JSON.parse(readFileSync(path.join(root, specifier, 'package.json'), 'utf8')) as { version: string }).version;
+};
+const INSTALLED_CODEX_SDK_VERSION = codexPackageVersion('codex-sdk');
+const INSTALLED_CODEX_CLI_VERSION = codexPackageVersion('codex');
 
 test('App Server initializes before work and maps new/resumed turns, Plan, inputs, items, and usage', async () => {
   const fake = await createFakeServer(BASIC_SERVER);
@@ -1084,16 +1097,16 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     );
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, true);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, true);
-    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, '0.147.0');
-    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, '0.147.0');
+    assert.equal(getCodexChatTransportDiagnostics().sdkVersion, INSTALLED_CODEX_SDK_VERSION);
+    assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, INSTALLED_CODEX_CLI_VERSION);
     assert.deepEqual(
       getCodexChatTransportDiagnostics(),
       {
         configured: 'app-server',
         actual: 'app-server',
         health: 'idle',
-        sdkVersion: '0.147.0',
-        bundledCliVersion: '0.147.0',
+        sdkVersion: INSTALLED_CODEX_SDK_VERSION,
+        bundledCliVersion: INSTALLED_CODEX_CLI_VERSION,
         lastError: null,
         lastStartupFallbackAt: null,
         nativeRuntime: {
