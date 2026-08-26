@@ -183,6 +183,8 @@ function mapCliOptionsToSDK(options = {}) {
 
   // Forward all host env vars (e.g. ANTHROPIC_BASE_URL) to the subprocess.
   // Since SDK 0.2.113, options.env replaces process.env instead of overlaying it.
+  // Also how CLI-side knobs reach the child: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS sets how long
+  // the CLI waits for still-running background agents after a turn (default 600000 ms; 0 = forever).
   sdkOptions.env = { ...process.env };
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
@@ -808,10 +810,6 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       return { behavior: 'deny', message: decision.message ?? 'User denied tool use' };
     };
 
-    // Query constructor reads this synchronously.
-    const prevStreamTimeout = process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
-    process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = '300000';
-
     let queryInstance;
     try {
       queryInstance = query({
@@ -827,13 +825,6 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         prompt: await createPrompt(),
         options: sdkOptions
       });
-    }
-
-    // Restore immediately — Query constructor already captured the value
-    if (prevStreamTimeout !== undefined) {
-      process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = prevStreamTimeout;
-    } else {
-      delete process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
     }
 
     // Track the query instance for abort capability
