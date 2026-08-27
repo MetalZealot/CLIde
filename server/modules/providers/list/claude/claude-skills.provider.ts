@@ -92,6 +92,14 @@ export class ClaudeSkillsProvider extends SkillsProvider {
         commandPrefix: '/',
       },
       {
+        // Skills synced from a claude.ai account sit one level deeper than
+        // hand-written ones, so the parent scan cannot see them. Direct mode
+        // also keeps the sibling `.trash` and `.staging` folders out.
+        scope: 'user',
+        rootDir: path.join(claudeHomePath, 'skills', 'synced'),
+        commandPrefix: '/',
+      },
+      {
         scope: 'project',
         rootDir: path.join(workspacePath, '.claude', 'skills'),
         commandPrefix: '/',

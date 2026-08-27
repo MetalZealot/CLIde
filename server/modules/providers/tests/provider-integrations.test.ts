@@ -437,7 +437,7 @@ describe('skills', () => {
    * This test covers Claude user/project skill folders plus plugin discovery from
    * installed plugin command files and fallback plugin skill files.
    */
-  test('providerSkillsService lists claude user, project, and enabled plugin skills', { concurrency: false }, async () => {
+  test('providerSkillsService lists claude user, synced, project, and enabled plugin skills', { concurrency: false }, async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-claude-'));
     const workspacePath = path.join(tempRoot, 'workspace');
     const commandPluginInstallPath = path.join(
@@ -495,6 +495,18 @@ describe('skills', () => {
         'claude-user-dir',
         'claude-user',
         'Claude user skill',
+      );
+      await writeSkill(
+        path.join(tempRoot, '.claude', 'skills', 'synced'),
+        'claude-synced-dir',
+        'claude-synced',
+        'Claude synced skill',
+      );
+      await writeSkill(
+        path.join(tempRoot, '.claude', 'skills', '.trash'),
+        'claude-trashed-dir',
+        'claude-trashed',
+        'Claude trashed skill',
       );
       await writeSkill(
         path.join(workspacePath, '.claude', 'skills'),
@@ -638,6 +650,11 @@ describe('skills', () => {
       assert.equal(byName.get('claude-user')?.command, '/claude-user');
       assert.equal(byName.get('claude-project')?.scope, 'project');
       assert.equal(byName.get('claude-project')?.command, '/claude-project');
+      // Synced skills run in the session, so they must also be listed; the
+      // sibling trash folder holds skills the account has revoked.
+      assert.equal(byName.get('claude-synced')?.scope, 'user');
+      assert.equal(byName.get('claude-synced')?.command, '/claude-synced');
+      assert.equal(byName.has('claude-trashed'), false);
 
       const pluginCommand = byName.get('insert-row');
       assert.equal(pluginCommand?.scope, 'plugin');

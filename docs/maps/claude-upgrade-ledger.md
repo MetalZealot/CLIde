@@ -282,9 +282,14 @@ CLIde already spawns.
   - `ultracode` is an *effort keyword* for dynamic workflows, not a model and
     not an SDK effort value — the SDK union stops at `max`. Do not add a picker
     row for it.
-  - Settings added at 2.1.243: `modelPicker`, `modelPricing`, `promptCacheTtl`,
-    `subagentPromptCacheTtl`; `keybindingFlavor` at 2.1.238. Candidates for the
-    command-surface map, unadopted.
+  - Eleven settings keys were added between 0.3.233 and 0.3.246, none removed;
+    each now has a destination or a stated non-mapping in the command-surface
+    map. The survey exposed a live defect: skills synced from a claude.ai
+    account sit at `~/.claude/skills/synced/<name>/`, one level below the root
+    CLIde scanned, so they ran in a session and never appeared in its list.
+    **Adopted** — the synced root is now its own skill source. `modelPicker`
+    (CLIde's catalog ignores a curated `/model` list) and the same question for
+    synced *plugins* are open in the map.
   - `ANTHROPIC_DEFAULT_MODEL` (2.1.236) seeds what new sessions start on, below
     a managed setting and above the tier default, and is distinct from
     `ANTHROPIC_MODEL`'s hard override. CLIde's seed chain did not read it at

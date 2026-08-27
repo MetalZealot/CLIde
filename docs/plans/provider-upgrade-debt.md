@@ -1,7 +1,7 @@
 # Clearing the backlog the 0.3.246 / 0.150.0 audit exposed
 
-- Status: 1/5
-- Next: Phase 2 — survey the settings rows 2.1.238 and 2.1.243 added, and fold them into the command surface map
+- Status: 2/5
+- Next: Phase 3 — stop deriving session order from file mtime
 - Context: [maps README maintenance flow](../maps/README.md), [Claude ledger](../maps/claude-upgrade-ledger.md), [Codex ledger](../maps/codex-upgrade-ledger.md), ADR 0008 (abort), ADR 0025 (model picks)
 
 Two providers moved 13 and 3 releases while CLIde stood still, and the audit
@@ -14,20 +14,35 @@ Phases 2–4 are independent; take them in whatever order suits the week.
 ## Phases
 
 - [x] 1. Detection is mechanical and the notes are not skippable — `b9a9baa2`, `fb7ef0e4`
-- [ ] 2. The Claude command surface map covers 2.1.247, not 2.1.235
+- [x] 2. The Claude command surface map covers 2.1.246, not 2.1.235
 - [ ] 3. Session order stops coming from file mtime
 - [ ] 4. Codex dispositions are current at 0.150.0, not 0.147.0
 - [ ] 5. `check:providers` covers Cursor and OpenCode
 
-### 2. The command surface map covers 2.1.247
+### 2. The command surface map covers 2.1.246 — done
 
-`modelPicker`, `modelPricing`, `promptCacheTtl`, `subagentPromptCacheTtl`
-(2.1.243) and `keybindingFlavor` (2.1.238) are in the SDK's settings type and in
-no CLIde document. Survey them the way the existing map surveys its 58 `/config`
-rows, and give each a CLIde destination or an explicit non-mapping.
+Eleven settings keys were added since 0.3.233, not the five this plan first
+named, and none was removed. `/config` gained one row and the command table two.
+All of it now carries a destination or a stated non-mapping in
+[the command surface map](../maps/claude-command-surface.md), and its
+re-measuring recipe is a version-to-version diff rather than a re-read.
 
-`promptCacheTtl` is the one with a plausible product surface: it is what decides
-whether an idle session's cache survives, and CLIde has no UI for it.
+The survey found one real defect and fixed it: the runtime loads skills synced
+from a claude.ai account out of `~/.claude/skills/synced/<name>/`, one level
+below the root CLIde scanned, so those skills ran in a session while being
+absent from CLIde's list. `claude-skills.provider.ts` now scans the synced root
+as its own source; the shared direct-mode scan keeps the sibling `.trash` and
+`.staging` folders out on its own.
+
+Two findings it deliberately left open, both one line each in the map:
+
+- `modelPicker` lets a user curate the `/model` list from `~/.claude/settings.json`.
+  CLIde builds its catalog from the runtime registry and never reads it, so the
+  two pickers disagree for anyone who sets it.
+- Synced *plugins* may be invisible the same way synced skills were. CLIde reads
+  only `enabledPlugins` × `installed_plugins.json`; whether the runtime also
+  registers `~/.claude/plugins/synced` there could not be observed, because no
+  synced plugin was installed. Enable one and read the file before building.
 
 ### 3. Session order stops coming from file mtime
 

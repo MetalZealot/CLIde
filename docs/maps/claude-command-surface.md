@@ -1,9 +1,13 @@
 # Claude Code's command surface, and where each part belongs in CLIde
 
-Measured 2026-08-19 against CLI **2.1.235** and `@anthropic-ai/claude-agent-sdk`
-**0.3.233**. Companion to the [settings audit](2026-07-28-claude-code-settings-surface-audit.md),
+Measured 2026-08-19 against CLI **2.1.235** / SDK **0.3.233**; command
+definitions, `/config` rows and settings keys re-measured 2026-08-26 against
+**2.1.246** / **0.3.246**. The live `/help` and `supportedCommands()` counts below
+are still the 2.1.235 ones — both need a running session, and neither was re-run.
+Companion to the [settings audit](2026-07-28-claude-code-settings-surface-audit.md),
 which inventories the settings *keys*; this map inventories the **100 commands**
-`/help` lists and the **58 rows** `/config` renders, and gives each one a destination.
+`/help` lists, the **59 rows** `/config` renders, and the **157 keys** of the
+public `Settings` interface, and gives each one a destination.
 
 The measurements here are reproducible (see the last section). The *destinations*
 are mostly the maintainer's call — house taste, not a standard — with one
@@ -19,7 +23,8 @@ Every command definition in the binary carries its own `type`:
 | `local` | Runs in the CLI process, returns text | Yes, as `system`/`local_command_output` |
 | `local-jsx` | Renders a terminal UI component | **Never** |
 
-Of 74 definitions recovered by pattern, 53 are `local-jsx`, 18 `local`, 3 `prompt`.
+Of 75 definitions recovered by pattern at 2.1.246, 54 are `local-jsx`, 19 `local`,
+2 `prompt`.
 So the large majority of what `/help` advertises is terminal UI that no web client
 can host — it can only be *re-implemented* natively, or dropped.
 
@@ -88,12 +93,12 @@ and SDK tool lists, while `permissions.allow/deny` from the settings cascade is
 *also* in force and invisible. Reconciling them needs an ADR before either surface
 is extended — see the settings audit.
 
-### Terminal-bound — hide them, build nothing (20)
+### Terminal-bound — hide them, build nothing (21)
 
 `exit` · `tui` · `statusline` · `scroll-speed` · `keybindings` · `terminal-setup` ·
 `ide` · `radio` · `stickers` · `mobile` · `passes` · `upgrade` ·
 `install-github-app` · `install-slack-app` · `chrome` · `claude-in-chrome` ·
-`design-login` · `teleport` · `powerup` · `usage-credits`
+`design-login` · `teleport` · `powerup` · `usage-credits` · `cloud-plugins`
 
 Predicted membership only. Read `terminal_slash_commands` and hide what it names.
 
@@ -124,7 +129,7 @@ a durable preference.
 `focus` · `color` · `goal` · `recap` · `tasks` · `list-agents` ·
 `add-dir` and `cd` (project scope, and CLIde already owns checkout identity — ADR 0033/0041)
 
-### Stays a slash command — the fix is enumeration, not UI (25)
+### Stays a slash command — the fix is enumeration, not UI (26)
 
 Prompt expansions and bundled skills. Each already works as text; they are missing
 only because CLIde's menu is a hardcoded list.
@@ -134,7 +139,12 @@ only because CLIde's menu is a hardcoded list.
 `dataviz` · `design` · `design-sync` · `fewer-permission-prompts` · `init` ·
 `insights` · `loop` · `run` · `run-skill-generator` · `schedule` ·
 `security-review` · `simplify` · `team-onboarding` · `ultrareview` ·
-`update-config` · `verify`
+`update-config` · `verify` · `plugin-types`
+
+`plugin-types` is the odd one: a `local` command, not a prompt expansion. It writes
+`claude-code-mcp.d.ts` describing the connected MCP tools, and reports what it wrote
+as `local_command_output` — the message type CLIde drops. Enumeration alone would
+list it and then show nothing when it ran.
 
 ### Deliberately not doing (4)
 
@@ -142,7 +152,7 @@ only because CLIde's menu is a hardcoded list.
 command port. `remote-control` / `remote-env` — Anthropic's own remote surface,
 which CLIde is an alternative to.
 
-## `/config` — 58 rows across two stores
+## `/config` — 59 rows across two stores
 
 The panel is a single table in the binary: `{id, label, type, onChange}` rows, 43 of
 which are visible in the current build (the rest are platform- or flag-gated).
@@ -185,41 +195,77 @@ that does nothing is worse than no switch: `Theme`, `Reduce motion`, `Auto-scrol
 `Push when actions required`, `Push when Claude decides`, `Editor mode`,
 `Default view`, `Agents view`, `Terminal progress bar`, `Show tips`.
 
-## What moved since the 2026-07-28 audit
+One row was added between 2.1.235 and 2.1.246: `remoteHomeSettings`, "Use this
+machine's settings in cloud sessions". It governs Anthropic's own cloud sessions,
+which CLIde is an alternative to, so it joins that list.
 
-- CLI 2.1.220 → 2.1.235; SDK 0.3.233. The public `Settings` interface now has **146
-  keys**. New and CLIde-relevant: `advisorModel`, `dialogExpiry`, `crossSessionInbound`,
-  `fileCheckpointingEnabled`, `voice`/`voiceEnabled`, `disableAutoMode`,
-  `skipDangerousModePermissionPrompt`, `agent`, `fileSuggestion`, `skipWebFetchPreflight`,
-  `inputNeededNotifEnabled`, `agentPushNotifEnabled`.
-- `~/.claude.json` no longer nests a `globalConfig` object; its 67 top-level keys are
-  now nearly all cache, onboarding, and telemetry state. Several prefs the audit
-  placed there (`editorMode`, `autoScrollEnabled`, `defaultView`) are cascade keys now,
-  so **more of `/config` is reachable than that audit concluded**.
-- `/config` is 58 rows, not ~50.
-- `terminal_slash_commands` and `local_command_output` did not exist in that audit.
-  They are the two facts that make the command half of this work cheap.
+## Settings keys — 157 in the public `Settings` interface
+
+**The cascade is already in force in every CLIde session.**
+`claude-runtime.provider.js` passes `settingSources = ['project', 'user', 'local']`,
+so a key written into `~/.claude/settings.json` changes CLIde's behaviour whether or
+not CLIde renders a control for it. A key needs a CLIde control only when the user
+would otherwise have no way to reach it; it needs a *non-mapping* recorded when
+CLIde must deliberately ignore it.
+
+`~/.claude.json` no longer nests a `globalConfig` object; its 67 top-level keys are
+now nearly all cache, onboarding, and telemetry state. Several prefs the July audit
+placed there (`editorMode`, `autoScrollEnabled`, `defaultView`) are cascade keys now,
+so **more of `/config` is reachable than that audit concluded**.
+
+157 keys at 0.3.246, 146 at 0.3.233, **none removed**. The eleven added:
+
+| Key | What it decides | CLIde destination |
+|---|---|---|
+| `promptCacheTtl` | `5m` or `1h` cache for the main conversation; unset = 1h on a subscription, 5m on an API key. `CLAUDE_CODE_PROMPT_CACHE_TTL` outranks it | **Agents → Claude.** The one with a real product surface: it decides whether an idle session's cache survives a break, which is exactly CLIde's usage pattern |
+| `subagentPromptCacheTtl` | Same, for subagents, workflows and background requests; unset = 5m | **Agents → Claude**, paired with the row above |
+| `modelPicker` | Curated `/model` list with custom labels, replacing or extending the built-in lineup. Honored from managed, `--settings`/SDK and *user* settings | **Divergence, not yet closed.** CLIde builds its catalog from the runtime registry and never reads this, so a user who curates the CLI picker sees the full lineup in CLIde. `claude-models.provider.ts` is where it would be read |
+| `modelSettings` | Per-model persisted `effortLevel`, keyed by canonical model name | **Non-mapping.** CLIde owns effort per session, not per model (ADR 0025); reading a global default would fight the session value |
+| `autoContinueAtUsageLimit` | Wait out a usage limit and continue instead of pausing | **Agents → Claude** — already listed above as the `/config` row `Continue automatically at usage limit` |
+| `syncClaudeAiSkills` | Whether skills enabled on claude.ai download to `~/.claude/skills/synced` | **Fixed in code, not in UI.** The runtime loads synced skills into a CLIde session, but CLIde's skills list scanned only `~/.claude/skills/<name>/`, one level too shallow. `claude-skills.provider.ts` now scans the synced root as its own source |
+| `syncClaudeAiPlugins` | Same for plugins, into `~/.claude/plugins/synced` | **Open, unconfirmed.** CLIde enumerates plugins only from `enabledPlugins` × `installed_plugins.json`. Whether the CLI also registers `~/.claude/plugins/synced` entries there is undetermined — no synced plugin was available to observe. Enable one on claude.ai and read that file before building anything |
+| `modelPricing` | Contracted per-Mtok rates that re-price every spend figure | **Non-mapping.** Managed settings only, so it cannot be set on a personal install. Worth knowing if CLIde's cost figures ever have to agree with an enterprise `/cost` |
+| `managedSourcesBehavior` | How multiple managed-settings sources compose | **Non-mapping.** Enterprise policy composition |
+| `keybindingFlavor` | `classic` or `readline` word-editing keys in the prompt input | **Non-mapping.** Terminal-bound; CLIde's composer is its own |
+| `spellcheck` | Underline misspellings in the prompt input via aspell/hunspell | **Non-mapping.** Terminal-bound; the browser already does this |
+
+Earlier keys still without a CLIde destination, from the 0.3.233 pass: `advisorModel`,
+`dialogExpiry`, `crossSessionInbound`, `fileCheckpointingEnabled`, `voice`/`voiceEnabled`,
+`disableAutoMode`, `skipDangerousModePermissionPrompt`, `agent`, `fileSuggestion`,
+`skipWebFetchPreflight`, `inputNeededNotifEnabled`, `agentPushNotifEnabled`.
+
+`terminal_slash_commands` and `local_command_output` did not exist in the July audit.
+They are the two facts that make the command half of this work cheap.
 
 ## Re-measuring after a CLI update
 
 The CLI self-updates; this map does not. Each step is one command and bounded output.
 
+**Diff two versions; never re-read a whole list.** Old runtime builds stay under
+`~/.local/share/claude/versions/`, so the previous one is usually still on disk, and
+the delta is what needs a destination. `V=<old> W=<new>`:
+
 ```bash
 claude --version && grep -m1 '"version"' node_modules/@anthropic-ai/claude-agent-sdk/package.json
 
-# Command list, live, no turn sent: query() with a prompt that never yields,
-# then supportedCommands(). See docs/maps/claude-agent-sdk.md §8.
+# /config rows, and command definitions with their type. Same shape for both:
+# grep the two binaries, sort -u, comm.
+grep -a -o -E '\{id:"[A-Za-z0-9_]+",label:(f8r\()?"[^"]{0,70}"' ~/.local/share/claude/versions/$W | sort -u
+grep -a -o -E '\{type:"(local|prompt|local-jsx)",name:"[a-zA-Z0-9_-]+",description:"[^"]{0,110}"' ~/.local/share/claude/versions/$W | sort -u
 
-# /config rows: one contiguous table in the binary.
-grep -a -b -o -E '\{id:"[A-Za-z0-9_]+",label:(f8r\()?"[^"]{0,70}"' \
-  ~/.local/share/claude/versions/<version>
+# Settings keys: top-level members of the exported Settings interface. The file is
+# CRLF, and nested option objects sit deeper, so the 4-space indent is the filter.
+sed -n "$(grep -n 'interface Settings' node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts | head -1 | cut -d: -f1),\$p" \
+  node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts | tr -d '\r' | awk '/^}/{exit} {print}' \
+  | grep -oE '^    [$A-Za-z_][A-Za-z0-9_]*' | tr -d ' ' | sort
 
-# Command definitions with their type.
-grep -a -o -E '\{type:"(local|prompt|local-jsx)",name:"[a-zA-Z0-9_-]+",description:"[^"]{0,110}"' \
-  ~/.local/share/claude/versions/<version>
-
-# Settings keys: the exported Settings interface in sdk.d.ts.
+# The previous SDK, for the other side of that diff:
+npm pack @anthropic-ai/claude-agent-sdk@<old> && tar xzf *.tgz package/sdk.d.ts
 ```
+
+A key's meaning is in its doc comment above the declaration; read those rather than
+guessing from the name — `modelSettings` and `modelPicker` are not what they sound
+like.
 
 The SDK and the CLI are released in lockstep (`0.3.N` ↔ `2.1.N`) but move
 independently here, because the CLI self-updates while the SDK moves only when
