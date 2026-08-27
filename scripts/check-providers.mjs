@@ -30,8 +30,9 @@ import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, readSync, r
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const require_ = createRequire(import.meta.url);
 const args = new Set(process.argv.slice(2));
 const want = (flag) => args.has('--all') || args.has(flag);
@@ -230,7 +231,7 @@ if (!args.has('--no-notes') && !args.has('--offline') && (behind.length > 0 || a
     const from = claudeRuntime;
     const newer = headings.filter((h) => !from || compareVersions(h[1], from) > 0);
     if (!newer.length) return `nothing published above ${from ?? 'the installed version'}`;
-    const body = text.slice(newer.at(-1).index, headings.find((h) => h[1] === from)?.index ?? text.length);
+    const body = text.slice(newer[0].index, headings.find((h) => h[1] === from)?.index ?? text.length);
     return excerpt(body, `claude-code-${from}-to-${newer[0][1]}.md`, `${newer.length} release(s) since ${from}`);
   });
 
