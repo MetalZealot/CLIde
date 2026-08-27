@@ -1,8 +1,8 @@
 # Clearing the backlog the 0.3.246 / 0.150.0 audit exposed
 
-- Status: 4/5
-- Next: Phase 5 — give Cursor and OpenCode a row in `check:providers`
-- Context: [maps README maintenance flow](../maps/README.md), [Claude ledger](../maps/claude-upgrade-ledger.md), [Codex ledger](../maps/codex-upgrade-ledger.md), ADR 0008 (abort), ADR 0025 (model picks)
+- Status: complete
+- Next: nothing. Candidates this produced live in the maps and ledgers it names
+- Context: [maps README maintenance flow](../../maps/README.md), [Claude ledger](../../maps/claude-upgrade-ledger.md), [Codex ledger](../../maps/codex-upgrade-ledger.md), ADR 0008 (abort), ADR 0025 (model picks)
 
 Two providers moved 13 and 3 releases while CLIde stood still, and the audit
 that caught up was hand-run. The mechanical half is now `npm run
@@ -17,14 +17,14 @@ Phases 2–4 are independent; take them in whatever order suits the week.
 - [x] 2. The Claude command surface map covers 2.1.246, not 2.1.235
 - [x] 3. Session order stops coming from file mtime
 - [x] 4. Codex dispositions are current at 0.150.0, not 0.147.0
-- [ ] 5. `check:providers` covers Cursor and OpenCode
+- [x] 5. `check:providers` covers Cursor and OpenCode
 
 ### 2. The command surface map covers 2.1.246 — done
 
 Eleven settings keys were added since 0.3.233, not the five this plan first
 named, and none was removed. `/config` gained one row and the command table two.
 All of it now carries a destination or a stated non-mapping in
-[the command surface map](../maps/claude-command-surface.md), and its
+[the command surface map](../../maps/claude-command-surface.md), and its
 re-measuring recipe is a version-to-version diff rather than a re-read.
 
 The survey found one real defect and fixed it: the runtime loads skills synced
@@ -96,20 +96,56 @@ Two follow-ons this produced, neither started:
   session resumed on another device falls back to the provider-wide last mode.
   Codex now persists the profile itself; CLIde is not asking for it.
 
-### 5. `check:providers` covers Cursor and OpenCode
+### 5. `check:providers` covers Cursor and OpenCode — done
 
-Both are adapters CLIde must keep working and neither has a map, a ledger, or a
-row in the script. Adding the version rows is small; the maps are the work, and
-they are what make the rows mean anything.
+All four providers now have a row, but they are not symmetrical and the script
+says so. Claude and Codex have a pinned SDK to compare against; Cursor and
+OpenCode have none, so their rows answer a different question — is the binary
+the adapter spawns present at all, and which one. Neither is installed on this
+host, so both currently read "not on PATH — the adapter cannot run", which is
+itself the useful answer.
+
+Release notes follow the same asymmetry: `sst/opencode` tags every release on
+GitHub and its npm versions match the tags, so it fetches like Codex does.
+Cursor publishes only a web page, so that section is a pointer rather than a
+scrape.
+
+**`cursor-agent` on npm is an unrelated third-party package**, not Cursor's CLI,
+which installs through Cursor's own script. The script carries that warning
+inline, because wiring the npm name in would report a plausible-looking version
+for the wrong software.
+
+The maps stay unwritten, deliberately. Neither runtime is installed here, so a
+map would be source inspection presented as measurement — the opposite of what
+a map is for. Install one first, then write it.
+
+## What this left open
+
+None of these is queued; each is a candidate a phase produced.
+
+- **Codex's thread store moved.** Read `~/.codex/state_*.sqlite`'s `threads`
+  table the way the OpenCode adapter reads its own database, resolving the
+  newest file rather than hardcoding a schema counter.
+- **`modelPicker`** lets a user curate the `/model` list from settings; CLIde
+  builds its catalog from the runtime registry and ignores it.
+- **Synced Claude plugins** may be invisible the way synced skills were.
+  Unconfirmed: enable one on claude.ai and read `installed_plugins.json`.
+- **`promptCacheTtl` / `subagentPromptCacheTtl`** have a real product surface
+  and no CLIde control.
+- **Per-thread Codex credits and cost**, which `/status` gained at 0.148.
+- **CLIde's per-session permission mode is `localStorage`**, so the same session
+  resumed on another device falls back to the provider-wide last mode.
+- **Cursor and OpenCode maps**, once either runtime is installed.
 
 ## Done when
 
-- `npm run check:providers` names every provider CLIde ships, not two of four.
-- Starring, renaming or reopening a session does not move it in the sidebar.
-- Every settings key in the installed SDK's type appears in the command surface
-  map with a destination or a stated non-mapping.
-- Both provider maps' dispositions carry the version they were compiled at, and
-  it is the installed one.
+- [x] `npm run check:providers` names every provider CLIde ships, not two of four.
+- [x] Starring, renaming or reopening a session does not move it in the sidebar.
+      Automated and probed against real transcripts; **not yet accepted live.**
+- [x] Every settings key in the installed SDK's type appears in the command
+      surface map with a destination or a stated non-mapping.
+- [x] Both provider maps' dispositions carry the version they were compiled at,
+      and it is the installed one.
 
 ## Not doing
 

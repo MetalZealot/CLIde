@@ -9,10 +9,16 @@
 // Run: npm run check:providers [-- --types] [-- --protocol] [-- --all]
 //
 //   (default)    local vs published versions, plus the drift verdict. When
-//                anything moved, the release notes are fetched too — neither
-//                SDK publishes one, both CLIs do, and reading them is the step
-//                that gets skipped when it is merely written down somewhere.
+//                anything moved, the release notes are fetched too — reading
+//                them is the step that gets skipped when it is merely written
+//                down somewhere.
 //   --no-notes   suppress that fetch
+//
+// Covers all four providers CLIde ships, but they are not symmetrical. Claude
+// and Codex have a pinned SDK to compare against; Cursor and OpenCode have
+// none, so their rows report whether the binary the adapter spawns is present
+// at all. Notes come from a changelog for Claude and GitHub tags for Codex and
+// OpenCode; Cursor publishes only a web page, so it is a pointer.
 //   --types      signature-only diff of each SDK's .d.ts (downloads tarballs)
 //   --protocol   regenerates Codex App Server bindings and counts them (slow)
 //   --offline    skip every network call
@@ -136,6 +142,30 @@ record('Codex CLI (bundled)', codexBundled, published('@openai/codex'), 'transit
 const codexBin = onPath('codex');
 record('Codex CLI (on PATH)', versionOf(codexBin && run(codexBin, ['--version'])), null, 'standalone install, selectable at runtime');
 
+// Cursor and OpenCode have no pinned dependency: CLIde spawns whatever binary
+// the user installed. So the row answers a different question — is the runtime
+// the adapter would spawn present at all, and which one.
+const cursorBin = onPath('cursor-agent');
+record(
+  'Cursor CLI',
+  versionOf(cursorBin && run(cursorBin, ['--version'])),
+  null,
+  cursorBin
+    ? `on PATH at ${cursorBin}`
+    : 'not on PATH — the Cursor adapter cannot run. Installed by Cursor\'s own script; the npm package named `cursor-agent` is an unrelated project, do not wire it in',
+);
+
+const opencodeBin = onPath('opencode');
+const opencodeLocal = versionOf(opencodeBin && run(opencodeBin, ['--version']));
+record(
+  'OpenCode CLI',
+  opencodeLocal,
+  opencodeLocal ? published('opencode-ai') : null,
+  opencodeBin
+    ? `on PATH at ${opencodeBin}`
+    : 'not on PATH — the OpenCode adapter cannot run. Distributed as `opencode-ai` on npm, whose versions track the sst/opencode tags',
+);
+
 const behind = rows.filter((r) => r.remote && r.local && compareVersions(r.local, r.remote) < 0);
 
 say('Provider versions\n');
@@ -221,6 +251,26 @@ if (!args.has('--no-notes') && !args.has('--offline') && (behind.length > 0 || a
       .join('\n\n');
     return excerpt(body, `codex-${from}-to-${releases[0].version}.md`, `${releases.length} release(s) since ${from}`);
   });
+
+  // OpenCode tags every release on GitHub, and the npm versions match the tags.
+  await section('OpenCode', async () => {
+    if (!opencodeLocal) return '  not installed — nothing to compare against';
+    const res = await fetch('https://api.github.com/repos/sst/opencode/releases?per_page=40', {
+      headers: { accept: 'application/vnd.github+json' },
+    });
+    if (!res.ok) return `releases fetch failed (${res.status})`;
+    const releases = (await res.json())
+      .map((r) => ({ version: r.tag_name?.replace(/^v/, ''), body: r.body ?? '' }))
+      .filter((r) => r.version && compareVersions(r.version, opencodeLocal) > 0);
+    if (!releases.length) return `nothing published above ${opencodeLocal}`;
+    const body = releases.map((r) => `## ${r.version}\n\n${r.body.trim()}`).join('\n\n');
+    return excerpt(body, `opencode-${opencodeLocal}-to-${releases[0].version}.md`, `${releases.length} release(s) since ${opencodeLocal}`);
+  });
+
+  // Cursor publishes its CLI changelog as a web page, not a tagged repo or an
+  // npm package, so there is nothing to fetch reliably.
+  say('--- Cursor ---');
+  say('  no machine-readable changelog; read https://cursor.com/changelog\n');
 }
 
 async function section(title, produce) {
