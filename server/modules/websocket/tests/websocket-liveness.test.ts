@@ -1,3 +1,5 @@
+// Two suites: chat.ping/chat_pong echo plus the transport heartbeat, and the
+// shell-websocket PTY launch, auth-URL, and Codex-launch paths.
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import test, { describe } from 'node:test';

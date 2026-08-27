@@ -308,7 +308,7 @@ test('abortOpenCodeSession stops a live run keyed by the app session id', async 
   const pathExtKey = findEnvKey('PATHEXT');
   const previousPath = process.env[pathKey];
   const previousPathExt = process.env[pathExtKey];
-  // Deliberately unequal id spaces, the same way chat-session-addressing.test.ts
+  // Deliberately unequal id spaces, the same way chat-session.test.ts
   // drives the gateway — identity mapping would hide the bug entirely.
   const appSessionId = 'app-session-abort-1';
   const providerSessionId = 'opencode-native-abort-1';
