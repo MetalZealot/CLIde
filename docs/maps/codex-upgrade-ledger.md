@@ -134,12 +134,27 @@ Each stable upgrade records:
 - **One pinned literal.** `EXPECTED_CODEX_VERSION` in the drift contract is now
   the only place the version is asserted; the transport-diagnostics test reads
   the installed packages instead of repeating it.
-- **From the 0.150.0 release notes.** New `Interrupt` hooks fire when a
-  top-level turn is interrupted — a candidate, since CLIde owns abort (ADR
-  0008). App Server MCP event streaming explains the new
-  `mcpServer/event/stream/notification`. Untrusted projects no longer supply
-  project-level `AGENTS.md`. The remaining entries are TUI, Windows sandbox and
-  Bedrock work with no CLIde surface. Tagged source was not read, so the map's
-  disposition table still dates from 0.147.0.
+- **Dispositions recompiled at 0.150.0**, across the 0.148.0–0.150.0 notes.
+  - **The thread store moved.** `~/.codex/session_index.jsonl` no longer exists
+    on a current install; `~/.codex/state_*.sqlite` holds a `threads` table with
+    `title`, `archived`, `updated_at`, `cwd`, `model` and `reasoning_effort`.
+    Upstream's own test removes the JSONL and asserts naming still resolves from
+    SQLite, so it is a legacy mirror. CLIde's Codex name lookup reads that path
+    and silently gets nothing, falling through to the last agent message.
+    **Candidate** — and the filename carries a schema counter, so a reader must
+    resolve the newest `state_*.sqlite`.
+  - **`Interrupt` hooks are not a candidate.** A hook is the runtime's own
+    extension point in the user's `config.toml`; CLIde issues the abort itself
+    and already knows the turn ended. The 0.150.0 entry above called them one;
+    that reading was wrong.
+  - **The resume permission-profile fix is invisible here, verified.**
+    `resumeThread` is always passed a `sandboxMode`/`approvalPolicy` derived from
+    the composer's mode, and CLIde keeps its own per-session mode. Coherent,
+    except that the store is `localStorage`: the same session resumed on another
+    device falls back to the provider-wide last mode.
+  - **Candidate:** per-thread credits and cost, which `/status` gained at 0.148
+    and CLIde has no Codex equivalent for.
+  - The rest is TUI, Vim, Windows sandbox, Bedrock and free runtime fixes with
+    no CLIde surface.
 - **Verification:** typecheck, lint, 520 server and 262 client tests, 0
   failures; `build` clean. Not yet exercised in a live Codex turn.

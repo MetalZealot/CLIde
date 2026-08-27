@@ -21,7 +21,7 @@ main checkout only).
 - [~] **Recurring provider SDK/CLI update process.** `npm run check:providers` reports versions, release notes, `.d.ts` signature diffs and Codex protocol counts; cadence in [the maps README](maps/README.md). Open: Cursor/OpenCode coverage in the script and their maps; unknown-method diagnostics; the typed capability registry validating the canonical map. **M recurring**
 - [~] **Assess upstream 1.37's worktree foundations.** Rejected as shipped; harvest onto CLIde's model instead, from the immutable `v1.37.0` tag. The porcelain parser is harvested (`worktree-inventory.service.ts`); ahead/behind, dirty counts and last-commit reads are not. [Plan](plans/source-control-truthfulness.md). **L**
 - [~] **The new-session model default still isn't durable.** Per-session picks landed (ADR 0025); the picker's *default* is still `localStorage` per provider (`useChatProviderState.ts`), so it doesn't follow you across browsers or devices. Any fix must keep ADR 0003's precedence — a stored value never outranks transcript evidence. **M**
-- [~] **Provider upgrade debt from the 0.3.246 / 0.150.0 audit.** Command surface and mtime session ordering done; Codex dispositions and Cursor/OpenCode coverage left. [Plan](plans/provider-upgrade-debt.md), which also records why `perTaskStopAffordance` stays undeclared. **M**
+- [~] **Provider upgrade debt from the 0.3.246 / 0.150.0 audit.** Command surface, mtime session ordering and Codex dispositions done; Cursor/OpenCode coverage left. Surfaced that Codex's thread store moved to `state_*.sqlite`, so CLIde's name lookup reads a path that no longer exists. [Plan](plans/provider-upgrade-debt.md), which also records why `perTaskStopAffordance` stays undeclared. **M**
 
 ## Bugs
 

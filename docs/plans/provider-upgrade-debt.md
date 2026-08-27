@@ -1,7 +1,7 @@
 # Clearing the backlog the 0.3.246 / 0.150.0 audit exposed
 
-- Status: 3/5
-- Next: Phase 4 — classify the Codex dispositions at 0.150.0
+- Status: 4/5
+- Next: Phase 5 — give Cursor and OpenCode a row in `check:providers`
 - Context: [maps README maintenance flow](../maps/README.md), [Claude ledger](../maps/claude-upgrade-ledger.md), [Codex ledger](../maps/codex-upgrade-ledger.md), ADR 0008 (abort), ADR 0025 (model picks)
 
 Two providers moved 13 and 3 releases while CLIde stood still, and the audit
@@ -16,7 +16,7 @@ Phases 2–4 are independent; take them in whatever order suits the week.
 - [x] 1. Detection is mechanical and the notes are not skippable — `b9a9baa2`, `fb7ef0e4`
 - [x] 2. The Claude command surface map covers 2.1.246, not 2.1.235
 - [x] 3. Session order stops coming from file mtime
-- [ ] 4. Codex dispositions are current at 0.150.0, not 0.147.0
+- [x] 4. Codex dispositions are current at 0.150.0, not 0.147.0
 - [ ] 5. `check:providers` covers Cursor and OpenCode
 
 ### 2. The command surface map covers 2.1.246 — done
@@ -68,13 +68,33 @@ right by construction, at the cost of a boot-time pass over every transcript.
 Tagged upstreamable, and recorded in `docs/upstream-candidates.md` with the
 search that found no upstream report.
 
-### 4. Codex dispositions are current at 0.150.0
+### 4. Codex dispositions are current at 0.150.0 — done
 
-The map's disposition table was compiled at 0.147.0 and the 0.150.0 pass only
-corrected the counts around it. Two things to classify: the new `Interrupt`
-hooks, which fire when a top-level turn is interrupted and are the first real
-candidate CLIde's abort path has had in a while, and the 20 experimental client
-requests and 9 notifications added since 0.147.0, none of which is consumed.
+Recompiled across the 0.148.0–0.150.0 notes, tagged source, and the installed
+state store. The two things this plan named both resolved downward, and a third
+it did not know about is now the only real candidate.
+
+- **`Interrupt` hooks are not a candidate.** A hook is the runtime's own
+  extension point in the user's `config.toml`. CLIde issues the abort itself, so
+  it already knows the turn ended.
+- **The new experimental requests and notifications stay unconsumed**, as
+  expected; the count rise is App Server MCP event streaming.
+- **The thread store moved, and CLIde did not notice.**
+  `~/.codex/session_index.jsonl` does not exist on a current install;
+  `~/.codex/state_*.sqlite` holds a `threads` table with `title`, `archived`,
+  `updated_at`, `cwd`, `model` and `reasoning_effort`. Upstream's own test
+  removes the JSONL and asserts naming still resolves from SQLite. CLIde's Codex
+  name lookup reads that dead path, gets nothing, and falls through to the last
+  agent message — degradation, not breakage, which is why nothing surfaced it.
+
+Two follow-ons this produced, neither started:
+
+- Read the Codex thread store, the way the OpenCode adapter reads its own
+  database. The filename carries a schema counter, so it must resolve the newest
+  `state_*.sqlite` rather than hardcode one.
+- CLIde's per-session permission mode lives in `localStorage`, so the same
+  session resumed on another device falls back to the provider-wide last mode.
+  Codex now persists the profile itself; CLIde is not asking for it.
 
 ### 5. `check:providers` covers Cursor and OpenCode
 

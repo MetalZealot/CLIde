@@ -14,7 +14,8 @@ semantics belong in the
 
 | Evidence | Current value |
 |---|---|
-| Previous audited pair | SDK and bundled CLI 0.147.0 |
+| Dispositions compiled at | 0.150.0, spanning the 0.148.0–0.150.0 notes |
+| Native thread store | `~/.codex/state_*.sqlite`, table `threads`; `session_index.jsonl` is a legacy mirror and absent on a current install |
 | Repository pin | `@openai/codex-sdk` 0.150.0, with `@openai/codex` 0.150.0 transitively |
 | Host installations | Bundled 0.150.0 and standalone 0.149.1, distinct by path |
 | Default generated protocol | 98 client requests, 10 server requests, 81 notifications |
@@ -134,7 +135,7 @@ changed selections do not fall back to bundled.
 | Models, auth, usage, MCP, skills | Their Codex provider facets |
 | Shell | `server/modules/websocket/services/shell-websocket.service.ts` |
 
-## 4. Delta at 0.150.0, and open dispositions
+## 4. Delta at 0.150.0, and current dispositions
 
 ### Compatibility result
 
@@ -147,29 +148,43 @@ changed selections do not fall back to bundled.
 - `ModelReasoningEffort` gained `max` and `ultra`; `ThreadOptions` gained
   `threadSource` and `CodexOptions` raw `configOverrides`. Only the effort
   levels reach a CLIde surface, and the live model list already carried them.
-- New `Interrupt` hooks (0.150.0) fire when a top-level turn is interrupted —
-  a candidate, since CLIde owns abort (ADR 0008). App Server MCP event
-  streaming explains the notification-count rise.
-- Measured from installed artifacts, generated bindings and the release notes;
-  tagged source was not re-read, so the disposition table below is still the one
-  compiled at 0.147.0.
+- App Server MCP event streaming explains the notification-count rise.
 
-### Material upstream surfaces, compiled at 0.147.0
+### Material upstream surfaces, compiled at 0.150.0
+
+Spans 0.148.0 through 0.150.0. Rows still open from the 0.147.0 pass are
+carried forward rather than restated.
 
 | Upstream change | CLIde impact | Disposition |
 |---|---|---|
-| `isBlocking` structured-question field | Blocking waits; non-blocking uses explicit/default timeout | Integrated |
-| Persistent, manually ordered thread sections and incremental transcript browsing | Not equivalent to CLIde stars or sidebar sections | Defer |
-| `--approve-for-me` reviewer mode | Conflicts with explicit user review policy | No action |
-| Portable plugins and plugin search | Needs provider-slotted extensions IA | Defer |
-| Cursor skill import and Claude/Cursor sync | Migration workflow, not ordinary Settings | No action |
-| MCP protocol 2026-07-28 | Consumed contract unchanged | Compatibility watch |
-| Cached web search and Bedrock remote compaction | No current normalized product surface | Compatibility watch |
-| Removal of `codex exec --full-auto` | CLIde uses explicit sandbox/approval settings | No action |
+| `session_index.jsonl` is no longer the thread-name store; `~/.codex/state_*.sqlite` holds a `threads` table with `title`, `archived`, `updated_at`, `cwd`, `model`, `reasoning_effort` and `first_user_message` | CLIde's name lookup reads that JSONL path, which is absent on a current install, so it silently returns nothing and disk-discovered sessions fall back to their last agent message | **Candidate.** The filename carries a schema counter, so a reader must resolve the newest `state_*.sqlite`, never hardcode one |
+| Resumed and forked threads restore their active permission profile instead of falling back to current defaults (0.149); resumed sessions restore their persisted cwd and approval policy (0.148) | Invisible here, verified: `resumeThread` is always passed a `sandboxMode`/`approvalPolicy` derived from the composer's mode, and CLIde keeps its own per-session mode. Coherent, except that CLIde's store is `localStorage` — resuming the same session from another device falls back to the provider-wide last mode, where the runtime's own profile would have been right | **No action** on the runtime change; the cross-device fallback is a CLIde question, logged in the upgrade-debt plan |
+| Thread credits or cost in `/status`, status lines and terminal titles (0.148) | CLIde has an account-usage surface for Claude and none for Codex spend | **Candidate** |
+| `Interrupt` hooks fire when a top-level turn is interrupted (0.150); hooks can also run asynchronously and call MCP tools (0.148) | A hook is the runtime's own extension point, configured in the user's `config.toml`. CLIde issues the abort itself, so it already knows the turn ended | **No action.** Listed as a candidate at 0.150.0; inspection says otherwise |
+| `codex doctor` diagnoses endpoint protection, network and proxy failures, desktop state and update connectivity (0.149) | Overlaps CLIde's planned System → Diagnostics screen | **Defer** to [the flight recorder plan](../plans/diagnostics-flight-recorder.md) |
+| `/export` conversation to Markdown (0.148); `/copy` picker for responses, code blocks and quotes (0.150) | Chat-surface actions CLIde would re-implement natively, not consume | **Defer** |
+| `codex exec fork`, plus archive and restore in the resume picker (0.148) | CLIde already reads `forked_from_id` and owns archive | **Integrated** |
+| SDK `configOverrides` raw CLI overrides (0.149) | No CLIde surface passes raw config | **No action** |
+| `@` mentions of other Codex tasks and `codex queue` (0.149, 0.150) | CLIde addresses sessions over its own protocol | **No action** |
+| `codex agents` dashboard, `/cd`/`/pwd`/`/cwd`, Vim motions, markdown link rendering, permission-mode shortcuts | Terminal UI; CLIde owns checkout identity (ADRs 0033, 0041) | **No action** |
+| Amazon Bedrock as a built-in provider, with compaction and multi-agent fixes (0.148, 0.150) | No CLIde surface selects a Codex model provider | **Compatibility watch** |
+| Untrusted projects no longer supply project-level `AGENTS.md`; managed deny-read rules stay enforced after a permission change (0.150) | Changes what a CLIde-hosted session actually reads, without any CLIde change | **Compatibility watch** |
 
-The release also contains secret-redaction, terminal-input, rendering, Windows,
-project-trust, authentication, plugin-isolation, and network fixes. These inform
-live smoke coverage without creating frontend work by themselves.
+Carried from 0.147.0 and still open: `isBlocking` structured questions
+(**integrated**); persistent thread sections and incremental transcript
+browsing (**defer** — not equivalent to CLIde stars or sidebar sections);
+portable plugins and plugin search (**defer** — needs a provider-slotted
+extensions IA); `--approve-for-me`, Cursor skill import and Claude/Cursor sync,
+and the removal of `codex exec --full-auto` (**no action**); MCP protocol
+2026-07-28 and cached web search (**compatibility watch**).
+
+These releases also fix model switches leaving stale instructions or mutating an
+active turn, turns reconnecting through provider outages, MCP recovery after
+OAuth reauthentication, duplicate sub-agent activity, Unix shutdown hangs from
+detached processes holding a terminal, bounded replay buffers for inactive
+threads, credential redaction in app-server diagnostics, and sandbox paths
+failing closed. CLIde inherits all of them by pinning; they inform live smoke
+coverage without creating frontend work.
 
 ## 5. Upgrade evidence and source policy
 
@@ -179,9 +194,16 @@ generated protocol, the curated compatibility guard, focused/full tests, and an
 isolated live gate. Production process/version and installed-app evidence remain
 separate deployment facts.
 
+Dispositions above were compiled against the three release notes plus tagged
+source and the installed state store; `session_index.jsonl`'s demotion is
+established by upstream's own test, which removes the file and asserts that
+naming still resolves from SQLite.
+
 Primary current sources:
 
-- [Codex 0.150.0 release](https://github.com/openai/codex/releases/tag/rust-v0.150.0)
+- [Codex 0.150.0 release](https://github.com/openai/codex/releases/tag/rust-v0.150.0),
+  [0.149.0](https://github.com/openai/codex/releases/tag/rust-v0.149.0),
+  [0.148.0](https://github.com/openai/codex/releases/tag/rust-v0.148.0)
 - [OpenAI tag comparison: 0.147.0 to 0.150.0](https://github.com/openai/codex/compare/rust-v0.147.0...rust-v0.150.0)
 - [Tagged TypeScript SDK](https://github.com/openai/codex/tree/rust-v0.150.0/sdk/typescript)
 - [Tagged App Server protocol](https://github.com/openai/codex/tree/rust-v0.150.0/codex-rs/app-server-protocol)
