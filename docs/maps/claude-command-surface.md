@@ -102,6 +102,17 @@ is extended — see the settings audit.
 
 Predicted membership only. Read `terminal_slash_commands` and hide what it names.
 
+### Open parity gaps, cheapest first
+
+Each is a surface CLIde already has, missing what the CLI shows in the same place.
+
+| Gap | What is missing | Size |
+|---|---|---|
+| Slash menu | Nine hardcoded commands where `supportedCommands()` returns 52 live, without sending a turn. Hide what `terminal_slash_commands` names. | M |
+| `/context` | The SDK breakdown's `gridRows` is parsed away and rebuilt as a stacked bar; using it directly matches the CLI's square-grid panel. | S |
+| `/usage` | Per-model cost breakdown — plan bars, a "This session" line, then a per-model table. | M |
+| `/stats` | Account usage stats in Context & Usage. Probe `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` with `scripts/verify-context-usage-sdk.ts` first: is `behaviors` populated on this account? An idle surface cannot hold a query open. | M/? |
+
 ### Becomes a setting, or a button on a settings screen (16)
 
 | Command | Destination | Note |

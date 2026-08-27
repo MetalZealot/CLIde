@@ -81,39 +81,41 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 
 ## Features (bigger ideas)
 
+Queued work first. Below the rule is **someday**: real ideas, but nothing here is
+started, sliced, or blocking anything — skip it unless you are deliberately picking
+new work.
+
 - [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, maps and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
-- [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**
-- [ ] **Claude Code settings are almost entirely unreachable from CLIde** — 157 cascade keys, 59 `/config` rows, CLIde exposes zero, though `settingSources` already puts `~/.claude/settings.json` in force every session. Destinations: [command surface map](maps/claude-command-surface.md); per-key tiers: [settings audit](maps/2026-07-28-claude-code-settings-surface-audit.md). **L**
 - [~] **Source Control: manage worktrees and integrate branches without leaving CLIde.** Identity and grouping shipped (ADRs 0016, 0028, 0029); truthfulness and lifecycle remain. [Plan](plans/source-control-truthfulness.md). **L**
 - [~] **Worktree manager selection and discovered-checkout targeting.** Session totals, compact row menus, registered-only batch Archive/Delete, and Add-before-select are built for isolated live verification. [ADR 0035](decisions/0035-discovered-checkout-selection-registers-first.md). **M**
-- [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
-- [ ] **Subagent tracking in the UI.** Claude writes subagent transcripts to `<slug>/<session-id>/subagents/agent-<id>.jsonl`; the synchronizer *deliberately* skips them (`isSubagentTranscript`) so a spawned agent never becomes its own sidebar session. Within a session they're grouped under the parent via `parent_tool_use_id`. **M/L**
 - [ ] **Does usage tracking count subagent tokens?** Answered — two systems, two behaviours. Plan-window % and credits come live from Anthropic's OAuth endpoint and **already include** agent tokens. The per-session context ring skips `isSidechain` rows by design. Remaining work is deciding whether to surface that difference. **S — decision**
-- [ ] `/context`: use the SDK breakdown's `gridRows` for a closer match to the CLI's square-grid panel. CLIde parses it away and rebuilds a stacked bar. **S**
-- [ ] `/usage`: per-model cost breakdown like the CLI's — plan bars, a "This session" line, then a per-model table. **M**
-- [ ] **`/stats`: put the SDK's account usage stats in Context & Usage.** Probe `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()` with `scripts/verify-context-usage-sdk.ts` first — is `behaviors` populated on this account? The [live gate](plans/archive/2026-08-17-claude-sdk-0.3.233-upgrade.md) is the constraint: an idle surface can't hold a query open. **M/?**
-- [ ] `!` shell mode in the conversation window. **M**
+- [ ] **Four Claude command surfaces sit behind the CLI's** — the slash menu (9 hardcoded vs 52 live from `supportedCommands()`), `/context`'s grid, `/usage`'s per-model costs, and `/stats`. Sized and detailed in [the command surface map](maps/claude-command-surface.md); the slash menu is the cheapest. **S–M each**
 - [ ] **Chat renders raw tool calls instead of activities.** A burst of 14 reads/commands is 14 cards; measured, prose-bounded clustering takes 295 calls to 51 rows. Claude and Codex first. [Plan](plans/tool-activity-display.md), [map](maps/tool-activity-stream.md). **L**
-- [ ] Conversation "map" sidebar: a minimap of where user/assistant messages sit, tap to scroll. Depends on the scroll residuals above. **L**
 - [~] **Double-tap Esc to stop mid-send and immediately edit.** The stop-and-recover half landed (`e5ede32` + `adab285`, ADR 0013). Remaining: (a) the Esc gesture itself — today it's the Stop button only; (b) editing a turn the provider *did* take, which is a rewind, not a retraction. **M**
-- [ ] Codex equivalent of the Claude command-surface audit — which of its commands and config keys CLIde is missing. **L**
-- [ ] **The activity indicator's changed state isn't legible.** A provider status like "Compacting conversation" phases in the same grey as the idle Thinking/Processing cycle, so it reads as normal waiting. Part of the wider indicator/panel rework: distinct treatment for a real status. **M**
-- [ ] **CLIde's slash menu is 9 hardcoded commands; `supportedCommands()` returns 52 for free** and `system:init` carries `terminal_slash_commands` telling remote UIs what to hide. Replacing the hardcoded list is the cheapest item in the [command surface map](maps/claude-command-surface.md). **M**
 - [~] **Rewind via the transcript.** Phase A (conversation-only) shipped and live-verified 2026-07-22 (`daea812`…`845ed24`), ADR 0007. `enableFileCheckpointing` is on so checkpoints accumulate for Phase B — file-state rewind — which is the remaining half. **L**
-- [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
-- [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
 - [ ] **Composer prompt stash and lossless draft handoff.** Project selection can overwrite pre-project text, while New Session can detach visible text from its saved project draft. Preserve both before adding a `+` popover for Attach, Stash, and Stashed prompts. [Plan](plans/composer-prompt-stash.md). **M — design agreement first**
-- [ ] **Scheduled messages.** When usage runs out you often want work to resume the moment it resets, mid-task. A "schedule send" in the composer; also useful for follow-ups. **M/L**
 - [ ] **Background-session notifications** — in-app banner plus header roll-up dot, and stop the redundant OS notification while you're looking at the session. [Plan](plans/background-session-notifications.md). **M**
-- [ ] Voice Settings: the Base URL field is editable but the server ignores any client value (`resolveConfig` always uses `ENV.baseUrl`). Hide it, or make it a read-only "configured on server" indicator driven off `/api/voice/health`. Provider-agnostic, so it stays correct for OpenAI/Groq users. **S**
 - [~] **Half-open WebSocket: dead Stop, frozen "thinking", then a wall of missed messages.** All four parts of the fix are implemented (`dd47ddd`, ADR 0006). What remains is deciding whether the watchdog keeps its permissive "any frame" rule or moves to matched echoes: [plan](plans/websocket-liveness.md). **M**
 - [ ] **Adopt upstream #1050's chat-scroll perf fixes** (complementary to `55d8c44`). Three causes still present here: `normalizedToChatMessages` mints new objects every ~100 ms flush, defeating `React.memo`; `Markdown`/`CodeBlock` are unmemoized; and the third from the issue. Render-side, distinct from the pagination item above. **M**
 
+---
+
+- [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
+- [ ] **Claude Code settings are almost entirely unreachable from CLIde** — 157 cascade keys, 59 `/config` rows, CLIde exposes zero, though `settingSources` already puts `~/.claude/settings.json` in force every session. Destinations: [command surface map](maps/claude-command-surface.md); per-key tiers: [settings audit](maps/2026-07-28-claude-code-settings-surface-audit.md). **L**
+- [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
+- [ ] **Subagent tracking in the UI.** Claude writes subagent transcripts to `<slug>/<session-id>/subagents/agent-<id>.jsonl`; the synchronizer *deliberately* skips them (`isSubagentTranscript`) so a spawned agent never becomes its own sidebar session. Within a session they're grouped under the parent via `parent_tool_use_id`. **M/L**
+- [ ] `!` shell mode in the conversation window. **M**
+- [ ] Conversation "map" sidebar: a minimap of where user/assistant messages sit, tap to scroll. Depends on the scroll residuals above. **L**
+- [ ] Codex equivalent of the Claude command-surface audit — which of its commands and config keys CLIde is missing. **L**
+- [ ] **The activity indicator's changed state isn't legible.** A provider status like "Compacting conversation" phases in the same grey as the idle Thinking/Processing cycle, so it reads as normal waiting. Part of the wider indicator/panel rework: distinct treatment for a real status. **M**
+- [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
+- [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
+- [ ] **Scheduled messages.** When usage runs out you often want work to resume the moment it resets, mid-task. A "schedule send" in the composer; also useful for follow-ups. **M/L**
+
 ## Agent context in worktrees
 
-- [x] **Worktree sessions started with zero memory.** Memory is keyed by absolute cwd with no fallback: main had 30 facts, every worktree had 0. `setup-worktree.sh` now symlinks the worktree's `~/.claude/projects/<slug>/memory` to main's; verified by probe. All four live worktrees backfilled. **S**
 - [ ] **Host `CLAUDE.md` still doesn't reach worktree sessions.** The stub only *points* at it, and `@` imports outside the project tree do not resolve (both absolute and `../` forms tested). Only fix left is `setup-worktree.sh` inlining main's host sections into the real stub — accepts drift. **S**
 - [ ] **Two missing agent guardrails in `AGENTS.md`.** A session drove Browser into its own live session and used its Shell; the same session asked for and typed Grayson's password into a login form, against the existing "the user clicks through, not you" rule. Add both as explicit invariants. **S**
 
