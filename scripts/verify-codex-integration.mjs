@@ -69,30 +69,26 @@ function runClientGroup(label, files) {
 console.log(`Codex integration check using ${process.version}`);
 
 runServerGroup('1/4 pinned runtime and App Server protocol', [
-  'server/modules/providers/tests/codex-app-server-protocol-drift.test.ts',
-  'server/modules/providers/tests/codex-usage.test.ts',
+  'server/modules/providers/tests/codex-runtime.test.ts',
 ]);
 
 runServerGroup('2/4 browser gateway and streamed adapter contract', [
-  'server/shared/tests/image-attachments.test.ts',
+  'server/shared/tests/shared.test.ts',
   'server/modules/providers/tests/codex-app-server-chat.test.ts',
-  'server/modules/providers/tests/provider-runtime.service.test.ts',
-  'server/modules/providers/tests/interactive-request-registry.test.ts',
-  'server/modules/websocket/tests/chat-attachment-filter.test.ts',
-  'server/modules/websocket/tests/chat-session-addressing.test.ts',
+  'server/modules/providers/tests/provider-runtime.test.ts',
+  'server/modules/websocket/tests/chat-session.test.ts',
   'server/modules/websocket/tests/chat-run-registry.test.ts',
 ]);
 
 runServerGroup('3/4 persisted history and session identity', [
-  'server/modules/database/tests/sessions-provider-mapping.test.ts',
+  'server/modules/database/tests/sessions.db.test.ts',
   'server/modules/providers/tests/codex-sessions.test.ts',
-  'server/modules/providers/tests/provider-attachment-history.test.ts',
-  'server/modules/providers/tests/provider-token-usage.service.test.ts',
+  'server/modules/providers/tests/provider-sessions.test.ts',
+  'server/modules/providers/tests/provider-usage.test.ts',
 ]);
 
 runClientGroup('4/4 browser reconciliation and rendering', [
   'src/components/chat/hooks/chatHooks.test.ts',
-  'src/components/chat/tools/components/ContentRenderers/QuestionAnswerContent.test.tsx',
   'src/components/chat/utils/chatUtils.test.ts',
   'src/components/chat/view/subcomponents/chatSubcomponents.test.tsx',
   'src/stores/sessionStore.test.tsx',
