@@ -62,6 +62,16 @@ becoming one.
 
 ## Maintenance flow
 
+Start with `npm run check:providers`. It reports pinned/installed/published
+versions for both SDKs and both CLIs, and with `--notes`, `--types` and
+`--protocol` it fetches the release notes, the signature-only `.d.ts` diff, and
+regenerated Codex protocol counts. It reports; it never gates. The gates are the
+drift tests, which fail by name when a pin or a parsed contract moves.
+
+The two release-note sources, since neither SDK publishes one:
+`anthropics/claude-code`'s `CHANGELOG.md` covers every runtime version, and
+`openai/codex` tags each release on GitHub.
+
 1. Audit official sources, installed artifacts, generated contracts, and live
    runtime behavior for one provider.
 2. Update that provider's native map and append one compact ledger entry.

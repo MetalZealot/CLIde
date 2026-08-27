@@ -134,8 +134,12 @@ Each stable upgrade records:
 - **One pinned literal.** `EXPECTED_CODEX_VERSION` in the drift contract is now
   the only place the version is asserted; the transport-diagnostics test reads
   the installed packages instead of repeating it.
-- **Scope of the audit.** Installed artifacts and generated bindings only; the
-  0.148–0.150 release notes and tagged source were not read, so the map's
+- **From the 0.150.0 release notes.** New `Interrupt` hooks fire when a
+  top-level turn is interrupted — a candidate, since CLIde owns abort (ADR
+  0008). App Server MCP event streaming explains the new
+  `mcpServer/event/stream/notification`. Untrusted projects no longer supply
+  project-level `AGENTS.md`. The remaining entries are TUI, Windows sandbox and
+  Bedrock work with no CLIde surface. Tagged source was not read, so the map's
   disposition table still dates from 0.147.0.
 - **Verification:** typecheck, lint, 520 server and 262 client tests, 0
   failures; `build` clean. Not yet exercised in a live Codex turn.

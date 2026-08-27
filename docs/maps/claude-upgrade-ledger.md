@@ -265,6 +265,23 @@ CLIde already spawns.
   `subagentPromptCacheTtl`, `modelSettings`, `modelPicker`, `modelPricing`,
   `keybindingFlavor`, `spellcheck`, `autoContinueAtUsageLimit`, `headersHelper`.
   Those settings are candidates for the command-surface map, not adopted work.
+- **From the changelog** (`anthropics/claude-code` publishes `CHANGELOG.md` for
+  every runtime version; the SDK publishes none):
+  - `Notification` now fires while a sandbox network prompt waits, and `/fork`
+    from an already-forked or backgrounded session no longer starts empty.
+    CLIde registers exactly one hook and owns fork, so both are upstream fixes
+    to surfaces it depends on — no CLIde change.
+  - MCP tool arguments are no longer stringified when a parameter's schema is
+    `{}`, and interrupted MCP calls report an interrupted error rather than
+    "completed with no output".
+  - Sonnet 5's default auto-compact window became its full 1M, so the ceiling is
+    ~967K rather than ~934K. `LONG_CONTEXT_RESERVE` already produced 967,000;
+    the registry test confirms it at 2.1.246.
+  - `ultracode` is an *effort keyword* for dynamic workflows, not a model and
+    not an SDK effort value — the SDK union stops at `max`. Do not add a picker
+    row for it.
+  - Settings added at 2.1.243: `modelPicker`, `modelPricing`, `promptCacheTtl`,
+    `subagentPromptCacheTtl`. Candidates for the command-surface map, unadopted.
 - **Verification:** typecheck, lint, 520 server and 262 client tests, 0
   failures; `build` clean. The registry test is the live evidence — it reads the
   installed 2.1.246 binary rather than a fixture.

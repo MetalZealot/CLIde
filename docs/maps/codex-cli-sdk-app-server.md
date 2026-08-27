@@ -147,9 +147,12 @@ changed selections do not fall back to bundled.
 - `ModelReasoningEffort` gained `max` and `ultra`; `ThreadOptions` gained
   `threadSource` and `CodexOptions` raw `configOverrides`. Only the effort
   levels reach a CLIde surface, and the live model list already carried them.
-- Measured from installed artifacts and generated bindings. The 0.148–0.150
-  release notes and tagged source have not been read, so the disposition table
-  below is still the one compiled at 0.147.0.
+- New `Interrupt` hooks (0.150.0) fire when a top-level turn is interrupted —
+  a candidate, since CLIde owns abort (ADR 0008). App Server MCP event
+  streaming explains the notification-count rise.
+- Measured from installed artifacts, generated bindings and the release notes;
+  tagged source was not re-read, so the disposition table below is still the one
+  compiled at 0.147.0.
 
 ### Material upstream surfaces, compiled at 0.147.0
 
