@@ -993,7 +993,7 @@ export async function readFileTimestamps(
  * own row shape.
  *
  * Only the tail is read — transcripts reach megabytes and only the final rows
- * matter. The window doubles once when the first pass finds no complete row,
+ * matter. The window grows 16x once when the first pass finds no complete row,
  * which covers a single fat row such as a large tool result; beyond that the
  * caller falls back to the file's mtime.
  */

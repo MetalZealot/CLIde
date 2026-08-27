@@ -54,7 +54,7 @@ The trigger is more ordinary than a `touch`. Claude appends untimestamped
 opening a session advanced its mtime while the conversation had not — measured
 here at 30 minutes past the last message on a real transcript.
 
-`readLastJsonlTimestamp` reads a bounded tail (64 KB, doubling once for a fat
+`readLastJsonlTimestamp` reads a bounded tail (64 KB, growing 16x once for a fat
 final row) and walks backwards to the last row carrying a usable timestamp;
 each provider supplies its own extractor, because Cursor keeps the value in a
 `<timestamp>` tag inside the message text rather than a field. mtime stays the
