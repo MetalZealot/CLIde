@@ -9,6 +9,7 @@ import {
   findFilesRecursivelyCreatedAfter,
   normalizeSessionName,
   readFileTimestamps,
+  readLastJsonlTimestamp,
 } from '@/shared/utils.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 
@@ -17,6 +18,12 @@ type ParsedSession = {
   projectPath: string;
   forkedFromId?: string;
   sessionName?: string;
+};
+
+/** Every Codex rollout row carries its own ISO `timestamp` beside its payload. */
+const readCodexRowTimestamp = (parsedJson: unknown): string | null => {
+  const row = parsedJson as Record<string, unknown>;
+  return typeof row?.timestamp === 'string' ? row.timestamp : null;
 };
 
 /**
@@ -53,7 +60,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         }
       }
 
-      const timestamps = await readFileTimestamps(filePath);
+      const timestamps = await this.readSessionTimestamps(filePath);
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
@@ -83,7 +90,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
-    const timestamps = await readFileTimestamps(filePath);
+    const timestamps = await this.readSessionTimestamps(filePath);
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
@@ -93,6 +100,20 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.updatedAt,
       filePath
     );
+  }
+
+  /**
+   * Session timestamps, with activity taken from the transcript's last row.
+   *
+   * mtime only says when the file was written, so a touched or reopened
+   * transcript would otherwise jump to the top of the session list.
+   */
+  private async readSessionTimestamps(
+    filePath: string
+  ): Promise<{ createdAt?: string; updatedAt?: string }> {
+    const timestamps = await readFileTimestamps(filePath);
+    const lastMessageAt = await readLastJsonlTimestamp(filePath, readCodexRowTimestamp);
+    return { ...timestamps, updatedAt: lastMessageAt ?? timestamps.updatedAt };
   }
 
   /**

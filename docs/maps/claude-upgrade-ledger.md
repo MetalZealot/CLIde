@@ -299,8 +299,13 @@ CLIde already spawns.
     background tasks — which is correct until CLIde renders a per-task stop
     control. Logged as a trap, not a win.
   - 2.1.239 stopped treating a touched or reopened transcript as recently
-    changed. CLIde's `readFileTimestamps` still derives `updatedAt` from mtime
-    for Claude and Cursor, so the same defect is live here and upstream.
+    changed. CLIde had it in three synchronizers, not two — Claude, Codex and
+    Cursor; OpenCode already read a real `time_updated`. Claude appends
+    untimestamped `last-prompt` and `permission-mode` rows on open, so opening a
+    session was enough to reorder it: mtime ran 30 minutes past the last message
+    on a real transcript here. **Adopted** — `readLastJsonlTimestamp` reads the
+    last timestamped row from a bounded tail, mtime stays the fallback. Still
+    live upstream; logged in `docs/upstream-candidates.md`.
   - 2.1.239 also fixed an Esc-with-queued-prompt race that left a session idle
     while work continued. CLIde owns abort (ADR 0008); worth a look when abort
     is next touched.

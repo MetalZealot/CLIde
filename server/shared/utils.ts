@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import {
   access,
   lstat,
+  open,
   mkdir,
   readFile,
   readdir,
@@ -980,6 +981,79 @@ export async function readFileTimestamps(
     };
   } catch {
     return {};
+  }
+}
+
+/**
+ * Timestamp of the last usable row in a JSONL transcript, ISO, or null.
+ *
+ * A session's activity time is the last thing it recorded, not its mtime: a
+ * transcript that is merely touched or reopened has not advanced. `extractor`
+ * reads one parsed row and returns its timestamp, so each provider keeps its
+ * own row shape.
+ *
+ * Only the tail is read — transcripts reach megabytes and only the final rows
+ * matter. The window doubles once when the first pass finds no complete row,
+ * which covers a single fat row such as a large tool result; beyond that the
+ * caller falls back to the file's mtime.
+ */
+export async function readLastJsonlTimestamp(
+  filePath: string,
+  extractor: (parsedJson: unknown) => string | null | undefined,
+  windowBytes = 64 * 1024
+): Promise<string | null> {
+  let handle;
+  try {
+    handle = await open(filePath, 'r');
+    const { size } = await handle.stat();
+    if (size === 0) {
+      return null;
+    }
+
+    for (const bytes of [windowBytes, windowBytes * 16]) {
+      const length = Math.min(bytes, size);
+      const start = size - length;
+      const buffer = Buffer.alloc(length);
+      await handle.read(buffer, 0, length, start);
+
+      const lines = buffer.toString('utf8').split('\n');
+      // A window that does not start at byte 0 opens mid-row.
+      const usable = start > 0 ? lines.slice(1) : lines;
+
+      for (let index = usable.length - 1; index >= 0; index -= 1) {
+        const trimmed = usable[index]?.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        let parsed;
+        try {
+          parsed = JSON.parse(trimmed);
+        } catch {
+          continue;
+        }
+
+        const timestamp = extractor(parsed);
+        if (typeof timestamp !== 'string') {
+          continue;
+        }
+
+        const parsedDate = new Date(timestamp);
+        if (!Number.isNaN(parsedDate.getTime())) {
+          return parsedDate.toISOString();
+        }
+      }
+
+      if (length >= size) {
+        return null;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  } finally {
+    await handle?.close().catch(() => {});
   }
 }
 

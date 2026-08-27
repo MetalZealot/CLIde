@@ -1,7 +1,7 @@
 # Clearing the backlog the 0.3.246 / 0.150.0 audit exposed
 
-- Status: 2/5
-- Next: Phase 3 — stop deriving session order from file mtime
+- Status: 3/5
+- Next: Phase 4 — classify the Codex dispositions at 0.150.0
 - Context: [maps README maintenance flow](../maps/README.md), [Claude ledger](../maps/claude-upgrade-ledger.md), [Codex ledger](../maps/codex-upgrade-ledger.md), ADR 0008 (abort), ADR 0025 (model picks)
 
 Two providers moved 13 and 3 releases while CLIde stood still, and the audit
@@ -15,7 +15,7 @@ Phases 2–4 are independent; take them in whatever order suits the week.
 
 - [x] 1. Detection is mechanical and the notes are not skippable — `b9a9baa2`, `fb7ef0e4`
 - [x] 2. The Claude command surface map covers 2.1.246, not 2.1.235
-- [ ] 3. Session order stops coming from file mtime
+- [x] 3. Session order stops coming from file mtime
 - [ ] 4. Codex dispositions are current at 0.150.0, not 0.147.0
 - [ ] 5. `check:providers` covers Cursor and OpenCode
 
@@ -44,19 +44,29 @@ Two findings it deliberately left open, both one line each in the map:
   registers `~/.claude/plugins/synced` there could not be observed, because no
   synced plugin was installed. Enable one and read the file before building.
 
-### 3. Session order stops coming from file mtime
+### 3. Session order stops coming from file mtime — done
 
-`readFileTimestamps` in `server/shared/utils.ts` fills `updatedAt` from
-`stat().mtime`, for the Claude and Cursor synchronizers alike. Touching or
-merely reopening a transcript therefore moves a session to the top of the list.
-Claude Code fixed the same defect at 2.1.239.
+Three synchronizers were affected, not two: Claude, Codex and Cursor. OpenCode
+was already right, reading `time_updated` from its own database.
 
-The honest source is the last real message's timestamp, which the synchronizer
-already parses on its way past. Cost is in the backfill: existing rows carry
-mtime-derived values, so either they are recomputed once or the list stays wrong
-for old sessions. Decide which before writing code.
+The trigger is more ordinary than a `touch`. Claude appends untimestamped
+`last-prompt` and `permission-mode` rows when a transcript is opened, so simply
+opening a session advanced its mtime while the conversation had not — measured
+here at 30 minutes past the last message on a real transcript.
 
-Tagged upstreamable — the defect is in shared code, not fork code.
+`readLastJsonlTimestamp` reads a bounded tail (64 KB, doubling once for a fat
+final row) and walks backwards to the last row carrying a usable timestamp;
+each provider supplies its own extractor, because Cursor keeps the value in a
+`<timestamp>` tag inside the message text rather than a field. mtime stays the
+fallback, so a transcript with no parseable row behaves as it did.
+
+**No backfill, deliberately.** The watcher re-upserts a session on every change
+event, so any row that can go wrong is rewritten correctly the next time its
+file is touched. A one-shot full rescan would recompute rows that are already
+right by construction, at the cost of a boot-time pass over every transcript.
+
+Tagged upstreamable, and recorded in `docs/upstream-candidates.md` with the
+search that found no upstream report.
 
 ### 4. Codex dispositions are current at 0.150.0
 

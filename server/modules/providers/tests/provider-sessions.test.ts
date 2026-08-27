@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
@@ -10,7 +10,7 @@ import { CodexSessionsProvider, extractCodexUserImages } from '@/modules/provide
 import { CursorSessionsProvider } from '@/modules/providers/list/cursor/cursor-sessions.provider.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { appendFilesInputTag, appendImagesInputTag } from '@/shared/image-attachments.js';
-import { AppError, normalizeProjectPath } from '@/shared/utils.js';
+import { AppError, normalizeProjectPath, readLastJsonlTimestamp } from '@/shared/utils.js';
 
 describe('provider-sessions', () => {
   describe('claude-sessions', () => {
@@ -452,5 +452,106 @@ describe('provider-attachment-history', () => {
     assert.deepEqual(messages[0].files, [
       { path: 'C:/Users/x/.cloudcli/assets/data.csv', name: 'data.csv' },
     ]);
+  });
+});
+
+describe('session-activity-timestamp', () => {
+  const claudeRowTimestamp = (row: unknown): string | null => {
+    const parsed = row as Record<string, unknown>;
+    return typeof parsed?.timestamp === 'string' ? parsed.timestamp : null;
+  };
+
+  const cursorRowTimestamp = (row: unknown): string | null => {
+    const parsed = row as { message?: { content?: Array<{ text?: unknown }> } };
+    const text = parsed?.message?.content?.[0]?.text;
+    if (typeof text !== 'string') {
+      return null;
+    }
+    return /<timestamp>([\s\S]*?)<\/timestamp>/.exec(text)?.[1]?.trim() ?? null;
+  };
+
+  async function withTranscript(
+    lines: string[],
+    runTest: (filePath: string) => Promise<void>,
+  ): Promise<void> {
+    const directory = await mkdtemp(path.join(tmpdir(), 'session-activity-'));
+    const filePath = path.join(directory, 'transcript.jsonl');
+    try {
+      await writeFile(filePath, `${lines.join('\n')}\n`, 'utf8');
+      await runTest(filePath);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
+  test('a touched transcript keeps the timestamp of its last message', async () => {
+    const rows = [
+      JSON.stringify({ sessionId: 's1', cwd: '/tmp', timestamp: '2026-08-01T10:00:00.000Z' }),
+      JSON.stringify({ sessionId: 's1', cwd: '/tmp', timestamp: '2026-08-02T11:30:00.000Z' }),
+    ];
+
+    await withTranscript(rows, async (filePath) => {
+      assert.equal(
+        await readLastJsonlTimestamp(filePath, claudeRowTimestamp),
+        '2026-08-02T11:30:00.000Z',
+      );
+
+      // The defect this replaces: mtime moves, the conversation does not.
+      const future = new Date('2026-09-15T09:00:00.000Z');
+      await utimes(filePath, future, future);
+      assert.equal(
+        await readLastJsonlTimestamp(filePath, claudeRowTimestamp),
+        '2026-08-02T11:30:00.000Z',
+      );
+    });
+  });
+
+  test('a last row larger than the first window is still found', async () => {
+    const rows = [
+      JSON.stringify({ timestamp: '2026-08-01T10:00:00.000Z' }),
+      JSON.stringify({ timestamp: '2026-08-03T08:00:00.000Z', bulk: 'x'.repeat(4096) }),
+    ];
+
+    await withTranscript(rows, async (filePath) => {
+      assert.equal(
+        await readLastJsonlTimestamp(filePath, claudeRowTimestamp, 512),
+        '2026-08-03T08:00:00.000Z',
+      );
+    });
+  });
+
+  test('rows without a usable timestamp fall through to the caller', async () => {
+    const rows = [
+      JSON.stringify({ timestamp: '2026-08-01T10:00:00.000Z' }),
+      JSON.stringify({ timestamp: 'not-a-date' }),
+      'this line is not json',
+    ];
+
+    await withTranscript(rows, async (filePath) => {
+      assert.equal(
+        await readLastJsonlTimestamp(filePath, claudeRowTimestamp),
+        '2026-08-01T10:00:00.000Z',
+      );
+    });
+
+    await withTranscript([JSON.stringify({ role: 'user' })], async (filePath) => {
+      assert.equal(await readLastJsonlTimestamp(filePath, claudeRowTimestamp), null);
+    });
+  });
+
+  test('cursor turns carry their timestamp inside the message text', async () => {
+    const rows = [
+      JSON.stringify({
+        role: 'user',
+        message: { content: [{ text: '<timestamp>2026-08-04T07:15:00.000Z</timestamp><user_query>hi</user_query>' }] },
+      }),
+    ];
+
+    await withTranscript(rows, async (filePath) => {
+      assert.equal(
+        await readLastJsonlTimestamp(filePath, cursorRowTimestamp),
+        '2026-08-04T07:15:00.000Z',
+      );
+    });
   });
 });

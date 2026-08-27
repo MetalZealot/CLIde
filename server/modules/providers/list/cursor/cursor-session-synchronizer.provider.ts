@@ -11,6 +11,7 @@ import {
   findFilesRecursivelyCreatedAfter,
   normalizeSessionName,
   readFileTimestamps,
+  readLastJsonlTimestamp,
 } from '@/shared/utils.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 
@@ -32,6 +33,21 @@ async function listDirectoryEntriesSafe(
     return [];
   }
 }
+
+/**
+ * Cursor rows carry no timestamp field; user turns instead open with a
+ * `<timestamp>` tag inside the message text. A row without one, or with an
+ * unparseable one, yields null and the caller falls back to mtime.
+ */
+const readCursorRowTimestamp = (parsedJson: unknown): string | null => {
+  const row = parsedJson as { message?: { content?: Array<{ text?: unknown }> } };
+  const text = row?.message?.content?.[0]?.text;
+  if (typeof text !== 'string') {
+    return null;
+  }
+
+  return /<timestamp>([\s\S]*?)<\/timestamp>/.exec(text)?.[1]?.trim() ?? null;
+};
 
 /**
  * Session indexer for Cursor transcript artifacts.
@@ -56,7 +72,7 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
         continue;
       }
 
-      const timestamps = await readFileTimestamps(filePath);
+      const timestamps = await this.readSessionTimestamps(filePath);
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
@@ -85,7 +101,7 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
-    const timestamps = await readFileTimestamps(filePath);
+    const timestamps = await this.readSessionTimestamps(filePath);
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
@@ -95,6 +111,20 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.updatedAt,
       filePath
     );
+  }
+
+  /**
+   * Session timestamps, with activity taken from the transcript's last row.
+   *
+   * mtime only says when the file was written, so a touched or reopened
+   * transcript would otherwise jump to the top of the session list.
+   */
+  private async readSessionTimestamps(
+    filePath: string
+  ): Promise<{ createdAt?: string; updatedAt?: string }> {
+    const timestamps = await readFileTimestamps(filePath);
+    const lastMessageAt = await readLastJsonlTimestamp(filePath, readCursorRowTimestamp);
+    return { ...timestamps, updatedAt: lastMessageAt ?? timestamps.updatedAt };
   }
 
   /**
