@@ -7,6 +7,7 @@ import test from 'node:test';
 import {
   CLAUDE_FALLBACK_MODELS,
   ClaudeProviderModels,
+  readClaudeDefaultModelEnv,
   resolveClaudeModelAlias,
 } from '@/modules/providers/list/claude/claude-models.provider.js';
 import type { SessionModelPickStore } from '@/modules/providers/services/provider-session-model.service.js';
@@ -249,6 +250,45 @@ test('claude catalog flags nothing when no default model is configured', async (
 
     assert.equal(findFlaggedDefault(models.OPTIONS).length, 0);
     assert.equal(models.DEFAULT, CLAUDE_FALLBACK_MODELS.DEFAULT);
+  });
+});
+
+test('ANTHROPIC_DEFAULT_MODEL seeds the catalog default, and "default"/"inherit" read as unset', async () => {
+  assert.equal(readClaudeDefaultModelEnv({ ANTHROPIC_DEFAULT_MODEL: ' claude-opus-4-8 ' }), 'claude-opus-4-8');
+  assert.equal(readClaudeDefaultModelEnv({ ANTHROPIC_DEFAULT_MODEL: 'Default' }), null);
+  assert.equal(readClaudeDefaultModelEnv({ ANTHROPIC_DEFAULT_MODEL: 'inherit' }), null);
+  assert.equal(readClaudeDefaultModelEnv({ ANTHROPIC_DEFAULT_MODEL: '  ' }), null);
+  assert.equal(readClaudeDefaultModelEnv({}), null);
+
+  await withTempDir(async (dir) => {
+    // No settings file and no ANTHROPIC_MODEL: the seed env var is the only
+    // source left, and CLIde used to report no configured default at all.
+    const settingsPath = path.join(dir, 'settings.json');
+    const previousHard = process.env.ANTHROPIC_MODEL;
+    const previousSeed = process.env.ANTHROPIC_DEFAULT_MODEL;
+    delete process.env.ANTHROPIC_MODEL;
+    process.env.ANTHROPIC_DEFAULT_MODEL = 'claude-opus-4-7';
+    try {
+      const provider = new ClaudeProviderModels({ claudeSettingsPath: settingsPath });
+      const models = await provider.getSupportedModels();
+
+      assert.equal(models.DEFAULT, 'claude-opus-4-7');
+      assert.deepEqual(
+        findFlaggedDefault(models.OPTIONS).map((option) => option.value),
+        ['claude-opus-4-7'],
+      );
+
+      // The settings file still outranks it.
+      await writeFile(settingsPath, JSON.stringify({ model: 'claude-opus-4-6' }), 'utf8');
+      const withSettings = await new ClaudeProviderModels({ claudeSettingsPath: settingsPath })
+        .getSupportedModels();
+      assert.equal(withSettings.DEFAULT, 'claude-opus-4-6');
+    } finally {
+      if (previousHard === undefined) delete process.env.ANTHROPIC_MODEL;
+      else process.env.ANTHROPIC_MODEL = previousHard;
+      if (previousSeed === undefined) delete process.env.ANTHROPIC_DEFAULT_MODEL;
+      else process.env.ANTHROPIC_DEFAULT_MODEL = previousSeed;
+    }
   });
 });
 

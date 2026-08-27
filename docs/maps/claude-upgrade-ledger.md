@@ -265,8 +265,10 @@ CLIde already spawns.
   `subagentPromptCacheTtl`, `modelSettings`, `modelPicker`, `modelPricing`,
   `keybindingFlavor`, `spellcheck`, `autoContinueAtUsageLimit`, `headersHelper`.
   Those settings are candidates for the command-surface map, not adopted work.
-- **From the changelog** (`anthropics/claude-code` publishes `CHANGELOG.md` for
-  every runtime version; the SDK publishes none):
+- **From the changelog**, 2.1.234 → 2.1.247 (`anthropics/claude-code` publishes
+  `CHANGELOG.md` for every runtime version; the SDK publishes none). The first
+  pass of this audit read only the newest entry and missed the last four items
+  below:
   - `Notification` now fires while a sandbox network prompt waits, and `/fork`
     from an already-forked or backgrounded session no longer starts empty.
     CLIde registers exactly one hook and owns fork, so both are upstream fixes
@@ -281,7 +283,22 @@ CLIde already spawns.
     not an SDK effort value — the SDK union stops at `max`. Do not add a picker
     row for it.
   - Settings added at 2.1.243: `modelPicker`, `modelPricing`, `promptCacheTtl`,
-    `subagentPromptCacheTtl`. Candidates for the command-surface map, unadopted.
+    `subagentPromptCacheTtl`; `keybindingFlavor` at 2.1.238. Candidates for the
+    command-surface map, unadopted.
+  - `ANTHROPIC_DEFAULT_MODEL` (2.1.236) seeds what new sessions start on, below
+    a managed setting and above the tier default, and is distinct from
+    `ANTHROPIC_MODEL`'s hard override. CLIde's seed chain did not read it at
+    all; it now does, consulted last. **Adopted.**
+  - `perTaskStopAffordance` is the single new SDK `Options` key, and pairs with
+    2.1.238's per-task Stop fix. Absence fails closed — interrupt kills
+    background tasks — which is correct until CLIde renders a per-task stop
+    control. Logged as a trap, not a win.
+  - 2.1.239 stopped treating a touched or reopened transcript as recently
+    changed. CLIde's `readFileTimestamps` still derives `updatedAt` from mtime
+    for Claude and Cursor, so the same defect is live here and upstream.
+  - 2.1.239 also fixed an Esc-with-queued-prompt race that left a session idle
+    while work continued. CLIde owns abort (ADR 0008); worth a look when abort
+    is next touched.
 - **Verification:** typecheck, lint, 520 server and 262 client tests, 0
   failures; `build` clean. The registry test is the live evidence — it reads the
   installed 2.1.246 binary rather than a fixture.

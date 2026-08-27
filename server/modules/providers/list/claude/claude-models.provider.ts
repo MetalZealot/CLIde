@@ -108,6 +108,21 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   DEFAULT: 'sonnet',
 };
 
+/**
+ * ANTHROPIC_DEFAULT_MODEL, or null when unset. Claude Code treats the literals
+ * "default" and "inherit" as unset, so they are not model ids here either.
+ */
+export const readClaudeDefaultModelEnv = (
+  env: NodeJS.ProcessEnv = process.env,
+): string | null => {
+  const value = env.ANTHROPIC_DEFAULT_MODEL?.trim();
+  if (!value) {
+    return null;
+  }
+  const lowered = value.toLowerCase();
+  return lowered === 'default' || lowered === 'inherit' ? null : value;
+};
+
 export const findClaudeModelOption = (model: string | undefined | null): ProviderModelOption | null => {
   const normalizedModel = typeof model === 'string' ? model.trim() : '';
   if (!normalizedModel) {
@@ -300,9 +315,14 @@ export class ClaudeProviderModels implements IProviderModels {
   }
 
   /**
-   * Resolves what "default" runs on this machine, mirroring Claude Code's
-   * precedence: ANTHROPIC_MODEL, then `model` in ~/.claude/settings.json. Null
-   * when neither is set — the plan default applies and cannot be read here.
+   * Resolves what "default" runs on this machine: ANTHROPIC_MODEL, then `model`
+   * in ~/.claude/settings.json, then ANTHROPIC_DEFAULT_MODEL. Null when none is
+   * set — the plan default applies and cannot be read here.
+   *
+   * ANTHROPIC_MODEL is a hard override; ANTHROPIC_DEFAULT_MODEL only seeds new
+   * sessions, and a picked model outranks it. Its rank against the settings
+   * file is not decoded, so it is consulted last: that fills the case CLIde got
+   * wrong — neither of the other two set — without reordering either.
    */
   private async readConfiguredDefaultModel(): Promise<string | null> {
     const envModel = process.env.ANTHROPIC_MODEL?.trim();
@@ -315,10 +335,14 @@ export class ClaudeProviderModels implements IProviderModels {
     try {
       const settings = JSON.parse(await readFile(settingsPath, 'utf8')) as { model?: unknown };
       const model = typeof settings.model === 'string' ? settings.model.trim() : '';
-      return model || null;
+      if (model) {
+        return model;
+      }
     } catch {
-      return null;
+      /* absent or malformed settings fall through to the seed env var */
     }
+
+    return readClaudeDefaultModelEnv();
   }
 
   async getSupportedModels(): Promise<ProviderModelsDefinition> {

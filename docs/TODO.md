@@ -21,6 +21,8 @@ main checkout only).
 - [~] **Recurring provider SDK/CLI update process.** `npm run check:providers` reports versions, release notes, `.d.ts` signature diffs and Codex protocol counts; cadence in [the maps README](maps/README.md). Open: Cursor/OpenCode coverage in the script and their maps; unknown-method diagnostics; the typed capability registry validating the canonical map. **M recurring**
 - [~] **Assess upstream 1.37's worktree foundations.** Rejected as shipped; harvest onto CLIde's model instead, from the immutable `v1.37.0` tag. The porcelain parser is harvested (`worktree-inventory.service.ts`); ahead/behind, dirty counts and last-commit reads are not. [Plan](plans/source-control-truthfulness.md). **L**
 - [~] **The new-session model default still isn't durable.** Per-session picks landed (ADR 0025); the picker's *default* is still `localStorage` per provider (`useChatProviderState.ts`), so it doesn't follow you across browsers or devices. Any fix must keep ADR 0003's precedence — a stored value never outranks transcript evidence. **M**
+- [ ] **Session list order comes from file mtime, so merely touching or reopening a transcript reorders it.** `readFileTimestamps` in `server/shared/utils.ts` feeds `updatedAt` for Claude and Cursor alike; the last real message timestamp is the honest source. Claude Code fixed the same defect at 2.1.239. [upstreamable] **M**
+- [ ] **`perTaskStopAffordance` is a trap, not a free win.** Declaring the SDK option makes interrupt spare background agents — but only a consumer that renders a per-task stop control can then stop a runaway one. Absence fails closed and is correct until that control exists. **M**
 
 ## Bugs
 

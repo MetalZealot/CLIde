@@ -6,12 +6,16 @@
 // That preamble is mechanical, so it lives here. The judgement calls — what to
 // adopt, defer or ignore — stay with the reader.
 //
-// Run: npm run check:providers [-- --notes] [-- --types] [-- --protocol] [-- --all]
+// Run: npm run check:providers [-- --types] [-- --protocol] [-- --all]
 //
-//   (default)   local vs published versions, plus the drift verdict
-//   --notes     release notes between the installed and published versions
-//   --types     signature-only diff of each SDK's .d.ts (downloads tarballs)
-//   --protocol  regenerates Codex App Server bindings and counts them (slow)
+//   (default)    local vs published versions, plus the drift verdict. When
+//                anything moved, the release notes are fetched too — neither
+//                SDK publishes one, both CLIs do, and reading them is the step
+//                that gets skipped when it is merely written down somewhere.
+//   --no-notes   suppress that fetch
+//   --types      signature-only diff of each SDK's .d.ts (downloads tarballs)
+//   --protocol   regenerates Codex App Server bindings and counts them (slow)
+//   --offline    skip every network call
 //
 // Exits 0 always: this reports, it does not gate. The gates are the drift tests.
 
@@ -132,6 +136,8 @@ record('Codex CLI (bundled)', codexBundled, published('@openai/codex'), 'transit
 const codexBin = onPath('codex');
 record('Codex CLI (on PATH)', versionOf(codexBin && run(codexBin, ['--version'])), null, 'standalone install, selectable at runtime');
 
+const behind = rows.filter((r) => r.remote && r.local && compareVersions(r.local, r.remote) < 0);
+
 say('Provider versions\n');
 const width = Math.max(...rows.map((r) => r.label.length));
 for (const { label, local, remote, note } of rows) {
@@ -181,7 +187,7 @@ function scanFor(file, marker) {
 
 // --- release notes ----------------------------------------------------------
 
-if (want('--notes')) {
+if (!args.has('--no-notes') && !args.has('--offline') && (behind.length > 0 || args.has('--all'))) {
   say('\n\nRelease notes\n');
 
   // Claude Code publishes one changelog for every version, including the ones
@@ -310,6 +316,7 @@ if (want('--protocol')) {
 
 // --- where to go next -------------------------------------------------------
 
+if (!behind.length) say('\nNothing moved.');
 say('\nNext, if anything moved:');
 say('  1. Bump the pin, `npm install`, then `npm test` — the drift tests name what broke.');
 say('  2. Classify each change: consumed, candidate, watch, or no action.');

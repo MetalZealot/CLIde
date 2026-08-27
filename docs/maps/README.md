@@ -63,14 +63,19 @@ becoming one.
 ## Maintenance flow
 
 Start with `npm run check:providers`. It reports pinned/installed/published
-versions for both SDKs and both CLIs, and with `--notes`, `--types` and
-`--protocol` it fetches the release notes, the signature-only `.d.ts` diff, and
-regenerated Codex protocol counts. It reports; it never gates. The gates are the
-drift tests, which fail by name when a pin or a parsed contract moves.
+versions for both SDKs and both CLIs, and **fetches the release notes by itself
+whenever a version moved** — that step is the one that gets skipped when it is
+merely written down, so it is not opt-in. `--types` adds the signature-only
+`.d.ts` diff, `--protocol` regenerated Codex protocol counts. It reports; it
+never gates. The gates are the drift tests, which fail by name when a pin or a
+parsed contract moves.
 
-The two release-note sources, since neither SDK publishes one:
+Neither SDK publishes release notes; both CLIs do.
 `anthropics/claude-code`'s `CHANGELOG.md` covers every runtime version, and
-`openai/codex` tags each release on GitHub.
+`openai/codex` tags each release on GitHub. Read the whole span between the
+installed and published versions — an artifact diff shows contract changes but
+never behaviour, and the 0.3.246 audit missed six CLIde-relevant fixes by
+reading only the newest entry.
 
 1. Audit official sources, installed artifacts, generated contracts, and live
    runtime behavior for one provider.
