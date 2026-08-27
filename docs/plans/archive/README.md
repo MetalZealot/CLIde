@@ -7,6 +7,7 @@ Nothing here is read by default. Completed plans are frozen; current behavior be
 | [Provider upgrade debt](provider-upgrade-debt.md) | 2026-08-27 | [Claude](../../maps/claude-upgrade-ledger.md) and [Codex](../../maps/codex-upgrade-ledger.md) ledgers, the [command surface](../../maps/claude-command-surface.md) and [Codex surface](../../maps/codex-cli-sdk-app-server.md) maps, and source/tests |
 | [HTML file preview](2026-08-23-html-file-preview.md) | 2026-08-23 | [ADR 0045](../../decisions/0045-html-file-preview-is-static-and-isolated.md) and source/tests |
 | [Auto-compact visibility](2026-08-23-autocompact-visibility.md) | 2026-08-23 | [code anchors](../../maps/code-anchors.md) and source/tests |
+| [WebSocket liveness](2026-08-27-websocket-liveness.md) | 2026-08-27 | [ADR 0006](../../decisions/0006-app-level-ws-liveness.md) and [ADR 0047](../../decisions/0047-ws-liveness-probe-clears-on-any-frame.md) |
 | [Per-session effort tracking](2026-08-18-session-effort-tracking.md) | 2026-08-18 | [ADR 0003](../../decisions/0003-per-session-model-tracking.md), [ADR 0025](../../decisions/0025-session-model-picks-live-in-the-database.md), and source/tests |
 | [Checkout naming](2026-08-17-checkout-naming.md) | 2026-08-17 | [ADR 0041](../../decisions/0041-checkouts-are-named-by-place-and-state.md) and source/tests |
 | [Chat export](2026-08-17-chat-export.md) | 2026-08-17 | Chat export source and focused client tests |

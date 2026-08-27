@@ -10,7 +10,6 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 | Plan | Status | Next |
 |---|---|---|
 | [Source Control truthfulness](source-control-truthfulness.md) | 1/4 | Phase 0: make server-side Git failures visible in the UI |
-| [WebSocket liveness](websocket-liveness.md) | not started | Baseline the integrated gateway; decide any-frame vs matched echo |
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |

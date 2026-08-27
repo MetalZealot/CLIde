@@ -1,9 +1,8 @@
 # WebSocket liveness: keep or replace the permissive watchdog
 
-- Status: not started
-- Next: baseline the *integrated* v1.37 gateway, then answer question 1 — does a
-  probe clear on any inbound frame, or only on its matching echo?
-- Context: [ADR 0006 — WS liveness is client-driven via app-level ping](../decisions/0006-app-level-ws-liveness.md)
+- Status: complete
+- Next: nothing — answered by ADR 0047, archived 2026-08-27
+- Context: [ADR 0006 — WS liveness is client-driven via app-level ping](../../decisions/0006-app-level-ws-liveness.md)
   · reviewed 2026-07-30, unblocked when v1.37 merged in `658d536`
 
 This is a decision to make, not a feature to build. ADR 0006's core holds:

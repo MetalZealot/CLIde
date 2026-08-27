@@ -84,3 +84,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0044 — Input capability sets targets; row shortcuts stay bounded](0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md)
 - [0045 — HTML file preview is static and isolated](0045-html-file-preview-is-static-and-isolated.md)
 - [0046 — Tool detail leaves the chat column instead of nesting inside it](0046-tool-detail-leaves-the-chat-column.md)
+- [0047 — The liveness probe clears on any inbound frame, not a matching echo](0047-ws-liveness-probe-clears-on-any-frame.md)
