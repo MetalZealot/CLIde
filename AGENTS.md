@@ -146,8 +146,11 @@ one defect, so these rules target length.
   `bg-black/50` (ADR 0001).
 - Keep PWA manifest icons `purpose: "any"`; adding `maskable` causes a Samsung white
   box (ADR 0002).  For logo work, edit the masters in `designs/` and run
-  `designs/regenerate-assets.py`; keep the dark master a plain filled path, and never
-  hand-edit generated assets in `public/`.
+  `designs/regenerate-assets.py`; keep the dark master a plain filled path —
+  flatten stroke-thinning with Inkscape Stroke-to-Path + Difference, because a
+  background-coloured stroke overlay breaks the transparent derivatives — and never
+  hand-edit generated assets in `public/`.  The icon background is `#141414`, matching
+  the manifest's `background_color`/`theme_color`.
 - Claude emits synthetic, zero-usage transcript rows.  If touching Claude token usage,
   preserve the equivalent skip guard in all three paths — see
   `docs/maps/code-anchors.md`.  Codex accounting is separate.
@@ -155,6 +158,12 @@ one defect, so these rules target length.
   apply `compareSessionsStarredFirst` on every session-list surface.
 - Claude model/transcript logic is subtle.  The transcript is ground truth for what
   ran, but validate transcript-derived values before they can reach a model argument.
+
+- In a *manager* panel (Worktrees, Projects), a plain row tap must not navigate or
+  select.  Long-press and right-click open the same menu the kebab opens; a single tap
+  is reserved for an explicit Select mode or does nothing.  Picking a thing to work in
+  belongs to the New Session launcher that already does it, not duplicated into the
+  manager.  When a row looks inert, fix the affordance, not the tap target.
 
 ## Git, backlog, and upstream workflow
 
