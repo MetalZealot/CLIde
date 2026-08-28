@@ -176,7 +176,6 @@ export function useChatSessionState({
   const settlingScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
   const scrollRestoreReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingInitialScrollRef = useRef(true);
-  const scrollPositionRef = useRef({ height: 0, top: 0 });
   const externalUpdateTargetRef = useRef<{ version: number; sessionId: string | null }>({
     version: 0,
     sessionId: null,
@@ -869,28 +868,15 @@ export function useChatSessionState({
     return chatMessages.slice(-visibleMessageCount);
   }, [chatMessages, visibleMessageCount]);
 
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    scrollPositionRef.current = { height: container.scrollHeight, top: container.scrollTop };
-  });
-
+  // Scrolled up, new content lands below the viewport and the position holds on
+  // its own; older messages arriving above are the scroll-restore path's job.
   useEffect(() => {
     if (!scrollContainerRef.current || chatMessages.length === 0) return;
     if (isLoadingMoreRef.current || isLoadingMoreMessages || pendingScrollRestoreRef.current) return;
     if (searchScrollActiveRef.current) return;
+    if (isUserScrolledUp) return;
 
-    if (!isUserScrolledUp) {
-      setTimeout(() => scrollToBottom(), 50);
-      return;
-    }
-
-    const container = scrollContainerRef.current;
-    const prevHeight = scrollPositionRef.current.height;
-    const prevTop = scrollPositionRef.current.top;
-    const newHeight = container.scrollHeight;
-    const heightDiff = newHeight - prevHeight;
-    if (heightDiff > 0 && prevTop > 0) container.scrollTop = prevTop + heightDiff;
+    setTimeout(() => scrollToBottom(), 50);
   }, [chatMessages.length, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
 
   useEffect(() => {
