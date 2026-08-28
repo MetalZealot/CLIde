@@ -13,6 +13,7 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
+| [Mobile bottom navigation](mobile-bottom-navigation.md) | 1/4 | Finish one-owner safe-area handling, then agree labels and keyboard behavior |
 | [Codex Chat-Shell ownership](codex-chat-shell-ownership.md) | not started | Agree the visible handoff state, then prove 0.147/0.149 release timing |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Browser MCP hardening](browser-mcp-hardening.md) | not started | Slice 1: ref registry and deterministic snapshot projection |

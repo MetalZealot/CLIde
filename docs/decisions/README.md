@@ -42,7 +42,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0002 — PWA icons declare purpose "any" only, never "maskable"](0002-no-maskable-icon-purpose.md)
 - [0003 — Active model is tracked per session; transcript is ground truth](0003-per-session-model-tracking.md)
 - [0004 — TODO.md is tracked in-repo, at the repo root](0004-todo-md-tracked-at-root.md) *(location superseded by 0027)*
-- [0005 — Mobile bottom navbar, restored as in-flow layout](0005-mobile-bottom-navbar.md)
+- [0005 — Mobile bottom navbar, restored as in-flow layout](0005-mobile-bottom-navbar.md) *(superseded by 0048)*
 - [0006 — WS liveness is client-driven via app-level ping, not protocol ping](0006-app-level-ws-liveness.md)
 - [0007 — Rewind is in-place tree-append; history must be branch-filtered](0007-rewind-in-place-tree-append.md)
 - [0008 — Superseded provider ids are tombstoned, not deleted](0008-superseded-provider-id-tombstones.md)
@@ -85,3 +85,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0045 — HTML file preview is static and isolated](0045-html-file-preview-is-static-and-isolated.md)
 - [0046 — Tool detail leaves the chat column instead of nesting inside it](0046-tool-detail-leaves-the-chat-column.md)
 - [0047 — The liveness probe clears on any inbound frame, not a matching echo](0047-ws-liveness-probe-clears-on-any-frame.md)
+- [0048 — Mobile bottom navigation has five roles; plugins share overflow](0048-mobile-navbar-five-roles-plugin-overflow.md)

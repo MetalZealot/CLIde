@@ -1,7 +1,7 @@
 # 0005 — Mobile bottom navbar, restored as in-flow layout (intentional divergence from upstream #632)
 
 - Date: 2026-07-22
-- Status: Accepted
+- Status: Superseded by 0048
 
 ## Decision
 
