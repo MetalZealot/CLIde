@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import type { PendingPermissionRequest } from '../types/types';
 
 import {
@@ -12,6 +13,7 @@ import {
   resolveUsagePopoverView,
   selectPastedAttachments,
 } from './useChatComposerState';
+import { normalizedToChatMessages } from './useChatMessages';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
 import { appendStreamChunk, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
 
@@ -183,4 +185,26 @@ test('ending one session\'s stream leaves the other session mid-flight', () => {
   appendStreamChunk(buffers, 'session-b', 'done');
   buffers.delete('session-b');
   assert.equal(buffers.get('session-a'), 'partial');
+});
+
+// --- useChatMessages --------------------------------------------------------
+
+const transcriptRow = (row: Partial<NormalizedMessage>): NormalizedMessage => ({
+  id: 'row',
+  sessionId: 'session-a',
+  timestamp: new Date().toISOString(),
+  provider: 'claude',
+  kind: 'text',
+  ...row,
+} as NormalizedMessage);
+
+test('a tool result carrying no content renders instead of throwing', () => {
+  // Claude normalization serializes a contentless tool_result block to
+  // undefined, which reaches the formatter as a non-string.
+  const messages = normalizedToChatMessages([
+    transcriptRow({ id: 'tu1', kind: 'tool_use', toolId: 't1', toolName: 'Read' }),
+    transcriptRow({ id: 'tr1', kind: 'tool_result', toolId: 't1', content: undefined }),
+  ]);
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].toolResult?.content, '');
 });
