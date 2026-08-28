@@ -267,6 +267,66 @@ describe('claude-harness-rows', () => {
     assert.equal(messages[0].content, 'No response requested.');
     assert.equal(messages[0].isSystemNotice, undefined);
   });
+
+  // A `system` row holds its payload at the top level, so the user-row tag
+  // handling never sees it. A turn that forks its work into a background agent
+  // writes no Task tool call at all — this notice is its only trace.
+  test('claude history: a system row\'s local-command stdout surfaces as assistant text', () => {
+    const provider = new ClaudeSessionsProvider();
+    const messages = provider.normalizeMessage(
+      {
+        uuid: 'sys1',
+        timestamp: '2026-08-27T21:30:36.856Z',
+        type: 'system',
+        subtype: 'local_command',
+        content:
+          '<local-command-stdout>Running in the background as @code-review</local-command-stdout>\n'
+          + '<forked-skill-launch>{"agentId":"a294e020","skillName":"code-review"}</forked-skill-launch>',
+      },
+      SESSION_ID,
+    );
+
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].role, 'assistant');
+    assert.equal(messages[0].isLocalCommandStdout, true);
+    assert.equal(messages[0].content, 'Running in the background as @code-review');
+  });
+
+  test('claude history: a system row\'s local-command stderr surfaces as an error', () => {
+    const provider = new ClaudeSessionsProvider();
+    const messages = provider.normalizeMessage(
+      {
+        uuid: 'sys2',
+        timestamp: '2026-08-27T21:30:36.856Z',
+        type: 'system',
+        subtype: 'local_command',
+        content: '<local-command-stderr>Error during compaction: session limit</local-command-stderr>',
+      },
+      SESSION_ID,
+    );
+
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].kind, 'error');
+    assert.equal(messages[0].content, 'Error during compaction: session limit');
+  });
+
+  // The command itself already has a visible user row; echoing it from the
+  // system row would double it in chat.
+  test('claude history: a system command-name row stays silent', () => {
+    const provider = new ClaudeSessionsProvider();
+    const messages = provider.normalizeMessage(
+      {
+        uuid: 'sys3',
+        timestamp: '2026-08-27T21:30:36.856Z',
+        type: 'system',
+        subtype: 'local_command',
+        content: '<command-name>/context</command-name>\n<command-args></command-args>',
+      },
+      SESSION_ID,
+    );
+
+    assert.equal(messages.length, 0);
+  });
 });
 
 describe('claude-rewind', () => {

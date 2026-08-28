@@ -571,6 +571,43 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const baseId = raw.uuid || generateMessageId('claude');
 
     /**
+     * A `system` row keeps its payload at the top level rather than under
+     * `message`, so the tag handling on user rows below never reaches it. Its
+     * stdout/stderr is genuine command output — a background agent's launch
+     * notice, a refused command, a compaction failure — and for a turn that
+     * forks its work into a subagent it is the only thing the transcript says
+     * happened. `<command-name>` rows are left alone: the command already has
+     * its own visible user row.
+     */
+    if (raw.type === 'system' && typeof raw.content === 'string') {
+      const stderr = extractTaggedContent(raw.content, 'local-command-stderr');
+      const stdout = stderr === null ? extractTaggedContent(raw.content, 'local-command-stdout') : null;
+      const output = stripAnsiFormatting(stderr ?? stdout ?? '').trim();
+      if (output) {
+        messages.push(createNormalizedMessage(stderr === null
+          ? {
+            id: baseId,
+            sessionId,
+            timestamp: ts,
+            provider: PROVIDER,
+            kind: 'text',
+            role: 'assistant',
+            content: output,
+            isLocalCommandStdout: true,
+          }
+          : {
+            id: baseId,
+            sessionId,
+            timestamp: ts,
+            provider: PROVIDER,
+            kind: 'error',
+            content: output,
+          }));
+      }
+      return messages;
+    }
+
+    /**
      * Harness-injected user rows arrive under different flags by source:
      * transcript JSONL marks them `isMeta` (transcript-only rows
      * `isVisibleInTranscriptOnly`), while the live SDK stream collapses both
