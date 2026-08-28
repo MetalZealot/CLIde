@@ -67,10 +67,8 @@ only once an index says it is the one you need; never read a directory to find o
   the equivalent behaviour and design the integration point so each can plug in or
   explicitly no-op.  Add capability flags or clean degradation rather than leaking
   Claude-only concepts into shared code; purely Claude-specific files are exempt.
-- The app owns stable `session_id`s; `provider_session_id` is the provider's native ID.
-  **Runtimes are addressed by the app id, never the provider one** — this flipped in
-  v1.37 and caused three separate merge defects.  Details and commits:
-  `docs/maps/code-anchors.md`.
+- **Runtimes are addressed by the app id, never the provider one** (glossary above;
+  commits and details in `docs/maps/code-anchors.md`).
 - The user database is SQLite, outside the repo, so working-tree changes cannot destroy
   it.  Back it up before any schema/auth/data write.  Treat live-session tests as
   stateful: clean any test data from the filesystem before its database rows, so the
@@ -79,8 +77,8 @@ only once an index says it is the one you need; never read a directory to find o
 ### Backend module standards
 
 Upstream 1.37 ships `.agents/skills/backend-module-standards/SKILL.md`.  Use it as a
-**directory-shape reference** for backend work under `server/modules/`; it does not
-replace this guide.  Where the two disagree, this guide wins.  Known exceptions:
+**directory-shape reference** for backend work under `server/modules/`; where the two
+disagree, this guide wins.  Known exceptions:
 runtime adapters that remain JavaScript are a deliberate migration exception, shared
 `types.ts`/`utils.ts` are not cross-module dumping grounds, and provider-specific
 behaviour stays behind adapter interfaces.
@@ -105,7 +103,8 @@ behaviour stays behind adapter interfaces.
   explicitly asks and the environment permits it.
 - "I have no login credentials" is never a reason to skip live verification.  Stand the
   right server up, hand over the URL, and say what to look for — the user clicks
-  through, not you.
+  through, not you.  **Never ask for or type their password** — automation stops at the
+  login form.
 - Use a real device for touch behaviour.  CSS `:active` is not a reliable
   long-press visual state; use `useLongPress`'s `isPressing`.
 - Distinguish source inspection, automated checks, build output, running-service state,
@@ -124,9 +123,8 @@ check it, and most layout decisions here are taste.  Sources and findings:
 
 ## Code comments
 
-Fork-authored comments run ~30% wordier than upstream's, and every stale file path in
-one sat inside narrative that condensing removes anyway.  Verbosity and staleness are
-one defect, so these rules target length.
+Fork-authored comments run ~30% wordier than upstream's, and every stale path in one sat
+inside narrative that condensing removes anyway — so these rules target length.
 
 - **State the invariant, not the incident.**  No "used to", "this replaced", "before
   the fix" — git holds that.  Describe what must stay true, not what went wrong.
@@ -187,9 +185,8 @@ one defect, so these rules target length.
 - Keep `docs/TODO.md` current **in the same batch as the code change** — flip `[ ]` →
   `[~]` → `[x]` and move verified work to `docs/todo-done.md` as you go, not as a
   separate turn at the end.  Do not ask permission to update the board.  An item is
-  one line naming the work and pointing at its plan, ADR, or commit; 400 characters
-  is the enforced ceiling and most need far less, because git history and ADRs are
-  the canonical detail.
+  one line naming the work and pointing at its plan, ADR, or commit, under an enforced
+  400-character ceiling.
 - When a document and reality diverge, **edit the document**.  Never append a
   correction, re-measurement, or audit section to preserve the wrong text — git holds
   the old version, and that habit turned the v1.37 integration document into 79 KB
@@ -241,3 +238,6 @@ Restating a rule a linter, type checker, or test already enforces is not documen
   `git rm --cached`, never `git rm`.
 - Do not delete or modify real user sessions, projects, credentials, or databases
   unless the user explicitly authorizes the exact scope.
+- **Never drive a browser into the session you are running in** — clicking your own
+  session id, its Shell especially, disconnects the conversation you are having.  If you
+  cannot tell which id is yours, click none.

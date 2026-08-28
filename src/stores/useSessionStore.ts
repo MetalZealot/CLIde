@@ -132,6 +132,14 @@ export interface SessionSlot {
    */
   _fetchSeq: number;
   _appliedFetchSeq: number;
+  /**
+   * @internal Monotonic ticket per user pick of model/effort. An `active-model`
+   * or `effort` GET already in flight when a pick lands would otherwise resolve
+   * afterwards and overwrite it with the pre-pick answer — often null, since
+   * only a session-scoped source is stored.
+   */
+  _modelPickSeq: number;
+  _effortPickSeq: number;
   status: SessionStatus;
   fetchedAt: number;
   total: number;
@@ -177,6 +185,8 @@ function createEmptySlot(): SessionSlot {
     effortFetchedAt: 0,
     _fetchSeq: 0,
     _appliedFetchSeq: 0,
+    _modelPickSeq: 0,
+    _effortPickSeq: 0,
   };
 }
 
@@ -787,11 +797,13 @@ export function useSessionStore() {
 
     const loadModel = async () => {
       if (modelIsFresh) return;
+      const pickTicket = slot._modelPickSeq;
       try {
         const response = await authenticatedFetch(
           `/api/providers/${provider}/sessions/${sessionId}/active-model`,
         );
         const body = await response.json();
+        if (pickTicket !== slot._modelPickSeq) return;
         if (body.success && body.data?.model) {
           // Only a genuinely session-scoped model (a stored pick or the session's
           // own transcript) may become this session's model. A `default` source is
@@ -806,17 +818,19 @@ export function useSessionStore() {
         }
       } catch (error) {
         console.error(`[SessionStore] model fetch failed for ${sessionId}:`, error);
-        slot.modelStatus = 'error';
+        if (pickTicket === slot._modelPickSeq) slot.modelStatus = 'error';
       }
     };
 
     const loadEffort = async () => {
       if (effortIsFresh) return;
+      const pickTicket = slot._effortPickSeq;
       try {
         const response = await authenticatedFetch(
           `/api/providers/${provider}/sessions/${sessionId}/effort`,
         );
         const body = await response.json();
+        if (pickTicket !== slot._effortPickSeq) return;
         if (body.success) {
           // Same rule as the model: only a pick or the provider's own turn
           // evidence is this session's. Anything else leaves the slot empty so
@@ -832,7 +846,7 @@ export function useSessionStore() {
         }
       } catch (error) {
         console.error(`[SessionStore] effort fetch failed for ${sessionId}:`, error);
-        slot.effortStatus = 'error';
+        if (pickTicket === slot._effortPickSeq) slot.effortStatus = 'error';
       }
     };
 
@@ -846,6 +860,7 @@ export function useSessionStore() {
    */
   const setModel = useCallback((sessionId: string, model: string) => {
     const slot = getSlot(sessionId);
+    slot._modelPickSeq += 1;
     slot.model = model;
     slot.modelFetchedAt = Date.now();
     slot.modelStatus = 'idle';
@@ -858,6 +873,7 @@ export function useSessionStore() {
    */
   const setEffort = useCallback((sessionId: string, effort: string | null) => {
     const slot = getSlot(sessionId);
+    slot._effortPickSeq += 1;
     slot.effort = effort;
     slot.effortSource = effort ? 'pick' : null;
     // A cleared effort has to look unresolved again, not freshly fetched, or the

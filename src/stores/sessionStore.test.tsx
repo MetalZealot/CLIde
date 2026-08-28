@@ -424,6 +424,8 @@ describe('useSessionStore.sessionSettings', () => {
 
   let requestedUrls: string[];
   let responses: Map<string, SettingsResponse>;
+  /** Set to hold every settings response open, so a pick can land mid-flight. */
+  let gate: Promise<void> | null;
   let originalFetch: typeof globalThis.fetch;
   let container: HTMLElement;
   let root: Root;
@@ -447,11 +449,13 @@ describe('useSessionStore.sessionSettings', () => {
   beforeEach(async () => {
     requestedUrls = [];
     responses = new Map();
+    gate = null;
 
     originalFetch = globalThis.fetch;
     Object.defineProperty(globalThis, 'fetch', {
       value: async (url: string) => {
         requestedUrls.push(url);
+        if (gate) await gate;
         return respondFor(url);
       },
       configurable: true,
@@ -582,6 +586,35 @@ describe('useSessionStore.sessionSettings', () => {
       0,
       'a promoted effort is already resolved, so nothing refetches over it',
     );
+  });
+
+  test('a pick beats the settings read it raced', async () => {
+    // The GET answers with what the backend knew before the pick; applying it
+    // last would silently roll the composer back, and a non-session-scoped
+    // answer rolls it back to nothing at all.
+    responses.set(`${SESSION_A}:model`, { model: 'sonnet', source: 'default' });
+    responses.set(`${SESSION_A}:effort`, { effort: 'low', source: 'default' });
+
+    let release = () => {};
+    gate = new Promise<void>((resolve) => { release = resolve; });
+
+    let settled: Promise<unknown> = Promise.resolve();
+    await React.act(async () => {
+      settled = store.fetchSessionSettings(SESSION_A, 'claude');
+    });
+
+    await React.act(async () => {
+      store.setModel(SESSION_A, 'opus');
+      store.setEffort(SESSION_A, 'max');
+      release();
+      await settled;
+    });
+
+    const slot = store.getSessionSlot(SESSION_A)!;
+    assert.equal(slot.model, 'opus');
+    assert.equal(slot.effort, 'max');
+    assert.equal(slot.effortSource, 'pick');
+    assert.equal(slot.modelStatus, 'idle');
   });
 
   test('an optimistic effort is owned by its own session', async () => {

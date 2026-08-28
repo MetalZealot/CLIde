@@ -1,5 +1,7 @@
 import React from 'react';
 import { ChevronLeft, Loader2, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 import { READING_SURFACE_MAX_HEIGHT } from '../../../../shared/view/ui';
 import type { ContextCommandData, ContextNamedTokens } from '../../hooks/useChatComposerState';
@@ -21,17 +23,22 @@ const shortenPath = (value: string): string => {
   return segments.length <= 3 ? value : `…/${segments.slice(-3).join('/')}`;
 };
 
-const formatReadingAge = (fetchedAt: number | undefined): string | null => {
+const formatReadingAge = (fetchedAt: number | undefined, t: TFunction): string | null => {
   if (!fetchedAt) return null;
 
   const minutes = Math.round((Date.now() - fetchedAt) / 60_000);
-  if (minutes < 1) return 'Measured just now';
-  if (minutes < 60) return `Measured ${minutes} min ago`;
+  if (minutes < 1) return t('contextBreakdown.measuredJustNow', { defaultValue: 'Measured just now' });
+  if (minutes < 60) {
+    return t('contextBreakdown.measuredMinutesAgo', { defaultValue: 'Measured {{count}} min ago', count: minutes });
+  }
 
   const hours = Math.round(minutes / 60);
   return hours < 24
-    ? `Measured ${hours} h ago`
-    : `Measured ${Math.round(hours / 24)} d ago`;
+    ? t('contextBreakdown.measuredHoursAgo', { defaultValue: 'Measured {{count}} h ago', count: hours })
+    : t('contextBreakdown.measuredDaysAgo', {
+        defaultValue: 'Measured {{count}} d ago',
+        count: Math.round(hours / 24),
+      });
 };
 
 type BreakdownEntry = {
@@ -45,13 +52,14 @@ function BreakdownSection({
   title,
   entries,
   total,
-  totalLabel = 'Total',
+  totalLabel,
 }: {
   title: string;
   entries: BreakdownEntry[];
   total?: number;
   totalLabel?: string;
 }) {
+  const { t } = useTranslation('common');
   if (entries.length === 0) return null;
 
   return (
@@ -61,7 +69,7 @@ function BreakdownSection({
           {title}
         </h3>
         <span className="text-[9px] uppercase tracking-[0.12em] text-muted-foreground/60">
-          tokens
+          {t('contextBreakdown.tokensUnit', { defaultValue: 'tokens' })}
         </span>
       </div>
       <div className="space-y-1.5">
@@ -85,7 +93,9 @@ function BreakdownSection({
       </div>
       {typeof total === 'number' && (
         <div className="flex items-baseline justify-between gap-3 border-t border-border/50 pt-2 text-xs">
-          <span className="text-foreground">{totalLabel}</span>
+          <span className="text-foreground">
+            {totalLabel ?? t('contextBreakdown.total', { defaultValue: 'Total' })}
+          </span>
           <span className="shrink-0 font-mono text-foreground">{formatNumber(total)}</span>
         </div>
       )}
@@ -112,6 +122,7 @@ export default function ContextBreakdownView({
   isRefreshing: boolean;
   canRefresh: boolean;
 }) {
+  const { t } = useTranslation('common');
   const breakdown = data?.breakdown;
   const maxTokens = Number(data?.maxTokens ?? 0);
   const threshold = Number(data?.autoCompactThreshold ?? 0);
@@ -126,13 +137,13 @@ export default function ContextBreakdownView({
   const messages = breakdown?.messageBreakdown;
   const messageEntries: BreakdownEntry[] = messages
     ? [
-        { key: 'user', label: 'Your messages', tokens: messages.userMessageTokens },
-        { key: 'assistant', label: 'Replies', tokens: messages.assistantMessageTokens },
-        { key: 'toolCalls', label: 'Tool calls', tokens: messages.toolCallTokens },
-        { key: 'toolResults', label: 'Tool results', tokens: messages.toolResultTokens },
-        { key: 'attachments', label: 'Attachments', tokens: messages.attachmentTokens },
-        { key: 'redirected', label: 'Redirected context', tokens: messages.redirectedContextTokens },
-        { key: 'unattributed', label: 'Unattributed', tokens: messages.unattributedTokens },
+        { key: 'user', label: t('contextBreakdown.yourMessages', { defaultValue: 'Your messages' }), tokens: messages.userMessageTokens },
+        { key: 'assistant', label: t('contextBreakdown.replies', { defaultValue: 'Replies' }), tokens: messages.assistantMessageTokens },
+        { key: 'toolCalls', label: t('contextBreakdown.toolCalls', { defaultValue: 'Tool calls' }), tokens: messages.toolCallTokens },
+        { key: 'toolResults', label: t('contextBreakdown.toolResults', { defaultValue: 'Tool results' }), tokens: messages.toolResultTokens },
+        { key: 'attachments', label: t('contextBreakdown.attachments', { defaultValue: 'Attachments' }), tokens: messages.attachmentTokens },
+        { key: 'redirected', label: t('contextBreakdown.redirectedContext', { defaultValue: 'Redirected context' }), tokens: messages.redirectedContextTokens },
+        { key: 'unattributed', label: t('contextBreakdown.unattributed', { defaultValue: 'Unattributed' }), tokens: messages.unattributedTokens },
       ].filter((entry) => entry.tokens > 0)
     : [];
   const named = (entries: ContextNamedTokens[] | undefined, prefix: string): BreakdownEntry[] => (
@@ -140,7 +151,8 @@ export default function ContextBreakdownView({
       .filter((entry) => entry.tokens > 0)
       .map((entry) => ({ key: `${prefix}-${entry.name}`, label: entry.name, tokens: entry.tokens }))
   );
-  const readingAge = formatReadingAge(data?.fetchedAt);
+  const readingAge = formatReadingAge(data?.fetchedAt, t);
+  const refreshLabel = t('contextBreakdown.refresh', { defaultValue: 'Refresh session breakdown' });
 
   return (
     <div className="space-y-3">
@@ -152,7 +164,7 @@ export default function ContextBreakdownView({
           className="inline-flex min-w-0 items-center gap-1 text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden />
-          Session breakdown
+          {t('contextBreakdown.title', { defaultValue: 'Session breakdown' })}
         </button>
         )}
         {readingAge && (
@@ -164,8 +176,12 @@ export default function ContextBreakdownView({
             onClick={onRefresh}
             disabled={isRefreshing || !canRefresh}
             className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
-            aria-label="Refresh session breakdown"
-            title={canRefresh ? 'Refresh session breakdown' : 'The reading only updates while a turn is streaming'}
+            aria-label={refreshLabel}
+            title={canRefresh
+              ? refreshLabel
+              : t('contextBreakdown.refreshUnavailable', {
+                  defaultValue: 'The reading only updates while a turn is streaming',
+                })}
           >
             <RefreshCw className={isRefreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
           </button>
@@ -177,27 +193,33 @@ export default function ContextBreakdownView({
       <div className="space-y-3 overflow-y-auto overscroll-contain" style={{ maxHeight: READING_SURFACE_MAX_HEIGHT }}>
       {cap && (
         <p className="border-t border-border/60 pt-3 text-xs leading-5 text-muted-foreground">
-          {`Auto-compact capped at ${formatNumber(cap.cap)} of the model's ${formatNumber(cap.modelWindow)} window.`}
+          {t('contextBreakdown.autoCompactCap', {
+            defaultValue: "Auto-compact capped at {{cap}} of the model's {{window}} window.",
+            cap: formatNumber(cap.cap),
+            window: formatNumber(cap.modelWindow),
+          })}
         </p>
       )}
 
       {loading && (
         <p className="flex items-center gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-          Loading session breakdown…
+          {t('contextBreakdown.loading', { defaultValue: 'Loading session breakdown…' })}
         </p>
       )}
 
       {!loading && !breakdown && (
         <p className="border-t border-border/60 pt-3 text-xs leading-5 text-muted-foreground">
-          {data?.message || 'Complete a turn in this session to record its context breakdown.'}
+          {data?.message || t('contextBreakdown.empty', {
+            defaultValue: 'Complete a turn in this session to record its context breakdown.',
+          })}
         </p>
       )}
 
       {!loading && breakdown && (
         <>
           <BreakdownSection
-            title="What is in the window"
+            title={t('contextBreakdown.inWindow', { defaultValue: 'What is in the window' })}
             entries={spent.map((category) => ({
               key: category.name,
               label: category.name,
@@ -206,35 +228,44 @@ export default function ContextBreakdownView({
             total={spentTotal}
           />
           <BreakdownSection
-            title="Reserved"
+            title={t('contextBreakdown.reserved', { defaultValue: 'Reserved' })}
             entries={[
-              { key: 'in-use', label: 'In use (listed above)', tokens: spentTotal },
+              { key: 'in-use', label: t('contextBreakdown.inUse', { defaultValue: 'In use (listed above)' }), tokens: spentTotal },
               ...reserved.map((category) => ({
                 key: category.name,
                 label: category.name,
                 hint: !compactsAutomatically
                   ? undefined
                   : isAutoCompactBuffer(category.name)
-                    ? `Never usable — above the ${formatNumber(threshold)} threshold`
-                    : 'Room left before auto-compact fires',
+                    ? t('contextBreakdown.neverUsable', {
+                        defaultValue: 'Never usable — above the {{threshold}} threshold',
+                        threshold: formatNumber(threshold),
+                      })
+                    : t('contextBreakdown.roomLeft', { defaultValue: 'Room left before auto-compact fires' }),
                 tokens: category.tokens,
               })),
             ]}
             total={maxTokens > 0 && windowTotal === maxTokens ? maxTokens : undefined}
-            totalLabel="Context window"
+            totalLabel={t('contextBreakdown.contextWindow', { defaultValue: 'Context window' })}
           />
           <BreakdownSection
-            title="Not counted — loaded on demand"
+            title={t('contextBreakdown.deferred', { defaultValue: 'Not counted — loaded on demand' })}
             entries={deferred.map((category) => ({
               key: category.name,
               label: category.name,
               tokens: category.tokens,
             }))}
           />
-          <BreakdownSection title="Messages" entries={messageEntries} />
-          <BreakdownSection title="Attachments" entries={named(messages?.attachmentsByType, 'attachment')} />
           <BreakdownSection
-            title="Memory files"
+            title={t('contextBreakdown.messages', { defaultValue: 'Messages' })}
+            entries={messageEntries}
+          />
+          <BreakdownSection
+            title={t('contextBreakdown.attachments', { defaultValue: 'Attachments' })}
+            entries={named(messages?.attachmentsByType, 'attachment')}
+          />
+          <BreakdownSection
+            title={t('contextBreakdown.memoryFiles', { defaultValue: 'Memory files' })}
             entries={(breakdown.memoryFiles ?? [])
               .filter((file) => file.tokens > 0)
               .map((file) => ({
@@ -247,7 +278,7 @@ export default function ContextBreakdownView({
               }))}
           />
           <BreakdownSection
-            title="MCP tools"
+            title={t('contextBreakdown.mcpTools', { defaultValue: 'MCP tools' })}
             entries={(breakdown.mcpTools ?? [])
               .filter((tool) => tool.tokens > 0)
               .map((tool) => ({
@@ -257,10 +288,16 @@ export default function ContextBreakdownView({
                 tokens: tool.tokens,
               }))}
           />
-          <BreakdownSection title="System tools" entries={named(breakdown.systemTools, 'tool')} />
-          <BreakdownSection title="System prompt" entries={named(breakdown.systemPromptSections, 'prompt')} />
           <BreakdownSection
-            title="Agents"
+            title={t('contextBreakdown.systemTools', { defaultValue: 'System tools' })}
+            entries={named(breakdown.systemTools, 'tool')}
+          />
+          <BreakdownSection
+            title={t('contextBreakdown.systemPrompt', { defaultValue: 'System prompt' })}
+            entries={named(breakdown.systemPromptSections, 'prompt')}
+          />
+          <BreakdownSection
+            title={t('contextBreakdown.agents', { defaultValue: 'Agents' })}
             entries={(breakdown.agents ?? [])
               .filter((agent) => agent.tokens > 0)
               .map((agent) => ({
@@ -272,21 +309,29 @@ export default function ContextBreakdownView({
           />
           {(breakdown.skills || breakdown.slashCommands) && (
             <BreakdownSection
-              title="Loaded on startup — already counted"
+              title={t('contextBreakdown.startupLoaded', { defaultValue: 'Loaded on startup — already counted' })}
               entries={[
                 ...(breakdown.skills
                   ? [{
                       key: 'skills',
-                      label: `Skills (${breakdown.skills.includedSkills} of ${breakdown.skills.totalSkills})`,
-                      hint: 'Listed above as Skills',
+                      label: t('contextBreakdown.skillsLabel', {
+                        defaultValue: 'Skills ({{included}} of {{total}})',
+                        included: breakdown.skills.includedSkills,
+                        total: breakdown.skills.totalSkills,
+                      }),
+                      hint: t('contextBreakdown.skillsHint', { defaultValue: 'Listed above as Skills' }),
                       tokens: breakdown.skills.tokens,
                     }]
                   : []),
                 ...(breakdown.slashCommands
                   ? [{
                       key: 'commands',
-                      label: `Slash commands (${breakdown.slashCommands.includedCommands} of ${breakdown.slashCommands.totalCommands})`,
-                      hint: 'Part of the system prompt',
+                      label: t('contextBreakdown.slashCommandsLabel', {
+                        defaultValue: 'Slash commands ({{included}} of {{total}})',
+                        included: breakdown.slashCommands.includedCommands,
+                        total: breakdown.slashCommands.totalCommands,
+                      }),
+                      hint: t('contextBreakdown.slashCommandsHint', { defaultValue: 'Part of the system prompt' }),
                       tokens: breakdown.slashCommands.tokens,
                     }]
                   : []),

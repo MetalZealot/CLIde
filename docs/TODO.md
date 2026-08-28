@@ -35,14 +35,13 @@ main checkout only).
 - [ ] **Duplicate-session double-send:** pressing send twice on a brand-new chat creates two sessions running the same message. `handleSubmit` (`useChatComposerState.ts`) awaits `POST /api/providers/sessions` before anything visible happens — no optimistic append, no processing state, and **no in-flight guard**. Observed 2026-07-16, two JSONLs 250 ms apart. **S/M**
 - [ ] **Project force-delete orphans subagent transcripts on disk.** It unlinks each session's top-level `<slug>/<session-id>.jsonl`, but nested `<slug>/<session-id>/subagents/agent-*.jsonl` were never session rows, so they survive and keep the whole `<slug>/` tree alive against the non-recursive prune. Pre-existing, not caused by `0a738ae`. **S/M**
 - [ ] **Browser MCP hardening** — snapshot-first, reference-based automation replacing selector and coordinate targeting. [Plan](plans/browser-mcp-hardening.md). **L**
-- [ ] **The usage popover is not translated.** `ContextBreakdownView` has no `useTranslation` at all (~12 visible strings: section titles, "Reserved", "Not counted — loaded on demand"), and `TokenUsageSummary` mixes `t()` with hardcoded English ("Context & Usage", "Session", window labels, "Resets at"). Every other chat surface is translated; ADR 0032 shipped it ahead of its keys. **S**
 
 ## Mobile UX polish
 
 - [~] **One owner for safe-area insets.** `body.pwa-mode .fixed.inset-0` (index.css) offsets the app shell and 40 other overlays by `safe+8`; the drawer opts out inline; `#root`'s padding is dead against a fixed shell; nothing applies the bottom inset at shell level. Do this before the bottom nav. **M**
 - [ ] **Move the top tab strip to a bottom nav** — core tabs go in a bottom bar, design decided 2026-07-22 (ADR 0005). Blocked on the inset item above; `--mobile-nav-*`, `.mobile-nav-float` and `.chat-input-mobile` are dead tokens from an earlier attempt; the live height is `--app-footer-height`/`.app-footer` (index.css), already used by the sidebar footer. **M**
 - [ ] **Consider floating New Session above the sidebar footer instead of inside it.** The footer went 56px → `--app-footer-height: 64px` on 2026-08-17 and the button now clears the gesture strip, but ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if 64px still misfires in use. **S — on trial, don't act unprompted**
-- [ ] Kebab menu: add "Copy session ID" for the **current** session. The long-press sidebar menu covers other sessions; copying the id of the chat you're in still means hunting for it. **S**
+- [ ] Kebab menu: add "Copy session ID" for the **current** session. The long-press sidebar menu covers other sessions; copying the id of the chat you're in still means hunting for it. The chat surface has no kebab — only the export button — so placement is undecided. **S — placement decision first**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client**. Opening deliberately preserves unresolved attention; it clears only when this client receives `permission_cancelled` or the session is removed. Acceptable for now. **S**
 - [ ] Tool-call copy button placement on mobile: always-visible since `05b176b`, but it spans the whole right edge of the tool row, which is heavy. Compact or fold into a row action; keep hover-reveal on desktop. **S/M — design decision first**
@@ -64,7 +63,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [ ] **#8 PRIORITY — live-verify Claude's per-session model stack.** Three tests remain: (a) A on Fable, B picks Haiku without sending, back to A still sends Fable; (b) popup pick X, then Shell `/model`, newer choice wins; (c) fresh-session popup/header agreement. Codex's equivalent isolation gate is complete. **S to run**
 - [ ] #2 — Shell `/model` stdout regex over-captures: a Default pick in the CLI's own picker shows the raw sentence "Default (recommended)" with no card highlight until the next turn. The `(.+?)\.?$` capture in `claude-models.provider.ts` takes too much. **S**
 - [ ] #4 — `getCurrentActiveModel` reads and parses the entire session JSONL (4.5 MB on a long session) on every `/models` open, even when a fresh pick wins anyway. Stat the file and skip when the pick is newer than mtime, or read only the tail. **S/M**
-- [ ] #7 — client-side race: a `fetchModel` GET in flight when the user makes a popup pick resolves *after* `setModel` and clobbers the optimistic slot value, possibly to null. Display-only — the server's pick-recency gate still resolves correctly. **S**
 - [ ] #11 — upstreaming opportunity: upstream issue #981 and PR #996 hit the same bug family as the `85ddd7e`/`5d9da84`/`8771eea` stack. Consider a PR — needs Grayson's go-ahead. **S**
 
 ## Shell sync
@@ -109,10 +107,6 @@ new work.
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
 - [ ] **Scheduled messages.** When usage runs out you often want work to resume the moment it resets, mid-task. A "schedule send" in the composer; also useful for follow-ups. **M/L**
-
-## Agent context in worktrees
-
-- [ ] **Two missing agent guardrails in `AGENTS.md`.** A session drove Browser into its own live session and used its Shell; the same session asked for and typed Grayson's password into a login form, against the existing "the user clicks through, not you" rule. Add both as explicit invariants. **S**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
 

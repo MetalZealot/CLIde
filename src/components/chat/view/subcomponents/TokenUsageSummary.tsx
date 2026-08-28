@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ActivityIcon, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 import type { LLMProvider } from '../../../../types/app';
 import { cn } from '../../../../lib/utils';
@@ -70,11 +71,13 @@ const formatCompactTokens = (value: number): string => {
   return String(Math.round(value));
 };
 
-const KNOWN_WINDOW_LABELS: Record<string, string> = {
-  five_hour: '5-hour limit',
-  seven_day: 'Weekly',
-  seven_day_opus: 'Weekly (Opus)',
-  seven_day_sonnet: 'Weekly (Sonnet)',
+// Deliberately shorter than the usage dashboard's wording: this row shares one
+// line with the reset time and percentage.
+const KNOWN_WINDOW_LABELS: Record<string, { key: string; defaultValue: string }> = {
+  five_hour: { key: 'usagePopover.windowFiveHour', defaultValue: '5-hour limit' },
+  seven_day: { key: 'usagePopover.windowWeekly', defaultValue: 'Weekly' },
+  seven_day_opus: { key: 'usagePopover.windowWeeklyOpus', defaultValue: 'Weekly (Opus)' },
+  seven_day_sonnet: { key: 'usagePopover.windowWeeklySonnet', defaultValue: 'Weekly (Sonnet)' },
 };
 
 const readUsageNumber = (value: unknown) => {
@@ -88,27 +91,39 @@ const toUsageProvider = (provider: string | undefined): LLMProvider | null => (
     : null
 );
 
-const formatWindowLabel = (window: ProviderUsageWindow): string => {
+const formatWindowLabel = (window: ProviderUsageWindow, t: TFunction): string => {
   const durationLabel = window.durationMinutes === 300
-    ? '5-hour limit'
+    ? t('usagePopover.windowFiveHour', { defaultValue: '5-hour limit' })
     : window.durationMinutes === 10_080
-      ? 'Weekly'
+      ? t('usagePopover.windowWeekly', { defaultValue: 'Weekly' })
       : window.durationMinutes
-        ? `${window.durationMinutes % 1440 === 0
-          ? `${window.durationMinutes / 1440}-day`
+        ? window.durationMinutes % 1440 === 0
+          ? t('usagePopover.windowDayLimit', {
+              defaultValue: '{{count}}-day limit',
+              count: window.durationMinutes / 1440,
+            })
           : window.durationMinutes % 60 === 0
-            ? `${window.durationMinutes / 60}-hour`
-            : `${window.durationMinutes}-minute`} limit`
+            ? t('usagePopover.windowHourLimit', {
+                defaultValue: '{{count}}-hour limit',
+                count: window.durationMinutes / 60,
+              })
+            : t('usagePopover.windowMinuteLimit', {
+                defaultValue: '{{count}}-minute limit',
+                count: window.durationMinutes,
+              })
         : null;
-  const baseLabel = KNOWN_WINDOW_LABELS[window.id]
+  const known = KNOWN_WINDOW_LABELS[window.id];
+  const baseLabel = (known ? t(known.key, { defaultValue: known.defaultValue }) : null)
     ?? durationLabel
     ?? window.id.replace(/[:_]/g, ' ').replace(/^\w/, (char) => char.toUpperCase());
   return window.label ? `${window.label} · ${baseLabel}` : baseLabel;
 };
 
-const formatResetAt = (window: ProviderUsageWindow): string | null => {
+const formatResetAt = (window: ProviderUsageWindow, t: TFunction): string | null => {
   const remaining = formatResetsIn(window.resetsAt);
-  return remaining ? `Resets in ${remaining}` : null;
+  return remaining
+    ? t('planUsage.resetsIn', { defaultValue: 'Resets in {{time}}', time: remaining })
+    : null;
 };
 
 const formatMoney = (amount: number, currency: string): string => {
@@ -123,14 +138,16 @@ const formatSpendCredits = (credits: ProviderUsageSpendCredits): string => (
   formatMoney(credits.usedAmount, credits.currency)
 );
 
-const formatBalanceCredits = (credits: ProviderUsageBalanceCredits): string => {
-  if (credits.unlimited) return 'Unlimited';
+const formatBalanceCredits = (credits: ProviderUsageBalanceCredits, t: TFunction): string => {
+  if (credits.unlimited) return t('planUsage.unlimited', { defaultValue: 'Unlimited' });
   if (credits.balance) return credits.balance;
-  return credits.hasCredits ? 'Available' : 'None';
+  return credits.hasCredits
+    ? t('planUsage.available', { defaultValue: 'Available' })
+    : t('planUsage.none', { defaultValue: 'None' });
 };
 
-const formatCreditValue = (credits: ProviderUsageCredits): string => (
-  credits.kind === 'spend' ? formatSpendCredits(credits) : formatBalanceCredits(credits)
+const formatCreditValue = (credits: ProviderUsageCredits, t: TFunction): string => (
+  credits.kind === 'spend' ? formatSpendCredits(credits) : formatBalanceCredits(credits, t)
 );
 
 const creditsAreAvailable = (credits: ProviderUsageCredits | undefined): boolean => {
@@ -238,7 +255,8 @@ function PlanWindowRow({
   window: ProviderUsageWindow;
   onViewUsage?: () => void;
 }) {
-  const resetLabel = formatResetAt(window);
+  const { t } = useTranslation('common');
+  const resetLabel = formatResetAt(window, t);
   const utilization = Math.min(100, Math.max(0, window.utilization));
 
   // Label, reset and percentage share one line: three stacked lines per window
@@ -246,7 +264,7 @@ function PlanWindowRow({
   return (
     <section className="space-y-1">
       <div className="flex items-baseline justify-between gap-2 text-sm">
-        <span className="min-w-0 truncate font-medium text-foreground">{formatWindowLabel(window)}</span>
+        <span className="min-w-0 truncate font-medium text-foreground">{formatWindowLabel(window, t)}</span>
         <span className="flex shrink-0 items-baseline gap-2">
           {resetLabel && <span className="text-xs text-muted-foreground">{resetLabel}</span>}
           <span className="text-muted-foreground">{Math.round(utilization)}%</span>
@@ -254,7 +272,10 @@ function PlanWindowRow({
             <button
               type="button"
               onClick={onViewUsage}
-              aria-label={`View ${formatWindowLabel(window)} usage`}
+              aria-label={t('usagePopover.viewWindowUsage', {
+                defaultValue: 'View {{window}} usage',
+                window: formatWindowLabel(window, t),
+              })}
               className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ChevronRight className="h-3.5 w-3.5" aria-hidden />
@@ -418,30 +439,54 @@ export default function TokenUsageSummary({
   const ceilingCap = readUsageNumber(ceilingReading?.ceilingCap);
   const modelContextWindow = readUsageNumber(ceilingReading?.modelContextWindow);
   const isCapped = ceilingCap > 0 && modelContextWindow > 0 && ceilingCap < modelContextWindow;
-  const CEILING_SOURCE_LABELS: Record<string, string> = {
-    auto: 'Auto',
-    settings: 'Custom',
-    env: 'Env',
+  const CEILING_SOURCE_LABELS: Record<string, { key: string; defaultValue: string }> = {
+    auto: { key: 'usagePopover.ceilingAuto', defaultValue: 'Auto' },
+    settings: { key: 'usagePopover.ceilingCustom', defaultValue: 'Custom' },
+    env: { key: 'usagePopover.ceilingEnv', defaultValue: 'Env' },
   };
+  const ceilingSourceLabel = ceilingSource ? CEILING_SOURCE_LABELS[ceilingSource] : undefined;
+  const autoCompactIsOff = provider === 'claude' && usage?.isAutoCompactEnabled === false;
   const autoCompactStatus = provider !== 'claude' || !hasMeasuredCeiling
     ? null
-    : usage?.isAutoCompactEnabled === false
-      ? 'Off'
-      : (ceilingSource && CEILING_SOURCE_LABELS[ceilingSource]) ?? null;
+    : autoCompactIsOff
+      ? t('usagePopover.autoCompactOff', { defaultValue: 'Off' })
+      : (ceilingSourceLabel && t(ceilingSourceLabel.key, { defaultValue: ceilingSourceLabel.defaultValue }))
+        ?? null;
 
   const title =
     fraction === null || !hasMeasuredCeiling
-      ? `${usedTokens.toLocaleString()} tokens used`
+      ? t('usagePopover.titleTokensUsed', {
+          defaultValue: '{{used}} tokens used',
+          used: usedTokens.toLocaleString(),
+        })
       : compactsAutomatically
-        ? `${usedTokens.toLocaleString()} / ${autoCompactThreshold.toLocaleString()} tokens before auto-compact (${Math.round(
-            Math.min(fraction, 1) * 100,
-          )}%)\nAuto-compact rewrites the conversation here. Window: ${contextWindow.toLocaleString()}${
-            isCapped ? `, capped from the model's ${modelContextWindow.toLocaleString()}` : ''
-          }.`
-        : `${usedTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${Math.round(
-            Math.min(fraction, 1) * 100,
-          )}% of context window)`;
-  const accessibleTitle = creditMarkerVisible ? `${title}\nUsage credits available.` : title;
+        ? t('usagePopover.titleBeforeAutoCompact', {
+            defaultValue: '{{used}} / {{threshold}} tokens before auto-compact ({{percent}}%)\nAuto-compact rewrites the conversation here. Window: {{window}}{{capped}}.',
+            used: usedTokens.toLocaleString(),
+            threshold: autoCompactThreshold.toLocaleString(),
+            percent: Math.round(Math.min(fraction, 1) * 100),
+            window: contextWindow.toLocaleString(),
+            capped: isCapped
+              ? t('usagePopover.titleCappedFrom', {
+                  defaultValue: ", capped from the model's {{modelWindow}}",
+                  modelWindow: modelContextWindow.toLocaleString(),
+                })
+              : '',
+            interpolation: { escapeValue: false },
+          })
+        : t('usagePopover.titleOfWindow', {
+            defaultValue: '{{used}} / {{window}} tokens ({{percent}}% of context window)',
+            used: usedTokens.toLocaleString(),
+            window: contextWindow.toLocaleString(),
+            percent: Math.round(Math.min(fraction, 1) * 100),
+          });
+  const accessibleTitle = creditMarkerVisible
+    ? t('usagePopover.titleWithCredits', {
+        defaultValue: '{{title}}\nUsage credits available.',
+        title,
+        interpolation: { escapeValue: false },
+      })
+    : title;
 
   return (
     <>
@@ -461,7 +506,9 @@ export default function TokenUsageSummary({
         }}
         className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         title={accessibleTitle}
-        aria-label={creditMarkerVisible ? 'Show usage; credits available' : 'Show usage'}
+        aria-label={creditMarkerVisible
+          ? t('usagePopover.showUsageWithCredits', { defaultValue: 'Show usage; credits available' })
+          : t('usagePopover.showUsage', { defaultValue: 'Show usage' })}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-controls={isOpen ? popoverId : undefined}
@@ -487,11 +534,13 @@ export default function TokenUsageSummary({
           role="dialog"
           fillAnchorWidth
           className="px-4 py-3"
-          ariaLabel={view === 'summary' ? 'Session and plan usage' : 'Usage activity'}
+          ariaLabel={view === 'summary'
+            ? t('usagePopover.summaryLabel', { defaultValue: 'Session and plan usage' })
+            : t('usagePopover.activity', { defaultValue: 'Usage activity' })}
         >
           <div className="mb-3 flex items-center justify-between gap-3">
             <span className="text-[11px] font-medium text-muted-foreground">
-              Context &amp; Usage
+              {t('usagePopover.heading', { defaultValue: 'Context & Usage' })}
             </span>
             {view !== 'breakdown' && (
               <button
@@ -515,21 +564,30 @@ export default function TokenUsageSummary({
                 {/* Tokens sit beside the percentage, as the reset time does on a
                     plan row, so the meter reads directly under its own numbers. */}
                 <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="shrink-0 font-medium text-foreground">Session</span>
+                  <span className="shrink-0 font-medium text-foreground">
+                    {t('usagePopover.session', { defaultValue: 'Session' })}
+                  </span>
                   <span className="flex min-w-0 items-baseline gap-2">
                     <span className="truncate text-xs text-muted-foreground">
                       {effectiveCeiling > 0 && hasMeasuredCeiling
                         ? `${formatCompactTokens(usedTokens)} / ${formatCompactTokens(effectiveCeiling)}`
-                        : `${formatCompactTokens(usedTokens)} tokens`}
+                        : t('usagePopover.sessionTokens', {
+                            defaultValue: '{{used}} tokens',
+                            used: formatCompactTokens(usedTokens),
+                          })}
                       {autoCompactStatus && (
                         <>
                           {' · '}
                           <button
                             type="button"
                             onClick={openAutoCompactSettings}
-                            title={autoCompactStatus === 'Off'
-                              ? 'Auto-compact is off: this session stops at the context limit instead of being summarised. Tap to change.'
-                              : 'Auto-compact rewrites the conversation at the compact point. Tap to change.'}
+                            title={autoCompactIsOff
+                              ? t('usagePopover.autoCompactOffHint', {
+                                  defaultValue: 'Auto-compact is off: this session stops at the context limit instead of being summarised. Tap to change.',
+                                })
+                              : t('usagePopover.autoCompactOnHint', {
+                                  defaultValue: 'Auto-compact rewrites the conversation at the compact point. Tap to change.',
+                                })}
                             className="underline underline-offset-2 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
                             {autoCompactStatus}
@@ -544,8 +602,8 @@ export default function TokenUsageSummary({
                       <button
                         type="button"
                         aria-expanded={breakdownOpen}
-                        aria-label="Session breakdown"
-                        title="Session breakdown"
+                        aria-label={t('contextBreakdown.title', { defaultValue: 'Session breakdown' })}
+                        title={t('contextBreakdown.title', { defaultValue: 'Session breakdown' })}
                         onClick={() => {
                           if (breakdownOpen) {
                             setBreakdownOpen(false);
@@ -594,12 +652,16 @@ export default function TokenUsageSummary({
               {providerUsage?.credits && (
                 <section className="space-y-1">
                   <div className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="font-medium text-foreground">Credits/Tokens</span>
+                    <span className="font-medium text-foreground">
+                      {t('usagePopover.creditsTokens', { defaultValue: 'Credits/Tokens' })}
+                    </span>
                     <span
                       className="shrink-0 text-muted-foreground"
-                      title={providerUsage.credits.kind === 'spend' ? 'Usage-credit spend this period' : 'Credit balance'}
+                      title={providerUsage.credits.kind === 'spend'
+                        ? t('usagePopover.creditSpendHint', { defaultValue: 'Usage-credit spend this period' })
+                        : t('planUsage.creditBalance', { defaultValue: 'Credit balance' })}
                     >
-                      {formatCreditValue(providerUsage.credits)}
+                      {formatCreditValue(providerUsage.credits, t)}
                     </span>
                   </div>
                 </section>
@@ -633,7 +695,7 @@ export default function TokenUsageSummary({
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <ExternalLink className="h-3 w-3" aria-hidden />
-                  Manage Plan and Balance
+                  {t('usagePopover.managePlan', { defaultValue: 'Manage Plan and Balance' })}
                 </a>
               )}
             </div>
@@ -647,7 +709,7 @@ export default function TokenUsageSummary({
                 className="inline-flex items-center gap-1 text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden />
-                Usage activity
+                {t('usagePopover.activity', { defaultValue: 'Usage activity' })}
               </button>
               {providerUsage?.activity ? (
                 <UsageActivitySection
@@ -661,7 +723,9 @@ export default function TokenUsageSummary({
                 </p>
               ) : (
                 <p className="border-t border-border/60 pt-3 text-xs text-muted-foreground">
-                  No usage activity is reported for this account.
+                  {t('usagePopover.noActivity', {
+                    defaultValue: 'No usage activity is reported for this account.',
+                  })}
                 </p>
               )}
             </div>
