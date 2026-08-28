@@ -11,7 +11,7 @@ const defaults = {
   ttsVoice: 'alloy',
 };
 
-test('reports whether the server-controlled backend is configured', () => {
+test('reports when no server-controlled backend is configured', async () => {
   const service = createVoiceService({
     defaults: { ...defaults, baseUrl: '' },
     timeoutMs: 1_000,
@@ -20,7 +20,63 @@ test('reports whether the server-controlled backend is configured', () => {
     },
   });
 
-  assert.deepEqual(service.getHealth(), { configured: false });
+  assert.deepEqual(await service.getHealth(), {
+    configured: false,
+    defaultVoice: null,
+    voices: [],
+  });
+});
+
+test('relays a backend-authorized voice catalog through health', async () => {
+  let requestedUrl = '';
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async (url) => {
+      requestedUrl = url;
+      return new Response(JSON.stringify({
+        configured: true,
+        tts_default_voice: 'hfc-male-medium',
+        tts_voices: [
+          {
+            id: 'hfc-male-medium',
+            label: 'HFC Male',
+            gender: 'male',
+            tier: 'medium',
+            locale: 'en-US',
+          },
+          { id: 'bad', label: 'Bad', gender: 'unknown', tier: 'medium', locale: 'en-US' },
+        ],
+      }));
+    },
+  });
+
+  assert.deepEqual(await service.getHealth(), {
+    configured: true,
+    defaultVoice: 'hfc-male-medium',
+    voices: [{
+      id: 'hfc-male-medium',
+      label: 'HFC Male',
+      gender: 'male',
+      tier: 'medium',
+      locale: 'en-US',
+    }],
+  });
+  assert.equal(requestedUrl, 'https://voice.example/v1/api/health');
+});
+
+test('keeps generic configured backends usable when they publish no catalog', async () => {
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async () => new Response('not found', { status: 404 }),
+  });
+
+  assert.deepEqual(await service.getHealth(), {
+    configured: true,
+    defaultVoice: null,
+    voices: [],
+  });
 });
 
 test('transcribes with injected fetch and request-level credential/model overrides', async () => {

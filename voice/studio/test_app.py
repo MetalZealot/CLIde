@@ -51,8 +51,8 @@ class ClideSpeechTabTests(unittest.TestCase):
         shim_request.return_value = (
             200,
             json.dumps({
-                "voice": "libritts-r-204",
-                "separator": "stroke",
+                "voice": "hfc-male-medium",
+                "separator": "slash",
                 "prepared": "Results.",
                 "phonemes": ["ɹɪzˈʌlts."],
             }).encode(),

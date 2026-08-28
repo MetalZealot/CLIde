@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 export type VoiceConfig = {
   baseUrl: string;
@@ -48,7 +48,7 @@ export function useVoiceConfig() {
     typeof window === 'undefined' ? { ...DEFAULTS } : readVoiceConfig(),
   );
 
-  const update = (patch: Partial<VoiceConfig>) => {
+  const update = useCallback((patch: Partial<VoiceConfig>) => {
     setConfig((prev) => {
       const next = { ...prev, ...patch };
       try {
@@ -62,7 +62,7 @@ export function useVoiceConfig() {
       }
       return next;
     });
-  };
+  }, []);
 
   return { config, update };
 }

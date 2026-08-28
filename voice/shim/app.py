@@ -61,25 +61,64 @@ class VoicePreset:
     structure_silence_seconds: float | None = None
 
 
-VOICE_PRESETS = {
-    "libritts-r-204": VoicePreset("en_US-libritts_r-medium", 546, "204", 1.35, 0.20, "stroke"),
-    "libritts-r-6690": VoicePreset("en_US-libritts_r-medium", 878, "6690", 1.35, 0.20, "stroke"),
-    "libritts-r-5727": VoicePreset("en_US-libritts_r-medium", 776, "5727", 1.35, 0.20, "stroke"),
-    "libritts-r-850": VoicePreset("en_US-libritts_r-medium", 634, "850", 1.35, 0.20, "stroke"),
-    "hfc-male": VoicePreset("en_US-hfc_male-medium", length_scale=0.90, sentence_silence_seconds=0.10),
-    "rocket-raccoon": VoicePreset("en_US-rocket-raccoon-medium", length_scale=0.85),
-    "libritts-r-5588": VoicePreset("en_US-libritts_r-medium", 692, "5588", 1.35, 0.20, "stroke"),
-    "libritts-r-9026": VoicePreset("en_US-libritts_r-medium", 695, "9026", 1.35, 0.20, "stroke"),
-    "libritts-r-8722": VoicePreset("en_US-libritts_r-medium", 873, "8722", 1.35, 0.20, "stroke"),
-    "libritts-r-830": VoicePreset("en_US-libritts_r-medium", 877, "830", 1.35, 0.20, "stroke"),
-    "hfc-female": VoicePreset("en_US-hfc_female-medium", length_scale=0.90, sentence_silence_seconds=0.10),
-    "agentvibes-jenny": VoicePreset(
-        "agentvibes-jenny",
-        sentence_silence_seconds=0.20,
-        path_separator="stroke",
+@dataclass(frozen=True)
+class CatalogVoice:
+    label: str
+    gender: str
+    tier: str
+    locale: str
+    preset: VoicePreset
+
+
+# This is the production allowlist, not the installed-model inventory or the
+# Voice Studio favorites file. Pacing comes from each model's own config.
+VOICE_CATALOG = {
+    "danny-low": CatalogVoice(
+        "Danny", "male", "low", "en-US", VoicePreset("en_US-danny-low")
+    ),
+    "hfc-male-medium": CatalogVoice(
+        "HFC Male", "male", "medium", "en-US", VoicePreset("en_US-hfc_male-medium")
+    ),
+    "semaine-spike-medium": CatalogVoice(
+        "Spike",
+        "male",
+        "medium-gb",
+        "en-GB",
+        VoicePreset("en_GB-semaine-medium", speaker_id=1, source_key="spike"),
+    ),
+    "rocket-raccoon-medium": CatalogVoice(
+        "Rocket Raccoon",
+        "male",
+        "bonus",
+        "en-US",
+        VoicePreset("en_US-rocket-raccoon-medium"),
+    ),
+    "lessac-low": CatalogVoice(
+        "Lessac", "female", "low", "en-US", VoicePreset("en_US-lessac-low")
+    ),
+    "hfc-female-medium": CatalogVoice(
+        "HFC Female",
+        "female",
+        "medium",
+        "en-US",
+        VoicePreset("en_US-hfc_female-medium"),
+    ),
+    "cori-medium": CatalogVoice(
+        "Cori", "female", "medium-gb", "en-GB", VoicePreset("en_GB-cori-medium")
+    ),
+    "agentvibes-jenny": CatalogVoice(
+        "AgentVibes Jenny",
+        "female",
+        "bonus",
+        "en-GB",
+        VoicePreset("agentvibes-jenny", path_separator="stroke"),
     ),
 }
-DEFAULT_TTS_VOICE = "libritts-r-204"
+VOICE_PRESETS = {
+    voice_id: catalog_voice.preset
+    for voice_id, catalog_voice in VOICE_CATALOG.items()
+}
+DEFAULT_TTS_VOICE = "hfc-male-medium"
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -359,7 +398,16 @@ def health() -> Response:
             ],
             "tts_configured": tts_configured,
             "tts_default_voice": DEFAULT_TTS_VOICE,
-            "tts_voices": list(VOICE_PRESETS),
+            "tts_voices": [
+                {
+                    "id": voice_id,
+                    "label": catalog_voice.label,
+                    "gender": catalog_voice.gender,
+                    "tier": catalog_voice.tier,
+                    "locale": catalog_voice.locale,
+                }
+                for voice_id, catalog_voice in VOICE_CATALOG.items()
+            ],
         }
     )
 

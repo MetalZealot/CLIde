@@ -16,6 +16,7 @@ import type { AuthStatus, NotificationPreferencesState } from '../types/types';
 
 import SettingsChoicePopover from './primitives/SettingsChoicePopover';
 import AccountScreen from './screens/AccountScreen';
+import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
 import AgentAccountCard from './sections/agent/AgentAccountCard';
 import AgentCodexRuntimeSection from './sections/agent/AgentCodexRuntimeSection';
 
@@ -111,6 +112,97 @@ describe('SettingsChoicePopover', () => {
     assert.match(trigger.getAttribute('aria-activedescendant') ?? '', /option-3$/);
     await React.act(async () => trigger.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     assert.equal(host.querySelector('output')?.textContent, 'large');
+  });
+});
+
+describe('ChatVoiceBackendScreen', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+  const originalFetch = globalThis.fetch;
+
+  before(async () => {
+    const settingsTranslations = JSON.parse(readFileSync(
+      new URL('../../../i18n/locales/en/settings.json', import.meta.url),
+      'utf8',
+    )) as Record<string, unknown>;
+    await i18next.use(initReactI18next).init({
+      lng: 'en',
+      fallbackLng: false,
+      defaultNS: 'settings',
+      resources: { en: { settings: settingsTranslations } },
+    });
+  });
+
+  afterEach(async () => {
+    await React.act(async () => root?.unmount());
+    container?.remove();
+    document.querySelectorAll('[role="listbox"]').forEach((listbox) => listbox.parentElement?.parentElement?.remove());
+    localStorage.clear();
+    globalThis.fetch = originalFetch;
+    root = null;
+    container = null;
+  });
+
+  const render = async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => root?.render(<ChatVoiceBackendScreen />));
+    return container;
+  };
+
+  const flush = async () => {
+    await React.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  };
+
+  test('uses the server catalog, resolves its default, and saves a selected voice', async () => {
+    localStorage.setItem('voiceConfig', JSON.stringify({ ttsVoice: 'libritts_r-id10340' }));
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      configured: true,
+      defaultVoice: 'hfc-male-medium',
+      voices: [
+        { id: 'danny-low', label: 'Danny', gender: 'male', tier: 'low', locale: 'en-US' },
+        { id: 'hfc-male-medium', label: 'HFC Male', gender: 'male', tier: 'medium', locale: 'en-US' },
+        { id: 'cori-medium', label: 'Cori', gender: 'female', tier: 'medium-gb', locale: 'en-GB' },
+      ],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+
+    const host = await render();
+    await flush();
+
+    const trigger = host.querySelector<HTMLButtonElement>('[role="combobox"][aria-label^="Voice"]');
+    assert.ok(trigger);
+    assert.match(trigger.textContent ?? '', /HFC Male.*Male · Medium/);
+    assert.equal(JSON.parse(localStorage.getItem('voiceConfig') ?? '{}').ttsVoice, '');
+
+    await React.act(async () => trigger.click());
+    const options = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+    assert.deepEqual(options.map((option) => option.textContent?.replace(/\s+/g, ' ').trim()), [
+      'DannyMale · Low',
+      'HFC MaleMale · Medium',
+      'CoriFemale · Medium GB',
+    ]);
+    await React.act(async () => options[2]?.click());
+    assert.equal(JSON.parse(localStorage.getItem('voiceConfig') ?? '{}').ttsVoice, 'cori-medium');
+  });
+
+  test('keeps free-text voice input for a custom browser backend', async () => {
+    let requests = 0;
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    localStorage.setItem('voiceConfig', JSON.stringify({
+      baseUrl: 'https://voice.example/v1',
+      ttsVoice: 'custom-voice',
+    }));
+
+    const host = await render();
+    const voiceInput = host.querySelector<HTMLInputElement>('input[aria-label="Voice"]');
+    assert.equal(voiceInput?.value, 'custom-voice');
+    assert.equal(requests, 0);
   });
 });
 

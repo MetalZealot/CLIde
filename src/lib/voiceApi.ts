@@ -5,6 +5,35 @@ function directUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/$/, '')}${path}`;
 }
 
+export type VoiceCatalogOption = {
+  id: string;
+  label: string;
+  gender: 'male' | 'female';
+  tier: 'low' | 'medium' | 'medium-gb' | 'bonus';
+  locale: string;
+};
+
+export type VoiceHealth = {
+  configured: boolean;
+  defaultVoice: string | null;
+  voices: VoiceCatalogOption[];
+};
+
+let voiceHealthRequest: Promise<VoiceHealth> | null = null;
+
+export function fetchVoiceHealth(): Promise<VoiceHealth> {
+  if (voiceHealthRequest) return voiceHealthRequest;
+  voiceHealthRequest = authenticatedFetch('/api/voice/health')
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Voice health check failed (${response.status})`);
+      return response.json() as Promise<VoiceHealth>;
+    })
+    .finally(() => {
+      voiceHealthRequest = null;
+    });
+  return voiceHealthRequest;
+}
+
 export function voiceConfigSignature(): string {
   return JSON.stringify(readVoiceConfig());
 }

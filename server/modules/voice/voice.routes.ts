@@ -57,9 +57,9 @@ function sendFailure<TValue>(
 export function createVoiceRouter(dependencies: VoiceRouterDependencies): express.Router {
   const router = express.Router();
 
-  router.get('/health', (_request, response) => {
-    response.json(dependencies.voiceService.getHealth());
-  });
+  router.get('/health', asyncHandler(async (_request, response) => {
+    response.json(await dependencies.voiceService.getHealth());
+  }));
 
   router.post('/transcribe', (request, response, next) => {
     dependencies.parseAudioUpload(request, response, (uploadError?: unknown) => {

@@ -23,7 +23,7 @@ services run the tracked code directly and there is only ever one copy. Set
 The shim is installed as the enabled `voice-shim` systemd user service and is
 ready on loopback. CLIde's isolated Phase 4 server is configured to call it;
 production CLIde is unchanged pending installed-PWA acceptance. The initial
-default is `libritts-r-204` (LibriTTS-R source 204, Piper speaker 546).
+default is `hfc-male-medium`.
 
 Phase 4 phone acceptance uses
 `https://nuthallpi.tailb083b8.ts.net:3003`. Tailscale Serve terminates HTTPS
@@ -95,8 +95,8 @@ by character. Storage units expand to their full names. Simple web addresses
 speak their domain and up to three path segments; addresses with credentials,
 queries, fragments, or longer paths are omitted. Filesystem paths speak as a
 comma-separated location rather than a chain of slash tokens. A web address is
-one sentence: URL path separators use "stroke" for LibriTTS-R and AgentVibes
-Jenny, "slash" for HFC and Rocket Raccoon. The `URL` initialism is spaced to
+one sentence: URL path separators use "stroke" for AgentVibes Jenny and
+"slash" for the other selected voices. The `URL` initialism is spaced to
 `U R L`, and "is live" becomes "is active" -- that one was found by ear, and
 eSpeak's phonemes argue against it, so do not remove it on phoneme evidence.
 Arrows, IPA and other symbols eSpeak would read aloud as character names are
@@ -105,11 +105,9 @@ Prose colons become full stops; the verb "lives" is respelled "livz";
 and the exact `gnuthall` path component uses its accepted "G NutHall"
 pronunciation.
 
-Every rule above cites a measurement in `normalizer.py`. The separator is
-per-voice because LibriTTS-R renders "slash" at +0.05s — it drops the word —
-while rendering "stroke" at +0.45s. Two earlier substitutions were removed as
-misdiagnoses: `URL` was never dropped (eSpeak merely fused it), and eSpeak
-already phonemises "the fix is live" correctly.
+Every rule above cites a measurement in `normalizer.py`. Two earlier
+substitutions were removed as misdiagnoses: `URL` was never dropped (eSpeak
+merely fused it), and eSpeak already phonemises "the fix is live" correctly.
 
 ## Diagnosing a speech failure
 
@@ -148,36 +146,30 @@ $VENV/python speech_probe.py say "Open https://example.com/path."
 
 It synthesizes a carrier sentence with and without a word and compares audio
 duration. A rendered word adds 0.28-0.60s; a dropped word adds under 0.15s.
-Never use a Whisper round trip for this — it reported "slash" in LibriTTS-R
-audio that did not contain it.
+Never use a Whisper round trip for word-drop measurements.
 
-The default is `libritts-r-204`; blank and OpenAI's `alloy` alias resolve to it.
+The default is `hfc-male-medium`; blank and OpenAI's `alloy` alias resolve to it.
 Direct requests may use these internal, non-user-facing ids:
 
-| Voice id | Selected catalog entry |
-|---|---|
-| `libritts-r-204` | male, regular guy; initial default; source 204 / Piper 546 |
-| `libritts-r-6690` | male, nice texture, older |
-| `libritts-r-5727` | male, young |
-| `libritts-r-850` | male, nice texture, calm |
-| `hfc-male` | male, professional |
-| `rocket-raccoon` | male, bonus |
-| `libritts-r-5588` | female, airy |
-| `libritts-r-9026` | female, regular woman |
-| `libritts-r-8722` | female, nice texture, deep |
-| `libritts-r-830` | female, nice texture, younger |
-| `hfc-female` | female, professional |
-| `agentvibes-jenny` | female, bonus |
+| Voice id | Settings label | Group | Piper asset |
+|---|---|---|---|
+| `danny-low` | Danny | Male · Low | `en_US-danny-low` |
+| `hfc-male-medium` | HFC Male | Male · Medium | `en_US-hfc_male-medium` |
+| `semaine-spike-medium` | Spike | Male · Medium GB | `en_GB-semaine-medium`, speaker `spike` / 1 |
+| `rocket-raccoon-medium` | Rocket Raccoon | Male · Bonus | `en_US-rocket-raccoon-medium` |
+| `lessac-low` | Lessac | Female · Low | `en_US-lessac-low` |
+| `hfc-female-medium` | HFC Female | Female · Medium | `en_US-hfc_female-medium` |
+| `cori-medium` | Cori | Female · Medium GB | `en_GB-cori-medium` |
+| `agentvibes-jenny` | AgentVibes Jenny | Female · Bonus | `agentvibes-jenny` |
 
-Accepted baselines are length 1.35 and 200 ms sentence silence for LibriTTS-R;
-length 0.90 and 100 ms for both HFC voices; 200 ms for AgentVibes Jenny; and
-length 0.85 for Rocket Raccoon. A later CLIde speed control will adjust relative
-to these per-voice baselines.
+Every selected voice uses the speed and sentence pacing from its model config;
+the production catalog adds no per-voice speed override. A later Settings speed
+control may adjust that model-native starting point.
 
 ```sh
 curl -sS http://127.0.0.1:8890/audio/speech \
   -H 'Content-Type: application/json' \
-  -d '{"model":"tts-1","voice":"hfc-male","input":"Hello from CLIde","response_format":"wav"}' \
+  -d '{"model":"tts-1","voice":"hfc-male-medium","input":"Hello from CLIde","response_format":"wav"}' \
   --output /tmp/clide-voice.wav
 ```
 
@@ -190,8 +182,8 @@ safe production limit on this host.
 
 ## Health and tests
 
-`GET /api/health` reports installed STT and selected TTS assets, the explicit
-voice ids, and `libritts-r-204` as the default.
+`GET /api/health` reports installed STT and selected TTS assets, plus each
+voice's id, label, gender, tier, locale, and `hfc-male-medium` as the default.
 
 ```sh
 cd ~/voice/shim

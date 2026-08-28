@@ -63,6 +63,19 @@
     "sttModel": "Speech-to-text model",
     "ttsModel": "Text-to-speech model",
     "voice": "Voice",
+    "loadingVoices": "Loading voices…",
+    "catalog": {
+      "gender": {
+        "male": "Male",
+        "female": "Female"
+      },
+      "tier": {
+        "low": "Low",
+        "medium": "Medium",
+        "medium-gb": "Medium GB",
+        "bonus": "Bonus"
+      }
+    },
     "format": "Audio format",
     "note": "A custom base URL is called directly by your browser and must allow browser CORS requests. Leave it blank to use the server-configured backend."
   },

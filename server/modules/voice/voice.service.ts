@@ -1,5 +1,7 @@
 import type {
   VoiceAudioUpload,
+  VoiceCatalogOption,
+  VoiceHealthPayload,
   VoiceRequestOverrides,
   VoiceService,
   VoiceServiceResult,
@@ -120,6 +122,75 @@ function createTranscriptionFormData(audio: VoiceAudioUpload, sttModel: string):
   return formData;
 }
 
+const VOICE_GENDERS = new Set<VoiceCatalogOption['gender']>(['male', 'female']);
+const VOICE_TIERS = new Set<VoiceCatalogOption['tier']>(['low', 'medium', 'medium-gb', 'bonus']);
+
+function parseCatalogOption(value: unknown): VoiceCatalogOption | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.id !== 'string'
+    || typeof candidate.label !== 'string'
+    || typeof candidate.gender !== 'string'
+    || typeof candidate.tier !== 'string'
+    || typeof candidate.locale !== 'string'
+    || !VOICE_GENDERS.has(candidate.gender as VoiceCatalogOption['gender'])
+    || !VOICE_TIERS.has(candidate.tier as VoiceCatalogOption['tier'])
+  ) {
+    return null;
+  }
+  return {
+    id: candidate.id,
+    label: candidate.label,
+    gender: candidate.gender as VoiceCatalogOption['gender'],
+    tier: candidate.tier as VoiceCatalogOption['tier'],
+    locale: candidate.locale,
+  };
+}
+
+async function readBackendHealth(
+  dependencies: VoiceServiceDependencies,
+): Promise<VoiceHealthPayload> {
+  if (!dependencies.defaults.baseUrl) {
+    return { configured: false, defaultVoice: null, voices: [] };
+  }
+
+  try {
+    const response = await dependencies.fetchBackend(
+      `${dependencies.defaults.baseUrl}/api/health`,
+      {
+        method: 'GET',
+        headers: authorizationHeader(dependencies.defaults.apiKey),
+      },
+    );
+    if (!response.ok) {
+      return { configured: true, defaultVoice: null, voices: [] };
+    }
+    const payload = JSON.parse(await response.text()) as Record<string, unknown>;
+    const voices = Array.isArray(payload.tts_voices)
+      ? payload.tts_voices
+        .map(parseCatalogOption)
+        .filter((voice): voice is VoiceCatalogOption => voice !== null)
+      : [];
+    const requestedDefault = typeof payload.tts_default_voice === 'string'
+      ? payload.tts_default_voice
+      : null;
+    return {
+      configured: payload.configured !== false,
+      defaultVoice: voices.some((voice) => voice.id === requestedDefault)
+        ? requestedDefault
+        : null,
+      voices,
+    };
+  } catch {
+    // A generic OpenAI-compatible backend need not implement CLIde's optional
+    // catalog endpoint; configuration remains usable with free-text settings.
+    return { configured: true, defaultVoice: null, voices: [] };
+  }
+}
+
 /**
  * Creates the Voice application service used by the Voice composition root and
  * its unit tests. The outbound request function and server configuration are
@@ -127,7 +198,7 @@ function createTranscriptionFormData(audio: VoiceAudioUpload, sttModel: string):
  */
 export function createVoiceService(dependencies: VoiceServiceDependencies): VoiceService {
   return {
-    getHealth: () => ({ configured: Boolean(dependencies.defaults.baseUrl) }),
+    getHealth: () => readBackendHealth(dependencies),
 
     async transcribe(input) {
       const config = resolveVoiceConfig(dependencies.defaults, input.overrides);

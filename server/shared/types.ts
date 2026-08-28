@@ -1593,6 +1593,31 @@ export type VoiceAudioUpload = {
 };
 
 /**
+ * One backend-authorized text-to-speech choice exposed to CLIde Settings.
+ *
+ * IDs are the exact values accepted by the backend. Labels and facets are
+ * presentation metadata only; the client must never construct an ID from them.
+ */
+export type VoiceCatalogOption = {
+  id: string;
+  label: string;
+  gender: 'male' | 'female';
+  tier: 'low' | 'medium' | 'medium-gb' | 'bonus';
+  locale: string;
+};
+
+/**
+ * Authenticated Voice health response consumed by availability checks and
+ * Settings. An empty catalog preserves free-text configuration for generic
+ * OpenAI-compatible backends that do not publish CLIde metadata.
+ */
+export type VoiceHealthPayload = {
+  configured: boolean;
+  defaultVoice: string | null;
+  voices: VoiceCatalogOption[];
+};
+
+/**
  * Successful speech payload returned by the Voice service.
  *
  * The route copies `contentType` to the client response and pipes `body`
@@ -1623,7 +1648,7 @@ export type VoiceServiceResult<TValue> =
  * contract with handwritten fetch fakes and never patch global state.
  */
 export type VoiceService = {
-  getHealth(): { configured: boolean };
+  getHealth(): Promise<VoiceHealthPayload>;
   transcribe(input: {
     audio: VoiceAudioUpload;
     overrides: VoiceRequestOverrides;

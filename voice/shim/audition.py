@@ -2,7 +2,7 @@
 """Render one message the way CLIde would, so you can listen to it.
 
     ./audition.py "Some **markdown** reply."
-    ./audition.py --file reply.md --voice hfc-male
+    ./audition.py --file reply.md --voice hfc-male-medium
     ./audition.py --file reply.md --show-phonemes
 
 Prints the prepared text Piper receives, writes a WAV under
@@ -74,7 +74,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("text", nargs="?", help="message text; omit with --file")
     parser.add_argument("--file", type=Path)
-    parser.add_argument("--voice", default="libritts-r-204")
+    parser.add_argument("--voice", default="hfc-male-medium")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--show-phonemes", action="store_true")
     args = parser.parse_args(argv)

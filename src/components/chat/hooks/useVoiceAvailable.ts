@@ -1,29 +1,12 @@
 import { useEffect, useState } from 'react';
 
-import { authenticatedFetch } from '../../../utils/api';
 import { readVoiceConfig, VOICE_CONFIG_SYNC_EVENT } from '../../../hooks/useVoiceConfig';
+import { fetchVoiceHealth } from '../../../lib/voiceApi';
 
 // Voice UI is gated on the `voiceEnabled` UI preference (toggled in Quick Settings /
 // the Settings modal) and a configured voice backend.
 const STORAGE_KEY = 'uiPreferences';
 const SYNC_EVENT = 'ui-preferences:sync';
-let healthRequest: Promise<boolean> | null = null;
-
-function checkVoiceHealth(): Promise<boolean> {
-  if (healthRequest) return healthRequest;
-  const request = authenticatedFetch('/api/voice/health')
-    .then(async (response) => {
-      if (!response.ok) throw new Error(`Voice health check failed (${response.status})`);
-      const data = await response.json();
-      return data?.configured === true;
-    })
-    .finally(() => {
-      healthRequest = null;
-    });
-  healthRequest = request;
-  return request;
-}
-
 function readVoiceEnabled(): boolean {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -68,8 +51,8 @@ export function useVoiceAvailable(): boolean {
         return;
       }
       try {
-        const result = await checkVoiceHealth();
-        if (active && id === requestId) setAvailable(result);
+        const result = await fetchVoiceHealth();
+        if (active && id === requestId) setAvailable(result.configured);
       } catch {
         if (active && id === requestId) setAvailable(false);
       }

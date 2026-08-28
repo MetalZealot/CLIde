@@ -17,7 +17,7 @@ generated samples, so it cannot hallucinate.
 
 Usage:
     ./speech_probe.py drop slash stroke dash        # every catalogue voice
-    ./speech_probe.py drop --voice hfc-male slash
+    ./speech_probe.py drop --voice hfc-male-medium slash
     ./speech_probe.py say "Open https://example.com/path."
 """
 
@@ -105,7 +105,7 @@ def main(argv: list[str]) -> int:
 
     say = sub.add_parser("say", help="show prepared text and phonemes for a reply")
     say.add_argument("text")
-    say.add_argument("--voice", default="libritts-r-204")
+    say.add_argument("--voice", default="hfc-male-medium")
 
     args = parser.parse_args(argv)
     if args.command == "say":

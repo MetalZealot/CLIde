@@ -138,11 +138,11 @@ which also corrupts the pause structure.
 
 ## What's left
 
-Superseded where it conflicts with the 2026-08-24 decision above: the default voice
-stays `libritts-r-204`, and the substitution rules stay. Relative paths now render
-through `_speak_file_path` like absolute ones and `~` speaks as "home"; a colon only
-breaks a sentence when a space follows it, and clock times, decades, ISO dates,
-currency, percentages and proper fractions are all spoken. Still open:
+The voice-specific conclusion is superseded by the selected production catalog;
+the normalizer findings and substitution rules still stand. Relative paths now
+render through `_speak_file_path` like absolute ones and `~` speaks as "home"; a
+colon only breaks a sentence when a space follows it, and clock times, decades,
+ISO dates, currency, percentages and proper fractions are all spoken. Still open:
 
 1. **Roman numerals.** Deliberately not done: "I" is a pronoun, "MIX", "DID" and
    "MI" are words, and the false positives would cost more than the misreadings.

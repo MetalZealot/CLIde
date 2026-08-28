@@ -11,6 +11,7 @@ from unittest.mock import ANY, patch
 from app import (
     DEFAULT_TTS_VOICE,
     MAX_TTS_INPUT_CHARS,
+    VOICE_CATALOG,
     VOICE_PRESETS,
     VOICE_ROOT,
     SynthesisCancelled,
@@ -35,18 +36,14 @@ def tearDownModule() -> None:
 
 
 EXPECTED_VOICES = {
-    "libritts-r-204": ("en_US-libritts_r-medium", 546, "204", 1.35, 0.20),
-    "libritts-r-6690": ("en_US-libritts_r-medium", 878, "6690", 1.35, 0.20),
-    "libritts-r-5727": ("en_US-libritts_r-medium", 776, "5727", 1.35, 0.20),
-    "libritts-r-850": ("en_US-libritts_r-medium", 634, "850", 1.35, 0.20),
-    "hfc-male": ("en_US-hfc_male-medium", None, None, 0.90, 0.10),
-    "rocket-raccoon": ("en_US-rocket-raccoon-medium", None, None, 0.85, 0.0),
-    "libritts-r-5588": ("en_US-libritts_r-medium", 692, "5588", 1.35, 0.20),
-    "libritts-r-9026": ("en_US-libritts_r-medium", 695, "9026", 1.35, 0.20),
-    "libritts-r-8722": ("en_US-libritts_r-medium", 873, "8722", 1.35, 0.20),
-    "libritts-r-830": ("en_US-libritts_r-medium", 877, "830", 1.35, 0.20),
-    "hfc-female": ("en_US-hfc_female-medium", None, None, 0.90, 0.10),
-    "agentvibes-jenny": ("agentvibes-jenny", None, None, None, 0.20),
+    "danny-low": ("en_US-danny-low", None, None, None, 0.0),
+    "hfc-male-medium": ("en_US-hfc_male-medium", None, None, None, 0.0),
+    "semaine-spike-medium": ("en_GB-semaine-medium", 1, "spike", None, 0.0),
+    "rocket-raccoon-medium": ("en_US-rocket-raccoon-medium", None, None, None, 0.0),
+    "lessac-low": ("en_US-lessac-low", None, None, None, 0.0),
+    "hfc-female-medium": ("en_US-hfc_female-medium", None, None, None, 0.0),
+    "cori-medium": ("en_GB-cori-medium", None, None, None, 0.0),
+    "agentvibes-jenny": ("agentvibes-jenny", None, None, None, 0.0),
 }
 
 
@@ -290,11 +287,7 @@ class VoiceCatalogTests(unittest.TestCase):
                 #   libritts_r  slash +0.05s (dropped)  stroke +0.45s
                 #   jenny       slash +0.19s (mumbled)  stroke +0.50s
                 #   hfc_male    slash +0.41s            rocket slash +0.49s
-                expected = (
-                    "stroke"
-                    if voice_id.startswith("libritts-r-") or voice_id == "agentvibes-jenny"
-                    else "slash"
-                )
+                expected = "stroke" if voice_id == "agentvibes-jenny" else "slash"
                 self.assertEqual(preset.path_separator, expected)
 
     def test_sentence_silence_is_a_whole_16_bit_frame(self) -> None:
@@ -319,23 +312,20 @@ class VoiceCacheTests(unittest.TestCase):
     @patch("app.PiperVoice.load")
     def test_reuses_one_model_and_replaces_it_when_the_model_changes(self, load_voice) -> None:
         chunk = SimpleNamespace(audio_int16_bytes=b"\x00\x00" * 10)
-        libritts = SimpleNamespace(
-            config=SimpleNamespace(
-                sample_rate=22_050,
-                speaker_id_map={"204": 546, "6690": 878},
-            ),
+        danny = SimpleNamespace(
+            config=SimpleNamespace(sample_rate=16_000, speaker_id_map={}),
             synthesize=lambda _text, _config: [chunk],
         )
         hfc = SimpleNamespace(
             config=SimpleNamespace(sample_rate=22_050, speaker_id_map={}),
             synthesize=lambda _text, _config: [chunk],
         )
-        load_voice.side_effect = [libritts, hfc]
+        load_voice.side_effect = [danny, hfc]
         cache = VoiceCache()
 
-        cache.synthesize(VOICE_PRESETS["libritts-r-204"], "one")
-        cache.synthesize(VOICE_PRESETS["libritts-r-6690"], "two")
-        cache.synthesize(VOICE_PRESETS["hfc-male"], "three")
+        cache.synthesize(VOICE_PRESETS["danny-low"], "one")
+        cache.synthesize(VOICE_PRESETS["danny-low"], "two")
+        cache.synthesize(VOICE_PRESETS["hfc-male-medium"], "three")
 
         self.assertEqual(load_voice.call_count, 2)
 
@@ -352,7 +342,19 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(body["stt_model"], "tiny.en")
         self.assertTrue(body["tts_configured"])
         self.assertEqual(body["tts_default_voice"], DEFAULT_TTS_VOICE)
-        self.assertEqual(body["tts_voices"], list(VOICE_PRESETS))
+        self.assertEqual(
+            body["tts_voices"],
+            [
+                {
+                    "id": voice_id,
+                    "label": voice.label,
+                    "gender": voice.gender,
+                    "tier": voice.tier,
+                    "locale": voice.locale,
+                }
+                for voice_id, voice in VOICE_CATALOG.items()
+            ],
+        )
 
     def test_missing_upload_is_rejected(self) -> None:
         response = self.client.post("/audio/transcriptions")
@@ -428,18 +430,18 @@ class ApiTests(unittest.TestCase):
     def test_tts_normalizes_only_the_speech_copy(self, synthesize) -> None:
         source = "# Hello ✅\n\nThis is **CLIde**."
         response = self.client.post(
-            "/audio/speech", json={"input": source, "voice": "hfc-male"}
+            "/audio/speech", json={"input": source, "voice": "hfc-male-medium"}
         )
         self.assertEqual(response.status_code, 200)
         synthesize.assert_called_once_with(
-            VOICE_PRESETS["hfc-male"], "Hello. This is CLIde.", ANY, ANY
+            VOICE_PRESETS["hfc-male-medium"], "Hello. This is CLIde.", ANY, ANY
         )
 
     @patch("app.voice_cache.synthesize", return_value=(b"RIFFfake", 22_050, 22_050))
     def test_tts_uses_each_voice_family_separator_profile(self, synthesize) -> None:
         response = self.client.post(
             "/audio/speech",
-            json={"input": "Open https://example.com/path", "voice": "libritts-r-204"},
+            json={"input": "Open https://example.com/path", "voice": "agentvibes-jenny"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -449,7 +451,7 @@ class ApiTests(unittest.TestCase):
 
         response = self.client.post(
             "/audio/speech",
-            json={"input": "Open https://example.com/path", "voice": "hfc-male"},
+            json={"input": "Open https://example.com/path", "voice": "hfc-male-medium"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -460,22 +462,22 @@ class ApiTests(unittest.TestCase):
     def test_unsupported_model_and_format_are_rejected(self) -> None:
         model_response = self.client.post(
             "/audio/speech",
-            json={"input": "Hello", "voice": "hfc-male", "model": "custom"},
+            json={"input": "Hello", "voice": "hfc-male-medium", "model": "custom"},
         )
         format_response = self.client.post(
             "/audio/speech",
-            json={"input": "Hello", "voice": "hfc-male", "response_format": "mp3"},
+            json={"input": "Hello", "voice": "hfc-male-medium", "response_format": "mp3"},
         )
         self.assertEqual(model_response.status_code, 400)
         self.assertEqual(format_response.status_code, 400)
 
     def test_empty_normalized_text_and_oversized_input_are_rejected(self) -> None:
         empty_response = self.client.post(
-            "/audio/speech", json={"input": "✅", "voice": "hfc-male"}
+            "/audio/speech", json={"input": "✅", "voice": "hfc-male-medium"}
         )
         oversized_response = self.client.post(
             "/audio/speech",
-            json={"input": "x" * (MAX_TTS_INPUT_CHARS + 1), "voice": "hfc-male"},
+            json={"input": "x" * (MAX_TTS_INPUT_CHARS + 1), "voice": "hfc-male-medium"},
         )
         self.assertEqual(empty_response.status_code, 400)
         self.assertEqual(oversized_response.status_code, 400)
@@ -484,7 +486,7 @@ class ApiTests(unittest.TestCase):
     def test_measured_maximum_input_is_accepted(self, synthesize) -> None:
         response = self.client.post(
             "/audio/speech",
-            json={"input": "x" * MAX_TTS_INPUT_CHARS, "voice": "hfc-male"},
+            json={"input": "x" * MAX_TTS_INPUT_CHARS, "voice": "hfc-male-medium"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(synthesize.call_args.args[1]), MAX_TTS_INPUT_CHARS)
@@ -493,7 +495,7 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(inference_lock.acquire(blocking=False))
         try:
             response = self.client.post(
-                "/audio/speech", json={"input": "Hello", "voice": "hfc-male"}
+                "/audio/speech", json={"input": "Hello", "voice": "hfc-male-medium"}
             )
         finally:
             inference_lock.release()
@@ -516,7 +518,7 @@ class ApiTests(unittest.TestCase):
                 speech_result["response"] = client.post(
                     "/audio/speech",
                     headers={"X-Voice-Job-ID": "cancel-test"},
-                    json={"input": "A response long enough to cancel", "voice": "hfc-male"},
+                    json={"input": "A response long enough to cancel", "voice": "hfc-male-medium"},
                 )
 
         speech_thread = threading.Thread(target=request_speech)
@@ -554,11 +556,11 @@ class SpeechStageTests(unittest.TestCase):
         client = app.test_client()
         response = client.post(
             "/audio/speech/prepare",
-            json={"input": "Open https://example.com/path.", "voice": "libritts-r-204"},
+            json={"input": "Open https://example.com/path.", "voice": "agentvibes-jenny"},
         )
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(payload["voice"], "libritts-r-204")
+        self.assertEqual(payload["voice"], "agentvibes-jenny")
         self.assertEqual(payload["separator"], "stroke")
         self.assertEqual(payload["stored"], "Open https://example.com/path.")
         self.assertEqual(payload["prepared"], "Open example dot com stroke path.")
@@ -670,8 +672,8 @@ class SpeechRulesTests(unittest.TestCase):
             ({"pronunciations": [{"match": "", "say": "x"}]}, "empty match"),
             ({"pronunciations": [{"match": "a", "mode": "regex"}]}, "unknown mode"),
             ({"pronunciations": [{"match": "a", "mode": "before"}]}, "no following words"),
-            ({"voices": {"hfc-male": {"length_scale": 99}}}, "out of range"),
-            ({"voices": {"hfc-male": {"model_id": "x"}}}, "not editable"),
+            ({"voices": {"hfc-male-medium": {"length_scale": 99}}}, "out of range"),
+            ({"voices": {"hfc-male-medium": {"model_id": "x"}}}, "not editable"),
         ]:
             with self.subTest(reason=reason):
                 with self.assertRaises(ValueError):

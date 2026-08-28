@@ -1,10 +1,8 @@
 # Self-hosted dictation and read-aloud
 
 - Status: 4/6
-- Next: re-select the default voice. LibriTTS-R swallows short technical words
-  (`slash`, `colon`) and mispronounces "live"; 31 of 39 installed voices pass
-  the word-drop sweep, and the Speech tab now auditions any of them. Phase 5's
-  licences, names and allowlist follow from whatever is chosen.
+- Next: live-verify the eight-voice Settings picker, then resolve Rocket
+  Raccoon's provenance and licence before completing Phase 5.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts), and the host-local voice README,
@@ -25,8 +23,7 @@
 - [x] **3. Durable loopback service.** Install and enable the host-local user
       service, keep it bound to loopback, prove it survives a clean restart, and
       repeat both direct endpoint checks. Do not alter nginx or firewall policy.
-- [x] **4. CLIde wiring and installed-PWA acceptance.** `libritts-r-204`
-      (LibriTTS-R source 204, Piper speaker 546) is the default. The isolated
+- [x] **4. CLIde wiring and installed-PWA acceptance.** The isolated
       server build and real proxied STT/TTS checks pass. Grayson's phone pass
       confirmed record → stop → editable unsent text, ordinary read-aloud,
       replay after completion, Play/Pause/Resume/Restart, and the elapsed/total
@@ -43,11 +40,15 @@
       playback continues in the background, the earbud button pauses it, and
       the session appears in the notification shade and on the lock screen.
       Listening remains authoritative.
-- [ ] **5. Bounded catalog in Settings.** Verify each selected model's license,
-      agree the user-facing names and initial selection, then replace free-text
-      voice entry with the backend's allowlist. Add a relative speed control
-      that preserves each calibrated baseline. Preserve speaker mappings and
-      per-voice presets; audition every runtime, model, or preset change.
+- [~] **5. Bounded catalog in Settings.** The agreed male/female, low/medium/
+      Medium GB/bonus catalog is implemented and HFC Male is the initial
+      selection. The shim exposes labels and tiers, Settings renders that
+      allowlist, and custom browser backends retain free-text voice entry. All
+      eight use their model-native speed instead of old per-voice calibration.
+      Source records cover the seven known upstream models; Rocket Raccoon's
+      exact provenance and licence remain unresolved. Live picker and listening
+      acceptance remain, and a later Settings speed control will adjust the
+      model-native starting point.
 - [ ] **6. Nearer-live dictation experiment.** Test phrase-level final insertion
       after pauses against the accepted push-to-talk baseline. Add provisional
       word-level streaming only if that experiment proves the extra transport and
@@ -63,8 +64,7 @@
   specific pronunciation patches.
 - Playback stop/replay and chat switching behave correctly on the real device.
 - The selected catalog is bounded, licensed, named, and backed by its exact
-  speaker mappings and accepted presets; speed changes are relative to those
-  baselines.
+  speaker mappings; speed changes start from each model's own configuration.
 - Automated checks, direct endpoint proof, service state, device behavior, and
   Grayson's listening acceptance are recorded as distinct evidence.
 
