@@ -100,7 +100,8 @@ new work.
 - [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
 - [ ] **Claude Code settings are almost entirely unreachable from CLIde** — 157 cascade keys, 59 `/config` rows, CLIde exposes zero, though `settingSources` already puts `~/.claude/settings.json` in force every session. Destinations: [command surface map](maps/claude-command-surface.md); per-key tiers: [settings audit](maps/2026-07-28-claude-code-settings-surface-audit.md). **L**
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
-- [ ] **Subagent tracking in the UI.** Claude writes subagent transcripts to `<slug>/<session-id>/subagents/agent-<id>.jsonl`; the synchronizer *deliberately* skips them (`isSubagentTranscript`) so a spawned agent never becomes its own sidebar session. Within a session they're grouped under the parent via `parent_tool_use_id`. **M/L**
+- [ ] **Subagent tracking in the UI.** Only an inline `Task` call renders (`SubagentContainer`); a background task and a forked skill (`/code-review high`) write **no `Task` row**, so nothing shows. Per-agent metadata is in `subagents/agent-<id>.meta.json`, but the watcher ignores `subagents/**` — no push signal. Never re-index them as sessions; they repeat the parent's `sessionId`. **M/L**
+- [ ] **A running subagent's tool calls render as the session's own.** The client drops the `parentToolUseId` stamp the server already sends, so rows only move into the container on refresh. Fixed upstream in `d78959dd` on the unmerged `upstream/perf/chat-and-project-loading`. **S/M**
 - [ ] `!` shell mode in the conversation window. **M**
 - [ ] Conversation "map" sidebar: a minimap of where user/assistant messages sit, tap to scroll. Depends on the scroll residuals above. **L**
 - [ ] Codex equivalent of the Claude command-surface audit — which of its commands and config keys CLIde is missing. **L**
@@ -111,7 +112,6 @@ new work.
 
 ## Agent context in worktrees
 
-- [ ] **Host `CLAUDE.md` still doesn't reach worktree sessions.** The stub only *points* at it, and `@` imports outside the project tree do not resolve (both absolute and `../` forms tested). Only fix left is `setup-worktree.sh` inlining main's host sections into the real stub — accepts drift. **S**
 - [ ] **Two missing agent guardrails in `AGENTS.md`.** A session drove Browser into its own live session and used its Shell; the same session asked for and typed Grayson's password into a login form, against the existing "the user clicks through, not you" rule. Add both as explicit invariants. **S**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)

@@ -7,7 +7,8 @@
 # git worktree only checks out *tracked* files, so a fresh worktree is missing
 # every gitignored thing the app needs: node_modules, CLAUDE.md, .claude/, and
 # .env.local. This links them to the main worktree — except CLAUDE.md, which is
-# written as a real file because Claude Code will not load a symlinked one — and
+# written as a real file because Claude Code will not load a symlinked one, and
+# which stays a thin stub because host facts ride in on linked .claude/rules — and
 # allocates a free SERVER_PORT / VITE_PORT pair so the worktree can run
 # alongside the 3001 systemd service without a collision.
 #
@@ -103,8 +104,10 @@ fi
 #
 # The stub below is a real file. It imports the *branch's own* tracked
 # AGENTS.md -- verified to resolve relative to the importing file, so a
-# worktree gets its branch's guide, not main's -- and points back at main for
-# host-specific facts, which Claude reads on demand.
+# worktree gets its branch's guide, not main's. Host facts arrive separately:
+# .claude/rules/*.md load automatically alongside CLAUDE.md and DO resolve
+# through the .claude symlink below, so main's rules/host.md reaches every
+# worktree with no copy to drift.
 write_claude_stub() {
   local dst="$TARGET/CLAUDE.md"
 
@@ -123,9 +126,10 @@ write_claude_stub() {
 @AGENTS.md
 
 This is a worktree of the CLIde checkout at \`$MAIN\`. The import above is this
-branch's own tracked guide. Host-specific facts — ports, services, the deploy
-loop, the branch-test harness — are in \`$MAIN/CLAUDE.md\`; read it when the task
-needs them. Never build or deploy this worktree to the production port.
+branch's own tracked guide. Host facts — ports, services, the deploy loop, the
+branch-test harness — load automatically from \`.claude/rules/host.md\`, reached
+through this worktree's symlinked \`.claude/\`. Never build or deploy this
+worktree to the production port.
 EOF
   ok "CLAUDE.md — wrote worktree stub (real file, imports this branch's AGENTS.md)"
 }
