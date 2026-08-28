@@ -56,6 +56,9 @@ export function useVoiceAvailable(): boolean {
     let requestId = 0;
 
     const check = async () => {
+      // Claimed before the early exits too: a configured baseUrl answers without
+      // a request, and an in-flight health check must not overwrite that answer.
+      const id = ++requestId;
       if (!enabled) {
         setAvailable(false);
         return;
@@ -64,7 +67,6 @@ export function useVoiceAvailable(): boolean {
         setAvailable(true);
         return;
       }
-      const id = ++requestId;
       try {
         const result = await checkVoiceHealth();
         if (active && id === requestId) setAvailable(result);
