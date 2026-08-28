@@ -87,7 +87,8 @@ Prices rose 50% and C# and 3 * 7 still speak.
 ````
 
 > Listen for: a short pause where the arrows are, never "right arrow". No
-> emoji names. "Code block omitted" once. "C sharp" and the numbers intact.
+> emoji names. "See the code block in this message" once. "C sharp" and the
+> numbers intact.
 
 ## A whole reply
 

@@ -62,7 +62,10 @@ class NormalizerTests(unittest.TestCase):
             "[Docs](https://example.test)\n\n```python\nprint('secret')\n```\n\n"
             "| Name | Value |\n| --- | --- |\n| Piper | Ready |"
         )
-        self.assertEqual(result, "Docs. [Code block omitted]. Name. Value. Piper. Ready.")
+        self.assertEqual(
+            result,
+            "Docs. [See the code block in this message]. Name. Value. Piper. Ready.",
+        )
 
     def test_structural_markdown_keeps_spoken_boundaries(self) -> None:
         result = prepare_speech_text(

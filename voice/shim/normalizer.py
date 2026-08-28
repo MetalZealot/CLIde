@@ -403,7 +403,12 @@ def _speak_technical_text(text: str, path_separator: str) -> str:
 
 def strip_markdown(text: str, path_separator: str = "slash") -> str:
     """Conservatively retain prose while removing common Markdown syntax."""
-    text = re.sub(r"```[^\n]*\n.*?```", "\n[Code block omitted]\n", text, flags=re.DOTALL)
+    text = re.sub(
+        r"```[^\n]*\n.*?```",
+        "\n[See the code block in this message]\n",
+        text,
+        flags=re.DOTALL,
+    )
     text = re.sub(
         r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$",
         rf"{HEADER_LINE}\1",

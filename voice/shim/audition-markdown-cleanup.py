@@ -65,7 +65,12 @@ def markdown_for_speech(markdown: str) -> str:
     character. Inline code is retained because it commonly contains a useful
     short command or identifier.
     """
-    text = re.sub(r"```[^\n]*\n.*?```", "\n[Code block omitted]\n", markdown, flags=re.DOTALL)
+    text = re.sub(
+        r"```[^\n]*\n.*?```",
+        "\n[See the code block in this message]\n",
+        markdown,
+        flags=re.DOTALL,
+    )
     text = re.sub(r"^\s{0,3}#{1,6}\s+", "", text, flags=re.MULTILINE)
     text = re.sub(r"^\s{0,3}>\s?", "", text, flags=re.MULTILINE)
     # Preserve list boundaries until whitespace is normalized below. List items
