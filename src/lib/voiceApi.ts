@@ -21,12 +21,26 @@ export type VoiceHealth = {
 
 let voiceHealthRequest: Promise<VoiceHealth> | null = null;
 
+function parseVoiceHealth(payload: unknown): VoiceHealth {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { configured: false, defaultVoice: null, voices: [] };
+  }
+  const candidate = payload as Partial<VoiceHealth>;
+  return {
+    configured: candidate.configured === true,
+    defaultVoice: typeof candidate.defaultVoice === 'string' ? candidate.defaultVoice : null,
+    // Older CLIde servers report only `configured`; keep their free-text field
+    // usable while a freshly built client waits for the server to restart.
+    voices: Array.isArray(candidate.voices) ? candidate.voices : [],
+  };
+}
+
 export function fetchVoiceHealth(): Promise<VoiceHealth> {
   if (voiceHealthRequest) return voiceHealthRequest;
   voiceHealthRequest = authenticatedFetch('/api/voice/health')
     .then(async (response) => {
       if (!response.ok) throw new Error(`Voice health check failed (${response.status})`);
-      return response.json() as Promise<VoiceHealth>;
+      return parseVoiceHealth(await response.json());
     })
     .finally(() => {
       voiceHealthRequest = null;

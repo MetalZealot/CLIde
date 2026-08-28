@@ -204,6 +204,23 @@ describe('ChatVoiceBackendScreen', () => {
     assert.equal(voiceInput?.value, 'custom-voice');
     assert.equal(requests, 0);
   });
+
+  test('keeps free-text voice input while an older server publishes no catalog', async () => {
+    globalThis.fetch = (async () => new Response(JSON.stringify({ configured: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+    localStorage.setItem('voiceConfig', JSON.stringify({ ttsVoice: 'legacy-voice' }));
+
+    const host = await render();
+    await flush();
+
+    assert.equal(host.querySelector('[role="combobox"]'), null);
+    assert.equal(
+      host.querySelector<HTMLInputElement>('input[aria-label="Voice"]')?.value,
+      'legacy-voice',
+    );
+  });
 });
 
 describe('AccountScreen', () => {
