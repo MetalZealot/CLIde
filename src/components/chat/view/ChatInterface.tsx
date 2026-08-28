@@ -69,8 +69,10 @@ function ChatInterface({
   const showConnectionLostBanner = hasBeenConnectedRef.current && !isConnected;
 
   const sessionStore = useSessionStore();
-  const streamTimerRef = useRef<number | null>(null);
-  const accumulatedStreamRef = useRef('');
+  // Streaming buffers are per session: background sessions stream concurrently
+  // with the visible one, and a shared buffer interleaves their text.
+  const streamTimersRef = useRef(new Map<string, number>());
+  const accumulatedStreamsRef = useRef(new Map<string, string>());
   // When each session's `chat.subscribe` was last sent; idle acks older than
   // a later local request are discarded as stale.
   const statusCheckSentAtRef = useRef(new Map<string, number>());
@@ -79,11 +81,11 @@ function ChatInterface({
   // component unmounting and stays exact under the dedup guard.
 
   const resetStreamingState = useCallback(() => {
-    if (streamTimerRef.current) {
-      clearTimeout(streamTimerRef.current);
-      streamTimerRef.current = null;
+    for (const timer of streamTimersRef.current.values()) {
+      clearTimeout(timer);
     }
-    accumulatedStreamRef.current = '';
+    streamTimersRef.current.clear();
+    accumulatedStreamsRef.current.clear();
   }, []);
 
   const settingsSessionId = selectedSession?.id ?? null;
@@ -414,8 +416,8 @@ function ChatInterface({
     setTokenBudget,
     pendingPermissionRequests,
     setPendingPermissionRequests,
-    streamTimerRef,
-    accumulatedStreamRef,
+    streamTimersRef,
+    accumulatedStreamsRef,
     statusCheckSentAtRef,
     onSessionProcessing,
     onSessionIdle,

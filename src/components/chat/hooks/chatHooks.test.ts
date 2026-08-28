@@ -13,7 +13,7 @@ import {
   selectPastedAttachments,
 } from './useChatComposerState';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
-import { dedupePermissionRequestsById } from './useChatRealtimeHandlers';
+import { appendStreamChunk, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
 
 // --- useChatComposerState ---------------------------------------------------
 
@@ -166,4 +166,21 @@ test('entries without a usable id are passed through rather than hidden', () => 
 
 test('an empty ack stays empty', () => {
   assert.deepEqual(dedupePermissionRequestsById([]), []);
+});
+
+test('two sessions streaming at once keep separate buffers', () => {
+  const buffers = new Map<string, string>();
+  appendStreamChunk(buffers, 'session-a', 'Hello ');
+  appendStreamChunk(buffers, 'session-b', 'Other ');
+  appendStreamChunk(buffers, 'session-a', 'world');
+  assert.equal(appendStreamChunk(buffers, 'session-b', 'run'), 'Other run');
+  assert.equal(buffers.get('session-a'), 'Hello world');
+});
+
+test('ending one session\'s stream leaves the other session mid-flight', () => {
+  const buffers = new Map<string, string>();
+  appendStreamChunk(buffers, 'session-a', 'partial');
+  appendStreamChunk(buffers, 'session-b', 'done');
+  buffers.delete('session-b');
+  assert.equal(buffers.get('session-a'), 'partial');
 });
