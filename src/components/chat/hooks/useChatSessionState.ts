@@ -828,13 +828,17 @@ export function useChatSessionState({
       setTokenBudget(null);
       return;
     }
+    const requestedSessionId = selectedSession.id;
+    let cancelled = false;
     const fetchInitialTokenUsage = async () => {
       try {
         // The provider module resolves storage and provider details from the session id.
-        const url = `/api/providers/sessions/${encodeURIComponent(selectedSession.id)}/token-usage`;
+        const url = `/api/providers/sessions/${encodeURIComponent(requestedSessionId)}/token-usage`;
         const response = await authenticatedFetch(url);
+        if (cancelled) return;
         if (response.ok) {
           const payload = await response.json();
+          if (cancelled) return;
           setTokenBudget(payload.data ?? null);
         } else {
           setTokenBudget(null);
@@ -844,6 +848,11 @@ export function useChatSessionState({
       }
     };
     fetchInitialTokenUsage();
+    // Only the session on screen may drive the composer's usage wheel; a slow
+    // response for the session just left must not land on its replacement.
+    return () => {
+      cancelled = true;
+    };
   }, [selectedSession?.id]);
 
   // Fetch this session's own model and effort on switch.
