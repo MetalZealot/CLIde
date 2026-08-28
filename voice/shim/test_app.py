@@ -37,13 +37,13 @@ def tearDownModule() -> None:
 
 EXPECTED_VOICES = {
     "danny-low": ("en_US-danny-low", None, None, None, 0.0),
-    "hfc-male-medium": ("en_US-hfc_male-medium", None, None, None, 0.0),
-    "semaine-spike-medium": ("en_GB-semaine-medium", 1, "spike", None, 0.0),
-    "rocket-raccoon-medium": ("en_US-rocket-raccoon-medium", None, None, None, 0.0),
+    "hfc-male-medium": ("en_US-hfc_male-medium", None, None, 0.90, 0.10),
+    "kusal-medium": ("en_US-kusal-medium", None, None, None, 0.0),
+    "rocket-raccoon-medium": ("en_US-rocket-raccoon-medium", None, None, 0.85, 0.0),
     "lessac-low": ("en_US-lessac-low", None, None, None, 0.0),
-    "hfc-female-medium": ("en_US-hfc_female-medium", None, None, None, 0.0),
+    "hfc-female-medium": ("en_US-hfc_female-medium", None, None, 0.90, 0.10),
     "cori-medium": ("en_GB-cori-medium", None, None, None, 0.0),
-    "agentvibes-jenny": ("agentvibes-jenny", None, None, None, 0.0),
+    "agentvibes-jenny": ("agentvibes-jenny", None, None, None, 0.20),
 }
 
 

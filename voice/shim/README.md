@@ -155,16 +155,18 @@ Direct requests may use these internal, non-user-facing ids:
 |---|---|---|---|
 | `danny-low` | Danny | Male · Low | `en_US-danny-low` |
 | `hfc-male-medium` | HFC Male | Male · Medium | `en_US-hfc_male-medium` |
-| `semaine-spike-medium` | Spike | Male · Medium GB | `en_GB-semaine-medium`, speaker `spike` / 1 |
+| `kusal-medium` | Kusal | Male · Medium | `en_US-kusal-medium` |
 | `rocket-raccoon-medium` | Rocket Raccoon | Male · Bonus | `en_US-rocket-raccoon-medium` |
 | `lessac-low` | Lessac | Female · Low | `en_US-lessac-low` |
 | `hfc-female-medium` | HFC Female | Female · Medium | `en_US-hfc_female-medium` |
 | `cori-medium` | Cori | Female · Medium GB | `en_GB-cori-medium` |
 | `agentvibes-jenny` | AgentVibes Jenny | Female · Bonus | `agentvibes-jenny` |
 
-Every selected voice uses the speed and sentence pacing from its model config;
-the production catalog adds no per-voice speed override. A later Settings speed
-control may adjust that model-native starting point.
+Previously accepted presets remain part of the production catalog: HFC Male and
+Female use length `0.90` with `100 ms` sentence pauses, Rocket Raccoon uses
+length `0.85`, and AgentVibes Jenny uses `200 ms` sentence pauses. The other
+voices use their model speed with no inserted sentence pause. A later Settings
+speed control may adjust those starting points.
 
 ```sh
 curl -sS http://127.0.0.1:8890/audio/speech \

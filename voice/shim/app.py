@@ -71,27 +71,36 @@ class CatalogVoice:
 
 
 # This is the production allowlist, not the installed-model inventory or the
-# Voice Studio favorites file. Pacing comes from each model's own config.
+# Voice Studio favorites file. Accepted pacing overrides are explicit; voices
+# without one use the model's own config.
 VOICE_CATALOG = {
     "danny-low": CatalogVoice(
         "Danny", "male", "low", "en-US", VoicePreset("en_US-danny-low")
     ),
     "hfc-male-medium": CatalogVoice(
-        "HFC Male", "male", "medium", "en-US", VoicePreset("en_US-hfc_male-medium")
-    ),
-    "semaine-spike-medium": CatalogVoice(
-        "Spike",
+        "HFC Male",
         "male",
-        "medium-gb",
-        "en-GB",
-        VoicePreset("en_GB-semaine-medium", speaker_id=1, source_key="spike"),
+        "medium",
+        "en-US",
+        VoicePreset(
+            "en_US-hfc_male-medium",
+            length_scale=0.90,
+            sentence_silence_seconds=0.10,
+        ),
+    ),
+    "kusal-medium": CatalogVoice(
+        "Kusal",
+        "male",
+        "medium",
+        "en-US",
+        VoicePreset("en_US-kusal-medium"),
     ),
     "rocket-raccoon-medium": CatalogVoice(
         "Rocket Raccoon",
         "male",
         "bonus",
         "en-US",
-        VoicePreset("en_US-rocket-raccoon-medium"),
+        VoicePreset("en_US-rocket-raccoon-medium", length_scale=0.85),
     ),
     "lessac-low": CatalogVoice(
         "Lessac", "female", "low", "en-US", VoicePreset("en_US-lessac-low")
@@ -101,7 +110,11 @@ VOICE_CATALOG = {
         "female",
         "medium",
         "en-US",
-        VoicePreset("en_US-hfc_female-medium"),
+        VoicePreset(
+            "en_US-hfc_female-medium",
+            length_scale=0.90,
+            sentence_silence_seconds=0.10,
+        ),
     ),
     "cori-medium": CatalogVoice(
         "Cori", "female", "medium-gb", "en-GB", VoicePreset("en_GB-cori-medium")
@@ -111,7 +124,11 @@ VOICE_CATALOG = {
         "female",
         "bonus",
         "en-GB",
-        VoicePreset("agentvibes-jenny", path_separator="stroke"),
+        VoicePreset(
+            "agentvibes-jenny",
+            sentence_silence_seconds=0.20,
+            path_separator="stroke",
+        ),
     ),
 }
 VOICE_PRESETS = {

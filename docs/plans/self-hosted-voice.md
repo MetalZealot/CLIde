@@ -1,8 +1,8 @@
 # Self-hosted dictation and read-aloud
 
 - Status: 4/6
-- Next: live-verify the eight-voice Settings picker, then resolve Rocket
-  Raccoon's provenance and licence before completing Phase 5.
+- Next: live-verify Kusal and retest HFC on repeated zeroes with its restored
+  preset, then resolve Rocket Raccoon's provenance and licence.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts), and the host-local voice README,
@@ -41,14 +41,16 @@
       the session appears in the notification shade and on the lock screen.
       Listening remains authoritative.
 - [~] **5. Bounded catalog in Settings.** The agreed male/female, low/medium/
-      Medium GB/bonus catalog is implemented and HFC Male is the initial
+      size/locale/bonus catalog is implemented and HFC Male is the initial
       selection. The shim exposes labels and tiers, Settings renders that
-      allowlist, and custom browser backends retain free-text voice entry. All
-      eight use their model-native speed instead of old per-voice calibration.
+      allowlist, and custom browser backends retain free-text voice entry.
+      Grayson's cross-session pass accepted all eight picker paths; Spike was
+      then replaced by US-medium Kusal. The original accepted HFC, Rocket, and
+      Jenny pacing presets are restored; voices without one use model defaults.
       Source records cover the seven known upstream models; Rocket Raccoon's
-      exact provenance and licence remain unresolved. Live picker and listening
-      acceptance remain, and a later Settings speed control will adjust the
-      model-native starting point.
+      exact provenance and licence remain unresolved. Kusal and the restored
+      HFC repeated-zero case need listening acceptance, and a later Settings
+      speed control will adjust each starting point.
 - [ ] **6. Nearer-live dictation experiment.** Test phrase-level final insertion
       after pauses against the accepted push-to-talk baseline. Add provisional
       word-level streaming only if that experiment proves the extra transport and
