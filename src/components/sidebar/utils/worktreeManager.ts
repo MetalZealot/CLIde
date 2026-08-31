@@ -40,6 +40,8 @@ export type WorktreeChangeSummary = {
   ahead: number;
   behind: number;
   hasUpstream: boolean;
+  /** Commits on the repository's base branch that this checkout lacks. */
+  behindBase: number;
 };
 
 export type WorktreeStatusPhase = 'loading' | 'ready';
@@ -48,7 +50,7 @@ export type WorktreeStatusView =
   | { kind: 'hidden' }
   | { kind: 'loading' }
   | { kind: 'unavailable' }
-  | { kind: 'counts'; changedFiles: number; ahead: number; behind: number };
+  | { kind: 'counts'; changedFiles: number; ahead: number; behind: number; behindBase: number };
 
 /** Absolute paths compare equal whichever side added a trailing slash. */
 export const worktreeStatusKey = (fullPath: string): string => fullPath.replace(/\/+$/, '');
@@ -72,7 +74,7 @@ export const describeWorktreeStatus = (
   if (!summary) {
     return { kind: 'unavailable' };
   }
-  if (!summary.changedFiles && !summary.ahead && !summary.behind) {
+  if (!summary.changedFiles && !summary.ahead && !summary.behind && !summary.behindBase) {
     return { kind: 'hidden' };
   }
   return {
@@ -80,5 +82,6 @@ export const describeWorktreeStatus = (
     changedFiles: summary.changedFiles,
     ahead: summary.ahead,
     behind: summary.behind,
+    behindBase: summary.behindBase,
   };
 };

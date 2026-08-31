@@ -805,6 +805,57 @@ router.get('/branches', async (req, res) => {
 const WORKTREE_STATUS_CONCURRENCY = 8;
 
 /**
+ * The branch a topic branch is measured as "behind", which git itself does not
+ * record: nothing in a repository names a branch's base. `origin/HEAD` is the
+ * closest thing to a declared default, with the conventional names as fallback,
+ * and the result must be a *local* ref because that is what a worktree rebases
+ * onto.
+ */
+/** Commits on the base branch that this checkout's HEAD does not contain. */
+async function countCommitsBehindBase(checkoutPath, baseBranch) {
+  if (!baseBranch) {
+    return 0;
+  }
+
+  try {
+    const { stdout } = await spawnAsync('git', ['rev-list', '--count', `HEAD..refs/heads/${baseBranch}`], { cwd: checkoutPath });
+    return Number.parseInt(stdout.trim(), 10) || 0;
+  } catch {
+    // An unborn HEAD has nothing to compare; the row still shows its file count.
+    return 0;
+  }
+}
+
+async function resolveBaseBranch(repositoryPath) {
+  const localRefExists = async (branch) => {
+    try {
+      await spawnAsync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd: repositoryPath });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  try {
+    const { stdout } = await spawnAsync('git', ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], { cwd: repositoryPath });
+    const declared = stdout.trim().replace(/^origin\//, '');
+    if (declared && await localRefExists(declared)) {
+      return declared;
+    }
+  } catch {
+    // No origin/HEAD is normal in a repository that was never cloned.
+  }
+
+  for (const candidate of ['main', 'master']) {
+    if (await localRefExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Change and push/pull counts for every worktree of one repository, so the
  * Worktrees panel can show which trees have work in them without opening each.
  *
@@ -812,6 +863,10 @@ const WORKTREE_STATUS_CONCURRENCY = 8;
  * set from any one of them, and the paths come from git rather than the caller,
  * so no client-supplied path is ever used as a working directory. That also
  * covers worktrees CLIde has no project row for, which the panel still lists.
+ *
+ * `behindBase` answers a different question from `behind`: drift from the local
+ * base branch rather than from the remote, which is the only one of the two a
+ * never-pushed topic branch can answer.
  */
 router.get('/worktree-status', async (req, res) => {
   const { project } = req.query;
@@ -825,6 +880,7 @@ router.get('/worktree-status', async (req, res) => {
     await validateGitRepository(projectPath);
 
     const entries = (await listRepositoryWorktrees(projectPath)).filter((entry) => entry.path && !entry.isPrunable);
+    const baseBranch = await resolveBaseBranch(projectPath);
     const worktrees = [];
 
     for (let index = 0; index < entries.length; index += WORKTREE_STATUS_CONCURRENCY) {
@@ -832,7 +888,11 @@ router.get('/worktree-status', async (req, res) => {
       const read = await Promise.all(batch.map(async (entry) => {
         try {
           const { stdout } = await spawnAsync('git', ['status', '--porcelain=v2', '--branch'], { cwd: entry.path });
-          return { path: entry.path, ...parseWorktreeStatusPorcelainV2(stdout) };
+          return {
+            path: entry.path,
+            ...parseWorktreeStatusPorcelainV2(stdout),
+            behindBase: await countCommitsBehindBase(entry.path, baseBranch),
+          };
         } catch {
           // A removed or unreadable directory drops out of the response rather
           // than failing the batch; the panel shows those rows as unavailable.
@@ -842,13 +902,13 @@ router.get('/worktree-status', async (req, res) => {
       worktrees.push(...read.filter(Boolean));
     }
 
-    res.json({ worktrees });
+    res.json({ worktrees, baseBranch });
   } catch (error) {
     const isNotGitRepository = error instanceof AppError && error.code === 'NOT_A_GIT_REPOSITORY';
     if (!isNotGitRepository) {
       console.error('Git worktree status error:', error);
     }
-    res.json({ worktrees: [], error: isNotGitRepository ? 'Not a git repository' : 'Failed to read worktree status' });
+    res.json({ worktrees: [], baseBranch: null, error: isNotGitRepository ? 'Not a git repository' : 'Failed to read worktree status' });
   }
 });
 

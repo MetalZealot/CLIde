@@ -64,6 +64,7 @@ const CURRENT_HEAD = '';
 type WorktreeRowProps = {
   project: Project;
   status: WorktreeStatusView;
+  baseBranch: string | null;
   isMain: boolean;
   showPath: boolean;
   isSelecting: boolean;
@@ -79,7 +80,15 @@ type WorktreeRowProps = {
  * competes with the branch name for width. Rendered only when there is
  * something to say, so a coloured line reads as "there is work in here".
  */
-function WorktreeStatusLine({ status, t }: { status: WorktreeStatusView; t: TFunction }) {
+function WorktreeStatusLine({
+  status,
+  baseBranch,
+  t,
+}: {
+  status: WorktreeStatusView;
+  baseBranch: string | null;
+  t: TFunction;
+}) {
   if (status.kind === 'hidden') {
     return null;
   }
@@ -116,6 +125,16 @@ function WorktreeStatusLine({ status, t }: { status: WorktreeStatusView; t: TFun
         {t('worktrees.toPull', '\u2193{{count}} to pull', { count: status.behind })}
       </span>
     ),
+    // Grey, because the coloured counts are all work of yours sitting in the
+    // tree while this one is only drift from the base branch.
+    status.behindBase > 0 && baseBranch && (
+      <span key="behindBase" className="text-muted-foreground">
+        {t('worktrees.behindBase', '{{count}} behind {{base}}', {
+          count: status.behindBase,
+          base: baseBranch,
+        })}
+      </span>
+    ),
   ].filter(Boolean);
 
   return (
@@ -141,6 +160,7 @@ function WorktreeStatusLine({ status, t }: { status: WorktreeStatusView; t: TFun
 function WorktreeRow({
   project,
   status,
+  baseBranch,
   isMain,
   showPath,
   isSelecting,
@@ -229,7 +249,7 @@ function WorktreeRow({
               </>
             )}
           </div>
-          <WorktreeStatusLine status={status} t={t} />
+          <WorktreeStatusLine status={status} baseBranch={baseBranch} t={t} />
         </div>
 
         {!isSelecting && (
@@ -299,6 +319,7 @@ export default function WorktreeManagerModal({
   const [worktreeStatuses, setWorktreeStatuses] = useState<Map<string, WorktreeChangeSummary>>(
     () => new Map(),
   );
+  const [baseBranch, setBaseBranch] = useState<string | null>(null);
   const selectableWorktrees = getBatchSelectableWorktrees(entry.checkouts);
   const discoveredWorktrees = entry.checkouts.filter(isDiscoveredCheckout);
   const selectedWorktrees = selectableWorktrees.filter((project) => selectedProjectIds.has(project.projectId));
@@ -325,13 +346,17 @@ export default function WorktreeManagerModal({
     void (async () => {
       try {
         const response = await api.gitWorktreeStatus(leadProjectId);
-        const data = (await response.json()) as { worktrees?: WorktreeChangeSummary[] };
+        const data = (await response.json()) as {
+          worktrees?: WorktreeChangeSummary[];
+          baseBranch?: string | null;
+        };
         if (cancelled) {
           return;
         }
         setWorktreeStatuses(
           new Map((data.worktrees ?? []).map((summary) => [worktreeStatusKey(summary.path), summary])),
         );
+        setBaseBranch(data.baseBranch ?? null);
       } catch {
         // Rows fall through to "status unavailable": an empty map is exactly the
         // "git said nothing about this path" case the row already renders.
@@ -547,7 +572,7 @@ export default function WorktreeManagerModal({
                   <span className="truncate">{refLabel}</span>
                 </div>
               )}
-              <WorktreeStatusLine status={statusOf(project)} t={t} />
+              <WorktreeStatusLine status={statusOf(project)} baseBranch={baseBranch} t={t} />
             </div>
             {/*
               Labelled and quiet: `+` is the footer's create, and this row is the
@@ -625,6 +650,7 @@ export default function WorktreeManagerModal({
           <WorktreeRow
             project={project}
             status={statusOf(project)}
+            baseBranch={baseBranch}
             isMain={isMainCheckout(project)}
             showPath={shouldShowWorktreePath(project, entry.leadCheckout.fullPath)}
             isSelecting={isSelecting}

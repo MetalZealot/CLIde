@@ -707,6 +707,7 @@ test('a clean worktree shows no status line, and a missing summary is not clean'
     ahead: 0,
     behind: 0,
     hasUpstream: true,
+    behindBase: 0,
   };
 
   assert.deepEqual(describeWorktreeStatus(summary, 'ready'), { kind: 'hidden' });
@@ -717,6 +718,15 @@ test('a clean worktree shows no status line, and a missing summary is not clean'
     changedFiles: 7,
     ahead: 2,
     behind: 0,
+    behindBase: 0,
+  });
+  // Drift from the base branch alone is worth a line: nothing else would show it.
+  assert.deepEqual(describeWorktreeStatus({ ...summary, behindBase: 4 }, 'ready'), {
+    kind: 'counts',
+    changedFiles: 0,
+    ahead: 0,
+    behind: 0,
+    behindBase: 4,
   });
 });
 
