@@ -34,6 +34,7 @@ type SettingsChoicePopoverProps<T extends string> = {
   searchPlaceholder?: string;
   disabled?: boolean;
   showSelectedDetail?: boolean;
+  stackedOptionDetails?: boolean;
 };
 
 type PopoverPosition = {
@@ -54,6 +55,7 @@ export default function SettingsChoicePopover<T extends string>({
   searchPlaceholder = "Search",
   disabled = false,
   showSelectedDetail = true,
+  stackedOptionDetails = false,
 }: SettingsChoicePopoverProps<T>) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -406,15 +408,22 @@ export default function SettingsChoicePopover<T extends string>({
                             <Check className="h-4 w-4 text-primary" />
                           )}
                         </span>
-                        <span
-                          className={cn(
-                            "min-w-0 flex-1 truncate",
-                            isSelected && "font-medium",
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "block truncate",
+                              isSelected && "font-medium",
+                            )}
+                          >
+                            {option.label}
+                          </span>
+                          {stackedOptionDetails && option.detail && (
+                            <span className="mt-0.5 block truncate text-xs leading-4 text-muted-foreground">
+                              {option.detail}
+                            </span>
                           )}
-                        >
-                          {option.label}
                         </span>
-                        {option.detail && (
+                        {!stackedOptionDetails && option.detail && (
                           <span className="flex-shrink-0 text-muted-foreground">
                             {option.detail}
                           </span>

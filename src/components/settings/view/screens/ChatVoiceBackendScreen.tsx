@@ -68,6 +68,9 @@ function selectedVoiceLabel(
 ): string | null {
   if (!voiceId) return null;
   const favorite = settings.tts.favorites.find((voice) => voice.id === voiceId);
+  const sourceKey = favorite?.sourceKey ?? voiceId;
+  const displayName = settings.tts.displayNames[sourceKey];
+  if (displayName) return displayName;
   if (favorite) return favorite.label;
   const catalogVoice = settings.tts.catalog.find(
     (voice) => voice.id === voiceId,
@@ -314,12 +317,18 @@ export default function ChatVoiceBackendScreen({
               .includes(speakerLabel.toLocaleLowerCase())
               ? `${voice.label} · ${speakerLabel}`
               : voice.label;
+          const displayName = settings.tts.displayNames[voice.sourceKey];
           return {
             value: voice.id,
-            label,
-            detail: [metadata.language, metadata.quality]
+            label: displayName ?? label,
+            detail: [
+              displayName ? label : "",
+              metadata.language,
+              metadata.quality,
+            ]
               .filter(Boolean)
               .join(" · "),
+            keywords: label,
             group: t("voiceSettings.picker.favoritesGroup"),
           };
         }),
@@ -463,6 +472,7 @@ export default function ChatVoiceBackendScreen({
                   searchPlaceholder={t("voiceSettings.picker.searchFavorites")}
                   disabled={isSaving}
                   showSelectedDetail={false}
+                  stackedOptionDetails
                   className="w-full"
                 />
               </SettingsRow>

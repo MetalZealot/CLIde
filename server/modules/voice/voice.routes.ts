@@ -94,13 +94,15 @@ export function createVoiceRouter(dependencies: VoiceRouterDependencies): expres
     const selectedVoice = request.body?.selectedVoice;
     const speechPace = request.body?.speechPace;
     const voiceTuning = request.body?.voiceTuning;
+    const voiceDisplayName = request.body?.voiceDisplayName;
     const sttSettings = request.body?.sttSettings;
     const keys = request.body && typeof request.body === 'object' && !Array.isArray(request.body)
       ? Object.keys(request.body)
       : [];
     if (keys.length === 0
       || keys.some((key) => ![
-        'defaultVoice', 'selectedVoice', 'speechPace', 'voiceTuning', 'sttSettings',
+        'defaultVoice', 'selectedVoice', 'speechPace', 'voiceTuning', 'voiceDisplayName',
+        'sttSettings',
       ].includes(key))) {
       response.status(400).json({
         error: 'Expected a supported voice setting',
@@ -141,6 +143,25 @@ export function createVoiceRouter(dependencies: VoiceRouterDependencies): expres
         return;
       }
     }
+    if (voiceDisplayName !== undefined) {
+      const displayNameKeys = typeof voiceDisplayName === 'object'
+        && voiceDisplayName !== null && !Array.isArray(voiceDisplayName)
+        ? Object.keys(voiceDisplayName)
+        : [];
+      const displayName = voiceDisplayName?.displayName;
+      if (displayNameKeys.length !== 2
+        || !displayNameKeys.includes('id')
+        || !displayNameKeys.includes('displayName')
+        || typeof voiceDisplayName?.id !== 'string'
+        || !VOICE_SELECTION_ID_PATTERN.test(voiceDisplayName.id)
+        || (displayName !== null && (typeof displayName !== 'string'
+          || displayName.trim().length === 0 || displayName.trim().length > 80))) {
+        response.status(400).json({
+          error: 'voiceDisplayName requires a safe voice ID and a name up to 80 characters or null',
+        });
+        return;
+      }
+    }
     if (sttSettings !== undefined && !isValidSttSettings(sttSettings)) {
       response.status(400).json({ error: 'sttSettings contains invalid dictation values' });
       return;
@@ -150,6 +171,7 @@ export function createVoiceRouter(dependencies: VoiceRouterDependencies): expres
       selectedVoice,
       speechPace,
       voiceTuning,
+      voiceDisplayName,
       sttSettings,
     });
     if (!sendFailure(response, result)) response.json(result.value);

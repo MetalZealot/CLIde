@@ -1025,6 +1025,51 @@ class VoiceSettingsApiTests(unittest.TestCase):
         self.assertEqual(favorite["speaker_name"], "Speaker 546")
         self.assertIn("Speaker 546", favorite["label"])
 
+    def test_friendly_name_round_trips_independently_of_studio_metadata(self) -> None:
+        voice_id = "en_US-libritts_r-medium#546"
+        studio_metadata = self.client.put("/api/voice-labels", json={
+            "key": voice_id,
+            "favorite": True,
+            "gender": "male",
+            "notes": "Audition note",
+        })
+        self.assertEqual(studio_metadata.status_code, 200)
+
+        renamed = self.client.put("/api/voice-settings", json={
+            "voice_display_name": {
+                "id": voice_id,
+                "display_name": "  Evening narrator  ",
+            },
+        })
+        self.assertEqual(renamed.status_code, 200)
+        self.assertEqual(
+            renamed.get_json()["tts"]["display_names"],
+            {voice_id: "Evening narrator"},
+        )
+
+        restored = self.client.put("/api/voice-settings", json={
+            "voice_display_name": {"id": voice_id, "display_name": None},
+        })
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.get_json()["tts"]["display_names"], {})
+        labels = self.client.get("/api/voice-labels").get_json()["voices"]
+        self.assertTrue(labels[voice_id]["favorite"])
+        self.assertEqual(labels[voice_id]["gender"], "male")
+        self.assertEqual(labels[voice_id]["notes"], "Audition note")
+
+    def test_friendly_name_rejects_unknown_voices_and_overlong_text(self) -> None:
+        unknown = self.client.put("/api/voice-settings", json={
+            "voice_display_name": {"id": "../unsafe", "display_name": "Nope"},
+        })
+        too_long = self.client.put("/api/voice-settings", json={
+            "voice_display_name": {
+                "id": "en_US-danny-low",
+                "display_name": "x" * 81,
+            },
+        })
+        self.assertEqual(unknown.status_code, 400)
+        self.assertEqual(too_long.status_code, 400)
+
     def test_speech_pace_scales_speed_and_gaps_without_changing_the_baseline(self) -> None:
         response = self.client.put(
             "/api/voice-settings", json={"speech_pace": 1.25}

@@ -32,6 +32,7 @@ export type VoiceRuntimeSettings = {
     favorites: boolean;
     voiceSelection: boolean;
     voiceTuning: boolean;
+    voiceDisplayNames: boolean;
     sttSettings: boolean;
   };
   tts: {
@@ -73,6 +74,7 @@ export type VoiceRuntimeSettings = {
       lengthScale: number | null;
       notes: string;
     }>;
+    displayNames: Record<string, string>;
   };
   stt: {
     models: Array<{ id: string; installed: boolean }>;
@@ -116,6 +118,7 @@ function parseVoiceRuntimeSettings(payload: unknown): VoiceRuntimeSettings {
     throw new Error('Voice settings response is invalid');
   }
   const speechPace = candidate.tts.speechPace;
+  const displayNames = candidate.tts.displayNames;
   return {
     ...candidate,
     tts: {
@@ -124,6 +127,9 @@ function parseVoiceRuntimeSettings(payload: unknown): VoiceRuntimeSettings {
       speechPace: typeof speechPace === 'number' && Number.isFinite(speechPace)
         ? speechPace
         : 1,
+      displayNames: displayNames && typeof displayNames === 'object' && !Array.isArray(displayNames)
+        ? displayNames
+        : {},
     },
   } as VoiceRuntimeSettings;
 }
@@ -230,6 +236,18 @@ export async function updateVoiceTuning(voiceTuning: {
     body: JSON.stringify({ voiceTuning }),
   });
   if (!response.ok) throw new Error(`Voice tuning failed (${response.status})`);
+  return readVoiceRuntimeSettings(response);
+}
+
+export async function updateVoiceDisplayName(
+  id: string,
+  displayName: string | null,
+): Promise<VoiceRuntimeSettings> {
+  const response = await authenticatedFetch('/api/voice/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ voiceDisplayName: { id, displayName } }),
+  });
+  if (!response.ok) throw new Error(`Friendly name failed (${response.status})`);
   return readVoiceRuntimeSettings(response);
 }
 

@@ -202,10 +202,13 @@ safe production limit on this host.
 
 `GET /api/health` reports installed STT and selected TTS assets. The richer
 `GET /api/voice-settings` contract publishes safe installed-model IDs,
-favorites, the writable runtime default and daily selection, exact timing
-baseline, pace, every installed `ggml-*.bin` Whisper model, STT settings, and
-capabilities. `PUT` changes these shared daily settings.
-`GET|PUT /api/voice-labels` owns Studio and CLIde favorites.
+favorites, optional friendly display names, the writable runtime default and
+daily selection, exact timing baseline, pace, every installed `ggml-*.bin`
+Whisper model, STT settings, and capabilities. `PUT` changes these shared daily
+settings. Display names are keyed by the stable model or model-and-speaker ID;
+blanking one restores the runtime's original name without changing voice
+identity. `GET|PUT /api/voice-labels` owns Studio-only gender, heard state, and
+audition notes as well as the shared favorite bit.
 
 ```sh
 cd ~/voice/shim
@@ -213,5 +216,7 @@ $VENV/python -m unittest -v
 ```
 
 The separate Voice Studio under `../studio` remains the audition and diagnostic
-lab. Favorite, tuning, and STT edits go through this runtime so Studio and CLIde
-cannot drift into separate settings stores.
+lab. Favorite, display-name, tuning, and STT edits go through this runtime so
+Studio and CLIde cannot drift into separate settings stores. Gender balance,
+heard state, and audition notes remain Studio metadata and are not published in
+CLIde's shared settings contract.

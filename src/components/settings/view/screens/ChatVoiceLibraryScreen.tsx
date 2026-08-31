@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   fetchVoiceSettings,
   updateVoiceDefault,
+  updateVoiceDisplayName,
   updateVoiceFavorite,
   updateVoiceSelection,
   type VoiceRuntimeSettings,
@@ -29,6 +30,7 @@ type SpeakerChoice = {
   id: number | null;
   voiceId: string;
   label: string;
+  originalLabel: string;
 };
 
 type SpeakerView = "all" | "favorites";
@@ -119,51 +121,116 @@ function modelIdForVoice(
   return sourceKeyForVoice(settings, voiceId)?.split("#")[0] ?? null;
 }
 
+function displayNameForVoice(
+  settings: VoiceRuntimeSettings,
+  voiceId: string,
+  originalLabel: string,
+): string {
+  return settings.tts.displayNames[voiceId] ?? originalLabel;
+}
+
+function originalNameForVoice(
+  settings: VoiceRuntimeSettings,
+  voiceId: string | null,
+): string | null {
+  const sourceKey = sourceKeyForVoice(settings, voiceId);
+  if (!sourceKey) return null;
+  const [modelId, speakerText] = sourceKey.split("#");
+  const model = settings.tts.installedModels.find(
+    (entry) => entry.id === modelId,
+  );
+  if (!model) return null;
+  if (speakerText === undefined) return modelName(model);
+  const speakerId = Number(speakerText);
+  if (!Number.isInteger(speakerId)) return null;
+  const speakerName = model.speakers[speakerId] ?? `Speaker ${speakerId}`;
+  return `${modelName(model)} · ${speakerName}`;
+}
+
 function speakerChoices(
+  settings: VoiceRuntimeSettings,
   model: InstalledModel,
   page: number,
   query: string,
 ): SpeakerChoice[] {
   if (model.numSpeakers <= 1) {
-    return [{ id: null, voiceId: model.id, label: qualityLabel(model) }];
+    const originalLabel = qualityLabel(model);
+    return [
+      {
+        id: null,
+        voiceId: model.id,
+        label: displayNameForVoice(settings, model.id, originalLabel),
+        originalLabel,
+      },
+    ];
   }
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
   if (model.speakers.length > 0) {
     return model.speakers
-      .map((speaker, id) => ({
-        id,
-        voiceId: `${model.id}#${id}`,
-        label: speaker,
-      }))
+      .map((speaker, id) => {
+        const voiceId = `${model.id}#${id}`;
+        return {
+          id,
+          voiceId,
+          label: displayNameForVoice(settings, voiceId, speaker),
+          originalLabel: speaker,
+        };
+      })
       .filter(
         (speaker) =>
           !normalizedQuery ||
           speaker.label.toLocaleLowerCase().includes(normalizedQuery) ||
+          speaker.originalLabel.toLocaleLowerCase().includes(normalizedQuery) ||
           String(speaker.id) === normalizedQuery,
       );
   }
 
   if (normalizedQuery) {
-    const speakerId = Number(normalizedQuery);
-    return Number.isInteger(speakerId) &&
-      speakerId >= 0 &&
-      speakerId < model.numSpeakers
-      ? [
-          {
-            id: speakerId,
-            voiceId: `${model.id}#${speakerId}`,
-            label: `Speaker ${speakerId}`,
-          },
-        ]
-      : [];
+    const numericMatch = normalizedQuery.match(/^(?:speaker\s+)?(\d+)$/);
+    const speakerId = numericMatch ? Number(numericMatch[1]) : null;
+    if (speakerId !== null && speakerId >= 0 && speakerId < model.numSpeakers) {
+      const voiceId = `${model.id}#${speakerId}`;
+      const originalLabel = `Speaker ${speakerId}`;
+      return [
+        {
+          id: speakerId,
+          voiceId,
+          label: displayNameForVoice(settings, voiceId, originalLabel),
+          originalLabel,
+        },
+      ];
+    }
+    return Object.entries(settings.tts.displayNames).flatMap(
+      ([voiceId, displayName]) => {
+        if (
+          !voiceId.startsWith(`${model.id}#`) ||
+          !displayName.toLocaleLowerCase().includes(normalizedQuery)
+        ) {
+          return [];
+        }
+        const id = Number(voiceId.split("#")[1]);
+        if (!Number.isInteger(id) || id < 0 || id >= model.numSpeakers)
+          return [];
+        return [
+          { id, voiceId, label: displayName, originalLabel: `Speaker ${id}` },
+        ];
+      },
+    );
   }
 
   const start = page * SPEAKER_PAGE_SIZE;
   const end = Math.min(start + SPEAKER_PAGE_SIZE, model.numSpeakers);
   return Array.from({ length: end - start }, (_, index) => {
     const id = start + index;
-    return { id, voiceId: `${model.id}#${id}`, label: `Speaker ${id}` };
+    const voiceId = `${model.id}#${id}`;
+    const originalLabel = `Speaker ${id}`;
+    return {
+      id,
+      voiceId,
+      label: displayNameForVoice(settings, voiceId, originalLabel),
+      originalLabel,
+    };
   });
 }
 
@@ -182,12 +249,18 @@ function favoriteSpeakerChoices(
       const id = favorite.speakerId as number;
       const label =
         favorite.speakerName ?? model.speakers[id] ?? `Speaker ${id}`;
-      return { id, voiceId: favorite.sourceKey, label };
+      return {
+        id,
+        voiceId: favorite.sourceKey,
+        label: displayNameForVoice(settings, favorite.sourceKey, label),
+        originalLabel: label,
+      };
     })
     .filter(
       (speaker) =>
         !normalizedQuery ||
         speaker.label.toLocaleLowerCase().includes(normalizedQuery) ||
+        speaker.originalLabel.toLocaleLowerCase().includes(normalizedQuery) ||
         String(speaker.id) === normalizedQuery,
     )
     .sort((left, right) => (left.id ?? 0) - (right.id ?? 0));
@@ -265,6 +338,9 @@ export default function ChatVoiceLibraryScreen() {
   const [speakerPage, setSpeakerPage] = useState(0);
   const [speakerView, setSpeakerView] = useState<SpeakerView>("all");
   const [busyVoiceId, setBusyVoiceId] = useState<string | null>(null);
+  const [renamingVoiceId, setRenamingVoiceId] = useState<string | null>(null);
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [isSavingDisplayName, setIsSavingDisplayName] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -303,10 +379,16 @@ export default function ChatVoiceLibraryScreen() {
             model.id,
             model.region,
             model.quality,
+            ...Object.entries(settings?.tts.displayNames ?? {}).flatMap(
+              ([voiceId, displayName]) =>
+                voiceId === model.id || voiceId.startsWith(`${model.id}#`)
+                  ? [displayName]
+                  : [],
+            ),
           ]),
         ].some((value) => value.toLocaleLowerCase().includes(query)),
     );
-  }, [families, modelQuery]);
+  }, [families, modelQuery, settings?.tts.displayNames]);
   const selectedFamily =
     families.find((family) => family.key === selectedFamilyKey) ?? null;
   const activeModel =
@@ -325,6 +407,12 @@ export default function ChatVoiceLibraryScreen() {
   const defaultModelId = settings
     ? modelIdForVoice(settings, settings.tts.defaultVoice)
     : null;
+  const selectedOriginalName = settings
+    ? originalNameForVoice(settings, settings.tts.selectedVoice)
+    : null;
+  const selectedDisplayName = selectedSourceKey
+    ? (settings?.tts.displayNames[selectedSourceKey] ?? "")
+    : "";
   const favoriteKeys = new Set(
     settings?.tts.favorites.map((favorite) => favorite.sourceKey) ?? [],
   );
@@ -335,12 +423,16 @@ export default function ChatVoiceLibraryScreen() {
       ? familyHasMultipleSpeakers
         ? speakerView === "favorites"
           ? favoriteSpeakerChoices(settings, activeModel, speakerQuery)
-          : speakerChoices(activeModel, speakerPage, speakerQuery)
-        : selectedFamily.models.map((model) => ({
-            id: null,
-            voiceId: model.id,
-            label: qualityLabel(model),
-          }))
+          : speakerChoices(settings, activeModel, speakerPage, speakerQuery)
+        : selectedFamily.models.map((model) => {
+            const originalLabel = qualityLabel(model);
+            return {
+              id: null,
+              voiceId: model.id,
+              label: displayNameForVoice(settings, model.id, originalLabel),
+              originalLabel,
+            };
+          })
       : [];
 
   const chooseVoice = async (voiceId: string) => {
@@ -397,6 +489,41 @@ export default function ChatVoiceLibraryScreen() {
     }
   };
 
+  const startRename = () => {
+    if (!selectedSourceKey || !selectedOriginalName) return;
+    setRenamingVoiceId(selectedSourceKey);
+    setDisplayNameDraft(selectedDisplayName);
+    setError(null);
+    setNotice(null);
+  };
+
+  const saveDisplayName = async (useOriginal = false) => {
+    if (!selectedSourceKey || !selectedOriginalName) return;
+    const displayName = useOriginal ? null : displayNameDraft.trim() || null;
+    setIsSavingDisplayName(true);
+    setError(null);
+    setNotice(null);
+    try {
+      setSettings(await updateVoiceDisplayName(selectedSourceKey, displayName));
+      setRenamingVoiceId(null);
+      setNotice(
+        t(
+          useOriginal || !displayName
+            ? "voiceSettings.library.nameReset"
+            : "voiceSettings.library.nameSaved",
+        ),
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t("voiceSettings.library.nameFailed"),
+      );
+    } finally {
+      setIsSavingDisplayName(false);
+    }
+  };
+
   const openFamily = (family: VoiceFamily) => {
     const currentModel =
       family.models.find((model) => model.id === selectedModelId) ??
@@ -421,6 +548,87 @@ export default function ChatVoiceLibraryScreen() {
       >
         {t("voiceSettings.library.setDefault")}
       </button>
+    ) : null;
+
+  const displayNameAction =
+    settings?.capabilities.voiceDisplayNames &&
+    selectedSourceKey &&
+    selectedOriginalName ? (
+      renamingVoiceId === selectedSourceKey ? (
+        <form
+          className="space-y-3 rounded-lg border border-input bg-card p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveDisplayName();
+          }}
+        >
+          <label className="block space-y-1.5">
+            <span className="text-sm font-medium text-foreground">
+              {t("voiceSettings.library.friendlyName")}
+            </span>
+            <input
+              type="text"
+              value={displayNameDraft}
+              onChange={(event) => setDisplayNameDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setRenamingVoiceId(null);
+                }
+              }}
+              maxLength={80}
+              autoFocus
+              autoComplete="off"
+              aria-label={t("voiceSettings.library.friendlyName")}
+              placeholder={selectedOriginalName}
+              className="w-full touch-manipulation rounded-lg border border-input bg-background px-3 py-2 text-base text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            {t("voiceSettings.library.originalName", {
+              name: selectedOriginalName,
+            })}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="submit"
+              disabled={isSavingDisplayName}
+              className="min-h-11 flex-1 touch-manipulation rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            >
+              {isSavingDisplayName
+                ? t("voiceSettings.library.savingName")
+                : t("voiceSettings.library.saveName")}
+            </button>
+            <button
+              type="button"
+              disabled={isSavingDisplayName}
+              onClick={() => setRenamingVoiceId(null)}
+              className="min-h-11 flex-1 touch-manipulation rounded-lg border border-input px-4 py-2 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            >
+              {t("voiceSettings.library.cancelName")}
+            </button>
+          </div>
+          {selectedDisplayName && (
+            <button
+              type="button"
+              disabled={isSavingDisplayName}
+              onClick={() => void saveDisplayName(true)}
+              className="min-h-11 w-full touch-manipulation rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            >
+              {t("voiceSettings.library.useOriginalName")}
+            </button>
+          )}
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={startRename}
+          disabled={busyVoiceId !== null}
+          className="min-h-11 w-full touch-manipulation rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        >
+          {t("voiceSettings.library.editFriendlyName")}
+        </button>
+      )
     ) : null;
 
   if (!settings) {
@@ -542,6 +750,11 @@ export default function ChatVoiceLibraryScreen() {
               <VoiceChoiceRow
                 key={choice.voiceId}
                 choice={choice}
+                detail={
+                  choice.label === choice.originalLabel
+                    ? undefined
+                    : choice.originalLabel
+                }
                 selected={choice.voiceId === selectedSourceKey}
                 runtimeDefault={choice.voiceId === defaultSourceKey}
                 favorite={favoriteKeys.has(choice.voiceId)}
@@ -594,7 +807,12 @@ export default function ChatVoiceLibraryScreen() {
           </div>
         )}
 
-        {selectedBelongsToFamily && defaultAction}
+        {selectedBelongsToFamily && (
+          <>
+            {defaultAction}
+            {displayNameAction}
+          </>
+        )}
         {notice && <p className="text-sm text-primary">{notice}</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </SettingsScreen>
@@ -616,6 +834,7 @@ export default function ChatVoiceLibraryScreen() {
       </div>
 
       {defaultAction}
+      {displayNameAction}
       {notice && <p className="text-sm text-primary">{notice}</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -646,16 +865,28 @@ export default function ChatVoiceLibraryScreen() {
             );
 
             if (directModel) {
+              const originalLabel = family.name;
               const choice = {
                 id: null,
                 voiceId: directModel.id,
-                label: family.name,
+                label: displayNameForVoice(
+                  settings,
+                  directModel.id,
+                  originalLabel,
+                ),
+                originalLabel,
               };
               return (
                 <VoiceChoiceRow
                   key={family.key}
                   choice={choice}
-                  detail={[family.language, qualityLabel(directModel)]
+                  detail={[
+                    choice.label === choice.originalLabel
+                      ? ""
+                      : choice.originalLabel,
+                    family.language,
+                    qualityLabel(directModel),
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
                   selected={directModel.id === selectedSourceKey}

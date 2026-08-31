@@ -116,6 +116,7 @@ test('relays the CLIde-aware runtime settings contract with safe camel-case fiel
         favorites: true,
         voice_selection: true,
         voice_tuning: true,
+        voice_display_names: true,
         stt_settings: true,
       },
       tts: {
@@ -144,6 +145,10 @@ test('relays the CLIde-aware runtime settings contract with safe camel-case fiel
           speaker_name: null, label: 'HFC Male', gender: 'male',
           length_scale: 0.8, notes: '',
         }],
+        display_names: {
+          'en_US-hfc_male-medium': 'Daily narrator',
+          '../unsafe': 'Ignored',
+        },
       },
       stt: {
         models: [{ id: 'tiny.en', installed: true }],
@@ -163,8 +168,12 @@ test('relays the CLIde-aware runtime settings contract with safe camel-case fiel
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.value.capabilities.voiceSelection, true);
+  assert.equal(result.value.capabilities.voiceDisplayNames, true);
   assert.equal(result.value.tts.installedModels[0]?.numSpeakers, 1);
   assert.equal(result.value.tts.favorites[0]?.sourceKey, 'en_US-hfc_male-medium');
+  assert.deepEqual(result.value.tts.displayNames, {
+    'en_US-hfc_male-medium': 'Daily narrator',
+  });
   assert.equal(result.value.tts.speechPace, 1.2);
   assert.deepEqual(result.value.tts.tuning, {
     voiceId: 'hfc-male-medium',
@@ -222,6 +231,9 @@ test('writes selection, pace, and favorite changes only to the configured runtim
       structureSilenceSeconds: 0.3,
     },
   });
+  const displayName = await service.updateSettings({
+    voiceDisplayName: { id: 'en_US-amy-medium', displayName: 'Work narrator' },
+  });
   const sttSettings = await service.updateSettings({
     sttSettings: {
       model: 'base.en',
@@ -241,6 +253,7 @@ test('writes selection, pace, and favorite changes only to the configured runtim
   assert.equal(selection.ok, true);
   assert.equal(pace.ok, true);
   assert.equal(tuning.ok, true);
+  assert.equal(displayName.ok, true);
   assert.equal(sttSettings.ok, true);
   assert.deepEqual(favorite, {
     ok: true,
@@ -270,6 +283,16 @@ test('writes selection, pace, and favorite changes only to the configured runtim
           length_scale: 0.8,
           sentence_silence_seconds: 0.15,
           structure_silence_seconds: 0.3,
+        },
+      },
+    },
+    {
+      url: 'https://voice.example/v1/api/voice-settings',
+      method: 'PUT',
+      body: {
+        voice_display_name: {
+          id: 'en_US-amy-medium',
+          display_name: 'Work narrator',
         },
       },
     },
@@ -461,6 +484,13 @@ test('settings routes reject unsafe IDs before forwarding valid runtime changes'
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ defaultVoice: '../../etc/passwd' }),
     });
+    const invalidDisplayName = await fetch(`http://127.0.0.1:${port}/api/voice/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        voiceDisplayName: { id: 'en_US-amy-medium', displayName: 'x'.repeat(81) },
+      }),
+    });
     const validDefault = await fetch(`http://127.0.0.1:${port}/api/voice/settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -471,6 +501,13 @@ test('settings routes reject unsafe IDs before forwarding valid runtime changes'
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ speechPace: 1.25 }),
     });
+    const validDisplayName = await fetch(`http://127.0.0.1:${port}/api/voice/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        voiceDisplayName: { id: 'en_US-amy-medium', displayName: 'Work narrator' },
+      }),
+    });
     const valid = await fetch(`http://127.0.0.1:${port}/api/voice/favorites`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -480,12 +517,20 @@ test('settings routes reject unsafe IDs before forwarding valid runtime changes'
     assert.equal(invalid.status, 400);
     assert.equal(invalidPace.status, 400);
     assert.equal(invalidDefault.status, 400);
+    assert.equal(invalidDisplayName.status, 400);
     assert.equal(validDefault.status, 200);
     assert.equal(validPace.status, 200);
+    assert.equal(validDisplayName.status, 200);
     assert.equal(valid.status, 200);
     assert.deepEqual(backendBodies, [
       { default_voice: 'en_US-amy-medium' },
       { speech_pace: 1.25 },
+      {
+        voice_display_name: {
+          id: 'en_US-amy-medium',
+          display_name: 'Work narrator',
+        },
+      },
       { key: 'en_US-amy-medium', favorite: true },
     ]);
   } finally {

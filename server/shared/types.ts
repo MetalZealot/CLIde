@@ -1624,6 +1624,7 @@ export type VoiceRuntimeCapabilities = {
   favorites: boolean;
   voiceSelection: boolean;
   voiceTuning: boolean;
+  voiceDisplayNames: boolean;
   sttSettings: boolean;
 };
 
@@ -1694,6 +1695,8 @@ export type VoiceRuntimeSettingsPayload = {
     catalog: VoiceCatalogOption[];
     installedModels: VoiceInstalledModel[];
     favorites: VoiceFavoriteOption[];
+    /** User-authored names keyed by the runtime's stable model or model#speaker ID. */
+    displayNames: Record<string, string>;
   };
   stt: {
     models: VoiceSttModelOption[];
@@ -1707,6 +1710,7 @@ export type VoiceRuntimeSettingsUpdate = {
   selectedVoice?: string | null;
   speechPace?: number;
   voiceTuning?: Omit<VoiceTuningSettings, 'voiceId'> | null;
+  voiceDisplayName?: { id: string; displayName: string | null };
   sttSettings?: VoiceSttSettings;
 };
 

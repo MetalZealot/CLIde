@@ -48,6 +48,7 @@ MAX_NAMED_SPEAKERS = 32
 VOICE_LABELS_PATH = VOICE_ROOT / "voice-labels.json"
 VOICE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,80}(?:#\d{1,4})?$")
 VOICE_GENDERS = {"", "male", "female", "neutral"}
+MAX_VOICE_DISPLAY_NAME_CHARS = 80
 MAX_VOICE_NOTE_CHARS = 2_000
 voice_labels_lock = threading.Lock()
 
@@ -919,6 +920,24 @@ def _matching_catalog_voice(model_id: str, speaker_id: int | None) -> str | None
     return None
 
 
+def _voice_display_names() -> dict[str, str]:
+    """Publish only valid friendly names for voices still installed."""
+    names: dict[str, str] = {}
+    for voice_id, entry in _read_voice_labels().items():
+        display_name = entry.get("display_name")
+        if not isinstance(display_name, str):
+            continue
+        normalized = display_name.strip()
+        if not normalized or len(normalized) > MAX_VOICE_DISPLAY_NAME_CHARS:
+            continue
+        try:
+            _voice_key_parts(voice_id)
+        except ValueError:
+            continue
+        names[voice_id] = normalized
+    return names
+
+
 def _installed_voice_preset(voice_id: str) -> VoicePreset:
     """Resolve only a runtime-published model/speaker ID, never a path."""
     model_id, speaker_id, model = _voice_key_parts(voice_id)
@@ -1046,7 +1065,8 @@ def _save_voice_label(data: dict[str, Any]) -> tuple[str, dict[str, Any] | None]
                 entry[field] = data[field]
         entry["updated"] = round(time.time())
         if not entry.get("gender") and not entry.get("favorite") \
-                and not entry.get("notes") and not entry.get("heard"):
+                and not entry.get("notes") and not entry.get("heard") \
+                and not entry.get("display_name"):
             voices.pop(key, None)
             saved_entry = None
         else:
@@ -1054,6 +1074,34 @@ def _save_voice_label(data: dict[str, Any]) -> tuple[str, dict[str, Any] | None]
             saved_entry = entry
         _write_voice_labels(voices)
     return key, saved_entry
+
+
+def _save_voice_display_name(data: dict[str, Any]) -> None:
+    """Save a CLIde-facing name without exposing Studio-only metadata."""
+    voice_id = str(data.get("id", "")).strip()
+    _voice_key_parts(voice_id)
+    display_name = data.get("display_name")
+    if display_name is not None and not isinstance(display_name, str):
+        raise ValueError("display_name must be text or null")
+    normalized = (display_name or "").strip()
+    if len(normalized) > MAX_VOICE_DISPLAY_NAME_CHARS:
+        raise ValueError("display_name must be at most 80 characters")
+
+    with voice_labels_lock:
+        voices = _read_voice_labels()
+        entry = dict(voices.get(voice_id) or {})
+        if normalized:
+            entry["display_name"] = normalized
+            entry["updated"] = round(time.time())
+            voices[voice_id] = entry
+        else:
+            entry.pop("display_name", None)
+            if any(entry.get(field) for field in ("gender", "favorite", "notes", "heard")):
+                entry["updated"] = round(time.time())
+                voices[voice_id] = entry
+            else:
+                voices.pop(voice_id, None)
+        _write_voice_labels(voices)
 
 
 @app.get("/api/voice-settings")
@@ -1067,6 +1115,7 @@ def get_voice_settings() -> Response:
             "favorites": True,
             "voice_selection": True,
             "voice_tuning": True,
+            "voice_display_names": True,
             "stt_settings": True,
         },
         "tts": {
@@ -1087,6 +1136,7 @@ def get_voice_settings() -> Response:
             ],
             "installed_models": _installed_models(),
             "favorites": _favorite_voices(),
+            "display_names": _voice_display_names(),
         },
         "stt": {
             "models": [
@@ -1101,7 +1151,10 @@ def get_voice_settings() -> Response:
 @app.put("/api/voice-settings")
 def put_voice_settings() -> Response:
     payload = request.get_json(silent=True)
-    allowed = {"default_voice", "selected_voice", "speech_pace", "voice_tuning", "stt_settings"}
+    allowed = {
+        "default_voice", "selected_voice", "speech_pace", "voice_tuning",
+        "voice_display_name", "stt_settings",
+    }
     if not isinstance(payload, dict) or not payload or set(payload) - allowed:
         return jsonify({"error": "Expected a supported voice setting"}), 400
     current = rules_store.current()
@@ -1124,6 +1177,12 @@ def put_voice_settings() -> Response:
         if str(stt_settings.get("model", "")).strip() not in _whisper_models():
             raise ValueError("Choose an installed Whisper model")
         voices = dict(current.voices)
+        if "voice_display_name" in payload:
+            display_name = payload["voice_display_name"]
+            if not isinstance(display_name, dict) \
+                    or set(display_name) != {"id", "display_name"}:
+                raise ValueError("voice_display_name must contain id and display_name")
+            _save_voice_display_name(display_name)
         if "voice_tuning" in payload:
             effective_voice = normalized or normalized_default or DEFAULT_TTS_VOICE
             if not effective_voice:

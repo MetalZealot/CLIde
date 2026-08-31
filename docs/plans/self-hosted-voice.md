@@ -1,12 +1,12 @@
 # Self-hosted dictation and read-aloud
 
-- Status: 4/10
-- Next: phone-accept Voice Library browsing and shared selection/favorite/default
-  edits, then add lightweight label and gender editing.
+- Status: 8/11
+- Next: separate Voice Studio into an independently run personal tool.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts),
   [shared voice settings decision](../decisions/0049-voice-runtime-owns-shared-settings.md),
+  [standalone Studio decision](../decisions/0050-voice-studio-is-a-standalone-personal-tool.md),
   [UI standards](../maps/ui-standards.md), and the host-local voice README, which
   owns runtime, model, catalog, benchmark, and deployment facts
 
@@ -21,51 +21,53 @@
 - [x] **3. Durable loopback service.** Install and enable the host-local user
       service, keep it on loopback, and prove both endpoints after restart.
 - [x] **4. CLIde wiring and installed-PWA acceptance.** Phone acceptance covers
-      editable unsent dictation; read-aloud controls,
-      timing and cancellation; cross-session/background playback; notification
-      and lock-screen state; and earbud pause. The auditable
-      [speech front end](tts-speech-front-end.md) owns final listening behavior.
-- [~] **5. Bounded catalog in Settings.** The agreed male/female, low/medium/
-      size/locale/bonus catalog is implemented. Grayson accepted all eight
-      picker paths, replaced Spike with US-medium Kusal, and saved final pacing
-      for every chosen voice in Studio. Studio's saved STT preset also flows
-      into CLIde. Custom backends retain free-text entry; Rocket remains
+      editable dictation, read-aloud controls/cancellation, background playback,
+      notification state, and earbud pause. The auditable
+      [speech front end](tts-speech-front-end.md) owns listening behavior.
+- [x] **5. Bounded catalog in Settings.** The agreed male/female, low/medium/
+      size/locale/bonus catalog is implemented. Grayson accepted all eight paths,
+      replaced Spike with US-medium Kusal, and saved final pacing in Studio.
+      Studio's STT preset flows into CLIde. Custom backends retain free-text; Rocket remains
       user-installed because it lacks model-specific training provenance.
-- [~] **6. Shared inventory and settings ownership.** Make the authenticated
+- [x] **6. Shared inventory and settings ownership.** Make the authenticated
       runtime authoritative for installed models, runtime default, favorites,
       per-voice baselines, chosen voice, STT preset, and capabilities. Publish
-      safe IDs and labels, never browser paths; CLIde and Voice Studio edit the
-      same contract, while custom backends expose only supported capabilities.
+      safe IDs and labels, never browser paths; CLIde and optional companion
+      tools edit the same contract, while custom backends expose only supported capabilities.
       Runtime, server, and client contracts cover these values. Missing pace
       defaults to neutral; a rejected mixed-version save stays rendered with an
-      inline error. Grayson's phone pass confirmed the slider returns to 1.00;
-      shared-value deployment remains.
-- [~] **7. Daily TTS surface.** Keep ordinary Voice settings compact: current
+      inline error. Grayson's phone pass confirmed the slider returns to 1.00.
+- [x] **7. Daily TTS surface.** Keep ordinary Voice settings compact: current
       voice, runtime default, Favorites, editable preview with generation and
       playback timing, relative Speech pace, and a route to Voice Library.
-      Installed inventory does not belong in the daily picker. Pace changes
-      speed and pauses relative to the saved per-voice baseline; exact values
-      and Reset stay under Fine tuning. Move connection and raw model fields to
-      Custom backend. Direct Default and Favorite rows now replace the inventory
-      dropdown. Voice selection groups the picker with its library route;
-      Favorite rows retain speaker identity without Voice Studio gender tags.
-      Playback groups a full-width speed row with Fine tuning. Preview timing
-      stays above its controls instead of wrapping below them. Phone acceptance
-      remains.
-- [~] **8. Voice Library.** Group searchable rows by human name and language;
+      Pace changes speed and pauses relative to the saved per-voice baseline;
+      exact values and Reset stay under Fine tuning. Connection and raw model
+      fields belong to Custom backend. Default and Favorite rows replace the
+      inventory dropdown; Favorite rows retain speaker identity. Preview timing
+      stays above its controls.
+- [x] **8. Voice Library.** Group searchable rows by human name and language;
       nest sizes and select single-model/single-speaker voices directly.
       Multi-speaker families keep size selection and speaker browsing together;
       large sets such as LibriTTS-R use 32-speaker pages or exact-number search.
       Their Favorites view bypasses paging and preserves speaker identity.
       Selection, Favorite, and writable default pass focused tests. Never expose
-      dataset names as voices. Label/gender editing and phone acceptance remain.
-- [~] **9. Daily STT surface.** List every runtime-published installed Whisper
+      dataset names as voices. Optional friendly names are searchable, preserve
+      original identity, and round-trip by stable voice ID. Personal gender,
+      heard, and audition notes do not belong here. Grayson's phone pass
+      confirmed friendly-name saving, search, and original-name restoration.
+- [ ] **9. Separate Voice Studio.** Move `voice/studio` into a private,
+      independently run personal tool. CLIde depends only on runtime capabilities.
+      Keep favorites, default/selection, optional display aliases, tuning, and STT
+      in the runtime contract; keep gender balance, heard state, audition notes,
+      recordings, and experiments in Studio-owned data. Preserve existing data
+      and the host service during migration.
+- [~] **10. Daily STT surface.** List every runtime-published installed Whisper
       model and expose decoder preset, Vocabulary hint, noise suppression, and
       echo cancellation as ordinary controls. Model choices name their speed/
       accuracy tradeoff, Vocabulary hint explains its input, and Advanced keeps
       thread count and microphone processing in the Dictation card. Changes
       round-trip without a restart; focused tests pass and phone acceptance remains.
-- [ ] **10. Nearer-live dictation experiment.** Test phrase-level final insertion
+- [ ] **11. Nearer-live dictation experiment.** Test phrase-level final insertion
       after pauses against the accepted push-to-talk baseline. Add provisional
       word-level streaming only if that experiment proves the extra transport and
       composer-reconciliation complexity worthwhile.
@@ -79,12 +81,14 @@
 - Read-aloud uses the accepted auditable speech front end rather than integration-
   specific pronunciation patches.
 - Playback stop/replay and chat switching behave correctly on the real device.
-- CLIde and Voice Studio show the same runtime-owned default, favorites,
+- CLIde and optional companion tools share runtime-owned default, favorites,
   installed inventory, per-voice presets, and STT settings across devices.
+- A CLIde checkout neither contains nor requires Voice Studio; personal audition
+  metadata is absent from CLIde's runtime contract.
 - The ordinary Voice screen prioritizes Default and Favorites, needs no raw
   backend knowledge, and stays usable during a client/runtime version mismatch.
-- Voice Library represents each voice family once, makes multi-speaker selection usable
-  at both small and large scales, and edits shared favorite/default metadata.
+- Voice Library groups families, handles large casts, and edits shared
+  favorite/default metadata.
 - Custom backend remains available for OpenAI-compatible providers and degrades
   by capability instead of exposing Piper-only controls.
 - Preview reports generation and playback time, and Speech pace changes speed
@@ -107,6 +111,6 @@
 - Copying Voice Studio's batch audition, comparison, model installation/deletion,
   deep tuning, or diagnostic workflows into CLIde. CLIde owns daily use and
   lightweight library organization; Voice Studio remains the voice laboratory.
-- Streaming or provisional word-level dictation before Phase 10 justifies it.
+- Streaming or provisional word-level dictation before Phase 11 justifies it.
 - Combining Piper or whisper.cpp upgrades with initial deployment; each needs
   separate performance and listening acceptance.

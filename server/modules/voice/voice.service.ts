@@ -137,6 +137,7 @@ function createTranscriptionFormData(audio: VoiceAudioUpload, sttModel: string):
 
 const VOICE_GENDERS = new Set<VoiceCatalogOption['gender']>(['male', 'female']);
 const VOICE_TIERS = new Set<VoiceCatalogOption['tier']>(['low', 'medium', 'medium-gb', 'bonus']);
+const SAFE_VOICE_ID_PATTERN = /^[A-Za-z0-9_.-]{1,80}(?:#\d{1,4})?$/;
 
 function parseCatalogOption(value: unknown): VoiceCatalogOption | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -281,6 +282,7 @@ function unsupportedRuntimeSettings(): VoiceRuntimeSettingsPayload {
       favorites: false,
       voiceSelection: false,
       voiceTuning: false,
+      voiceDisplayNames: false,
       sttSettings: false,
     },
     tts: {
@@ -292,6 +294,7 @@ function unsupportedRuntimeSettings(): VoiceRuntimeSettingsPayload {
       catalog: [],
       installedModels: [],
       favorites: [],
+      displayNames: {},
     },
     stt: {
       models: [],
@@ -331,6 +334,7 @@ function parseRuntimeSettings(payload: unknown): VoiceRuntimeSettingsPayload {
       favorites: capabilities.favorites === true,
       voiceSelection: capabilities.voice_selection === true,
       voiceTuning: capabilities.voice_tuning === true,
+      voiceDisplayNames: capabilities.voice_display_names === true,
       sttSettings: capabilities.stt_settings === true,
     },
     tts: {
@@ -364,6 +368,15 @@ function parseRuntimeSettings(payload: unknown): VoiceRuntimeSettingsPayload {
         ? tts.favorites.map(parseFavorite)
           .filter((favorite): favorite is VoiceFavoriteOption => favorite !== null)
         : [],
+      displayNames: tts.display_names && typeof tts.display_names === 'object'
+        && !Array.isArray(tts.display_names)
+        ? Object.fromEntries(Object.entries(tts.display_names).flatMap(([id, name]) => (
+          SAFE_VOICE_ID_PATTERN.test(id) && typeof name === 'string'
+            && name.trim() && name.trim().length <= 80
+            ? [[id, name.trim()]]
+            : []
+        )))
+        : {},
     },
     stt: {
       models: Array.isArray(stt.models)
@@ -428,6 +441,12 @@ async function writeRuntimeSettings(
             length_scale: input.voiceTuning.lengthScale,
             sentence_silence_seconds: input.voiceTuning.sentenceSilenceSeconds,
             structure_silence_seconds: input.voiceTuning.structureSilenceSeconds,
+          },
+        } : {}),
+        ...(input.voiceDisplayName !== undefined ? {
+          voice_display_name: {
+            id: input.voiceDisplayName.id,
+            display_name: input.voiceDisplayName.displayName,
           },
         } : {}),
         ...(input.sttSettings !== undefined ? {

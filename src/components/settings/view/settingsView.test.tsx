@@ -176,6 +176,7 @@ describe('ChatVoiceBackendScreen', () => {
       favorites: true,
       voiceSelection,
       voiceTuning: true,
+      voiceDisplayNames: true,
       sttSettings: true,
     },
     tts: {
@@ -204,6 +205,7 @@ describe('ChatVoiceBackendScreen', () => {
         lengthScale: 1,
         notes: '',
       }],
+      displayNames: {},
       installedModels: [
         {
           id: 'en_US-danny-low', numSpeakers: 1, speakers: [], language: 'en_US', region: 'US',
@@ -302,8 +304,11 @@ describe('ChatVoiceBackendScreen', () => {
   });
 
   test('shows a selected non-favorite without exposing installed inventory metadata', async () => {
+    const current = runtimeSettings('en_US-kusal-medium');
+    current.tts.displayNames['en_US-kusal-medium'] = 'Work narrator';
+    current.tts.displayNames['en_US-danny-low'] = 'Classic Danny';
     globalThis.fetch = (async () => new Response(
-      JSON.stringify(runtimeSettings('en_US-kusal-medium')),
+      JSON.stringify(current),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     )) as typeof fetch;
 
@@ -312,19 +317,27 @@ describe('ChatVoiceBackendScreen', () => {
 
     const picker = host.querySelector<HTMLButtonElement>('[role="combobox"]');
     assert.ok(picker);
-    assert.equal(picker.textContent?.replace(/\s+/g, ' ').trim(), 'Kusal');
+    assert.equal(picker.textContent?.replace(/\s+/g, ' ').trim(), 'Work narrator');
     assert.doesNotMatch(host.textContent ?? '', /Training|AgentVibes|Installed voices/);
 
     await React.act(async () => picker.click());
     const listbox = document.querySelector('[role="listbox"]');
     assert.ok(listbox);
-    assert.match(listbox.textContent ?? '', /Current voice.*Kusal/s);
+    assert.match(listbox.textContent ?? '', /Current voice.*Work narrator/s);
+    assert.match(listbox.textContent ?? '', /Favorites.*Classic Danny.*Danny.*en-US · low/s);
     assert.equal(listbox.querySelectorAll('[role="option"]').length, 3);
+    const classicDanny = [...listbox.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((option) => option.textContent?.includes('Classic Danny'));
+    const metadata = [...(classicDanny?.querySelectorAll<HTMLElement>('span') ?? [])]
+      .find((span) => span.textContent === 'Danny · en-US · low');
+    assert.match(metadata?.className ?? '', /\btext-xs\b/);
+    assert.match(metadata?.className ?? '', /\btruncate\b/);
   });
 
   test('keeps the Voice screen usable when an older runtime rejects pace changes', async () => {
     const legacySettings = runtimeSettings('danny-low');
     delete (legacySettings.tts as Partial<typeof legacySettings.tts>).speechPace;
+    delete (legacySettings.tts as Partial<typeof legacySettings.tts>).displayNames;
     let paceWrites = 0;
     globalThis.fetch = (async (_input, init) => {
       if (init?.method === 'PUT') {
@@ -529,6 +542,127 @@ describe('ChatVoiceBackendScreen', () => {
     assert.match(host.textContent ?? '', /Speaker 546/);
     assert.doesNotMatch(host.textContent ?? '', /1–32 of 904/);
   });
+
+  test('renames the selected voice, searches both names, and restores the original', async () => {
+    const current = runtimeSettings('en_US-libritts_r-medium#546');
+    const writes: unknown[] = [];
+    globalThis.fetch = (async (_input, init) => {
+      if (init?.method === 'PUT') {
+        const body = JSON.parse(String(init.body)) as {
+          voiceDisplayName?: { id: string; displayName: string | null };
+        };
+        if (body.voiceDisplayName) {
+          writes.push(body);
+          const { id, displayName } = body.voiceDisplayName;
+          if (displayName) current.tts.displayNames[id] = displayName;
+          else delete current.tts.displayNames[id];
+        }
+      }
+      return new Response(JSON.stringify(current), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    const host = await renderLibrary();
+    await flush();
+    const modelButton = [
+      ...host.querySelectorAll<HTMLButtonElement>('button'),
+    ].find((button) => button.textContent?.includes('LibriTTS R'));
+    assert.ok(modelButton);
+    await React.act(async () => modelButton.click());
+
+    const search = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Search speakers or enter a speaker number"]',
+    );
+    assert.ok(search);
+    await React.act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      valueSetter?.call(search, '546');
+      search.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+
+    const editName = [
+      ...host.querySelectorAll<HTMLButtonElement>('button'),
+    ].find((button) => button.textContent?.trim() === 'Edit friendly name');
+    assert.ok(editName);
+    await React.act(async () => editName.click());
+    const nameInput = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Friendly name"]',
+    );
+    assert.equal(nameInput?.placeholder, 'LibriTTS R · Speaker 546');
+
+    await React.act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      valueSetter?.call(nameInput, 'Evening narrator');
+      nameInput?.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+    const save = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent?.trim() === 'Save',
+    );
+    assert.ok(save);
+    await React.act(async () => save.click());
+    await flush();
+
+    assert.match(host.textContent ?? '', /Evening narrator/);
+    assert.match(host.textContent ?? '', /Speaker 546/);
+    assert.match(host.textContent ?? '', /Friendly name saved/);
+
+    await React.act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      valueSetter?.call(search, 'Evening');
+      search.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+    assert.match(host.textContent ?? '', /Evening narrator/);
+    await React.act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      valueSetter?.call(search, '546');
+      search.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+    assert.match(host.textContent ?? '', /Evening narrator/);
+
+    const editAgain = [
+      ...host.querySelectorAll<HTMLButtonElement>('button'),
+    ].find((button) => button.textContent?.trim() === 'Edit friendly name');
+    assert.ok(editAgain);
+    await React.act(async () => editAgain.click());
+    const restore = [
+      ...host.querySelectorAll<HTMLButtonElement>('button'),
+    ].find((button) => button.textContent?.trim() === 'Use original name');
+    assert.ok(restore);
+    await React.act(async () => restore.click());
+    await flush();
+
+    assert.doesNotMatch(host.textContent ?? '', /Evening narrator/);
+    assert.match(host.textContent ?? '', /Original name restored/);
+    assert.deepEqual(writes, [
+      {
+        voiceDisplayName: {
+          id: 'en_US-libritts_r-medium#546',
+          displayName: 'Evening narrator',
+        },
+      },
+      {
+        voiceDisplayName: {
+          id: 'en_US-libritts_r-medium#546',
+          displayName: null,
+        },
+      },
+    ]);
+  });
+
 
   test('shows a speaker identity for legacy favorites and omits Voice Studio gender metadata', async () => {
     const current = runtimeSettings(null);

@@ -87,3 +87,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0047 — The liveness probe clears on any inbound frame, not a matching echo](0047-ws-liveness-probe-clears-on-any-frame.md)
 - [0048 — Mobile bottom navigation has five roles; plugins share overflow](0048-mobile-navbar-five-roles-plugin-overflow.md)
 - [0049 — The voice runtime owns shared settings](0049-voice-runtime-owns-shared-settings.md)
+- [0050 — Voice Studio is a standalone personal tool](0050-voice-studio-is-a-standalone-personal-tool.md)
