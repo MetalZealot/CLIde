@@ -192,9 +192,10 @@ async function getSessionMessages(
       return { messages: [], total: 0, hasMore: false };
     }
 
-    const projectDir = path.dirname(jsonLPath);
-    const files = await fsp.readdir(projectDir);
-    const agentFiles = files.filter((file) => file.endsWith('.jsonl') && file.startsWith('agent-'));
+    // Forked agents write to a `subagents/` directory named after the parent
+    // transcript, which does not exist until one has run.
+    const subagentDir = path.join(jsonLPath.replace(/\.jsonl$/, ''), 'subagents');
+    const agentFiles = await fsp.readdir(subagentDir).catch(() => [] as string[]);
 
     const messages: AnyRecord[] = [];
     const agentToolsCache = new Map<string, AnyRecord[]>();
@@ -241,7 +242,7 @@ async function getSessionMessages(
         continue;
       }
 
-      const agentFilePath = path.join(projectDir, agentFileName);
+      const agentFilePath = path.join(subagentDir, agentFileName);
       const tools = await parseAgentTools(agentFilePath);
       agentToolsCache.set(agentId, tools);
     }
