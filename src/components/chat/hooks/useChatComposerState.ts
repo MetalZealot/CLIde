@@ -47,6 +47,7 @@ interface UseChatComposerStateArgs {
   permissionMode: PermissionMode | string;
   collaborationMode: CollaborationMode | null;
   togglePermissionMode: () => void;
+  toggleCollaborationMode?: () => void;
   resolvePermissionModeForProvider: (provider: LLMProvider, requestedMode: PermissionMode | string) => PermissionMode;
   /**
    * Model every send and command carries: the open session's model when there
@@ -222,6 +223,17 @@ export function resolveSessionSendSetting(
   return sessionValue ?? (hasSession ? undefined : providerSeed);
 }
 
+export type ComposerTabAction = 'permission' | 'collaboration';
+
+/** Keeps reverse focus intact when the active provider has no collaboration modes. */
+export function resolveComposerTabAction(
+  shiftKey: boolean,
+  canToggleCollaboration: boolean,
+): ComposerTabAction | null {
+  if (!shiftKey) return 'permission';
+  return canToggleCollaboration ? 'collaboration' : null;
+}
+
 const createFakeSubmitEvent = () => {
   return { preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>;
 };
@@ -363,6 +375,7 @@ export function useChatComposerState({
   permissionMode,
   collaborationMode,
   togglePermissionMode,
+  toggleCollaborationMode,
   resolvePermissionModeForProvider,
   currentProviderModel,
   currentProviderEffort,
@@ -1545,8 +1558,14 @@ export function useChatComposerState({
       }
 
       if (event.key === 'Tab' && !showFileDropdown && !showCommandMenu) {
+        const action = resolveComposerTabAction(event.shiftKey, Boolean(toggleCollaborationMode));
+        if (!action) return;
         event.preventDefault();
-        togglePermissionMode();
+        if (action === 'collaboration') {
+          toggleCollaborationMode?.();
+        } else {
+          togglePermissionMode();
+        }
         return;
       }
 
@@ -1569,6 +1588,7 @@ export function useChatComposerState({
     },
     [
       togglePermissionMode,
+      toggleCollaborationMode,
       handleCommandMenuKeyDown,
       enterToSend,
       handleFileMentionsKeyDown,
@@ -1596,17 +1616,6 @@ export function useChatComposerState({
     },
     [resizeTextarea, setCursorPosition, syncInputOverlayScroll],
   );
-
-  const handleClearInput = useCallback(() => {
-    setInput('');
-    inputValueRef.current = '';
-    resetCommandMenuState();
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.focus();
-    }
-    setIsTextareaExpanded(false);
-  }, [resetCommandMenuState]);
 
   const handleAbortSession = useCallback(() => {
     if (!canAbortSession) {
@@ -1770,7 +1779,6 @@ export function useChatComposerState({
     handleTextareaClick,
     handleTextareaInput,
     syncInputOverlayScroll,
-    handleClearInput,
     handleAbortSession,
     handlePermissionDecision,
     handleGrantToolPermission,

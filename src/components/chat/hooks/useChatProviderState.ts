@@ -585,6 +585,14 @@ export function useChatProviderState({
   const currentCollaborationMode = availableCollaborationModes.length > 0
     ? collaborationMode
     : null;
+  const toggleCollaborationMode = useCallback(() => {
+    if (!currentCollaborationMode || availableCollaborationModes.length === 0) return;
+    const currentIndex = availableCollaborationModes.indexOf(currentCollaborationMode);
+    const nextMode = availableCollaborationModes[
+      (currentIndex + 1) % availableCollaborationModes.length
+    ];
+    selectCollaborationMode(nextMode);
+  }, [availableCollaborationModes, currentCollaborationMode, selectCollaborationMode]);
 
   const resolvePermissionModeForProvider = useCallback((
     targetProvider: LLMProvider,
@@ -743,6 +751,7 @@ export function useChatProviderState({
     availablePermissionModes,
     selectPermissionMode,
     togglePermissionMode,
+    toggleCollaborationMode,
     providerModelCatalog,
     providerModelsLoading,
     selectProviderModel,

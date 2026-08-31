@@ -15,7 +15,6 @@ import { XIcon, Loader2, ArrowUpIcon } from 'lucide-react';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
-import { isTouchPrimaryDevice } from '../../../../utils/pointer';
 import type {
   PendingRewind,
   QueuedDraft,
@@ -31,7 +30,6 @@ import {
   PromptInputTextarea,
   PromptInputFooter,
   PromptInputTools,
-  PromptInputButton,
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
 
@@ -111,8 +109,6 @@ interface ChatComposerProps {
   /** Active conversation id, or null on a chat with no session yet. */
   sessionKey: string | null;
   provider: LLMProvider;
-  hasInput: boolean;
-  onClearInput: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
   isDragActive: boolean;
   queuedDraft: QueuedDraft | null;
@@ -153,8 +149,6 @@ interface ChatComposerProps {
   onInputFocusChange?: (focused: boolean) => void;
   placeholder: string;
   isTextareaExpanded: boolean;
-  sendByCtrlEnter?: boolean;
-  enterToSend?: boolean;
 }
 
 export default function ChatComposer({
@@ -191,8 +185,6 @@ export default function ChatComposer({
   isRefreshingContextBreakdown,
   sessionKey,
   provider,
-  hasInput,
-  onClearInput,
   onSubmit,
   isDragActive,
   queuedDraft,
@@ -233,8 +225,6 @@ export default function ChatComposer({
   onInputFocusChange,
   placeholder,
   isTextareaExpanded,
-  sendByCtrlEnter,
-  enterToSend,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
 
@@ -300,26 +290,6 @@ export default function ChatComposer({
 
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim() || attachedFiles.length > 0);
-  // Mirrors handleKeyDown in useChatComposerState: plain Enter sends on desktop
-  // unless sendByCtrlEnter, and on touch only when enterToSend is opted in.
-  const isTouchPrimary = useMemo(() => isTouchPrimaryDevice(), []);
-  const plainEnterSends = isTouchPrimary ? Boolean(enterToSend) : !sendByCtrlEnter;
-  const submitHint = canQueueDraft
-    ? plainEnterSends
-      ? hasQueuedDraft
-        ? t('input.hintText.updateQueued', { defaultValue: 'Enter to update queued message' })
-        : t('input.hintText.queue', { defaultValue: 'Enter to queue your next message' })
-      : hasQueuedDraft
-        ? t('input.hintText.updateQueuedButton', { defaultValue: 'Send to update queued message' })
-        : t('input.hintText.queueButton', { defaultValue: 'Send to queue your next message' })
-    : plainEnterSends
-      ? t('input.hintText.enter')
-      : isTouchPrimary
-        ? t('input.hintText.enterNewline', {
-            defaultValue:
-              'Enter for new line • Tab to change modes • / for slash commands',
-          })
-        : t('input.hintText.ctrlEnter');
   const submitAriaLabel = disabled
     ? t('input.selectProjectToSend', { defaultValue: 'Select a project to send' })
     : canQueueDraft
@@ -538,31 +508,9 @@ export default function ChatComposer({
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
             )}
 
-            {hasInput && (
-              <PromptInputButton
-                tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
-                onClick={onClearInput}
-                className="hidden sm:flex"
-              >
-                <XIcon />
-              </PromptInputButton>
-            )}
-
           </PromptInputTools>
 
           <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
-            {/* The hint is the only part of this row allowed to shrink: the tools,
-                ring, and Send are all shrink-0, so without this the row overflows
-                and pushes Send past the composer edge once the clear button
-                mounts. */}
-            <div
-              className={`hidden min-w-0 truncate text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
-                input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
-              }`}
-            >
-              {submitHint}
-            </div>
-
             <TokenUsageSummary
               usage={tokenBudget}
               request={usagePopoverRequest}

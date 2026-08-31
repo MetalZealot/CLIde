@@ -9,6 +9,7 @@ import type { PendingPermissionRequest } from '../types/types';
 
 import {
   describeDropRejections,
+  resolveComposerTabAction,
   resolveSessionSendSetting,
   resolveUsagePopoverView,
   selectPastedAttachments,
@@ -46,6 +47,13 @@ test('an established session with no tracked value sends none, so the server res
 test('only a chat with no id yet inherits the provider seed', () => {
   assert.equal(resolveSessionSendSetting(null, 'high', false), 'high');
   assert.equal(resolveSessionSendSetting(null, undefined, false), undefined);
+});
+
+test('composer Tab shortcuts keep permissions and collaboration distinct', () => {
+  assert.equal(resolveComposerTabAction(false, false), 'permission');
+  assert.equal(resolveComposerTabAction(false, true), 'permission');
+  assert.equal(resolveComposerTabAction(true, true), 'collaboration');
+  assert.equal(resolveComposerTabAction(true, false), null, 'reverse focus survives without collaboration modes');
 });
 
 const fileItem = (name: string) => ({ kind: 'file', getAsFile: () => ({ name } as File) });

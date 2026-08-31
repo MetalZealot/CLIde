@@ -155,18 +155,8 @@
     "send": "Send",
     "selectProjectToSend": "Select a project to send",
     "stop": "Stop",
-    "hintText": {
-      "ctrlEnter": "Ctrl+Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
-      "enter": "Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
-      "enterNewline": "Enter for new line • Tab to change modes • / for slash commands",
-      "queue": "Enter to queue your next message",
-      "updateQueued": "Enter to update queued message",
-      "queueButton": "Send to queue your next message",
-      "updateQueuedButton": "Send to update queued message"
-    },
     "clickToChangeMode": "Click to change permission mode (or press Tab in input)",
     "showAllCommands": "Show all commands",
-    "clearInput": "Clear input",
     "scrollToBottom": "Scroll to bottom",
     "queue": {
       "sendNext": "Queue next message",
@@ -187,7 +177,7 @@
     "model": "Model",
     "permissions": "Permissions",
     "effortDefault": "Default",
-    "settingsChangeCacheNotice": "Changing model or effort may reduce cached-input reuse on the next turn.",
+    "settingsChangeCacheNotice": "Changing model or effort re-sends the conversation on the next turn — one turn at full input price, then caching resumes.",
     "dismissNotice": "Dismiss",
     "loadingModels": "Loading models…",
     "modelMenu": "Select model and reasoning effort",
@@ -196,7 +186,7 @@
     "backToModels": "Back to models",
     "permissionHeading": "How should {{provider}} actions be approved?",
     "togglePermissionMode": "Switch to {{mode}}",
-    "permissionQuickToggle": "Switch to {{mode}}. Long press for all access modes.",
+    "permissionQuickToggle": "Switch to {{mode}}",
     "openPermissionMenu": "Show all access modes",
     "mode": "Mode",
     "collaborationHeading": "Collaboration mode",
@@ -204,6 +194,15 @@
       "build": "Build",
       "plan": "Plan"
     },
+    "collaborationModeDescriptions": {
+      "build": "Implement changes and complete the task",
+      "plan": "Investigate and agree an approach before implementation"
+    },
+    "toggleCollaborationMode": "Switch to {{mode}}",
+    "collaborationQuickToggle": "Switch to {{mode}} (Shift+Tab)",
+    "openCollaborationMenu": "Show collaboration modes",
+    "permissionShortcut": "cycles permissions",
+    "collaborationShortcut": "cycles Build and Plan",
     "permissionOptions": {
       "claude": {
         "default": {
