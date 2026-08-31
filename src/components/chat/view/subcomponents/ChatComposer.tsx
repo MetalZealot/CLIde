@@ -514,7 +514,7 @@ export default function ChatComposer({
         </PromptInputBody>
 
         <PromptInputFooter>
-          <PromptInputTools>
+          <PromptInputTools className="min-w-0 flex-1 overflow-hidden">
             <NativeImageAttachmentPicker
               getInputProps={getInputProps}
               label={t('input.attachFiles')}
@@ -558,7 +558,7 @@ export default function ChatComposer({
 
           </PromptInputTools>
 
-          <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
+          <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
             {/* The hint is the only part of this row allowed to shrink: the tools,
                 ring, mic, and Send are all shrink-0, so without this the row
                 overflows and pushes Send past the composer edge once the clear

@@ -38,7 +38,25 @@
             <button id="speaker-next" class="icon-button" type="button" aria-label="Next speaker">›</button>
           </div>
 
-          <div id="speak-speed" style="margin-top:11px"></div>
+          <details class="disclosure" style="margin-top:11px">
+            <summary>
+              <span><strong>Advanced</strong> <small id="speak-advanced-summary">loading settings…</small></span>
+            </summary>
+            <div class="disclosure-body">
+              <div class="field">
+                <span>Synthesis preset</span>
+                <button id="speak-preset" class="picker-button" type="button">
+                  <span class="picker-value"><strong>Loading…</strong><small>Audition only</small></span>
+                </button>
+              </div>
+              <div id="speak-settings"></div>
+              <label class="check-row">
+                <input id="speak-normalize" type="checkbox" checked>
+                <span><strong>Normalize audio</strong><small>Even out the final waveform level.</small></span>
+              </label>
+              <small>These values affect this audition only. Pronunciation rules still apply; saved CLIde pacing stays unchanged.</small>
+            </div>
+          </details>
 
           <div class="button-row">
             <button id="clide-speak" class="primary" type="button">Speak it</button>
@@ -47,6 +65,9 @@
           <p id="clide-status" class="status" role="status" aria-live="polite">Ready.</p>
 
           <audio id="clide-audio" controls preload="metadata" hidden></audio>
+          <div id="recording-save-row" class="button-row" hidden>
+            <button id="recording-save-open" class="secondary" type="button">Save recording</button>
+          </div>
 
           <div id="label-row" hidden>
             <div class="card-head" style="margin:12px 0 8px">
@@ -107,6 +128,21 @@ It took 8.67s. The fix is live.</textarea>
         </section>
       </section>
 
+      <!-- Recordings ------------------------------------------------ -->
+      <section id="recordings-studio" class="studio-pane" aria-label="Saved speech recordings" hidden>
+        <section class="card span-all">
+          <div class="card-head">
+            <div class="card-head-text">
+              <h2>Recordings</h2>
+              <small id="recordings-count">Saved Speak output on this Pi.</small>
+            </div>
+            <button id="recordings-refresh" class="ghost" type="button">Refresh</button>
+          </div>
+          <p id="recordings-status" class="status" role="status" aria-live="polite"></p>
+          <div id="recordings-list"><p class="muted">Loading…</p></div>
+        </section>
+      </section>
+
       <!-- Favorites -------------------------------------------------- -->
       <section id="favorites-studio" class="studio-pane" aria-label="Favorite voices" hidden>
         <section class="card span-all">
@@ -131,8 +167,8 @@ It took 8.67s. The fix is live.</textarea>
 
       <!-- Rules ------------------------------------------------------ -->
       <section id="rules-studio" class="studio-pane" aria-label="Speech rules" hidden>
-        <section class="card">
-          <div class="card-head">
+        <section class="card rules-card">
+          <div class="card-head rules-card-head">
             <div class="card-head-text">
               <h2>Pronunciation</h2>
               <small>Respell a word. Takes effect on the next Speak.</small>
@@ -196,6 +232,10 @@ It took 8.67s. The fix is live.</textarea>
                 <label><input id="whisper-auto-gain" type="checkbox"> Automatic gain</label>
               </div>
               <small>Mic settings apply to a new recording only. Keep them fixed while comparing models.</small>
+              <div class="button-row" style="margin-top:11px">
+                <button id="whisper-save-clide" class="secondary" type="button">Save to CLIde</button>
+              </div>
+              <p id="whisper-sync-status" class="status" role="status" aria-live="polite"></p>
             </div>
           </details>
 
@@ -238,6 +278,10 @@ It took 8.67s. The fix is live.</textarea>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
         Dictation
       </button>
+      <button type="button" data-studio-tab="recordings" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6zM9 8h6M9 12h6M9 16h4"/></svg>
+        Recordings
+      </button>
     </nav>
 
     <!-- Voice picker: two levels, models then speakers. --------------- -->
@@ -275,6 +319,23 @@ It took 8.67s. The fix is live.</textarea>
       <div class="sheet-body"><pre id="text-sheet-body" style="white-space:pre-wrap;font:0.74rem/1.6 ui-monospace,monospace"></pre></div>
     </div>
 
+    <div id="recording-save-sheet" class="sheet" role="dialog" aria-label="Save recording" hidden>
+      <div class="sheet-head">
+        <p class="sheet-title">Save recording</p>
+        <button id="recording-save-close" class="ghost" type="button">Close</button>
+      </div>
+      <div class="sheet-body">
+        <form id="recording-save-form" class="card">
+          <label class="field">
+            <span>Title</span>
+            <input id="recording-title" type="text" maxlength="120" autocomplete="off" required>
+          </label>
+          <button id="recording-save" class="primary" type="submit">Save</button>
+          <p id="recording-save-status" class="status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+
     <template id="whisper-take-template">
       <article class="take-card">
         <div class="take-head"><span class="whisper-take-number"></span><button class="whisper-remove-take remove-button" type="button" aria-label="Remove take">×</button></div>
@@ -286,6 +347,7 @@ It took 8.67s. The fix is live.</textarea>
 
     <script src="/static/shell.js?v={{ asset_version }}" defer></script>
     <script src="/static/voices.js?v={{ asset_version }}" defer></script>
+    <script src="/static/recordings.js?v={{ asset_version }}" defer></script>
     <script src="/static/clide.js?v={{ asset_version }}" defer></script>
     <script src="/static/rules.js?v={{ asset_version }}" defer></script>
     <script src="/static/whisper.js?v={{ asset_version }}" defer></script>

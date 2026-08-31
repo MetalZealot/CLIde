@@ -26,6 +26,31 @@ function whisperStatus(message, kind = "") {
   status.className = `status ${kind}`;
 }
 
+function whisperSyncStatus(message, kind = "") {
+  const status = el("whisper-sync-status");
+  status.textContent = message;
+  status.className = `status ${kind}`;
+}
+
+function setWhisperMode(value) {
+  if (!["tiny.en", "base.en", "compare"].includes(value)) return;
+  whisperMode = value;
+  for (const chip of el("whisper-mode").querySelectorAll("[data-whisper-mode]")) {
+    const active = chip.dataset.whisperMode === value;
+    chip.classList.toggle("active", active);
+    chip.setAttribute("aria-pressed", String(active));
+  }
+}
+
+function setPickerValue(id, options, value) {
+  const option = options.find((candidate) => candidate.value === String(value));
+  if (!option) return;
+  const button = el(id);
+  button.dataset.value = option.value;
+  button.querySelector("strong").textContent = option.label;
+  button.querySelector("small").textContent = option.detail;
+}
+
 function updateAdvancedSummary() {
   const decoder = el("whisper-decoder-preset").dataset.value;
   const threads = el("whisper-threads").dataset.value;
@@ -71,6 +96,71 @@ function selectedCaptureSettings() {
     noiseSuppression: el("whisper-noise-suppression").checked,
     autoGainControl: el("whisper-auto-gain").checked,
   };
+}
+
+function applyClideSttSettings(settings) {
+  setWhisperMode(settings.model);
+  el("whisper-initial-prompt").value = settings.initial_prompt || "";
+  setPickerValue("whisper-decoder-preset", DECODER_OPTIONS, settings.decoder_preset);
+  setPickerValue("whisper-threads", THREAD_OPTIONS, settings.threads);
+  const capture = settings.capture || {};
+  el("whisper-echo-cancellation").checked = capture.echo_cancellation !== false;
+  el("whisper-noise-suppression").checked = capture.noise_suppression !== false;
+  el("whisper-auto-gain").checked = capture.auto_gain_control === true;
+  updateAdvancedSummary();
+}
+
+async function loadClideSttSettings() {
+  try {
+    const response = await fetch("/api/clide/stt-settings");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not load CLIde settings");
+    applyClideSttSettings(data);
+    whisperSyncStatus("Current CLIde dictation settings loaded.", "ok");
+  } catch (error) {
+    whisperSyncStatus(error.message || "Could not load CLIde settings.", "error");
+  }
+}
+
+async function saveClideSttSettings() {
+  if (whisperMode === "compare") {
+    whisperSyncStatus("Choose Fast or Accurate before saving to CLIde.", "error");
+    return;
+  }
+  const save = el("whisper-save-clide");
+  save.disabled = true;
+  whisperSyncStatus("Saving…", "working");
+  const settings = selectedWhisperSettings();
+  const capture = selectedCaptureSettings();
+  try {
+    const response = await fetch("/api/clide/stt-settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: whisperMode,
+        decoder_preset: settings.decoderPreset,
+        threads: settings.threads,
+        initial_prompt: settings.initialPrompt,
+        capture: {
+          echo_cancellation: capture.echoCancellation,
+          noise_suppression: capture.noiseSuppression,
+          auto_gain_control: capture.autoGainControl,
+        },
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not save CLIde settings");
+    applyClideSttSettings(data);
+    whisperSyncStatus("Saved. The next CLIde dictation uses these settings.", "ok");
+  } catch (error) {
+    whisperSyncStatus(error.message || "Could not save CLIde settings.", "error");
+  } finally {
+    save.disabled = false;
+  }
+}
+
+function markSttSettingsUnsaved() {
+  whisperSyncStatus("Changed — not saved yet.");
 }
 
 function formatCaptureSettings(captureSettings) {
@@ -192,18 +282,28 @@ function addWhisperTake(blob, text, recordingNumber, metrics) {
   history.prepend(card);
 }
 
-Studio.bindChips(el("whisper-mode"), "whisper-mode", (value) => { whisperMode = value; });
+Studio.bindChips(el("whisper-mode"), "whisper-mode", (value) => {
+  whisperMode = value;
+  markSttSettingsUnsaved();
+});
 Studio.bindPicker(el("whisper-decoder-preset"), {
   title: "Decoder preset",
   options: DECODER_OPTIONS,
-  onChange: updateAdvancedSummary,
+  onChange: () => { updateAdvancedSummary(); markSttSettingsUnsaved(); },
 });
 Studio.bindPicker(el("whisper-threads"), {
   title: "CPU threads",
   options: THREAD_OPTIONS,
-  onChange: updateAdvancedSummary,
+  onChange: () => { updateAdvancedSummary(); markSttSettingsUnsaved(); },
 });
 updateAdvancedSummary();
+
+el("whisper-initial-prompt").addEventListener("input", markSttSettingsUnsaved);
+for (const id of ["whisper-echo-cancellation", "whisper-noise-suppression", "whisper-auto-gain"]) {
+  el(id).addEventListener("change", markSttSettingsUnsaved);
+}
+el("whisper-save-clide").addEventListener("click", saveClideSttSettings);
+loadClideSttSettings();
 
 el("whisper-record").addEventListener("click", startWhisperRecording);
 el("whisper-stop").addEventListener("click", stopWhisperRecording);

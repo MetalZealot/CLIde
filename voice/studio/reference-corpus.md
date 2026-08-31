@@ -90,6 +90,44 @@ Prices rose 50% and C# and 3 * 7 still speak.
 > emoji names. "See the code block in this message" once. "C sharp" and the
 > numbers intact.
 
+## Unicode in normal prose
+
+````
+## Direction and navigation
+
+The request moves from input → normalizer → audio. Tap ← to return, or → to
+continue. The phone ↔ server connection works both ways. Passing every check
+⇒ release.
+
+## Typography
+
+Grayson said, “It’s ready”—then waited… Versions 3–5 use the voice‑first setup.
+Supported browsers include Samsung • Firefox • Chrome.
+
+## Maths and measurements
+
+Keep the room at 20°C. The target is ≤ 10 ms and the warning point is ≥ 25 ms.
+The reading is ≈ 50%, with a tolerance of ±5%. Three × seven is twenty-one;
+twelve ÷ four is three; the adjustment is −5. The square root √9 is three,
+and the limit approaches ∞.
+
+## Status and notices
+
+Setup complete ✓. Backup failed ✗. ⚠ The battery is low. ℹ More details are
+available in Settings. The favourite voice is marked ★.
+
+## Publishing and science
+
+See §4. Copyright © 2026 Acme®. CLIde™ remains the product name. The change is
+Δ, the wavelength is λ, the angle is θ, and resistance is 10 Ω.
+````
+
+> Listen for: "then" between the flow stages, named arrows only for the Back
+> and Continue controls, and no missing words in the Typography section. Maths,
+> measurements, warnings, section four, Greek letters and ohms should use their
+> spoken meanings. Copyright and trademark marks should stay silent without
+> deleting the names beside them.
+
 ## A whole reply
 
 ````

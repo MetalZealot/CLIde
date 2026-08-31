@@ -1,9 +1,9 @@
 """Editable speech rules, stored as data rather than code.
 
 Everything here is meant to be changed from Voice Studio without a restart:
-pronunciation fixes and the per-voice pacing knobs. The regex machinery in
-normalizer.py stays in code, because it is structural (Markdown, numbers,
-paths) rather than a judgement call about how one word should sound.
+dictation choices, microphone processing, pronunciation fixes and per-voice
+pacing. The regex machinery in normalizer.py stays in code, because it is
+structural (Markdown, numbers, paths) rather than a personal setting.
 
 Rules live in speech_rules.json under CLIDE_VOICE_ROOT -- his edits are data,
 so they sit outside the repository next to the voice models. The file is
@@ -76,11 +76,37 @@ EDITABLE_VOICE_FIELDS = {
     "structure_silence_seconds": (0.0, 2.0),
 }
 
+STT_DECODER_PRESETS = {"standard", "careful"}
+DEFAULT_STT_SETTINGS: dict[str, Any] = {
+    "model": "tiny.en",
+    "decoder_preset": "standard",
+    "threads": 4,
+    "initial_prompt": "",
+    "capture": {
+        "echo_cancellation": True,
+        "noise_suppression": True,
+        "auto_gain_control": False,
+    },
+}
+DEFAULT_TTS_SETTINGS: dict[str, Any] = {
+    # Empty preserves the runtime's code-configured fallback. A safe concrete
+    # model/speaker ID makes the user's library choice the shared default.
+    "default_voice": "",
+    # Empty means the runtime's configured default. A concrete safe voice ID
+    # can be selected by either CLIde or Voice Studio without a restart.
+    "selected_voice": "",
+    # Familiar media-player speed: 1.0 is each voice's saved baseline. Higher
+    # values shorten both spoken audio and inserted pauses proportionately.
+    "speech_pace": 1.0,
+}
+
 
 @dataclass
 class SpeechRules:
     pronunciations: list[dict[str, Any]] = field(default_factory=list)
     voices: dict[str, dict[str, Any]] = field(default_factory=dict)
+    stt: dict[str, Any] = field(default_factory=dict)
+    tts: dict[str, Any] = field(default_factory=dict)
 
     @staticmethod
     def _bounded(match: str) -> str:
@@ -137,7 +163,82 @@ def default_rules() -> SpeechRules:
     return SpeechRules(
         pronunciations=[dict(rule) for rule in DEFAULT_PRONUNCIATIONS],
         voices={},
+        stt={
+            **DEFAULT_STT_SETTINGS,
+            "capture": dict(DEFAULT_STT_SETTINGS["capture"]),
+        },
+        tts=dict(DEFAULT_TTS_SETTINGS),
     )
+
+
+def validate_tts(payload: Any) -> dict[str, Any]:
+    """Return bounded daily TTS controls; model resolution stays in app.py."""
+    if payload is None:
+        return dict(DEFAULT_TTS_SETTINGS)
+    if not isinstance(payload, dict):
+        raise ValueError("TTS settings must be an object")
+    voice_pattern = r"[A-Za-z0-9_.-]*(?:#\d{1,4})?"
+    default_voice = str(payload.get("default_voice", "")).strip()
+    selected_voice = str(payload.get("selected_voice", "")).strip()
+    if len(default_voice) > 96 or not re.fullmatch(voice_pattern, default_voice):
+        raise ValueError("TTS default voice must be a safe voice ID")
+    if len(selected_voice) > 96 or not re.fullmatch(voice_pattern, selected_voice):
+        raise ValueError("TTS selected voice must be a safe voice ID")
+    try:
+        speech_pace = float(payload.get("speech_pace", DEFAULT_TTS_SETTINGS["speech_pace"]))
+    except (TypeError, ValueError) as error:
+        raise ValueError("TTS speech pace must be a number") from error
+    if not 0.75 <= speech_pace <= 1.5:
+        raise ValueError("TTS speech pace must be between 0.75 and 1.5")
+    return {
+        "default_voice": default_voice,
+        "selected_voice": selected_voice,
+        "speech_pace": speech_pace,
+    }
+
+
+def validate_stt(payload: Any) -> dict[str, Any]:
+    """Return one complete, bounded dictation preset."""
+    if payload is None:
+        return default_rules().stt
+    if not isinstance(payload, dict):
+        raise ValueError("STT settings must be an object")
+
+    model = str(payload.get("model", DEFAULT_STT_SETTINGS["model"])).strip()
+    if len(model) > 80 or not re.fullmatch(r"[A-Za-z0-9_.-]+", model):
+        raise ValueError("STT model must be a safe installed model ID")
+    decoder = str(
+        payload.get("decoder_preset", DEFAULT_STT_SETTINGS["decoder_preset"])
+    ).strip()
+    if decoder not in STT_DECODER_PRESETS:
+        raise ValueError("STT decoder preset must be standard or careful")
+    try:
+        threads = int(payload.get("threads", DEFAULT_STT_SETTINGS["threads"]))
+    except (TypeError, ValueError) as error:
+        raise ValueError("STT threads must be a whole number") from error
+    if not 1 <= threads <= 4:
+        raise ValueError("STT threads must be between 1 and 4")
+    initial_prompt = str(payload.get("initial_prompt", "")).strip()
+    if len(initial_prompt) > 400:
+        raise ValueError("STT initial prompt is limited to 400 characters")
+
+    capture = payload.get("capture", DEFAULT_STT_SETTINGS["capture"])
+    if not isinstance(capture, dict):
+        raise ValueError("STT capture settings must be an object")
+    clean_capture: dict[str, bool] = {}
+    for key, fallback in DEFAULT_STT_SETTINGS["capture"].items():
+        value = capture.get(key, fallback)
+        if not isinstance(value, bool):
+            raise ValueError(f"STT capture '{key}' must be true or false")
+        clean_capture[key] = value
+
+    return {
+        "model": model,
+        "decoder_preset": decoder,
+        "threads": threads,
+        "initial_prompt": initial_prompt,
+        "capture": clean_capture,
+    }
 
 
 def validate(payload: Any) -> SpeechRules:
@@ -201,7 +302,12 @@ def validate(payload: Any) -> SpeechRules:
             clean[key] = number
         voices[str(voice_id)] = clean
 
-    return SpeechRules(pronunciations=pronunciations, voices=voices)
+    return SpeechRules(
+        pronunciations=pronunciations,
+        voices=voices,
+        stt=validate_stt(payload.get("stt")),
+        tts=validate_tts(payload.get("tts")),
+    )
 
 
 class RulesStore:
@@ -246,7 +352,12 @@ class RulesStore:
         rules = validate(payload)
         with self._lock:
             self._path.write_text(json.dumps(
-                {"pronunciations": rules.pronunciations, "voices": rules.voices},
+                {
+                    "pronunciations": rules.pronunciations,
+                    "voices": rules.voices,
+                    "stt": rules.stt,
+                    "tts": rules.tts,
+                },
                 indent=2,
             ) + "\n")
             self._stamp = self._stat()

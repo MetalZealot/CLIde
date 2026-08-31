@@ -133,21 +133,45 @@ export default function SettingsRail({
 
                     {isOnStack && children.length > 0 && (
                       <div className="space-y-1 pl-4">
-                        {children.map((child) => (
-                          <button
-                            key={child.id}
-                            type="button"
-                            onClick={() => onSelect(child.id)}
-                            className={cn(
-                              'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150',
-                              selectedId === child.id
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                            )}
-                          >
-                            <span className="truncate">{t(child.labelKey)}</span>
-                          </button>
-                        ))}
+                        {children.map((child) => {
+                          const grandchildren = getChildScreens(child.id);
+                          const childIsOnStack = stack.includes(child.id);
+                          return (
+                            <div key={child.id} className="space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => onSelect(child.id)}
+                                className={cn(
+                                  'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150',
+                                  childIsOnStack
+                                    ? 'bg-accent text-accent-foreground'
+                                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                                )}
+                              >
+                                <span className="truncate">{t(child.labelKey)}</span>
+                              </button>
+                              {childIsOnStack && grandchildren.length > 0 && (
+                                <div className="space-y-1 pl-4">
+                                  {grandchildren.map((grandchild) => (
+                                    <button
+                                      key={grandchild.id}
+                                      type="button"
+                                      onClick={() => onSelect(grandchild.id)}
+                                      className={cn(
+                                        'flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150',
+                                        selectedId === grandchild.id
+                                          ? 'bg-accent text-accent-foreground'
+                                          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                                      )}
+                                    >
+                                      <span className="truncate">{t(grandchild.labelKey)}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

@@ -142,7 +142,9 @@ The voice-specific conclusion is superseded by the selected production catalog;
 the normalizer findings and substitution rules still stand. Relative paths now
 render through `_speak_file_path` like absolute ones and `~` speaks as "home"; a
 colon only breaks a sentence when a space follows it, and clock times, decades,
-ISO dates, currency, percentages and proper fractions are all spoken. Still open:
+ISO dates, currency, percentages and proper fractions are all spoken. Piper 1.7.0
+passed the selected-voice listening sweep and controlled Pi benchmark, then
+replaced 1.4.2 in the live runtime. Still open:
 
 1. **Roman numerals.** Deliberately not done: "I" is a pronoun, "MIX", "DID" and
    "MI" are words, and the false positives would cost more than the misreadings.
@@ -150,9 +152,5 @@ ISO dates, currency, percentages and proper fractions are all spoken. Still open
 2. **Gate voices on the reference corpus.** Any voice failing the with/without
    duration test is rejected however good it sounds — `speech_probe.py drop` is the
    test. Worth surfacing as a button in the Studio next to the voice picker.
-3. **Upgrade piper-tts 1.4.2 -> 1.7.0** opportunistically. The changelog is other
-   languages' phonemizers and a C++ CLI, no English normalizer work, so it fixes
-   nothing here — re-run the sweep after.
-
 The Studio already shows prepared text, phonemes and measured pauses beside the
 audio, which was the other half of this list.

@@ -3,7 +3,12 @@ import { Readable } from 'node:stream';
 
 import express from 'express';
 
-import type { VoiceRequestOverrides, VoiceService, VoiceServiceResult } from '@/shared/types.js';
+import type {
+  VoiceRequestOverrides,
+  VoiceService,
+  VoiceServiceResult,
+  VoiceSttSettings,
+} from '@/shared/types.js';
 import { asyncHandler } from '@/shared/utils.js';
 
 type VoiceRouterDependencies = {
@@ -28,6 +33,24 @@ function parseVoiceOverrides(request: express.Request): VoiceRequestOverrides {
 }
 
 const VOICE_JOB_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const VOICE_SELECTION_ID_PATTERN = /^[A-Za-z0-9_.-]{1,80}(?:#\d{1,4})?$/;
+const STT_MODEL_ID_PATTERN = /^[A-Za-z0-9_.-]{1,80}$/;
+
+function isValidSttSettings(value: unknown): value is VoiceSttSettings {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const settings = value as Record<string, unknown>;
+  const capture = settings.capture;
+  if (!capture || typeof capture !== 'object' || Array.isArray(capture)) return false;
+  const captureSettings = capture as Record<string, unknown>;
+  return typeof settings.model === 'string' && STT_MODEL_ID_PATTERN.test(settings.model)
+    && (settings.decoderPreset === 'standard' || settings.decoderPreset === 'careful')
+    && typeof settings.threads === 'number' && Number.isInteger(settings.threads)
+    && settings.threads >= 1 && settings.threads <= 4
+    && typeof settings.initialPrompt === 'string' && settings.initialPrompt.length <= 400
+    && typeof captureSettings.echoCancellation === 'boolean'
+    && typeof captureSettings.noiseSuppression === 'boolean'
+    && typeof captureSettings.autoGainControl === 'boolean';
+}
 
 function readVoiceJobId(request: express.Request): string | null {
   const suppliedId = readHeaderValue(request.headers['x-voice-job-id']);
@@ -59,6 +82,89 @@ export function createVoiceRouter(dependencies: VoiceRouterDependencies): expres
 
   router.get('/health', asyncHandler(async (_request, response) => {
     response.json(await dependencies.voiceService.getHealth());
+  }));
+
+  router.get('/settings', asyncHandler(async (_request, response) => {
+    const result = await dependencies.voiceService.getSettings();
+    if (!sendFailure(response, result)) response.json(result.value);
+  }));
+
+  router.put('/settings', asyncHandler(async (request, response) => {
+    const defaultVoice = request.body?.defaultVoice;
+    const selectedVoice = request.body?.selectedVoice;
+    const speechPace = request.body?.speechPace;
+    const voiceTuning = request.body?.voiceTuning;
+    const sttSettings = request.body?.sttSettings;
+    const keys = request.body && typeof request.body === 'object' && !Array.isArray(request.body)
+      ? Object.keys(request.body)
+      : [];
+    if (keys.length === 0
+      || keys.some((key) => ![
+        'defaultVoice', 'selectedVoice', 'speechPace', 'voiceTuning', 'sttSettings',
+      ].includes(key))) {
+      response.status(400).json({
+        error: 'Expected a supported voice setting',
+      });
+      return;
+    }
+    if (defaultVoice !== undefined
+      && (typeof defaultVoice !== 'string' || !VOICE_SELECTION_ID_PATTERN.test(defaultVoice))) {
+      response.status(400).json({ error: 'defaultVoice must be a safe voice ID' });
+      return;
+    }
+    if (selectedVoice !== undefined && selectedVoice !== null
+      && (typeof selectedVoice !== 'string' || !VOICE_SELECTION_ID_PATTERN.test(selectedVoice))) {
+      response.status(400).json({ error: 'selectedVoice must be a safe voice ID or null' });
+      return;
+    }
+    if (speechPace !== undefined && (
+      typeof speechPace !== 'number' || !Number.isFinite(speechPace)
+      || speechPace < 0.75 || speechPace > 1.5
+    )) {
+      response.status(400).json({ error: 'speechPace must be between 0.75 and 1.5' });
+      return;
+    }
+    if (voiceTuning !== undefined && voiceTuning !== null) {
+      const tuningKeys = typeof voiceTuning === 'object' && !Array.isArray(voiceTuning)
+        ? Object.keys(voiceTuning)
+        : [];
+      const validNumber = (value: unknown, minimum: number, maximum: number) => (
+        typeof value === 'number' && Number.isFinite(value) && value >= minimum && value <= maximum
+      );
+      if (tuningKeys.length !== 3
+        || !['lengthScale', 'sentenceSilenceSeconds', 'structureSilenceSeconds']
+          .every((key) => tuningKeys.includes(key))
+        || !validNumber(voiceTuning.lengthScale, 0.35, 2.5)
+        || !validNumber(voiceTuning.sentenceSilenceSeconds, 0, 1.5)
+        || !validNumber(voiceTuning.structureSilenceSeconds, 0, 2)) {
+        response.status(400).json({ error: 'voiceTuning contains invalid timing values' });
+        return;
+      }
+    }
+    if (sttSettings !== undefined && !isValidSttSettings(sttSettings)) {
+      response.status(400).json({ error: 'sttSettings contains invalid dictation values' });
+      return;
+    }
+    const result = await dependencies.voiceService.updateSettings({
+      defaultVoice,
+      selectedVoice,
+      speechPace,
+      voiceTuning,
+      sttSettings,
+    });
+    if (!sendFailure(response, result)) response.json(result.value);
+  }));
+
+  router.put('/favorites', asyncHandler(async (request, response) => {
+    const id = request.body?.id;
+    const favorite = request.body?.favorite;
+    if (typeof id !== 'string' || !VOICE_SELECTION_ID_PATTERN.test(id)
+      || typeof favorite !== 'boolean') {
+      response.status(400).json({ error: 'Expected a safe voice id and favorite boolean' });
+      return;
+    }
+    const result = await dependencies.voiceService.updateFavorite({ id, favorite });
+    if (!sendFailure(response, result)) response.json(result.value);
   }));
 
   router.post('/transcribe', (request, response, next) => {

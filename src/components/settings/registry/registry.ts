@@ -48,7 +48,7 @@ export type SettingsScreenNode = {
   group: SettingsGroupId;
   /** Space-separated search terms; feeds the command palette now and search in P6. */
   keywords: string;
-  /** Present on sub-screens (depth 2). Absent means the screen sits at depth 1. */
+  /** Present on drill-down screens. Absent means the screen sits at depth 1. */
   parent?: string;
 };
 
@@ -195,6 +195,15 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
   },
   {
     kind: 'screen',
+    id: 'chat.voice.library',
+    labelKey: 'voiceSettings.library.title',
+    icon: 'voice',
+    group: 'app',
+    keywords: 'voice library installed models speakers favorites default piper',
+    parent: 'chat.voice',
+  },
+  {
+    kind: 'screen',
     id: 'notifications',
     labelKey: 'mainTabs.notifications',
     icon: 'notifications',
@@ -261,8 +270,8 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
 
 export const SETTINGS_NODES: SettingsNode[] = [...SETTINGS_GROUPS, ...SETTINGS_SCREENS];
 
-/** The deepest a screen may sit. Enforced by tests and by the navigation reducer. */
-export const MAX_SETTINGS_DEPTH = 2;
+/** Three levels allow Chat > Voice > Voice Library; model detail stays local. */
+export const MAX_SETTINGS_DEPTH = 3;
 
 /**
  * Old tab ids kept working as deep links, so `openSettings('api')` and any

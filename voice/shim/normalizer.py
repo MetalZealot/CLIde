@@ -75,7 +75,17 @@ def apply_lexicon(text: str, lexicon: Sequence[tuple[re.Pattern[str], str]] | No
 
         lexicon = rules_store.compiled()
     for pattern, replacement in lexicon:
-        text = pattern.sub(replacement, text)
+        def replace(match: re.Match[str], value: str = replacement) -> str:
+            source = match.group(0)
+            if source.isupper():
+                return value.upper()
+            if source[:1].isupper():
+                for index, character in enumerate(value):
+                    if character.isalpha():
+                        return f"{value[:index]}{character.upper()}{value[index + 1:]}"
+            return value
+
+        text = pattern.sub(replace, text)
     return text
 
 
@@ -312,6 +322,120 @@ def _speak_clock_time(match: re.Match[str]) -> str:
     return f"{spoken} {meridiem.lower()} m" if meridiem else spoken
 
 
+def _normalize_unicode_text(text: str) -> str:
+    """Preserve the meaning of common Unicode before the safety filter."""
+    text = text.translate(str.maketrans({
+        "\u00a0": " ", "\u2007": " ", "\u202f": " ", "\u200b": "", "\u00ad": "",
+        "\u2011": "-", "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
+        "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"', "\u2026": ".",
+        "\u00a9": "", "\u00ae": "", "\u2122": "",
+    }))
+
+    text = re.sub(
+        r"(\d+(?:\.\d+)?)\s*\u2013\s*(\d+(?:\.\d+)?)",
+        lambda match: f"{_speak_decimal(match.group(1))} to {_speak_decimal(match.group(2))}",
+        text,
+    )
+    text = re.sub(r"\s*[\u2012\u2013\u2014]\s*", ", ", text)
+    text = re.sub(r"\s*\u2022\s*", ", ", text)
+
+    directions = {
+        "\u2190": "left", "\u2191": "up", "\u2192": "right", "\u2193": "down",
+        "\u2039": "left", "\u203a": "right",
+    }
+
+    def speak_arrow_control(match: re.Match[str]) -> str:
+        return f"{match.group(1)} the {directions[match.group(2)]} arrow"
+
+    text = re.sub(
+        r"\b(tap|press|select|choose|use)\s+(?:the\s+)?([\u2190-\u2193\u2039\u203a])"
+        r"(?:\s+arrow(?:\s+key)?)?",
+        speak_arrow_control,
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\bor\s+([\u2190-\u2193\u2039\u203a])(?=\s+to\b)",
+        lambda match: f"or the {directions[match.group(1)]} arrow",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"\s*[\u2192\u203a]\s*", ", then ", text)
+    text = re.sub(r"\s*[\u2190\u2039]\s*", " comes from ", text)
+    text = re.sub(r"\s*[\u2194\u21c4\u21c6]\s*", " and ", text)
+    text = re.sub(r"\s*\u21d2\s*", " means ", text)
+    text = re.sub(r"\s*\u21d0\s*", " is implied by ", text)
+    text = re.sub(r"\s*\u2191\s*", " up ", text)
+    text = re.sub(r"\s*\u2193\s*", " down ", text)
+
+    text = re.sub(
+        r"(\d+(?:\.\d+)?)\s*\u00b0\s*([CF])\b",
+        lambda match: (
+            f"{_speak_decimal(match.group(1))} degrees "
+            f"{'Celsius' if match.group(2).upper() == 'C' else 'Fahrenheit'}"
+        ),
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"(\d+(?:\.\d+)?)\s*\u00b0",
+        lambda match: f"{_speak_decimal(match.group(1))} degrees",
+        text,
+    )
+    text = re.sub(
+        r"(\d+(?:\.\d+)?)\s*\u03a9\b",
+        lambda match: f"{_speak_decimal(match.group(1))} ohms",
+        text,
+    )
+    text = re.sub(
+        r"\u00a7\s*(\d+)",
+        lambda match: f"section {_number_to_words(int(match.group(1)))}",
+        text,
+    )
+    text = re.sub(
+        r"\u2212\s*(\d+(?:\.\d+)?)",
+        lambda match: f"minus {_speak_decimal(match.group(1))}",
+        text,
+    )
+    text = re.sub(
+        r"\bsquare\s+root\s*\u221a\s*(\d+(?:\.\d+)?)",
+        lambda match: f"square root of {_speak_decimal(match.group(1))}",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r"\u221a\s*(\d+(?:\.\d+)?)",
+        lambda match: f"square root of {_speak_decimal(match.group(1))}",
+        text,
+    )
+    text = re.sub(r"\bsquare\s+root\s*\u221a\s*", "square root of ", text, flags=re.IGNORECASE)
+
+    for symbol, spoken in {
+        "\u2264": "less than or equal to", "\u2265": "greater than or equal to",
+        "\u2260": "does not equal", "\u2248": "approximately",
+        "\u00b1": "plus or minus", "\u00d7": "times", "\u00f7": "divided by",
+        "\u2212": "minus", "\u221a": "square root of", "\u221e": "infinity",
+    }.items():
+        text = text.replace(symbol, f" {spoken} ")
+
+    text = re.sub(r"\bis\s+marked\s+\u2605", "is starred", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bmarked\s+\u2605", "starred", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bis\s+marked\s+\u2606", "is not starred", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bmarked\s+\u2606", "not starred", text, flags=re.IGNORECASE)
+    text = text.replace("\u2605", " starred ").replace("\u2606", " not starred ")
+    text = text.replace("\u26a0", " Warning. ").replace("\u2139", " Information. ")
+    text = text.replace("\u2713", "").replace("\u2714", "")
+    text = text.replace("\u2717", "").replace("\u2718", "")
+
+    for symbol, name in {
+        "\u03b1": "alpha", "\u03b2": "beta", "\u03b3": "gamma", "\u0394": "delta",
+        "\u03b4": "delta", "\u03b8": "theta", "\u03bb": "lambda", "\u03bc": "mu",
+        "\u03c0": "pi", "\u03c3": "sigma", "\u03a9": "omega",
+    }.items():
+        text = text.replace(symbol, f" {name} ")
+    return text
+
+
 def _speak_technical_text(text: str, path_separator: str) -> str:
     text = re.sub(
         r"https?://[^\s<>()\]]+",
@@ -417,7 +541,7 @@ def strip_markdown(text: str, path_separator: str = "slash") -> str:
     )
     text = re.sub(r"^\s{0,3}>\s?", "", text, flags=re.MULTILINE)
     text = re.sub(
-        r"^\s{0,3}(?:[-+*]|\d+[.)])\s+",
+        r"^\s{0,3}(?:[-+*\u2022]|\d+[.)])\s+",
         LIST_ITEM,
         text,
         flags=re.MULTILINE,
@@ -449,7 +573,7 @@ def strip_markdown(text: str, path_separator: str = "slash") -> str:
             continue
         rows.append(_ensure_pause(". ".join(cell for cell in cells if cell)) + BOUNDARY)
 
-    text = re.sub(r"\s*—\s*", ", ", html.unescape("\n".join(rows)))
+    text = _normalize_unicode_text(html.unescape("\n".join(rows)))
     return _speak_technical_text(text, path_separator)
 
 

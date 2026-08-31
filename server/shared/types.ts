@@ -1607,6 +1607,116 @@ export type VoiceCatalogOption = {
 };
 
 /**
+ * Browser microphone processing selected in Voice Studio for CLIde dictation.
+ *
+ * The backend relays these booleans from the configured local voice service;
+ * the chat recorder passes them directly to `getUserMedia` on each new capture.
+ */
+export type VoiceDictationCaptureSettings = {
+  echoCancellation: boolean;
+  noiseSuppression: boolean;
+  autoGainControl: boolean;
+};
+
+/** Capabilities advertised by a CLIde-aware voice runtime. */
+export type VoiceRuntimeCapabilities = {
+  installedVoices: boolean;
+  favorites: boolean;
+  voiceSelection: boolean;
+  voiceTuning: boolean;
+  sttSettings: boolean;
+};
+
+/** One safe installed Piper model published by the runtime, never a path. */
+export type VoiceInstalledModel = {
+  id: string;
+  numSpeakers: number;
+  speakers: string[];
+  language: string;
+  region: string;
+  quality: string;
+  dataset: string;
+  lengthScale: number;
+  noiseScale: number;
+  noiseWScale: number;
+  normalizeAudio: boolean;
+  volume: number;
+  sentenceSilenceSeconds: number;
+  structureSilenceSeconds: number;
+};
+
+/** One runtime-owned favorite, including its safe model and speaker identity. */
+export type VoiceFavoriteOption = {
+  id: string;
+  sourceKey: string;
+  modelId: string;
+  speakerId: number | null;
+  speakerName: string | null;
+  label: string;
+  gender: 'male' | 'female' | 'neutral' | null;
+  lengthScale: number | null;
+  notes: string;
+};
+
+/** One Whisper model the runtime can safely address by ID. */
+export type VoiceSttModelOption = {
+  id: string;
+  installed: boolean;
+};
+
+/** Complete runtime-owned dictation preset shared by Studio and CLIde. */
+export type VoiceSttSettings = {
+  model: string;
+  decoderPreset: 'standard' | 'careful';
+  threads: number;
+  initialPrompt: string;
+  capture: VoiceDictationCaptureSettings;
+};
+
+/** Exact timing baseline for one runtime voice, before the global pace multiplier. */
+export type VoiceTuningSettings = {
+  voiceId: string;
+  lengthScale: number;
+  sentenceSilenceSeconds: number;
+  structureSilenceSeconds: number;
+};
+
+/** Authenticated daily settings contract published by a CLIde-aware runtime. */
+export type VoiceRuntimeSettingsPayload = {
+  capabilities: VoiceRuntimeCapabilities;
+  tts: {
+    defaultVoice: string | null;
+    selectedVoice: string | null;
+    effectiveVoice: string | null;
+    /** Familiar media speed multiplier; 1 preserves every per-voice baseline. */
+    speechPace: number;
+    tuning: VoiceTuningSettings | null;
+    catalog: VoiceCatalogOption[];
+    installedModels: VoiceInstalledModel[];
+    favorites: VoiceFavoriteOption[];
+  };
+  stt: {
+    models: VoiceSttModelOption[];
+    settings: VoiceSttSettings;
+  };
+};
+
+/** Bounded daily TTS controls accepted by the Voice settings route. */
+export type VoiceRuntimeSettingsUpdate = {
+  defaultVoice?: string;
+  selectedVoice?: string | null;
+  speechPace?: number;
+  voiceTuning?: Omit<VoiceTuningSettings, 'voiceId'> | null;
+  sttSettings?: VoiceSttSettings;
+};
+
+/** Favorite toggle accepted by the Voice settings route. */
+export type VoiceFavoriteUpdate = {
+  id: string;
+  favorite: boolean;
+};
+
+/**
  * Authenticated Voice health response consumed by availability checks and
  * Settings. An empty catalog preserves free-text configuration for generic
  * OpenAI-compatible backends that do not publish CLIde metadata.
@@ -1615,6 +1725,7 @@ export type VoiceHealthPayload = {
   configured: boolean;
   defaultVoice: string | null;
   voices: VoiceCatalogOption[];
+  dictationCapture: VoiceDictationCaptureSettings;
 };
 
 /**
@@ -1649,6 +1760,9 @@ export type VoiceServiceResult<TValue> =
  */
 export type VoiceService = {
   getHealth(): Promise<VoiceHealthPayload>;
+  getSettings(): Promise<VoiceServiceResult<VoiceRuntimeSettingsPayload>>;
+  updateSettings(input: VoiceRuntimeSettingsUpdate): Promise<VoiceServiceResult<VoiceRuntimeSettingsPayload>>;
+  updateFavorite(input: VoiceFavoriteUpdate): Promise<VoiceServiceResult<{ id: string; favorite: boolean }>>;
   transcribe(input: {
     audio: VoiceAudioUpload;
     overrides: VoiceRequestOverrides;

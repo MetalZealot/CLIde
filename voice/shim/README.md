@@ -13,7 +13,7 @@ that is data stays outside it, under `~/voice`:
 | `~/voice/.venv` | the Python environment (`$VENV` below is `~/voice/.venv/bin`) |
 | `~/voice/models` | the Piper `.onnx` voices and the Whisper `.bin` models |
 | `~/voice/bin/whisper.cpp` | the compiled whisper.cpp build |
-| `~/voice/speech_rules.json` | your saved pronunciation rules and pacing |
+| `~/voice/speech_rules.json` | your saved dictation, microphone, pronunciation, and pacing settings |
 | `~/voice/auditions` | rendered `.wav` output |
 
 `~/voice/shim` and `~/voice/studio` are symlinks into this checkout, so the
@@ -50,14 +50,19 @@ The process must remain bound to `127.0.0.1`. It serializes STT and TTS through
 one inference lock and returns `429` instead of running two four-core jobs at
 once. Piper retains only the most recently used model in memory.
 
-`requirements.lock` is the exact Python environment snapshot. The initial
-integration stays on `piper-tts==1.4.2` and whisper.cpp 1.8.6; runtime upgrades
-require separate benchmarks and listening acceptance.
+`requirements.lock` is the exact Python environment snapshot. The live
+integration uses `piper-tts==1.7.0` and whisper.cpp 1.8.6. Piper 1.7.0 passed
+selected-voice listening plus the controlled 6,000-character Pi benchmark.
 
 ## Transcription contract
 
 `POST /audio/transcriptions` accepts multipart field `file` and optional
-`model`. Blank and `whisper-1` use `tiny.en`; `base.en` is the only alternative.
+`model`. Blank and `whisper-1` use the Voice Studio selection; an explicit
+`tiny.en` or `base.en` remains a request-level override. The saved decoder,
+thread count, and vocabulary prompt apply to the next CLIde transcription
+without a restart. Voice Studio stores the browser microphone-processing
+choices beside them; CLIde reads those through voice health before opening the
+microphone.
 Uploads are limited to 25 MiB and the allowlisted AAC, M4A, MP3, OGG, OPUS, WAV,
 and WebM extensions. Audio is converted to temporary 16 kHz mono PCM WAV, then
 deleted automatically after the bounded whisper.cpp call.
@@ -99,11 +104,14 @@ one sentence: URL path separators use "stroke" for AgentVibes Jenny and
 "slash" for the other selected voices. The `URL` initialism is spaced to
 `U R L`, and "is live" becomes "is active" -- that one was found by ear, and
 eSpeak's phonemes argue against it, so do not remove it on phoneme evidence.
-Arrows, IPA and other symbols eSpeak would read aloud as character names are
-dropped whole, because stripping the modifiers out of "lˈaɪv" leaves "l a v".
-Prose colons become full stops; the verb "lives" is respelled "livz";
-and the exact `gnuthall` path component uses its accepted "G NutHall"
-pronunciation.
+Smart quotes, apostrophes, dashes, ranges and ellipses are converted without
+losing their surrounding words. Common arrows use their sentence context;
+maths, measurements, status marks, sections and common Greek letters use
+spoken meanings. Decorative legal marks are silent without deleting the name
+beside them. IPA remains a whole-token omission, because stripping the
+modifiers out of "lˈaɪv" leaves "l a v". Prose colons become full stops;
+the verb "lives" is respelled "livz"; and the exact `gnuthall` path component
+uses its accepted "G NutHall" pronunciation.
 
 Every rule above cites a measurement in `normalizer.py`. Two earlier
 substitutions were removed as misdiagnoses: `URL` was never dropped (eSpeak
@@ -128,10 +136,10 @@ aplay ~/voice/auditions/<the file it names>
 The pause map is measured from the samples, so it is objective about *where*
 silence is. It says nothing about whether a word sounded right -- only ears do.
 
-Pacing has one knob: `structure_silence_seconds` on each voice preset in
-`app.py`, the pause after a heading, list item, table row, or paragraph.
-Unset it defaults to twice `sentence_silence_seconds`. That default is a
-starting point, not a measurement; change it and re-audition.
+Each voice baseline has `length_scale`, `sentence_silence_seconds`, and
+`structure_silence_seconds`; unset structure silence defaults to twice the
+sentence pause. The daily `speech_pace` multiplier scales speech and both gaps
+together without overwriting those baselines.
 
 Structure pauses are inserted between the sentence chunks of a **single**
 Piper request. The static failure came from splitting a reply into several
@@ -148,7 +156,9 @@ It synthesizes a carrier sentence with and without a word and compares audio
 duration. A rendered word adds 0.28-0.60s; a dropped word adds under 0.15s.
 Never use a Whisper round trip for word-drop measurements.
 
-The default is `hfc-male-medium`; blank and OpenAI's `alloy` alias resolve to it.
+The initial runtime default is `hfc-male-medium`; Voice Library can replace it
+with any installed model/speaker ID. Blank and OpenAI's `alloy` alias use the
+saved daily selection when one exists, otherwise the saved runtime default.
 Direct requests may use these internal, non-user-facing ids:
 
 | Voice id | Settings label | Group | Piper asset |
@@ -161,6 +171,12 @@ Direct requests may use these internal, non-user-facing ids:
 | `hfc-female-medium` | HFC Female | Female · Medium | `en_US-hfc_female-medium` |
 | `cori-medium` | Cori | Female · Medium GB | `en_GB-cori-medium` |
 | `agentvibes-jenny` | AgentVibes Jenny | Female · Bonus | `agentvibes-jenny` |
+
+Rocket Raccoon's exact local ONNX and config Git blobs match
+[`cosycove/BeefStew` at `5bb2191`](https://github.com/cosycove/BeefStew/tree/5bb2191bf64af7da19b1da7994dc355200fb29f1/src/data/tts_voices),
+whose repository declares the MIT licence. That repository provides no
+model-specific training-data or voice-likeness provenance, so Rocket remains a
+user-installed bonus voice and its weights must not be bundled with CLIde.
 
 Previously accepted presets remain part of the production catalog: HFC Male and
 Female use length `0.90` with `100 ms` sentence pauses, Rocket Raccoon uses
@@ -184,14 +200,18 @@ safe production limit on this host.
 
 ## Health and tests
 
-`GET /api/health` reports installed STT and selected TTS assets, plus each
-voice's id, label, gender, tier, locale, and `hfc-male-medium` as the default.
+`GET /api/health` reports installed STT and selected TTS assets. The richer
+`GET /api/voice-settings` contract publishes safe installed-model IDs,
+favorites, the writable runtime default and daily selection, exact timing
+baseline, pace, every installed `ggml-*.bin` Whisper model, STT settings, and
+capabilities. `PUT` changes these shared daily settings.
+`GET|PUT /api/voice-labels` owns Studio and CLIde favorites.
 
 ```sh
 cd ~/voice/shim
 $VENV/python -m unittest -v
 ```
 
-The separate Voice Studio under `../studio` remains unchanged for
-auditions and controlled experiments. Its installed-model list and history are
-not part of this production allowlist.
+The separate Voice Studio under `../studio` remains the audition and diagnostic
+lab. Favorite, tuning, and STT edits go through this runtime so Studio and CLIde
+cannot drift into separate settings stores.

@@ -24,18 +24,20 @@ from flask import Flask, Response, jsonify, render_template, request
 from piper import PiperVoice, SynthesisConfig
 
 from normalizer import prepare_speech_text, speech_segments
-from speech_rules import EDITABLE_VOICE_FIELDS, rules_store
+from speech_rules import (
+    EDITABLE_VOICE_FIELDS,
+    rules_store,
+)
 
 
 # The models, the Whisper build and the user's saved rules are data, not code:
 # they stay outside the repository. CLIDE_VOICE_ROOT relocates them together.
 VOICE_ROOT = Path(os.environ.get("CLIDE_VOICE_ROOT", "/home/gnuthall/voice"))
 WHISPER_CLI = VOICE_ROOT / "bin/whisper.cpp/build/bin/whisper-cli"
-WHISPER_MODELS = {
-    "tiny.en": VOICE_ROOT / "models/ggml-tiny.en.bin",
-    "base.en": VOICE_ROOT / "models/ggml-base.en.bin",
+STT_DECODER_ARGUMENTS = {
+    "standard": [],
+    "careful": ["-bo", "8", "-bs", "8"],
 }
-DEFAULT_STT_MODEL = "tiny.en"
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 MAX_TTS_INPUT_CHARS = 6_000
 FFMPEG_TIMEOUT_SECONDS = 30
@@ -43,6 +45,11 @@ WHISPER_TIMEOUT_SECONDS = 120
 ALLOWED_EXTENSIONS = {".aac", ".m4a", ".mp3", ".ogg", ".opus", ".wav", ".webm"}
 SUPPORTED_TTS_MODELS = {"", "tts-1"}
 MAX_NAMED_SPEAKERS = 32
+VOICE_LABELS_PATH = VOICE_ROOT / "voice-labels.json"
+VOICE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,80}(?:#\d{1,4})?$")
+VOICE_GENDERS = {"", "male", "female", "neutral"}
+MAX_VOICE_NOTE_CHARS = 2_000
+voice_labels_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -51,6 +58,10 @@ class VoicePreset:
     speaker_id: int | None = None
     source_key: str | None = None
     length_scale: float | None = None
+    noise_scale: float | None = None
+    noise_w_scale: float | None = None
+    normalize_audio: bool = True
+    volume: float = 1.0
     sentence_silence_seconds: float = 0.0
     path_separator: str = "slash"
     # Pause after a heading, list item, table row, or paragraph. Longer than an
@@ -222,6 +233,10 @@ class VoiceCache:
             config = SynthesisConfig(
                 speaker_id=preset.speaker_id,
                 length_scale=preset.length_scale,
+                noise_scale=preset.noise_scale,
+                noise_w_scale=preset.noise_w_scale,
+                normalize_audio=preset.normalize_audio,
+                volume=preset.volume,
             )
             def _silence(seconds: float) -> bytes:
                 # Whole 16-bit frames only: an odd byte count shifts every
@@ -280,14 +295,25 @@ class VoiceCache:
 voice_cache = VoiceCache()
 
 
+def _whisper_models() -> dict[str, Path]:
+    """Installed whisper.cpp model files addressed only by their safe IDs."""
+    return {
+        model_path.name.removeprefix("ggml-").removesuffix(".bin"): model_path
+        for model_path in sorted((VOICE_ROOT / "models").glob("ggml-*.bin"))
+        if VOICE_KEY_PATTERN.fullmatch(
+            model_path.name.removeprefix("ggml-").removesuffix(".bin")
+        )
+    }
+
+
 def _resolve_model(requested_model: str | None) -> tuple[str, Path]:
-    """Resolve only the two audition models; never accept a client path."""
+    """Resolve an explicit model or the current Voice Studio default."""
     model_id = (requested_model or "").strip()
     if model_id in {"", "whisper-1"}:
-        model_id = DEFAULT_STT_MODEL
-    model_path = WHISPER_MODELS.get(model_id)
+        model_id = str(rules_store.current().stt["model"])
+    model_path = _whisper_models().get(model_id)
     if model_path is None:
-        raise TranscriptionError("Choose tiny.en or base.en")
+        raise TranscriptionError("Choose an installed Whisper model")
     return model_id, model_path
 
 
@@ -326,7 +352,11 @@ def _peak_rss_kib(process: subprocess.Popen[str]) -> int:
     return 0
 
 
-def _transcribe_upload(upload: Any, model_path: Path) -> tuple[str, float, float | None, int]:
+def _transcribe_upload(
+    upload: Any,
+    model_path: Path,
+    settings: dict[str, Any],
+) -> tuple[str, float, float | None, int]:
     """Return transcript, elapsed wall time, audio duration, and peak Whisper RSS."""
     _require_runtime(model_path)
     original_name = str(getattr(upload, "filename", "recording.webm"))
@@ -362,11 +392,15 @@ def _transcribe_upload(upload: Any, model_path: Path) -> tuple[str, float, float
 
         started = time.perf_counter()
         try:
+            command = [
+                str(WHISPER_CLI), "-m", str(model_path), "-f", str(wav_path),
+                "-t", str(settings["threads"]), "-nt", "-np", "-otxt", "-of", "-",
+                *STT_DECODER_ARGUMENTS[settings["decoder_preset"]],
+            ]
+            if settings["initial_prompt"]:
+                command.extend(["--prompt", settings["initial_prompt"]])
             process = subprocess.Popen(
-                [
-                    str(WHISPER_CLI), "-m", str(model_path), "-f", str(wav_path),
-                    "-t", "4", "-nt", "-np", "-otxt", "-of", "-",
-                ],
+                command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -397,7 +431,10 @@ def studio() -> str:
 
 @app.get("/api/health")
 def health() -> Response:
-    stt_configured = WHISPER_CLI.is_file() and WHISPER_MODELS[DEFAULT_STT_MODEL].is_file()
+    rules = rules_store.current()
+    stt_settings = rules.stt
+    whisper_models = _whisper_models()
+    stt_configured = WHISPER_CLI.is_file() and stt_settings["model"] in whisper_models
     tts_models = sorted({preset.model_id for preset in VOICE_PRESETS.values()})
     tts_configured = all(
         (VOICE_ROOT / "models" / f"{model_id}.onnx").is_file()
@@ -408,13 +445,15 @@ def health() -> Response:
         {
             "configured": stt_configured and tts_configured,
             "stt_configured": stt_configured,
-            "stt_model": DEFAULT_STT_MODEL,
+            "stt_model": stt_settings["model"],
+            "stt_settings": stt_settings,
             "studio_models": [
                 {"id": model_id, "installed": model_path.is_file()}
-                for model_id, model_path in WHISPER_MODELS.items()
+                for model_id, model_path in whisper_models.items()
             ],
             "tts_configured": tts_configured,
-            "tts_default_voice": DEFAULT_TTS_VOICE,
+            "tts_default_voice": _runtime_default_voice(),
+            "tts_selected_voice": rules.tts["selected_voice"] or None,
             "tts_voices": [
                 {
                     "id": voice_id,
@@ -436,11 +475,18 @@ def transcriptions() -> Response:
         return jsonify({"error": "Expected multipart field 'file'"}), 400
     if not inference_lock.acquire(blocking=False):
         return jsonify({"error": "Another local voice job is running; try again shortly"}), 429
+    requested_model = request.form.get("model")
     try:
-        model_id, model_path = _resolve_model(request.form.get("model"))
-        text, elapsed_seconds, duration_seconds, peak_rss_kib = _transcribe_upload(upload, model_path)
+        model_id, model_path = _resolve_model(requested_model)
+        settings = rules_store.current().stt
+        text, elapsed_seconds, duration_seconds, peak_rss_kib = _transcribe_upload(
+            upload, model_path, settings
+        )
     except TranscriptionError as error:
-        _LOGGER.info("stt status=error model=%s", request.form.get("model") or DEFAULT_STT_MODEL)
+        _LOGGER.info(
+            "stt status=error model=%s",
+            requested_model or rules_store.current().stt["model"],
+        )
         return jsonify({"error": str(error)}), 400
     finally:
         inference_lock.release()
@@ -456,7 +502,7 @@ def transcriptions() -> Response:
     response.headers["X-Voice-Model"] = model_id
     response.headers["X-Voice-Process-Ms"] = str(round(elapsed_seconds * 1_000))
     response.headers["X-Voice-Peak-Rss-KiB"] = str(peak_rss_kib)
-    response.headers["X-Voice-Threads"] = "4"
+    response.headers["X-Voice-Threads"] = str(settings["threads"])
     if duration_seconds is not None:
         response.headers["X-Voice-Audio-Seconds"] = str(duration_seconds)
     return response
@@ -465,13 +511,19 @@ def transcriptions() -> Response:
 def _resolve_voice(requested_voice: Any) -> tuple[str, VoicePreset]:
     voice_id = requested_voice.strip() if isinstance(requested_voice, str) else ""
     if voice_id in {"", "alloy"}:
-        if DEFAULT_TTS_VOICE is None:
+        runtime_default = _runtime_default_voice()
+        if not runtime_default:
             raise SynthesisError("No default TTS voice is configured; choose an explicit catalog voice")
-        voice_id = DEFAULT_TTS_VOICE
+        voice_id = str(rules_store.current().tts.get("selected_voice") or runtime_default)
     preset = VOICE_PRESETS.get(voice_id)
-    if preset is None:
-        raise ValueError("Unknown TTS voice")
-    return voice_id, _with_saved_overrides(voice_id, preset)
+    if preset is not None:
+        return voice_id, _with_saved_overrides(voice_id, preset)
+    return voice_id, _with_saved_overrides(voice_id, _installed_voice_preset(voice_id))
+
+
+def _runtime_default_voice() -> str:
+    """Shared user-selected default, falling back to the configured catalog voice."""
+    return str(rules_store.current().tts.get("default_voice") or DEFAULT_TTS_VOICE or "")
 
 
 def _with_saved_overrides(voice_id: str, preset: VoicePreset) -> VoicePreset:
@@ -483,6 +535,28 @@ def _with_saved_overrides(voice_id: str, preset: VoicePreset) -> VoicePreset:
         key: value for key, value in overrides.items()
         if key in EDITABLE_VOICE_FIELDS or key == "path_separator"
     })
+
+
+def _with_speech_pace(preset: VoicePreset) -> VoicePreset:
+    """Scale timing from the saved baseline without changing that baseline."""
+    pace = float(rules_store.current().tts.get("speech_pace", 1.0))
+    if abs(pace - 1.0) < 1e-9:
+        return preset
+    length_scale = (
+        _model_default_length_scale(preset.model_id)
+        if preset.length_scale is None
+        else preset.length_scale
+    )
+    return replace(
+        preset,
+        length_scale=length_scale / pace,
+        sentence_silence_seconds=preset.sentence_silence_seconds / pace,
+        structure_silence_seconds=(
+            None
+            if preset.structure_silence_seconds is None
+            else preset.structure_silence_seconds / pace
+        ),
+    )
 
 
 def _speech_job_id() -> str:
@@ -594,6 +668,7 @@ def speech() -> Response:
 
     try:
         voice_id, preset = _resolve_voice(data.get("voice"))
+        preset = _with_speech_pace(preset)
     except SynthesisError as error:
         return jsonify({"error": str(error)}), 503
     except ValueError as error:
@@ -653,13 +728,49 @@ def speech() -> Response:
     return response
 
 
-def _model_default_length_scale(model_id: str) -> float:
-    """A voice with no length override uses whatever its model config says."""
+def _model_render_defaults(model_id: str) -> dict[str, float | bool]:
+    """The render values Piper would use when Studio applies no overrides."""
     try:
         config = json.loads((VOICE_ROOT / "models" / f"{model_id}.onnx.json").read_text())
     except (OSError, ValueError):
-        return 1.0
-    return float(config.get("inference", {}).get("length_scale", 1.0))
+        config = {}
+    inference = config.get("inference") or {}
+    return {
+        "length_scale": float(inference.get("length_scale", 1.0)),
+        "noise_scale": float(inference.get("noise_scale", 0.667)),
+        "noise_w_scale": float(inference.get("noise_w", 0.8)),
+        "normalize_audio": True,
+        "volume": 1.0,
+    }
+
+
+def _model_default_length_scale(model_id: str) -> float:
+    """Compatibility helper for saved pacing rules and voice labels."""
+    return float(_model_render_defaults(model_id)["length_scale"])
+
+
+def _effective_render_settings(preset: VoicePreset) -> dict[str, float | bool]:
+    defaults = _model_render_defaults(preset.model_id)
+    sentence_silence = preset.sentence_silence_seconds
+    return {
+        "length_scale": (
+            defaults["length_scale"] if preset.length_scale is None else preset.length_scale
+        ),
+        "noise_scale": defaults["noise_scale"] if preset.noise_scale is None else preset.noise_scale,
+        "noise_w_scale": (
+            defaults["noise_w_scale"]
+            if preset.noise_w_scale is None
+            else preset.noise_w_scale
+        ),
+        "normalize_audio": preset.normalize_audio,
+        "volume": preset.volume,
+        "sentence_silence_seconds": sentence_silence,
+        "structure_silence_seconds": (
+            sentence_silence * 2
+            if preset.structure_silence_seconds is None
+            else preset.structure_silence_seconds
+        ),
+    }
 
 
 def _only_real_overrides(voices: Any) -> dict[str, dict[str, Any]]:
@@ -733,10 +844,13 @@ def _installed_models() -> list[dict[str, Any]]:
             continue
         speaker_map = config.get("speaker_id_map") or {}
         num_speakers = int(config.get("num_speakers", 1))
+        render_defaults = _model_render_defaults(model_path.stem)
         models.append({
             "id": model_path.stem,
             "num_speakers": num_speakers,
-            "length_scale": config.get("inference", {}).get("length_scale", 1.0),
+            **render_defaults,
+            "sentence_silence_seconds": 0.0,
+            "structure_silence_seconds": 0.0,
             "verdict": verdicts.get(model_path.stem, ""),
             "quality": (config.get("audio") or {}).get("quality", ""),
             "region": (config.get("language") or {}).get("region", ""),
@@ -753,6 +867,309 @@ def _installed_models() -> list[dict[str, Any]]:
     return models
 
 
+def _read_voice_labels() -> dict[str, dict[str, Any]]:
+    """Return durable voice judgements; malformed data never blocks speech."""
+    try:
+        stored = json.loads(VOICE_LABELS_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError) as error:
+        _LOGGER.warning("Ignoring unreadable %s: %s", VOICE_LABELS_PATH.name, error)
+        return {}
+    voices = stored.get("voices") if isinstance(stored, dict) else None
+    if not isinstance(voices, dict):
+        return {}
+    return {
+        str(key): dict(value)
+        for key, value in voices.items()
+        if isinstance(key, str) and isinstance(value, dict)
+    }
+
+
+def _write_voice_labels(voices: dict[str, dict[str, Any]]) -> None:
+    temporary = VOICE_LABELS_PATH.with_name(f"{VOICE_LABELS_PATH.name}.tmp")
+    temporary.write_text(
+        json.dumps({"voices": voices}, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    temporary.replace(VOICE_LABELS_PATH)
+
+
+def _voice_key_parts(voice_id: str) -> tuple[str, int | None, dict[str, Any]]:
+    if not VOICE_KEY_PATTERN.fullmatch(voice_id):
+        raise ValueError("Unknown TTS voice")
+    model_id, separator, speaker_text = voice_id.partition("#")
+    installed = {model["id"]: model for model in _installed_models()}
+    model = installed.get(model_id)
+    if model is None:
+        raise ValueError("Unknown TTS voice")
+    speaker_id = int(speaker_text) if separator else None
+    num_speakers = int(model["num_speakers"])
+    if num_speakers > 1 and speaker_id is None:
+        raise ValueError("Choose a speaker for this multi-speaker voice")
+    if speaker_id is not None and not 0 <= speaker_id < num_speakers:
+        raise ValueError("Unknown TTS speaker")
+    return model_id, speaker_id, model
+
+
+def _matching_catalog_voice(model_id: str, speaker_id: int | None) -> str | None:
+    normalized_speaker = speaker_id if speaker_id not in {None, 0} else None
+    for voice_id, preset in VOICE_PRESETS.items():
+        if preset.model_id == model_id and preset.speaker_id == normalized_speaker:
+            return voice_id
+    return None
+
+
+def _installed_voice_preset(voice_id: str) -> VoicePreset:
+    """Resolve only a runtime-published model/speaker ID, never a path."""
+    model_id, speaker_id, model = _voice_key_parts(voice_id)
+    catalog_voice = _matching_catalog_voice(model_id, speaker_id)
+    if catalog_voice is not None:
+        return _with_saved_overrides(catalog_voice, VOICE_PRESETS[catalog_voice])
+
+    canonical_key = model_id if int(model["num_speakers"]) == 1 else f"{model_id}#{speaker_id}"
+    label = _read_voice_labels().get(canonical_key, {})
+    length_scale = label.get("length_scale")
+    if not isinstance(length_scale, (int, float)):
+        length_scale = None
+    elif not EDITABLE_VOICE_FIELDS["length_scale"][0] <= float(length_scale) \
+            <= EDITABLE_VOICE_FIELDS["length_scale"][1]:
+        length_scale = None
+    return VoicePreset(
+        model_id=model_id,
+        speaker_id=speaker_id,
+        source_key=canonical_key,
+        length_scale=float(length_scale) if length_scale is not None else None,
+    )
+
+
+def _display_model_name(model_id: str) -> str:
+    without_locale = re.sub(r"^[a-z]{2}_[A-Z]{2}-", "", model_id)
+    without_tier = re.sub(r"-(?:x-low|low|medium|high)$", "", without_locale)
+    return without_tier.replace("_", " ").replace("-", " ").title()
+
+
+def _favorite_voices() -> list[dict[str, Any]]:
+    favorites: list[dict[str, Any]] = []
+    for source_key, entry in sorted(_read_voice_labels().items()):
+        if entry.get("favorite") is not True:
+            continue
+        try:
+            model_id, speaker_id, model = _voice_key_parts(source_key)
+        except ValueError:
+            continue
+        catalog_voice_id = _matching_catalog_voice(model_id, speaker_id)
+        catalog_voice = VOICE_CATALOG.get(catalog_voice_id or "")
+        speaker_name = str(entry.get("speaker_name") or "").strip() or None
+        if speaker_name is None and speaker_id is not None:
+            speakers = model.get("speakers") or []
+            speaker_name = (
+                str(speakers[speaker_id])
+                if speaker_id < len(speakers)
+                else f"Speaker {speaker_id}"
+            )
+        label = str(entry.get("label") or "").strip()
+        if not label:
+            label = catalog_voice.label if catalog_voice else _display_model_name(model_id)
+        if speaker_name:
+            label = f"{label} · {speaker_name}"
+        favorites.append({
+            "id": catalog_voice_id or source_key,
+            "source_key": source_key,
+            "model_id": model_id,
+            "speaker_id": speaker_id,
+            "speaker_name": speaker_name,
+            "label": label,
+            "gender": entry.get("gender") if entry.get("gender") in VOICE_GENDERS else "",
+            "length_scale": entry.get("length_scale")
+            if isinstance(entry.get("length_scale"), (int, float)) else None,
+            "notes": str(entry.get("notes") or "")[:MAX_VOICE_NOTE_CHARS],
+            "num_speakers": int(model["num_speakers"]),
+        })
+    return favorites
+
+
+def _selected_voice_tuning() -> dict[str, Any] | None:
+    """Exact saved baseline for the effective daily voice, before global pace."""
+    effective_voice = str(rules_store.current().tts.get("selected_voice") or _runtime_default_voice())
+    if not effective_voice:
+        return None
+    try:
+        voice_id, preset = _resolve_voice(effective_voice)
+    except (SynthesisError, ValueError):
+        return None
+    render = _effective_render_settings(preset)
+    return {
+        "voice_id": voice_id,
+        "length_scale": render["length_scale"],
+        "sentence_silence_seconds": render["sentence_silence_seconds"],
+        "structure_silence_seconds": render["structure_silence_seconds"],
+    }
+
+
+def _save_voice_label(data: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
+    key = str(data.get("key", "")).strip()
+    model_id, speaker_id, model = _voice_key_parts(key)
+    with voice_labels_lock:
+        voices = _read_voice_labels()
+        if data.get("remove"):
+            voices.pop(key, None)
+            _write_voice_labels(voices)
+            return key, None
+
+        entry = dict(voices.get(key) or {})
+        if "gender" in data:
+            gender = str(data.get("gender") or "")
+            if gender not in VOICE_GENDERS:
+                raise ValueError("Unknown gender label")
+            entry["gender"] = gender
+        if "favorite" in data:
+            entry["favorite"] = bool(data.get("favorite"))
+            if entry["favorite"]:
+                entry.setdefault("model", model_id)
+                if speaker_id is not None:
+                    entry.setdefault("speaker_id", speaker_id)
+                    speakers = model.get("speakers") or []
+                    entry.setdefault(
+                        "speaker_name",
+                        str(speakers[speaker_id])
+                        if speaker_id < len(speakers)
+                        else f"Speaker {speaker_id}",
+                    )
+        if "label" in data:
+            entry["label"] = str(data.get("label") or "").strip()[:80]
+        if "notes" in data:
+            entry["notes"] = str(data.get("notes") or "")[:MAX_VOICE_NOTE_CHARS]
+        if "heard" in data:
+            entry["heard"] = bool(data.get("heard"))
+        for field in ("model", "speaker_id", "speaker_name", "length_scale"):
+            if field in data and data[field] is not None:
+                entry[field] = data[field]
+        entry["updated"] = round(time.time())
+        if not entry.get("gender") and not entry.get("favorite") \
+                and not entry.get("notes") and not entry.get("heard"):
+            voices.pop(key, None)
+            saved_entry = None
+        else:
+            voices[key] = entry
+            saved_entry = entry
+        _write_voice_labels(voices)
+    return key, saved_entry
+
+
+@app.get("/api/voice-settings")
+def get_voice_settings() -> Response:
+    rules = rules_store.current()
+    selected_voice = rules.tts["selected_voice"] or None
+    default_voice = _runtime_default_voice() or None
+    return jsonify({
+        "capabilities": {
+            "installed_voices": True,
+            "favorites": True,
+            "voice_selection": True,
+            "voice_tuning": True,
+            "stt_settings": True,
+        },
+        "tts": {
+            "default_voice": default_voice,
+            "selected_voice": selected_voice,
+            "effective_voice": selected_voice or default_voice,
+            "speech_pace": rules.tts["speech_pace"],
+            "tuning": _selected_voice_tuning(),
+            "catalog": [
+                {
+                    "id": voice_id,
+                    "label": catalog_voice.label,
+                    "gender": catalog_voice.gender,
+                    "tier": catalog_voice.tier,
+                    "locale": catalog_voice.locale,
+                }
+                for voice_id, catalog_voice in VOICE_CATALOG.items()
+            ],
+            "installed_models": _installed_models(),
+            "favorites": _favorite_voices(),
+        },
+        "stt": {
+            "models": [
+                {"id": model_id, "installed": model_path.is_file()}
+                for model_id, model_path in _whisper_models().items()
+            ],
+            "settings": rules.stt,
+        },
+    })
+
+
+@app.put("/api/voice-settings")
+def put_voice_settings() -> Response:
+    payload = request.get_json(silent=True)
+    allowed = {"default_voice", "selected_voice", "speech_pace", "voice_tuning", "stt_settings"}
+    if not isinstance(payload, dict) or not payload or set(payload) - allowed:
+        return jsonify({"error": "Expected a supported voice setting"}), 400
+    current = rules_store.current()
+    default_voice = payload.get("default_voice", current.tts.get("default_voice") or None)
+    if default_voice is not None and not isinstance(default_voice, str):
+        return jsonify({"error": "default_voice must be a voice ID or null"}), 400
+    normalized_default = (default_voice or "").strip()
+    selected_voice = payload.get("selected_voice", current.tts["selected_voice"] or None)
+    if selected_voice is not None and not isinstance(selected_voice, str):
+        return jsonify({"error": "selected_voice must be a voice ID or null"}), 400
+    normalized = (selected_voice or "").strip()
+    try:
+        if normalized_default:
+            _resolve_voice(normalized_default)
+        if normalized:
+            _resolve_voice(normalized)
+        stt_settings = payload.get("stt_settings", current.stt)
+        if not isinstance(stt_settings, dict):
+            raise ValueError("stt_settings must be an object")
+        if str(stt_settings.get("model", "")).strip() not in _whisper_models():
+            raise ValueError("Choose an installed Whisper model")
+        voices = dict(current.voices)
+        if "voice_tuning" in payload:
+            effective_voice = normalized or normalized_default or DEFAULT_TTS_VOICE
+            if not effective_voice:
+                raise ValueError("No effective voice is available to tune")
+            tuning = payload["voice_tuning"]
+            if tuning is None:
+                voices.pop(effective_voice, None)
+            elif not isinstance(tuning, dict) or set(tuning) != set(EDITABLE_VOICE_FIELDS):
+                raise ValueError("voice_tuning must contain the three editable timing fields")
+            else:
+                voices[effective_voice] = tuning
+        rules_store.save({
+            "pronunciations": current.pronunciations,
+            "voices": voices,
+            "stt": stt_settings,
+            "tts": {
+                "default_voice": normalized_default,
+                "selected_voice": normalized,
+                "speech_pace": payload.get("speech_pace", current.tts["speech_pace"]),
+            },
+        })
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except OSError:
+        _LOGGER.exception("Could not write TTS settings")
+        return jsonify({"error": "Could not save the settings file"}), 500
+    return get_voice_settings()
+
+
+@app.route("/api/voice-labels", methods=["GET", "PUT"])
+def voice_labels() -> Response:
+    if request.method == "GET":
+        return jsonify({"voices": _read_voice_labels()})
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Expected a JSON request"}), 400
+    try:
+        key, entry = _save_voice_label(payload)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except OSError:
+        _LOGGER.exception("Could not write voice labels")
+        return jsonify({"error": "Could not save voice labels"}), 500
+    return jsonify({"key": key, "entry": entry})
+
+
 @app.get("/api/audition/models")
 def audition_models() -> Response:
     return jsonify({"models": _installed_models()})
@@ -762,9 +1179,10 @@ def audition_models() -> Response:
 def speech_audition() -> Response:
     """Render any installed model through the production speech front end.
 
-    The presets are the shipped catalogue; this is how a voice earns a place
-    in it. Same normalizer, same pacing, same lock -- only the model varies,
-    so what is heard here is what the app would say in that voice.
+    A catalog id starts from its current CLIde settings; an installed model
+    starts from its own config. Request overrides affect this render only.
+    Both paths retain the production normalizer, pronunciation rules, safe
+    frame-aligned pauses, and inference lock.
     """
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -775,27 +1193,71 @@ def speech_audition() -> Response:
     if len(raw_text) > MAX_TTS_INPUT_CHARS:
         return jsonify({"error": f"Input is limited to {MAX_TTS_INPUT_CHARS:,} characters"}), 400
 
-    model_id = str(data.get("model", "")).strip()
-    if model_id != Path(model_id).name or not model_id:
-        return jsonify({"error": "Unknown voice model"}), 400
+    requested_voice = str(data.get("voice") or "").strip()
+    requested_model = str(data.get("model") or "").strip()
+    if requested_voice and requested_model:
+        return jsonify({"error": "Choose a catalog voice or an installed model, not both"}), 400
+
+    voice_id: str | None = None
+    if requested_voice:
+        try:
+            voice_id, base_preset = _resolve_voice(requested_voice)
+        except SynthesisError as error:
+            return jsonify({"error": str(error)}), 503
+        except ValueError as error:
+            return jsonify({"error": str(error)}), 400
+        model_id = base_preset.model_id
+    else:
+        model_id = requested_model
+        if model_id != Path(model_id).name or not model_id:
+            return jsonify({"error": "Unknown voice model"}), 400
+        base_preset = VoicePreset(model_id=model_id)
+
     model_path = VOICE_ROOT / "models" / f"{model_id}.onnx"
     if not model_path.is_file():
         return jsonify({"error": f"{model_id} is not installed"}), 404
 
-    try:
-        speaker_id = int(data.get("speaker_id") or 0)
-        length_scale = float(data.get("length_scale") or _model_default_length_scale(model_id))
-    except (TypeError, ValueError):
-        return jsonify({"error": "speaker_id and length_scale must be numbers"}), 400
-    if not 0.35 <= length_scale <= 2.5:
-        return jsonify({"error": "length_scale must be between 0.35 and 2.5"}), 400
-    separator = str(data.get("path_separator") or "slash").strip()[:24] or "slash"
+    model_defaults = _model_render_defaults(model_id)
+    effective_defaults = _effective_render_settings(base_preset)
 
-    preset = VoicePreset(
-        model_id=model_id,
+    def number(name: str, low: float, high: float) -> float:
+        raw = data[name] if name in data and data[name] is not None else effective_defaults[name]
+        value = float(raw)
+        if not low <= value <= high:
+            raise ValueError(name)
+        return value
+
+    try:
+        speaker_id = (
+            base_preset.speaker_id
+            if requested_voice
+            else int(data["speaker_id"] if data.get("speaker_id") is not None else 0)
+        )
+        length_scale = number("length_scale", 0.35, 2.5)
+        noise_scale = number("noise_scale", 0.0, 2.0)
+        noise_w_scale = number("noise_w_scale", 0.0, 2.0)
+        volume = number("volume", 0.1, 2.0)
+        sentence_silence = number("sentence_silence_seconds", 0.0, 1.5)
+        structure_silence = number("structure_silence_seconds", 0.0, 2.0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Audition settings are outside their allowed range"}), 400
+    normalize_audio = data.get("normalize_audio")
+    if normalize_audio is None:
+        normalize_audio = effective_defaults["normalize_audio"]
+    if not isinstance(normalize_audio, bool):
+        return jsonify({"error": "normalize_audio must be true or false"}), 400
+    separator = str(data.get("path_separator") or base_preset.path_separator).strip()[:24] or "slash"
+
+    preset = replace(
+        base_preset,
         speaker_id=speaker_id,
         length_scale=length_scale,
-        sentence_silence_seconds=float(data.get("sentence_silence_seconds") or 0.20),
+        noise_scale=noise_scale,
+        noise_w_scale=noise_w_scale,
+        normalize_audio=normalize_audio,
+        volume=volume,
+        sentence_silence_seconds=sentence_silence,
+        structure_silence_seconds=structure_silence,
         path_separator=separator,
     )
     speech_text, structure_flags = speech_segments(raw_text, separator)
@@ -805,23 +1267,40 @@ def speech_audition() -> Response:
         return jsonify({"error": "Another local voice job is running; try again shortly"}), 429
     started = time.perf_counter()
     try:
-        wav_bytes, frames, sample_rate = voice_cache.synthesize(
-            preset, speech_text, None, structure_flags
-        )
+        phonemes = ["".join(sentence) for sentence in voice_cache.phonemize(preset, speech_text)]
+        if data.get("speak", True) is False:
+            wav_bytes, frames, sample_rate = b"", 0, 0
+        else:
+            wav_bytes, frames, sample_rate = voice_cache.synthesize(
+                preset, speech_text, None, structure_flags
+            )
+        generation_seconds = round(time.perf_counter() - started, 3)
     except SynthesisError as error:
         return jsonify({"error": str(error)}), 500
     finally:
         inference_lock.release()
-    return jsonify({
-        "audio_base64": base64.b64encode(wav_bytes).decode("ascii"),
+    result: dict[str, Any] = {
+        "audio_base64": base64.b64encode(wav_bytes).decode("ascii") if wav_bytes else None,
         "prepared": speech_text,
+        "phonemes": phonemes,
+        "voice": voice_id,
         "model": model_id,
         "speaker_id": speaker_id,
-        "length_scale": length_scale,
+        "settings": {
+            "length_scale": length_scale,
+            "noise_scale": noise_scale,
+            "noise_w_scale": noise_w_scale,
+            "normalize_audio": normalize_audio,
+            "volume": volume,
+            "sentence_silence_seconds": sentence_silence,
+            "structure_silence_seconds": structure_silence,
+            "model_defaults": model_defaults,
+        },
         "separator": separator,
-        "duration_seconds": round(frames / sample_rate, 3),
-        "generation_seconds": round(time.perf_counter() - started, 3),
-    })
+        "duration_seconds": round(frames / sample_rate, 3) if sample_rate else 0,
+        "generation_seconds": generation_seconds,
+    }
+    return jsonify(result)
 
 
 @app.get("/api/speech-rules")
@@ -830,13 +1309,23 @@ def get_speech_rules() -> Response:
     rules = rules_store.current()
     return jsonify({
         "pronunciations": rules.pronunciations,
+        "stt": rules.stt,
+        "tts": rules.tts,
         "voices": {
             voice_id: {
+                "label": catalog_voice.label,
+                "gender": catalog_voice.gender,
+                "tier": catalog_voice.tier,
+                "locale": catalog_voice.locale,
                 "length_scale": (
                     _model_default_length_scale(effective.model_id)
                     if effective.length_scale is None
                     else effective.length_scale
                 ),
+                "noise_scale": render_settings["noise_scale"],
+                "noise_w_scale": render_settings["noise_w_scale"],
+                "normalize_audio": render_settings["normalize_audio"],
+                "volume": render_settings["volume"],
                 "sentence_silence_seconds": effective.sentence_silence_seconds,
                 "structure_silence_seconds": (
                     effective.sentence_silence_seconds * 2
@@ -847,8 +1336,10 @@ def get_speech_rules() -> Response:
                 "model": effective.model_id,
                 "overridden": sorted(rules.voices.get(voice_id, {})),
             }
-            for voice_id, preset in VOICE_PRESETS.items()
+            for voice_id, catalog_voice in VOICE_CATALOG.items()
+            for preset in [catalog_voice.preset]
             for effective in [_with_saved_overrides(voice_id, preset)]
+            for render_settings in [_effective_render_settings(effective)]
         },
         "editable_fields": {
             name: {"min": low, "max": high}
@@ -866,6 +1357,8 @@ def put_speech_rules() -> Response:
         return jsonify({"error": f"Unknown voice(s): {', '.join(sorted(unknown))}"}), 400
     payload = dict(payload or {})
     payload["voices"] = _only_real_overrides(payload.get("voices") or {})
+    payload.setdefault("stt", rules_store.current().stt)
+    payload.setdefault("tts", rules_store.current().tts)
     try:
         rules_store.save(payload)
     except ValueError as error:
@@ -875,6 +1368,40 @@ def put_speech_rules() -> Response:
         return jsonify({"error": "Could not save the rules file"}), 500
     _LOGGER.info("speech rules saved: %d pronunciations", len(rules_store.current().pronunciations))
     return get_speech_rules()
+
+
+@app.get("/api/stt-settings")
+def get_stt_settings() -> Response:
+    """The complete dictation preset currently used by CLIde."""
+    return jsonify(rules_store.current().stt)
+
+
+@app.put("/api/stt-settings")
+def put_stt_settings() -> Response:
+    """Save one dictation preset without replacing TTS or pronunciation data."""
+    current = rules_store.current()
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or str(payload.get("model", "")).strip() not in _whisper_models():
+        return jsonify({"error": "Choose an installed Whisper model"}), 400
+    try:
+        saved = rules_store.save({
+            "pronunciations": current.pronunciations,
+            "voices": current.voices,
+            "stt": payload,
+            "tts": current.tts,
+        })
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    except OSError:
+        _LOGGER.exception("Could not write STT settings")
+        return jsonify({"error": "Could not save the settings file"}), 500
+    _LOGGER.info(
+        "stt settings saved: model=%s decoder=%s threads=%d",
+        saved.stt["model"],
+        saved.stt["decoder_preset"],
+        saved.stt["threads"],
+    )
+    return jsonify(saved.stt)
 
 
 @app.post("/audio/speech/prepare")

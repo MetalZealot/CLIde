@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
+
 import en from '../../../../i18n/locales/en/settings.json';
 import {
   currentScreenId,
@@ -93,6 +94,10 @@ describe('registry', () => {
 
   test('getScreenPath returns the ancestor chain ending with the screen', () => {
     assert.deepEqual(getScreenPath('appearance.editor'), ['appearance', 'appearance.editor']);
+    assert.deepEqual(
+      getScreenPath('chat.voice.library'),
+      ['chat', 'chat.voice', 'chat.voice.library'],
+    );
     assert.deepEqual(getScreenPath('appearance'), ['appearance']);
     assert.deepEqual(getScreenPath('nope'), []);
   });
@@ -256,15 +261,16 @@ describe('navigation', () => {
     assert.deepEqual(state.stack, ['appearance']);
   });
 
-  test('depth is capped, so no screen can nest a third level', () => {
+  test('depth is capped, so no screen can nest beyond the Voice Library level', () => {
     const deep = reduce(
       SETTINGS_NAV_ROOT,
-      { type: 'push', id: 'appearance' },
-      { type: 'push', id: 'appearance.editor' },
+      { type: 'push', id: 'chat' },
+      { type: 'push', id: 'chat.voice' },
+      { type: 'push', id: 'chat.voice.library' },
     );
 
-    const deeper = settingsNavReducer(deep, { type: 'push', id: 'appearance.editor' });
-    assert.equal(navDepth(deeper), 2);
+    const deeper = settingsNavReducer(deep, { type: 'push', id: 'chat.voice.library' });
+    assert.equal(navDepth(deeper), 3);
   });
 
   test('pushing an unknown id is a no-op rather than a corrupt stack', () => {

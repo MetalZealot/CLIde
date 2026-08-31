@@ -29,7 +29,7 @@ function textField(label, value, onInput, placeholder = "") {
   return wrap;
 }
 
-function modeField(rule) {
+function modeField(rule, index) {
   const wrap = document.createElement("div");
   wrap.className = "field";
   const span = document.createElement("span");
@@ -56,14 +56,14 @@ function modeField(rule) {
     });
     if (chosen === null) return;
     rule.mode = chosen;
-    renderPronunciations();
+    renderPronunciations({ openIndex: index });
   });
   paint();
   wrap.append(span, button);
   return wrap;
 }
 
-function renderPronunciations() {
+function renderPronunciations({ openIndex = null, focusIndex = null } = {}) {
   const host = el("rules-list");
   host.replaceChildren();
   if (!rulesState.pronunciations.length) {
@@ -71,34 +71,45 @@ function renderPronunciations() {
     return;
   }
   rulesState.pronunciations.forEach((rule, index) => {
-    const card = document.createElement("article");
-    card.className = "rule-card";
+    const card = document.createElement("details");
+    card.className = "disclosure rule-card";
+    card.dataset.ruleIndex = String(index);
+    card.open = index === openIndex;
 
-    const head = document.createElement("div");
-    head.className = "rule-head";
+    const summary = document.createElement("summary");
     const number = document.createElement("span");
     number.className = "rule-number";
-    number.textContent = `${String(index + 1).padStart(2, "0")} · ${rule.match || "new rule"}`;
-    const remove = document.createElement("button");
-    remove.className = "remove-button";
-    remove.type = "button";
-    remove.setAttribute("aria-label", `Remove rule ${index + 1}`);
-    remove.textContent = "×";
-    remove.addEventListener("click", () => {
-      rulesState.pronunciations.splice(index, 1);
-      renderPronunciations();
-      rulesStatus("Removed — not saved yet.");
-    });
-    head.append(number, remove);
+    number.textContent = String(index + 1).padStart(2, "0");
+    const summaryText = document.createElement("span");
+    summaryText.className = "rule-summary-text";
+    const summaryTitle = document.createElement("strong");
+    const summaryMode = document.createElement("small");
+    summaryText.append(summaryTitle, summaryMode);
+    summary.append(number, summaryText);
 
-    card.append(
-      head,
-      textField("When you write", rule.match, (value) => { rule.match = value; }, "URL"),
-      textField("Say it as", rule.say, (value) => { rule.say = value; }, "U R L"),
-      modeField(rule),
+    const refreshSummary = () => {
+      summaryTitle.textContent = `${rule.match || "New rule"} → ${rule.say || "not set"}`;
+      summaryMode.textContent = rule.mode || "word";
+    };
+    refreshSummary();
+
+    const body = document.createElement("div");
+    body.className = "disclosure-body rule-body";
+    const matchField = textField("When you write", rule.match, (value) => {
+      rule.match = value;
+      refreshSummary();
+    }, "URL");
+    matchField.querySelector("input").dataset.rulePrimary = "true";
+    body.append(
+      matchField,
+      textField("Say it as", rule.say, (value) => {
+        rule.say = value;
+        refreshSummary();
+      }, "U R L"),
+      modeField(rule, index),
     );
     if (rule.mode === "before") {
-      card.appendChild(textField(
+      body.appendChild(textField(
         "Followed by (comma separated)",
         (rule.followed_by || []).join(", "),
         (value) => { rule.followed_by = value.split(",").map((word) => word.trim()).filter(Boolean); },
@@ -106,16 +117,39 @@ function renderPronunciations() {
       ));
     }
     if (rule.mode === "unless") {
-      card.appendChild(textField(
+      body.appendChild(textField(
         "Except after (comma separated)",
         (rule.preceded_by || []).join(", "),
         (value) => { rule.preceded_by = value.split(",").map((word) => word.trim()).filter(Boolean); },
         "I, you, we, they, a, an",
       ));
     }
-    card.appendChild(textField("Why (note to yourself)", rule.note, (value) => { rule.note = value; }));
+    body.appendChild(textField("Why (note to yourself)", rule.note, (value) => { rule.note = value; }));
+
+    const remove = document.createElement("button");
+    remove.className = "ghost rule-remove";
+    remove.type = "button";
+    remove.setAttribute("aria-label", `Remove rule ${index + 1}`);
+    remove.textContent = "Remove rule";
+    remove.addEventListener("click", () => {
+      rulesState.pronunciations.splice(index, 1);
+      renderPronunciations();
+      rulesStatus("Removed — not saved yet.");
+    });
+    body.appendChild(remove);
+    card.append(summary, body);
     host.appendChild(card);
   });
+
+  if (focusIndex !== null) {
+    window.requestAnimationFrame(() => {
+      const card = host.querySelector(`[data-rule-index="${focusIndex}"]`);
+      card?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.requestAnimationFrame(() => {
+        card?.querySelector("[data-rule-primary]")?.focus({ preventScroll: true });
+      });
+    });
+  }
 }
 
 function pacingStepper(voice, key, label, unit) {
@@ -151,9 +185,10 @@ function renderPacing() {
     const summary = document.createElement("summary");
     const label = document.createElement("span");
     const strong = document.createElement("strong");
-    strong.textContent = voiceId;
+    strong.textContent = voice.label || voiceId;
     const small = document.createElement("small");
-    small.textContent = voice.overridden?.length ? " edited" : ` ${voice.model}`;
+    const details = [voice.gender, voice.tier, voice.locale, voice.model].filter(Boolean).join(" · ");
+    small.textContent = voice.overridden?.length ? ` edited · ${details}` : ` ${details}`;
     label.append(strong, small);
     summary.appendChild(label);
 
@@ -221,8 +256,8 @@ async function saveRules() {
 }
 
 el("rules-add").addEventListener("click", () => {
-  rulesState.pronunciations.push({ match: "", say: "", mode: "word", note: "" });
-  renderPronunciations();
+  rulesState.pronunciations.unshift({ match: "", say: "", mode: "word", note: "" });
+  renderPronunciations({ openIndex: 0, focusIndex: 0 });
   rulesStatus("New rule added — fill it in and save.");
 });
 el("rules-reset").addEventListener("click", loadRules);

@@ -67,10 +67,14 @@ describe('chatSubcomponents', () => {
 
       assert.ok(micMarkup > 0);
       assert.ok(micMarkup > usageMarkup);
+      assert.match(composerSource, /<PromptInputTools className="min-w-0 flex-1 overflow-hidden">/);
+      assert.match(composerSource, /className="ml-auto flex shrink-0 items-center gap-0\.5 sm:gap-1"/);
       assert.match(composerSource, /role="alert"/);
       assert.match(composerSource, /\[overflow-wrap:anywhere\]/);
       assert.doesNotMatch(composerSource, /isTranscribing\s*\?\s*\(\s*<Loader2/);
       assert.match(voiceInputSource, /navigator\.mediaDevices\?\.getUserMedia/);
+      assert.match(voiceInputSource, /fetchDictationCaptureSettings/);
+      assert.match(voiceInputSource, /getUserMedia\(\{ audio: captureSettings \}\)/);
       assert.match(voiceInputSource, /Microphone requires a secure HTTPS connection\./);
       assert.match(voiceInputSource, /rec\.onstart = \(\) => \{[\s\S]+setState\('recording'\)/);
       assert.doesNotMatch(voiceInputSource, /rec\.start\(\);\s+setState\('recording'\)/);

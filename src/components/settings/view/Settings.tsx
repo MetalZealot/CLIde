@@ -22,6 +22,7 @@ import AppearanceEditorScreen from './screens/AppearanceEditorScreen';
 import AppearanceScreen from './screens/AppearanceScreen';
 import ChatScreen from './screens/ChatScreen';
 import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
+import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
 import CredentialsScreen from './screens/CredentialsScreen';
 import ExtensionsBrowserScreen from './screens/ExtensionsBrowserScreen';
 import ExtensionsPluginsScreen from './screens/ExtensionsPluginsScreen';
@@ -265,7 +266,14 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
         return <ChatScreen onOpenScreen={isMobile ? nav.push : nav.select} />;
 
       case 'chat.voice':
-        return <ChatVoiceBackendScreen />;
+        return (
+          <ChatVoiceBackendScreen
+            onOpenLibrary={() => (isMobile ? nav.push : nav.select)('chat.voice.library')}
+          />
+        );
+
+      case 'chat.voice.library':
+        return <ChatVoiceLibraryScreen />;
 
       case 'notifications':
         return (
@@ -318,7 +326,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
     : t(activeScreen?.labelKey ?? 'title');
 
   return (
-    <div className="modal-backdrop fixed inset-0 safe-top z-[9999] flex items-center justify-center bg-background/80 md:p-4">
+    <div className="modal-backdrop safe-top fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 md:p-4">
       <div className="flex h-full w-full flex-col overflow-hidden border border-border bg-background shadow-2xl md:h-[90vh] md:max-w-4xl md:rounded-xl">
         <SettingsHeader
           title={headerTitle}

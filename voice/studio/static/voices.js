@@ -24,6 +24,33 @@ Voices.keyFor = keyFor;
 
 const modelById = (id) => Voices.models.find((model) => model.id === id);
 
+function normalizePreset(value) {
+  if (typeof value === "string") {
+    return { id: value, label: value, gender: "", tier: "", locale: "" };
+  }
+  if (!value || typeof value !== "object" || typeof value.id !== "string") return null;
+  return {
+    id: value.id,
+    label: typeof value.label === "string" && value.label ? value.label : value.id,
+    gender: typeof value.gender === "string" ? value.gender : "",
+    tier: typeof value.tier === "string" ? value.tier : "",
+    locale: typeof value.locale === "string" ? value.locale : "",
+  };
+}
+
+const presetById = (id) => Voices.presets.find((preset) => preset.id === id);
+
+function presetDetails(preset, { includeRole = true } = {}) {
+  if (!preset) return includeRole ? "CLIde preset" : "";
+  const details = [
+    preset.gender ? `${preset.gender[0].toUpperCase()}${preset.gender.slice(1)}` : "",
+    preset.tier,
+    preset.locale,
+  ].filter(Boolean);
+  if (includeRole) details.push("CLIde preset");
+  return details.join(" · ");
+}
+
 // Piper's own metadata, tidied only where two spellings mean one thing:
 // "en-us" and "en_US" are the same voice pool, and the jane-eyre model spells
 // British English out in full. Anything else is reported as the model declares
@@ -82,9 +109,11 @@ function speakerName(model, speakerId) {
 function describe(selection) {
   if (!selection) return { name: "Loading…", detail: "" };
   if (selection.type === "preset") {
+    const preset = presetById(selection.id);
+    const role = selection.id === Voices.defaultPreset ? "default" : "preset";
     return {
-      name: selection.id,
-      detail: selection.id === Voices.defaultPreset ? "CLIde preset · default" : "CLIde preset",
+      name: preset?.label || selection.id,
+      detail: [presetDetails(preset, { includeRole: false }), `CLIde ${role}`].filter(Boolean).join(" · "),
     };
   }
   const model = modelById(selection.model);
@@ -176,8 +205,6 @@ function paintSelection() {
     el("speaker-next").disabled = selection.speakerId >= model.num_speakers - 1;
   }
 
-  el("speak-speed").hidden = !model;
-  if (model && Voices.speed) Voices.speed.set(selection.lengthScale ?? model.length_scale ?? 1);
   el("voice-sub").textContent = model ? "Audition — label it below" : "Preset · pacing in Rules";
   paintLabelRow();
 }
@@ -408,14 +435,20 @@ function pickerRows() {
   // A preset is a curated choice, not a catalogue entry, and the studio does
   // not hold the model behind it -- so a catalogue facet hides the group.
   for (const preset of facetsActive() ? [] : Voices.presets) {
-    if (query && !preset.toLowerCase().includes(query)) continue;
+    const haystack = [preset.id, preset.label, preset.gender, preset.tier, preset.locale]
+      .join(" ").toLowerCase();
+    if (query && !haystack.includes(query)) continue;
     rows.push({
       group: "CLIde presets",
       node: () => voiceRow({
-        title: preset,
-        meta: preset === Voices.defaultPreset ? "default" : "preset",
+        title: preset.label,
+        meta: [
+          preset.id,
+          presetDetails(preset, { includeRole: false }),
+          preset.id === Voices.defaultPreset ? "default" : "preset",
+        ].filter(Boolean).join(" · "),
         key: null,
-        selection: { type: "preset", id: preset },
+        selection: { type: "preset", id: preset.id },
       }),
     });
   }
@@ -744,26 +777,17 @@ Voices.ready = (async () => {
   const presetData = await presetResponse.json();
   const modelData = await modelResponse.json();
   if (!presetResponse.ok) throw new Error(presetData.error || "The voice service is unreachable");
-  Voices.presets = presetData.voices || [];
-  Voices.defaultPreset = presetData.default_voice || "";
+  Voices.presets = (presetData.voices || []).map(normalizePreset).filter(Boolean);
+  const requestedDefault = typeof presetData.default_voice === "string"
+    ? presetData.default_voice : "";
+  Voices.defaultPreset = presetById(requestedDefault)?.id || Voices.presets[0]?.id || "";
   Voices.models = modelResponse.ok ? modelData.models || [] : [];
   await loadLabels();
-
-  Voices.speed = Studio.createStepper({
-    label: "Speed",
-    hint: "Higher is slower. Auditions only; presets use the Rules tab.",
-    min: 0.35,
-    max: 2.5,
-    step: 0.01,
-    value: 1,
-    onChange: () => { if (Voices.current) Voices.current.lengthScale = Voices.speed.value; },
-  });
-  el("speak-speed").appendChild(Voices.speed.element);
 
   let restored = null;
   try { restored = JSON.parse(localStorage.getItem(SELECTION_KEY) || "null"); } catch { /* private */ }
   const valid = restored && (restored.type === "preset"
-    ? Voices.presets.includes(restored.id)
+    ? Boolean(presetById(restored.id))
     : Boolean(modelById(restored.model)));
   setSelection(valid ? restored : { type: "preset", id: Voices.defaultPreset }, { remember: false });
   updateTopbar();

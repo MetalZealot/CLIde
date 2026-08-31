@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { transcribeVoice } from '../../../lib/voiceApi';
+import { fetchDictationCaptureSettings, transcribeVoice } from '../../../lib/voiceApi';
 
 // Mobile-safe recording: iOS Safari 18.4+ supports webm/opus; older iOS needs mp4.
 const MIME_CANDIDATES = [
@@ -75,9 +75,12 @@ export function useVoiceInput(
         setState('idle');
         return;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      const captureSettings = await fetchDictationCaptureSettings();
+      if (cancelledRef.current) {
+        startingRef.current = false;
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: captureSettings });
       if (cancelledRef.current) {
         stream.getTracks().forEach((t) => t.stop());
         startingRef.current = false;

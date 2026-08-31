@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 
+import express from 'express';
+
+import { createVoiceRouter } from '../voice.routes.js';
 import { createVoiceService } from '../voice.service.js';
 
 const defaults = {
@@ -24,6 +29,11 @@ test('reports when no server-controlled backend is configured', async () => {
     configured: false,
     defaultVoice: null,
     voices: [],
+    dictationCapture: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: false,
+    },
   });
 });
 
@@ -37,6 +47,13 @@ test('relays a backend-authorized voice catalog through health', async () => {
       return new Response(JSON.stringify({
         configured: true,
         tts_default_voice: 'hfc-male-medium',
+        stt_settings: {
+          capture: {
+            echo_cancellation: false,
+            noise_suppression: true,
+            auto_gain_control: true,
+          },
+        },
         tts_voices: [
           {
             id: 'hfc-male-medium',
@@ -61,6 +78,11 @@ test('relays a backend-authorized voice catalog through health', async () => {
       tier: 'medium',
       locale: 'en-US',
     }],
+    dictationCapture: {
+      echoCancellation: false,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
   });
   assert.equal(requestedUrl, 'https://voice.example/v1/api/health');
 });
@@ -76,7 +98,204 @@ test('keeps generic configured backends usable when they publish no catalog', as
     configured: true,
     defaultVoice: null,
     voices: [],
+    dictationCapture: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: false,
+    },
   });
+});
+
+test('relays the CLIde-aware runtime settings contract with safe camel-case fields', async () => {
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async () => new Response(JSON.stringify({
+      capabilities: {
+        installed_voices: true,
+        favorites: true,
+        voice_selection: true,
+        voice_tuning: true,
+        stt_settings: true,
+      },
+      tts: {
+        default_voice: 'hfc-male-medium',
+        selected_voice: null,
+        effective_voice: 'hfc-male-medium',
+        speech_pace: 1.2,
+        tuning: {
+          voice_id: 'hfc-male-medium', length_scale: 0.9,
+          sentence_silence_seconds: 0.1, structure_silence_seconds: 0.2,
+        },
+        catalog: [{
+          id: 'hfc-male-medium', label: 'HFC Male', gender: 'male',
+          tier: 'medium', locale: 'en-US',
+        }],
+        installed_models: [{
+          id: 'en_US-hfc_male-medium', num_speakers: 1, speakers: [],
+          language: 'en', region: 'US', quality: 'medium', dataset: 'hfc',
+          length_scale: 1, noise_scale: 0.667, noise_w_scale: 0.8,
+          normalize_audio: true, volume: 1,
+          sentence_silence_seconds: 0, structure_silence_seconds: 0,
+        }],
+        favorites: [{
+          id: 'hfc-male-medium', source_key: 'en_US-hfc_male-medium',
+          model_id: 'en_US-hfc_male-medium', speaker_id: null,
+          speaker_name: null, label: 'HFC Male', gender: 'male',
+          length_scale: 0.8, notes: '',
+        }],
+      },
+      stt: {
+        models: [{ id: 'tiny.en', installed: true }],
+        settings: {
+          model: 'tiny.en', decoder_preset: 'careful', threads: 2,
+          initial_prompt: 'CLIde', capture: {
+            echo_cancellation: false,
+            noise_suppression: true,
+            auto_gain_control: true,
+          },
+        },
+      },
+    })),
+  });
+
+  const result = await service.getSettings();
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.capabilities.voiceSelection, true);
+  assert.equal(result.value.tts.installedModels[0]?.numSpeakers, 1);
+  assert.equal(result.value.tts.favorites[0]?.sourceKey, 'en_US-hfc_male-medium');
+  assert.equal(result.value.tts.speechPace, 1.2);
+  assert.deepEqual(result.value.tts.tuning, {
+    voiceId: 'hfc-male-medium',
+    lengthScale: 0.9,
+    sentenceSilenceSeconds: 0.1,
+    structureSilenceSeconds: 0.2,
+  });
+  assert.equal(result.value.stt.settings.decoderPreset, 'careful');
+  assert.deepEqual(result.value.stt.settings.capture, {
+    echoCancellation: false,
+    noiseSuppression: true,
+    autoGainControl: true,
+  });
+});
+
+test('treats a generic backend without the settings endpoint as unsupported', async () => {
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async () => new Response('not found', { status: 404 }),
+  });
+
+  const result = await service.getSettings();
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.capabilities.voiceSelection, false);
+  assert.deepEqual(result.value.tts.installedModels, []);
+});
+
+test('writes selection, pace, and favorite changes only to the configured runtime', async () => {
+  const requests: Array<{ url: string; method: string; body: unknown }> = [];
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async (url, options) => {
+      requests.push({
+        url,
+        method: options.method || 'GET',
+        body: options.body ? JSON.parse(String(options.body)) : null,
+      });
+      if (url.endsWith('/api/voice-labels')) {
+        return new Response(JSON.stringify({ key: 'en_US-amy-medium', entry: {} }));
+      }
+      return new Response(JSON.stringify({ capabilities: {}, tts: {}, stt: {} }));
+    },
+  });
+
+  const runtimeDefault = await service.updateSettings({ defaultVoice: 'en_US-amy-medium' });
+  const selection = await service.updateSettings({ selectedVoice: 'en_US-amy-medium' });
+  const pace = await service.updateSettings({ speechPace: 1.25 });
+  const tuning = await service.updateSettings({
+    voiceTuning: {
+      lengthScale: 0.8,
+      sentenceSilenceSeconds: 0.15,
+      structureSilenceSeconds: 0.3,
+    },
+  });
+  const sttSettings = await service.updateSettings({
+    sttSettings: {
+      model: 'base.en',
+      decoderPreset: 'careful',
+      threads: 2,
+      initialPrompt: 'CLIde',
+      capture: {
+        echoCancellation: false,
+        noiseSuppression: true,
+        autoGainControl: false,
+      },
+    },
+  });
+  const favorite = await service.updateFavorite({ id: 'en_US-amy-medium', favorite: true });
+
+  assert.equal(runtimeDefault.ok, true);
+  assert.equal(selection.ok, true);
+  assert.equal(pace.ok, true);
+  assert.equal(tuning.ok, true);
+  assert.equal(sttSettings.ok, true);
+  assert.deepEqual(favorite, {
+    ok: true,
+    value: { id: 'en_US-amy-medium', favorite: true },
+  });
+  assert.deepEqual(requests, [
+    {
+      url: 'https://voice.example/v1/api/voice-settings',
+      method: 'PUT',
+      body: { default_voice: 'en_US-amy-medium' },
+    },
+    {
+      url: 'https://voice.example/v1/api/voice-settings',
+      method: 'PUT',
+      body: { selected_voice: 'en_US-amy-medium' },
+    },
+    {
+      url: 'https://voice.example/v1/api/voice-settings',
+      method: 'PUT',
+      body: { speech_pace: 1.25 },
+    },
+    {
+      url: 'https://voice.example/v1/api/voice-settings',
+      method: 'PUT',
+      body: {
+        voice_tuning: {
+          length_scale: 0.8,
+          sentence_silence_seconds: 0.15,
+          structure_silence_seconds: 0.3,
+        },
+      },
+    },
+    {
+      url: 'https://voice.example/v1/api/voice-settings',
+      method: 'PUT',
+      body: {
+        stt_settings: {
+          model: 'base.en',
+          decoder_preset: 'careful',
+          threads: 2,
+          initial_prompt: 'CLIde',
+          capture: {
+            echo_cancellation: false,
+            noise_suppression: true,
+            auto_gain_control: false,
+          },
+        },
+      },
+    },
+    {
+      url: 'https://voice.example/v1/api/voice-labels',
+      method: 'PUT',
+      body: { key: 'en_US-amy-medium', favorite: true },
+    },
+  ]);
 });
 
 test('transcribes with injected fetch and request-level credential/model overrides', async () => {
@@ -202,4 +421,76 @@ test('cancels the matching backend speech job', async () => {
   assert.equal(requestedUrl, 'https://voice.example/v1/audio/speech/cancel');
   assert.deepEqual(JSON.parse(requestBody), { job_id: 'speech-job-4' });
   assert.deepEqual(result, { ok: true, value: { cancelled: true } });
+});
+
+test('settings routes reject unsafe IDs before forwarding valid runtime changes', async () => {
+  const backendBodies: unknown[] = [];
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async (url, options) => {
+      backendBodies.push(options.body ? JSON.parse(String(options.body)) : null);
+      return url.endsWith('/api/voice-labels')
+        ? new Response(JSON.stringify({ key: 'en_US-amy-medium', entry: {} }))
+        : new Response(JSON.stringify({ capabilities: {}, tts: {}, stt: {} }));
+    },
+  });
+  const application = express();
+  application.use(express.json());
+  application.use('/api/voice', createVoiceRouter({
+    voiceService: service,
+    parseAudioUpload: (_request, _response, next) => next(),
+  }));
+  const server = application.listen(0);
+  await once(server, 'listening');
+  const port = (server.address() as AddressInfo).port;
+
+  try {
+    const invalid = await fetch(`http://127.0.0.1:${port}/api/voice/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selectedVoice: '../../etc/passwd' }),
+    });
+    const invalidPace = await fetch(`http://127.0.0.1:${port}/api/voice/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speechPace: 2 }),
+    });
+    const invalidDefault = await fetch(`http://127.0.0.1:${port}/api/voice/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ defaultVoice: '../../etc/passwd' }),
+    });
+    const validDefault = await fetch(`http://127.0.0.1:${port}/api/voice/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ defaultVoice: 'en_US-amy-medium' }),
+    });
+    const validPace = await fetch(`http://127.0.0.1:${port}/api/voice/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speechPace: 1.25 }),
+    });
+    const valid = await fetch(`http://127.0.0.1:${port}/api/voice/favorites`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'en_US-amy-medium', favorite: true }),
+    });
+
+    assert.equal(invalid.status, 400);
+    assert.equal(invalidPace.status, 400);
+    assert.equal(invalidDefault.status, 400);
+    assert.equal(validDefault.status, 200);
+    assert.equal(validPace.status, 200);
+    assert.equal(valid.status, 200);
+    assert.deepEqual(backendBodies, [
+      { default_voice: 'en_US-amy-medium' },
+      { speech_pace: 1.25 },
+      { key: 'en_US-amy-medium', favorite: true },
+    ]);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
 });

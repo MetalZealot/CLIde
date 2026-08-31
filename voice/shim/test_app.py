@@ -16,11 +16,14 @@ from app import (
     VOICE_ROOT,
     SynthesisCancelled,
     VoiceCache,
+    VoicePreset,
+    _resolve_voice,
+    _with_speech_pace,
     app,
     inference_lock,
 )
 from normalizer import apply_lexicon, prepare_speech_text, speech_segments
-from speech_rules import RulesStore, default_rules, rules_store, validate
+from speech_rules import RulesStore, default_rules, rules_store, validate, validate_stt
 
 
 def setUpModule() -> None:
@@ -178,6 +181,9 @@ class NormalizerTests(unittest.TestCase):
         client = app.test_client()
         listed = client.get("/api/audition/models").get_json()["models"]
         self.assertGreater(len(listed), len(VOICE_PRESETS))
+        libritts = next(model for model in listed if model["id"] == "en_US-libritts_r-medium")
+        self.assertEqual(libritts["noise_scale"], 0.333)
+        self.assertEqual(libritts["noise_w_scale"], 0.333)
         refused = client.post(
             "/audio/speech/audition",
             json={"input": "Hello", "model": "../../etc/passwd"},
@@ -329,6 +335,38 @@ class VoiceCacheTests(unittest.TestCase):
 
         self.assertEqual(load_voice.call_count, 2)
 
+    @patch("app.PiperVoice.load")
+    def test_passes_every_audition_control_to_piper(self, load_voice) -> None:
+        captured = []
+        chunk = SimpleNamespace(audio_int16_bytes=b"\x00\x00" * 10)
+
+        def synthesize(_text, config):
+            captured.append(config)
+            return [chunk]
+
+        load_voice.return_value = SimpleNamespace(
+            config=SimpleNamespace(sample_rate=22_050, speaker_id_map={}),
+            synthesize=synthesize,
+        )
+        preset = VoicePreset(
+            "en_US-kusal-medium",
+            length_scale=1.3,
+            noise_scale=0.333,
+            noise_w_scale=0.3,
+            normalize_audio=False,
+            volume=1.25,
+        )
+
+        VoiceCache().synthesize(preset, "Hello")
+
+        self.assertEqual(len(captured), 1)
+        config = captured[0]
+        self.assertEqual(config.length_scale, 1.3)
+        self.assertEqual(config.noise_scale, 0.333)
+        self.assertEqual(config.noise_w_scale, 0.3)
+        self.assertFalse(config.normalize_audio)
+        self.assertEqual(config.volume, 1.25)
+
 
 class ApiTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -340,6 +378,7 @@ class ApiTests(unittest.TestCase):
         body = response.get_json()
         self.assertTrue(body["configured"])
         self.assertEqual(body["stt_model"], "tiny.en")
+        self.assertEqual(body["stt_settings"], default_rules().stt)
         self.assertTrue(body["tts_configured"])
         self.assertEqual(body["tts_default_voice"], DEFAULT_TTS_VOICE)
         self.assertEqual(
@@ -370,6 +409,39 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.get_json(), {"text": "Hello CLIde"})
         self.assertEqual(response.headers["X-Voice-Model"], "base.en")
         self.assertEqual(response.headers["X-Voice-Peak-Rss-KiB"], "180224")
+
+    @patch("app._transcribe_upload", return_value=("Saved settings", 0.5, 1.0, 100_000))
+    def test_saved_stt_settings_apply_to_the_next_clide_request(self, transcribe) -> None:
+        original = rules_store.current()
+        self.addCleanup(lambda: rules_store.save({
+            "pronunciations": original.pronunciations,
+            "voices": original.voices,
+            "stt": original.stt,
+            "tts": original.tts,
+        }))
+        saved = {
+            "model": "base.en",
+            "decoder_preset": "careful",
+            "threads": 2,
+            "initial_prompt": "CLIde, Codex",
+            "capture": {
+                "echo_cancellation": False,
+                "noise_suppression": True,
+                "auto_gain_control": True,
+            },
+        }
+        self.assertEqual(self.client.put("/api/stt-settings", json=saved).status_code, 200)
+
+        response = self.client.post(
+            "/audio/transcriptions",
+            data={"file": (io.BytesIO(b"fake audio"), "recording.webm"), "model": "whisper-1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["X-Voice-Model"], "base.en")
+        self.assertEqual(response.headers["X-Voice-Threads"], "2")
+        self.assertEqual(transcribe.call_args.args[2], saved)
+        self.assertEqual(self.client.get("/api/health").get_json()["stt_settings"], saved)
 
     def test_unknown_model_is_rejected(self) -> None:
         response = self.client.post(
@@ -425,6 +497,65 @@ class ApiTests(unittest.TestCase):
             "/audio/speech", json={"input": "Hello", "voice": "audition-residue"}
         )
         self.assertEqual(response.status_code, 400)
+
+    @patch("app.voice_cache.synthesize", return_value=(b"RIFFfake", 22_050, 22_050))
+    @patch("app.voice_cache.phonemize", return_value=[["h", "ə", "l", "oʊ"]])
+    def test_audition_overrides_do_not_change_the_catalog_preset(
+        self, _phonemize, synthesize
+    ) -> None:
+        response = self.client.post(
+            "/audio/speech/audition",
+            json={
+                "input": "Hello",
+                "voice": "kusal-medium",
+                "length_scale": 1.3,
+                "noise_scale": 0.333,
+                "noise_w_scale": 0.3,
+                "normalize_audio": False,
+                "volume": 1.25,
+                "sentence_silence_seconds": 0.2,
+                "structure_silence_seconds": 0.4,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["voice"], "kusal-medium")
+        self.assertEqual(payload["phonemes"], ["həloʊ"])
+        self.assertEqual(payload["settings"]["noise_scale"], 0.333)
+        audition = synthesize.call_args.args[0]
+        self.assertEqual(audition.length_scale, 1.3)
+        self.assertEqual(audition.noise_w_scale, 0.3)
+        self.assertFalse(audition.normalize_audio)
+        self.assertEqual(audition.structure_silence_seconds, 0.4)
+        self.assertIsNone(VOICE_PRESETS["kusal-medium"].length_scale)
+
+    @patch("app.voice_cache.synthesize")
+    @patch("app.voice_cache.phonemize", return_value=[["h"]])
+    def test_prepare_an_audition_does_not_render_audio(self, _phonemize, synthesize) -> None:
+        response = self.client.post(
+            "/audio/speech/audition",
+            json={"input": "Hello", "voice": "kusal-medium", "speak": False},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.get_json()["audio_base64"])
+        synthesize.assert_not_called()
+
+    def test_audition_rejects_unsafe_or_ambiguous_settings(self) -> None:
+        too_loud = self.client.post(
+            "/audio/speech/audition",
+            json={"input": "Hello", "voice": "kusal-medium", "volume": 9},
+        )
+        ambiguous = self.client.post(
+            "/audio/speech/audition",
+            json={
+                "input": "Hello",
+                "voice": "kusal-medium",
+                "model": "en_US-kusal-medium",
+            },
+        )
+        self.assertEqual(too_loud.status_code, 400)
+        self.assertEqual(ambiguous.status_code, 400)
 
     @patch("app.voice_cache.synthesize", return_value=(b"RIFFfake", 22_050, 22_050))
     def test_tts_normalizes_only_the_speech_copy(self, synthesize) -> None:
@@ -579,10 +710,59 @@ class SpeechStageTests(unittest.TestCase):
 
 
 class UnspeakableCharacterTests(unittest.TestCase):
-    def test_arrows_become_pauses_rather_than_being_read_aloud(self) -> None:
-        # eSpeak reads "→" as the words "right arrow".
+    def test_flow_arrows_become_sequence_words(self) -> None:
         self.assertEqual(prepare_speech_text("is live → is active"),
-                         "is active, is active")
+                         "is active, then is active")
+
+    def test_arrows_use_their_sentence_context(self) -> None:
+        self.assertEqual(
+            prepare_speech_text(
+                "Input → normalizer → audio. Tap ← to return, or → to continue. "
+                "Phone ↔ server works both ways. Passing checks ⇒ release.",
+                lexicon=[],
+            ),
+            "Input, then normalizer, then audio. Tap the left arrow to return, "
+            "or the right arrow to continue. Phone and server works both ways. "
+            "Passing checks means release.",
+        )
+
+    def test_typographic_unicode_preserves_the_words(self) -> None:
+        self.assertEqual(
+            prepare_speech_text(
+                "Grayson said, “It’s ready”—then waited… Versions 3–5 use the "
+                "voice‑first setup. Samsung • Firefox • Chrome.",
+                lexicon=[],
+            ),
+            "Grayson said, \"It's ready\", then waited. Versions three to five "
+            "use the voice-first setup. Samsung, Firefox, Chrome.",
+        )
+
+    def test_math_and_measurement_symbols_are_spoken(self) -> None:
+        self.assertEqual(
+            prepare_speech_text(
+                "It is 20°C, ≤ 10 ms, ≥ 25 ms, ≈ 50%, and ±5%. "
+                "Three × seven; twelve ÷ four; −5; √9; ∞.",
+                lexicon=[],
+            ),
+            "It is twenty degrees Celsius, less than or equal to ten milliseconds, "
+            "greater than or equal to twenty five milliseconds, approximately "
+            "fifty percent, and plus or minus five percent. Three times seven; "
+            "twelve divided by four; minus five; square root of nine; infinity.",
+        )
+
+    def test_status_legal_and_science_symbols_preserve_meaning(self) -> None:
+        self.assertEqual(
+            prepare_speech_text(
+                "Complete ✓. Failed ✗. ⚠ Battery low. ℹ See Settings. "
+                "The voice is marked ★. See §4. Copyright © 2026 Acme®. "
+                "CLIde™ remains. Change Δ, wavelength λ, angle θ, 10 Ω.",
+                lexicon=[],
+            ),
+            "Complete. Failed. Warning. Battery low. Information. See Settings. "
+            "The voice is starred. See section four. Copyright twenty twenty six "
+            "Acme. CLIde remains. Change delta, wavelength lambda, angle theta, "
+            "ten ohms.",
+        )
 
     def test_ipa_tokens_are_dropped_whole(self) -> None:
         # Stripping the modifiers out of "lˈaɪv" leaves "l a v", which is then
@@ -653,6 +833,21 @@ class SpeechRulesTests(unittest.TestCase):
             "Nine lives were saved.",
         )
 
+    def test_replacement_preserves_the_matched_words_capitalization(self) -> None:
+        lexicon = default_rules().compiled()
+        self.assertEqual(
+            prepare_speech_text("Lives here.", lexicon=lexicon),
+            "Livz here.",
+        )
+        self.assertEqual(
+            prepare_speech_text("LIVES here.", lexicon=lexicon),
+            "LIVZ here.",
+        )
+        self.assertEqual(
+            prepare_speech_text("The runtime lives here.", lexicon=lexicon),
+            "The runtime livz here.",
+        )
+
     def test_match_text_is_escaped_not_treated_as_a_pattern(self) -> None:
         lexicon = validate({
             "pronunciations": [{"match": "c++", "say": "C plus plus", "mode": "word"}],
@@ -678,6 +873,19 @@ class SpeechRulesTests(unittest.TestCase):
             with self.subTest(reason=reason):
                 with self.assertRaises(ValueError):
                     validate(payload)
+
+    def test_stt_validation_is_complete_and_bounded(self) -> None:
+        self.assertEqual(validate_stt(None), default_rules().stt)
+        for payload in [
+            {"model": "../../small.en"},
+            {"decoder_preset": "creative"},
+            {"threads": 5},
+            {"initial_prompt": "x" * 401},
+            {"capture": {"echo_cancellation": "yes"}},
+        ]:
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValueError):
+                    validate_stt(payload)
 
     def test_null_override_means_use_the_model_default(self) -> None:
         rules = validate({"voices": {"agentvibes-jenny": {"length_scale": None}}})
@@ -714,9 +922,14 @@ class SpeechRulesApiTests(unittest.TestCase):
     def test_get_reports_every_voice_and_its_editable_bounds(self) -> None:
         payload = self.client.get("/api/speech-rules").get_json()
         self.assertEqual(set(payload["voices"]), set(VOICE_PRESETS))
+        self.assertEqual(payload["stt"], rules_store.current().stt)
         self.assertIn("length_scale", payload["editable_fields"])
         for voice in payload["voices"].values():
             self.assertIsNotNone(voice["length_scale"])
+            self.assertTrue(voice["label"])
+            self.assertTrue(voice["gender"])
+            self.assertTrue(voice["tier"])
+            self.assertTrue(voice["locale"])
 
     def test_put_rejects_an_unknown_voice(self) -> None:
         response = self.client.put("/api/speech-rules", json={"voices": {"nope": {}}})
@@ -729,3 +942,158 @@ class SpeechRulesApiTests(unittest.TestCase):
             json={"pronunciations": [{"match": "x", "mode": "regex"}]},
         )
         self.assertEqual(response.status_code, 400)
+
+
+class VoiceSettingsApiTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = app.test_client()
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        patcher = patch(
+            "app.VOICE_LABELS_PATH",
+            Path(self.directory.name) / "voice-labels.json",
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        current = rules_store.current()
+        self.original_rules = {
+            "pronunciations": current.pronunciations,
+            "voices": current.voices,
+            "stt": current.stt,
+            "tts": current.tts,
+        }
+        self.addCleanup(lambda: rules_store.save(self.original_rules))
+
+    def test_settings_publish_installed_favorites_and_stt_models(self) -> None:
+        saved = self.client.put("/api/voice-labels", json={
+            "key": "en_US-hfc_male-medium",
+            "favorite": True,
+            "gender": "male",
+            "length_scale": 0.8,
+        })
+        self.assertEqual(saved.status_code, 200)
+
+        payload = self.client.get("/api/voice-settings").get_json()
+        self.assertTrue(payload["capabilities"]["installed_voices"])
+        self.assertGreater(len(payload["tts"]["installed_models"]), len(VOICE_CATALOG))
+        self.assertEqual(payload["tts"]["favorites"][0]["id"], "hfc-male-medium")
+        self.assertEqual(
+            {model["id"] for model in payload["stt"]["models"]},
+            {"tiny.en", "base.en"},
+        )
+
+    def test_selection_uses_a_safe_installed_voice_and_can_reset_to_default(self) -> None:
+        selected = self.client.put(
+            "/api/voice-settings", json={"selected_voice": "en_GB-alan-medium"}
+        )
+        self.assertEqual(selected.status_code, 200)
+        self.assertEqual(selected.get_json()["tts"]["effective_voice"], "en_GB-alan-medium")
+
+        defaulted = self.client.put(
+            "/api/voice-settings", json={"selected_voice": None}
+        )
+        self.assertEqual(defaulted.status_code, 200)
+        self.assertEqual(defaulted.get_json()["tts"]["effective_voice"], DEFAULT_TTS_VOICE)
+
+    def test_runtime_default_uses_a_safe_model_and_speaker(self) -> None:
+        updated = self.client.put(
+            "/api/voice-settings",
+            json={"default_voice": "en_US-libritts_r-medium#546"},
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(
+            updated.get_json()["tts"]["default_voice"],
+            "en_US-libritts_r-medium#546",
+        )
+
+        reset_selection = self.client.put(
+            "/api/voice-settings", json={"selected_voice": None}
+        )
+        self.assertEqual(
+            reset_selection.get_json()["tts"]["effective_voice"],
+            "en_US-libritts_r-medium#546",
+        )
+
+    def test_new_multi_speaker_favorite_gets_a_stable_speaker_label(self) -> None:
+        saved = self.client.put("/api/voice-labels", json={
+            "key": "en_US-libritts_r-medium#546",
+            "favorite": True,
+        })
+        self.assertEqual(saved.status_code, 200)
+        favorite = self.client.get("/api/voice-settings").get_json()["tts"]["favorites"][0]
+        self.assertEqual(favorite["source_key"], "en_US-libritts_r-medium#546")
+        self.assertEqual(favorite["speaker_name"], "Speaker 546")
+        self.assertIn("Speaker 546", favorite["label"])
+
+    def test_speech_pace_scales_speed_and_gaps_without_changing_the_baseline(self) -> None:
+        response = self.client.put(
+            "/api/voice-settings", json={"speech_pace": 1.25}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["tts"]["speech_pace"], 1.25)
+
+        _, baseline = _resolve_voice("hfc-male-medium")
+        paced = _with_speech_pace(baseline)
+        self.assertAlmostEqual(paced.length_scale, baseline.length_scale / 1.25)
+        self.assertAlmostEqual(
+            paced.sentence_silence_seconds,
+            baseline.sentence_silence_seconds / 1.25,
+        )
+        self.assertIsNone(paced.structure_silence_seconds)
+        self.assertAlmostEqual(
+            paced.sentence_silence_seconds * 2,
+            (baseline.sentence_silence_seconds * 2) / 1.25,
+        )
+
+    def test_selected_voice_tuning_round_trips_and_can_reset(self) -> None:
+        tuned = self.client.put("/api/voice-settings", json={
+            "selected_voice": "hfc-male-medium",
+            "voice_tuning": {
+                "length_scale": 0.75,
+                "sentence_silence_seconds": 0.15,
+                "structure_silence_seconds": 0.35,
+            },
+        })
+        self.assertEqual(tuned.status_code, 200)
+        self.assertEqual(tuned.get_json()["tts"]["tuning"], {
+            "voice_id": "hfc-male-medium",
+            "length_scale": 0.75,
+            "sentence_silence_seconds": 0.15,
+            "structure_silence_seconds": 0.35,
+        })
+
+        reset = self.client.put(
+            "/api/voice-settings", json={"voice_tuning": None}
+        )
+        self.assertEqual(reset.status_code, 200)
+        self.assertEqual(reset.get_json()["tts"]["tuning"]["length_scale"], 0.9)
+
+    def test_dictation_preset_round_trips_through_shared_settings(self) -> None:
+        preset = {
+            "model": "base.en",
+            "decoder_preset": "careful",
+            "threads": 2,
+            "initial_prompt": "CLIde, Piper",
+            "capture": {
+                "echo_cancellation": False,
+                "noise_suppression": True,
+                "auto_gain_control": False,
+            },
+        }
+        response = self.client.put(
+            "/api/voice-settings", json={"stt_settings": preset}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["stt"]["settings"], preset)
+
+    def test_selection_rejects_paths_unknown_models_and_ambiguous_speakers(self) -> None:
+        for selected_voice in (
+            "../../etc/passwd",
+            "not-installed-medium",
+            "en_US-libritts_r-medium",
+        ):
+            with self.subTest(selected_voice=selected_voice):
+                response = self.client.put(
+                    "/api/voice-settings", json={"selected_voice": selected_voice}
+                )
+                self.assertEqual(response.status_code, 400)

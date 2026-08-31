@@ -1,17 +1,31 @@
 # Voice Studio
 
 Standalone, private experiment for the local voice paths. Built for a phone:
-four bottom tabs, nothing native, and no menu that runs taller than a thumb.
+five bottom tabs, nothing native, and no menu that runs taller than a thumb.
 
-- **Speak** auditions one voice against one script. It posts to the running
-  `voice-shim` service on 8890, so what you hear is what the app would say.
-  Prepared text, phonemes and the measured pause map are there, collapsed.
+- **Speak** auditions one voice against one script through the running
+  `voice-shim` service on 8890. A CLIde preset uses its real production pacing;
+  an arbitrary installed model uses the same speech preparation and saved
+  pronunciation rules with audition pacing. Prepared text, phonemes and the
+  measured pause map are there, collapsed. Its Advanced panel can load the
+  selected model's defaults, the current CLIde settings, or the historic
+  LibriTTS-R Natural preset, then vary speed, safe pauses, noise, phoneme
+  width, volume, and normalization for that audition only.
+- **Recordings** keeps explicitly saved Speak output under `~/voice/recordings`.
+  Each WAV retains its source text, selected voice, loaded preset, and exact
+  render settings; it can be played, downloaded, or deleted from the Studio.
 - **Favorites** is the list being compiled for CLIde: every kept voice with its
   model, speaker, speed, gender label and a free-text note. **Export** prints
   them as a `VOICE_PRESETS` block to paste into `../shim/app.py`.
 - **Rules** edits the pronunciation lexicon and the per-voice pacing that the
   service uses. Save, then press Speak it — no restart.
 - **Dictation** records or uploads audio and compares `tiny.en` and `base.en`.
+  **Save to CLIde** stores the chosen model, decoder, threads, vocabulary
+  prompt, and microphone processing; the next CLIde recording uses them.
+
+The **Save recording** action appears only after synthesis. It moves that exact
+generated WAV into the recordings library rather than rendering the text a
+second time. Unsaved output expires from temporary storage after one hour.
 
 ## Picking a voice out of ~1,800
 
@@ -52,13 +66,19 @@ Most of it is editable from the **Rules** tab, and saved to
   any case), `phrase` (an exact run of words), and `before` (a word, but only
   when followed by one of a list — that is how the verb "lives" is caught
   without touching "nine lives"). Match text is escaped, never treated as a
-  pattern, so `c++` is safe to type.
+  pattern, so `c++` is safe to type. A replacement keeps the matched word's
+  leading or all-caps form, so `Lives` becomes `Livz` while `lives` stays
+  `livz`.
 - **Voice pacing** — speed, the sentence pause, the structure pause (after a
   heading, list item, table row, or paragraph), and the word spoken for `/`.
 
 Only values you actually change are written to the file, so `overridden` stays
 meaningful. Delete `speech_rules.json` to return to the built-in defaults. A
 malformed file is logged and ignored rather than breaking speech.
+
+Pronunciation rules are collapsed to one-line summaries. The Add action stays
+at the top while that list scrolls; it inserts an expanded rule first and puts
+the cursor in its match field.
 
 What still needs a code edit in `../shim/normalizer.py`, because it is
 structural rather than a judgement about one word: Markdown handling, numbers,
@@ -97,12 +117,12 @@ recording. The Tailscale proxy stays private to the Tailnet.
 
 The Studio serializes Piper synthesis and Whisper transcription through one
 inference gate. This prevents two four-core inference jobs from competing on
-the 4 GB Pi. The Whisper tab sends `tiny.en` or `base.en` only when auditioning;
-an eventual CLIde `model=whisper-1` request remains mapped to `tiny.en`.
-Its Advanced dictation settings can compare a short initial vocabulary prompt,
-one of two reproducible decoder presets, and one to four CPU threads. Browser
-microphone processing is recorded with each take. Keep those settings fixed
-while comparing models, then vary one setting at a time.
+the 4 GB Pi. Dictation can compare a short initial vocabulary prompt, one of two
+reproducible decoder presets, one to four CPU threads, and browser microphone
+processing. Keep those settings fixed while comparing models, then vary one
+setting at a time. Saving chooses one model and writes the complete preset to
+the same data file the CLIde runtime reloads; temporary comparisons remain
+audition-only.
 
 Whisper's OpenAI-style endpoint remains available for testing:
 
