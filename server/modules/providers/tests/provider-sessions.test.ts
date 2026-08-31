@@ -778,6 +778,155 @@ describe('claude-subagent-history', () => {
     }
   });
 
+  function agentTranscript(prompt: string, toolId: string): string {
+    return [
+      JSON.stringify({
+        uuid: 's1',
+        isSidechain: true,
+        agentId: 'bg99',
+        sessionId: PROVIDER_SESSION_ID,
+        timestamp: '2026-08-31T10:00:10.000Z',
+        type: 'user',
+        message: { role: 'user', content: prompt },
+      }),
+      JSON.stringify({
+        uuid: 's2',
+        isSidechain: true,
+        sessionId: PROVIDER_SESSION_ID,
+        timestamp: '2026-08-31T10:00:20.000Z',
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: toolId, name: 'Grep', input: { pattern: 'TODO' } }],
+        },
+      }),
+      JSON.stringify({
+        uuid: 's3',
+        isSidechain: true,
+        sessionId: PROVIDER_SESSION_ID,
+        timestamp: '2026-08-31T10:00:30.000Z',
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: toolId, content: 'three hits' }],
+        },
+      }),
+    ].join('\n') + '\n';
+  }
+
+  test('a background agent that wrote no Agent call still reaches history', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'claude-subagent-bg-'));
+    const transcriptPath = path.join(tempRoot, `${PROVIDER_SESSION_ID}.jsonl`);
+    const subagentDir = path.join(tempRoot, PROVIDER_SESSION_ID, 'subagents');
+    await mkdir(subagentDir, { recursive: true });
+    // The parent transcript is one plain user turn: no Agent call anywhere.
+    await writeFile(transcriptPath, JSON.stringify({
+      uuid: 'p1',
+      parentUuid: null,
+      sessionId: PROVIDER_SESSION_ID,
+      timestamp: '2026-08-31T10:00:00.000Z',
+      type: 'user',
+      message: { role: 'user', content: '/code-review high src/' },
+    }) + '\n', 'utf8');
+    await writeFile(
+      path.join(subagentDir, 'agent-bg99.jsonl'),
+      agentTranscript('Review target: `src/`\n\nFind real bugs.', 'toolu_grep'),
+      'utf8',
+    );
+    await writeFile(
+      path.join(subagentDir, 'agent-bg99.meta.json'),
+      JSON.stringify({ agentType: 'general-purpose' }),
+      'utf8',
+    );
+
+    try {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createSession(
+          PROVIDER_SESSION_ID,
+          'claude',
+          path.join(tempRoot, 'workspace'),
+          undefined,
+          undefined,
+          undefined,
+          transcriptPath,
+        );
+
+        const history = await new ClaudeSessionsProvider().fetchHistory(PROVIDER_SESSION_ID);
+        const agents = history.messages.filter(
+          (message) => message.kind === 'tool_use' && message.toolName === 'Agent',
+        );
+
+        assert.equal(agents.length, 1, 'the background agent should be recovered');
+        const input = agents[0].toolInput as { subagent_type: string; description: string };
+        assert.equal(input.subagent_type, 'general-purpose');
+        assert.equal(input.description, 'Review target: src/');
+        assert.deepEqual(
+          (agents[0].subagentTools as Array<{ toolName: string }>).map((tool) => tool.toolName),
+          ['Grep'],
+        );
+      });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('an Agent call still awaiting its result is resolved, not duplicated', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'claude-subagent-pending-'));
+    const transcriptPath = path.join(tempRoot, `${PROVIDER_SESSION_ID}.jsonl`);
+    const subagentDir = path.join(tempRoot, PROVIDER_SESSION_ID, 'subagents');
+    await mkdir(subagentDir, { recursive: true });
+    // The Agent call is in the parent, but it never got a tool_result back.
+    await writeFile(transcriptPath, JSON.stringify({
+      uuid: 'p1',
+      parentUuid: null,
+      sessionId: PROVIDER_SESSION_ID,
+      timestamp: '2026-08-31T10:00:00.000Z',
+      type: 'assistant',
+      message: {
+        role: 'assistant',
+        content: [{
+          type: 'tool_use',
+          id: 'toolu_agent',
+          name: 'Agent',
+          input: { description: 'Review the diff', subagent_type: 'code-reviewer' },
+        }],
+      },
+    }) + '\n', 'utf8');
+    await writeFile(
+      path.join(subagentDir, 'agent-bg99.jsonl'),
+      agentTranscript('Review target: `src/`', 'toolu_grep'),
+      'utf8',
+    );
+
+    try {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createSession(
+          PROVIDER_SESSION_ID,
+          'claude',
+          path.join(tempRoot, 'workspace'),
+          undefined,
+          undefined,
+          undefined,
+          transcriptPath,
+        );
+
+        const history = await new ClaudeSessionsProvider().fetchHistory(PROVIDER_SESSION_ID);
+        const agents = history.messages.filter(
+          (message) => message.kind === 'tool_use' && message.toolName === 'Agent',
+        );
+
+        assert.equal(agents.length, 1, 'the pending call should absorb the transcript');
+        assert.equal(agents[0].toolId, 'toolu_agent');
+        assert.deepEqual(
+          (agents[0].subagentTools as Array<{ toolName: string }>).map((tool) => tool.toolName),
+          ['Grep'],
+        );
+      });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   test('a session that has never forked an agent loads without a subagents directory', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'claude-subagent-none-'));
     const transcriptPath = path.join(tempRoot, `${PROVIDER_SESSION_ID}.jsonl`);

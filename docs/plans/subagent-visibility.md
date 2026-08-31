@@ -1,7 +1,7 @@
 # Subagents are visible while they run and readable after they die
 
-- Status: 1/5
-- Next: Phase 2 — discover agents by listing `subagents/`, not via `toolUseResult.agentId`
+- Status: 2/5
+- Next: Phase 3 — watch `subagents/**` so a running agent updates without a reload
 - Context: transcript shape and the id rules in
   [code anchors](../maps/code-anchors.md); detail-surface rule in
   [ADR 0046](../decisions/0046-tool-detail-leaves-the-chat-column.md); this
@@ -18,17 +18,16 @@ constraint holds for every phase below.
 
 ## Phases
 
-- [x] 1. **A finished `Task` keeps its children across a reload** — this commit.
-  `getSessionMessages` lists `agent-*.jsonl` in `dirname(jsonl_path)`, the flat
-  project slug dir; since Claude 2.1.233 they live in
-  `<slug>/<provider_session_id>/subagents/`, so the glob matches nothing and
-  `parseAgentTools` never runs on history. Repoint it; `SubagentContainer`
-  already renders what it returns.
-- [ ] 2. **An agent with no `Task` row still appears.** Discovery reads the
-  `subagents/` directory instead of collecting `toolUseResult.agentId` off
-  completed Task results. Background tasks and forked skills (`/code-review
-  high`) write no such row, which is why they are invisible today. `agentType`
-  comes from the sibling `agent-<id>.meta.json`.
+- [x] 1. **A finished agent call keeps its children across a reload.** History
+  reads `<transcript>/subagents/`, where Claude has written agent files since
+  2.1.233, instead of the flat project slug dir where the glob matched nothing.
+  The client also matched only `Task`, the tool's former name, so no transcript
+  on disk opened a container; one predicate now owns `Agent` and `Task`.
+- [x] 2. **An agent with no `Agent` row still appears.** Discovery reads the
+  `subagents/` directory rather than only collecting `toolUseResult.agentId`
+  off completed calls, so background tasks and forked skills surface as a
+  synthesized call carrying their type, prompt, and tools. An `Agent` call
+  still awaiting its result absorbs the transcript instead of duplicating it.
 - [ ] 3. **A running agent updates without a reload.** A watch on
   `subagents/**` — currently in `WATCHER_IGNORED_PATTERNS` — emits an agent
   event keyed to the parent `session_id`, on its own channel, never through

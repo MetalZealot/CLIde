@@ -111,8 +111,18 @@ function extractHistoryTokenUsage(rawMessages: AnyRecord[]): AnyRecord | undefin
   return undefined;
 }
 
-async function parseAgentTools(filePath: string): Promise<AnyRecord[]> {
+interface AgentTranscript {
+  tools: AnyRecord[];
+  prompt: string;
+  firstTimestamp: string | null;
+  lastTimestamp: string | null;
+}
+
+async function parseAgentTranscript(filePath: string): Promise<AgentTranscript> {
   const tools: AnyRecord[] = [];
+  let prompt = '';
+  let firstTimestamp: string | null = null;
+  let lastTimestamp: string | null = null;
 
   try {
     const fileStream = fs.createReadStream(filePath);
@@ -128,6 +138,24 @@ async function parseAgentTools(filePath: string): Promise<AnyRecord[]> {
 
       try {
         const entry = JSON.parse(line) as AnyRecord;
+
+        if (typeof entry.timestamp === 'string') {
+          firstTimestamp ??= entry.timestamp;
+          lastTimestamp = entry.timestamp;
+        }
+
+        // The agent's own first turn is the prompt it was launched with.
+        if (!prompt && entry.message?.role === 'user') {
+          const content = entry.message.content;
+          if (typeof content === 'string') {
+            prompt = content;
+          } else if (Array.isArray(content)) {
+            prompt = (content as AnyRecord[])
+              .filter((part) => part.type === 'text' && typeof part.text === 'string')
+              .map((part) => part.text as string)
+              .join('\n');
+          }
+        }
 
         if (entry.message?.role === 'assistant' && Array.isArray(entry.message?.content)) {
           for (const part of entry.message.content as AnyRecord[]) {
@@ -174,7 +202,135 @@ async function parseAgentTools(filePath: string): Promise<AnyRecord[]> {
     console.warn(`Error parsing agent file ${filePath}:`, message);
   }
 
-  return tools;
+  return { tools, prompt, firstTimestamp, lastTimestamp };
+}
+
+/** Claude records the agent's type beside its transcript, and nothing else. */
+async function readAgentType(subagentDir: string, agentId: string): Promise<string | null> {
+  try {
+    const raw = await fsp.readFile(path.join(subagentDir, `agent-${agentId}.meta.json`), 'utf8');
+    const parsed = JSON.parse(raw) as { agentType?: unknown };
+    return typeof parsed.agentType === 'string' ? parsed.agentType : null;
+  } catch {
+    return null;
+  }
+}
+
+function describeAgentPrompt(prompt: string): string {
+  const firstLine = prompt.split('\n').map((line) => line.trim()).find(Boolean) ?? '';
+  const plain = firstLine.replace(/[`*#>]/g, '').trim();
+  return plain.length > 80 ? `${plain.slice(0, 79)}\u2026` : plain;
+}
+
+const SUBAGENT_TOOL_NAMES = new Set(['Agent', 'Task']);
+
+/**
+ * A background task or a forked skill runs an agent without ever writing an
+ * `Agent` call to the parent transcript, so the agent's own file is the only
+ * record that it existed. Anything not already attached to a completed call
+ * is recovered here: first by resolving an `Agent` call still waiting for its
+ * result, then, for what remains, as a synthesized call of its own.
+ */
+async function buildUnclaimedAgentRows(
+  activeMessages: AnyRecord[],
+  claimedAgentIds: Set<string>,
+  subagentDir: string,
+  agentFiles: string[],
+): Promise<AnyRecord[]> {
+  const unclaimedIds = agentFiles
+    .filter((file) => file.startsWith('agent-') && file.endsWith('.jsonl'))
+    .map((file) => file.slice('agent-'.length, -'.jsonl'.length))
+    .filter((agentId) => agentId && !claimedAgentIds.has(agentId));
+
+  if (unclaimedIds.length === 0) {
+    return [];
+  }
+
+  const resolvedToolIds = new Set<string>();
+  for (const message of activeMessages) {
+    if (!Array.isArray(message.message?.content)) {
+      continue;
+    }
+    for (const part of message.message.content as AnyRecord[]) {
+      if (part.type === 'tool_result' && typeof part.tool_use_id === 'string') {
+        resolvedToolIds.add(part.tool_use_id);
+      }
+    }
+  }
+
+  const pendingAgentCalls: { toolId: string; timestamp: string }[] = [];
+  for (const message of activeMessages) {
+    if (!Array.isArray(message.message?.content)) {
+      continue;
+    }
+    for (const part of message.message.content as AnyRecord[]) {
+      if (part.type !== 'tool_use' || typeof part.id !== 'string') {
+        continue;
+      }
+      if (SUBAGENT_TOOL_NAMES.has(String(part.name)) && !resolvedToolIds.has(part.id)) {
+        pendingAgentCalls.push({ toolId: part.id, timestamp: String(message.timestamp ?? '') });
+      }
+    }
+  }
+  pendingAgentCalls.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+  const transcripts = await Promise.all(unclaimedIds.map(async (agentId) => ({
+    agentId,
+    agentType: await readAgentType(subagentDir, agentId),
+    ...await parseAgentTranscript(path.join(subagentDir, `agent-${agentId}.jsonl`)),
+  })));
+  transcripts.sort((a, b) => (a.firstTimestamp ?? '').localeCompare(b.firstTimestamp ?? ''));
+
+  const rows: AnyRecord[] = [];
+  for (const [index, transcript] of transcripts.entries()) {
+    if (!transcript.firstTimestamp) {
+      continue;
+    }
+
+    // An agent that is still running has no result row of its own, so its
+    // launch keeps whatever id the parent already gave it.
+    const pending = pendingAgentCalls[index];
+    const toolId = pending?.toolId ?? `subagent-${transcript.agentId}`;
+
+    if (!pending) {
+      rows.push({
+        uuid: `${toolId}-use`,
+        timestamp: transcript.firstTimestamp,
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [{
+            type: 'tool_use',
+            id: toolId,
+            name: 'Agent',
+            input: {
+              subagent_type: transcript.agentType ?? 'agent',
+              description: describeAgentPrompt(transcript.prompt),
+              prompt: transcript.prompt,
+            },
+          }],
+        },
+      });
+    }
+
+    rows.push({
+      uuid: `${toolId}-result`,
+      timestamp: transcript.lastTimestamp ?? transcript.firstTimestamp,
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: toolId,
+          content: `${transcript.tools.length} tool calls`,
+        }],
+      },
+      toolUseResult: { agentId: transcript.agentId },
+      subagentTools: transcript.tools,
+    });
+  }
+
+  return rows;
 }
 
 async function getSessionMessages(
@@ -243,7 +399,7 @@ async function getSessionMessages(
       }
 
       const agentFilePath = path.join(subagentDir, agentFileName);
-      const tools = await parseAgentTools(agentFilePath);
+      const { tools } = await parseAgentTranscript(agentFilePath);
       agentToolsCache.set(agentId, tools);
     }
 
@@ -258,6 +414,8 @@ async function getSessionMessages(
         message.subagentTools = agentTools;
       }
     }
+
+    activeMessages.push(...await buildUnclaimedAgentRows(activeMessages, agentIds, subagentDir, agentFiles));
 
     const sortedMessages = activeMessages.sort(
       (a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime(),
