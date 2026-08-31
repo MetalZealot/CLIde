@@ -17,6 +17,7 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 | [Mobile bottom navigation](mobile-bottom-navigation.md) | 1/4 | Finish one-owner safe-area handling, then agree labels and keyboard behavior |
 | [Codex Chat-Shell ownership](codex-chat-shell-ownership.md) | not started | Agree the visible handoff state, then prove 0.147/0.149 release timing |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
+| [Markdown-native project board](markdown-project-board.md) | not started | First observe the existing dashboard, then test the status contract across three projects |
 | [Playwright MCP bridge](browser-mcp-hardening.md) | not started | Phase 0: prove host-supplied context and authenticated HTTP transport |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |

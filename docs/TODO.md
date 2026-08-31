@@ -97,6 +97,7 @@ new work.
 
 ---
 
+- [ ] **Markdown-native cross-project dashboard and Kanban board.** A possible built-in or extension surface over authoritative project docs, with deterministic partial adoption, optional agent-assisted setup, and later constrained source edits—no task database or orchestration layer. [Plan](plans/markdown-project-board.md). **L — observe dashboard V1 first**
 - [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
 - [ ] **Claude Code settings are almost entirely unreachable from CLIde** — 157 cascade keys, 59 `/config` rows, CLIde exposes zero, though `settingSources` already puts `~/.claude/settings.json` in force every session. Destinations: [command surface map](maps/claude-command-surface.md); per-key tiers: [settings audit](maps/2026-07-28-claude-code-settings-surface-audit.md). **L**
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
