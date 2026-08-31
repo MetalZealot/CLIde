@@ -1,94 +1,126 @@
-# Browser MCP hardening: snapshot-first, reference-based automation
+# Official Playwright MCP bridge with a monitored Browser tab
 
 - Status: not started
-- Next: slice 1 — the revision/ref registry and a deterministic snapshot
-  projection, behind the existing action inputs.
-- Context: follows the token-bloat fix `ef604c5`, whose output limits this
-  keeps · `server/modules/browser-use/`
+- Next: Phase 0 — prove host-supplied context and authenticated HTTP transport.
+- Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
+  [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
+  [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
 
-The built-in `cloudcli-browser` MCP is still an early browser bridge: a snapshot
-is `body.innerText`; click, type, fill and select depend on raw CSS selectors,
-fuzzy text, or coordinates; page content is untyped, unbounded, and not marked
-as untrusted; and the panel, capture lifecycle and agent protocol share one
-in-memory session object more tightly than they need to.
+Replace CLIde's hand-written tools with a pinned `@playwright/mcp` package while
+retaining the Browser tab as a live monitor.
+Playwright MCP owns tool schemas, accessibility snapshots, element references
+and browser actions; CLIde owns the browser contexts, policy and visible state.
 
-## The four product decisions
+## Contract
 
-1. **Snapshot-first is the normal contract.** `browser_snapshot` returns a
-   compact accessibility-oriented interaction map with opaque element
-   references, and the agent acts through those. It must not expose raw DOM,
-   arbitrary CSS selectors, browser internals, cookies, request headers, storage,
-   or a screenshot. Raw selectors survive only as a migration escape hatch — not
-   the documented happy path.
-2. **References are short-lived capabilities, not selectors.** A ref is valid
-   only for its session, selected tab, and document revision; navigation, tab
-   switch, a DOM-changing action, or an explicit refresh invalidates it. The
-   backend resolves a ref to a server-held Playwright locator and rechecks that
-   the element is attached, visible, enabled where relevant, and still agrees
-   with its recorded role and accessible name. If it cannot, it **fails closed**
-   with `This page changed after snapshot r17. Request browser_snapshot again,
-   then use a current ref.` — it never clicks an adjacent element. Refs are
-   opaque, bounded in count, and never persisted to the database, transcript, or
-   panel.
-3. **Page text is untrusted data.** Every snapshot puts page-derived text in a
-   clearly labelled `untrusted` section; tool descriptions and server errors stay
-   outside it. This is a provenance cue, not a prompt-injection defence. The
-   server must never return the MCP bearer token, cookies, local/session storage,
-   password values, authorization headers, or profile filesystem paths; must not
-   add `evaluate`, cookie/storage export, download, or file-upload tools in this
-   scope; must keep the temporary-vs-named-profile distinction explicit in every
-   session summary; and must return an explicit action outcome rather than
-   reading a page's prose as success.
-4. **Bounded output is a correctness rule.** Keep `ef604c5`'s limits for ordinary
-   action/list/session responses — 4,096 UTF-8 bytes, no `screenshotDataUrl` or
-   `data:image`, capped lists, UTF-8-safe truncation. Snapshots get a **12,000
-   UTF-8 byte** cap on the whole serialised response, counted in bytes rather
-   than JS characters, reporting `truncated: true` and
-   `nextStep: "narrow the snapshot or inspect a target"`. No hidden overflow
-   file, no silent omission. `browser_take_screenshot` stays the only tool that
-   may return an image: one compact metadata text block plus one JPEG block,
-   never a data URL, never repeating page text.
+- One authenticated MCP transport maps to one CLIde Browser session and one
+  Playwright context. Its opaque id also identifies the panel session; no
+  database row is required.
+- CLIde passes each context through Playwright MCP's public
+  `createConnection(config, contextGetter)` API. Do not fork the package, import
+  private Playwright internals or copy its tools into this repository.
+- Temporary sessions share one headless browser with isolated contexts. A named
+  persistent profile has a locked context and cannot be selected by an arbitrary
+  agent-supplied path.
+- Context creation supports desktop, phone and tablet presets with touch, user
+  agent, pixel density and orientation. `browser_resize` changes responsive
+  width; full device emulation takes effect on a new context.
+- Service workers are allowed by default so PWA behaviour can be tested. A
+  deliberate test configuration may block them; the bridge must not hardcode
+  that narrower mode.
+- The Browser tab remains a monitor, not a second controller. It shows safe
+  session identity, status, tabs, URL, title, device, viewport, last action and a
+  recent screenshot. Visible changes are agreed before panel code is edited.
+- Observe calls at the public MCP transport layer, never through Playwright MCP's
+  private active-tab or locator objects.
+- Preserve `ef604c5`'s separation between agent results and panel screenshots:
+  no routine MCP result contains a screenshot data URL, and only an explicit
+  screenshot tool may return an MCP image.
+- Full browser capability does not include server-code execution.
+  `browser_run_code_unsafe` remains unavailable. Uploads, downloads, storage
+  writes, network mutation and persistent profiles remain disabled until their
+  cross-provider approval path is proven.
+
+## Prerequisite
+
+Claude, Cursor and OpenCode MCP updates must preserve provider-native keys they
+do not model before the bridge rewrites their `cloudcli-browser` registration.
+Codex already has that merge behaviour. The Browser work must not conceal or
+work around that provider-config defect.
 
 ## Phases
 
-Each slice is a reviewable commit leaving a working Browser MCP.
+- [ ] **0. Public-API and transport proof.** In an isolated topic worktree, pin
+      compatible Playwright and `@playwright/mcp` versions and prove four things
+      without changing the current Browser: a CLIde-created context works through
+      `contextGetter`; authenticated Streamable HTTP supports MCP POST, GET and
+      DELETE lifecycle; Claude can navigate, snapshot by reference and resize;
+      and CLIde can observe the completed tool call and capture the correct page
+      using public APIs. Measure response bytes, screenshot latency and memory.
+      Stop and revise this plan if active-tab observation requires private APIs.
+- [ ] **1. CLIde-owned runtime boundary.** Split context/profile/browser
+      lifecycle from the current action service. Add one shared temporary
+      browser, per-connection contexts, named-profile locking, session cap,
+      inactivity expiry and shutdown cleanup. Keep installation and readiness
+      checks, but remove runtime `npm install --no-save`; the package version is
+      repository-pinned and the installer manages browser binaries only.
+- [ ] **2. Embedded Playwright MCP endpoint.** Create one official MCP server
+      connection per authenticated transport session and supply its context from
+      Phase 1. Keep the `cloudcli-browser` registration name. Replace the current
+      static tool registry and per-tool REST dispatcher only after initialize,
+      reconnect, cancellation and close behaviour have focused tests.
+- [ ] **3. Policy, artifacts and result boundaries.** Expose the approved
+      official capabilities while filtering denied tools at both `tools/list`
+      and `tools/call`. Restrict file access to MCP client roots, put outputs in
+      a size-limited per-session directory outside the repository, redact known
+      secrets and label page-derived content as untrusted. Keep ordinary results
+      within 4 KiB and snapshot-bearing results within 12 KiB unless Phase 0
+      measurements justify a separately recorded limit change; truncation is
+      explicit and recoverable through targeted snapshots or bounded files.
+- [ ] **4. Live Browser monitor.** Record tool name and outcome at the transport
+      boundary, mirror safe tab/page metadata from the supplied context and
+      capture a debounced screenshot after state-changing calls. Push or poll
+      updates only while the Browser tab is visible; opening the tab must show
+      current state without a manual Refresh. Preserve Stop/Delete and profile
+      visibility. Retain the cursor marker only if its position is available
+      through the public contract.
+- [ ] **5. Provider migration and compatibility.** Register the authenticated
+      HTTP endpoint for Claude, Codex, Cursor and OpenCode without disturbing
+      unrelated native MCP keys. Remove the old `browser_create_session`,
+      session-id arguments, selector tools and stdio bridge after all providers
+      see the official schemas. Existing named profile directories remain owned
+      by CLIde. Record the chosen transport, capability and profile policy in an
+      ADR once the proof fixes those decisions.
+- [ ] **6. Isolated live acceptance and retirement.** Exercise desktop and
+      phone contexts, reference actions, tabs, dialogs, console/network reads,
+      PWA service workers, explicit screenshots, denied tools, profile locking,
+      transport reconnect and cleanup through each provider. Confirm ordinary
+      calls contain no image data, panel captures do not enter agent context and
+      three concurrent temporary contexts stay inside the measured host budget.
+      Build and serve only the topic checkout until Grayson accepts the Browser
+      tab and real agent workflow; then remove obsolete implementation and move
+      the completed plan to the archive.
 
-- [ ] **1. Contract and observation foundation.** Revision/ref registry,
-      deterministic snapshot projection, byte-counted encoding, error codes.
-      Retain old action inputs; no panel behaviour change.
-- [ ] **2. Reference actions.** Add `ref` to click/type/fill/select/wait with
-      stale and non-actionable validation. Make `ref` the documented default and
-      mark legacy targeting deprecated.
-- [ ] **3. Panel and runtime observability.** Surface safe session/tab/action
-      health. Measure capture overhead *before* changing capture cadence.
-- [ ] **4. Compatibility and retirement.** Run provider and client tests, then
-      decide separately whether legacy target inputs can go.
+## Done when
 
-**If the ARIA projection, reference resolution, and panel health cannot stay one
-coherent increment, stop after slice 1 and record why.** Do not rush an unsafe
-selector-to-ref rewrite to claim parity.
-
-## Decide at implementation start
-
-These are product policy, not protocol shape, and an ADR is probably warranted
-once one is answered — but do not write a retrospective ADR for the proposal
-alone.
-
-1. Should a named persistent profile require explicit selection in Browser
-   settings, rather than an agent supplying an arbitrary profile name?
-2. What is the right approval experience for destructive external actions —
-   form submission, purchases, uploads — across all providers?
-3. After measuring real panel use: capture after every action, on a throttled
-   cadence, or only while the panel is visible?
-4. Is this one upstreamable core patch plus a CLIde-only panel patch, or
-   fork-only?
+- Agents use the official Playwright MCP tool contract through all four
+  providers, including structured references and mobile-sized browsing.
+- The Browser tab updates during agent work and remains able to stop and remove
+  CLIde-owned sessions without exposing screenshots or credentials to MCP text.
+- Temporary and persistent contexts are isolated, bounded and cleaned up after
+  disconnect, expiry and server shutdown.
+- Output sizes, browser memory, screenshot cadence and provider configuration
+  preservation have measured evidence; automated checks and Grayson's live
+  Browser-tab acceptance are reported separately.
 
 ## Not doing
 
-Replacing the Browser panel with Microsoft's Playwright MCP server. Browser
-devtools or network recording, arbitrary JavaScript evaluation, downloads,
-uploads, cookie or storage inspection. Removing persistent profiles or changing
-their user-data policy. Solving web prompt injection or designing a global agent
-approval system. Making screenshots free — explicit image requests still spend
-vision and context capacity. Touching the production service during development
-or isolated testing.
+- Forking or vendoring Playwright MCP, depending on its private internals, or
+  maintaining parallel CLIde implementations of its browser actions.
+- Exposing `browser_run_code_unsafe`, unrestricted host-file access or secrets
+  merely to claim the complete upstream tool count.
+- Turning the Browser tab into a manually operated remote browser.
+- Adding a public listener, cloud-browser vendor, database schema or real-device
+  Android control.
+- Treating emulation as proof of Samsung Browser, Firefox Mobile or installed-PWA
+  acceptance, or claiming that browser automation solves web prompt injection.

@@ -34,7 +34,7 @@ main checkout only).
 - [ ] **The Git branch switcher can wreck the working tree when the selected project is CLIde's own checkout** — the norm for anyone forking CLIde to hack on CLIde. `handleSwitchBranch` → `switchBranch` → the switch route runs a real `git checkout` on the running app's directory. Needs the self-hosting guard from [the plan](plans/source-control-truthfulness.md). [upstreamable] **M**
 - [ ] **Duplicate-session double-send:** pressing send twice on a brand-new chat creates two sessions running the same message. `handleSubmit` (`useChatComposerState.ts`) awaits `POST /api/providers/sessions` before anything visible happens — no optimistic append, no processing state, and **no in-flight guard**. Observed 2026-07-16, two JSONLs 250 ms apart. **S/M**
 - [ ] **Project force-delete orphans subagent transcripts on disk.** It unlinks each session's top-level `<slug>/<session-id>.jsonl`, but nested `<slug>/<session-id>/subagents/agent-*.jsonl` were never session rows, so they survive and keep the whole `<slug>/` tree alive against the non-recursive prune. Pre-existing, not caused by `0a738ae`. **S/M**
-- [ ] **Browser MCP hardening** — snapshot-first, reference-based automation replacing selector and coordinate targeting. [Plan](plans/browser-mcp-hardening.md). **L**
+- [ ] **Replace CLIde's home-grown Browser MCP with official Playwright MCP while retaining the monitored Browser tab.** CLIde will own contexts, auth, profiles/devices, bounded results and live panel state around the official tools. Blocked on native-key-safe MCP config edits. [Plan](plans/browser-mcp-hardening.md). **L**
 
 ## Mobile UX polish
 

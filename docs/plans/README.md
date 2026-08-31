@@ -14,11 +14,10 @@ Ordered as Grayson set it on 2026-08-03, with the unqueued work below the rule.
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
 | [Subagent visibility](subagent-visibility.md) | 2/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
-| [Subagent visibility](subagent-visibility.md) | 1/5 | Phase 2: discover agents by listing `subagents/`, not via a completed Task row |
 | [Mobile bottom navigation](mobile-bottom-navigation.md) | 1/4 | Finish one-owner safe-area handling, then agree labels and keyboard behavior |
 | [Codex Chat-Shell ownership](codex-chat-shell-ownership.md) | not started | Agree the visible handoff state, then prove 0.147/0.149 release timing |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
-| [Browser MCP hardening](browser-mcp-hardening.md) | not started | Slice 1: ref registry and deterministic snapshot projection |
+| [Playwright MCP bridge](browser-mcp-hardening.md) | not started | Phase 0: prove host-supplied context and authenticated HTTP transport |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |
 | [Cross-provider chat handoff](cross-provider-chat-handoff.md) | not started | Re-verify its four assumed contracts |
