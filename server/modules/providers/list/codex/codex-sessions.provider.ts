@@ -405,6 +405,26 @@ async function getCodexSessionMessages(
           tokenUsage = extractCodexContextTokenUsage(info) as AnyRecord | null;
         }
 
+        // A turn that ends on a usage limit or transport failure is only
+        // recorded here; without it the transcript reopens as if the turn
+        // simply stopped.
+        if (
+          entry.type === 'event_msg'
+          && entry.payload?.type === 'task_complete'
+          && entry.payload.error
+        ) {
+          const failure = entry.payload.error as AnyRecord;
+          messages.push({
+            type: 'error',
+            timestamp: entry.timestamp,
+            message: {
+              content: readNonEmptyString(failure.message)
+                || readNonEmptyString(failure.codex_error_info)
+                || 'Codex turn failed.',
+            },
+          });
+        }
+
         if (
           entry.type === 'event_msg'
           && entry.payload?.type === 'sub_agent_activity'
@@ -913,6 +933,17 @@ export class CodexSessionsProvider implements IProviderSessions {
         kind: 'text',
         role: 'assistant',
         content,
+      })];
+    }
+
+    if (raw.type === 'error') {
+      return [createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'error',
+        content: raw.message?.content || 'Codex turn failed.',
       })];
     }
 

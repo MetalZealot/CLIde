@@ -291,6 +291,51 @@ describe('codex-sessions', () => {
     }
   });
 
+  test('Codex history keeps the usage-limit failure that ended a turn', { concurrency: false }, async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-turn-failure-'));
+    const workspacePath = path.join(tempRoot, 'workspace');
+    const transcriptPath = path.join(tempRoot, 'rollout-turn-failure.jsonl');
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        timestamp: '2026-07-25T12:00:01.000Z',
+        type: 'event_msg',
+        payload: { type: 'user_message', message: 'Continue' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-07-25T12:00:02.000Z',
+        type: 'event_msg',
+        payload: {
+          type: 'task_complete',
+          last_agent_message: null,
+          error: {
+            message: "You've hit your usage limit. Try again at 12:34 PM.",
+            codex_error_info: 'usage_limit_exceeded',
+          },
+        },
+      }),
+    ].join('\n') + '\n', 'utf8');
+
+    try {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createSession(
+          'codex-turn-failure',
+          'codex',
+          workspacePath,
+          undefined,
+          undefined,
+          undefined,
+          transcriptPath,
+        );
+        const history = await new CodexSessionsProvider().fetchHistory('codex-turn-failure');
+        const failure = history.messages.find((message) => message.kind === 'error');
+        assert.equal(failure?.content, "You've hit your usage limit. Try again at 12:34 PM.");
+      });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   test('Codex history preserves response-item ids used by live App Server messages', { concurrency: false }, async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-response-item-id-'));
     const workspacePath = path.join(tempRoot, 'workspace');
