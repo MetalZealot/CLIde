@@ -2,6 +2,8 @@ export {
   generateDisplayName,
   getProjectsWithSessions,
 } from './services/projects-with-sessions-fetch.service.js';
+// listRepositoryWorktrees: used by the Git routes to fan a status read across one repository's worktrees.
+export { listRepositoryWorktrees } from './services/worktree-inventory.service.js';
 export { updateProjectDisplayName } from './services/project-management.service.js';
 // createProject: used by Projects routes and the clone service to register a directory as a switchable project.
 export { createProject } from './services/project-management.service.js';

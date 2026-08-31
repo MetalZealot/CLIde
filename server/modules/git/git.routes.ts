@@ -7,7 +7,9 @@ import type { ProviderRunFunction } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
 // cross-spawn: drop-in spawn with Windows .cmd/PATHEXT resolution.
-import { parseGitLogWithStats, parseGitStatusOutput } from './git-parsing.service.js';
+import { listRepositoryWorktrees } from '@/modules/projects/index.js';
+
+import { parseGitLogWithStats, parseGitStatusOutput, parseWorktreeStatusPorcelainV2 } from './git-parsing.service.js';
 
 type GitRouterDependencies = {
   fileSystem: typeof import('node:fs/promises');
@@ -795,6 +797,58 @@ router.get('/branches', async (req, res) => {
   } catch (error) {
     console.error('Git branches error:', error);
     res.json({ error: error.message });
+  }
+});
+
+// How many worktree status reads run at once. Each spawns git, so a repository
+// with a dozen worktrees would otherwise fork a dozen processes on a 4-core host.
+const WORKTREE_STATUS_CONCURRENCY = 8;
+
+/**
+ * Change and push/pull counts for every worktree of one repository, so the
+ * Worktrees panel can show which trees have work in them without opening each.
+ *
+ * Takes any checkout of the repository: `git worktree list` reports the whole
+ * set from any one of them, and the paths come from git rather than the caller,
+ * so no client-supplied path is ever used as a working directory. That also
+ * covers worktrees CLIde has no project row for, which the panel still lists.
+ */
+router.get('/worktree-status', async (req, res) => {
+  const { project } = req.query;
+
+  if (!project) {
+    return res.status(400).json({ error: 'Project id is required' });
+  }
+
+  try {
+    const projectPath = await getActualProjectPath(project);
+    await validateGitRepository(projectPath);
+
+    const entries = (await listRepositoryWorktrees(projectPath)).filter((entry) => entry.path && !entry.isPrunable);
+    const worktrees = [];
+
+    for (let index = 0; index < entries.length; index += WORKTREE_STATUS_CONCURRENCY) {
+      const batch = entries.slice(index, index + WORKTREE_STATUS_CONCURRENCY);
+      const read = await Promise.all(batch.map(async (entry) => {
+        try {
+          const { stdout } = await spawnAsync('git', ['status', '--porcelain=v2', '--branch'], { cwd: entry.path });
+          return { path: entry.path, ...parseWorktreeStatusPorcelainV2(stdout) };
+        } catch {
+          // A removed or unreadable directory drops out of the response rather
+          // than failing the batch; the panel shows those rows as unavailable.
+          return null;
+        }
+      }));
+      worktrees.push(...read.filter(Boolean));
+    }
+
+    res.json({ worktrees });
+  } catch (error) {
+    const isNotGitRepository = error instanceof AppError && error.code === 'NOT_A_GIT_REPOSITORY';
+    if (!isNotGitRepository) {
+      console.error('Git worktree status error:', error);
+    }
+    res.json({ worktrees: [], error: isNotGitRepository ? 'Not a git repository' : 'Failed to read worktree status' });
   }
 });
 

@@ -5,7 +5,7 @@ import { PassThrough } from 'node:stream';
 import test, { describe } from 'node:test';
 import express from 'express';
 import { createGitRouter } from '@/modules/git/git.routes.js';
-import { parseGitLogWithStats, parseGitStatusOutput } from '../git-parsing.service.js';
+import { parseGitLogWithStats, parseGitStatusOutput, parseWorktreeStatusPorcelainV2 } from '../git-parsing.service.js';
 
 describe('git', () => {
   // Builds `git status --porcelain=v1 -z` output: NUL-separated entries with a
@@ -60,6 +60,36 @@ describe('git', () => {
 
     assert.deepEqual(result.modified, ['conflicted.ts', 'both-added.ts', 'both-deleted.ts']);
     assert.deepEqual(result.staged, []);
+  });
+
+  test('parseWorktreeStatusPorcelainV2 counts every entry kind and reads branch.ab', () => {
+    const output = [
+      '# branch.oid abc123',
+      '# branch.head stt-and-tts',
+      '# branch.ab +2 -1',
+      '1 .M N... 100644 100644 100644 abc abc src/app.ts',
+      '2 R. N... 100644 100644 100644 abc abc R100 new.ts\told.ts',
+      'u UU N... 100644 100644 100644 100644 abc abc abc conflict.ts',
+      '? untracked.ts',
+    ].join('\n');
+
+    assert.deepEqual(parseWorktreeStatusPorcelainV2(output), {
+      changedFiles: 4,
+      ahead: 2,
+      behind: 1,
+      hasUpstream: true,
+    });
+  });
+
+  test('parseWorktreeStatusPorcelainV2 reports a clean branch with no upstream', () => {
+    const output = ['# branch.oid abc123', '# branch.head main'].join('\n');
+
+    assert.deepEqual(parseWorktreeStatusPorcelainV2(output), {
+      changedFiles: 0,
+      ahead: 0,
+      behind: 0,
+      hasUpstream: false,
+    });
   });
 
   test('parseGitStatusOutput handles empty output', () => {

@@ -265,6 +265,10 @@ export const api = {
   // starts from. Returns { branches, localBranches, remoteBranches }.
   gitBranches: (projectId) =>
     authenticatedFetch(`/api/git/branches?project=${encodeURIComponent(projectId)}`),
+  // Change and push/pull counts for every worktree of a repository, keyed by
+  // absolute path. Any checkout of the repository answers for all of them.
+  gitWorktreeStatus: (projectId) =>
+    authenticatedFetch(`/api/git/worktree-status?project=${encodeURIComponent(projectId)}`),
   // Runs `git worktree add -b <branch>` in this project's repository, then
   // registers the new directory so it joins that repository's sidebar row.
   createWorktree: (projectId, options) => {

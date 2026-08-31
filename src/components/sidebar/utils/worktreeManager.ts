@@ -33,3 +33,52 @@ export const shouldShowWorktreePath = (project: Project, leadCheckoutPath: strin
     || parentDirectory(project.fullPath) !== parentDirectory(leadCheckoutPath)
   );
 };
+
+export type WorktreeChangeSummary = {
+  path: string;
+  changedFiles: number;
+  ahead: number;
+  behind: number;
+  hasUpstream: boolean;
+};
+
+export type WorktreeStatusPhase = 'loading' | 'ready';
+
+export type WorktreeStatusView =
+  | { kind: 'hidden' }
+  | { kind: 'loading' }
+  | { kind: 'unavailable' }
+  | { kind: 'counts'; changedFiles: number; ahead: number; behind: number };
+
+/** Absolute paths compare equal whichever side added a trailing slash. */
+export const worktreeStatusKey = (fullPath: string): string => fullPath.replace(/\/+$/, '');
+
+/**
+ * What a row's status line should say.
+ *
+ * A clean tree is `hidden`, not "no changes": a grey line under every clean row
+ * is a line the eye learns to skip, and the panel's whole point is that a third
+ * line means something is there. Silence therefore has to mean clean and
+ * nothing else, which is why a missing summary reports `unavailable` rather
+ * than falling back to clean.
+ */
+export const describeWorktreeStatus = (
+  summary: WorktreeChangeSummary | undefined,
+  phase: WorktreeStatusPhase,
+): WorktreeStatusView => {
+  if (phase === 'loading') {
+    return { kind: 'loading' };
+  }
+  if (!summary) {
+    return { kind: 'unavailable' };
+  }
+  if (!summary.changedFiles && !summary.ahead && !summary.behind) {
+    return { kind: 'hidden' };
+  }
+  return {
+    kind: 'counts',
+    changedFiles: summary.changedFiles,
+    ahead: summary.ahead,
+    behind: summary.behind,
+  };
+};
