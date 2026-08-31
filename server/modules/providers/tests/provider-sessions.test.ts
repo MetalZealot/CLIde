@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
 
 import { closeConnection, initializeDatabase, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { encodeClaudeProjectDir } from '@/modules/providers/list/claude/claude-rewind.util.js';
+import { ClaudeSessionSynchronizer } from '@/modules/providers/list/claude/claude-session-synchronizer.provider.js';
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import { CodexSessionsProvider, extractCodexUserImages } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import { CursorSessionsProvider } from '@/modules/providers/list/cursor/cursor-sessions.provider.js';
@@ -552,6 +554,107 @@ describe('session-activity-timestamp', () => {
         await readLastJsonlTimestamp(filePath, cursorRowTimestamp),
         '2026-08-04T07:15:00.000Z',
       );
+    });
+  });
+});
+
+describe('session-working-directory', () => {
+  const patchHomeDir = (nextHomeDir: string) => {
+    const original = os.homedir;
+    (os as any).homedir = () => nextHomeDir;
+    return () => {
+      (os as any).homedir = original;
+    };
+  };
+
+  async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
+    const previousDatabasePath = process.env.DATABASE_PATH;
+    const tempDirectory = await mkdtemp(path.join(tmpdir(), 'claude-session-cwd-db-'));
+
+    closeConnection();
+    process.env.DATABASE_PATH = path.join(tempDirectory, 'auth.db');
+    await initializeDatabase();
+
+    try {
+      await runTest();
+    } finally {
+      closeConnection();
+      if (previousDatabasePath === undefined) {
+        delete process.env.DATABASE_PATH;
+      } else {
+        process.env.DATABASE_PATH = previousDatabasePath;
+      }
+      await rm(tempDirectory, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * Writes a Claude transcript into the encoded folder for `startedIn`, which
+   * is where Claude keeps it for the session's whole life, and gives each row
+   * the cwd the session had at that point.
+   */
+  async function withMovedSessionTranscript(
+    cwdPerRow: string[],
+    runTest: (context: { transcriptPath: string; homeDir: string }) => Promise<void>,
+  ): Promise<void> {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'claude-session-cwd-'));
+    const startedIn = cwdPerRow[0]!;
+    const projectDirectory = path.join(
+      tempRoot, '.claude', 'projects', encodeClaudeProjectDir(startedIn),
+    );
+    await mkdir(projectDirectory, { recursive: true });
+
+    const transcriptPath = path.join(projectDirectory, 'provider-1.jsonl');
+    const rows = cwdPerRow.map((cwd, index) => JSON.stringify({
+      sessionId: 'provider-1',
+      cwd,
+      timestamp: new Date(Date.UTC(2026, 7, 30, 10, index)).toISOString(),
+    }));
+    await writeFile(transcriptPath, `${rows.join('\n')}\n`, 'utf8');
+
+    const restoreHomeDir = patchHomeDir(tempRoot);
+    try {
+      await runTest({ transcriptPath, homeDir: tempRoot });
+    } finally {
+      restoreHomeDir();
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  }
+
+  test('a session that moves to a worktree is indexed there, not where it started', { concurrency: false }, async () => {
+    const mainCheckout = path.join(tmpdir(), 'cwd-repo');
+    const worktree = path.join(tmpdir(), 'cwd-repo-wt-feature');
+
+    await withMovedSessionTranscript([mainCheckout, mainCheckout, worktree], async ({ transcriptPath }) => {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createAppSession('app-1', 'claude', mainCheckout);
+        sessionsDb.assignProviderSessionId('app-1', 'provider-1');
+
+        await new ClaudeSessionSynchronizer().synchronizeFile(transcriptPath);
+
+        assert.equal(
+          sessionsDb.getSessionById('app-1')?.project_path,
+          normalizeProjectPath(worktree),
+        );
+      });
+    });
+  });
+
+  test('a session that never moves keeps the directory it started in', { concurrency: false }, async () => {
+    const mainCheckout = path.join(tmpdir(), 'cwd-repo');
+
+    await withMovedSessionTranscript([mainCheckout, mainCheckout], async ({ transcriptPath }) => {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createAppSession('app-2', 'claude', mainCheckout);
+        sessionsDb.assignProviderSessionId('app-2', 'provider-1');
+
+        await new ClaudeSessionSynchronizer().synchronizeFile(transcriptPath);
+
+        assert.equal(
+          sessionsDb.getSessionById('app-2')?.project_path,
+          normalizeProjectPath(mainCheckout),
+        );
+      });
     });
   });
 });

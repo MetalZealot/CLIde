@@ -985,23 +985,18 @@ export async function readFileTimestamps(
 }
 
 /**
- * Timestamp of the last usable row in a JSONL transcript, ISO, or null.
- *
- * A session's activity time is the last thing it recorded, not its mtime: a
- * transcript that is merely touched or reopened has not advanced. `extractor`
- * reads one parsed row and returns its timestamp, so each provider keeps its
- * own row shape.
+ * Last row of a JSONL transcript from which `extractor` yields a value, or null.
  *
  * Only the tail is read — transcripts reach megabytes and only the final rows
- * matter. The window grows 16x once when the first pass finds no complete row,
+ * matter. The window grows 16x once when the first pass finds no usable row,
  * which covers a single fat row such as a large tool result; beyond that the
- * caller falls back to the file's mtime.
+ * caller falls back to whatever it uses when the transcript says nothing.
  */
-export async function readLastJsonlTimestamp(
+export async function extractLastValidJsonlData<T>(
   filePath: string,
-  extractor: (parsedJson: unknown) => string | null | undefined,
+  extractor: (parsedJson: unknown) => T | null | undefined,
   windowBytes = 64 * 1024
-): Promise<string | null> {
+): Promise<T | null> {
   let handle;
   try {
     handle = await open(filePath, 'r');
@@ -1033,14 +1028,9 @@ export async function readLastJsonlTimestamp(
           continue;
         }
 
-        const timestamp = extractor(parsed);
-        if (typeof timestamp !== 'string') {
-          continue;
-        }
-
-        const parsedDate = new Date(timestamp);
-        if (!Number.isNaN(parsedDate.getTime())) {
-          return parsedDate.toISOString();
+        const extracted = extractor(parsed);
+        if (extracted !== null && extracted !== undefined) {
+          return extracted;
         }
       }
 
@@ -1055,6 +1045,34 @@ export async function readLastJsonlTimestamp(
   } finally {
     await handle?.close().catch(() => {});
   }
+}
+
+/**
+ * Timestamp of the last usable row in a JSONL transcript, ISO, or null.
+ *
+ * A session's activity time is the last thing it recorded, not its mtime: a
+ * transcript that is merely touched or reopened has not advanced. `extractor`
+ * reads one parsed row and returns its timestamp, so each provider keeps its
+ * own row shape.
+ */
+export async function readLastJsonlTimestamp(
+  filePath: string,
+  extractor: (parsedJson: unknown) => string | null | undefined,
+  windowBytes = 64 * 1024
+): Promise<string | null> {
+  return extractLastValidJsonlData(
+    filePath,
+    (parsedJson) => {
+      const timestamp = extractor(parsedJson);
+      if (typeof timestamp !== 'string') {
+        return null;
+      }
+
+      const parsedDate = new Date(timestamp);
+      return Number.isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString();
+    },
+    windowBytes
+  );
 }
 
 // ---------------------------
