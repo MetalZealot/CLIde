@@ -124,6 +124,11 @@
   },
   "fileTree": {
     "loading": "ファイルを読み込んでいます...",
+    "loadingChildren": "フォルダーを読み込み中…",
+    "retry": "再試行",
+    "loadMore": "さらに読み込む",
+    "fileReferenceAmbiguous": "\"{{reference}}\" に一致するファイルが複数あります。より具体的なパスを使用してください。",
+    "fileReferenceFailed": "\"{{reference}}\" を解決できませんでした。",
     "files": "ファイル",
     "simpleView": "シンプル表示",
     "compactView": "コンパクト表示",

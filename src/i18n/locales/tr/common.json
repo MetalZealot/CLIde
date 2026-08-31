@@ -124,6 +124,11 @@
   },
   "fileTree": {
     "loading": "Dosyalar yükleniyor...",
+    "loadingChildren": "Klasör yükleniyor…",
+    "retry": "Yeniden dene",
+    "loadMore": "Daha fazla yükle",
+    "fileReferenceAmbiguous": "Birden fazla dosya \"{{reference}}\" ile eşleşiyor. Daha belirgin bir yol kullanın.",
+    "fileReferenceFailed": "\"{{reference}}\" çözümlenemedi.",
     "files": "Dosyalar",
     "simpleView": "Basit görünüm",
     "compactView": "Kompakt görünüm",

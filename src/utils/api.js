@@ -292,10 +292,58 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ filePath, content }),
     }),
-  getFiles: (projectId, options = {}) =>
-    authenticatedFetch(`/api/file-tree/projects/${projectId}/files`, options),
-  getMentionableFiles: (projectId, options = {}) =>
-    authenticatedFetch(`/api/file-tree/projects/${projectId}/files?respectGitignore=true`, options),
+  getDirectoryPage: (projectId, options = {}) => {
+    const {
+      path = '',
+      cursor = null,
+      limit = 200,
+      respectGitignore = false,
+      signal,
+    } = options;
+    const params = new URLSearchParams({
+      path,
+      limit: String(limit),
+      respectGitignore: String(respectGitignore),
+    });
+    if (cursor) params.set('cursor', cursor);
+    return authenticatedFetch(
+      `/api/file-tree/projects/${encodeURIComponent(projectId)}/directory?${params.toString()}`,
+      { signal },
+    );
+  },
+  searchProjectFiles: (projectId, options = {}) => {
+    const {
+      query = '',
+      cursor = null,
+      limit = 100,
+      entryType = 'all',
+      respectGitignore = false,
+      refresh = false,
+      signal,
+    } = options;
+    const params = new URLSearchParams({
+      q: query,
+      limit: String(limit),
+      entryType,
+      respectGitignore: String(respectGitignore),
+      refresh: String(refresh),
+    });
+    if (cursor) params.set('cursor', cursor);
+    return authenticatedFetch(
+      `/api/file-tree/projects/${encodeURIComponent(projectId)}/search?${params.toString()}`,
+      { signal },
+    );
+  },
+  resolveProjectFile: (projectId, filePath, options = {}) =>
+    authenticatedFetch(
+      `/api/file-tree/projects/${encodeURIComponent(projectId)}/resolve?path=${encodeURIComponent(filePath)}`,
+      options,
+    ),
+  getProjectSubtree: (projectId, directoryPath, options = {}) =>
+    authenticatedFetch(
+      `/api/file-tree/projects/${encodeURIComponent(projectId)}/subtree?path=${encodeURIComponent(directoryPath)}`,
+      options,
+    ),
 
   // File operations
   createFile: (projectId, { path, type, name }) =>

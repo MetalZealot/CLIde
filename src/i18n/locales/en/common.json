@@ -124,6 +124,11 @@
   },
   "fileTree": {
     "loading": "Loading files...",
+    "loadingChildren": "Loading…",
+    "retry": "Retry",
+    "loadMore": "Load more",
+    "fileReferenceAmbiguous": "Several files match \"{{reference}}\". Use a more specific path.",
+    "fileReferenceFailed": "Could not resolve \"{{reference}}\".",
     "files": "Files",
     "simpleView": "Simple view",
     "compactView": "Compact view",

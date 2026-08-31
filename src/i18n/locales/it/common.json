@@ -124,6 +124,11 @@
   },
   "fileTree": {
     "loading": "Caricamento file...",
+    "loadingChildren": "Caricamento cartella…",
+    "retry": "Riprova",
+    "loadMore": "Carica altro",
+    "fileReferenceAmbiguous": "Più file corrispondono a \"{{reference}}\". Usa un percorso più specifico.",
+    "fileReferenceFailed": "Impossibile risolvere \"{{reference}}\".",
     "files": "File",
     "simpleView": "Vista semplice",
     "compactView": "Vista compatta",

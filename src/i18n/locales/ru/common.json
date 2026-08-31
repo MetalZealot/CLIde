@@ -124,6 +124,11 @@
   },
   "fileTree": {
     "loading": "Загрузка файлов...",
+    "loadingChildren": "Загрузка папки…",
+    "retry": "Повторить",
+    "loadMore": "Загрузить ещё",
+    "fileReferenceAmbiguous": "Несколько файлов соответствуют \"{{reference}}\". Укажите более точный путь.",
+    "fileReferenceFailed": "Не удалось определить \"{{reference}}\".",
     "files": "Файлы",
     "simpleView": "Простой вид",
     "compactView": "Компактный вид",

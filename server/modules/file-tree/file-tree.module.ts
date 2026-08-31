@@ -37,6 +37,13 @@ const fileTreeFileSystem: FileTreeFileSystem = {
   stat: (candidatePath) => fsPromises.stat(candidatePath),
   lstat: (candidatePath) => fsPromises.lstat(candidatePath),
   readdir: (directoryPath) => fsPromises.readdir(directoryPath, { withFileTypes: true }),
+  async openDirectory(directoryPath) {
+    const directory = await fsPromises.opendir(directoryPath);
+    return {
+      read: () => directory.read(),
+      close: () => directory.close(),
+    };
+  },
   realpath: (candidatePath) => fsPromises.realpath(candidatePath),
   readTextFile: (filePath) => fsPromises.readFile(filePath, 'utf8'),
   writeTextFile: (filePath, content) => fsPromises.writeFile(filePath, content, 'utf8'),

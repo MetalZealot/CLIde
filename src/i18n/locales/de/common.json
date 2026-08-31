@@ -124,6 +124,11 @@
   },
   "fileTree": {
     "loading": "Dateien werden geladen...",
+    "loadingChildren": "Ordner wird geladen…",
+    "retry": "Erneut versuchen",
+    "loadMore": "Mehr laden",
+    "fileReferenceAmbiguous": "Mehrere Dateien entsprechen \"{{reference}}\". Verwende einen genaueren Pfad.",
+    "fileReferenceFailed": "\"{{reference}}\" konnte nicht aufgelöst werden.",
     "files": "Dateien",
     "simpleView": "Einfache Ansicht",
     "compactView": "Kompakte Ansicht",

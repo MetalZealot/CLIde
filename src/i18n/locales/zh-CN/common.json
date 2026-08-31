@@ -124,6 +124,11 @@
   },
   "fileTree": {
     "loading": "正在加载文件...",
+    "loadingChildren": "正在加载文件夹…",
+    "retry": "重试",
+    "loadMore": "加载更多",
+    "fileReferenceAmbiguous": "多个文件与“{{reference}}”匹配。请使用更具体的路径。",
+    "fileReferenceFailed": "无法解析“{{reference}}”。",
     "files": "文件",
     "simpleView": "简单视图",
     "compactView": "紧凑视图",

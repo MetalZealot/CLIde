@@ -1,16 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from 'react';
 
 import { api } from '../../../utils/api';
 import { escapeRegExp } from '../utils/chatFormatting';
 import type { Project } from '../../../types/app';
-
-interface ProjectFileNode {
-  name: string;
-  type: 'file' | 'directory';
-  path?: string;
-  children?: ProjectFileNode[];
-}
 
 export interface MentionableFile {
   name: string;
@@ -25,88 +18,30 @@ interface UseFileMentionsOptions {
   textareaRef: RefObject<HTMLTextAreaElement>;
 }
 
-const flattenFileTree = (files: ProjectFileNode[], basePath = ''): MentionableFile[] => {
-  let flattened: MentionableFile[] = [];
-
-  files.forEach((file) => {
-    const fullPath = basePath ? `${basePath}/${file.name}` : file.name;
-    if (file.type === 'directory' && file.children) {
-      flattened = flattened.concat(flattenFileTree(file.children, fullPath));
-      return;
-    }
-
-    if (file.type === 'file') {
-      flattened.push({
-        name: file.name,
-        path: fullPath,
-        relativePath: file.path,
-      });
-    }
-  });
-
-  return flattened;
-};
-
 export function useFileMentions({ selectedProject, input, setInput, textareaRef }: UseFileMentionsOptions) {
-  const [fileList, setFileList] = useState<MentionableFile[]>([]);
   const [fileMentions, setFileMentions] = useState<string[]>([]);
   const [filteredFiles, setFilteredFiles] = useState<MentionableFile[]>([]);
   const [showFileDropdown, setShowFileDropdown] = useState(false);
   const [selectedFileIndex, setSelectedFileIndex] = useState(-1);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [atSymbolPosition, setAtSymbolPosition] = useState(-1);
+  const searchControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const abortController = new AbortController();
-
-    const fetchProjectFiles = async () => {
-      // File list is keyed by DB projectId now; the backend resolves it to
-      // the project's path before reading.
-      const projectId = selectedProject?.projectId;
-      setFileList([]);
-      setFilteredFiles([]);
-      if (!projectId) {
-        return;
-      }
-
-
-      try {
-        const response = await api.getMentionableFiles(projectId, {
-          signal: abortController.signal,
-        });
-        if (!response.ok) {
-          return;
-        }
-
-        const files = (await response.json()) as ProjectFileNode[];
-        setFileList(flattenFileTree(files));
-      } catch (error) {
-        // Ignore aborts from rapid project switches; we only care about the latest request.
-        if ((error as { name?: string })?.name === 'AbortError') {
-          return;
-        }
-        console.error('Error fetching files:', error);
-      }
-    };
-
-    fetchProjectFiles();
-    return () => {
-      abortController.abort();
-    };
-  }, [selectedProject?.projectId]);
-
-  useEffect(() => {
+    searchControllerRef.current?.abort();
+    setFilteredFiles([]);
+    setSelectedFileIndex(-1);
+    const projectId = selectedProject?.projectId;
     const textBeforeCursor = input.slice(0, cursorPosition);
     const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-
-    if (lastAtIndex === -1) {
+    if (!projectId || lastAtIndex === -1) {
       setShowFileDropdown(false);
       setAtSymbolPosition(-1);
       return;
     }
 
-    const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
-    if (textAfterAt.includes(' ')) {
+    const query = textBeforeCursor.slice(lastAtIndex + 1);
+    if (query.includes(' ')) {
       setShowFileDropdown(false);
       setAtSymbolPosition(-1);
       return;
@@ -114,18 +49,43 @@ export function useFileMentions({ selectedProject, input, setInput, textareaRef 
 
     setAtSymbolPosition(lastAtIndex);
     setShowFileDropdown(true);
-    setSelectedFileIndex(-1);
+    if (!query.trim()) return;
 
-    const matchingFiles = fileList
-      .filter(
-        (file) =>
-          file.name.toLowerCase().includes(textAfterAt.toLowerCase()) ||
-          file.path.toLowerCase().includes(textAfterAt.toLowerCase()),
-      )
-      .slice(0, 10);
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
+    const timer = window.setTimeout(() => {
+      void api.searchProjectFiles(projectId, {
+        query,
+        limit: 100,
+        entryType: 'file',
+        respectGitignore: true,
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || 'File search failed');
+          if (controller.signal.aborted) return;
+          setFilteredFiles(payload.results.map((file: {
+            name: string;
+            path: string;
+            relativePath: string;
+          }) => ({
+            name: file.name,
+            path: file.relativePath,
+            relativePath: file.path,
+          })));
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted || (error as Error).name === 'AbortError') return;
+          console.error('Error searching project files:', error);
+        });
+    }, 200);
 
-    setFilteredFiles(matchingFiles);
-  }, [input, cursorPosition, fileList]);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [input, cursorPosition, selectedProject?.projectId]);
 
   const activeFileMentions = useMemo(() => {
     if (!input || fileMentions.length === 0) {

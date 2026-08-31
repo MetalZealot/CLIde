@@ -38,6 +38,27 @@ function readOptionalString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+function readBoundedLimit(value: unknown, fallback: number, maximum: number): number {
+  if (typeof value !== 'string') return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    throw new AppError('Limit must be a positive integer', {
+      code: 'INVALID_FILE_TREE_LIMIT',
+      statusCode: 400,
+    });
+  }
+  return Math.min(parsed, maximum);
+}
+
+function readSearchEntryType(value: unknown): 'all' | 'file' {
+  if (value === undefined || value === 'all') return 'all';
+  if (value === 'file') return 'file';
+  throw new AppError('entryType must be "all" or "file"', {
+    code: 'INVALID_FILE_TREE_ENTRY_TYPE',
+    statusCode: 400,
+  });
+}
+
 function readProjectId(request: Request): string {
   return readRequiredString(request.params.projectId, 'projectId');
 }
@@ -84,21 +105,36 @@ function normalizeUploadedFiles(request: UploadedRequest): FileTreeUploadedFile[
 }
 
 function createRouteHandler(
-  operation: (request: Request, response: Response) => void | Promise<void>,
+  operation: (
+    request: Request,
+    response: Response,
+    signal: AbortSignal,
+  ) => void | Promise<void>,
   logger: FileTreeLogger,
 ): RequestHandler {
   return async (request, response) => {
+    const controller = new AbortController();
+    const abortRequest = () => controller.abort();
+    const abortClosedResponse = () => {
+      if (!response.writableEnded) controller.abort();
+    };
+    request.once('aborted', abortRequest);
+    response.once('close', abortClosedResponse);
     try {
-      await operation(request, response);
+      await operation(request, response, controller.signal);
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       if (error instanceof AppError) {
-        response.status(error.statusCode).json({ error: error.message });
+        response.status(error.statusCode).json({ error: error.message, code: error.code });
         return;
       }
 
       const message = error instanceof Error ? error.message : String(error);
       logger.error('File Tree API error', error);
       response.status(500).json({ error: message });
+    } finally {
+      request.removeListener('aborted', abortRequest);
+      response.removeListener('close', abortClosedResponse);
     }
   };
 }
@@ -162,9 +198,50 @@ export function createFileTreeRouter(
     response.json(await services.saveTextFile(readProjectId(request), filePath, body.content));
   }, logger));
 
-  router.get('/projects/:projectId/files', createRouteHandler(async (request, response) => {
+  router.get('/projects/:projectId/directory', createRouteHandler(async (request, response, signal) => {
+    response.json(await services.listDirectory({
+      projectId: readProjectId(request),
+      directoryPath: readOptionalString(request.query.path) ?? '',
+      cursor: readOptionalString(request.query.cursor),
+      limit: readBoundedLimit(request.query.limit, 200, 200),
+      respectGitignore: request.query.respectGitignore === 'true',
+      signal,
+    }));
+  }, logger));
+
+  router.get('/projects/:projectId/search', createRouteHandler(async (request, response, signal) => {
+    response.json(await services.searchProjectFiles({
+      projectId: readProjectId(request),
+      query: readOptionalString(request.query.q) ?? '',
+      cursor: readOptionalString(request.query.cursor),
+      limit: readBoundedLimit(request.query.limit, 100, 100),
+      entryType: readSearchEntryType(request.query.entryType),
+      respectGitignore: request.query.respectGitignore === 'true',
+      refreshIndex: request.query.refresh === 'true',
+      signal,
+    }));
+  }, logger));
+
+  router.get('/projects/:projectId/resolve', createRouteHandler(async (request, response, signal) => {
+    response.json(await services.resolveProjectFile({
+      projectId: readProjectId(request),
+      fileReference: readRequiredString(request.query.path, 'path', 'File reference is required'),
+      signal,
+    }));
+  }, logger));
+
+  router.get('/projects/:projectId/subtree', createRouteHandler(async (request, response, signal) => {
+    response.json(await services.listProjectSubtree({
+      projectId: readProjectId(request),
+      directoryPath: readRequiredString(request.query.path, 'path', 'Directory path is required'),
+      signal,
+    }));
+  }, logger));
+
+  router.get('/projects/:projectId/files', createRouteHandler(async (request, response, signal) => {
     response.json(await services.listProjectFiles(readProjectId(request), {
       respectGitignore: request.query.respectGitignore === 'true',
+      signal,
     }));
   }, logger));
 
