@@ -30,6 +30,7 @@ const getCompactToolDisplay = (toolName: string, toolInput: unknown): string => 
     case 'Bash':
       const cmd = input.command || '';
       return cmd.length > 40 ? `${cmd.slice(0, 40)}...` : cmd;
+    case 'Agent':
     case 'Task':
       return input.description || input.subagent_type || '';
     case 'WebFetch':
@@ -61,7 +62,7 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({
     <div className="my-1 border-l-2 border-l-purple-500 py-0.5 pl-3 dark:border-l-purple-400">
       <CollapsibleSection
         title={title}
-        toolName="Task"
+        toolName="Agent"
         open={false}
       >
         {/* Prompt/request to the subagent */}
