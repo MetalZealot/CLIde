@@ -1,7 +1,7 @@
 # Self-hosted dictation and read-aloud
 
 - Status: complete
-- Next: clear the 13 open findings from the 2026-08-31 code review.
+- Next: none; retain push-to-talk until a local streaming engine is proven.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts),

@@ -82,7 +82,6 @@ started, sliced, or blocking anything — skip it unless you are deliberately pi
 new work.
 
 - [x] **Build an auditable TTS speech front end.** Markdown, normalization, lexicon, phoneme and voice-model boundaries are separated, measured and editable from Voice Studio. Accepted by listening 2026-08-24. [Plan](plans/tts-speech-front-end.md). **L**
-- [ ] **Voice review follow-ups.** 13 open findings from the xhigh review of the voice branch: a hung TTS cancel wedges every later read-aloud, a Voice Studio save erases installed-voice tuning, and phrase rules match inside longer words. The speaker-id bound and the fraction crash are fixed. [Plan](plans/self-hosted-voice.md). **M**
 - [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, maps and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**
