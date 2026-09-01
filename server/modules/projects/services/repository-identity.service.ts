@@ -1,6 +1,13 @@
 import path from 'node:path';
 
-import crossSpawn from 'cross-spawn';
+import {
+  clearRepositoryLocationCache,
+  defaultGitRunner,
+  forgetCheckoutLocation,
+  resolveRepositoryLocation,
+  type GitRunnerDependencies,
+  type RepositoryLocation,
+} from '@/shared/git-checkout.js';
 
 /**
  * Git-derived identity of one project directory, per ADR 0016.
@@ -26,92 +33,13 @@ export type CheckoutIdentity = {
   detachedHead: string | null;
 };
 
-type GitInvocation = {
-  stdout: string;
-  ok: boolean;
-};
-
-type RepositoryIdentityDependencies = {
-  runGit: (workingDirectory: string, args: string[]) => Promise<GitInvocation>;
-};
-
-/** Where a checkout sits: its repository's shared git dir, and its own root. */
-type RepositoryLocation = {
-  commonDir: string;
-  topLevel: string;
-};
+type RepositoryIdentityDependencies = GitRunnerDependencies;
 
 const NO_IDENTITY: CheckoutIdentity = {
   repositoryId: null,
   branch: null,
   detachedHead: null,
 };
-
-// Only successful lookups are cached. A negative result must not be: a project
-// can become a repository at any time via `POST /api/git/init`, and a cached
-// "not a repository" would survive that indefinitely.
-const repositoryLocationCache = new Map<string, RepositoryLocation>();
-
-function runGitProcess(workingDirectory: string, args: string[]): Promise<GitInvocation> {
-  return new Promise((resolve) => {
-    const child = crossSpawn('git', args, { cwd: workingDirectory, shell: false });
-
-    let stdout = '';
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-    // stderr is discarded: every failure here is an expected, non-actionable
-    // "not a repository" or "no such directory".
-    child.stderr?.resume();
-
-    child.on('error', () => resolve({ stdout: '', ok: false }));
-    child.on('close', (code) => resolve({ stdout, ok: code === 0 }));
-  });
-}
-
-const defaultDependencies: RepositoryIdentityDependencies = {
-  runGit: runGitProcess,
-};
-
-/**
- * Resolves the repository a checkout belongs to.
- *
- * `--path-format=absolute` is not optional. Plain `--git-common-dir` returns a
- * *relative* `.git` for a main checkout but an *absolute* path for a linked
- * worktree, so its raw output as a join key fails to group a main checkout with
- * its own worktrees — the inverse of what ADR 0016 wants.
- */
-async function resolveRepositoryLocation(
-  projectPath: string,
-  dependencies: RepositoryIdentityDependencies,
-): Promise<RepositoryLocation | null> {
-  const cached = repositoryLocationCache.get(projectPath);
-  if (cached) {
-    return cached;
-  }
-
-  const revParse = await dependencies.runGit(projectPath, [
-    'rev-parse',
-    '--path-format=absolute',
-    '--git-common-dir',
-    '--show-toplevel',
-  ]);
-  if (!revParse.ok) {
-    return null;
-  }
-
-  const [commonDir, topLevel] = revParse.stdout.split('\n').map((line) => line.trim());
-  if (!commonDir || !topLevel) {
-    return null;
-  }
-
-  const location: RepositoryLocation = {
-    commonDir: path.resolve(commonDir),
-    topLevel: path.resolve(topLevel),
-  };
-  repositoryLocationCache.set(projectPath, location);
-  return location;
-}
 
 /**
  * Reads one project directory's repository identity and current branch, so the
@@ -121,7 +49,7 @@ async function resolveRepositoryLocation(
  */
 export async function readCheckoutIdentity(
   projectPath: string,
-  dependencies: RepositoryIdentityDependencies = defaultDependencies,
+  dependencies: RepositoryIdentityDependencies = defaultGitRunner,
 ): Promise<CheckoutIdentity> {
   // Every path below proves liveness with an *uncached* git call before the
   // memoised location is consulted. Retiring a worktree leaves its project row
@@ -137,7 +65,7 @@ export async function readCheckoutIdentity(
     // no commits never reaches here — `symbolic-ref` resolves its unborn branch.
     const head = await dependencies.runGit(projectPath, ['rev-parse', '--short', 'HEAD']);
     if (!head.ok) {
-      repositoryLocationCache.delete(projectPath);
+      forgetCheckoutLocation(projectPath);
       return NO_IDENTITY;
     }
     detachedHead = head.stdout.trim() || null;
@@ -145,7 +73,7 @@ export async function readCheckoutIdentity(
 
   const location = await resolveRepositoryLocation(projectPath, dependencies);
   if (!location) {
-    repositoryLocationCache.delete(projectPath);
+    forgetCheckoutLocation(projectPath);
     return NO_IDENTITY;
   }
 
@@ -165,7 +93,4 @@ function isCheckoutRoot(projectPath: string, location: RepositoryLocation): bool
   return path.resolve(projectPath) === location.topLevel;
 }
 
-/** Test-only: drops memoised locations so each case starts from a known state. */
-export function clearRepositoryLocationCache(): void {
-  repositoryLocationCache.clear();
-}
+export { clearRepositoryLocationCache };

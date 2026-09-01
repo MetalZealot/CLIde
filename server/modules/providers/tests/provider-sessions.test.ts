@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, realpath, rm, utimes, writeFile } from 'node:fs/promises';
 import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
@@ -7,6 +8,7 @@ import test, { describe } from 'node:test';
 import { closeConnection, initializeDatabase, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { encodeClaudeProjectDir } from '@/modules/providers/list/claude/claude-rewind.util.js';
 import { ClaudeSessionSynchronizer } from '@/modules/providers/list/claude/claude-session-synchronizer.provider.js';
+import { clearRepositoryLocationCache } from '@/shared/git-checkout.js';
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import { CodexSessionsProvider, extractCodexUserImages } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import { CursorSessionsProvider } from '@/modules/providers/list/cursor/cursor-sessions.provider.js';
@@ -589,9 +591,10 @@ describe('session-working-directory', () => {
   }
 
   /**
-   * Writes a Claude transcript into the encoded folder for `startedIn`, which
-   * is where Claude keeps it for the session's whole life, and gives each row
-   * the cwd the session had at that point.
+   * Writes a Claude transcript into the encoded folder for `startedIn` and
+   * gives each row the cwd the session had at that point. Claude refiles the
+   * transcript under the current cwd when a session moves, so indexing must
+   * not depend on the folder agreeing with the rows.
    */
   async function withMovedSessionTranscript(
     cwdPerRow: string[],
@@ -638,6 +641,33 @@ describe('session-working-directory', () => {
         );
       });
     });
+  });
+
+  test('a session that steps into a subdirectory stays filed under the checkout', { concurrency: false }, async () => {
+    const checkout = await realpath(await mkdtemp(path.join(tmpdir(), 'cwd-checkout-')));
+    execFileSync('git', ['init', '--quiet'], { cwd: checkout });
+    const subdirectory = path.join(checkout, 'voice', 'shim');
+    await mkdir(subdirectory, { recursive: true });
+    clearRepositoryLocationCache();
+
+    try {
+      await withMovedSessionTranscript([checkout, subdirectory], async ({ transcriptPath }) => {
+        await withIsolatedDatabase(async () => {
+          sessionsDb.createAppSession('app-3', 'claude', checkout);
+          sessionsDb.assignProviderSessionId('app-3', 'provider-1');
+
+          await new ClaudeSessionSynchronizer().synchronizeFile(transcriptPath);
+
+          assert.equal(
+            sessionsDb.getSessionById('app-3')?.project_path,
+            normalizeProjectPath(checkout),
+          );
+        });
+      });
+    } finally {
+      clearRepositoryLocationCache();
+      await rm(checkout, { recursive: true, force: true });
+    }
   });
 
   test('a session that never moves keeps the directory it started in', { concurrency: false }, async () => {

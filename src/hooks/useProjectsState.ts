@@ -35,7 +35,7 @@ type UseProjectsStateArgs = {
  * watcher (`kind: session_upserted`). It carries everything needed to upsert
  * one session row in place — no full project-list snapshot is ever pushed.
  */
-type SessionUpsertedEvent = ServerEvent & {
+export type SessionUpsertedEvent = ServerEvent & {
   sessionId: string;
   providerSessionId?: string | null;
   provider: LLMProvider;
@@ -328,6 +328,91 @@ const upsertSessionIntoProject = (project: Project, event: SessionUpsertedEvent)
   return next;
 };
 
+/**
+ * Drops a session from a project's list, shrinking `sessionMeta.total` to match.
+ *
+ * A session's owning project is not fixed: a Claude session that changes working
+ * directory is re-indexed under the checkout it moved to, so an upsert naming a
+ * new project must evict the row from whichever project still holds it.
+ */
+const removeSessionFromProject = (project: Project, aliasIds: Set<string>): Project => {
+  const sessions = project.sessions ?? [];
+  const nextSessions = sessions.filter((session) => !aliasIds.has(String(session.id)));
+  if (nextSessions.length === sessions.length) {
+    return project;
+  }
+
+  const removed = sessions.length - nextSessions.length;
+  const total = Math.max(0, Number(project.sessionMeta?.total ?? sessions.length) - removed);
+  const next: Project = { ...project, sessions: nextSessions };
+  next.sessionMeta = {
+    ...project.sessionMeta,
+    total,
+    hasMore: countLoadedProjectSessions(next) < total,
+  };
+
+  return next;
+};
+
+/**
+ * Applies one `session_upserted` delta to the project list.
+ *
+ * The event names the session's owning project, and that ownership is not
+ * fixed — a Claude session that changes working directory is re-indexed under
+ * the checkout it moved to — so every other project is evicted in the same
+ * pass. Without that the session is listed under both until a full refetch.
+ */
+export const applySessionUpsertToProjects = (
+  previousProjects: Project[],
+  upsert: SessionUpsertedEvent,
+): Project[] => {
+  const aliasIds = getSessionAliasIds(upsert);
+  const targetProjectId = upsert.project?.projectId;
+  const existingProject = previousProjects.find((project) =>
+    targetProjectId
+      ? project.projectId === targetProjectId
+      : getProjectSessions(project).some((session) => aliasIds.has(String(session.id))),
+  );
+
+  if (!existingProject) {
+    // First session of a project this client has never seen: create the project
+    // entry from the event payload.
+    if (!upsert.project) {
+      return previousProjects;
+    }
+
+    const newProject: Project = {
+      projectId: upsert.project.projectId,
+      path: upsert.project.path,
+      fullPath: upsert.project.fullPath,
+      displayName: upsert.project.displayName,
+      isStarred: upsert.project.isStarred,
+      sessions: [],
+      sessionMeta: { hasMore: false, total: 0 },
+    } as Project;
+
+    return [
+      ...previousProjects.map((project) => removeSessionFromProject(project, aliasIds)),
+      upsertSessionIntoProject(newProject, upsert),
+    ];
+  }
+
+  let changed = false;
+  const nextProjects = previousProjects.map((project) => {
+    const updatedProject = project.projectId === existingProject.projectId
+      ? upsertSessionIntoProject(project, upsert)
+      : removeSessionFromProject(project, aliasIds);
+
+    if (updatedProject !== project) {
+      changed = true;
+    }
+
+    return updatedProject;
+  });
+
+  return changed ? nextProjects : previousProjects;
+};
+
 const projectFromRegistration = (project: Project): Project => ({
   projectId: project.projectId,
   path: project.path || project.fullPath,
@@ -338,28 +423,6 @@ const projectFromRegistration = (project: Project): Project => ({
   sessionMeta: project.sessionMeta ?? { hasMore: false, total: countLoadedProjectSessions(project) },
   taskmaster: project.taskmaster,
 });
-
-const removeSessionFromProject = (project: Project, sessionIdToDelete: string): Project => {
-  const sessions = project.sessions ?? [];
-  const nextSessions = sessions.filter((session) => session.id !== sessionIdToDelete);
-  if (nextSessions.length === sessions.length) {
-    return project;
-  }
-
-  const updatedProject: Project = {
-    ...project,
-    sessions: nextSessions,
-  };
-
-  const totalSessions = Math.max(0, Number(project.sessionMeta?.total ?? 0) - 1);
-  updatedProject.sessionMeta = {
-    ...project.sessionMeta,
-    total: totalSessions,
-    hasMore: countLoadedProjectSessions(updatedProject) < totalSessions,
-  };
-
-  return updatedProject;
-};
 
 /**
  * Patches one session in place inside a project's list without touching order or
@@ -880,54 +943,20 @@ export function useProjectsState({
       // No-ops for a session whose transcript is on screen.
       markSessionUnread(upsert.sessionId);
 
-      setProjects((previousProjects) => {
-        const targetProjectId = upsert.project?.projectId;
-        const existingProject = previousProjects.find((project) =>
-          targetProjectId ? project.projectId === targetProjectId : getProjectSessions(project).some((session) => session.id === upsert.sessionId),
-        );
-
-        if (!existingProject) {
-          // First session of a project this client has never seen: create the
-          // project entry from the event payload.
-          if (!upsert.project) {
-            return previousProjects;
-          }
-
-          const newProject: Project = {
-            projectId: upsert.project.projectId,
-            path: upsert.project.path,
-            fullPath: upsert.project.fullPath,
-            displayName: upsert.project.displayName,
-            isStarred: upsert.project.isStarred,
-            sessions: [],
-            sessionMeta: { hasMore: false, total: 0 },
-          } as Project;
-
-          return [...previousProjects, upsertSessionIntoProject(newProject, upsert)];
-        }
-
-        const updatedProject = upsertSessionIntoProject(existingProject, upsert);
-        if (updatedProject === existingProject) {
-          return previousProjects;
-        }
-
-        return previousProjects.map((project) =>
-          project.projectId === existingProject.projectId ? updatedProject : project,
-        );
-      });
+      setProjects((previousProjects) => applySessionUpsertToProjects(previousProjects, upsert));
 
       // Keep the selected project reference in sync with the upsert.
       setSelectedProject((previousProject) => {
         if (!previousProject) {
           return previousProject;
         }
+        const aliasIds = getSessionAliasIds(upsert);
         const matches = upsert.project
           ? previousProject.projectId === upsert.project.projectId
-          : getProjectSessions(previousProject).some((session) => session.id === upsert.sessionId);
-        if (!matches) {
-          return previousProject;
-        }
-        const updated = upsertSessionIntoProject(previousProject, upsert);
+          : getProjectSessions(previousProject).some((session) => aliasIds.has(String(session.id)));
+        const updated = matches
+          ? upsertSessionIntoProject(previousProject, upsert)
+          : removeSessionFromProject(previousProject, aliasIds);
         return updated === previousProject ? previousProject : updated;
       });
 
@@ -1209,7 +1238,7 @@ export function useProjectsState({
       }
 
       setProjects((prevProjects) =>
-        prevProjects.map((project) => removeSessionFromProject(project, sessionIdToDelete)),
+        prevProjects.map((project) => removeSessionFromProject(project, new Set([sessionIdToDelete]))),
       );
     },
     [navigate, removeSessionSignals, selectedSession?.id],

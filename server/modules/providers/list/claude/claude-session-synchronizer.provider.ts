@@ -12,6 +12,7 @@ import {
   readFileTimestamps,
   readLastJsonlTimestamp,
 } from '@/shared/utils.js';
+import { resolveCheckoutRoot } from '@/shared/git-checkout.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 
 type ParsedSession = {
@@ -158,16 +159,21 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     }
 
     // A session can change working directory mid-conversation (EnterWorktree,
-    // /cd), and the transcript stays in the directory the session was created
-    // in. Every row carries its own `cwd`, so the latest one — not the first —
-    // is where the session is now.
+    // /cd). Its first row still names the directory it started in, so the
+    // latest row's `cwd` — not the first's — is where the session is now.
     const latestProjectPath = await extractLastValidJsonlData(filePath, (rawData) => {
       const data = rawData as Record<string, unknown>;
       return typeof data.cwd === 'string' && data.cwd ? data.cwd : null;
     });
 
-    if (latestProjectPath) {
-      parsed.projectPath = latestProjectPath;
+    if (latestProjectPath && latestProjectPath !== parsed.projectPath) {
+      // A move is followed only as far as the checkout it landed in. An agent
+      // stepping into a subdirectory to run something is not a change of
+      // project, and filing the session there mints a project row for the
+      // subdirectory that outlives the excursion. Where the session started is
+      // left alone: that directory is the user's own choice, subdirectory or
+      // not, and resolving it costs a git process on every indexed transcript.
+      parsed.projectPath = await resolveCheckoutRoot(latestProjectPath) ?? latestProjectPath;
     }
 
     // App-created sessions are keyed by an app id, so disk-discovered provider
