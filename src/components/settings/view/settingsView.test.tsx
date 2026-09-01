@@ -376,6 +376,22 @@ describe('ChatVoiceBackendScreen', () => {
     assert.match(host.textContent ?? '', /Speech pace failed \(400\)/);
   });
 
+  test('keeps the Voice screen usable when an older runtime omits capabilities and STT', async () => {
+    const legacySettings = runtimeSettings(null) as Partial<VoiceRuntimeSettings>;
+    delete legacySettings.capabilities;
+    delete legacySettings.stt;
+    globalThis.fetch = (async () => new Response(JSON.stringify(legacySettings), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+
+    const host = await render();
+    await flush();
+
+    assert.equal(host.querySelector('[role="combobox"]'), null);
+    assert.equal(host.querySelector('select[aria-label="Whisper model"]'), null);
+  });
+
   test('keeps free-text voice input for a custom browser backend', async () => {
     let requests = 0;
     globalThis.fetch = (async () => {

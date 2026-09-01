@@ -877,6 +877,10 @@ class SpeechRulesTests(unittest.TestCase):
             prepare_speech_text("Nine lives were saved.", lexicon=lexicon),
             "Nine lives were saved.",
         )
+        self.assertEqual(
+            apply_lexicon("This liveliness is great.", lexicon),
+            "This liveliness is great.",
+        )
 
     def test_replacement_preserves_the_matched_words_capitalization(self) -> None:
         lexicon = default_rules().compiled()
@@ -977,9 +981,13 @@ class SpeechRulesApiTests(unittest.TestCase):
             self.assertTrue(voice["locale"])
 
     def test_put_rejects_an_unknown_voice(self) -> None:
-        response = self.client.put("/api/speech-rules", json={"voices": {"nope": {}}})
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("nope", response.get_json()["error"])
+        for voice_id in ("nope", "../unsafe", "en_US-libritts_r-medium#9999"):
+            with self.subTest(voice_id=voice_id):
+                response = self.client.put(
+                    "/api/speech-rules", json={"voices": {voice_id: {}}}
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(voice_id, response.get_json()["error"])
 
     def test_put_rejects_a_bad_rule_without_writing(self) -> None:
         response = self.client.put(
@@ -1157,6 +1165,36 @@ class VoiceSettingsApiTests(unittest.TestCase):
         )
         self.assertEqual(reset.status_code, 200)
         self.assertEqual(reset.get_json()["tts"]["tuning"]["length_scale"], 0.9)
+
+    def test_installed_voice_tuning_survives_a_rules_save(self) -> None:
+        voice_id = "en_US-libritts_r-medium#546"
+        tuning = {
+            "length_scale": 0.75,
+            "sentence_silence_seconds": 0.15,
+            "structure_silence_seconds": 0.35,
+        }
+        tuned = self.client.put("/api/voice-settings", json={
+            "selected_voice": voice_id,
+            "voice_tuning": tuning,
+        })
+        self.assertEqual(tuned.status_code, 200)
+
+        rules_saved = self.client.put("/api/speech-rules", json={
+            "pronunciations": default_rules().pronunciations,
+            "voices": {voice_id: tuning},
+        })
+        self.assertEqual(rules_saved.status_code, 200)
+        self.assertEqual(rules_store.current().voices[voice_id], tuning)
+
+        rules_saved = self.client.put("/api/speech-rules", json={
+            "pronunciations": default_rules().pronunciations,
+            "voices": {},
+        })
+        self.assertEqual(rules_saved.status_code, 200)
+        self.assertEqual(
+            self.client.get("/api/voice-settings").get_json()["tts"]["tuning"],
+            {"voice_id": voice_id, **tuning},
+        )
 
     def test_dictation_preset_round_trips_through_shared_settings(self) -> None:
         preset = {

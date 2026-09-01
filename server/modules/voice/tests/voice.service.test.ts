@@ -203,6 +203,22 @@ test('treats a generic backend without the settings endpoint as unsupported', as
   assert.deepEqual(result.value.tts.installedModels, []);
 });
 
+test('reports malformed runtime settings responses without claiming the backend is unreachable', async () => {
+  const service = createVoiceService({
+    defaults,
+    timeoutMs: 1_000,
+    fetchBackend: async () => new Response('{"capabilities":', { status: 200 }),
+  });
+
+  const expected = {
+    ok: false,
+    status: 502,
+    error: 'Voice backend returned an invalid settings response.',
+  };
+  assert.deepEqual(await service.getSettings(), expected);
+  assert.deepEqual(await service.updateSettings({ selectedVoice: null }), expected);
+});
+
 test('writes selection, pace, and favorite changes only to the configured runtime', async () => {
   const requests: Array<{ url: string; method: string; body: unknown }> = [];
   const service = createVoiceService({

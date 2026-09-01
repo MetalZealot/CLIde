@@ -130,7 +130,7 @@ class SpeechRules:
             if not match or mode not in MODES:
                 continue
             if mode == "phrase":
-                pattern = re.escape(match).replace(r"\ ", r"\s+")
+                pattern = self._bounded(match).replace(r"\ ", r"\s+")
                 compiled.append((re.compile(pattern, re.IGNORECASE), say))
             elif mode == "before":
                 following = [re.escape(str(word)) for word in rule.get("followed_by", []) if word]

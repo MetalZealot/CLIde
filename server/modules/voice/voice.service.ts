@@ -412,7 +412,11 @@ async function readRuntimeSettings(
     }
     const responseText = await response.text();
     if (!response.ok) return backendFailure(response.status, responseText);
-    return { ok: true, value: parseRuntimeSettings(JSON.parse(responseText)) };
+    try {
+      return { ok: true, value: parseRuntimeSettings(JSON.parse(responseText)) };
+    } catch {
+      return { ok: false, status: 502, error: 'Voice backend returned an invalid settings response.' };
+    }
   } catch (error) {
     return unreachableBackendFailure(error, dependencies.timeoutMs);
   }
@@ -466,7 +470,11 @@ async function writeRuntimeSettings(
     });
     const responseText = await response.text();
     if (!response.ok) return backendFailure(response.status, responseText);
-    return { ok: true, value: parseRuntimeSettings(JSON.parse(responseText)) };
+    try {
+      return { ok: true, value: parseRuntimeSettings(JSON.parse(responseText)) };
+    } catch {
+      return { ok: false, status: 502, error: 'Voice backend returned an invalid settings response.' };
+    }
   } catch (error) {
     return unreachableBackendFailure(error, dependencies.timeoutMs);
   }

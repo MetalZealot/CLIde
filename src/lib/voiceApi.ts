@@ -117,10 +117,38 @@ function parseVoiceRuntimeSettings(payload: unknown): VoiceRuntimeSettings {
   if (!candidate.tts || typeof candidate.tts !== 'object') {
     throw new Error('Voice settings response is invalid');
   }
+  const capabilities: Partial<VoiceRuntimeSettings['capabilities']> = candidate.capabilities
+    && typeof candidate.capabilities === 'object'
+    && !Array.isArray(candidate.capabilities)
+    ? candidate.capabilities
+    : {};
+  const stt: Partial<VoiceRuntimeSettings['stt']> = candidate.stt
+    && typeof candidate.stt === 'object'
+    && !Array.isArray(candidate.stt)
+    ? candidate.stt
+    : {};
+  const sttSettings: Partial<VoiceRuntimeSettings['stt']['settings']> = stt.settings
+    && typeof stt.settings === 'object'
+    && !Array.isArray(stt.settings)
+    ? stt.settings
+    : {};
+  const capture: Partial<VoiceDictationCaptureSettings> = sttSettings.capture
+    && typeof sttSettings.capture === 'object'
+    && !Array.isArray(sttSettings.capture)
+    ? sttSettings.capture
+    : {};
   const speechPace = candidate.tts.speechPace;
   const displayNames = candidate.tts.displayNames;
   return {
     ...candidate,
+    capabilities: {
+      installedVoices: capabilities.installedVoices === true,
+      favorites: capabilities.favorites === true,
+      voiceSelection: capabilities.voiceSelection === true,
+      voiceTuning: capabilities.voiceTuning === true,
+      voiceDisplayNames: capabilities.voiceDisplayNames === true,
+      sttSettings: capabilities.sttSettings === true,
+    },
     tts: {
       ...candidate.tts,
       // Missing pace in a mixed-version deployment is the neutral multiplier.
@@ -130,6 +158,30 @@ function parseVoiceRuntimeSettings(payload: unknown): VoiceRuntimeSettings {
       displayNames: displayNames && typeof displayNames === 'object' && !Array.isArray(displayNames)
         ? displayNames
         : {},
+    },
+    stt: {
+      models: Array.isArray(stt.models) ? stt.models : [],
+      settings: {
+        model: typeof sttSettings.model === 'string' ? sttSettings.model : '',
+        decoderPreset: sttSettings.decoderPreset === 'careful' ? 'careful' : 'standard',
+        threads: typeof sttSettings.threads === 'number' && Number.isFinite(sttSettings.threads)
+          ? sttSettings.threads
+          : 4,
+        initialPrompt: typeof sttSettings.initialPrompt === 'string'
+          ? sttSettings.initialPrompt
+          : '',
+        capture: {
+          echoCancellation: typeof capture.echoCancellation === 'boolean'
+            ? capture.echoCancellation
+            : DEFAULT_DICTATION_CAPTURE.echoCancellation,
+          noiseSuppression: typeof capture.noiseSuppression === 'boolean'
+            ? capture.noiseSuppression
+            : DEFAULT_DICTATION_CAPTURE.noiseSuppression,
+          autoGainControl: typeof capture.autoGainControl === 'boolean'
+            ? capture.autoGainControl
+            : DEFAULT_DICTATION_CAPTURE.autoGainControl,
+        },
+      },
     },
   } as VoiceRuntimeSettings;
 }

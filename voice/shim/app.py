@@ -511,7 +511,9 @@ def transcriptions() -> Response:
     return response
 
 
-def _resolve_voice(requested_voice: Any) -> tuple[str, VoicePreset]:
+def _resolve_voice(
+    requested_voice: Any, installed_models: list[dict[str, Any]] | None = None
+) -> tuple[str, VoicePreset]:
     voice_id = requested_voice.strip() if isinstance(requested_voice, str) else ""
     if voice_id in {"", "alloy"}:
         runtime_default = _runtime_default_voice()
@@ -521,7 +523,9 @@ def _resolve_voice(requested_voice: Any) -> tuple[str, VoicePreset]:
     preset = VOICE_PRESETS.get(voice_id)
     if preset is not None:
         return voice_id, _with_saved_overrides(voice_id, preset)
-    return voice_id, _with_saved_overrides(voice_id, _installed_voice_preset(voice_id))
+    return voice_id, _with_saved_overrides(
+        voice_id, _installed_voice_preset(voice_id, installed_models)
+    )
 
 
 def _runtime_default_voice() -> str:
@@ -731,12 +735,15 @@ def speech() -> Response:
     return response
 
 
-def _model_render_defaults(model_id: str) -> dict[str, float | bool]:
+def _model_render_defaults(
+    model_id: str, config: dict[str, Any] | None = None
+) -> dict[str, float | bool]:
     """The render values Piper would use when Studio applies no overrides."""
-    try:
-        config = json.loads((VOICE_ROOT / "models" / f"{model_id}.onnx.json").read_text())
-    except (OSError, ValueError):
-        config = {}
+    if config is None:
+        try:
+            config = json.loads((VOICE_ROOT / "models" / f"{model_id}.onnx.json").read_text())
+        except (OSError, ValueError):
+            config = {}
     inference = config.get("inference") or {}
     return {
         "length_scale": float(inference.get("length_scale", 1.0)),
@@ -776,7 +783,9 @@ def _effective_render_settings(preset: VoicePreset) -> dict[str, float | bool]:
     }
 
 
-def _only_real_overrides(voices: Any) -> dict[str, dict[str, Any]]:
+def _only_real_overrides(
+    voices: Any, installed_models: list[dict[str, Any]] | None = None
+) -> dict[str, dict[str, Any]]:
     """Keep just the values that differ from the catalogue defaults.
 
     The UI posts every field every time; without this, the saved file would
@@ -785,7 +794,12 @@ def _only_real_overrides(voices: Any) -> dict[str, dict[str, Any]]:
     trimmed: dict[str, dict[str, Any]] = {}
     for voice_id, overrides in voices.items():
         preset = VOICE_PRESETS.get(voice_id)
-        if preset is None or not isinstance(overrides, dict):
+        if preset is None:
+            try:
+                preset = _installed_voice_preset(voice_id, installed_models)
+            except ValueError:
+                continue
+        if not isinstance(overrides, dict):
             continue
         defaults = {
             "length_scale": (
@@ -847,7 +861,7 @@ def _installed_models() -> list[dict[str, Any]]:
             continue
         speaker_map = config.get("speaker_id_map") or {}
         num_speakers = int(config.get("num_speakers", 1))
-        render_defaults = _model_render_defaults(model_path.stem)
+        render_defaults = _model_render_defaults(model_path.stem, config)
         models.append({
             "id": model_path.stem,
             "num_speakers": num_speakers,
@@ -897,11 +911,14 @@ def _write_voice_labels(voices: dict[str, dict[str, Any]]) -> None:
     temporary.replace(VOICE_LABELS_PATH)
 
 
-def _voice_key_parts(voice_id: str) -> tuple[str, int | None, dict[str, Any]]:
+def _voice_key_parts(
+    voice_id: str, installed_models: list[dict[str, Any]] | None = None
+) -> tuple[str, int | None, dict[str, Any]]:
     if not VOICE_KEY_PATTERN.fullmatch(voice_id):
         raise ValueError("Unknown TTS voice")
     model_id, separator, speaker_text = voice_id.partition("#")
-    installed = {model["id"]: model for model in _installed_models()}
+    models = installed_models if installed_models is not None else _installed_models()
+    installed = {model["id"]: model for model in models}
     model = installed.get(model_id)
     if model is None:
         raise ValueError("Unknown TTS voice")
@@ -922,7 +939,9 @@ def _matching_catalog_voice(model_id: str, speaker_id: int | None) -> str | None
     return None
 
 
-def _voice_display_names() -> dict[str, str]:
+def _voice_display_names(
+    installed_models: list[dict[str, Any]] | None = None
+) -> dict[str, str]:
     """Publish only valid friendly names for voices still installed."""
     names: dict[str, str] = {}
     for voice_id, entry in _read_voice_labels().items():
@@ -933,16 +952,18 @@ def _voice_display_names() -> dict[str, str]:
         if not normalized or len(normalized) > MAX_VOICE_DISPLAY_NAME_CHARS:
             continue
         try:
-            _voice_key_parts(voice_id)
+            _voice_key_parts(voice_id, installed_models)
         except ValueError:
             continue
         names[voice_id] = normalized
     return names
 
 
-def _installed_voice_preset(voice_id: str) -> VoicePreset:
+def _installed_voice_preset(
+    voice_id: str, installed_models: list[dict[str, Any]] | None = None
+) -> VoicePreset:
     """Resolve only a runtime-published model/speaker ID, never a path."""
-    model_id, speaker_id, model = _voice_key_parts(voice_id)
+    model_id, speaker_id, model = _voice_key_parts(voice_id, installed_models)
     catalog_voice = _matching_catalog_voice(model_id, speaker_id)
     if catalog_voice is not None:
         return _with_saved_overrides(catalog_voice, VOICE_PRESETS[catalog_voice])
@@ -969,13 +990,15 @@ def _display_model_name(model_id: str) -> str:
     return without_tier.replace("_", " ").replace("-", " ").title()
 
 
-def _favorite_voices() -> list[dict[str, Any]]:
+def _favorite_voices(
+    installed_models: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
     favorites: list[dict[str, Any]] = []
     for source_key, entry in sorted(_read_voice_labels().items()):
         if entry.get("favorite") is not True:
             continue
         try:
-            model_id, speaker_id, model = _voice_key_parts(source_key)
+            model_id, speaker_id, model = _voice_key_parts(source_key, installed_models)
         except ValueError:
             continue
         catalog_voice_id = _matching_catalog_voice(model_id, speaker_id)
@@ -1009,13 +1032,15 @@ def _favorite_voices() -> list[dict[str, Any]]:
     return favorites
 
 
-def _selected_voice_tuning() -> dict[str, Any] | None:
+def _selected_voice_tuning(
+    installed_models: list[dict[str, Any]] | None = None
+) -> dict[str, Any] | None:
     """Exact saved baseline for the effective daily voice, before global pace."""
     effective_voice = str(rules_store.current().tts.get("selected_voice") or _runtime_default_voice())
     if not effective_voice:
         return None
     try:
-        voice_id, preset = _resolve_voice(effective_voice)
+        voice_id, preset = _resolve_voice(effective_voice, installed_models)
     except (SynthesisError, ValueError):
         return None
     render = _effective_render_settings(preset)
@@ -1109,6 +1134,7 @@ def _save_voice_display_name(data: dict[str, Any]) -> None:
 @app.get("/api/voice-settings")
 def get_voice_settings() -> Response:
     rules = rules_store.current()
+    installed_models = _installed_models()
     selected_voice = rules.tts["selected_voice"] or None
     default_voice = _runtime_default_voice() or None
     return jsonify({
@@ -1125,7 +1151,7 @@ def get_voice_settings() -> Response:
             "selected_voice": selected_voice,
             "effective_voice": selected_voice or default_voice,
             "speech_pace": rules.tts["speech_pace"],
-            "tuning": _selected_voice_tuning(),
+            "tuning": _selected_voice_tuning(installed_models),
             "catalog": [
                 {
                     "id": voice_id,
@@ -1136,9 +1162,9 @@ def get_voice_settings() -> Response:
                 }
                 for voice_id, catalog_voice in VOICE_CATALOG.items()
             ],
-            "installed_models": _installed_models(),
-            "favorites": _favorite_voices(),
-            "display_names": _voice_display_names(),
+            "installed_models": installed_models,
+            "favorites": _favorite_voices(installed_models),
+            "display_names": _voice_display_names(installed_models),
         },
         "stt": {
             "models": [
@@ -1413,13 +1439,31 @@ def get_speech_rules() -> Response:
 def put_speech_rules() -> Response:
     """Save edited rules. They take effect on the next request, no restart."""
     payload = request.get_json(silent=True)
-    unknown = set((payload or {}).get("voices", {})) - set(VOICE_PRESETS)
+    current = rules_store.current()
+    posted_voices = dict((payload or {}).get("voices") or {})
+    installed_models = _installed_models()
+    unknown = set()
+    for voice_id in posted_voices:
+        if voice_id in VOICE_PRESETS:
+            continue
+        try:
+            _voice_key_parts(voice_id, installed_models)
+        except ValueError:
+            unknown.add(voice_id)
     if unknown:
         return jsonify({"error": f"Unknown voice(s): {', '.join(sorted(unknown))}"}), 400
     payload = dict(payload or {})
-    payload["voices"] = _only_real_overrides(payload.get("voices") or {})
-    payload.setdefault("stt", rules_store.current().stt)
-    payload.setdefault("tts", rules_store.current().tts)
+    for voice_id, overrides in current.voices.items():
+        if voice_id in VOICE_PRESETS or voice_id in posted_voices:
+            continue
+        try:
+            _voice_key_parts(voice_id, installed_models)
+        except ValueError:
+            continue
+        posted_voices[voice_id] = overrides
+    payload["voices"] = _only_real_overrides(posted_voices, installed_models)
+    payload.setdefault("stt", current.stt)
+    payload.setdefault("tts", current.tts)
     try:
         rules_store.save(payload)
     except ValueError as error:
