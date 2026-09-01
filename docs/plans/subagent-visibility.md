@@ -28,6 +28,9 @@ constraint holds for every phase below.
   off completed calls, so background tasks and forked skills surface as a
   synthesized call carrying their type, prompt, and tools. An `Agent` call
   still awaiting its result absorbs the transcript instead of duplicating it.
+  A forked skill also leaves the session row unindexed for its whole run —
+  only the agent file changes, and the watcher ignores it — so history derives
+  the transcript path rather than returning empty.
 - [ ] 3. **A running agent updates without a reload.** A watch on
   `subagents/**` — currently in `WATCHER_IGNORED_PATTERNS` — emits an agent
   event keyed to the parent `session_id`, on its own channel, never through

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 
@@ -13,7 +14,7 @@ import {
   resolveClaudeDerivedCeiling,
   toCeilingProvenanceFields,
 } from './claude-context-window.js';
-import { filterToActiveBranch, type RewindTranscriptEntry } from './claude-rewind.util.js';
+import { encodeClaudeProjectDir, filterToActiveBranch, type RewindTranscriptEntry } from './claude-rewind.util.js';
 
 const PROVIDER = 'claude';
 
@@ -222,6 +223,29 @@ function describeAgentPrompt(prompt: string): string {
   return plain.length > 80 ? `${plain.slice(0, 79)}\u2026` : plain;
 }
 
+/**
+ * A session is indexed by the watcher, which ignores subagent files, so a run
+ * that writes only to its agent transcript leaves the row with no path and its
+ * history empty. The path is derivable from the project and the provider id.
+ */
+function resolveClaudeTranscriptPath(
+  projectPath: string | null | undefined,
+  providerSessionId: string,
+): string | null {
+  if (!projectPath) {
+    return null;
+  }
+
+  const candidate = path.join(
+    os.homedir(),
+    '.claude',
+    'projects',
+    encodeClaudeProjectDir(projectPath),
+    `${providerSessionId}.jsonl`,
+  );
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
 const SUBAGENT_TOOL_NAMES = new Set(['Agent', 'Task']);
 
 /**
@@ -342,7 +366,9 @@ async function getSessionMessages(
   try {
     // The DB row is keyed by the app-facing session id, while the JSONL rows
     // on disk carry the provider-native id — both ids are needed here.
-    const jsonLPath = sessionsDb.getSessionById(sessionId)?.jsonl_path;
+    const sessionRow = sessionsDb.getSessionById(sessionId);
+    const jsonLPath = sessionRow?.jsonl_path
+      || resolveClaudeTranscriptPath(sessionRow?.project_path, providerSessionId);
 
     if (!jsonLPath) {
       return { messages: [], total: 0, hasMore: false };

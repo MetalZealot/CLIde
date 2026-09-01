@@ -814,6 +814,47 @@ describe('claude-subagent-history', () => {
     ].join('\n') + '\n';
   }
 
+  test('history resolves a session the watcher has not indexed yet', async () => {
+    const tempHome = await mkdtemp(path.join(tmpdir(), 'claude-subagent-home-'));
+    const projectPath = '/home/user/unindexed-project';
+    const projectDir = path.join(tempHome, '.claude', 'projects', encodeClaudeProjectDir(projectPath));
+    const subagentDir = path.join(projectDir, PROVIDER_SESSION_ID, 'subagents');
+    await mkdir(subagentDir, { recursive: true });
+    await writeFile(path.join(projectDir, `${PROVIDER_SESSION_ID}.jsonl`), JSON.stringify({
+      uuid: 'p1',
+      parentUuid: null,
+      sessionId: PROVIDER_SESSION_ID,
+      timestamp: '2026-08-31T10:00:00.000Z',
+      type: 'user',
+      message: { role: 'user', content: '/code-review high src/' },
+    }) + '\n', 'utf8');
+    await writeFile(
+      path.join(subagentDir, 'agent-bg99.jsonl'),
+      agentTranscript('Review target: `src/`', 'toolu_grep'),
+      'utf8',
+    );
+
+    const originalHomedir = os.homedir;
+    (os as unknown as { homedir: () => string }).homedir = () => tempHome;
+    try {
+      await withIsolatedDatabase(async () => {
+        // No jsonl_path: a forked skill writes only to its agent file, which the
+        // watcher ignores, so the row stays unindexed for the whole run.
+        sessionsDb.createSession(PROVIDER_SESSION_ID, 'claude', projectPath);
+        assert.equal(sessionsDb.getSessionById(PROVIDER_SESSION_ID)?.jsonl_path, null);
+
+        const history = await new ClaudeSessionsProvider().fetchHistory(PROVIDER_SESSION_ID);
+        const agents = history.messages.filter(
+          (message) => message.kind === 'tool_use' && message.toolName === 'Agent',
+        );
+        assert.equal(agents.length, 1, 'the derived path should still yield the agent');
+      });
+    } finally {
+      (os as unknown as { homedir: () => string }).homedir = originalHomedir;
+      await rm(tempHome, { recursive: true, force: true });
+    }
+  });
+
   test('a background agent that wrote no Agent call still reaches history', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'claude-subagent-bg-'));
     const transcriptPath = path.join(tempRoot, `${PROVIDER_SESSION_ID}.jsonl`);
