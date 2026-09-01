@@ -44,6 +44,7 @@ function Sidebar({
   attentionSessionIds,
   unreadSessionIds,
   onProjectSelect,
+  onOpenSourceControl,
   onSessionSelect,
   onOpenNewSession,
   onNewSession,
@@ -140,6 +141,7 @@ function Sidebar({
     setProjectAccentColor,
     confirmDeleteProject,
     handleProjectSelect,
+    handleOpenSourceControl,
     openArchivedSession,
     restoreArchivedProject,
     restoreArchivedSession,
@@ -166,6 +168,7 @@ function Sidebar({
     t,
     onRefresh,
     onProjectSelect,
+    onOpenSourceControl,
     onSessionSelect,
     onSessionDelete,
     onSessionStarPatch,
@@ -573,6 +576,7 @@ function Sidebar({
             // so it inherits what the removed `+` did: land in it, ready to work.
             onOpenWorktree={onNewSession}
             onSelectWorktree={handleProjectSelect}
+            onOpenSourceControl={handleOpenSourceControl}
             t={t}
           />
         )}

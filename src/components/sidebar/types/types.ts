@@ -165,6 +165,8 @@ export type SidebarProps = {
   attentionSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   onProjectSelect: (project: Project) => void;
+  /** Selects a checkout and opens Source Control, which needs no session. */
+  onOpenSourceControl: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   /** Opens the neutral launcher without preselecting a project. */
   onOpenNewSession: () => void;

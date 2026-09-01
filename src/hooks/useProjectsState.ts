@@ -1133,6 +1133,18 @@ export function useProjectsState({
     [isMobile, navigate],
   );
 
+  /**
+   * Source Control is project-scoped, so a worktree opens straight into it
+   * without a session: the panel only ever needed a selected project.
+   */
+  const handleOpenSourceControl = useCallback(
+    (project: Project) => {
+      handleProjectSelect(project);
+      setActiveTab('git');
+    },
+    [handleProjectSelect, setActiveTab],
+  );
+
   const handleSessionSelect = useCallback(
     (session: ProjectSession) => {
       markSessionViewed(session.id);
@@ -1333,6 +1345,7 @@ export function useProjectsState({
       attentionSessionIds,
       unreadSessionIds,
       onProjectSelect: handleProjectSelect,
+      onOpenSourceControl: handleOpenSourceControl,
       onSessionSelect: handleSessionSelect,
       onOpenNewSession: handleOpenNewSession,
       onNewSession: handleNewSession,
@@ -1360,6 +1373,7 @@ export function useProjectsState({
       adoptCheckout,
       handleProjectDelete,
       handleProjectSelect,
+      handleOpenSourceControl,
       handleSessionDelete,
       handleSessionStarPatch,
       loadMoreProjectSessions,

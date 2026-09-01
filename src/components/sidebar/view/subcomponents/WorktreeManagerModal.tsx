@@ -49,6 +49,12 @@ type WorktreeManagerModalProps = {
   /** Backs the row menu's Open; omitted where the list is not shown. */
   onSelectWorktree?: (project: Project) => void;
   /**
+   * Opens the checkout's Source Control panel. Session-free: the panel is
+   * project-scoped, so a worktree's diff is readable without starting a run in
+   * it — which was the only route to it before.
+   */
+  onOpenSourceControl?: (project: Project) => void;
+  /**
    * Opens straight into the create form, set when the row's New Worktree button
    * was the way in — so that button lands on the thing it names.
    */
@@ -293,6 +299,7 @@ export default function WorktreeManagerModal({
   onAdoptCheckout,
   onOpenWorktree,
   onSelectWorktree,
+  onOpenSourceControl,
   startInCreate = false,
   creationOnly = false,
   t,
@@ -675,6 +682,19 @@ export default function WorktreeManagerModal({
                 icon: FolderOpen,
                 onSelect: () => {
                   onSelectWorktree(actionMenu.project);
+                  onClose();
+                },
+              },
+            ]
+          : []),
+        ...(onOpenSourceControl
+          ? [
+              {
+                key: 'source-control',
+                label: t('worktrees.sourceControl', 'Source Control'),
+                icon: GitBranch,
+                onSelect: () => {
+                  onOpenSourceControl(actionMenu.project);
                   onClose();
                 },
               },

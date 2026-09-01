@@ -107,6 +107,7 @@ type UseSidebarControllerArgs = {
   t: TFunction;
   onRefresh: () => Promise<void> | void;
   onProjectSelect: (project: Project) => void;
+  onOpenSourceControl: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onSessionDelete?: (sessionId: string) => void;
   // Optimistic in-place patch of a session's starred flag (see useProjectsState).
@@ -146,6 +147,7 @@ export function useSidebarController({
   t,
   onRefresh,
   onProjectSelect,
+  onOpenSourceControl,
   onSessionSelect,
   onSessionDelete,
   onSessionStarPatch,
@@ -1150,6 +1152,14 @@ export function useSidebarController({
     [onProjectSelect, setCurrentProject],
   );
 
+  const handleOpenSourceControl = useCallback(
+    (project: Project) => {
+      onOpenSourceControl(project);
+      setCurrentProject(project);
+    },
+    [onOpenSourceControl, setCurrentProject],
+  );
+
   const openArchivedSession = useCallback((session: ArchivedSessionListItem) => {
     const activeProject = session.projectId
       ? projects.find((candidate) => candidate.projectId === session.projectId)
@@ -1319,6 +1329,7 @@ export function useSidebarController({
     setProjectAccentColor,
     confirmDeleteProject,
     handleProjectSelect,
+    handleOpenSourceControl,
     openArchivedSession,
     restoreArchivedProject,
     restoreArchivedSession,
