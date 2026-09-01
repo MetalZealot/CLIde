@@ -1,7 +1,7 @@
 # Self-hosted dictation and read-aloud
 
-- Status: 10/11
-- Next: decide whether the nearer-live dictation experiment is worthwhile.
+- Status: complete
+- Next: clear the 13 open findings from the 2026-08-31 code review.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts),
@@ -71,10 +71,10 @@
       thread count and microphone processing in the Dictation card. Changes
       round-trip without a restart; focused tests and Grayson's phone acceptance
       pass.
-- [ ] **11. Nearer-live dictation experiment.** Test phrase-level final insertion
-      after pauses against the accepted push-to-talk baseline. Add provisional
-      word-level streaming only if that experiment proves the extra transport and
-      composer-reconciliation complexity worthwhile.
+- [x] **11. Nearer-live dictation was not viable.** Phrase-sized audio needed
+      about 5.1 seconds after capture; a persistent model still needed 4.81
+      seconds, and reduced contexts damaged transcripts. Retain push-to-talk
+      until a local streaming engine is proven on the Pi.
 
 ## Done when
 

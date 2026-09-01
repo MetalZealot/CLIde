@@ -11,7 +11,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | Plan | Status | Next |
 |---|---|---|
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
-| [Self-hosted dictation and read-aloud](self-hosted-voice.md) | 10/11 | Decide whether the nearer-live dictation experiment is worthwhile |
+| [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
 | [Source Control truthfulness](source-control-truthfulness.md) | 1/4 | Phase 0: make server-side Git failures visible in the UI |
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
