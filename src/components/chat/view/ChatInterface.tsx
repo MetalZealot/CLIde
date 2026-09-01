@@ -110,6 +110,7 @@ function ChatInterface({
     selectPermissionMode,
     selectCollaborationMode,
     togglePermissionMode,
+    toggleCollaborationMode,
     providerModelsLoading,
     selectProviderModel,
     selectProviderEffort,
@@ -237,7 +238,6 @@ function ChatInterface({
     handleTextareaClick,
     handleTextareaInput,
     syncInputOverlayScroll,
-    handleClearInput,
     handleAbortSession,
     handlePermissionDecision,
     handleGrantToolPermission,
@@ -257,6 +257,9 @@ function ChatInterface({
     permissionMode,
     collaborationMode,
     togglePermissionMode,
+    toggleCollaborationMode: availableCollaborationModes.length > 0
+      ? toggleCollaborationMode
+      : undefined,
     currentProviderModel,
     currentProviderEffort,
     isLoading: isProcessing,
@@ -589,7 +592,7 @@ function ChatInterface({
               <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/40 px-2.5 py-1.5 text-xs leading-4 text-muted-foreground">
                 <span className="min-w-0 flex-1">
                   {t('composer.settingsChangeCacheNotice', {
-                    defaultValue: 'Changing model or effort may reduce cached-input reuse on the next turn.',
+                    defaultValue: 'Changing model or effort re-sends the conversation on the next turn — one turn at full input price, then caching resumes.',
                   })}
                 </span>
                 <button
@@ -653,8 +656,6 @@ function ChatInterface({
             isRefreshingContextBreakdown={isRefreshingContext}
             sessionKey={currentSessionId || selectedSession?.id || null}
             provider={provider}
-            hasInput={Boolean(input.trim())}
-            onClearInput={handleClearInput}
             onSubmit={handleSubmit}
             isDragActive={isDragActive}
             queuedDraft={queuedDraft}
@@ -703,8 +704,6 @@ function ChatInterface({
                   })
             }
             isTextareaExpanded={isTextareaExpanded}
-            sendByCtrlEnter={sendByCtrlEnter}
-            enterToSend={enterToSend}
           />
         </div>
       </div>

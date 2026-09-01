@@ -10,6 +10,7 @@ import { formatPlaybackTime, VoicePlayer, voiceId } from '../../../lib/voicePlay
 
 import {
   describeDropRejections,
+  resolveComposerTabAction,
   resolveSessionSendSetting,
   resolveUsagePopoverView,
   selectPastedAttachments,
@@ -48,6 +49,13 @@ test('an established session with no tracked value sends none, so the server res
 test('only a chat with no id yet inherits the provider seed', () => {
   assert.equal(resolveSessionSendSetting(null, 'high', false), 'high');
   assert.equal(resolveSessionSendSetting(null, undefined, false), undefined);
+});
+
+test('composer Tab shortcuts keep permissions and collaboration distinct', () => {
+  assert.equal(resolveComposerTabAction(false, false), 'permission');
+  assert.equal(resolveComposerTabAction(false, true), 'permission');
+  assert.equal(resolveComposerTabAction(true, true), 'collaboration');
+  assert.equal(resolveComposerTabAction(true, false), null, 'reverse focus survives without collaboration modes');
 });
 
 const fileItem = (name: string) => ({ kind: 'file', getAsFile: () => ({ name } as File) });
@@ -421,4 +429,42 @@ test('a newer read-aloud waits for an explicitly stopped generation to cancel', 
     if (audioDescriptor) Object.defineProperty(globalThis, 'Audio', audioDescriptor);
     else Reflect.deleteProperty(globalThis, 'Audio');
   }
+});
+
+test('an Agent tool call becomes a subagent container with its child tools', () => {
+  const messages = normalizedToChatMessages([
+    transcriptRow({
+      id: 'tu1',
+      kind: 'tool_use',
+      toolId: 't1',
+      toolName: 'Agent',
+      toolInput: { description: 'Review the diff', subagent_type: 'code-reviewer' },
+      subagentTools: [
+        { toolId: 'c1', toolName: 'Grep', toolInput: { pattern: 'TODO' } },
+      ],
+    }),
+    transcriptRow({ id: 'tr1', kind: 'tool_result', toolId: 't1', content: 'done' }),
+  ]);
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].isSubagentContainer, true);
+  assert.deepEqual(
+    messages[0].subagentState?.childTools.map((tool) => tool.toolName),
+    ['Grep'],
+  );
+  assert.equal(messages[0].subagentState?.isComplete, true);
+});
+
+test('the former Task name still opens a subagent container', () => {
+  const messages = normalizedToChatMessages([
+    transcriptRow({ id: 'tu2', kind: 'tool_use', toolId: 't2', toolName: 'Task', toolInput: {} }),
+  ]);
+  assert.equal(messages[0].isSubagentContainer, true);
+});
+
+test('an ordinary tool call is not a subagent container', () => {
+  const messages = normalizedToChatMessages([
+    transcriptRow({ id: 'tu3', kind: 'tool_use', toolId: 't3', toolName: 'Read', toolInput: {} }),
+  ]);
+  assert.equal(messages[0].isSubagentContainer, false);
 });

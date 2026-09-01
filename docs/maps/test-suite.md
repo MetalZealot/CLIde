@@ -5,13 +5,13 @@ The policy for *which* of them to run is here too; `AGENTS.md` routes to it.
 
 ## Shape
 
-56 test files, 782 tests, in two halves that need different tsconfigs — the root
+57 test files, 824 tests, in two halves that need different tsconfigs — the root
 maps `@/*` to `src/*`, the server maps it to `server/*`.
 
 | Half | Files | Tests | Command |
 |---|---|---|---|
-| Server | 39 | 520 | `npm run test:server` |
-| Client | 17 | 262 | `npm run test:client` |
+| Server | 39 | 546 | `npm run test:server` |
+| Client | 18 | 278 | `npm run test:client` |
 
 Server tests concentrate where the contracts are: `providers` (13 files),
 `projects` (3), `websocket` (3), `database` (2), most other modules one. Client

@@ -1,8 +1,8 @@
-# 0050 — Voice Studio is a standalone personal tool
+# 0051 — Voice Studio is a standalone personal tool
 
 - Date: 2026-08-31
 - Status: Accepted
-- Refines: [0049 — The voice runtime owns shared settings](0049-voice-runtime-owns-shared-settings.md)
+- Refines: [0050 — The voice runtime owns shared settings](0050-voice-runtime-owns-shared-settings.md)
 
 ## Decision
 

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import JSZip from 'jszip';
+
 import { api } from '../../../utils/api';
 import type { FileTreeNode } from '../types/types';
 import type { FilePathChange, Project } from '../../../types/app';
@@ -42,11 +43,13 @@ export type MoveOutcome = {
 
 export type UseFileTreeOperationsOptions = {
   selectedProject: Project | null;
-  onRefresh: () => void;
+  onRefresh: (directoryPaths?: string[]) => void;
   showToast: (message: string, type: 'success' | 'error') => void;
   /** Lets surfaces holding a path (the open editor, a preview) rebind after a move or rename. */
   onFilePathsChange?: (changes: FilePathChange[]) => void;
 };
+
+const parentDirectoryOf = (filePath: string) => filePath.slice(0, filePath.lastIndexOf('/'));
 
 export type UseFileTreeOperationsResult = {
   // Rename operations
@@ -180,7 +183,7 @@ export function useFileTreeOperations({
       }
 
       showToast(t('fileTree.toast.renamed', 'Renamed successfully'), 'success');
-      onRefresh();
+      onRefresh([parentDirectoryOf(data.oldPath ?? renamingItem.path)]);
       handleCancelRename();
     } catch (err) {
       showToast((err as Error).message, 'error');
@@ -220,7 +223,7 @@ export function useFileTreeOperations({
           : t('fileTree.toast.fileDeleted', 'File deleted'),
         'success'
       );
-      onRefresh();
+      onRefresh([parentDirectoryOf(item.path)]);
       handleCancelDelete();
     } catch (err) {
       showToast((err as Error).message, 'error');
@@ -308,8 +311,12 @@ export function useFileTreeOperations({
             }),
         'success',
       );
-      // One refresh for the whole batch, not one per item.
-      onRefresh();
+      // Refresh both sides of every move; a cached source parent and a cached
+      // destination parent can otherwise disagree indefinitely.
+      onRefresh([...new Set(moved.flatMap((change) => [
+        parentDirectoryOf(change.oldPath),
+        parentDirectoryOf(change.newPath),
+      ]))]);
       return { moved, skippedCount };
     } catch (err) {
       const message = (err as Error).message;
@@ -372,6 +379,7 @@ export function useFileTreeOperations({
         const data = await response.json();
         throw new Error(data.error || 'Failed to create');
       }
+      const data = await response.json();
 
       showToast(
         newItemType === 'file'
@@ -379,7 +387,7 @@ export function useFileTreeOperations({
           : t('fileTree.toast.folderCreated', 'Folder created successfully'),
         'success'
       );
-      onRefresh();
+      onRefresh([parentDirectoryOf(data.path ?? newItemParent)]);
       handleCancelCreate();
     } catch (err) {
       showToast((err as Error).message, 'error');
@@ -417,26 +425,6 @@ export function useFileTreeOperations({
     URL.revokeObjectURL(url);
   }, []);
 
-  // Download file or folder
-  const handleDownload = useCallback(async (item: FileTreeNode) => {
-    if (!selectedProject) return;
-
-    setOperationLoading(true);
-    try {
-      if (item.type === 'directory') {
-        // Download folder as ZIP
-        await downloadFolderAsZip(item);
-      } else {
-        // Download single file
-        await downloadSingleFile(item);
-      }
-    } catch (err) {
-      showToast((err as Error).message, 'error');
-    } finally {
-      setOperationLoading(false);
-    }
-  }, [selectedProject, showToast]);
-
   // Download a single file
   const downloadSingleFile = useCallback(async (item: FileTreeNode) => {
     if (!selectedProject) return;
@@ -457,6 +445,15 @@ export function useFileTreeOperations({
     if (!selectedProject) return;
 
     const zip = new JSZip();
+    const subtreeResponse = await api.getProjectSubtree(
+      selectedProject.projectId,
+      folder.path,
+    );
+    const subtreePayload = await subtreeResponse.json();
+    if (!subtreeResponse.ok || !Array.isArray(subtreePayload)) {
+      throw new Error(subtreePayload.error || 'Could not read the complete folder for ZIP export');
+    }
+    const subtree = subtreePayload as FileTreeNode[];
 
     // Recursively get all files in the folder
     const collectFiles = async (node: FileTreeNode, currentPath: string) => {
@@ -479,9 +476,10 @@ export function useFileTreeOperations({
       }
     };
 
-    // If the folder has children, process them
-    if (folder.children && folder.children.length > 0) {
-      for (const child of folder.children) {
+    // The visible tree is intentionally shallow. ZIPs use the dedicated,
+    // capped complete-subtree response so collapsed folders are never omitted.
+    if (subtree.length > 0) {
+      for (const child of subtree) {
         await collectFiles(child, '');
       }
     }
@@ -492,6 +490,24 @@ export function useFileTreeOperations({
 
     showToast(t('fileTree.toast.folderDownloaded', 'Folder downloaded as ZIP'), 'success');
   }, [selectedProject, showToast, t, triggerBrowserDownload]);
+
+  // Download file or folder
+  const handleDownload = useCallback(async (item: FileTreeNode) => {
+    if (!selectedProject) return;
+
+    setOperationLoading(true);
+    try {
+      if (item.type === 'directory') {
+        await downloadFolderAsZip(item);
+      } else {
+        await downloadSingleFile(item);
+      }
+    } catch (err) {
+      showToast((err as Error).message, 'error');
+    } finally {
+      setOperationLoading(false);
+    }
+  }, [downloadFolderAsZip, downloadSingleFile, selectedProject, showToast]);
 
   return {
     // Rename operations

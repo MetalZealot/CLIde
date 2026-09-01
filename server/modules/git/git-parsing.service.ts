@@ -44,6 +44,44 @@ export function parseGitStatusOutput(statusOutput: string): GitStatusSummary {
   return result;
 }
 
+export type WorktreeChangeSummary = {
+  /** Tracked changes plus untracked files, matching what the Changes tab lists. */
+  changedFiles: number;
+  ahead: number;
+  behind: number;
+  hasUpstream: boolean;
+};
+
+/**
+ * Parses `git status --porcelain=v2 --branch` into the per-worktree counts the
+ * Worktrees panel shows.
+ *
+ * v2 rather than v1 because only v2 reports `branch.ab`, so one invocation
+ * answers both "is it dirty" and "is it unpushed". Entry lines are counted, not
+ * collected: paths in v2 are quoted when they contain control characters, and a
+ * count needs no unquoting.
+ */
+export function parseWorktreeStatusPorcelainV2(statusOutput: string): WorktreeChangeSummary {
+  const summary: WorktreeChangeSummary = { changedFiles: 0, ahead: 0, behind: 0, hasUpstream: false };
+
+  for (const line of statusOutput.split('\n')) {
+    if (line.startsWith('# branch.ab ')) {
+      // "# branch.ab +2 -1" — always both fields, always signed.
+      const [aheadField, behindField] = line.slice('# branch.ab '.length).trim().split(' ');
+      summary.ahead = Math.abs(Number.parseInt(aheadField, 10)) || 0;
+      summary.behind = Math.abs(Number.parseInt(behindField, 10)) || 0;
+      summary.hasUpstream = true;
+      continue;
+    }
+    if (line.startsWith('#')) continue;
+    // 1 ordinary, 2 renamed/copied, u unmerged, ? untracked. "!" ignored files
+    // never appear without --ignored.
+    if (/^[12u?] /.test(line)) summary.changedFiles += 1;
+  }
+
+  return summary;
+}
+
 /** Parses the Git history format used by the commits endpoint, including shortstat lines. */
 export function parseGitLogWithStats(stdout: string): GitCommitSummary[] {
   const commits: GitCommitSummary[] = [];

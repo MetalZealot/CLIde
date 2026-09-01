@@ -6,6 +6,7 @@ import { sessionsDb } from '@/modules/database/index.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
+  extractLastValidJsonlData,
   findFilesRecursivelyCreatedAfter,
   normalizeSessionName,
   readFileTimestamps,
@@ -154,6 +155,19 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
 
     if (!parsed) {
       return null;
+    }
+
+    // A session can change working directory mid-conversation (EnterWorktree,
+    // /cd), and the transcript stays in the directory the session was created
+    // in. Every row carries its own `cwd`, so the latest one — not the first —
+    // is where the session is now.
+    const latestProjectPath = await extractLastValidJsonlData(filePath, (rawData) => {
+      const data = rawData as Record<string, unknown>;
+      return typeof data.cwd === 'string' && data.cwd ? data.cwd : null;
+    });
+
+    if (latestProjectPath) {
+      parsed.projectPath = latestProjectPath;
     }
 
     // App-created sessions are keyed by an app id, so disk-discovered provider

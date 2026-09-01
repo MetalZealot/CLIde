@@ -13,6 +13,9 @@ type DirectoryOption = {
   isDisabled: boolean;
   /** Has subdirectories, i.e. is expandable (always false for the root row — its children are always shown). */
   hasChildren: boolean;
+  childrenLoaded: boolean;
+  isLoading: boolean;
+  hasMore: boolean;
 };
 
 type FileTreeMoveDialogProps = {
@@ -24,6 +27,10 @@ type FileTreeMoveDialogProps = {
   failure: MoveFailure | null;
   onConfirm: (destinationPath: string) => void;
   onCancel: () => void;
+  onExpandDirectory: (path: string) => void;
+  onLoadMoreDirectory: (path: string) => void;
+  rootHasMore: boolean;
+  onLoadMoreRoot: () => void;
 };
 
 const parentDirOf = (absolutePath: string) => absolutePath.slice(0, absolutePath.lastIndexOf('/'));
@@ -36,6 +43,10 @@ export default function FileTreeMoveDialog({
   failure,
   onConfirm,
   onCancel,
+  onExpandDirectory,
+  onLoadMoreDirectory,
+  rootHasMore,
+  onLoadMoreRoot,
 }: FileTreeMoveDialogProps) {
   const { t } = useTranslation();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -77,6 +88,9 @@ export default function FileTreeMoveDialog({
         level: 0,
         isDisabled: isDisabledDestination(projectPath),
         hasChildren: false,
+        childrenLoaded: true,
+        isLoading: false,
+        hasMore: rootHasMore,
       },
     ];
 
@@ -90,7 +104,10 @@ export default function FileTreeMoveDialog({
           name: node.name,
           level,
           isDisabled: isDisabledDestination(node.path),
-          hasChildren: subdirectoriesOf(node.children ?? []).length > 0,
+          hasChildren: !node.childrenLoaded || subdirectoriesOf(node.children ?? []).length > 0,
+          childrenLoaded: Boolean(node.childrenLoaded),
+          isLoading: Boolean(node.childrenLoading),
+          hasMore: Boolean(node.childrenNextCursor),
         });
         if (node.children && expandedPaths.has(node.path)) {
           walk(node.children, level + 1);
@@ -99,9 +116,13 @@ export default function FileTreeMoveDialog({
     };
     walk(files, 1);
     return options;
-  }, [files, sourcePaths, isDisabledDestination, projectPath, expandedPaths, t]);
+  }, [files, sourcePaths, isDisabledDestination, projectPath, expandedPaths, rootHasMore, t]);
 
   const toggleExpanded = (path: string) => {
+    const node = directoryOptions.find((option) => option.path === path);
+    if (node && !expandedPaths.has(path) && !node.childrenLoaded) {
+      onExpandDirectory(path);
+    }
     setExpandedPaths((previous) => {
       const next = new Set(previous);
       if (next.has(path)) {
@@ -217,11 +238,32 @@ export default function FileTreeMoveDialog({
                         {t('fileTree.move.currentLocation', 'Current')}
                       </span>
                     )}
+                    {option.isLoading && <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-muted-foreground" />}
                     {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-primary" />}
                   </button>
+                  {option.hasMore && expandedPaths.has(option.path) && (
+                    <button
+                      type="button"
+                      disabled={operationLoading || option.isLoading}
+                      onClick={() => onLoadMoreDirectory(option.path)}
+                      className="px-2 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                    >
+                      {t('fileTree.loadMore', 'Load more')}
+                    </button>
+                  )}
                 </div>
               );
             })}
+            {rootHasMore && (
+              <button
+                type="button"
+                disabled={operationLoading}
+                onClick={onLoadMoreRoot}
+                className="w-full rounded-md py-2 text-sm font-medium text-primary hover:bg-accent disabled:opacity-50"
+              >
+                {t('fileTree.loadMore', 'Load more')}
+              </button>
+            )}
           </div>
         </div>
 

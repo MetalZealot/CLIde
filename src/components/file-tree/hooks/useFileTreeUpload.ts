@@ -12,7 +12,7 @@ import {
 
 type UseFileTreeUploadOptions = {
   selectedProject: Project | null;
-  onRefresh: () => void;
+  onRefresh: (directoryPaths?: string[]) => void;
   showToast: (message: string, type: 'success' | 'error') => void;
 };
 
@@ -32,6 +32,7 @@ type UploadResponse = {
   files?: unknown[];
   uploadedCount?: number;
   requestedFileCount?: number;
+  targetPath?: string;
 };
 
 const COMPLETE_PROGRESS_CLEAR_DELAY_MS = 1400;
@@ -354,7 +355,7 @@ export const useFileTreeUpload = ({
 
         showToast(formatUploadSuccessMessage(uploadedCount, requestedFileCount), 'success');
         scheduleProgressClear(COMPLETE_PROGRESS_CLEAR_DELAY_MS);
-        onRefresh();
+        onRefresh([response.targetPath || targetPath || selectedProject.fullPath]);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Upload failed';
         console.error('Upload error:', err);

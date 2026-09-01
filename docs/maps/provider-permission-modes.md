@@ -159,13 +159,16 @@ Provider capabilities publish access modes and collaboration modes separately.
 The React UI remains provider-neutral while each provider supplies accurate
 labels and behavior for its own values.
 
-The composer preserves that separation. A tap or keyboard Tab cycles only the
-routine modes a provider exposes: Claude's `default` / `auto` / `acceptEdits`,
-or the `default` / `acceptEdits` pair elsewhere. Native Plan and unrestricted
-access require an explicit picker selection. A touch long-press opens that
-complete picker, while desktop exposes the same picker through a chevron and
-places Codex Build / Plan beside the access control. Mobile keeps Build / Plan
-in the complete picker and marks active Plan on the composer access icon.
+The composer preserves that separation. Keyboard Tab cycles only the routine
+access modes a provider exposes: Claude's `default` / `auto` / `acceptEdits`, or
+the `default` / `acceptEdits` pair elsewhere. Elevated or special access modes,
+including Claude Plan and unrestricted access, require an explicit access-picker
+selection. On mobile the compact icon-only access control opens that complete
+picker on tap, Build / Plan stays inside it, and active Plan is marked on the
+access icon. Desktop keeps separate access and Build / Plan split controls; each
+main segment cycles its state and each chevron opens descriptions. Shift+Tab
+cycles collaboration mode when the provider exposes one and otherwise keeps
+normal reverse-focus navigation.
 
 Current capability lists after the App Server feature:
 

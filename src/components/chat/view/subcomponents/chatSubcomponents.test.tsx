@@ -757,6 +757,8 @@ describe('chatSubcomponents', () => {
       await React.act(async () => root?.unmount());
       container?.remove();
       document.querySelectorAll('[role="menu"]').forEach((menu) => menu.remove());
+      Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+      window.dispatchEvent(new window.Event('resize'));
       root = null;
       container = null;
     });
@@ -1111,7 +1113,8 @@ describe('chatSubcomponents', () => {
       assert.match(document.querySelector('[role="menu"]')?.textContent || '', /Checking connected providers/);
     });
 
-    test('permission trigger toggles routine access while the chevron opens every mode', async () => {
+    test('desktop permission trigger toggles routine access while the chevron opens every mode', async () => {
+      Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
       const selections: string[] = [];
       const host = await mount(
         <ComposerPermissionMenu
@@ -1134,6 +1137,7 @@ describe('chatSubcomponents', () => {
 
       const menuTrigger = host.querySelector<HTMLButtonElement>('[aria-label="Show all access modes"]');
       assert.ok(menuTrigger);
+      assert.match(menuTrigger.className, /hidden.*sm:flex/, 'the picker arrow remains desktop-only');
       await React.act(async () => menuTrigger.click());
 
       const menu = document.querySelector('[role="menu"]');
@@ -1148,16 +1152,18 @@ describe('chatSubcomponents', () => {
       assert.deepEqual(selections, ['auto', 'bypassPermissions']);
     });
 
-    test('long press opens every permission mode and suppresses the following quick toggle', async () => {
-      const selections: string[] = [];
+    test('mobile permission tap opens the complete picker without cycling access', async () => {
+      Object.defineProperty(window, 'innerWidth', { value: 384, configurable: true });
+      const permissionSelections: string[] = [];
+      const collaborationSelections: string[] = [];
       const host = await mount(
         <ComposerPermissionMenu
           permissionMode="default"
           permissionModes={['default', 'acceptEdits', 'bypassPermissions']}
-          onSelectPermissionMode={(mode) => selections.push(mode)}
-          collaborationMode={null}
-          collaborationModes={[]}
-          onSelectCollaborationMode={() => {}}
+          onSelectPermissionMode={(mode) => permissionSelections.push(mode)}
+          collaborationMode="build"
+          collaborationModes={['build', 'plan']}
+          onSelectCollaborationMode={(mode) => collaborationSelections.push(mode)}
           provider="codex"
           providerLabel="Codex"
         />,
@@ -1165,22 +1171,25 @@ describe('chatSubcomponents', () => {
 
       const trigger = host.querySelector<HTMLButtonElement>('button');
       assert.ok(trigger);
-      const touchStart = new window.Event('touchstart', { bubbles: true, cancelable: true });
-      Object.defineProperty(touchStart, 'touches', {
-        value: [{ clientX: 40, clientY: 700 }],
-      });
-      await React.act(async () => {
-        trigger.dispatchEvent(touchStart);
-        await new Promise((resolve) => window.setTimeout(resolve, 550));
-      });
-
-      assert.ok(document.querySelector('[role="menu"]'), 'long press opens the complete picker');
       await React.act(async () => trigger.click());
-      assert.deepEqual(selections, [], 'synthetic click after long press is swallowed');
-      await React.act(async () => trigger.dispatchEvent(new window.Event('touchend', { bubbles: true })));
+
+      const menu = document.querySelector<HTMLElement>('[role="menu"]');
+      assert.ok(menu, 'one tap opens the complete picker');
+      assert.match(menu.textContent || '', /Permissions/);
+      assert.match(menu.textContent || '', /Build/);
+      assert.match(menu.textContent || '', /Plan/);
+      assert.deepEqual(permissionSelections, [], 'opening the picker does not cycle access');
+      assert.deepEqual(collaborationSelections, []);
+      assert.equal(trigger.getAttribute('aria-haspopup'), 'menu');
+      assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+
+      const menuTrigger = host.querySelector<HTMLButtonElement>('[aria-label="Show all access modes"]');
+      assert.ok(menuTrigger);
+      assert.match(menuTrigger.className, /hidden.*sm:flex/, 'mobile still has no separate chevron');
     });
 
     test('Codex access presets stay independent from Build and Plan collaboration', async () => {
+      Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
       const permissionSelections: string[] = [];
       const collaborationSelections: string[] = [];
       const host = await mount(
@@ -1207,20 +1216,32 @@ describe('chatSubcomponents', () => {
       assert.match(menu?.textContent || '', /Full Access/);
       assert.doesNotMatch(menu?.textContent || '', /Default Mode|Accept Edits|Bypass Permissions/);
 
-      const desktopModes = host.querySelector<HTMLElement>('[role="radiogroup"]');
-      assert.ok(desktopModes);
-      assert.match(desktopModes.className, /sm:flex/, 'desktop keeps collaboration outside the access picker');
-      const planButton = [...desktopModes.querySelectorAll<HTMLButtonElement>('[role="radio"]')]
-        .find((button) => button.textContent?.includes('Plan'));
-      assert.ok(planButton);
-      await React.act(async () => planButton.click());
+      const mobileModeGroup = document.querySelector<HTMLElement>('[role="menu"] [role="group"]');
+      assert.ok(mobileModeGroup);
+      assert.match(mobileModeGroup.className, /sm:hidden/, 'mobile keeps collaboration in the complete picker');
+      assert.match(mobileModeGroup.textContent || '', /Build/);
+      assert.match(mobileModeGroup.textContent || '', /Plan/);
+
+      const modeToggle = host.querySelector<HTMLButtonElement>(
+        '[aria-label^="Collaboration mode Build. Switch to Plan"]',
+      );
+      assert.ok(modeToggle);
+      assert.match(modeToggle.parentElement?.className || '', /hidden.*sm:flex/, 'the split mode control is desktop-only');
+      assert.match(modeToggle.textContent || '', /Build/, 'desktop names the active collaboration mode');
+      await React.act(async () => modeToggle.click());
 
       assert.deepEqual(collaborationSelections, ['plan']);
       assert.deepEqual(permissionSelections, []);
 
-      const mobileModeGroup = document.querySelector<HTMLElement>('[role="menu"] [role="group"]');
-      assert.ok(mobileModeGroup);
-      assert.match(mobileModeGroup.className, /sm:hidden/, 'mobile keeps collaboration in the complete picker');
+      const modeMenuTrigger = host.querySelector<HTMLButtonElement>('[aria-label="Show collaboration modes"]');
+      assert.ok(modeMenuTrigger);
+      await React.act(async () => modeMenuTrigger.click());
+
+      const modeMenu = document.querySelector<HTMLElement>('[role="menu"]');
+      assert.match(modeMenu?.textContent || '', /Collaboration mode/);
+      assert.match(modeMenu?.textContent || '', /Implement changes and complete the task/);
+      assert.match(modeMenu?.textContent || '', /Investigate and agree an approach before implementation/);
+      assert.match(modeMenu?.textContent || '', /Shift\+Tab cycles Build and Plan/);
     });
   });
 

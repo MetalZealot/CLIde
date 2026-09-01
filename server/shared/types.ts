@@ -1381,6 +1381,46 @@ export type FileTreeNode = {
 };
 
 /**
+ * One bounded page of a single directory.
+ *
+ * File Tree clients append `entries` only when `nextCursor` belongs to their
+ * current directory generation. A null cursor means the directory is complete.
+ */
+export type FileTreeDirectoryPage = {
+  directoryPath: string;
+  relativePath: string;
+  entries: FileTreeNode[];
+  nextCursor: string | null;
+};
+
+/**
+ * Flat project-search result shared by Files, composer mentions, the command
+ * palette, and file-reference resolution. Both path forms are returned so no
+ * client has to infer project containment from string prefixes.
+ */
+export type FileTreeSearchResult = {
+  name: string;
+  path: string;
+  relativePath: string;
+  type: 'file' | 'directory';
+};
+
+/** A bounded page of flat, project-relative search results. */
+export type FileTreeSearchPage = {
+  results: FileTreeSearchResult[];
+  nextCursor: string | null;
+};
+
+/**
+ * Deterministic result for a possibly partial file reference.
+ * Ambiguous references never select an arbitrary first match.
+ */
+export type FileTreeResolutionResult =
+  | { status: 'resolved'; match: FileTreeSearchResult }
+  | { status: 'not-found'; matches: [] }
+  | { status: 'ambiguous'; matches: FileTreeSearchResult[] };
+
+/**
  * Minimal directory-entry shape required during File Tree traversal.
  *
  * Production adapts Node `Dirent` objects to this structural contract. Tests
@@ -1389,6 +1429,17 @@ export type FileTreeNode = {
 export type FileTreeDirectoryEntry = {
   name: string;
   isDirectory(): boolean;
+  isSymbolicLink(): boolean;
+};
+
+/**
+ * Incremental directory reader used by paged and searchable File Tree paths.
+ * Reading one entry at a time keeps a single huge directory from allocating an
+ * unbounded response array or scheduling metadata work for every child.
+ */
+export type FileTreeDirectoryHandle = {
+  read(): Promise<FileTreeDirectoryEntry | null>;
+  close(): Promise<void>;
 };
 
 /**
@@ -1418,6 +1469,7 @@ export type FileTreeFileSystem = {
   stat(candidatePath: string): Promise<FileTreeStats>;
   lstat(candidatePath: string): Promise<FileTreeStats>;
   readdir(directoryPath: string): Promise<FileTreeDirectoryEntry[]>;
+  openDirectory(directoryPath: string): Promise<FileTreeDirectoryHandle>;
   realpath(candidatePath: string): Promise<string>;
   readTextFile(filePath: string): Promise<string>;
   writeTextFile(filePath: string, content: string): Promise<void>;
@@ -1512,8 +1564,36 @@ export type FileTreeServices = {
   }>;
   listProjectFiles(
     projectId: string,
-    options?: { respectGitignore: boolean },
+    options?: { respectGitignore: boolean; signal?: AbortSignal },
   ): Promise<FileTreeNode[]>;
+  listDirectory(input: {
+    projectId: string;
+    directoryPath: string;
+    cursor: string | null;
+    limit: number;
+    respectGitignore: boolean;
+    signal?: AbortSignal;
+  }): Promise<FileTreeDirectoryPage>;
+  searchProjectFiles(input: {
+    projectId: string;
+    query: string;
+    cursor: string | null;
+    limit: number;
+    entryType: 'all' | 'file';
+    respectGitignore: boolean;
+    refreshIndex?: boolean;
+    signal?: AbortSignal;
+  }): Promise<FileTreeSearchPage>;
+  resolveProjectFile(input: {
+    projectId: string;
+    fileReference: string;
+    signal?: AbortSignal;
+  }): Promise<FileTreeResolutionResult>;
+  listProjectSubtree(input: {
+    projectId: string;
+    directoryPath: string;
+    signal?: AbortSignal;
+  }): Promise<FileTreeNode[]>;
   createEntry(input: {
     projectId: string;
     parentPath: string;

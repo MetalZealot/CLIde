@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { FilePathChange } from '../../../types/app';
+import { remapChangedPath } from '../../../utils/filePathChange';
 import type { FileTreeNode } from '../types/types';
 
 /**
@@ -40,6 +42,7 @@ export type FileTreeSelection = {
   selectRangeTo: (path: string) => void;
   selectAllVisible: () => void;
   clearSelection: () => void;
+  remapPaths: (changes: FilePathChange[]) => void;
   /** True when every visible row is selected (and there is at least one). */
   areAllVisibleSelected: boolean;
   nodeAtPath: (path: string) => FileTreeNode | undefined;
@@ -162,6 +165,17 @@ export function useFileTreeSelection({
   const clearSelection = useCallback(() => {
     setSelectedPaths(new Set());
     setRangeAnchorPath(null);
+  }, []);
+
+  const remapPaths = useCallback((changes: FilePathChange[]) => {
+    setSelectedPaths((previous) => new Set(
+      [...previous].map((selectedPath) =>
+        remapChangedPath(selectedPath, changes) ?? selectedPath,
+      ),
+    ));
+    setRangeAnchorPath((previous) => previous === null
+      ? null
+      : remapChangedPath(previous, changes) ?? previous);
   }, []);
 
   const exitSelectionMode = useCallback(() => {
@@ -292,6 +306,7 @@ export function useFileTreeSelection({
     selectRangeTo,
     selectAllVisible,
     clearSelection,
+    remapPaths,
     areAllVisibleSelected,
     nodeAtPath,
   };

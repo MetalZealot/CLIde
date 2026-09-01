@@ -1,5 +1,6 @@
 import type { MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react';
-import { Check, ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { Check, ChevronRight, Folder, FolderOpen, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
 import type { FileTreeNode as FileTreeNodeType, FileTreeViewMode } from '../types/types';
@@ -41,6 +42,9 @@ type FileTreeNodeProps = {
   onCopyPath?: (item: FileTreeNodeType) => void;
   onDownload?: (item: FileTreeNodeType) => void;
   onRefresh?: () => void;
+  onLoadDirectory?: (path: string) => void;
+  onLoadMoreDirectory?: (path: string) => void;
+  showRelativePath?: boolean;
   onSelectItem?: (item: FileTreeNodeType) => void;
   onMoveSelection?: () => void;
   dragMove?: FileTreeDragMove;
@@ -156,6 +160,9 @@ export default function FileTreeNode({
   onCopyPath,
   onDownload,
   onRefresh,
+  onLoadDirectory,
+  onLoadMoreDirectory,
+  showRelativePath = false,
   onSelectItem,
   onMoveSelection,
   dragMove,
@@ -171,9 +178,9 @@ export default function FileTreeNode({
   renameInputRef,
   operationLoading,
 }: FileTreeNodeProps) {
+  const { t } = useTranslation();
   const isDirectory = item.type === 'directory';
   const isOpen = isDirectory && expandedDirs.has(item.path);
-  const hasChildren = Boolean(isDirectory && item.children && item.children.length > 0);
   const isRenaming = renamingItem?.path === item.path;
   const isDropTarget = dragMove?.dropTargetPath === item.path;
   const isBeingDragged = Boolean(dragMove?.draggedPaths.has(item.path));
@@ -181,6 +188,7 @@ export default function FileTreeNode({
   const isSelected = Boolean(selection?.selectedPaths.has(item.path));
   const isFocused = focusedPath === item.path;
 
+  const displayName = showRelativePath && item.relativePath ? item.relativePath : item.name;
   const nameClassName = cn(
     'text-[13px] leading-tight truncate',
     isDirectory ? 'font-medium text-foreground' : 'text-foreground/90',
@@ -261,7 +269,7 @@ export default function FileTreeNode({
           <div className="col-span-5 flex min-w-0 items-center gap-1.5">
             {isSelectionMode && <SelectionIndicator isSelected={isSelected} />}
             {treeItemIcon}
-            <span className={nameClassName}>{item.name}</span>
+            <span className={nameClassName}>{displayName}</span>
           </div>
           <div className="col-span-2 text-sm tabular-nums text-muted-foreground">
             {item.type === 'file' ? formatFileSize(item.size) : ''}
@@ -274,7 +282,7 @@ export default function FileTreeNode({
           <div className="flex min-w-0 items-center gap-1.5">
             {isSelectionMode && <SelectionIndicator isSelected={isSelected} />}
             {treeItemIcon}
-            <span className={nameClassName}>{item.name}</span>
+            <span className={nameClassName}>{displayName}</span>
           </div>
           <div className="ml-2 flex flex-shrink-0 items-center gap-3 text-sm text-muted-foreground">
             {item.type === 'file' && (
@@ -289,7 +297,7 @@ export default function FileTreeNode({
         <>
           {isSelectionMode && <SelectionIndicator isSelected={isSelected} />}
           {treeItemIcon}
-          <span className={nameClassName}>{item.name}</span>
+          <span className={nameClassName}>{displayName}</span>
         </>
       )}
     </div>
@@ -304,10 +312,10 @@ export default function FileTreeNode({
       // right subtree; `aria-label` keeps the accessible name to this row's
       // own name rather than everything nested beneath it.
       role="treeitem"
-      aria-label={item.name}
+      aria-label={displayName}
       aria-level={level + 1}
       aria-selected={isSelectionMode ? isSelected : undefined}
-      aria-expanded={isDirectory && hasChildren ? isOpen : undefined}
+      aria-expanded={isDirectory ? isOpen : undefined}
       // Roving tabstop: exactly one row is tabbable at a time.
       tabIndex={isFocused ? 0 : -1}
       ref={(element) => {
@@ -353,7 +361,7 @@ export default function FileTreeNode({
         renderRow(false)
       )}
 
-      {isDirectory && isOpen && hasChildren && (
+      {isDirectory && isOpen && (
         <div className="relative" role="group">
           <span
             className="absolute bottom-0 top-0 border-l border-border/40"
@@ -379,6 +387,9 @@ export default function FileTreeNode({
               onCopyPath={onCopyPath}
               onDownload={onDownload}
               onRefresh={onRefresh}
+              onLoadDirectory={onLoadDirectory}
+              onLoadMoreDirectory={onLoadMoreDirectory}
+              showRelativePath={showRelativePath}
               onSelectItem={onSelectItem}
               onMoveSelection={onMoveSelection}
               dragMove={dragMove}
@@ -395,6 +406,35 @@ export default function FileTreeNode({
               operationLoading={operationLoading}
             />
           ))}
+          {item.childrenLoading && (
+            <div
+              className="flex items-center gap-2 py-1 text-xs text-muted-foreground"
+              style={{ paddingLeft: `${(level + 1) * 16 + 24}px` }}
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {t('fileTree.loadingChildren', 'Loading…')}
+            </div>
+          )}
+          {item.childrenError && !item.childrenLoading && (
+            <button
+              type="button"
+              onClick={() => onLoadDirectory?.(item.path)}
+              className="py-1 text-left text-xs text-red-500 hover:underline"
+              style={{ paddingLeft: `${(level + 1) * 16 + 24}px` }}
+            >
+              {item.childrenError} {t('fileTree.retry', 'Retry')}
+            </button>
+          )}
+          {item.childrenNextCursor && !item.childrenLoading && (
+            <button
+              type="button"
+              onClick={() => onLoadMoreDirectory?.(item.path)}
+              className="py-1 text-left text-xs font-medium text-primary hover:underline"
+              style={{ paddingLeft: `${(level + 1) * 16 + 24}px` }}
+            >
+              {t('fileTree.loadMore', 'Load more')}
+            </button>
+          )}
         </div>
       )}
     </div>

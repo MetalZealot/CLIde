@@ -61,12 +61,38 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
     }
   }, [toast]);
 
-  const { files, loading, refreshFiles } = useFileTreeData(selectedProject);
-  const { viewMode, changeViewMode } = useFileTreeViewMode();
-  const { expandedDirs, toggleDirectory, expandDirectories, collapseAll } = useExpandedDirectories();
-  const { searchQuery, setSearchQuery, filteredFiles } = useFileTreeSearch({
+  const {
     files,
+    loading,
+    rootNextCursor,
+    mutationRevision,
+    loadDirectory,
+    loadMoreDirectory,
+    loadMoreRoot,
+    revealDirectory,
+    refreshDirectories,
+    remapPaths: remapTreePaths,
+  } = useFileTreeData(selectedProject);
+  const { viewMode, changeViewMode } = useFileTreeViewMode();
+  const {
+    expandedDirs,
+    toggleDirectory,
     expandDirectories,
+    remapDirectories,
+    collapseAll,
+  } = useExpandedDirectories();
+  const {
+    searchQuery,
+    setSearchQuery,
+    filteredFiles,
+    searchLoading,
+    searchError,
+    hasMoreSearchResults,
+    loadMoreSearchResults,
+  } = useFileTreeSearch({
+    files,
+    selectedProject,
+    mutationRevision,
   });
 
   const selection = useFileTreeSelection({
@@ -80,6 +106,9 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
   // leave it pointing at nothing, so it is remapped alongside the editor.
   const handleFilePathsChange = useCallback(
     (changes: FilePathChange[]) => {
+      remapTreePaths(changes);
+      remapDirectories(changes);
+      selection.remapPaths(changes);
       setSelectedImage((current) => {
         if (!current) return current;
         const newPath = remapChangedPath(current.path, changes);
@@ -88,13 +117,13 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
       });
       onFilePathsChange?.(changes);
     },
-    [onFilePathsChange],
+    [onFilePathsChange, remapDirectories, remapTreePaths, selection],
   );
 
   // File operations
   const operations = useFileTreeOperations({
     selectedProject,
-    onRefresh: refreshFiles,
+    onRefresh: refreshDirectories,
     showToast,
     onFilePathsChange: handleFilePathsChange,
   });
@@ -102,7 +131,7 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
   // File upload (drag and drop)
   const upload = useFileTreeUpload({
     selectedProject,
-    onRefresh: refreshFiles,
+    onRefresh: refreshDirectories,
     showToast,
   });
   const operationLoading = operations.operationLoading || upload.operationLoading;
@@ -169,6 +198,17 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
   const activateItem = useCallback(
     (item: FileTreeNode) => {
       if (item.type === 'directory') {
+        if (searchQuery.trim()) {
+          setSearchQuery('');
+          void revealDirectory(item.path)
+            .then((paths) => {
+              expandDirectories(paths);
+              setFocusedPath(item.path);
+            })
+            .catch((error: unknown) => showToast((error as Error).message, 'error'));
+          return;
+        }
+        if (!expandedDirs.has(item.path)) void loadDirectory(item.path);
         toggleDirectory(item.path);
         return;
       }
@@ -187,7 +227,18 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
 
       onFileOpen?.(item.path);
     },
-    [onFileOpen, selectedProject, toggleDirectory],
+    [
+      expandDirectories,
+      expandedDirs,
+      loadDirectory,
+      onFileOpen,
+      revealDirectory,
+      searchQuery,
+      selectedProject,
+      setSearchQuery,
+      showToast,
+      toggleDirectory,
+    ],
   );
 
   /**
@@ -264,7 +315,7 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
           if (!currentNode) return;
           event.preventDefault();
           if (currentNode.type === 'directory' && !expandedDirs.has(currentNode.path)) {
-            toggleDirectory(currentNode.path);
+            activateItem(currentNode);
           } else if (currentNode.type === 'directory') {
             focusRowAt(visiblePaths[currentIndex + 1]);
           }
@@ -348,9 +399,9 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
     () => ({
       isSelectionMode: selection.isSelectionMode,
       selectedPaths: selection.selectedPaths,
-      onToggleExpand: (item: FileTreeNode) => toggleDirectory(item.path),
+      onToggleExpand: (item: FileTreeNode) => activateItem(item),
     }),
-    [selection.isSelectionMode, selection.selectedPaths, toggleDirectory],
+    [activateItem, selection.isSelectionMode, selection.selectedPaths],
   );
 
   const rowProps: FileTreeSharedRowProps = {
@@ -367,7 +418,10 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
     onNewFolder: (path) => operations.handleStartCreate(path, 'directory'),
     onCopyPath: operations.handleCopyPath,
     onDownload: operations.handleDownload,
-    onRefresh: refreshFiles,
+    onRefresh: () => refreshDirectories(),
+    onLoadDirectory: (path) => { void loadDirectory(path); },
+    onLoadMoreDirectory: (path) => { void loadMoreDirectory(path); },
+    showRelativePath: Boolean(searchQuery.trim()),
     onSelectItem: handleStartSelectionFromRow,
     onMoveSelection: handleMoveSelection,
     dragMove,
@@ -418,7 +472,7 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
         onUploadFiles={upload.handleFileSelect}
         onNewFile={() => operations.handleStartCreate('', 'file')}
         onNewFolder={() => operations.handleStartCreate('', 'directory')}
-        onRefresh={refreshFiles}
+        onRefresh={() => refreshDirectories()}
         onCollapseAll={collapseAll}
         isSelectionMode={selection.isSelectionMode}
         selectedCount={selection.selectedCount}
@@ -483,6 +537,12 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
           files={files}
           filteredFiles={filteredFiles}
           searchQuery={searchQuery}
+          searchLoading={searchLoading}
+          searchError={searchError}
+          hasMoreSearchResults={hasMoreSearchResults}
+          rootNextCursor={rootNextCursor}
+          onLoadMoreSearchResults={loadMoreSearchResults}
+          onLoadMoreRoot={() => { void loadMoreRoot(); }}
           rowProps={rowProps}
           isMultiSelectable
           onKeyDown={handleTreeKeyDown}
@@ -504,6 +564,10 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
           projectPath={selectedProject.fullPath}
           operationLoading={operationLoading}
           failure={operations.moveFailure}
+          onExpandDirectory={(path) => { void loadDirectory(path); }}
+          onLoadMoreDirectory={(path) => { void loadMoreDirectory(path); }}
+          rootHasMore={Boolean(rootNextCursor)}
+          onLoadMoreRoot={() => { void loadMoreRoot(); }}
           onConfirm={(destinationPath) => {
             void operations.handleConfirmMove(destinationPath).then((moved) => {
               if (moved) {

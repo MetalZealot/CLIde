@@ -1,4 +1,4 @@
-# 0049 — The voice runtime owns shared settings
+# 0050 — The voice runtime owns shared settings
 
 - Date: 2026-08-29
 - Status: Accepted

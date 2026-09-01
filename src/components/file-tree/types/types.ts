@@ -8,12 +8,36 @@ export interface FileTreeNode {
   name: string;
   type: FileTreeItemType;
   path: string;
+  relativePath?: string;
   size?: number;
   modified?: string;
   permissionsRwx?: string;
   children?: FileTreeNode[];
+  childrenLoaded?: boolean;
+  childrenLoading?: boolean;
+  childrenError?: string | null;
+  childrenNextCursor?: string | null;
   [key: string]: unknown;
 }
+
+export type FileTreeDirectoryPage = {
+  directoryPath: string;
+  relativePath: string;
+  entries: FileTreeNode[];
+  nextCursor: string | null;
+};
+
+export type FileTreeSearchResult = {
+  name: string;
+  path: string;
+  relativePath: string;
+  type: FileTreeItemType;
+};
+
+export type FileTreeSearchPage = {
+  results: FileTreeSearchResult[];
+  nextCursor: string | null;
+};
 
 export interface FileTreeImageSelection {
   name: string;

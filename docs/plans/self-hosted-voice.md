@@ -5,8 +5,8 @@
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts),
-  [shared voice settings decision](../decisions/0049-voice-runtime-owns-shared-settings.md),
-  [standalone Studio decision](../decisions/0050-voice-studio-is-a-standalone-personal-tool.md),
+  [shared voice settings decision](../decisions/0050-voice-runtime-owns-shared-settings.md),
+  [standalone Studio decision](../decisions/0051-voice-studio-is-a-standalone-personal-tool.md),
   [UI standards](../maps/ui-standards.md), and the host-local voice README, which
   owns runtime, model, catalog, benchmark, and deployment facts
 

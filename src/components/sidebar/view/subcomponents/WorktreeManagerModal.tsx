@@ -23,9 +23,14 @@ import type { CreateWorktreeOptions, CreateWorktreeOutcome, RepositoryEntry } fr
 import { getCheckoutRefLabel, isDiscoveredCheckout, isMainCheckout } from '../../utils/utils';
 import {
   compactHomePath,
+  describeWorktreeStatus,
   getBatchSelectableWorktrees,
   getWorktreeSessionCount,
   shouldShowWorktreePath,
+  worktreeStatusKey,
+  type WorktreeChangeSummary,
+  type WorktreeStatusPhase,
+  type WorktreeStatusView,
 } from '../../utils/worktreeManager';
 
 import SidebarContextMenu, { type SidebarContextMenuItem } from './SidebarContextMenu';
@@ -58,6 +63,8 @@ const CURRENT_HEAD = '';
 
 type WorktreeRowProps = {
   project: Project;
+  status: WorktreeStatusView;
+  baseBranch: string | null;
   isMain: boolean;
   showPath: boolean;
   isSelecting: boolean;
@@ -69,6 +76,80 @@ type WorktreeRowProps = {
 };
 
 /**
+ * A worktree's uncommitted and unpushed state, on its own line so it never
+ * competes with the branch name for width. Rendered only when there is
+ * something to say, so a coloured line reads as "there is work in here".
+ */
+function WorktreeStatusLine({
+  status,
+  baseBranch,
+  t,
+}: {
+  status: WorktreeStatusView;
+  baseBranch: string | null;
+  t: TFunction;
+}) {
+  if (status.kind === 'hidden') {
+    return null;
+  }
+
+  if (status.kind !== 'counts') {
+    return (
+      <div className="mt-1 text-xs text-muted-foreground/70">
+        {status.kind === 'loading'
+          ? t('worktrees.statusChecking', 'checking\u2026')
+          : t('worktrees.statusUnavailable', 'status unavailable')}
+      </div>
+    );
+  }
+
+  // Colours match the Git panel header, where green is ahead and the primary
+  // colour is behind.
+  const parts = [
+    status.changedFiles > 0 && (
+      <span key="changed" className="text-amber-600 dark:text-amber-400">
+        {t('worktrees.changedFiles', {
+          count: status.changedFiles,
+          defaultValue_one: '{{count}} changed file',
+          defaultValue: '{{count}} changed files',
+        })}
+      </span>
+    ),
+    status.ahead > 0 && (
+      <span key="ahead" className="text-green-600 dark:text-green-400">
+        {t('worktrees.toPush', '\u2191{{count}} to push', { count: status.ahead })}
+      </span>
+    ),
+    status.behind > 0 && (
+      <span key="behind" className="text-primary">
+        {t('worktrees.toPull', '\u2193{{count}} to pull', { count: status.behind })}
+      </span>
+    ),
+    // Grey, because the coloured counts are all work of yours sitting in the
+    // tree while this one is only drift from the base branch.
+    status.behindBase > 0 && baseBranch && (
+      <span key="behindBase" className="text-muted-foreground">
+        {t('worktrees.behindBase', '{{count}} behind {{base}}', {
+          count: status.behindBase,
+          base: baseBranch,
+        })}
+      </span>
+    ),
+  ].filter(Boolean);
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+      {parts.map((part, index) => (
+        <span key={index} className="flex items-center gap-1">
+          {index > 0 && <span aria-hidden className="text-muted-foreground opacity-40">{'\u00b7'}</span>}
+          {part}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
  * One registered worktree.
  *
  * Long-press, right-click and the kebab all open the same menu, anchored to the
@@ -78,6 +159,8 @@ type WorktreeRowProps = {
  */
 function WorktreeRow({
   project,
+  status,
+  baseBranch,
   isMain,
   showPath,
   isSelecting,
@@ -166,6 +249,7 @@ function WorktreeRow({
               </>
             )}
           </div>
+          <WorktreeStatusLine status={status} baseBranch={baseBranch} t={t} />
         </div>
 
         {!isSelecting && (
@@ -231,6 +315,11 @@ export default function WorktreeManagerModal({
   const newBranchInputRef = useRef<HTMLInputElement>(null);
 
   const leadProjectId = entry.leadCheckout.projectId;
+  const [statusPhase, setStatusPhase] = useState<WorktreeStatusPhase>('loading');
+  const [worktreeStatuses, setWorktreeStatuses] = useState<Map<string, WorktreeChangeSummary>>(
+    () => new Map(),
+  );
+  const [baseBranch, setBaseBranch] = useState<string | null>(null);
   const selectableWorktrees = getBatchSelectableWorktrees(entry.checkouts);
   const discoveredWorktrees = entry.checkouts.filter(isDiscoveredCheckout);
   const selectedWorktrees = selectableWorktrees.filter((project) => selectedProjectIds.has(project.projectId));
@@ -241,6 +330,47 @@ export default function WorktreeManagerModal({
       newBranchInputRef.current?.focus();
     }
   }, [isCreating]);
+
+  /**
+   * Worktree change counts load with the modal: unlike the branch list they are
+   * what the panel is read for, and one request covers every row.
+   */
+  useEffect(() => {
+    if (creationOnly) {
+      return;
+    }
+
+    let cancelled = false;
+    setStatusPhase('loading');
+
+    void (async () => {
+      try {
+        const response = await api.gitWorktreeStatus(leadProjectId);
+        const data = (await response.json()) as {
+          worktrees?: WorktreeChangeSummary[];
+          baseBranch?: string | null;
+        };
+        if (cancelled) {
+          return;
+        }
+        setWorktreeStatuses(
+          new Map((data.worktrees ?? []).map((summary) => [worktreeStatusKey(summary.path), summary])),
+        );
+        setBaseBranch(data.baseBranch ?? null);
+      } catch {
+        // Rows fall through to "status unavailable": an empty map is exactly the
+        // "git said nothing about this path" case the row already renders.
+      } finally {
+        if (!cancelled) {
+          setStatusPhase('ready');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creationOnly, leadProjectId]);
 
   /**
    * Branches load when the form opens rather than with the modal: most visits
@@ -421,6 +551,9 @@ export default function WorktreeManagerModal({
    * until adopted its id is synthetic, so rename, archive and remove have
    * nothing to address.
    */
+  const statusOf = (project: Project): WorktreeStatusView =>
+    describeWorktreeStatus(worktreeStatuses.get(worktreeStatusKey(project.fullPath)), statusPhase);
+
   const renderDiscoveredWorktree = (project: Project) => {
     const refLabel = getCheckoutRefLabel(project);
     const isAdopting = adoptingPath === project.fullPath;
@@ -439,6 +572,7 @@ export default function WorktreeManagerModal({
                   <span className="truncate">{refLabel}</span>
                 </div>
               )}
+              <WorktreeStatusLine status={statusOf(project)} baseBranch={baseBranch} t={t} />
             </div>
             {/*
               Labelled and quiet: `+` is the footer's create, and this row is the
@@ -515,6 +649,8 @@ export default function WorktreeManagerModal({
         ) : (
           <WorktreeRow
             project={project}
+            status={statusOf(project)}
+            baseBranch={baseBranch}
             isMain={isMainCheckout(project)}
             showPath={shouldShowWorktreePath(project, entry.leadCheckout.fullPath)}
             isSelecting={isSelecting}

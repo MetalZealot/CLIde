@@ -25,9 +25,11 @@ import {
 } from './utils';
 import {
   compactHomePath,
+  describeWorktreeStatus,
   getBatchSelectableWorktrees,
   getWorktreeSessionCount,
   shouldShowWorktreePath,
+  worktreeStatusKey,
 } from './worktreeManager';
 
 const CLOUDCLI_REPO = '/home/user/Projects/cloudcli/.git';
@@ -696,4 +698,38 @@ test('a path the name already gives away does not get its own line', () => {
 test('home paths keep their useful suffix without assuming a username', () => {
   assert.equal(compactHomePath('/home/grayson/Projects/cloudcli'), '~/Projects/cloudcli');
   assert.equal(compactHomePath('/srv/cloudcli'), '/srv/cloudcli');
+});
+
+test('a clean worktree shows no status line, and a missing summary is not clean', () => {
+  const summary = {
+    path: '/home/g/Projects/cloudcli',
+    changedFiles: 0,
+    ahead: 0,
+    behind: 0,
+    hasUpstream: true,
+    behindBase: 0,
+  };
+
+  assert.deepEqual(describeWorktreeStatus(summary, 'ready'), { kind: 'hidden' });
+  assert.deepEqual(describeWorktreeStatus(summary, 'loading'), { kind: 'loading' });
+  assert.deepEqual(describeWorktreeStatus(undefined, 'ready'), { kind: 'unavailable' });
+  assert.deepEqual(describeWorktreeStatus({ ...summary, changedFiles: 7, ahead: 2 }, 'ready'), {
+    kind: 'counts',
+    changedFiles: 7,
+    ahead: 2,
+    behind: 0,
+    behindBase: 0,
+  });
+  // Drift from the base branch alone is worth a line: nothing else would show it.
+  assert.deepEqual(describeWorktreeStatus({ ...summary, behindBase: 4 }, 'ready'), {
+    kind: 'counts',
+    changedFiles: 0,
+    ahead: 0,
+    behind: 0,
+    behindBase: 4,
+  });
+});
+
+test('status keys ignore a trailing slash on either side', () => {
+  assert.equal(worktreeStatusKey('/home/g/Projects/cloudcli/'), worktreeStatusKey('/home/g/Projects/cloudcli'));
 });

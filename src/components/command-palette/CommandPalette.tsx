@@ -109,7 +109,8 @@ export default function CommandPalette({
 
   const sessions = useSessionsSource(projectId, open && showSessions);
   const messageMatches = useSessionMessageSearch(projectId, search, open && showSessions);
-  const files = useFilesSource(projectId, open && showFiles);
+  const fileSource = useFilesSource(projectId, search, open && showFiles);
+  const files = fileSource.files;
   const commits = useCommitsSource(projectId, open && showCommits);
   const branches = useBranchesSource(projectId, open && showBranches);
   const git = useGitActions(projectId);
@@ -142,8 +143,8 @@ export default function CommandPalette({
     fn();
   }, []);
 
-  const pushPage = React.useCallback((next: Page) => {
-    setSearch('');
+  const pushPage = React.useCallback((next: Page, preserveSearch = false) => {
+    if (!preserveSearch) setSearch('');
     setPages((prev) => [...prev, next]);
   }, []);
 
@@ -322,11 +323,23 @@ export default function CommandPalette({
                   >
                     <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="flex-1 truncate">{f.name}</span>
-                    <span className="truncate text-xs text-muted-foreground">{f.path}</span>
+                    <span className="truncate text-xs text-muted-foreground">{f.relativePath}</span>
                   </CommandItem>
                 ))}
                 {!page && files.length > browseLimit && (
-                  <BrowseAllItem label={`Browse all files (${files.length})`} onSelect={() => pushPage('files')} />
+                  <BrowseAllItem label={`Browse all files (${files.length})`} onSelect={() => pushPage('files', true)} />
+                )}
+                {page === 'files' && fileSource.hasMore && (
+                  <CommandItem
+                    value={`${search} load more files`}
+                    disabled={fileSource.loading}
+                    onSelect={fileSource.loadMore}
+                  >
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="flex-1 text-muted-foreground">
+                      {fileSource.loading ? 'Loading…' : 'Load more files'}
+                    </span>
+                  </CommandItem>
                 )}
               </CommandGroup>
             )}

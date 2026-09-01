@@ -124,6 +124,11 @@
   },
   "fileTree": {
     "loading": "正在載入檔案...",
+    "loadingChildren": "正在載入資料夾…",
+    "retry": "重試",
+    "loadMore": "載入更多",
+    "fileReferenceAmbiguous": "多個檔案與「{{reference}}」相符。請使用更明確的路徑。",
+    "fileReferenceFailed": "無法解析「{{reference}}」。",
     "files": "檔案",
     "simpleView": "簡易檢視",
     "compactView": "精簡檢視",

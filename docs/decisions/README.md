@@ -86,5 +86,6 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0046 — Tool detail leaves the chat column instead of nesting inside it](0046-tool-detail-leaves-the-chat-column.md)
 - [0047 — The liveness probe clears on any inbound frame, not a matching echo](0047-ws-liveness-probe-clears-on-any-frame.md)
 - [0048 — Mobile bottom navigation has five roles; plugins share overflow](0048-mobile-navbar-five-roles-plugin-overflow.md)
-- [0049 — The voice runtime owns shared settings](0049-voice-runtime-owns-shared-settings.md)
-- [0050 — Voice Studio is a standalone personal tool](0050-voice-studio-is-a-standalone-personal-tool.md)
+- [0049 — File browsing loads folders, not whole projects](0049-file-tree-loads-folders-not-projects.md)
+- [0050 — The voice runtime owns shared settings](0050-voice-runtime-owns-shared-settings.md)
+- [0051 — Voice Studio is a standalone personal tool](0051-voice-studio-is-a-standalone-personal-tool.md)

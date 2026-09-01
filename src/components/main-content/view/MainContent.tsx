@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
@@ -11,7 +12,7 @@ import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
-import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
+import { useFileOpenResolver, type FileOpenResolutionIssue } from '../../../hooks/useFileOpenResolver';
 import { authenticatedFetch } from '../../../utils/api';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
@@ -63,12 +64,14 @@ function MainContent({
   onProjectsRefresh,
   showUsage,
 }: MainContentProps) {
+  const { t } = useTranslation();
   const { preferences } = useUiPreferences();
   const { showRawParameters, showThinking, sendByCtrlEnter, enterToSend } = preferences;
 
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
   const [browserUseEnabled, setBrowserUseEnabled] = useState(false);
+  const [fileOpenNotice, setFileOpenNotice] = useState<string | null>(null);
 
   const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
   const shouldShowBrowserTab = browserUseEnabled;
@@ -91,7 +94,30 @@ function MainContent({
 
   // Resolves bare/partial file references (e.g. links inside chat messages) to
   // real project files before opening them in the in-app editor.
-  const resolvedFileOpen = useFileOpenResolver(selectedProject, handleFileOpen);
+  const handleFileResolutionIssue = useCallback((issue: FileOpenResolutionIssue) => {
+    setFileOpenNotice(issue.kind === 'ambiguous'
+      ? t(
+          'fileTree.fileReferenceAmbiguous',
+          'More than one file matches "{{reference}}".',
+          { reference: issue.reference },
+        )
+      : t(
+          'fileTree.fileReferenceFailed',
+          'Could not open "{{reference}}".',
+          { reference: issue.reference },
+        ));
+  }, [t]);
+  const resolvedFileOpen = useFileOpenResolver(
+    selectedProject,
+    handleFileOpen,
+    handleFileResolutionIssue,
+  );
+
+  useEffect(() => {
+    if (!fileOpenNotice) return;
+    const timeout = window.setTimeout(() => setFileOpenNotice(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [fileOpenNotice]);
 
   // Which working tree the header is describing. Null unless the repository has
   // more than one checkout, in which case the project name alone is ambiguous.
@@ -188,7 +214,7 @@ function MainContent({
                 selectedSession={selectedSession}
                 ws={ws}
                 sendMessage={sendMessage}
-                onFileOpen={handleFileOpen}
+                onFileOpen={resolvedFileOpen}
                 onInputFocusChange={onInputFocusChange}
                 onSessionProcessing={onSessionProcessing}
                 onSessionIdle={onSessionIdle}
@@ -282,6 +308,14 @@ function MainContent({
           />
         )}
       </div>
+      {fileOpenNotice && (
+        <div
+          role="alert"
+          className="fixed bottom-4 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border border-red-500/40 bg-background px-4 py-2 text-sm text-foreground shadow-lg"
+        >
+          {fileOpenNotice}
+        </div>
+      )}
     </div>
   );
 }
