@@ -6,13 +6,11 @@ import { sessionsDb } from '@/modules/database/index.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
-  extractLastValidJsonlData,
   findFilesRecursivelyCreatedAfter,
   normalizeSessionName,
   readFileTimestamps,
   readLastJsonlTimestamp,
 } from '@/shared/utils.js';
-import { resolveCheckoutRoot } from '@/shared/git-checkout.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 
 type ParsedSession = {
@@ -139,6 +137,9 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     filePath: string,
     nameMap: Map<string, string>
   ): Promise<ParsedSession | null> {
+    // The first cwd is the checkout the session was created for. Later rows
+    // record execution location, which ordinary Bash `cd` commands can change;
+    // they are not authority to refile the session under another project.
     const parsed = await extractFirstValidJsonlData(filePath, (rawData) => {
       const data = rawData as Record<string, unknown>;
       const sessionId = typeof data.sessionId === 'string' ? data.sessionId : undefined;
@@ -156,24 +157,6 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
 
     if (!parsed) {
       return null;
-    }
-
-    // A session can change working directory mid-conversation (EnterWorktree,
-    // /cd). Its first row still names the directory it started in, so the
-    // latest row's `cwd` — not the first's — is where the session is now.
-    const latestProjectPath = await extractLastValidJsonlData(filePath, (rawData) => {
-      const data = rawData as Record<string, unknown>;
-      return typeof data.cwd === 'string' && data.cwd ? data.cwd : null;
-    });
-
-    if (latestProjectPath && latestProjectPath !== parsed.projectPath) {
-      // A move is followed only as far as the checkout it landed in. An agent
-      // stepping into a subdirectory to run something is not a change of
-      // project, and filing the session there mints a project row for the
-      // subdirectory that outlives the excursion. Where the session started is
-      // left alone: that directory is the user's own choice, subdirectory or
-      // not, and resolving it costs a git process on every indexed transcript.
-      parsed.projectPath = await resolveCheckoutRoot(latestProjectPath) ?? latestProjectPath;
     }
 
     // App-created sessions are keyed by an app id, so disk-discovered provider

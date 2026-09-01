@@ -67,7 +67,7 @@ const upsertInto = (projectId: string, sessionId: string): SessionUpsertedEvent 
   },
 } as unknown as SessionUpsertedEvent);
 
-test('a session that moves checkout leaves the project it came from', () => {
+test('an authoritative upsert evicts a stale copy from another project', () => {
   const projects = [projectWithSession('main', ['moved', 'stayed']), projectWithSession('worktree', [])];
 
   const next = applySessionUpsertToProjects(projects, upsertInto('worktree', 'moved'));
@@ -78,7 +78,7 @@ test('a session that moves checkout leaves the project it came from', () => {
   assert.equal(next[1].sessionMeta?.total, 1);
 });
 
-test('a session moving into a project this client has not seen still leaves the old one', () => {
+test('an upsert for an unseen project still evicts a stale copy elsewhere', () => {
   const projects = [projectWithSession('main', ['moved'])];
 
   const next = applySessionUpsertToProjects(projects, upsertInto('fresh-worktree', 'moved'));

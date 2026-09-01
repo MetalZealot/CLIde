@@ -83,20 +83,6 @@ export async function resolveRepositoryLocation(
   return location;
 }
 
-/**
- * Root of the checkout containing `directory`, or null when it is not in a
- * repository. A directory *inside* a checkout resolves to the checkout, which
- * is what keeps a session that stepped into a subdirectory filed under the
- * checkout it is working in.
- */
-export async function resolveCheckoutRoot(
-  directory: string,
-  dependencies: GitRunnerDependencies = defaultGitRunner,
-): Promise<string | null> {
-  const location = await resolveRepositoryLocation(directory, dependencies);
-  return location?.topLevel ?? null;
-}
-
 /** Drops one memoised location, for a directory that has stopped being a checkout. */
 export function forgetCheckoutLocation(directory: string): void {
   repositoryLocationCache.delete(directory);

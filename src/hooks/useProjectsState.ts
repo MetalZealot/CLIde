@@ -331,9 +331,8 @@ const upsertSessionIntoProject = (project: Project, event: SessionUpsertedEvent)
 /**
  * Drops a session from a project's list, shrinking `sessionMeta.total` to match.
  *
- * A session's owning project is not fixed: a Claude session that changes working
- * directory is re-indexed under the checkout it moved to, so an upsert naming a
- * new project must evict the row from whichever project still holds it.
+ * The server's upsert is authoritative. A client may still retain the same row
+ * under another project after reconnect, pagination, or an older event.
  */
 const removeSessionFromProject = (project: Project, aliasIds: Set<string>): Project => {
   const sessions = project.sessions ?? [];
@@ -357,10 +356,9 @@ const removeSessionFromProject = (project: Project, aliasIds: Set<string>): Proj
 /**
  * Applies one `session_upserted` delta to the project list.
  *
- * The event names the session's owning project, and that ownership is not
- * fixed — a Claude session that changes working directory is re-indexed under
- * the checkout it moved to — so every other project is evicted in the same
- * pass. Without that the session is listed under both until a full refetch.
+ * A session renders under exactly one project. When the authoritative event
+ * names its project, stale copies under every other project are evicted in the
+ * same pass instead of surviving until a full refetch.
  */
 export const applySessionUpsertToProjects = (
   previousProjects: Project[],

@@ -24,7 +24,6 @@ main checkout only).
 ## Bugs
 
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
-- [~] **A wandering session minted projects and double-listed itself.** Two defects behind `a138e031`: a transient `cd` into a subdirectory counted as a change of project, and the sidebar never evicted the session from the project still holding it. The indexer now resolves a *moved* cwd to its checkout root; `applySessionUpsertToProjects` evicts. **S** Awaiting live verification.
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
