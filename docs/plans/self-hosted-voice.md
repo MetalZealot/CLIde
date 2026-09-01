@@ -1,7 +1,7 @@
 # Self-hosted dictation and read-aloud
 
-- Status: 8/11
-- Next: separate Voice Studio into an independently run personal tool.
+- Status: 10/11
+- Next: decide whether the nearer-live dictation experiment is worthwhile.
 - Context: [server voice module](../../server/modules/voice/voice.module.ts),
   [voice service contract](../../server/modules/voice/voice.service.ts),
   [client voice API](../../src/lib/voiceApi.ts),
@@ -55,18 +55,22 @@
       original identity, and round-trip by stable voice ID. Personal gender,
       heard, and audition notes do not belong here. Grayson's phone pass
       confirmed friendly-name saving, search, and original-name restoration.
-- [ ] **9. Separate Voice Studio.** Move `voice/studio` into a private,
+- [x] **9. Separate Voice Studio.** Move `voice/studio` into a private,
       independently run personal tool. CLIde depends only on runtime capabilities.
       Keep favorites, default/selection, optional display aliases, tuning, and STT
       in the runtime contract; keep gender balance, heard state, audition notes,
       recordings, and experiments in Studio-owned data. Preserve existing data
-      and the host service during migration.
-- [~] **10. Daily STT surface.** List every runtime-published installed Whisper
+      and the host service during migration. The standalone repository, stable
+      service symlink, 19 tests, loopback listener, and private HTTPS route are
+      verified. Grayson's browser pass confirmed the tabs and saved data after
+      extraction.
+- [x] **10. Daily STT surface.** List every runtime-published installed Whisper
       model and expose decoder preset, Vocabulary hint, noise suppression, and
       echo cancellation as ordinary controls. Model choices name their speed/
       accuracy tradeoff, Vocabulary hint explains its input, and Advanced keeps
       thread count and microphone processing in the Dictation card. Changes
-      round-trip without a restart; focused tests pass and phone acceptance remains.
+      round-trip without a restart; focused tests and Grayson's phone acceptance
+      pass.
 - [ ] **11. Nearer-live dictation experiment.** Test phrase-level final insertion
       after pauses against the accepted push-to-talk baseline. Add provisional
       word-level streaming only if that experiment proves the extra transport and

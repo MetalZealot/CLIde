@@ -16,9 +16,10 @@ that is data stays outside it, under `~/voice`:
 | `~/voice/speech_rules.json` | your saved dictation, microphone, pronunciation, and pacing settings |
 | `~/voice/auditions` | rendered `.wav` output |
 
-`~/voice/shim` and `~/voice/studio` are symlinks into this checkout, so the
-services run the tracked code directly and there is only ever one copy. Set
-`CLIDE_VOICE_ROOT` to move the data elsewhere.
+`~/voice/shim` is a symlink into this checkout, so the service runs the tracked
+runtime code directly. Voice Studio is a separate private tool whose stable
+`~/voice/studio` symlink points to its own repository. Set `CLIDE_VOICE_ROOT`
+to move the shared data elsewhere.
 
 The shim is installed as the enabled `voice-shim` systemd user service and is
 ready on loopback. CLIde's isolated Phase 4 server is configured to call it;
@@ -215,8 +216,8 @@ cd ~/voice/shim
 $VENV/python -m unittest -v
 ```
 
-The separate Voice Studio under `../studio` remains the audition and diagnostic
-lab. Favorite, display-name, tuning, and STT edits go through this runtime so
-Studio and CLIde cannot drift into separate settings stores. Gender balance,
-heard state, and audition notes remain Studio metadata and are not published in
+The separate private Voice Studio remains the audition and diagnostic lab.
+Favorite, display-name, tuning, and STT edits go through this runtime so Studio
+and CLIde cannot drift into separate settings stores. Gender balance, heard
+state, and audition notes remain Studio metadata and are not published in
 CLIde's shared settings contract.

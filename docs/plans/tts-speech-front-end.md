@@ -90,13 +90,11 @@ work down two wrong paths.
       (`src/lib/foo.ts` → "the src, lib, foo dot ts path"), so they no longer
       depend on the separator word at all; `~` speaks as "home"; a colon only
       ends a sentence when a space follows it, so `build:client` and `16:9`
-      survive intact; and clock times are spoken. 53 shim tests. The shim and
-      the studio are now tracked in this repository under `voice/`. The corpus
-      the acceptance refers to is written down at
-      `voice/studio/reference-corpus.md` — eight cases, one per class of
-      failure, each naming what to listen for — and loads by name from a
-      picker in the Speech tab, so a case can be replayed in seconds on a
-      phone.
+      survive intact; and clock times are spoken. 53 shim tests. The shim is
+      tracked here; the standalone private Voice Studio owns the eight-case
+      reference corpus, one case per failure class, each naming what to listen
+      for. It loads by name from a picker in the Speech tab, so a case can be
+      replayed in seconds on a phone.
 
       Accepted by listening on 2026-08-24, on `libritts-r-204`. Three faults
       were caught by ear in that pass and fixed in `3c80ca03`: the bare unit
