@@ -239,9 +239,16 @@ def _speak_web_address(match: re.Match[str], path_separator: str) -> str:
 
 
 def _ordinal_words(number: int) -> str:
+    """Total over the range any caller can reach: fractions cap at 100, dates at 31."""
     if number in ORDINALS:
         return ORDINALS[number]
+    if number == 100:
+        return "hundredth"
     tens, ones = divmod(number, 10)
+    if not 1 <= tens <= 9:
+        return _number_to_words(number)
+    if ones == 0:
+        return f"{TENS[tens][:-1]}ieth"
     return f"{TENS[tens]} {ORDINALS[ones]}"
 
 

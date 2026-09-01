@@ -15,6 +15,7 @@ from app import (
     VOICE_PRESETS,
     VOICE_ROOT,
     SynthesisCancelled,
+    SynthesisError,
     VoiceCache,
     VoicePreset,
     _resolve_voice,
@@ -140,6 +141,16 @@ class NormalizerTests(unittest.TestCase):
             "six. It cost one thousand two hundred dollars fifty cents, up "
             "three point five percent, with three quarters done and one half "
             "left.",
+        )
+
+    def test_fractions_over_a_round_denominator(self) -> None:
+        # A denominator that is a multiple of ten has no entry in ORDINALS, and
+        # 100 is past the end of TENS.
+        result = prepare_speech_text("About 1/40, then 3/50, 1/60 and 1/100.")
+        self.assertEqual(
+            result,
+            "About one fortieth, then three fiftieths, one sixtieth and one "
+            "hundredth.",
         )
 
     def test_ratios_and_ambiguous_dates_are_left_alone(self) -> None:
@@ -366,6 +377,40 @@ class VoiceCacheTests(unittest.TestCase):
         self.assertEqual(config.noise_w_scale, 0.3)
         self.assertFalse(config.normalize_audio)
         self.assertEqual(config.volume, 1.25)
+
+
+    @patch("app.PiperVoice.load")
+    def test_a_multi_speaker_id_is_bounded_by_num_speakers(self, load_voice) -> None:
+        # speaker_id_map is keyed by speaker name, so only num_speakers bounds an id.
+        # Every catalog preset leaves speaker_id None, so nothing else reaches this.
+        chunk = SimpleNamespace(audio_int16_bytes=b"\x00\x00" * 10)
+        load_voice.return_value = SimpleNamespace(
+            config=SimpleNamespace(
+                sample_rate=22_050,
+                num_speakers=904,
+                speaker_id_map={"3922": 0, "Cori_Samuel": 1},
+            ),
+            synthesize=lambda _text, _config: [chunk],
+        )
+        installed = VoicePreset(
+            "en_US-libritts_r-medium",
+            speaker_id=546,
+            source_key="en_US-libritts_r-medium#546",
+        )
+
+        audio, _rate, _width = VoiceCache().synthesize(installed, "Hello")
+
+        self.assertTrue(audio)
+        for speaker_id in (904, -1):
+            with self.subTest(speaker_id=speaker_id), self.assertRaises(SynthesisError):
+                VoiceCache().synthesize(
+                    VoicePreset(
+                        "en_US-libritts_r-medium",
+                        speaker_id=speaker_id,
+                        source_key=f"en_US-libritts_r-medium#{speaker_id}",
+                    ),
+                    "Hello",
+                )
 
 
 class ApiTests(unittest.TestCase):

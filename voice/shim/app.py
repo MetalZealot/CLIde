@@ -226,10 +226,12 @@ class VoiceCache:
         """
         with self._lock:
             voice = self._resident_voice(preset)
-            if preset.source_key is not None:
-                mapped_speaker = voice.config.speaker_id_map.get(preset.source_key)
-                if mapped_speaker != preset.speaker_id:
-                    raise SynthesisError("The selected Piper speaker mapping is invalid")
+            # speaker_id_map is keyed by speaker name, so num_speakers is the
+            # only thing an id can be validated against.
+            if preset.speaker_id is not None and not (
+                0 <= preset.speaker_id < voice.config.num_speakers
+            ):
+                raise SynthesisError("The selected Piper speaker is not in this model")
 
             config = SynthesisConfig(
                 speaker_id=preset.speaker_id,
