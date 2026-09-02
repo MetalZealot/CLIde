@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { closeSync, existsSync, openSync, promises as fs, readSync, realpathSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, promises as fs, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import test, { describe } from 'node:test';
 
 import { readClaudeAutoCompactSettings, writeClaudeAutoCompactSettings } from '@/modules/providers/list/claude/claude-autocompact.settings.js';
+import { CLAUDE_SETTINGS_CATALOG } from '@/modules/providers/list/claude/claude-settings-catalog.js';
 import {
   captureClaudeContextUsage,
   clearClaudeContextCeilings,
@@ -885,6 +887,68 @@ describe('claude-autocompact-settings', () => {
         if (saved === undefined) delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
         else process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = saved;
       }
+    });
+  });
+});
+
+describe('claude-settings-catalog', () => {
+  const moduleRequire = createRequire(import.meta.url);
+
+  // The package exports neither ./package.json nor ./sdk.d.ts, so resolve the
+  // main entry and read the declarations beside it.
+  const readSettingsKeys = (): string[] => {
+    const declarations = path.join(
+      path.dirname(moduleRequire.resolve('@anthropic-ai/claude-agent-sdk')),
+      'sdk.d.ts',
+    );
+    const source = readFileSync(declarations, 'utf8');
+
+    const start = source.indexOf('export declare interface Settings {');
+    assert.ok(start >= 0, 'Settings interface not found; the parser below needs updating, not deleting');
+
+    let depth = 0;
+    let end = start;
+    for (let index = source.indexOf('{', start); index < source.length; index += 1) {
+      if (source[index] === '{') {
+        depth += 1;
+      } else if (source[index] === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          end = index;
+          break;
+        }
+      }
+    }
+    assert.ok(end > start, 'Settings interface never closed; the parser below needs updating, not deleting');
+
+    // Four spaces is the interface's own member indent, so nested object members
+    // are excluded — the catalog is a top-level key contract.
+    return [...source.slice(start, end).matchAll(/^ {4}([A-Za-z_]\w*)\??:/gm)].map((match) => match[1]).sort();
+  };
+
+  test('the catalog classifies exactly the keys the installed SDK declares', () => {
+    const declared = readSettingsKeys();
+
+    // A parser that silently matched nothing would make this test vacuous.
+    assert.ok(declared.length >= 100, `parsed only ${declared.length} Settings keys`);
+
+    // Diffing the two 159-entry lists buries the answer, so report only the
+    // difference: a release that adds or drops a key names it and nothing else.
+    const catalogued = new Set(Object.keys(CLAUDE_SETTINGS_CATALOG));
+    assert.deepEqual(
+      {
+        unclassified: declared.filter((key) => !catalogued.has(key)),
+        gone: [...catalogued].filter((key) => !declared.includes(key)).sort(),
+      },
+      { unclassified: [], gone: [] },
+      'classify the new keys in claude-settings-catalog.ts, and drop the ones the SDK removed',
+    );
+  });
+
+  test('every classification is a tier the settings screen knows how to render', () => {
+    const tiers = new Set(['exposed', 'adapt', 'display', 'terminal', 'out-of-scope']);
+    Object.entries(CLAUDE_SETTINGS_CATALOG).forEach(([key, tier]) => {
+      assert.ok(tiers.has(tier), `${key} carries unknown tier ${tier}`);
     });
   });
 });
