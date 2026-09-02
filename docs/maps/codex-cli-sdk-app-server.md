@@ -1,8 +1,9 @@
 # Codex CLI, SDK, and App Server living surface map
 
 *Originated 2026-07-24. Surface last audited 2026-08-12 against CLIde's
-managed-runtime branch and two 0.147.0 installations; the pin, protocol counts
-and model rows below were re-measured 2026-08-26 against 0.150.0.*
+managed-runtime branch and two 0.147.0 installations; the model rows below were
+re-measured 2026-08-26 against 0.150.0, and the pin and protocol counts
+2026-09-01 against 0.152.1.*
 
 This map records current Codex behavior and CLIde destinations. The
 [upgrade ledger](codex-upgrade-ledger.md) keeps release history; generated
@@ -14,12 +15,12 @@ semantics belong in the
 
 | Evidence | Current value |
 |---|---|
-| Dispositions compiled at | 0.150.0, spanning the 0.148.0–0.150.0 notes |
+| Dispositions compiled at | 0.152.1, spanning the 0.151.0–0.152.1 notes |
 | Native thread store | `~/.codex/state_*.sqlite`, table `threads`; `session_index.jsonl` is a legacy mirror and absent on a current install |
-| Repository pin | `@openai/codex-sdk` 0.150.0, with `@openai/codex` 0.150.0 transitively |
-| Host installations | Bundled 0.150.0 and standalone 0.149.1, distinct by path |
-| Default generated protocol | 98 client requests, 10 server requests, 81 notifications |
-| Experimental generated protocol | 156 client requests, 11 server requests, 81 notifications |
+| Repository pin | `@openai/codex-sdk` 0.152.1, with `@openai/codex` 0.152.1 transitively |
+| Host installations | Bundled 0.152.1 and standalone 0.152.1, distinct by path |
+| Default generated protocol | 101 client requests, 10 server requests, 83 notifications |
+| Experimental generated protocol | 157 client requests, 11 server requests, 83 notifications |
 | Interactive Chat | App Server by default; SDK by explicit escape hatch or initialization-only fallback |
 | Runtime selection | Bundled seed, explicit compatible promotion, no silent fallback |
 | Isolated live evidence | New/resumed Chat; every facet resolving one executable; Check, Use, idle promotion, and Roll back on 3002 |
@@ -135,28 +136,36 @@ changed selections do not fall back to bundled.
 | Models, auth, usage, MCP, skills | Their Codex provider facets |
 | Shell | `server/modules/websocket/services/shell-websocket.service.ts` |
 
-## 4. Delta at 0.150.0, and current dispositions
+## 4. Delta at 0.152.1, and current dispositions
 
 ### Compatibility result
 
-- SDK and bundled CLI pins moved together to 0.150.0.
+- SDK and bundled CLI pins moved together to 0.152.1, and the standalone
+  install on `PATH` caught up from 0.149.1.
 - The curated protocol subset regenerates and verifies unchanged: every method
   and field CLIde consumes survives.
-- Generated experimental client requests grew 136 → 156 and notifications
-  72 → 81 in both modes; default client requests (98) and server requests
-  (10/11) held. None of the additions is consumed yet.
+- Default client requests grew 98 → 101, experimental 156 → 157, and
+  notifications 81 → 83 in both modes; server requests (10/11) held. None of the
+  additions is consumed yet.
 - `ModelReasoningEffort` gained `max` and `ultra`; `ThreadOptions` gained
   `threadSource` and `CodexOptions` raw `configOverrides`. Only the effort
   levels reach a CLIde surface, and the live model list already carried them.
 - App Server MCP event streaming explains the notification-count rise.
 
-### Material upstream surfaces, compiled at 0.150.0
+### Material upstream surfaces, compiled at 0.152.1
 
-Spans 0.148.0 through 0.150.0. Rows still open from the 0.147.0 pass are
+Spans 0.148.0 through 0.152.1. Rows still open from the 0.147.0 pass are
 carried forward rather than restated.
 
 | Upstream change | CLIde impact | Disposition |
 |---|---|---|
+| The planning tool is disabled by default (0.152), behind `tools.update_plan.enabled` | None. CLIde already lists `update_plan` among the hidden exec-control wrappers, so it stops appearing rather than breaking | **No action** |
+| App-server clients can configure `thread/shellCommand` timeouts, including deadlines past an hour (0.152) | CLIde is an app-server client and sets none, so a long-running command sits on the default deadline | **Candidate** |
+| Individual MCP tools take an `output_token_limit`, truncated consistently across resumes (0.152) | CLIde's Codex MCP surface writes `mcp_servers` but no per-tool limits | **Candidate** |
+| MCP server names may contain `:`, `@`, `/` and `.` (0.152) | CLIde does not validate the name and writes `mcp_servers` through `@iarna/toml`, which quotes a dotted key correctly, so package-style names already round-trip | **No action**, verified by inspection |
+| Nested subagent token usage counts toward root goal budgets (0.151) | CLIde's Codex usage totals may read differently from 0.150.0's for the same work | **Compatibility watch** |
+| Remote sandbox enforcement moved onto the executor's real home directory, OS and path conventions, and `/cd` can no longer weaken sandbox restrictions (0.151) | CLIde derives `sandboxMode` per turn from the composer's mode; the Codex rows in [the permission map](provider-permission-modes.md) are still measured at 0.147.0 | **Compatibility watch** |
+| Extensions can inspect or replace MCP tool results before the model sees them (0.151) | The runtime's own extension point, same reading as `Interrupt` hooks | **No action** |
 | `session_index.jsonl` is no longer the thread-name store; `~/.codex/state_*.sqlite` holds a `threads` table with `title`, `archived`, `updated_at`, `cwd`, `model`, `reasoning_effort` and `first_user_message` | CLIde's name lookup reads that JSONL path, which is absent on a current install, so it silently returns nothing and disk-discovered sessions fall back to their last agent message | **Candidate.** The filename carries a schema counter, so a reader must resolve the newest `state_*.sqlite`, never hardcode one |
 | Resumed and forked threads restore their active permission profile instead of falling back to current defaults (0.149); resumed sessions restore their persisted cwd and approval policy (0.148) | Invisible here, verified: `resumeThread` is always passed a `sandboxMode`/`approvalPolicy` derived from the composer's mode, and CLIde keeps its own per-session mode. Coherent, except that CLIde's store is `localStorage` — resuming the same session from another device falls back to the provider-wide last mode, where the runtime's own profile would have been right | **No action** on the runtime change. The cross-device fallback is a CLIde question of the same shape as the non-durable model default in [`TODO.md`](../TODO.md) |
 | Thread credits or cost in `/status`, status lines and terminal titles (0.148) | CLIde has an account-usage surface for Claude and none for Codex spend | **Candidate** |
@@ -201,12 +210,12 @@ naming still resolves from SQLite.
 
 Primary current sources:
 
-- [Codex 0.150.0 release](https://github.com/openai/codex/releases/tag/rust-v0.150.0),
+- [Codex 0.152.1 release](https://github.com/openai/codex/releases/tag/rust-v0.152.1),
   [0.149.0](https://github.com/openai/codex/releases/tag/rust-v0.149.0),
   [0.148.0](https://github.com/openai/codex/releases/tag/rust-v0.148.0)
-- [OpenAI tag comparison: 0.147.0 to 0.150.0](https://github.com/openai/codex/compare/rust-v0.147.0...rust-v0.150.0)
-- [Tagged TypeScript SDK](https://github.com/openai/codex/tree/rust-v0.150.0/sdk/typescript)
-- [Tagged App Server protocol](https://github.com/openai/codex/tree/rust-v0.150.0/codex-rs/app-server-protocol)
+- [OpenAI tag comparison: 0.150.0 to 0.152.1](https://github.com/openai/codex/compare/rust-v0.150.0...rust-v0.152.1)
+- [Tagged TypeScript SDK](https://github.com/openai/codex/tree/rust-v0.152.1/sdk/typescript)
+- [Tagged App Server protocol](https://github.com/openai/codex/tree/rust-v0.152.1/codex-rs/app-server-protocol)
 - [Codex App Server docs](https://developers.openai.com/codex/app-server)
 - [Codex CLI reference](https://developers.openai.com/codex/cli/reference)
 

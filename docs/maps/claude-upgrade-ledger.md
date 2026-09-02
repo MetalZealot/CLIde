@@ -312,3 +312,54 @@ CLIde already spawns.
 - **Verification:** typecheck, lint, 520 server and 262 client tests, 0
   failures; `build` clean. The registry test is the live evidence — it reads the
   installed 2.1.246 binary rather than a fixture.
+
+## SDK 0.3.246 → 0.3.258, runtime 2.1.252 → 2.1.258 — 2026-09-01
+
+- **Version set:** pin `^0.3.246` → `^0.3.258`; standalone Claude Code on `PATH`
+  2.1.252 → 2.1.258, self-updated. Span audited: 2.1.247–2.1.258.
+- **Sources:** the published `CHANGELOG.md` across the span, the shipped
+  `sdk.d.ts` diff, and the registry read out of the installed binary.
+- **The model registry moved, and the drift tests named it.** Fable 5.1
+  (`claude-fable-5-1`) and Mythos 5.1 (`claude-mythos-5-1`) landed at 1M native
+  context and 64K default output, and the registry's `fable` alias now defaults
+  to Fable 5.1 — only the gateway row still resolves to Fable 5. **Adopted:**
+  both specs added, `fable` and `mythos` repointed, picker row relabelled.
+  `resolveClaudeModelAlias` needed nothing — it already reduces
+  `claude-fable-5-1` to `fable` by substring.
+- **`systemPromptSnapshot` needs no change.** Recording the system prompt once
+  is already the default for a bare `claude_code` preset with no `append`, which
+  is exactly what CLIde sends.
+- **`Pre`/`PostModelSwitch` hooks are not a candidate**, for the reason Codex's
+  `Interrupt` hooks are not: a hook is the runtime's own extension point, and
+  CLIde owns the picker that caused the switch. Their payloads
+  (`context_tokens`, `prompt_cache_warm`, `estimated_cache_write_usd`) are the
+  interesting part and are unreachable without registering one.
+- **Three settings keys added, none removed** — 159 top-level `Settings` keys
+  against 156 at 0.3.246 on the same count. `timeFormat`/`timeZone` are CLI clock
+  rendering; `desktopSessionCleanupPeriodDays` bounds a Desktop/Cowork exemption.
+  Nested `permissions.blockReadsOutsideWorkingDirectories` is the one real
+  restriction CLIde has no control for.
+- **Candidates, none adopted:** `ModelUsage.thinkingTokens` (already inside
+  `outputTokens`, so a display field only); `getContextUsage({ detail:
+  'summary' })`, which skips the per-category token-count calls but may not
+  populate the `breakdown` CLIde consumes — measure first; `ambient` on the task
+  messages, marking housekeeping work hosts should hide; `resource_links` on a
+  backgrounded MCP task's notification; per-server MCP `timeout`; `--restricted`
+  (2.1.248); `updateSettings(source: 'localSettings')`, allowlisted to
+  `outputStyle` alone.
+- **`defaultMode: "bypassPermissions"` in project settings is now ignored**
+  (2.1.257). CLIde is unaffected — it sends `permissionMode` explicitly.
+- **Two watches.** 2.1.251 fixed transcripts silently overwritten when a
+  directory change relocated a session onto an existing same-ID transcript —
+  the failure class CLIde's session-to-checkout pinning addresses, one layer
+  down; the two must not disagree. 2.1.258 fixed re-sent permission approvals
+  failing with "user messages must have non-empty content"; CLIde replays
+  approvals (ADR 0012) and the fix is runtime-side.
+- **Five permission and file-tool escapes close by upgrading alone:** a symlink
+  swapped after the check in Read/Write/Edit, and deny rules skipped by
+  Grep/Glob through a symlinked path (2.1.251); plugin paths escaping the plugin
+  directory, `permissions.ask` skipped inside a compound command, and Bash deny
+  rules ignoring `< file` and `tac`/`egrep` (2.1.257).
+- **Verification:** 565 server tests, 0 failures; typecheck clean. The registry
+  and alias drift tests are the live evidence — they read the installed 2.1.258
+  binary, and both failed before the change and pass after.

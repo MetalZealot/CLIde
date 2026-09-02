@@ -1,12 +1,13 @@
 # Claude Code's command surface, and where each part belongs in CLIde
 
 Measured 2026-08-19 against CLI **2.1.235** / SDK **0.3.233**; command
-definitions, `/config` rows and settings keys re-measured 2026-08-26 against
-**2.1.246** / **0.3.246**. The live `/help` and `supportedCommands()` counts below
-are still the 2.1.235 ones — both need a running session, and neither was re-run.
+definitions and `/config` rows re-measured 2026-08-26 against **2.1.246** /
+**0.3.246**; settings keys re-counted 2026-09-01 at **2.1.258** / **0.3.258**. The
+live `/help` and `supportedCommands()` counts below are still the 2.1.235 ones —
+both need a running session, and neither was re-run.
 Companion to the [settings audit](2026-07-28-claude-code-settings-surface-audit.md),
 which inventories the settings *keys*; this map inventories the **100 commands**
-`/help` lists, the **59 rows** `/config` renders, and the **157 keys** of the
+`/help` lists, the **59 rows** `/config` renders, and the **159 keys** of the
 public `Settings` interface, and gives each one a destination.
 
 The measurements here are reproducible (see the last section). The *destinations*
@@ -239,6 +240,21 @@ so **more of `/config` is reachable than that audit concluded**.
 | `managedSourcesBehavior` | How multiple managed-settings sources compose | **Non-mapping.** Enterprise policy composition |
 | `keybindingFlavor` | `classic` or `readline` word-editing keys in the prompt input | **Non-mapping.** Terminal-bound; CLIde's composer is its own |
 | `spellcheck` | Underline misspellings in the prompt input via aspell/hunspell | **Non-mapping.** Terminal-bound; the browser already does this |
+
+Three more arrived between 0.3.246 and 0.3.258, **none removed** — 159 top-level
+keys, on a count that reproduces the recorded 31 hook events and 27 `Query`
+methods but reads 0.3.246 as 156, not 157.
+
+| Key | What it decides | CLIde destination |
+|---|---|---|
+| `timeFormat` | Clock format for the turn-end time and transcript timestamps: `auto`, `12-hour`, `24-hour`, `24-hour-utc`, or a strftime pattern | **Non-mapping.** Terminal-bound; CLIde renders its own timestamps in the browser from the client's locale |
+| `timeZone` | IANA zone for those times | **Non-mapping**, same reason |
+| `desktopSessionCleanupPeriodDays` | Retention ceiling for transcripts written by Claude Desktop or Cowork, which are otherwise exempt from the `cleanupPeriodDays` sweep | **Non-mapping.** Neither surface writes into a CLIde project |
+
+`permissions.blockReadsOutsideWorkingDirectories` also arrived at 0.3.258. It is
+nested rather than top-level, so it is outside that count, and unlike the three
+above it is a real runtime restriction — file-tool reads refused outside the
+working directories in every permission mode — that CLIde has no control for.
 
 Earlier keys still without a CLIde destination, from the 0.3.233 pass: `advisorModel`,
 `dialogExpiry`, `crossSessionInbound`, `fileCheckpointingEnabled`, `voice`/`voiceEnabled`,

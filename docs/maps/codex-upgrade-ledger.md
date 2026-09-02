@@ -158,3 +158,40 @@ Each stable upgrade records:
     no CLIde surface.
 - **Verification:** typecheck, lint, 520 server and 262 client tests, 0
   failures; `build` clean. Not yet exercised in a live Codex turn.
+
+## 0.150.0 → 0.152.1 — 2026-09-01
+
+- **Version set:** pin `@openai/codex-sdk` 0.150.0 → 0.152.1, with
+  `@openai/codex` 0.152.1 transitively; the standalone install on `PATH` moved
+  0.149.1 → 0.152.1. `EXPECTED_CODEX_VERSION` moved with them, and the
+  app-server protocol drift test passes unchanged at 0.152.1 — no Chat method or
+  field CLIde depends on moved.
+- **The planning tool is off by default at 0.152.0** (`tools.update_plan.enabled`).
+  CLIde already lists `update_plan` among the hidden exec-control wrappers, so
+  it silently stops appearing rather than breaking. **No action.**
+- **Package-style MCP server names** (`:`, `@`, `/`, `.`) are accepted
+  throughout at 0.152.0. CLIde does not validate the name at all and writes
+  `mcp_servers` through `@iarna/toml`, which quotes a dotted key correctly, so
+  such names already round-trip. **No action, verified by inspection.**
+- **Candidates.**
+  - `thread/shellCommand` timeouts are now configurable by app-server clients,
+    including deadlines past an hour (0.152.0). CLIde is an app-server client and
+    sets none, so long commands sit on the default.
+  - Per-MCP-tool `output_token_limit` with truncation held consistent across
+    resumes (0.152.0) — the Codex counterpart of the Claude per-server timeout
+    candidate.
+- **Watches.**
+  - Nested subagent token usage now counts toward root goal budgets (0.151.0);
+    CLIde's Codex usage totals may read differently from 0.150.0's for the same
+    work.
+  - Remote sandbox enforcement moved onto the executor's real home directory, OS
+    and path conventions, and `/cd` can no longer weaken sandbox restrictions
+    (0.151.0). CLIde derives `sandboxMode` per turn from the composer's mode; the
+    permission-mode map's Codex rows are still measured at 0.147.0.
+- **Extensions processing MCP tool results (0.151.0) is not a candidate** — it is
+  the runtime's own extension point, the same reading applied to `Interrupt`
+  hooks at 0.150.0.
+- The rest is TUI, Vim, Windows sandbox, Guardian and rate-limit-banner work
+  with no CLIde surface.
+- **Verification:** 565 server tests, 0 failures; typecheck clean. Not yet
+  exercised in a live Codex turn.

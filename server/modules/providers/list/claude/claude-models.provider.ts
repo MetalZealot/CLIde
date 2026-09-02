@@ -47,7 +47,7 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
       value: 'fable',
-      label: 'Fable 5',
+      label: 'Fable 5.1',
       description: 'Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
       effort: CLAUDE_EFFORT_LEVELS,
     },

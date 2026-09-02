@@ -95,7 +95,9 @@ export const CLAUDE_MODEL_CONTEXT_SPECS: Readonly<Record<string, ClaudeModelCont
   'claude-opus-4-8': { window: LONG_CONTEXT_WINDOW, maxOutputTokens: 64_000, supportsLongContext: true },
   'claude-opus-5': { window: LONG_CONTEXT_WINDOW, maxOutputTokens: 64_000, supportsLongContext: true },
   'claude-fable-5': { window: LONG_CONTEXT_WINDOW, maxOutputTokens: 64_000, supportsLongContext: true },
+  'claude-fable-5-1': { window: LONG_CONTEXT_WINDOW, maxOutputTokens: 64_000, supportsLongContext: true },
   'claude-mythos-5': { window: LONG_CONTEXT_WINDOW, maxOutputTokens: 64_000, supportsLongContext: true },
+  'claude-mythos-5-1': { window: LONG_CONTEXT_WINDOW, maxOutputTokens: 64_000, supportsLongContext: true },
 };
 
 /**
@@ -111,8 +113,8 @@ export const CLAUDE_MODEL_ID_ALIASES: Readonly<Record<string, string>> = {
   opus: 'claude-opus-5',
   sonnet: 'claude-sonnet-5',
   haiku: 'claude-haiku-4-5',
-  fable: 'claude-fable-5',
-  mythos: 'claude-mythos-5',
+  fable: 'claude-fable-5-1',
+  mythos: 'claude-mythos-5-1',
   'claude-opus-4': 'claude-opus-4-0',
   'claude-sonnet-4': 'claude-sonnet-4-0',
 };
