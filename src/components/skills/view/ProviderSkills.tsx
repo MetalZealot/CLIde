@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   CheckCircle2,
+  ChevronRight,
   FileCode2,
   FileText,
   FileUp,
@@ -728,34 +729,54 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
               {group.skills.map((skill) => (
                 <div
                   key={`${skill.command}:${skill.sourcePath}:${skill.projectPath || 'global'}`}
-                  className="min-w-0 rounded-lg border border-border bg-card/50 p-4"
+                  className="min-w-0 rounded-lg border border-border bg-card/50 p-3"
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="break-all font-mono text-sm font-semibold text-foreground">{skill.command}</div>
                     <div className="text-sm text-muted-foreground">{skill.name}</div>
                   </div>
 
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  {/*
+                    A skill description is a full paragraph written for the
+                    agent, not for this list. Clamped to two lines so a group
+                    reads as a list of skills rather than a stack of pages; the
+                    full text is one tap away with the source path.
+                  */}
+                  <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
                     {skill.description || 'No description provided in the skill front matter.'}
                   </p>
 
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {skill.pluginName && (
+                  {skill.pluginName && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="rounded-full bg-background/70">
                         Plugin: {skill.pluginName}
                       </Badge>
-                    )}
-                    {skill.projectDisplayName && (
-                      <Badge variant="outline" className="rounded-full bg-background/70">
-                        Project: {skill.projectDisplayName}
-                      </Badge>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  <div className="mt-4 min-w-0 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                    <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Source</div>
-                    <code className="mt-1 block whitespace-normal break-all text-xs text-foreground">{skill.sourcePath}</code>
-                  </div>
+                  <details className="group/details mt-3 min-w-0">
+                    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-muted-foreground marker:content-none hover:text-foreground">
+                      <ChevronRight className="h-3.5 w-3.5 transition-transform group-open/details:rotate-90" />
+                      Details
+                    </summary>
+
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                      {skill.description || 'No description provided in the skill front matter.'}
+                    </p>
+
+                    {skill.projectDisplayName && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="rounded-full bg-background/70">
+                          Project: {skill.projectDisplayName}
+                        </Badge>
+                      </div>
+                    )}
+
+                    <div className="mt-3 min-w-0 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Source</div>
+                      <code className="mt-1 block whitespace-normal break-all text-xs text-foreground">{skill.sourcePath}</code>
+                    </div>
+                  </details>
                 </div>
               ))}
             </div>
