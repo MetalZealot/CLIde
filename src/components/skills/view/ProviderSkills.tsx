@@ -87,8 +87,20 @@ const SCOPE_BADGE_CLASSES: Record<SkillsScope, string> = {
 
 const SCOPE_ORDER: SkillsScope[] = ['user', 'plugin', 'repo', 'project', 'admin', 'system'];
 
-const groupSkillsByScope = (skills: ProviderSkill[]): Array<{ scope: SkillsScope; skills: ProviderSkill[] }> => (
-  SCOPE_ORDER
+/**
+ * A chosen workspace puts its own skills first: they are the reason it was
+ * chosen, and there are usually a handful of them against twenty-odd global
+ * ones, so anywhere else on the list is effectively buried.
+ */
+const WORKSPACE_SCOPE_ORDER: SkillsScope[] = ['project', 'repo', 'user', 'plugin', 'admin', 'system'];
+
+const WORKSPACE_SCOPES: SkillsScope[] = ['project', 'repo'];
+
+const groupSkillsByScope = (
+  skills: ProviderSkill[],
+  target: SkillsTarget,
+): Array<{ scope: SkillsScope; skills: ProviderSkill[] }> => (
+  (target.kind === 'workspace' ? WORKSPACE_SCOPE_ORDER : SCOPE_ORDER)
     .map((scope) => ({ scope, skills: skills.filter((skill) => skill.scope === scope) }))
     .filter((group) => group.skills.length > 0)
 );
@@ -260,7 +272,16 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
     ));
   }, [searchQuery, skills]);
 
-  const groupedSkills = useMemo(() => groupSkillsByScope(filteredSkills), [filteredSkills]);
+  const groupedSkills = useMemo(() => groupSkillsByScope(filteredSkills, target), [filteredSkills, target]);
+
+  // The chosen checkout is named once, on the group header. A per-row badge
+  // cannot say "this checkout" honestly: Settings has no working directory, so
+  // the only truthful name is the path the picker sent.
+  const groupLabel = useCallback((scope: SkillsScope): string => (
+    target.kind === 'workspace' && WORKSPACE_SCOPES.includes(scope)
+      ? target.displayName
+      : SCOPE_LABELS[scope]
+  ), [target]);
 
   const queueSkillFolders = useCallback((selectedFiles: File[]) => {
     const queuedFolders = buildQueuedSkillFolders(selectedFiles);
@@ -557,7 +578,7 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
             onClick={() => handleAddDialogOpenChange(true)}
           >
             <Plus className="h-4 w-4" />
-            Add Skill
+            {target.kind === 'workspace' ? 'Add to Global' : 'Add Skill'}
           </Button>
           <Button
             onClick={() => void refreshSkills({ force: true })}
@@ -696,7 +717,7 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
           <section key={group.scope} className="min-w-0 space-y-3">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={cn('rounded-full px-2.5 py-1 text-xs', SCOPE_BADGE_CLASSES[group.scope])}>
-                {SCOPE_LABELS[group.scope]}
+                {groupLabel(group.scope)}
               </Badge>
               <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
                 {group.skills.length} skill{group.skills.length === 1 ? '' : 's'}

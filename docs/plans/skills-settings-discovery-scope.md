@@ -1,9 +1,9 @@
 # Context-correct skills settings
 
-- Status: 2/4
-- Next: Phase 3 — add the Context choice to each supported Agent Skills screen.
-- Note: Phase 2 is a regression on its own — Settings is pinned to Global until
-  Phase 3 lands the picker. Do not merge this branch before Phase 3.
+- Status: 3/4
+- Next: Phase 4 — isolated acceptance and documentation.
+- Note: the picker was accepted from a static probe before building; the
+  screen itself is still unverified in the running app. See Phase 4.
 - Context: [provider skills contract](../../server/modules/providers/README.md),
   [Settings navigation](../decisions/0018-settings-drill-down-one-scroll-container.md),
   [mobile Back ownership](../decisions/0040-settings-root-owns-back-gesture.md),
@@ -63,7 +63,7 @@ UI buckets before implementation:
       request per refresh. The Skills summary row on the parent Agent screen
       reports the Global count and must not scan every project just to render a
       number. Keep the Chat slash-command path workspace-scoped and unchanged.
-- [ ] **3. Context choice on every supported Agent screen.** Put one searchable
+- [x] **3. Context choice on every supported Agent screen.** Put one searchable
       Context row above the existing skill search/add/refresh controls for
       Claude, Codex, and Cursor through their shared screen. Global comes first;
       each saved project/worktree follows with its path as detail. Reset to

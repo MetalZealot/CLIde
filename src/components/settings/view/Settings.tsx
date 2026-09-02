@@ -224,7 +224,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
           return <AgentMcpScreen provider={provider} projects={projects} />;
 
         case 'skills':
-          return <AgentSkillsScreen provider={provider} />;
+          return <AgentSkillsScreen provider={provider} projects={projects} />;
 
         default:
           return (
