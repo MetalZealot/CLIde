@@ -93,17 +93,17 @@ export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScr
   return (
     <SettingsScreen>
       <SettingsGroup>
-        <SettingsRow
-          label="Showing skills for"
-          description="Global lists what every project can use. Pick a checkout to add its own skills."
-          stacked
-        >
+        {/*
+          No description line and no `stacked`: the control sits beside its
+          label, as agreed. A sentence here is what forces the row to stack and
+          the popover to go full width on a phone.
+        */}
+        <SettingsRow label="Showing skills for">
           <SettingsChoicePopover
             value={target.kind === 'global' ? GLOBAL_OPTION_VALUE : target.path}
             options={options}
             onChange={handleTargetChange}
             ariaLabel="Showing skills for"
-            className="w-full"
             searchable
             searchPlaceholder="Search projects"
             showSelectedDetail={false}
