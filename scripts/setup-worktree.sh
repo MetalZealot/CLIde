@@ -96,46 +96,30 @@ fi
 
 # --- agent + editor config -------------------------------------------------
 #
-# CLAUDE.md is deliberately NOT linked. Claude Code silently ignores an
-# instruction file reached through a symlink -- no warning, the file is just
-# absent from context (proved 2026-08-04 on 2.1.221: a symlinked CLAUDE.md
-# loaded nothing, an identical real file in the same directory loaded fine).
-# A linked CLAUDE.md therefore left every worktree session uninstructed.
+# Nothing to do here any more, and that is the point. `CLAUDE.md`,
+# `.claude/settings.json`, `.claude/hooks/` and `.claude/skills/` are tracked in
+# git (force-added past upstream's `.gitignore`), so `git worktree add` delivers
+# them itself. Host facts live in each agent's own global config --
+# `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md` -- which load in every checkout.
 #
-# The stub below is a real file. It imports the *branch's own* tracked
-# AGENTS.md -- verified to resolve relative to the importing file, so a
-# worktree gets its branch's guide, not main's. Host facts arrive separately:
-# .claude/rules/*.md load automatically alongside CLAUDE.md and DO resolve
-# through the .claude symlink below, so main's rules/host.md reaches every
-# worktree with no copy to drift.
-write_claude_stub() {
-  local dst="$TARGET/CLAUDE.md"
+# Only `.claude/settings.local.json` stays untracked, because it holds personal
+# permission grants rather than project config. Link it so a worktree does not
+# re-prompt for everything already allowed in main.
+link_settings_local() {
+  local src="$MAIN/.claude/settings.local.json"
+  local dst="$TARGET/.claude/settings.local.json"
 
-  if [ -L "$dst" ]; then
-    rm -- "$dst"
-    warn "CLAUDE.md — removed a symlink; Claude Code does not load those"
-  elif [ -e "$dst" ] && ! grep -q '^@AGENTS\.md$' "$dst" 2>/dev/null; then
-    warn "CLAUDE.md — a different real file exists here; left it alone"
-    warn "    it must contain a line reading exactly '@AGENTS.md' to be useful"
-    return
+  [ -f "$src" ] || return 0
+  mkdir -p "$TARGET/.claude"
+  if [ -e "$dst" ] || [ -L "$dst" ]; then
+    warn "settings.local.json — already present, left alone"
+    return 0
   fi
-
-  cat > "$dst" <<EOF
-# CLAUDE.md — worktree
-
-@AGENTS.md
-
-This is a worktree of the CLIde checkout at \`$MAIN\`. The import above is this
-branch's own tracked guide. Host facts — ports, services, the deploy loop, the
-branch-test harness — load automatically from \`.claude/rules/host.md\`, reached
-through this worktree's symlinked \`.claude/\`. Never build or deploy this
-worktree to the production port.
-EOF
-  ok "CLAUDE.md — wrote worktree stub (real file, imports this branch's AGENTS.md)"
+  ln -s "$src" "$dst"
+  ok "settings.local.json — linked to main (personal permission grants)"
 }
 
-write_claude_stub
-link_from_main .claude
+link_settings_local
 
 # --- Claude Code memory ----------------------------------------------------
 #
@@ -176,15 +160,6 @@ link_memory_from_main() {
 }
 
 link_memory_from_main
-
-# .gitignore has `.claude/` with a trailing slash, which only matches real
-# directories — a symlink to one still shows as untracked. info/exclude lives in
-# the shared git dir, so one entry covers every worktree and is never committed.
-EXCLUDE="$(git -C "$TARGET" rev-parse --git-common-dir)/info/exclude"
-if [ -f "$EXCLUDE" ] && ! grep -qx '.claude' "$EXCLUDE"; then
-  printf '.claude\n' >> "$EXCLUDE"
-  ok ".claude — added to git info/exclude so it stays out of git status"
-fi
 
 # --- ports -----------------------------------------------------------------
 #

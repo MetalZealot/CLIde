@@ -221,12 +221,12 @@ whichever file you happen to have open.  Ownership:
   is **retired** — the name invited an essay and eighteen reached 317 KB.  Byte
   caps and banned ceremony sections live in `docs/plans/README.md`, enforced by
   `npm run check:docs`.  Do not invent a fourth type to escape them.
-- **Host-local guides**, ignored by git, own the host: paths, ports, services, the
-  deploy loop.  There are two, one per agent, and **they are not shared**: Claude
-  reads `CLAUDE.md` files and never an agent-global `AGENTS.md`; Codex reads
-  `AGENTS.md` files — this one plus its own global one — and **never any
-  `CLAUDE.md`**.  Record a host fact in both, or accept that the other agent
-  cannot know it.
+- **Each agent's global config** owns the host — paths, ports, services, the
+  deploy loop.  This repo is published, so it holds none of it.  The two files
+  are not shared: Claude Code reads `~/.claude/CLAUDE.md`, Codex reads
+  `~/.codex/AGENTS.md`, neither reads the other.  Record a host fact in both, or
+  the other agent cannot know it.  Both load in every checkout, so a worktree
+  needs no setup.
 
 Restating a rule a linter, type checker, or test already enforces is not documentation
 — make the gate executable instead.
