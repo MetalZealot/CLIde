@@ -18,9 +18,6 @@ import {
   AppError,
 } from '@/shared/utils.js';
 
-const resolveWorkspacePath = (workspacePath?: string): string =>
-  path.resolve(workspacePath ?? process.cwd());
-
 const stripMarkdownExtension = (value: string): string => value.replace(/\.md$/i, '');
 
 const normalizeSkillDirectoryName = (value: string): string => (
@@ -93,7 +90,9 @@ export abstract class SkillsProvider implements IProviderSkills {
   }
 
   async listSkills(options?: ProviderSkillListOptions): Promise<ProviderSkill[]> {
-    const workspacePath = resolveWorkspacePath(options?.workspacePath);
+    const workspacePath = options?.workspacePath
+      ? path.resolve(options.workspacePath)
+      : undefined;
     const sources = await this.getSkillSources(workspacePath);
     const skills: ProviderSkill[] = [];
 
@@ -279,7 +278,7 @@ export abstract class SkillsProvider implements IProviderSkills {
     return { removed, provider: this.provider, directoryName };
   }
 
-  protected abstract getSkillSources(workspacePath: string): Promise<ProviderSkillSource[]>;
+  protected abstract getSkillSources(workspacePath?: string): Promise<ProviderSkillSource[]>;
 
   protected async getGlobalSkillSource(): Promise<ProviderSkillSource | null> {
     return null;

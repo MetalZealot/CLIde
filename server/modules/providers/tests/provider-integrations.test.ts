@@ -397,6 +397,23 @@ describe('skills', () => {
     return skillPath;
   };
 
+  const writeMalformedSkill = async (
+    skillsRoot: string,
+    directoryName: string,
+  ): Promise<void> => {
+    const skillDir = path.join(skillsRoot, directoryName);
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(skillDir, 'SKILL.md'),
+      '---\nname: [unterminated\n---\n',
+      'utf8',
+    );
+  };
+
+  const normalizeClaudeTestName = (value: string): string => (
+    value.normalize('NFKC').replace(/\s+/g, '').toLocaleLowerCase()
+  );
+
   const writeClaudePluginManifest = async (
     installPath: string,
     name: string,
@@ -434,12 +451,13 @@ describe('skills', () => {
   };
 
   /**
-   * This test covers Claude user/project skill folders plus plugin discovery from
-   * installed plugin command files and fallback plugin skill files.
+   * This test covers Claude source precedence plus active plugin command/skill
+   * discovery and namespaced collision behavior.
    */
-  test('providerSkillsService lists claude user, synced, project, and enabled plugin skills', { concurrency: false }, async () => {
+  test('providerSkillsService lists claude user, synced, project, and active enabled plugin skills', { concurrency: false }, async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-claude-'));
-    const workspacePath = path.join(tempRoot, 'workspace');
+    const repoRoot = path.join(tempRoot, 'workspace');
+    const workspacePath = path.join(repoRoot, 'packages', 'app');
     const commandPluginInstallPath = path.join(
       tempRoot,
       '.claude',
@@ -486,6 +504,7 @@ describe('skills', () => {
       '000',
     );
     const siblingSkillPluginPath = path.join(path.dirname(skillPluginInstallPath), 'legacy777');
+    await fs.mkdir(path.join(repoRoot, '.git'), { recursive: true });
     await fs.mkdir(workspacePath, { recursive: true });
 
     const restoreHomeDir = patchHomeDir(tempRoot);
@@ -497,10 +516,22 @@ describe('skills', () => {
         'Claude user skill',
       );
       await writeSkill(
+        path.join(tempRoot, '.claude', 'skills'),
+        'claude-precedence-user-dir',
+        'claude-precedence',
+        'Claude personal winner',
+      );
+      await writeSkill(
         path.join(tempRoot, '.claude', 'skills', 'synced'),
         'claude-synced-dir',
         'claude-synced',
         'Claude synced skill',
+      );
+      await writeSkill(
+        path.join(tempRoot, '.claude', 'skills', 'synced'),
+        'claude-precedence-synced-dir',
+        'CLAUDE-PRECEDENCE',
+        'Claude synced loser',
       );
       await writeSkill(
         path.join(tempRoot, '.claude', 'skills', '.trash'),
@@ -514,17 +545,44 @@ describe('skills', () => {
         'claude-project',
         'Claude project skill',
       );
+      await writeSkill(
+        path.join(repoRoot, '.claude', 'skills'),
+        'claude-root-dir',
+        'claude-root',
+        'Claude repository-root skill',
+      );
+      await writeSkill(
+        path.join(workspacePath, '.claude', 'skills'),
+        'claude-precedence-project-dir',
+        'claude-precedence',
+        'Claude project loser',
+      );
+      await writeMalformedSkill(
+        path.join(workspacePath, '.claude', 'skills'),
+        'malformed-claude-skill',
+      );
       await writeClaudePluginManifest(commandPluginInstallPath, 'Notion');
       await writeClaudePluginCommand(
         path.join(commandPluginInstallPath, 'commands'),
         'insert-row',
         'Insert a Notion database row',
       );
+      await writeClaudePluginCommand(
+        path.join(commandPluginInstallPath, 'commands'),
+        'component-collision',
+        'Legacy command loser',
+      );
       await writeSkill(
         path.join(commandPluginInstallPath, 'skills'),
-        'ignored-command-plugin-skill-dir',
-        'ignored-command-plugin-skill',
-        'Command plugin fallback skill should be ignored',
+        'command-plugin-skill-dir',
+        'command-plugin-skill',
+        'Skill beside a command directory',
+      );
+      await writeSkill(
+        path.join(commandPluginInstallPath, 'skills'),
+        'component-collision-dir',
+        'component-collision',
+        'Plugin skill winner',
       );
       await writeClaudePluginManifest(skillPluginInstallPath, 'ExampleSkills');
       await writeSkill(
@@ -650,11 +708,18 @@ describe('skills', () => {
       assert.equal(byName.get('claude-user')?.command, '/claude-user');
       assert.equal(byName.get('claude-project')?.scope, 'project');
       assert.equal(byName.get('claude-project')?.command, '/claude-project');
+      assert.equal(byName.get('claude-root')?.scope, 'project');
       // Synced skills run in the session, so they must also be listed; the
       // sibling trash folder holds skills the account has revoked.
       assert.equal(byName.get('claude-synced')?.scope, 'user');
       assert.equal(byName.get('claude-synced')?.command, '/claude-synced');
       assert.equal(byName.has('claude-trashed'), false);
+      const precedenceSkills = skills.filter((skill) => (
+        normalizeClaudeTestName(skill.name) === 'claude-precedence'
+      ));
+      assert.equal(precedenceSkills.length, 1);
+      assert.equal(precedenceSkills[0]?.scope, 'user');
+      assert.equal(precedenceSkills[0]?.description, 'Claude personal winner');
 
       const pluginCommand = byName.get('insert-row');
       assert.equal(pluginCommand?.scope, 'plugin');
@@ -663,7 +728,13 @@ describe('skills', () => {
       assert.equal(pluginCommand?.command, '/Notion:insert-row');
       assert.equal(pluginCommand?.description, 'Insert a Notion database row');
       assert.match(pluginCommand?.sourcePath ?? '', /commands[\\/]insert-row\.md$/);
-      assert.equal(byName.has('ignored-command-plugin-skill'), false);
+      assert.equal(byName.get('command-plugin-skill')?.scope, 'plugin');
+      const componentCollision = skills.filter((skill) => (
+        skill.command === '/Notion:component-collision'
+      ));
+      assert.equal(componentCollision.length, 1);
+      assert.equal(componentCollision[0]?.description, 'Plugin skill winner');
+      assert.match(componentCollision[0]?.sourcePath ?? '', /SKILL\.md$/);
 
       const pluginSkill = byName.get('claude-plugin');
       assert.equal(pluginSkill?.scope, 'plugin');
@@ -685,16 +756,17 @@ describe('skills', () => {
       assert.equal(nestedPluginSkill?.command, '/ExampleSkills:claude-plugin-nested');
       assert.equal(nestedPluginSkill?.description, 'Nested Claude plugin skill');
 
-      const siblingPluginSkill = byName.get('claude-plugin-sibling');
-      assert.equal(siblingPluginSkill?.scope, 'plugin');
-      assert.equal(siblingPluginSkill?.pluginName, 'example-skills');
-      assert.equal(siblingPluginSkill?.command, '/example-skills:claude-plugin-sibling');
-      assert.equal(siblingPluginSkill?.description, 'Sibling Claude plugin skill');
+      assert.equal(byName.has('claude-plugin-sibling'), false);
       assert.equal(byName.has('disabled-command'), false);
       assert.equal(byName.has('disabled-plugin'), false);
       assert.equal(byName.has('invalid-empty-command'), false);
       assert.equal(byName.has('invalid-at-command'), false);
       assert.equal(skills.some((skill) => skill.command.startsWith('/:')), false);
+
+      const globalSkills = await providerSkillsService.listProviderSkills('claude');
+      assert.equal(globalSkills.some((skill) => skill.scope === 'project'), false);
+      assert.equal(globalSkills.some((skill) => skill.name === 'claude-user'), true);
+      assert.equal(globalSkills.some((skill) => skill.name === 'insert-row'), true);
     } finally {
       restoreHomeDir();
       await fs.rm(tempRoot, { recursive: true, force: true });
@@ -703,12 +775,12 @@ describe('skills', () => {
 
   /**
    * This test covers Codex repository/user/system skill folders, including both
-   * supported user roots, and verifies repository lookup across cwd, parent, and git root.
+   * supported user roots, every cwd-to-root level, and path-distinct names.
    */
   test('providerSkillsService lists codex repository, user, and system skills', { concurrency: false }, async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-codex-'));
     const repoRoot = path.join(tempRoot, 'repo');
-    const workspacePath = path.join(repoRoot, 'packages', 'app');
+    const workspacePath = path.join(repoRoot, 'packages', 'products', 'app');
     await fs.mkdir(path.join(repoRoot, '.git'), { recursive: true });
     await fs.mkdir(workspacePath, { recursive: true });
 
@@ -721,16 +793,44 @@ describe('skills', () => {
         'Codex cwd skill',
       );
       await writeSkill(
-        path.join(repoRoot, 'packages', '.agents', 'skills'),
+        path.join(repoRoot, 'packages', 'products', '.agents', 'skills'),
         'codex-parent-dir',
         'codex-parent',
         'Codex parent skill',
+      );
+      await writeSkill(
+        path.join(repoRoot, 'packages', '.agents', 'skills'),
+        'codex-intermediate-dir',
+        'codex-intermediate',
+        'Codex intermediate skill',
       );
       await writeSkill(
         path.join(repoRoot, '.agents', 'skills'),
         'codex-root-dir',
         'codex-root',
         'Codex root skill',
+      );
+      await writeSkill(
+        path.join(workspacePath, '.agents', 'skills'),
+        'codex-shared-cwd-dir',
+        'codex-shared',
+        'Codex cwd variant',
+      );
+      await writeSkill(
+        path.join(repoRoot, 'packages', 'products', '.agents', 'skills'),
+        'codex-shared-parent-dir',
+        'codex-shared',
+        'Codex parent variant',
+      );
+      await writeSkill(
+        path.join(repoRoot, '.agents', 'skills'),
+        'codex-shared-root-dir',
+        'codex-shared',
+        'Codex root variant',
+      );
+      await writeMalformedSkill(
+        path.join(repoRoot, 'packages', '.agents', 'skills'),
+        'malformed-codex-skill',
       );
       await writeSkill(
         path.join(tempRoot, '.agents', 'skills'),
@@ -756,11 +856,21 @@ describe('skills', () => {
 
       assert.equal(byName.get('codex-cwd')?.scope, 'repo');
       assert.equal(byName.get('codex-parent')?.scope, 'repo');
+      assert.equal(byName.get('codex-intermediate')?.scope, 'repo');
       assert.equal(byName.get('codex-root')?.scope, 'repo');
       assert.equal(byName.get('codex-user')?.scope, 'user');
       assert.equal(byName.get('codex-home-user')?.scope, 'user');
       assert.equal(byName.get('codex-system')?.scope, 'system');
       assert.equal(byName.get('codex-root')?.command, '$codex-root');
+      const sharedSkills = skills.filter((skill) => skill.name === 'codex-shared');
+      assert.equal(sharedSkills.length, 3);
+      assert.equal(new Set(sharedSkills.map((skill) => skill.sourcePath)).size, 3);
+
+      const globalSkills = await providerSkillsService.listProviderSkills('codex');
+      assert.equal(globalSkills.some((skill) => skill.scope === 'repo'), false);
+      assert.equal(globalSkills.some((skill) => skill.scope === 'project'), false);
+      assert.equal(globalSkills.some((skill) => skill.name === 'codex-user'), true);
+      assert.equal(globalSkills.some((skill) => skill.name === 'codex-system'), true);
     } finally {
       restoreHomeDir();
       await fs.rm(tempRoot, { recursive: true, force: true });
@@ -827,6 +937,10 @@ describe('skills', () => {
       assert.equal(byName.get('opencode-claude-user')?.scope, 'user');
       assert.equal(byName.get('opencode-agents-user')?.scope, 'user');
       assert.equal(byName.get('opencode-cwd')?.command, '/opencode-cwd');
+
+      const globalSkills = await providerSkillsService.listProviderSkills('opencode');
+      assert.equal(globalSkills.some((skill) => skill.scope === 'project'), false);
+      assert.equal(globalSkills.some((skill) => skill.name === 'opencode-user'), true);
     } finally {
       restoreHomeDir();
       await fs.rm(tempRoot, { recursive: true, force: true });
@@ -834,12 +948,14 @@ describe('skills', () => {
   });
 
   /**
-   * This test covers Cursor skill directory rules, including shared
-   * `.agents/skills` project support.
+   * This test covers Cursor's native and compatibility roots, recursive skill
+   * categories, and same-name variants within one selected hierarchy.
    */
   test('providerSkillsService lists cursor skills from its configured directories', { concurrency: false }, async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-gc-'));
-    const workspacePath = path.join(tempRoot, 'workspace');
+    const repoRoot = path.join(tempRoot, 'repo');
+    const workspacePath = path.join(repoRoot, 'packages', 'app');
+    await fs.mkdir(path.join(repoRoot, '.git'), { recursive: true });
     await fs.mkdir(workspacePath, { recursive: true });
 
     const restoreHomeDir = patchHomeDir(tempRoot);
@@ -851,13 +967,25 @@ describe('skills', () => {
         'Agents user skill',
       );
       await writeSkill(
+        path.join(tempRoot, '.claude', 'skills'),
+        'claude-user-dir',
+        'claude-user',
+        'Claude-compatible user skill',
+      );
+      await writeSkill(
+        path.join(tempRoot, '.codex', 'skills'),
+        'codex-user-dir',
+        'codex-user',
+        'Codex-compatible user skill',
+      );
+      await writeSkill(
         path.join(workspacePath, '.agents', 'skills'),
         'agents-project-dir',
         'agents-project',
         'Agents project skill',
       );
       await writeSkill(
-        path.join(workspacePath, '.cursor', 'skills'),
+        path.join(workspacePath, '.cursor', 'skills', 'category'),
         'cursor-project-dir',
         'cursor-project',
         'Cursor project skill',
@@ -868,13 +996,54 @@ describe('skills', () => {
         'cursor-user',
         'Cursor user skill',
       );
+      await writeSkill(
+        path.join(repoRoot, 'packages', '.claude', 'skills'),
+        'claude-project-dir',
+        'claude-project',
+        'Claude-compatible project skill',
+      );
+      await writeSkill(
+        path.join(repoRoot, '.codex', 'skills'),
+        'codex-project-dir',
+        'codex-project',
+        'Codex-compatible project skill',
+      );
+      await writeSkill(
+        path.join(workspacePath, '.cursor', 'skills'),
+        'cursor-shared-cwd-dir',
+        'cursor-shared',
+        'Cursor cwd variant',
+      );
+      await writeSkill(
+        path.join(repoRoot, '.agents', 'skills'),
+        'cursor-shared-root-dir',
+        'cursor-shared',
+        'Cursor root variant',
+      );
+      await writeMalformedSkill(
+        path.join(workspacePath, '.agents', 'skills'),
+        'malformed-cursor-skill',
+      );
 
       const cursorSkills = await providerSkillsService.listProviderSkills('cursor', { workspacePath });
       const cursorByName = new Map(cursorSkills.map((skill) => [skill.name, skill]));
       assert.equal(cursorByName.get('agents-project')?.scope, 'project');
       assert.equal(cursorByName.get('cursor-project')?.scope, 'project');
+      assert.equal(cursorByName.get('claude-project')?.scope, 'project');
+      assert.equal(cursorByName.get('codex-project')?.scope, 'project');
+      assert.equal(cursorByName.get('agents-user')?.scope, 'user');
+      assert.equal(cursorByName.get('claude-user')?.scope, 'user');
+      assert.equal(cursorByName.get('codex-user')?.scope, 'user');
       assert.equal(cursorByName.get('cursor-user')?.scope, 'user');
       assert.equal(cursorByName.get('cursor-user')?.command, '/cursor-user');
+      const sharedSkills = cursorSkills.filter((skill) => skill.name === 'cursor-shared');
+      assert.equal(sharedSkills.length, 2);
+      assert.equal(new Set(sharedSkills.map((skill) => skill.sourcePath)).size, 2);
+
+      const globalSkills = await providerSkillsService.listProviderSkills('cursor');
+      assert.equal(globalSkills.some((skill) => skill.scope === 'project'), false);
+      assert.equal(globalSkills.some((skill) => skill.name === 'agents-user'), true);
+      assert.equal(globalSkills.some((skill) => skill.name === 'cursor-user'), true);
     } finally {
       restoreHomeDir();
       await fs.rm(tempRoot, { recursive: true, force: true });

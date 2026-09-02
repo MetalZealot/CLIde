@@ -714,8 +714,8 @@ export type ProviderSkillScope = 'user' | 'project' | 'plugin' | 'repo' | 'admin
  * Shared input accepted by provider skill listing operations.
  *
  * Routes pass `workspacePath` when a caller wants project/repository skills for
- * a specific folder. Providers should fall back to the backend process cwd when
- * this option is omitted.
+ * a specific folder. Omitting it is an explicit global-only request; providers
+ * must not substitute the backend process working directory.
  */
 export type ProviderSkillListOptions = {
   workspacePath?: string;

@@ -1,12 +1,10 @@
 import { ProviderSkills } from '../../../skills';
-import type { SkillsProject } from '../../../skills/types';
+import { GLOBAL_SKILLS_TARGET } from '../../../skills/types';
 import type { AgentProviderId } from '../../registry/registry';
-import type { SettingsProject } from '../../types/types';
 import { SettingsScreen } from '../primitives';
 
 type AgentSkillsScreenProps = {
   provider: AgentProviderId;
-  projects: SettingsProject[];
 };
 
 /**
@@ -17,17 +15,12 @@ type AgentSkillsScreenProps = {
  * Only reachable for providers whose registry entry lists `skills`, which is
  * every provider but OpenCode.
  */
-export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScreenProps) {
+export default function AgentSkillsScreen({ provider }: AgentSkillsScreenProps) {
   return (
     <SettingsScreen>
       <ProviderSkills
         selectedProvider={provider}
-        currentProjects={projects.map<SkillsProject>((project) => ({
-          projectId: project.name,
-          displayName: project.displayName,
-          fullPath: project.fullPath,
-          path: project.path,
-        }))}
+        target={GLOBAL_SKILLS_TARGET}
       />
     </SettingsScreen>
   );

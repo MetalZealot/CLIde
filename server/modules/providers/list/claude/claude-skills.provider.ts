@@ -10,6 +10,8 @@ import type {
   ProviderSkillSource,
 } from '@/shared/types.js';
 import {
+  addUniqueProviderSkillSource,
+  findDirectoriesToGitRoot,
   findProviderSkillMarkdownFiles,
   readJsonConfig,
   readObjectRecord,
@@ -32,24 +34,16 @@ const getClaudePluginName = (pluginId: string): string | null => {
 const stripMarkdownExtension = (filename: string): string =>
   filename.replace(/\.md$/i, '');
 
+const normalizeClaudeSkillCollisionName = (value: string): string => (
+  value.normalize('NFKC').replace(/[\s\p{Cf}]+/gu, '').toLocaleLowerCase()
+);
+
 const pathExistsAsDirectory = async (directoryPath: string): Promise<boolean> => {
   try {
     const directoryStats = await stat(directoryPath);
     return directoryStats.isDirectory();
   } catch {
     return false;
-  }
-};
-
-const listChildDirectories = async (directoryPath: string): Promise<string[]> => {
-  try {
-    const entries = await readdir(directoryPath, { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(directoryPath, entry.name))
-      .sort((left, right) => left.localeCompare(right));
-  } catch {
-    return [];
   }
 };
 
@@ -76,35 +70,44 @@ export class ClaudeSkillsProvider extends SkillsProvider {
   }
 
   async listSkills(options?: ProviderSkillListOptions): Promise<ProviderSkill[]> {
-    return [
+    const claudeHomePath = getClaudeHomePath();
+    const skills = [
       ...(await super.listSkills(options)),
-      ...(await this.listPluginSkills(getClaudeHomePath())),
+      ...(await this.listPluginSkills(claudeHomePath)),
     ];
+
+    return this.resolveSkillSourcePrecedence(skills, claudeHomePath);
   }
 
-  protected async getSkillSources(workspacePath: string): Promise<ProviderSkillSource[]> {
+  protected async getSkillSources(workspacePath?: string): Promise<ProviderSkillSource[]> {
     const claudeHomePath = getClaudeHomePath();
+    const sources: ProviderSkillSource[] = [];
+    const seenRootDirs = new Set<string>();
 
-    return [
-      {
-        scope: 'user',
-        rootDir: path.join(claudeHomePath, 'skills'),
-        commandPrefix: '/',
-      },
-      {
-        // Skills synced from a claude.ai account sit one level deeper than
-        // hand-written ones, so the parent scan cannot see them. Direct mode
-        // also keeps the sibling `.trash` and `.staging` folders out.
-        scope: 'user',
-        rootDir: path.join(claudeHomePath, 'skills', 'synced'),
-        commandPrefix: '/',
-      },
-      {
-        scope: 'project',
-        rootDir: path.join(workspacePath, '.claude', 'skills'),
-        commandPrefix: '/',
-      },
-    ];
+    addUniqueProviderSkillSource(sources, seenRootDirs, {
+      scope: 'user',
+      rootDir: path.join(claudeHomePath, 'skills'),
+      commandPrefix: '/',
+    });
+    // The direct personal scan cannot see skills nested below `synced`.
+    addUniqueProviderSkillSource(sources, seenRootDirs, {
+      scope: 'user',
+      rootDir: path.join(claudeHomePath, 'skills', 'synced'),
+      commandPrefix: '/',
+    });
+
+    if (workspacePath) {
+      const projectRoots = await findDirectoriesToGitRoot(workspacePath);
+      for (const projectRoot of projectRoots) {
+        addUniqueProviderSkillSource(sources, seenRootDirs, {
+          scope: 'project',
+          rootDir: path.join(projectRoot, '.claude', 'skills'),
+          commandPrefix: '/',
+        });
+      }
+    }
+
+    return sources;
   }
 
   protected async getGlobalSkillSource(): Promise<ProviderSkillSource> {
@@ -151,42 +154,70 @@ export class ClaudeSkillsProvider extends SkillsProvider {
           continue;
         }
 
-        // Claude's installed path points at one version folder; the usable
-        // plugin payloads live in the direct child folders beside it.
-        const pluginFolders = await listChildDirectories(path.dirname(installPath));
-        for (const pluginFolder of pluginFolders) {
-          const pluginFolderKey = `${pluginId}:${path.resolve(pluginFolder)}`;
-          if (visitedPluginFolders.has(pluginFolderKey)) {
-            continue;
-          }
-          visitedPluginFolders.add(pluginFolderKey);
-
-          const pluginName = await readClaudePluginName(pluginFolder, pluginId);
-          if (!pluginName) {
-            continue;
-          }
-
-          const commandsPath = path.join(pluginFolder, 'commands');
-          if (await pathExistsAsDirectory(commandsPath)) {
-            skills.push(
-              ...(await this.listPluginCommandSkills(commandsPath, pluginId, pluginName)),
-            );
-            continue;
-          }
-
-          const skillsPath = path.join(pluginFolder, 'skills');
-          if (!(await pathExistsAsDirectory(skillsPath))) {
-            continue;
-          }
-
-          skills.push(
-            ...(await this.listPluginSkillMarkdowns(pluginFolder, pluginId, pluginName)),
-          );
+        const pluginFolderKey = `${pluginId}:${path.resolve(installPath)}`;
+        if (visitedPluginFolders.has(pluginFolderKey)) {
+          continue;
         }
+        visitedPluginFolders.add(pluginFolderKey);
+
+        const pluginName = await readClaudePluginName(installPath, pluginId);
+        if (!pluginName) {
+          continue;
+        }
+
+        const skillsPath = path.join(installPath, 'skills');
+        const pluginSkills = await pathExistsAsDirectory(skillsPath)
+          ? await this.listPluginSkillMarkdowns(installPath, pluginId, pluginName)
+          : [];
+        const commandsPath = path.join(installPath, 'commands');
+        const pluginCommands = await pathExistsAsDirectory(commandsPath)
+          ? await this.listPluginCommandSkills(commandsPath, pluginId, pluginName)
+          : [];
+        const skillCommands = new Set(pluginSkills.map((skill) => skill.command));
+
+        skills.push(...pluginSkills);
+        skills.push(...pluginCommands.filter((skill) => !skillCommands.has(skill.command)));
       }
     }
 
     return skills;
+  }
+
+  private resolveSkillSourcePrecedence(
+    skills: ProviderSkill[],
+    claudeHomePath: string,
+  ): ProviderSkill[] {
+    const syncedRoot = `${path.resolve(claudeHomePath, 'skills', 'synced')}${path.sep}`;
+    const rankByName = new Map<string, number>();
+
+    const getSourceRank = (skill: ProviderSkill): number => {
+      if (skill.scope === 'user' && path.resolve(skill.sourcePath).startsWith(syncedRoot)) {
+        return 1;
+      }
+      if (skill.scope === 'project') {
+        return 2;
+      }
+      return 3;
+    };
+
+    for (const skill of skills) {
+      if (skill.scope === 'plugin') {
+        continue;
+      }
+      const collisionName = normalizeClaudeSkillCollisionName(skill.name);
+      rankByName.set(
+        collisionName,
+        Math.max(rankByName.get(collisionName) ?? 0, getSourceRank(skill)),
+      );
+    }
+
+    return skills.filter((skill) => {
+      if (skill.scope === 'plugin') {
+        return true;
+      }
+      const collisionName = normalizeClaudeSkillCollisionName(skill.name);
+      return getSourceRank(skill) === rankByName.get(collisionName);
+    });
   }
 
   private async listPluginCommandSkills(

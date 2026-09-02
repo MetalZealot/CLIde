@@ -150,6 +150,8 @@ Current MCP formats in this repo are:
 - Implement `getSkillSources(workspacePath)`.
 - Return the actual discovery roots for the provider.
 - Skills are discovered from `SKILL.md` files.
+- Requests without a workspace path list only global scopes; repository and
+  project scopes require an explicit workspace path.
 - `readProviderSkillMarkdownDefinition(...)` reads front matter `name` and `description`.
 - If `name` is missing, the parent directory name is used as a fallback.
 - Use `recursive: true` only when the provider stores skills in nested trees.
@@ -159,9 +161,9 @@ Current skill discovery roots are:
 
 | Provider | User Roots | Project / Repo Roots | Prefix | Notes |
 | --- | --- | --- | --- | --- |
-| Claude | `~/.claude/skills` | `<workspace>/.claude/skills` | `/` | Also discovers Claude plugin skills from enabled plugin installs. Command skills live under `commands/`; markdown skills live under `skills/` and are scanned recursively. |
-| Codex | `~/.agents/skills`, `~/.codex/skills/.system`, `/etc/codex/skills` | `<workspace>/.agents/skills`, `path.dirname(workspacePath)/.agents/skills`, topmost git root `.agents/skills` | `$` | Overlapping roots are deduplicated before scanning. |
-| Cursor | `~/.cursor/skills` | `<workspace>/.cursor/skills`, `<workspace>/.agents/skills` | `/` | Uses slash-style commands. |
+| Claude | `~/.claude/skills` | Cwd-to-git-root `.claude/skills` | `/` | Personal skills override project and synced collisions. Enabled plugin installs contribute both `skills/` and legacy `commands/`; skills win a same-namespace collision. |
+| Codex | `~/.agents/skills`, `~/.codex/skills`, `/etc/codex/skills`, bundled system skills | Cwd-to-git-root `.agents/skills` | `$` | Exact overlapping roots are scanned once; path-distinct same-name skills remain separate. |
+| Cursor | `~/.agents/skills`, `~/.cursor/skills`, `~/.claude/skills`, `~/.codex/skills` | Cwd-to-git-root `.agents/skills`, `.cursor/skills`, `.claude/skills`, `.codex/skills` | `/` | Skill roots are recursive and same-name variants remain separate because Cursor does not document precedence. |
 | OpenCode | `~/.config/opencode/skills`, `~/.claude/skills`, `~/.agents/skills` | Cwd-to-topmost-git-root `.opencode/skills`, `.claude/skills`, and `.agents/skills` | `/` | Reuses OpenCode, Claude, and Agents skill locations. Overlapping roots are deduplicated before scanning. |
 
 Command forms currently used by the providers are:
@@ -376,4 +378,3 @@ alongside the implementation.
 - Forgetting that Claude plugin skills are discovered differently from normal
   user/project skill folders.
 - Assuming one provider's MCP config file format works for the others.
-

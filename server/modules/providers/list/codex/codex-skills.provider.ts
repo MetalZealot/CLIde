@@ -5,7 +5,7 @@ import { SkillsProvider } from '@/modules/providers/shared/skills/skills.provide
 import type { ProviderSkillSource } from '@/shared/types.js';
 import {
   addUniqueProviderSkillSource,
-  findTopmostGitRoot,
+  findDirectoriesToGitRoot,
 } from '@/shared/utils.js';
 
 export class CodexSkillsProvider extends SkillsProvider {
@@ -13,30 +13,20 @@ export class CodexSkillsProvider extends SkillsProvider {
     super('codex');
   }
 
-  protected async getSkillSources(workspacePath: string): Promise<ProviderSkillSource[]> {
+  protected async getSkillSources(workspacePath?: string): Promise<ProviderSkillSource[]> {
     const sources: ProviderSkillSource[] = [];
     const seenRootDirs = new Set<string>();
-    const repoRoot = await findTopmostGitRoot(workspacePath);
 
-    addUniqueProviderSkillSource(sources, seenRootDirs, {
-      scope: 'repo',
-      rootDir: path.join(workspacePath, '.agents', 'skills'),
-      commandPrefix: '$',
-    });
-
-    if (repoRoot) {
-      // Codex checks repository skills at the launch folder, one folder above it,
-      // and the topmost git root; these can collapse to the same directory.
-      addUniqueProviderSkillSource(sources, seenRootDirs, {
-        scope: 'repo',
-        rootDir: path.join(path.dirname(workspacePath), '.agents', 'skills'),
-        commandPrefix: '$',
-      });
-      addUniqueProviderSkillSource(sources, seenRootDirs, {
-        scope: 'repo',
-        rootDir: path.join(repoRoot, '.agents', 'skills'),
-        commandPrefix: '$',
-      });
+    if (workspacePath) {
+      const projectRoots = await findDirectoriesToGitRoot(workspacePath);
+      for (const projectRoot of projectRoots) {
+        // Same-name skills remain path-distinct throughout the active hierarchy.
+        addUniqueProviderSkillSource(sources, seenRootDirs, {
+          scope: 'repo',
+          rootDir: path.join(projectRoot, '.agents', 'skills'),
+          commandPrefix: '$',
+        });
+      }
     }
 
     addUniqueProviderSkillSource(sources, seenRootDirs, {

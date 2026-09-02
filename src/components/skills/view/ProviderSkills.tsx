@@ -27,14 +27,14 @@ import { useProviderSkills } from '../hooks/useProviderSkills';
 import type {
   ProviderSkill,
   ProviderSkillCreateEntryPayload,
-  SkillsProject,
   SkillsProvider,
   SkillsScope,
+  SkillsTarget,
 } from '../types';
 
 type ProviderSkillsProps = {
   selectedProvider: SkillsProvider;
-  currentProjects: SkillsProject[];
+  target: SkillsTarget;
 };
 
 type QueuedSkillSourceFile = {
@@ -197,16 +197,15 @@ const buildQueuedSkillFolders = (selectedFiles: File[]): QueuedSkillFile[] => {
   });
 };
 
-export default function ProviderSkills({ selectedProvider, currentProjects }: ProviderSkillsProps) {
+export default function ProviderSkills({ selectedProvider, target }: ProviderSkillsProps) {
   const {
     skills,
     isLoading,
-    isLoadingProjectScopes,
     loadError,
     saveStatus,
     addSkills,
     refreshSkills,
-  } = useProviderSkills({ selectedProvider, currentProjects });
+  } = useProviderSkills({ selectedProvider, target });
   const [queuedFiles, setQueuedFiles] = useState<QueuedSkillFile[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -565,18 +564,12 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
             variant="outline"
             size="sm"
             className="w-full sm:w-auto"
-            disabled={isLoading || isLoadingProjectScopes}
+            disabled={isLoading}
           >
-            <RefreshCw className={cn('h-4 w-4', (isLoading || isLoadingProjectScopes) && 'animate-spin')} />
+            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
             Refresh
           </Button>
         </div>
-        {isLoadingProjectScopes && (
-          <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Scanning project skills...
-          </div>
-        )}
       </div>
 
       <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogOpenChange}>

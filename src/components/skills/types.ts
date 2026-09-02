@@ -3,12 +3,16 @@ import type { LLMProvider } from '../../types/app';
 export type SkillsProvider = LLMProvider;
 export type SkillsScope = 'user' | 'project' | 'plugin' | 'repo' | 'admin' | 'system';
 
-export type SkillsProject = {
-  projectId: string;
-  displayName?: string;
-  fullPath?: string;
-  path?: string;
-};
+export type SkillsTarget =
+  | { kind: 'global' }
+  | {
+    kind: 'workspace';
+    projectId: string;
+    displayName: string;
+    path: string;
+  };
+
+export const GLOBAL_SKILLS_TARGET: SkillsTarget = { kind: 'global' };
 
 export type ProviderSkill = {
   provider: SkillsProvider;

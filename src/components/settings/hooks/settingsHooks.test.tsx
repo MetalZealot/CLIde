@@ -4,6 +4,9 @@ import test, { afterEach, beforeEach, describe } from 'node:test';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import { useProviderSkills } from '../../skills/hooks/useProviderSkills';
+import type { SkillsTarget } from '../../skills/types';
+
 import { useSettingsNavigation } from './useSettingsNavigation';
 
 type Navigation = ReturnType<typeof useSettingsNavigation>;
@@ -156,5 +159,124 @@ describe('useSettingsNavigation browser history', () => {
     await popHistory();
     assert.equal(closeCalls, 1);
     assert.equal(currentNavigation().atRoot, true);
+  });
+});
+
+describe('useProviderSkills target isolation', () => {
+  type HookValue = ReturnType<typeof useProviderSkills>;
+  type PendingRequest = {
+    url: string;
+    signal: AbortSignal | null;
+    resolve: (response: Response) => void;
+  };
+
+  let container: HTMLDivElement;
+  let root: Root;
+  let hookValue: HookValue | null;
+  let pendingRequests: PendingRequest[];
+  let originalFetch: typeof globalThis.fetch;
+
+  const currentHookValue = () => {
+    assert.ok(hookValue);
+    return hookValue;
+  };
+
+  const Harness = ({ target }: { target: SkillsTarget }) => {
+    hookValue = useProviderSkills({ selectedProvider: 'codex', target });
+    return null;
+  };
+
+  const render = async (target: SkillsTarget) => {
+    await React.act(async () => root.render(<Harness target={target} />));
+  };
+
+  const skillsResponse = (name: string, scope: 'user' | 'repo') => new Response(JSON.stringify({
+    success: true,
+    data: {
+      provider: 'codex',
+      skills: [{
+        provider: 'codex',
+        name,
+        description: `${name} description`,
+        command: `$${name}`,
+        scope,
+        sourcePath: `/skills/${name}/SKILL.md`,
+      }],
+    },
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  beforeEach(() => {
+    hookValue = null;
+    pendingRequests = [];
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => (
+      new Promise<Response>((resolve) => {
+        pendingRequests.push({
+          url: String(input),
+          signal: init?.signal ?? null,
+          resolve,
+        });
+      })
+    )) as typeof globalThis.fetch;
+  });
+
+  afterEach(async () => {
+    await React.act(async () => root.unmount());
+    container.remove();
+    globalThis.fetch = originalFetch;
+    localStorage.clear();
+  });
+
+  test('loads exactly one selected target and ignores the stale target response', async () => {
+    await render({ kind: 'global' });
+    assert.equal(pendingRequests.length, 1);
+    assert.equal(pendingRequests[0]?.url, '/api/providers/codex/skills');
+
+    const workspaceTarget: SkillsTarget = {
+      kind: 'workspace',
+      projectId: 'feature-project',
+      displayName: 'CLIde feature worktree',
+      path: '/worktrees/feature',
+    };
+    await render(workspaceTarget);
+
+    assert.equal(pendingRequests.length, 2);
+    assert.equal(pendingRequests[0]?.signal?.aborted, true);
+    assert.equal(
+      pendingRequests[1]?.url,
+      '/api/providers/codex/skills?workspacePath=%2Fworktrees%2Ffeature',
+    );
+
+    await React.act(async () => {
+      pendingRequests[1]?.resolve(skillsResponse('workspace-skill', 'repo'));
+      await Promise.resolve();
+    });
+    assert.deepEqual(currentHookValue().skills.map((skill) => skill.name), ['workspace-skill']);
+    assert.equal(currentHookValue().skills[0]?.projectDisplayName, 'CLIde feature worktree');
+
+    await React.act(async () => {
+      pendingRequests[0]?.resolve(skillsResponse('late-global-skill', 'user'));
+      await Promise.resolve();
+    });
+    assert.deepEqual(currentHookValue().skills.map((skill) => skill.name), ['workspace-skill']);
+
+    let refreshPromise: Promise<void> | undefined;
+    await React.act(async () => {
+      refreshPromise = currentHookValue().refreshSkills({ force: true });
+      await Promise.resolve();
+    });
+    assert.equal(pendingRequests.length, 3);
+    assert.equal(pendingRequests[2]?.url, pendingRequests[1]?.url);
+    await React.act(async () => {
+      pendingRequests[2]?.resolve(skillsResponse('refreshed-workspace-skill', 'repo'));
+      await refreshPromise;
+    });
+    assert.deepEqual(currentHookValue().skills.map((skill) => skill.name), ['refreshed-workspace-skill']);
   });
 });
