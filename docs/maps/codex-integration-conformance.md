@@ -50,6 +50,7 @@ group with a broad `npm test` pass: the group name is part of the diagnostic.
 | One pending request was fanned out across provider runtimes and could be seated twice | Shared interactive registry/browser replay | Provider ownership and request-ID deduplication |
 | v1.37 generalized attachments to `files`, but App Server still consumed only `images` | Gateway-to-App-Server option handoff | Mixed image/PDF input is checked at the gateway and App Server turn payload |
 | Current Codex rollouts persisted `tools.exec_command` inside an `exec` wrapper, while history recognized only `tools.shell_command` | Rollout parser/history fidelity | Current, legacy, hidden-control, and unknown-wrapper fixtures; unfamiliar wrappers fail visible rather than disappearing |
+| Codex 0.152.1 stopped duplicating user turns as `event_msg/user_message`, leaving only the canonical response item | Rollout parser/history fidelity | Canonical-only and dual-format fixtures preserve text, rewind ids, and images without exposing injected startup context or duplicating legacy turns |
 
 These are not all App Server protocol changes. Some are CLIde merge-boundary
 regressions and one is rollout serialization drift. That is why this suite spans

@@ -22,6 +22,28 @@ type CodexHistoryResult =
       tokenUsage?: unknown;
     };
 
+// Codex writes its own context into user-role rows wrapped in these tags.
+const CODEX_INJECTED_USER_TAGS = [
+  'environment_context',
+  'user_instructions',
+  'permissions',
+  'turn_aborted',
+  'user_shell_command',
+  'recommended_plugins',
+  'multi_agent_mode',
+  'app_instructions',
+  'memory',
+  'skill',
+  'cwd',
+];
+
+export function isCodexInjectedUserText(text: string): boolean {
+  const trimmed = text.trimStart();
+  return CODEX_INJECTED_USER_TAGS.some((tag) => (
+    trimmed.startsWith(`<${tag}>`) || trimmed.startsWith(`<${tag} `)
+  ));
+}
+
 function isVisibleCodexUserMessage(payload: AnyRecord | null | undefined): boolean {
   if (!payload || payload.type !== 'user_message') {
     return false;
@@ -70,7 +92,14 @@ export function extractCodexUserImages(
   return attachments.length > 0 ? attachments : undefined;
 }
 
-function extractCodexTextContent(content: unknown): string {
+/**
+ * Codex history loading and session naming use this to read persisted message
+ * content without treating non-text input blocks as visible prompt text.
+ */
+// Codex wraps each attachment as `<image …>` text, the image, then `</image>`.
+const CODEX_IMAGE_WRAPPER = /^<image\s[^>]*>$|^<\/image>$/;
+
+export function extractCodexTextContent(content: unknown): string {
   if (!Array.isArray(content)) {
     return typeof content === 'string' ? content : '';
   }
@@ -85,6 +114,7 @@ function extractCodexTextContent(content: unknown): string {
       if (
         (record.type === 'input_text' || record.type === 'output_text' || record.type === 'text')
         && typeof record.text === 'string'
+        && !CODEX_IMAGE_WRAPPER.test(record.text.trim())
       ) {
         return record.text;
       }
@@ -93,6 +123,22 @@ function extractCodexTextContent(content: unknown): string {
     })
     .filter(Boolean)
     .join('\n');
+}
+
+function extractCodexResponseItemImages(content: unknown): Array<{ data: string }> | undefined {
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const images = content.flatMap((item) => {
+    const record = readObjectRecord(item);
+    return record?.type === 'input_image'
+      && typeof record.image_url === 'string'
+      && record.image_url.startsWith('data:')
+      ? [{ data: record.image_url }]
+      : [];
+  });
+  return images.length > 0 ? images : undefined;
 }
 
 type CodexPersistedQuestion = {
@@ -379,6 +425,12 @@ async function getCodexSessionMessages(
     const completedExecCalls = new Set<string>();
     const subagentsByCallId = new Map<string, CodexSubagentRecord>();
     const subagentsByPath = new Map<string, CodexSubagentRecord>();
+    let canonicalUserTurnId: string | null = null;
+    let lastCanonicalUser: {
+      content: string;
+      timestamp?: string;
+      rawMessage: AnyRecord;
+    } | null = null;
     const fileStream = fsSync.createReadStream(sessionFilePath);
     const rl = readline.createInterface({
       input: fileStream,
@@ -398,6 +450,9 @@ async function getCodexSessionMessages(
           && typeof entry.payload?.turn_id === 'string'
         ) {
           pendingTurnId = entry.payload.turn_id;
+          if (entry.type === 'turn_context') {
+            canonicalUserTurnId = entry.payload.turn_id;
+          }
         }
 
         if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
@@ -440,17 +495,63 @@ async function getCodexSessionMessages(
         }
 
         if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload as AnyRecord)) {
-          messages.push({
-            type: 'user',
-            uuid: pendingTurnId || undefined,
-            timestamp: entry.timestamp,
-            message: {
-              role: 'user',
-              content: entry.payload.message,
-            },
-            images: extractCodexUserImages(entry.payload as AnyRecord),
-          });
+          const canonicalUser = lastCanonicalUser;
+          // Same turn, same text: older rollouts wrote both rows ~1ms apart.
+          const isCanonicalDuplicate = canonicalUser !== null
+            && canonicalUser.content === entry.payload.message;
+          if (isCanonicalDuplicate) {
+            canonicalUser.rawMessage.images ??= extractCodexUserImages(entry.payload as AnyRecord);
+          } else {
+            messages.push({
+              type: 'user',
+              uuid: pendingTurnId || undefined,
+              timestamp: entry.timestamp,
+              message: {
+                role: 'user',
+                content: entry.payload.message,
+              },
+              images: extractCodexUserImages(entry.payload as AnyRecord),
+            });
+          }
+          lastCanonicalUser = null;
           pendingTurnId = null;
+          canonicalUserTurnId = null;
+        }
+
+        // Codex 0.152.1 stopped writing the duplicate event_msg/user_message
+        // row. Only accept response-item user rows after turn_context so the
+        // injected startup context at the head of every rollout stays hidden.
+        if (
+          entry.type === 'response_item'
+          && entry.payload?.type === 'message'
+          && entry.payload.role === 'user'
+          && canonicalUserTurnId
+        ) {
+          const textContent = extractCodexTextContent(entry.payload.content);
+          const images = extractCodexResponseItemImages(entry.payload.content);
+          // Injected context leaves the turn open: the real prompt follows it.
+          if (!isCodexInjectedUserText(textContent) || images) {
+            if (textContent.trim() || images) {
+              const rawMessage: AnyRecord = {
+                type: 'user',
+                uuid: canonicalUserTurnId,
+                timestamp: entry.timestamp,
+                message: {
+                  role: 'user',
+                  content: textContent,
+                },
+                images,
+              };
+              messages.push(rawMessage);
+              lastCanonicalUser = {
+                content: textContent,
+                timestamp: typeof entry.timestamp === 'string' ? entry.timestamp : undefined,
+                rawMessage,
+              };
+            }
+            pendingTurnId = null;
+            canonicalUserTurnId = null;
+          }
         }
 
         if (

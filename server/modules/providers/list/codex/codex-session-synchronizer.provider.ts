@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { extractCodexTextContent, isCodexInjectedUserText } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -226,15 +227,16 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
    * Returns the first user message text in a Codex transcript, used to title
    * app-created sessions from the prompt the user sent from cloudcli.
    *
-   * Reads the `event_msg`/`user_message` payload rather than the raw
-   * `response_item` user turn so injected `<environment_context>` boilerplate is
-   * never mistaken for the user's prompt.
+   * Legacy transcripts expose `event_msg`/`user_message`; current transcripts
+   * expose only the response-item user row after `turn_context`. Earlier user
+   * rows contain injected startup context and are never eligible.
    */
   private async extractFirstUserMessageFromStart(filePath: string): Promise<string | undefined> {
     try {
       const content = await readFile(filePath, 'utf8');
       const lines = content.split(/\r?\n/);
 
+      let sawTurnContext = false;
       for (const rawLine of lines) {
         const line = rawLine.trim();
         if (!line) {
@@ -256,6 +258,21 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
 
         if (eventType === 'event_msg' && payloadType === 'user_message' && message?.trim()) {
           return message;
+        }
+        if (eventType === 'turn_context' && typeof payload?.turn_id === 'string') {
+          sawTurnContext = true;
+          continue;
+        }
+        if (
+          sawTurnContext
+          && eventType === 'response_item'
+          && payloadType === 'message'
+          && payload?.role === 'user'
+        ) {
+          const content = extractCodexTextContent(payload.content);
+          if (content.trim() && !isCodexInjectedUserText(content)) {
+            return content;
+          }
         }
       }
     } catch {

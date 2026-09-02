@@ -291,6 +291,135 @@ describe('codex-sessions', () => {
     }
   });
 
+  test('Codex history restores canonical user rows without startup context or legacy duplicates', { concurrency: false }, async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-canonical-user-history-'));
+    const workspacePath = path.join(tempRoot, 'workspace');
+    const transcriptPath = path.join(tempRoot, 'rollout-canonical-user-history.jsonl');
+    const imageDataUrl = 'data:image/png;base64,QUJD';
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        timestamp: '2026-09-01T12:00:00.000Z',
+        type: 'event_msg',
+        payload: { type: 'task_started', turn_id: 'turn-canonical' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:00:00.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: '<environment_context>injected startup context</environment_context>' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:00:00.200Z',
+        type: 'turn_context',
+        payload: { turn_id: 'turn-canonical' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:00:00.300Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          id: 'message-canonical',
+          role: 'user',
+          content: [
+            { type: 'input_text', text: 'Keep this canonical prompt' },
+            { type: 'input_text', text: '<image name=[Image #1] path="/tmp/shot.png">' },
+            { type: 'input_image', image_url: imageDataUrl },
+            { type: 'input_text', text: '</image>' },
+          ],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:01:00.000Z',
+        type: 'turn_context',
+        payload: { turn_id: 'turn-compatible' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:01:00.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          id: 'message-compatible',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'Keep one compatible prompt' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:01:00.100Z',
+        type: 'event_msg',
+        payload: { type: 'user_message', message: 'Keep one compatible prompt' },
+      }),
+      // Pre-0.152 rollouts after compaction: injected context sits inside its
+      // own turn_context and the legacy row lands ~1ms after the canonical one.
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.000Z',
+        type: 'turn_context',
+        payload: { turn_id: 'turn-legacy' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.050Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: '<environment_context>\n  <cwd>/tmp</cwd>\n</environment_context>' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.060Z',
+        type: 'turn_context',
+        payload: { turn_id: 'turn-legacy' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          id: 'message-legacy',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'Keep one legacy prompt' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.101Z',
+        type: 'event_msg',
+        payload: { type: 'user_message', message: 'Keep one legacy prompt' },
+      }),
+    ].join('\n') + '\n', 'utf8');
+
+    try {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createSession(
+          'codex-canonical-user-history',
+          'codex',
+          workspacePath,
+          undefined,
+          undefined,
+          undefined,
+          transcriptPath,
+        );
+        const history = await new CodexSessionsProvider().fetchHistory('codex-canonical-user-history');
+        const users = history.messages.filter((message) => message.role === 'user');
+
+        assert.equal(users.length, 3);
+        assert.equal(users[0].id, 'turn-canonical');
+        assert.equal(users[0].content, 'Keep this canonical prompt');
+        assert.deepEqual(users[0].images, [{ data: imageDataUrl }]);
+        assert.equal(users[1].id, 'turn-compatible');
+        assert.equal(users[1].content, 'Keep one compatible prompt');
+        assert.equal(users[2].id, 'turn-legacy');
+        assert.equal(users[2].content, 'Keep one legacy prompt');
+        assert.ok(!JSON.stringify(history).includes('injected startup context'));
+        assert.ok(!JSON.stringify(history).includes('environment_context'));
+      });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   test('Codex history keeps the usage-limit failure that ended a turn', { concurrency: false }, async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-turn-failure-'));
     const workspacePath = path.join(tempRoot, 'workspace');
@@ -439,7 +568,29 @@ describe('codex-sessions', () => {
     const restoreHomeDir = patchHomeDir(tempRoot);
 
     try {
-      await writeCodexTranscript(tempRoot, 'codex-app-1', workspacePath, 'Fix the login redirect bug');
+      const transcriptPath = await writeCodexTranscript(tempRoot, 'codex-app-1', workspacePath);
+      await writeFile(transcriptPath, [
+        JSON.stringify({ type: 'session_meta', payload: { id: 'codex-app-1', cwd: workspacePath } }),
+        JSON.stringify({ type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-app-1' } }),
+        JSON.stringify({ type: 'turn_context', payload: { turn_id: 'turn-app-1' } }),
+        JSON.stringify({
+          type: 'response_item',
+          payload: {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_text', text: '<environment_context>ignore this</environment_context>' }],
+          },
+        }),
+        JSON.stringify({ type: 'turn_context', payload: { turn_id: 'turn-app-1' } }),
+        JSON.stringify({
+          type: 'response_item',
+          payload: {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_text', text: 'Fix the login redirect bug' }],
+          },
+        }),
+      ].join('\n') + '\n', 'utf8');
       await withIsolatedDatabase(async () => {
         // The app allocates its own id and later maps the provider id onto it,
         // exactly as a message sent from cloudcli does.

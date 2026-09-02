@@ -19,9 +19,10 @@ Current active work comes first, followed by the queue Grayson ordered on
 | — | | |
 | [Subagent visibility](subagent-visibility.md) | 2/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
 | [Mobile bottom navigation](mobile-bottom-navigation.md) | 1/4 | Finish one-owner safe-area handling, then agree labels and keyboard behavior |
-| [Codex Chat-Shell ownership](codex-chat-shell-ownership.md) | not started | Agree the visible handoff state, then prove 0.147/0.149 release timing |
+| [Codex Chat-Shell ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Markdown-native project board](markdown-project-board.md) | not started | First observe the existing dashboard, then test the status contract across three projects |
+| [Claude settings surface](claude-settings-surface.md) | 1/5 | Phase 2: read-only cascade screen, taking the `@alpha` `resolveSettings()` risk |
 | [Playwright MCP bridge](browser-mcp-hardening.md) | not started | Phase 0: prove host-supplied context and authenticated HTTP transport |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |
