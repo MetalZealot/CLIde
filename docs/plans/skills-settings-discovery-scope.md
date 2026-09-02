@@ -2,6 +2,8 @@
 
 - Status: 2/4
 - Next: Phase 3 — add the Context choice to each supported Agent Skills screen.
+- Note: Phase 2 is a regression on its own — Settings is pinned to Global until
+  Phase 3 lands the picker. Do not merge this branch before Phase 3.
 - Context: [provider skills contract](../../server/modules/providers/README.md),
   [Settings navigation](../decisions/0018-settings-drill-down-one-scroll-container.md),
   [mobile Back ownership](../decisions/0040-settings-root-owns-back-gesture.md),
@@ -48,12 +50,13 @@ UI buckets before implementation:
 
 - [x] **1. Truthful provider results.** Keep no-workspace requests global-only
       and make Claude read only the active plugin paths recorded in
-      `installed_plugins.json`. Add collision fixtures around the confirmed
-      native contracts: Claude source precedence and plugin namespaces; Codex's
-      path-distinct same-name entries within one working-directory hierarchy;
-      Cursor's documented workspace/global roots, retaining variants unless a
-      primary source or installed runtime proves precedence. Keep malformed or
-      missing skill folders isolated from valid siblings.
+      `installed_plugins.json`, taking each install's `skills/` and legacy
+      `commands/` with skills winning a same-namespace collision. Add collision
+      fixtures around Codex's path-distinct same-name entries within one
+      working-directory hierarchy, and around same-name variants inside one
+      Cursor workspace. Keep malformed or missing skill folders isolated from
+      valid siblings. **A discovery root is only added with a provider doc or
+      an observed runtime behind it** — see Corrections.
 - [x] **2. One client target per request.** Replace `currentProjects` aggregation
       in `useProviderSkills` with an explicit Global-or-workspace target. Cache
       by provider and selected target, cancel stale target loads, and issue one
@@ -76,10 +79,39 @@ UI buckets before implementation:
       provider map and move the TODO item only after the visible behavior is
       accepted. Merge, push, and production deployment remain separate.
 
+## Corrections
+
+Reviewed 2026-09-01, after Phases 1-2 landed in one commit (`4289d1f4`).
+Three changes were reverted because nothing outside their own new tests
+supported them. Do not reintroduce them without a provider doc line or an
+observed runtime:
+
+- **Claude project skills walking cwd up to the Git root.** Back to
+  `<workspace>/.claude/skills`. Codex documents that upward walk; Claude does
+  not.
+- **Cursor reading Claude's and Codex's roots**, at four ancestor levels and
+  recursively. Back to `<workspace>/.agents/skills`, `<workspace>/.cursor/skills`,
+  and `~/.cursor/skills`. The cross-agent root list belongs to OpenCode, which
+  documents it; borrowing it for Cursor advertised skills Cursor may never run.
+- **Claude same-name precedence (`resolveSkillSourcePrecedence`).** It deleted
+  the losing rows, so a project skill vanished from Settings with nothing to say
+  why. Claude does not document how personal, synced, and project skills resolve
+  a collision, so all variants are now listed. If Claude's rule is ever
+  confirmed, mark the loser shadowed rather than dropping it — Settings exists
+  to report what is on disk.
+
+The plugin fix in the same commit is correct and stays: the previous code
+scanned every cached *version* folder of a plugin and skipped a plugin's
+`skills/` whenever it also had `commands/`. `claude-md-management` has exactly
+that shape, and Claude exposes both its command and its skill.
+
+Lesson for the remaining phases: a provable scoping fix and an unverifiable
+behavior rewrite do not belong in one phase, or one commit.
+
 ## Done when
 
-- Opening Claude Skills shows its personal and three active plugin skills, but
-  no `session-forensics` project copies until a project is selected.
+- Opening Claude Skills shows its personal and active plugin skills, but no
+  `session-forensics` project copies until a project is selected.
 - Opening Codex Skills shows its user and system skills, but no
   `backend-module-standards` repository copies until a worktree is selected.
 - Selecting CLIde or one worktree adds only that path's local skills; switching

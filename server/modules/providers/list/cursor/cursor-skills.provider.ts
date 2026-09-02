@@ -3,23 +3,14 @@ import path from 'node:path';
 
 import { SkillsProvider } from '@/modules/providers/shared/skills/skills.provider.js';
 import type { ProviderSkillSource } from '@/shared/types.js';
-import {
-  addUniqueProviderSkillSource,
-  findDirectoriesToGitRoot,
-} from '@/shared/utils.js';
+import { addUniqueProviderSkillSource } from '@/shared/utils.js';
 
+// Only Cursor's own root and the shared `.agents` root are documented. Claude
+// and Codex roots are deliberately absent: Cursor does not document reading
+// them, and listing them here would advertise skills Cursor may never run.
 const CURSOR_PROJECT_SKILL_DIRS = [
   ['.agents', 'skills'],
   ['.cursor', 'skills'],
-  ['.claude', 'skills'],
-  ['.codex', 'skills'],
-];
-
-const CURSOR_USER_SKILL_DIRS = [
-  ['.agents', 'skills'],
-  ['.cursor', 'skills'],
-  ['.claude', 'skills'],
-  ['.codex', 'skills'],
 ];
 
 export class CursorSkillsProvider extends SkillsProvider {
@@ -32,27 +23,20 @@ export class CursorSkillsProvider extends SkillsProvider {
     const seenRootDirs = new Set<string>();
 
     if (workspacePath) {
-      const projectRoots = await findDirectoriesToGitRoot(workspacePath);
-      for (const projectRoot of projectRoots) {
-        for (const skillDir of CURSOR_PROJECT_SKILL_DIRS) {
-          addUniqueProviderSkillSource(sources, seenRootDirs, {
-            scope: 'project',
-            rootDir: path.join(projectRoot, ...skillDir),
-            commandPrefix: '/',
-            recursive: true,
-          });
-        }
+      for (const skillDir of CURSOR_PROJECT_SKILL_DIRS) {
+        addUniqueProviderSkillSource(sources, seenRootDirs, {
+          scope: 'project',
+          rootDir: path.join(workspacePath, ...skillDir),
+          commandPrefix: '/',
+        });
       }
     }
 
-    for (const skillDir of CURSOR_USER_SKILL_DIRS) {
-      addUniqueProviderSkillSource(sources, seenRootDirs, {
-        scope: 'user',
-        rootDir: path.join(os.homedir(), ...skillDir),
-        commandPrefix: '/',
-        recursive: true,
-      });
-    }
+    addUniqueProviderSkillSource(sources, seenRootDirs, {
+      scope: 'user',
+      rootDir: path.join(os.homedir(), '.cursor', 'skills'),
+      commandPrefix: '/',
+    });
 
     return sources;
   }

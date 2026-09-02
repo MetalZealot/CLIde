@@ -517,9 +517,9 @@ describe('skills', () => {
       );
       await writeSkill(
         path.join(tempRoot, '.claude', 'skills'),
-        'claude-precedence-user-dir',
-        'claude-precedence',
-        'Claude personal winner',
+        'claude-collision-user-dir',
+        'claude-collision',
+        'Claude personal variant',
       );
       await writeSkill(
         path.join(tempRoot, '.claude', 'skills', 'synced'),
@@ -529,9 +529,9 @@ describe('skills', () => {
       );
       await writeSkill(
         path.join(tempRoot, '.claude', 'skills', 'synced'),
-        'claude-precedence-synced-dir',
-        'CLAUDE-PRECEDENCE',
-        'Claude synced loser',
+        'claude-collision-synced-dir',
+        'CLAUDE-COLLISION',
+        'Claude synced variant',
       );
       await writeSkill(
         path.join(tempRoot, '.claude', 'skills', '.trash'),
@@ -547,15 +547,15 @@ describe('skills', () => {
       );
       await writeSkill(
         path.join(repoRoot, '.claude', 'skills'),
-        'claude-root-dir',
-        'claude-root',
-        'Claude repository-root skill',
+        'claude-ancestor-dir',
+        'claude-ancestor',
+        'Claude skill above the selected workspace',
       );
       await writeSkill(
         path.join(workspacePath, '.claude', 'skills'),
-        'claude-precedence-project-dir',
-        'claude-precedence',
-        'Claude project loser',
+        'claude-collision-project-dir',
+        'claude-collision',
+        'Claude project variant',
       );
       await writeMalformedSkill(
         path.join(workspacePath, '.claude', 'skills'),
@@ -708,18 +708,25 @@ describe('skills', () => {
       assert.equal(byName.get('claude-user')?.command, '/claude-user');
       assert.equal(byName.get('claude-project')?.scope, 'project');
       assert.equal(byName.get('claude-project')?.command, '/claude-project');
-      assert.equal(byName.get('claude-root')?.scope, 'project');
       // Synced skills run in the session, so they must also be listed; the
       // sibling trash folder holds skills the account has revoked.
       assert.equal(byName.get('claude-synced')?.scope, 'user');
       assert.equal(byName.get('claude-synced')?.command, '/claude-synced');
       assert.equal(byName.has('claude-trashed'), false);
-      const precedenceSkills = skills.filter((skill) => (
-        normalizeClaudeTestName(skill.name) === 'claude-precedence'
+      // Claude does not document how personal, synced, and project skills
+      // resolve a name collision, so CLIde lists all three rather than guessing
+      // which one the session would run.
+      const collisionSkills = skills.filter((skill) => (
+        normalizeClaudeTestName(skill.name) === 'claude-collision'
       ));
-      assert.equal(precedenceSkills.length, 1);
-      assert.equal(precedenceSkills[0]?.scope, 'user');
-      assert.equal(precedenceSkills[0]?.description, 'Claude personal winner');
+      assert.equal(collisionSkills.length, 3);
+      assert.deepEqual(
+        new Set(collisionSkills.map((skill) => skill.scope)),
+        new Set(['user', 'project']),
+      );
+      assert.equal(new Set(collisionSkills.map((skill) => skill.sourcePath)).size, 3);
+      // Only the selected workspace is scanned; its Git-root ancestor is not.
+      assert.equal(byName.has('claude-ancestor'), false);
 
       const pluginCommand = byName.get('insert-row');
       assert.equal(pluginCommand?.scope, 'plugin');
@@ -948,8 +955,9 @@ describe('skills', () => {
   });
 
   /**
-   * This test covers Cursor's native and compatibility roots, recursive skill
-   * categories, and same-name variants within one selected hierarchy.
+   * This test covers Cursor's documented `.cursor` and shared `.agents` roots,
+   * same-name variants inside one workspace, and the Claude/Codex roots CLIde
+   * deliberately does not scan for Cursor.
    */
   test('providerSkillsService lists cursor skills from its configured directories', { concurrency: false }, async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-skills-gc-'));
@@ -969,14 +977,14 @@ describe('skills', () => {
       await writeSkill(
         path.join(tempRoot, '.claude', 'skills'),
         'claude-user-dir',
-        'claude-user',
-        'Claude-compatible user skill',
+        'cursor-unscanned-claude-user',
+        'Claude user skill Cursor does not document reading',
       );
       await writeSkill(
         path.join(tempRoot, '.codex', 'skills'),
         'codex-user-dir',
-        'codex-user',
-        'Codex-compatible user skill',
+        'cursor-unscanned-codex-user',
+        'Codex user skill Cursor does not document reading',
       );
       await writeSkill(
         path.join(workspacePath, '.agents', 'skills'),
@@ -985,7 +993,7 @@ describe('skills', () => {
         'Agents project skill',
       );
       await writeSkill(
-        path.join(workspacePath, '.cursor', 'skills', 'category'),
+        path.join(workspacePath, '.cursor', 'skills'),
         'cursor-project-dir',
         'cursor-project',
         'Cursor project skill',
@@ -997,28 +1005,34 @@ describe('skills', () => {
         'Cursor user skill',
       );
       await writeSkill(
-        path.join(repoRoot, 'packages', '.claude', 'skills'),
+        path.join(workspacePath, '.claude', 'skills'),
         'claude-project-dir',
-        'claude-project',
-        'Claude-compatible project skill',
+        'cursor-unscanned-claude-project',
+        'Claude project skill Cursor does not document reading',
       );
       await writeSkill(
-        path.join(repoRoot, '.codex', 'skills'),
+        path.join(workspacePath, '.codex', 'skills'),
         'codex-project-dir',
-        'codex-project',
-        'Codex-compatible project skill',
+        'cursor-unscanned-codex-project',
+        'Codex project skill Cursor does not document reading',
       );
       await writeSkill(
         path.join(workspacePath, '.cursor', 'skills'),
-        'cursor-shared-cwd-dir',
+        'cursor-shared-cursor-dir',
         'cursor-shared',
-        'Cursor cwd variant',
+        'Cursor native-root variant',
       );
       await writeSkill(
-        path.join(repoRoot, '.agents', 'skills'),
-        'cursor-shared-root-dir',
+        path.join(workspacePath, '.agents', 'skills'),
+        'cursor-shared-agents-dir',
         'cursor-shared',
-        'Cursor root variant',
+        'Cursor shared-root variant',
+      );
+      await writeSkill(
+        path.join(repoRoot, '.cursor', 'skills'),
+        'cursor-ancestor-dir',
+        'cursor-ancestor',
+        'Cursor skill above the selected workspace',
       );
       await writeMalformedSkill(
         path.join(workspacePath, '.agents', 'skills'),
@@ -1029,20 +1043,22 @@ describe('skills', () => {
       const cursorByName = new Map(cursorSkills.map((skill) => [skill.name, skill]));
       assert.equal(cursorByName.get('agents-project')?.scope, 'project');
       assert.equal(cursorByName.get('cursor-project')?.scope, 'project');
-      assert.equal(cursorByName.get('claude-project')?.scope, 'project');
-      assert.equal(cursorByName.get('codex-project')?.scope, 'project');
-      assert.equal(cursorByName.get('agents-user')?.scope, 'user');
-      assert.equal(cursorByName.get('claude-user')?.scope, 'user');
-      assert.equal(cursorByName.get('codex-user')?.scope, 'user');
       assert.equal(cursorByName.get('cursor-user')?.scope, 'user');
       assert.equal(cursorByName.get('cursor-user')?.command, '/cursor-user');
+      // Cursor does not document reading Claude's or Codex's roots, and the
+      // shared `.agents` root is only read at the selected workspace itself.
+      assert.equal(
+        cursorSkills.some((skill) => skill.name.startsWith('cursor-unscanned-')),
+        false,
+      );
+      assert.equal(cursorByName.has('cursor-ancestor'), false);
+      assert.equal(cursorByName.has('agents-user'), false);
       const sharedSkills = cursorSkills.filter((skill) => skill.name === 'cursor-shared');
       assert.equal(sharedSkills.length, 2);
       assert.equal(new Set(sharedSkills.map((skill) => skill.sourcePath)).size, 2);
 
       const globalSkills = await providerSkillsService.listProviderSkills('cursor');
       assert.equal(globalSkills.some((skill) => skill.scope === 'project'), false);
-      assert.equal(globalSkills.some((skill) => skill.name === 'agents-user'), true);
       assert.equal(globalSkills.some((skill) => skill.name === 'cursor-user'), true);
     } finally {
       restoreHomeDir();
