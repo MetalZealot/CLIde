@@ -350,6 +350,42 @@ describe('codex-sessions', () => {
         type: 'event_msg',
         payload: { type: 'user_message', message: 'Keep one compatible prompt' },
       }),
+      // Pre-0.152 rollouts after compaction: injected context sits inside its
+      // own turn_context and the legacy row lands ~1ms after the canonical one.
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.000Z',
+        type: 'turn_context',
+        payload: { turn_id: 'turn-legacy' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.050Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: '<environment_context>\n  <cwd>/tmp</cwd>\n</environment_context>' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.060Z',
+        type: 'turn_context',
+        payload: { turn_id: 'turn-legacy' },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.100Z',
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          id: 'message-legacy',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'Keep one legacy prompt' }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: '2026-09-01T12:02:00.101Z',
+        type: 'event_msg',
+        payload: { type: 'user_message', message: 'Keep one legacy prompt' },
+      }),
     ].join('\n') + '\n', 'utf8');
 
     try {
@@ -366,13 +402,16 @@ describe('codex-sessions', () => {
         const history = await new CodexSessionsProvider().fetchHistory('codex-canonical-user-history');
         const users = history.messages.filter((message) => message.role === 'user');
 
-        assert.equal(users.length, 2);
+        assert.equal(users.length, 3);
         assert.equal(users[0].id, 'turn-canonical');
         assert.equal(users[0].content, 'Keep this canonical prompt');
         assert.deepEqual(users[0].images, [{ data: imageDataUrl }]);
         assert.equal(users[1].id, 'turn-compatible');
         assert.equal(users[1].content, 'Keep one compatible prompt');
+        assert.equal(users[2].id, 'turn-legacy');
+        assert.equal(users[2].content, 'Keep one legacy prompt');
         assert.ok(!JSON.stringify(history).includes('injected startup context'));
+        assert.ok(!JSON.stringify(history).includes('environment_context'));
       });
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
@@ -531,6 +570,7 @@ describe('codex-sessions', () => {
       await writeFile(transcriptPath, [
         JSON.stringify({ type: 'session_meta', payload: { id: 'codex-app-1', cwd: workspacePath } }),
         JSON.stringify({ type: 'event_msg', payload: { type: 'task_started', turn_id: 'turn-app-1' } }),
+        JSON.stringify({ type: 'turn_context', payload: { turn_id: 'turn-app-1' } }),
         JSON.stringify({
           type: 'response_item',
           payload: {

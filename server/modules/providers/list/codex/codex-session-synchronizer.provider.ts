@@ -3,7 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
-import { extractCodexTextContent } from '@/modules/providers/list/codex/codex-sessions.provider.js';
+import { extractCodexTextContent, isCodexInjectedUserText } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -270,7 +270,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
           && payload?.role === 'user'
         ) {
           const content = extractCodexTextContent(payload.content);
-          if (content.trim()) {
+          if (content.trim() && !isCodexInjectedUserText(content)) {
             return content;
           }
         }

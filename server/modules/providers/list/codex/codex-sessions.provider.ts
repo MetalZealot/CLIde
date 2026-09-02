@@ -22,6 +22,28 @@ type CodexHistoryResult =
       tokenUsage?: unknown;
     };
 
+// Codex writes its own context into user-role rows wrapped in these tags.
+const CODEX_INJECTED_USER_TAGS = [
+  'environment_context',
+  'user_instructions',
+  'permissions',
+  'turn_aborted',
+  'user_shell_command',
+  'recommended_plugins',
+  'multi_agent_mode',
+  'app_instructions',
+  'memory',
+  'skill',
+  'cwd',
+];
+
+export function isCodexInjectedUserText(text: string): boolean {
+  const trimmed = text.trimStart();
+  return CODEX_INJECTED_USER_TAGS.some((tag) => (
+    trimmed.startsWith(`<${tag}>`) || trimmed.startsWith(`<${tag} `)
+  ));
+}
+
 function isVisibleCodexUserMessage(payload: AnyRecord | null | undefined): boolean {
   if (!payload || payload.type !== 'user_message') {
     return false;
@@ -470,9 +492,9 @@ async function getCodexSessionMessages(
 
         if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload as AnyRecord)) {
           const canonicalUser = lastCanonicalUser;
+          // Same turn, same text: older rollouts wrote both rows ~1ms apart.
           const isCanonicalDuplicate = canonicalUser !== null
-            && canonicalUser.content === entry.payload.message
-            && canonicalUser.timestamp === entry.timestamp;
+            && canonicalUser.content === entry.payload.message;
           if (isCanonicalDuplicate) {
             canonicalUser.rawMessage.images ??= extractCodexUserImages(entry.payload as AnyRecord);
           } else {
@@ -503,26 +525,29 @@ async function getCodexSessionMessages(
         ) {
           const textContent = extractCodexTextContent(entry.payload.content);
           const images = extractCodexResponseItemImages(entry.payload.content);
-          if (textContent.trim() || images) {
-            const rawMessage: AnyRecord = {
-              type: 'user',
-              uuid: canonicalUserTurnId,
-              timestamp: entry.timestamp,
-              message: {
-                role: 'user',
+          // Injected context leaves the turn open: the real prompt follows it.
+          if (!isCodexInjectedUserText(textContent) || images) {
+            if (textContent.trim() || images) {
+              const rawMessage: AnyRecord = {
+                type: 'user',
+                uuid: canonicalUserTurnId,
+                timestamp: entry.timestamp,
+                message: {
+                  role: 'user',
+                  content: textContent,
+                },
+                images,
+              };
+              messages.push(rawMessage);
+              lastCanonicalUser = {
                 content: textContent,
-              },
-              images,
-            };
-            messages.push(rawMessage);
-            lastCanonicalUser = {
-              content: textContent,
-              timestamp: typeof entry.timestamp === 'string' ? entry.timestamp : undefined,
-              rawMessage,
-            };
+                timestamp: typeof entry.timestamp === 'string' ? entry.timestamp : undefined,
+                rawMessage,
+              };
+            }
+            pendingTurnId = null;
+            canonicalUserTurnId = null;
           }
-          pendingTurnId = null;
-          canonicalUserTurnId = null;
         }
 
         if (

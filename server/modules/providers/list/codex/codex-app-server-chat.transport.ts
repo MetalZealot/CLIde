@@ -145,6 +145,9 @@ type ActiveTurn = {
   resolveDone: () => void;
   terminal: boolean;
   aborted: boolean;
+  // App Server reports one failure as an `error` notification and again on
+  // `turn/completed`; the chat shows it once.
+  errorEmitted: boolean;
   fileChanges: Map<string, unknown>;
   userId: string | number | null;
   sessionName: string | null;
@@ -687,6 +690,7 @@ export class CodexAppServerChatTransport {
         resolveDone,
         terminal: false,
         aborted: false,
+        errorEmitted: false,
         fileChanges: new Map(),
         userId: writer.userId ?? null,
         sessionName: readNonEmptyString(options.sessionSummary),
@@ -1344,7 +1348,7 @@ export class CodexAppServerChatTransport {
     active.terminal = true;
 
     const failed = turn?.status === 'failed';
-    if (failed && turn.error?.message) {
+    if (failed && turn.error?.message && !active.errorEmitted) {
       this.emitError(active, turn.error.message);
     }
 
@@ -1380,11 +1384,17 @@ export class CodexAppServerChatTransport {
   }
 
   private emitError(active: ActiveTurn, error: unknown): void {
+    active.errorEmitted = true;
+    const objectMessage = error && typeof error === 'object' && 'message' in error
+      ? (error as { message?: unknown }).message
+      : undefined;
     const content = error instanceof Error
       ? error.message
       : typeof error === 'string'
         ? error
-        : JSON.stringify(error);
+        : typeof objectMessage === 'string' && objectMessage.trim()
+          ? objectMessage
+          : JSON.stringify(error);
     active.writer.send(createNormalizedMessage({
       kind: 'error',
       content: content || 'Codex App Server error',

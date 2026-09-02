@@ -194,8 +194,15 @@ Each stable upgrade records:
 - **Post-upgrade regression:** 0.152.1 stopped writing the duplicate
   `event_msg/user_message` row. The canonical response-item user row remained,
   but CLIde's reload and session-title paths ignored it. Both now accept the
-  canonical row only after `turn_context`, preserving rewind ids and images
-  without exposing injected startup context or duplicating older transcripts.
+  canonical row after `turn_context`. The first fix exposed pre-0.152 rollouts'
+  per-turn `<environment_context>` row as a user bubble and showed each older
+  prompt twice (the legacy row lands ~1 ms after the canonical one); both paths
+  now skip Codex's injected wrapper tags and dedupe by content within a turn.
+- **Usage-limit failures showed three times.** App Server sends an `error`
+  notification and a failed `turn/completed` for one failure, and the
+  notification's object body rendered as a JSON block; the transport now emits
+  one text error per turn. The third copy seen live on 2026-09-01 is
+  unexplained until the next limit is captured with the fix deployed.
 - The rest is TUI, Vim, Windows sandbox, Guardian and rate-limit-banner work
   with no CLIde surface.
 - **Verification:** the post-regression gate passed 566 server and 303 client
