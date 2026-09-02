@@ -96,6 +96,9 @@ export function extractCodexUserImages(
  * Codex history loading and session naming use this to read persisted message
  * content without treating non-text input blocks as visible prompt text.
  */
+// Codex wraps each attachment as `<image …>` text, the image, then `</image>`.
+const CODEX_IMAGE_WRAPPER = /^<image\s[^>]*>$|^<\/image>$/;
+
 export function extractCodexTextContent(content: unknown): string {
   if (!Array.isArray(content)) {
     return typeof content === 'string' ? content : '';
@@ -111,6 +114,7 @@ export function extractCodexTextContent(content: unknown): string {
       if (
         (record.type === 'input_text' || record.type === 'output_text' || record.type === 'text')
         && typeof record.text === 'string'
+        && !CODEX_IMAGE_WRAPPER.test(record.text.trim())
       ) {
         return record.text;
       }

@@ -326,7 +326,9 @@ describe('codex-sessions', () => {
           role: 'user',
           content: [
             { type: 'input_text', text: 'Keep this canonical prompt' },
+            { type: 'input_text', text: '<image name=[Image #1] path="/tmp/shot.png">' },
             { type: 'input_image', image_url: imageDataUrl },
+            { type: 'input_text', text: '</image>' },
           ],
         },
       }),
