@@ -191,7 +191,15 @@ Each stable upgrade records:
 - **Extensions processing MCP tool results (0.151.0) is not a candidate** — it is
   the runtime's own extension point, the same reading applied to `Interrupt`
   hooks at 0.150.0.
+- **Post-upgrade regression:** 0.152.1 stopped writing the duplicate
+  `event_msg/user_message` row. The canonical response-item user row remained,
+  but CLIde's reload and session-title paths ignored it. Both now accept the
+  canonical row only after `turn_context`, preserving rewind ids and images
+  without exposing injected startup context or duplicating older transcripts.
 - The rest is TUI, Vim, Windows sandbox, Guardian and rate-limit-banner work
   with no CLIde surface.
-- **Verification:** 565 server tests, 0 failures; typecheck clean. Not yet
-  exercised in a live Codex turn.
+- **Verification:** the post-regression gate passed 566 server and 303 client
+  tests, the 314-check Codex integration suite, server typecheck/build, lint
+  with no errors, and exact snapshot reloads of five affected transcripts.
+  Grayson then confirmed the restored messages by reopening affected sessions
+  on the isolated port-3006 server. Production acceptance remains separate.
