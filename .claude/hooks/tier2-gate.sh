@@ -22,7 +22,9 @@ count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))
 printf '%s' "$count" > "$count_file"
 
 # A running dev server means the loop is already fast; builds are then deploys.
-if systemctl --user is-active --quiet cloudcli-dev; then
+# Unit name is overridable so this file carries no host specifics; the default
+# is the project convention, not a machine fact.
+if systemctl --user is-active --quiet "${CLIDE_DEV_UNIT:-cloudcli-dev}"; then
   exit 0
 fi
 
@@ -31,8 +33,8 @@ if [ "$count" -eq 2 ]; then
 BLOCKED once: this is the 2nd build:client this session with no dev server running.
 
 Two builds means iterative visual work, which CLAUDE.md defines as Tier 2:
-  systemctl --user start cloudcli-dev
-  hand the user http://nuthallpi.tailb083b8.ts.net:5173
+  start the dev server unit, then hand the user its URL
+  (both are in your agent's own host config, not in this repo)
 
 Edits hot-reload there, so stop rebuilding between rounds. Before the next visual
 change, confirm you have read docs/maps/ui-standards.md and labelled each decision
