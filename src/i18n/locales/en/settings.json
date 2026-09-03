@@ -522,6 +522,19 @@
       "refreshButton": "Refresh",
       "apiKeyUnavailable": "Plan usage is only available for subscription (OAuth) sign-in, not API-key auth."
     },
+    "serviceStatus": {
+      "label": "Service status",
+      "view": "View {{agent}} service status",
+      "states": {
+        "checking": "Checking…",
+        "operational": "Operational",
+        "maintenance": "Maintenance",
+        "degraded": "Degraded",
+        "partial_outage": "Partial outage",
+        "major_outage": "Major outage",
+        "unavailable": "Unavailable"
+      }
+    },
     "runtimeVersions": {
       "title": "Runtime",
       "movedRuntime": "{{agent}} runtime moved {{from}} → {{to}}",

@@ -1,4 +1,5 @@
 import type { LLMProvider } from '@/shared/types.js';
+import { getProviderServiceStatusPageUrl } from '@/modules/providers/services/provider-service-status.service.js';
 import {
   codexAppServerRuntimeCapabilitiesAvailable,
   getCodexChatTransportDiagnostics,
@@ -37,6 +38,8 @@ type ProviderCapabilities = {
    * narrower: a provider can report plan windows without a usable `resetsAt`.
    */
   supportsUsageResetAlerts: boolean;
+  /** Public status page when CLIde can read this provider's service component. */
+  serviceStatusPageUrl: string | null;
   /** Whether the provider runtime can accept model-level reasoning effort. */
   supportsEffort: boolean;
   /**
@@ -75,6 +78,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
+    serviceStatusPageUrl: getProviderServiceStatusPageUrl('claude'),
     supportsEffort: true,
     supportsRewind: true,
     supportsFork: false,
@@ -92,6 +96,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
     supportsUsageResetAlerts: false,
+    serviceStatusPageUrl: getProviderServiceStatusPageUrl('cursor'),
     supportsEffort: false,
     supportsRewind: false,
     supportsFork: false,
@@ -109,6 +114,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
+    serviceStatusPageUrl: getProviderServiceStatusPageUrl('codex'),
     supportsEffort: true,
     supportsRewind: false,
     supportsFork: false,
@@ -129,6 +135,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: false,
+    serviceStatusPageUrl: getProviderServiceStatusPageUrl('opencode'),
     supportsEffort: true,
     supportsRewind: false,
     supportsFork: false,

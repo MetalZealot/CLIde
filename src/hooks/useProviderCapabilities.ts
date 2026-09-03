@@ -23,6 +23,7 @@ export type ProviderCapabilities = {
   supportsPermissionRequests?: boolean;
   supportsTokenUsage?: boolean;
   supportsUsageResetAlerts?: boolean;
+  serviceStatusPageUrl?: string | null;
   supportsEffort?: boolean;
   supportsRewind?: boolean;
   supportsFork?: boolean;

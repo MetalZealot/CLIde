@@ -39,6 +39,11 @@ The services that consume them are:
 Live execution is consumed through `providerRuntimeService`, which resolves the
 provider-owned runtime through the same `providerRegistry` as every other facet.
 
+Public vendor health is not an eighth runtime facet. `providerServiceStatusService`
+reads fixed public Statuspage endpoints for Claude and Codex, normalizes only the
+components CLIde depends on, and advertises each external page through provider
+capabilities. Cursor and OpenCode expose no service-status capability.
+
 Current provider ids in this repo are:
 
 - `claude`
@@ -376,4 +381,3 @@ alongside the implementation.
 - Forgetting that Claude plugin skills are discovered differently from normal
   user/project skill folders.
 - Assuming one provider's MCP config file format works for the others.
-

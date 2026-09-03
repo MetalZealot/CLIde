@@ -21,7 +21,9 @@ import {
   formatVersionPair,
 } from '../../../utils/providerVersions';
 import { SettingsGroup, SettingsRow, SettingsStatus, SettingsToggle } from '../../primitives';
+
 import AgentCodexRuntimeSection from './AgentCodexRuntimeSection';
+import AgentServiceStatusRow from './AgentServiceStatusRow';
 
 type AgentAccountCardProps = {
   provider: AgentProviderId;
@@ -111,6 +113,7 @@ export default function AgentAccountCard({
   const hasNotificationChannel = notificationPreferences.channels.webPush
     || notificationPreferences.channels.desktop;
   const usageResetEnabled = notificationPreferences.events.usageReset[provider] === true;
+  const serviceStatusPageUrl = capabilities?.[provider]?.serviceStatusPageUrl ?? null;
 
   const setUsageResetEnabled = (enabled: boolean) => {
     onNotificationPreferencesChange({
@@ -237,6 +240,13 @@ export default function AgentAccountCard({
                 : t('agents.login.status.error', { defaultValue: 'Sign-in did not complete' })}
             </span>
           </div>
+        )}
+
+        {serviceStatusPageUrl && (
+          <AgentServiceStatusRow
+            provider={provider}
+            statusPageUrl={serviceStatusPageUrl}
+          />
         )}
       </SettingsGroup>
 

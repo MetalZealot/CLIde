@@ -7,6 +7,8 @@ import test, { describe } from 'node:test';
 import TOML from '@iarna/toml';
 
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
+import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
+import { createProviderServiceStatusService } from '@/modules/providers/services/provider-service-status.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { AppError } from '@/shared/utils.js';
 
@@ -1072,5 +1074,109 @@ describe('skills', () => {
       }),
       /does not support managed global skills/i,
     );
+  });
+});
+
+describe('provider service status', () => {
+  const statusResponse = (components: Array<{ name: string; status: string }>, status = 200) => (
+    new Response(JSON.stringify({ components }), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    })
+  );
+
+  test('uses the worst Claude Code/API state and ignores unrelated components', async () => {
+    const requestedUrls: string[] = [];
+    const service = createProviderServiceStatusService({
+      now: () => Date.parse('2026-09-03T14:00:00.000Z'),
+      fetch: (async (input) => {
+        requestedUrls.push(String(input));
+        return statusResponse([
+          { name: 'claude.ai', status: 'major_outage' },
+          { name: 'Claude API (api.anthropic.com)', status: 'degraded_performance' },
+          { name: 'Claude Code', status: 'partial_outage' },
+        ]);
+      }) as typeof fetch,
+    });
+
+    const status = await service.getProviderServiceStatus('claude');
+
+    assert.deepEqual(requestedUrls, ['https://status.claude.com/api/v2/summary.json']);
+    assert.deepEqual(status, {
+      provider: 'claude',
+      state: 'partial_outage',
+      statusPageUrl: 'https://status.claude.com/',
+      checkedAt: '2026-09-03T14:00:00.000Z',
+    });
+  });
+
+  test('uses Codex API status rather than Codex Web or the page-wide state', async () => {
+    const service = createProviderServiceStatusService({
+      fetch: (async () => statusResponse([
+        { name: 'Codex Web', status: 'major_outage' },
+        { name: 'Codex API', status: 'degraded_performance' },
+      ])) as typeof fetch,
+    });
+
+    assert.equal((await service.getProviderServiceStatus('codex')).state, 'degraded');
+  });
+
+  test('reports unavailable when a required component or valid response is absent', async () => {
+    const missingComponent = createProviderServiceStatusService({
+      fetch: (async () => statusResponse([
+        { name: 'Claude Code', status: 'operational' },
+      ])) as typeof fetch,
+    });
+    const failedRequest = createProviderServiceStatusService({
+      fetch: (async () => statusResponse([], 503)) as typeof fetch,
+    });
+
+    assert.equal((await missingComponent.getProviderServiceStatus('claude')).state, 'unavailable');
+    assert.equal((await failedRequest.getProviderServiceStatus('codex')).state, 'unavailable');
+  });
+
+  test('caches a successful reading for the configured TTL', async () => {
+    let now = 1_000;
+    let fetchCount = 0;
+    const service = createProviderServiceStatusService({
+      now: () => now,
+      cacheTtlMs: 60_000,
+      fetch: (async () => {
+        fetchCount += 1;
+        return statusResponse([{ name: 'Codex API', status: 'operational' }]);
+      }) as typeof fetch,
+    });
+
+    await service.getProviderServiceStatus('codex');
+    now += 59_999;
+    await service.getProviderServiceStatus('codex');
+    assert.equal(fetchCount, 1);
+
+    now += 2;
+    await service.getProviderServiceStatus('codex');
+    assert.equal(fetchCount, 2);
+  });
+
+  test('rejects providers without a configured public status component', async () => {
+    const service = createProviderServiceStatusService();
+
+    await assert.rejects(
+      service.getProviderServiceStatus('cursor'),
+      (error: unknown) => error instanceof AppError
+        && error.code === 'PROVIDER_SERVICE_STATUS_UNSUPPORTED',
+    );
+  });
+
+  test('advertises status-page links only for providers with a live status source', () => {
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('claude').serviceStatusPageUrl,
+      'https://status.claude.com/',
+    );
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex').serviceStatusPageUrl,
+      'https://status.openai.com/',
+    );
+    assert.equal(providerCapabilitiesService.getProviderCapabilities('cursor').serviceStatusPageUrl, null);
+    assert.equal(providerCapabilitiesService.getProviderCapabilities('opencode').serviceStatusPageUrl, null);
   });
 });

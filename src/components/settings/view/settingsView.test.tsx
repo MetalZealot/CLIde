@@ -21,6 +21,7 @@ import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
 import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
 import AgentAccountCard from './sections/agent/AgentAccountCard';
 import AgentCodexRuntimeSection from './sections/agent/AgentCodexRuntimeSection';
+import AgentServiceStatusRow from './sections/agent/AgentServiceStatusRow';
 
 describe('SettingsChoicePopover', () => {
   let root: Root | null = null;
@@ -921,6 +922,83 @@ describe('AgentAccountCard', () => {
     const host = await render(null);
 
     assert.doesNotMatch(host.textContent ?? '', /Runtime/);
+  });
+});
+
+describe('AgentServiceStatusRow', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+  const originalFetch = globalThis.fetch;
+
+  before(async () => {
+    const settingsTranslations = JSON.parse(readFileSync(
+      new URL('../../../i18n/locales/en/settings.json', import.meta.url),
+      'utf8',
+    )) as Record<string, unknown>;
+    await i18next.use(initReactI18next).init({
+      lng: 'en',
+      fallbackLng: false,
+      defaultNS: 'settings',
+      resources: { en: { settings: settingsTranslations } },
+    });
+  });
+
+  after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  afterEach(async () => {
+    await React.act(async () => root?.unmount());
+    container?.remove();
+    root = null;
+    container = null;
+  });
+
+  const render = async (state: string, provider: 'claude' | 'codex' = 'claude') => {
+    const requestedUrls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      requestedUrls.push(String(input));
+      return new Response(JSON.stringify({ success: true, data: { state } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => root?.render(
+      <AgentServiceStatusRow
+        provider={provider}
+        statusPageUrl={provider === 'claude'
+          ? 'https://status.claude.com/'
+          : 'https://status.openai.com/'}
+      />,
+    ));
+    await React.act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+    return { host: container, requestedUrls };
+  };
+
+  test('renders the live component state as one linked settings row', async () => {
+    const { host, requestedUrls } = await render('partial_outage');
+    const link = host.querySelector<HTMLAnchorElement>('a');
+
+    assert.deepEqual(requestedUrls, ['/api/providers/claude/service-status']);
+    assert.equal(link?.href, 'https://status.claude.com/');
+    assert.equal(link?.target, '_blank');
+    assert.match(link?.textContent ?? '', /Service status/);
+    assert.match(link?.textContent ?? '', /Partial outage/);
+    assert.equal(link?.classList.contains('min-h-14'), true);
+  });
+
+  test('reports unavailable without losing the provider status-page link', async () => {
+    const { host } = await render('not-a-real-state', 'codex');
+    const link = host.querySelector<HTMLAnchorElement>('a');
+
+    assert.equal(link?.href, 'https://status.openai.com/');
+    assert.match(link?.textContent ?? '', /Unavailable/);
   });
 });
 

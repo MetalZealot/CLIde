@@ -16,6 +16,7 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import { providerServiceStatusService } from '@/modules/providers/services/provider-service-status.service.js';
 import {
   getProviderSessionEffort,
   writeProviderSessionEffortPick,
@@ -401,6 +402,15 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const status = await providerAuthService.getProviderAuthStatus(provider);
+    res.json(createApiSuccessResponse(status));
+  }),
+);
+
+router.get(
+  '/:provider/service-status',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const status = await providerServiceStatusService.getProviderServiceStatus(provider);
     res.json(createApiSuccessResponse(status));
   }),
 );
