@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { compactHomePath } from '../../../sidebar/utils/worktreeManager';
 import { ProviderSkills } from '../../../skills';
 import { GLOBAL_SKILLS_TARGET, type SkillsTarget } from '../../../skills/types';
 import type { AgentProviderId } from '../../registry/registry';
@@ -65,11 +66,16 @@ const toSkillsWorkspaces = (projects: SettingsProject[]): SkillsWorkspace[] => {
  */
 export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScreenProps) {
   const [target, setTarget] = useState<SkillsTarget>(GLOBAL_SKILLS_TARGET);
+  const [listedProvider, setListedProvider] = useState(provider);
   const workspaces = useMemo(() => toSkillsWorkspaces(projects), [projects]);
 
-  useEffect(() => {
+  // Reset while rendering, not in an effect: an effect runs after the children
+  // have already rendered, so the new provider would be asked for the previous
+  // provider's checkout first.
+  if (provider !== listedProvider) {
+    setListedProvider(provider);
     setTarget(GLOBAL_SKILLS_TARGET);
-  }, [provider]);
+  }
 
   const options = useMemo(() => [
     {
@@ -80,8 +86,8 @@ export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScr
     ...workspaces.map((workspace) => ({
       value: workspace.path,
       label: workspace.displayName,
-      detail: workspace.path,
-      keywords: workspace.projectId,
+      detail: compactHomePath(workspace.path),
+      keywords: `${workspace.projectId} ${workspace.path}`,
     })),
   ], [workspaces]);
 
@@ -97,6 +103,12 @@ export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScr
           No description line and no `stacked`: the control sits beside its
           label, as agreed. A sentence here is what forces the row to stack and
           the popover to go full width on a phone.
+
+          The trigger's default minimum is wider than the space left beside the
+          label at 320px, and a project name is longer than "Global", so both
+          ends need bounding or the label wraps onto two lines. The label wants
+          109px; 40vw leaves that at every width down to 320. A longer project
+          name truncates, and the picker still names the checkout underneath.
         */}
         <SettingsRow label="Showing skills for">
           <SettingsChoicePopover
@@ -108,6 +120,7 @@ export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScr
             searchPlaceholder="Search projects"
             showSelectedDetail={false}
             stackedOptionDetails
+            className="min-w-28 max-w-[40vw]"
           />
         </SettingsRow>
       </SettingsGroup>

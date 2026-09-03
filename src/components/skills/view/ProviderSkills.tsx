@@ -3,7 +3,6 @@ import { useDropzone } from 'react-dropzone';
 import {
   CheckCircle2,
   ChevronRight,
-  FileCode2,
   FileText,
   FileUp,
   FolderUp,
@@ -75,15 +74,6 @@ const SCOPE_LABELS: Record<SkillsScope, string> = {
   project: 'Project',
   admin: 'Admin',
   system: 'System',
-};
-
-const SCOPE_BADGE_CLASSES: Record<SkillsScope, string> = {
-  user: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  plugin: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  repo: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  project: 'border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300',
-  admin: 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  system: 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300',
 };
 
 const SCOPE_ORDER: SkillsScope[] = ['user', 'plugin', 'repo', 'project', 'admin', 'system'];
@@ -540,24 +530,15 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
         No heading: this renders as its own Settings screen, whose header already
         says "Skills".
       */}
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/20 text-muted-foreground">
-          <FileCode2 className="h-4 w-4" strokeWidth={1.7} />
-        </div>
-        <p className="min-w-0 text-sm text-muted-foreground">
-          Manage {providerName} skills from local files, complete folders, and project-aware locations.
-        </p>
-      </div>
-
       <div className="space-y-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 flex-1 sm:max-w-md">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search skills..."
+              placeholder="Search"
               aria-label="Search skills"
               className="h-9 w-full pl-9 pr-9"
             />
@@ -572,10 +553,15 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
               </button>
             )}
           </div>
+          {/*
+            Named for where it installs, not for the list being viewed: a
+            workspace is selectable here, but a new skill always lands in the
+            provider's global location.
+          */}
           <Button
             type="button"
             size="sm"
-            className="w-full sm:w-auto"
+            className="shrink-0"
             onClick={() => handleAddDialogOpenChange(true)}
           >
             <Plus className="h-4 w-4" />
@@ -585,11 +571,12 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
             onClick={() => void refreshSkills({ force: true })}
             variant="outline"
             size="sm"
-            className="w-full sm:w-auto"
+            aria-label="Refresh skills"
+            title="Refresh skills"
+            className="h-9 w-9 shrink-0 px-0"
             disabled={isLoading}
           >
             <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
-            Refresh
           </Button>
         </div>
       </div>
@@ -716,14 +703,17 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
 
         {groupedSkills.map((group) => (
           <section key={group.scope} className="min-w-0 space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={cn('rounded-full px-2.5 py-1 text-xs', SCOPE_BADGE_CLASSES[group.scope])}>
-                {groupLabel(group.scope)}
-              </Badge>
-              <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {group.skills.length} skill{group.skills.length === 1 ? '' : 's'}
+            {/*
+              A section label, not a status: six coloured pills down the page
+              read as six warnings. The count carries the only thing the pill
+              added.
+            */}
+            <p className="min-w-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="break-words">{groupLabel(group.scope)}</span>
+              <span className="ml-1.5 font-normal normal-case tracking-normal opacity-70">
+                {group.skills.length}
               </span>
-            </div>
+            </p>
 
             <div className="grid min-w-0 gap-3 lg:grid-cols-2">
               {group.skills.map((skill) => (
@@ -731,28 +721,18 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
                   key={`${skill.command}:${skill.sourcePath}:${skill.projectPath || 'global'}`}
                   className="min-w-0 rounded-lg border border-border bg-card/50 p-3"
                 >
-                  <div className="min-w-0 space-y-1">
-                    <div className="break-all font-mono text-sm font-semibold text-foreground">{skill.command}</div>
-                    <div className="text-sm text-muted-foreground">{skill.name}</div>
-                  </div>
-
                   {/*
-                    A skill description is a full paragraph written for the
-                    agent, not for this list. Clamped to two lines so a group
-                    reads as a list of skills rather than a stack of pages; the
-                    full text is one tap away with the source path.
+                    The command is what gets typed, so it is the only line that
+                    may wrap; the description is a paragraph written for the
+                    agent and is clamped to one line so a group reads as a list
+                    of skills. Both are one tap away under Details.
                   */}
-                  <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                    {skill.description || 'No description provided in the skill front matter.'}
-                  </p>
-
-                  {skill.pluginName && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="rounded-full bg-background/70">
-                        Plugin: {skill.pluginName}
-                      </Badge>
-                    </div>
-                  )}
+                  <div className="min-w-0">
+                    <div className="break-all font-mono text-sm font-semibold text-foreground">{skill.command}</div>
+                    <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
+                      {skill.description || 'No description provided in the skill front matter.'}
+                    </p>
+                  </div>
 
                   <details className="group/details mt-3 min-w-0">
                     <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-muted-foreground marker:content-none hover:text-foreground">
@@ -764,11 +744,18 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
                       {skill.description || 'No description provided in the skill front matter.'}
                     </p>
 
-                    {skill.projectDisplayName && (
+                    {(skill.pluginName || skill.projectDisplayName) && (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="rounded-full bg-background/70">
-                          Project: {skill.projectDisplayName}
-                        </Badge>
+                        {skill.pluginName && (
+                          <Badge variant="outline" className="rounded-full bg-background/70">
+                            Plugin: {skill.pluginName}
+                          </Badge>
+                        )}
+                        {skill.projectDisplayName && (
+                          <Badge variant="outline" className="rounded-full bg-background/70">
+                            Project: {skill.projectDisplayName}
+                          </Badge>
+                        )}
                       </div>
                     )}
 

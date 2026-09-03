@@ -17,6 +17,7 @@ import type { AuthStatus, NotificationPreferencesState } from '../types/types';
 
 import SettingsChoicePopover from './primitives/SettingsChoicePopover';
 import AccountScreen from './screens/AccountScreen';
+import AgentSkillsScreen from './screens/AgentSkillsScreen';
 import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
 import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
 import AgentAccountCard from './sections/agent/AgentAccountCard';
@@ -1119,5 +1120,147 @@ describe('AgentCodexRuntimeSection', () => {
     await React.act(async () => findButton(previousRow, 'Roll back').click());
     await flush();
     assert.deepEqual(selectionRequests, [alternateId, bundledId]);
+  });
+});
+
+describe('AgentSkillsScreen', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+  const originalFetch = globalThis.fetch;
+  let skillsRequests: string[] = [];
+
+  const PROJECTS = [
+    { name: 'cloudcli', displayName: 'CLIde', fullPath: '/home/tester/Projects/cloudcli' },
+    { name: 'cloudcli-wt-a', displayName: 'worktree-a', fullPath: '/home/tester/Projects/cloudcli-wt-a' },
+    // Same checkout reached by a second saved row: one option, not two.
+    { name: 'cloudcli-alias', displayName: 'CLIde alias', fullPath: '/home/tester/Projects/cloudcli' },
+  ];
+
+  const skill = (name: string, scope: string) => ({
+    name,
+    description: `${name} description`,
+    command: `/${name}`,
+    scope,
+    sourcePath: `/skills/${name}/SKILL.md`,
+  });
+
+  beforeEach(() => {
+    skillsRequests = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (!url.includes('/skills')) {
+        return new Response(JSON.stringify({ success: true, data: {} }), { status: 200 });
+      }
+
+      skillsRequests.push(url);
+      const workspacePath = new URL(url, 'http://localhost').searchParams.get('workspacePath');
+      const skills = workspacePath
+        ? [skill('worktree-only', 'project'), skill('everywhere', 'user')]
+        : [skill('everywhere', 'user')];
+      return new Response(JSON.stringify({ success: true, data: { skills } }), { status: 200 });
+    }) as typeof globalThis.fetch;
+  });
+
+  afterEach(async () => {
+    await React.act(async () => root?.unmount());
+    container?.remove();
+    root = null;
+    container = null;
+    globalThis.fetch = originalFetch;
+  });
+
+  // Each test uses a different provider: the hook's skill cache is module-level
+  // and keyed by provider and target, so a shared one would hide a request.
+  const mount = async (provider: 'claude' | 'codex' | 'cursor') => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => root?.render(
+      <AgentSkillsScreen provider={provider} projects={PROJECTS} />,
+    ));
+    return container;
+  };
+
+  const trigger = () => container?.querySelector<HTMLButtonElement>('[role="combobox"]');
+  // Uppercasing is CSS, so the DOM keeps the source casing; the two spans are
+  // read separately because nothing separates them in textContent.
+  const groupHeadings = () => [...(container?.querySelectorAll('p.uppercase') ?? [])]
+    .map((heading) => [...heading.querySelectorAll('span')]
+      .map((span) => span.textContent?.trim())
+      .join(' '));
+
+  test('opens on Global, asks only for global skills, and lists each checkout once', async () => {
+    const host = await mount('claude');
+
+    assert.deepEqual(skillsRequests, ['/api/providers/claude/skills']);
+    assert.match(trigger()?.textContent ?? '', /Global/);
+
+    await React.act(async () => trigger()?.click());
+    const options = [...document.querySelectorAll('[role="option"]')];
+    // Global plus the two distinct checkouts; the aliased duplicate is dropped.
+    assert.equal(options.length, 3);
+    assert.equal(options[0]?.getAttribute('aria-selected'), 'true');
+    assert.match(options[0]?.textContent ?? '', /Global/);
+
+    // The path is what keeps a checkout apart from its worktrees, so it is shown
+    // home-relative rather than truncated inside the shared home prefix.
+    const worktree = options.find((option) => option.textContent?.includes('worktree-a'));
+    assert.match(worktree?.textContent ?? '', /~\/Projects\/cloudcli-wt-a/);
+
+    assert.deepEqual(groupHeadings(), ['User 1']);
+    assert.match(host.textContent ?? '', /Add Skill/);
+  });
+
+  test('selecting a checkout asks for that path alone and groups its skills under it', async () => {
+    const host = await mount('codex');
+    await React.act(async () => trigger()?.click());
+
+    const worktree = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')]
+      .find((option) => option.textContent?.includes('worktree-a'));
+    await React.act(async () => worktree?.click());
+    await React.act(async () => { await Promise.resolve(); });
+
+    assert.deepEqual(skillsRequests, [
+      '/api/providers/codex/skills',
+      '/api/providers/codex/skills?workspacePath=%2Fhome%2Ftester%2FProjects%2Fcloudcli-wt-a',
+    ]);
+    // The checkout's own skills lead, under the name that was picked.
+    assert.deepEqual(groupHeadings(), ['worktree-a 1', 'User 1']);
+    assert.match(host.textContent ?? '', /worktree-only/);
+    // Installing still lands globally, and the button says so.
+    assert.match(host.textContent ?? '', /Add to Global/);
+  });
+
+  test('returns to Global when the provider changes', async () => {
+    await mount('cursor');
+    await React.act(async () => trigger()?.click());
+    const worktree = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')]
+      .find((option) => option.textContent?.includes('worktree-a'));
+    await React.act(async () => worktree?.click());
+    assert.match(trigger()?.textContent ?? '', /worktree-a/);
+
+    await React.act(async () => root?.render(
+      <AgentSkillsScreen provider="claude" projects={PROJECTS} />,
+    ));
+    assert.match(trigger()?.textContent ?? '', /Global/);
+    // Claude's global list is already cached, so the reset is proved by what is
+    // never asked for rather than by a fresh request.
+    assert.deepEqual(skillsRequests.filter((url) => url.includes('/claude/')), []);
+  });
+
+  test('bounds the picker so the row label stays on one line at 320px', async () => {
+    await mount('claude');
+    // Measured: the label needs 109px, and the row has 254px inside its padding
+    // at 320px. Without both bounds the trigger takes the label's line.
+    const className = trigger()?.className ?? '';
+    assert.match(className, /min-w-28/);
+    assert.match(className, /max-w-\[40vw\]/);
+
+    // Search, Add and Refresh share one row at every width; a stacking variant
+    // here is what made three full-width buttons on a phone.
+    const search = container?.querySelector('input[aria-label="Search skills"]');
+    const controls = search?.closest('div')?.parentElement;
+    assert.equal(controls?.className.includes('flex-col'), false);
+    assert.ok(container?.querySelector('button[aria-label="Refresh skills"]'));
   });
 });
