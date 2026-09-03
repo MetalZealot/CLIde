@@ -17,6 +17,7 @@ import type { AuthStatus, NotificationPreferencesState } from '../types/types';
 
 import SettingsChoicePopover from './primitives/SettingsChoicePopover';
 import AccountScreen from './screens/AccountScreen';
+import AgentProviderScreen from './screens/AgentProviderScreen';
 import AgentSkillsScreen from './screens/AgentSkillsScreen';
 import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
 import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
@@ -1149,7 +1150,12 @@ describe('AgentSkillsScreen', () => {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       if (!url.includes('/skills')) {
-        return new Response(JSON.stringify({ success: true, data: {} }), { status: 200 });
+        // Enough shape for the capability matrix and the MCP row the parent
+        // Agent screen also mounts; only the skills calls are under test.
+        return new Response(
+          JSON.stringify({ success: true, data: { providers: [], servers: [] } }),
+          { status: 200 },
+        );
       }
 
       skillsRequests.push(url);
@@ -1262,5 +1268,36 @@ describe('AgentSkillsScreen', () => {
     const controls = search?.closest('div')?.parentElement;
     assert.equal(controls?.className.includes('flex-col'), false);
     assert.ok(container?.querySelector('button[aria-label="Refresh skills"]'));
+  });
+
+  test('the parent Skills row counts global skills without scanning any checkout', async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => root?.render(
+      <AgentProviderScreen
+        provider="claude"
+        authStatus={{
+          authenticated: false, email: null, method: null, error: null, loading: false, versions: null,
+        }}
+        onLogin={() => {}}
+        projects={PROJECTS}
+        onOpenScreen={() => {}}
+        notificationPreferences={{
+          channels: { inApp: true, webPush: false, desktop: false, sound: false },
+          events: { actionRequired: true, stop: true, error: true, usageReset: {} },
+        }}
+        onNotificationPreferencesChange={() => {}}
+        onOpenNotifications={() => {}}
+      />,
+    ));
+
+    // The row is a preview of the Global list, so no saved checkout may be
+    // scanned to render it however many projects exist.
+    assert.deepEqual(skillsRequests.filter((url) => url.includes('workspacePath')), []);
+
+    const skillsRow = [...container.querySelectorAll('button')]
+      .find((row) => row.textContent?.includes('Skills'));
+    assert.match(skillsRow?.textContent ?? '', /1/);
   });
 });
