@@ -1,9 +1,11 @@
 # Context-correct skills settings
 
-- Status: 3/4
-- Next: Phase 4 — isolated acceptance and documentation.
-- Note: the picker was accepted from a static probe before building; the
-  screen itself is still unverified in the running app. See Phase 4.
+- Status: 4/4 built and screenshot-verified; awaiting Grayson's acceptance on 3002.
+- Next: `cloudcli-branch-test start <this worktree> --replace` from SSH, then he
+  checks Global and one worktree on the installed PWA.
+- Note: the screen matches probe variant C, verified from the real component via
+  `harness/` (untracked) at 320, 390 and 900 px, Global and worktree, collapsed
+  and expanded — not from a drawing.
 - Context: [provider skills contract](../../server/modules/providers/README.md),
   [Settings navigation](../decisions/0018-settings-drill-down-one-scroll-container.md),
   [mobile Back ownership](../decisions/0040-settings-root-owns-back-gesture.md),
@@ -70,7 +72,7 @@ UI buckets before implementation:
       Global when the screen is reopened or the provider changes. Preserve
       source paths and scope badges, empty/loading/error states, Add Skill's
       global destination, one scroll owner, and mobile reflow.
-- [ ] **4. Isolated acceptance and documentation.** Add focused backend
+- [~] **4. Isolated acceptance and documentation.** Add focused backend
       provider cases plus client hook, parent-count, picker interaction, stale
       response, and narrow-screen tests without creating a near-empty test
       file. Build and serve the topic worktree on port 3002. Verify Global and

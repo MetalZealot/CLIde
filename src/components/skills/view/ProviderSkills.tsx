@@ -68,7 +68,7 @@ const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> 
 };
 
 const SCOPE_LABELS: Record<SkillsScope, string> = {
-  user: 'User',
+  user: 'Personal',
   plugin: 'Plugin',
   repo: 'Repo',
   project: 'Project',
@@ -76,25 +76,50 @@ const SCOPE_LABELS: Record<SkillsScope, string> = {
   system: 'System',
 };
 
-const SCOPE_ORDER: SkillsScope[] = ['user', 'plugin', 'repo', 'project', 'admin', 'system'];
-
-/**
- * A chosen workspace puts its own skills first: they are the reason it was
- * chosen, and there are usually a handful of them against twenty-odd global
- * ones, so anywhere else on the list is effectively buried.
- */
-const WORKSPACE_SCOPE_ORDER: SkillsScope[] = ['project', 'repo', 'user', 'plugin', 'admin', 'system'];
-
 const WORKSPACE_SCOPES: SkillsScope[] = ['project', 'repo'];
 
-const groupSkillsByScope = (
+const GLOBAL_GROUP_LABEL = 'Available everywhere';
+
+type SkillsGroup = {
+  key: string;
+  label: string;
+  skills: ProviderSkill[];
+  /**
+   * Only the everywhere group badges its rows. Inside a checkout's own group
+   * the scope is what the heading already said.
+   */
+  showScope: boolean;
+};
+
+/**
+ * Grouped by where a skill comes from, not by its scope: the chosen checkout's
+ * own skills are the reason it was chosen, and there are usually a handful of
+ * them against twenty-odd global ones, so anywhere else on the list is
+ * effectively buried. Scope rides on the row badge instead.
+ */
+const groupSkillsByLocation = (
   skills: ProviderSkill[],
   target: SkillsTarget,
-): Array<{ scope: SkillsScope; skills: ProviderSkill[] }> => (
-  (target.kind === 'workspace' ? WORKSPACE_SCOPE_ORDER : SCOPE_ORDER)
-    .map((scope) => ({ scope, skills: skills.filter((skill) => skill.scope === scope) }))
-    .filter((group) => group.skills.length > 0)
-);
+): SkillsGroup[] => {
+  const isWorkspaceSkill = (skill: ProviderSkill) => WORKSPACE_SCOPES.includes(skill.scope);
+  const workspaceSkills = skills.filter(isWorkspaceSkill);
+  const everywhereSkills = skills.filter((skill) => !isWorkspaceSkill(skill));
+
+  return [
+    {
+      key: 'workspace',
+      label: target.kind === 'workspace' ? target.displayName : 'This checkout',
+      skills: workspaceSkills,
+      showScope: false,
+    },
+    {
+      key: 'everywhere',
+      label: GLOBAL_GROUP_LABEL,
+      skills: everywhereSkills,
+      showScope: true,
+    },
+  ].filter((group) => group.skills.length > 0);
+};
 
 const formatFileSize = (size: number): string => {
   if (size < 1024) {
@@ -263,16 +288,10 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
     ));
   }, [searchQuery, skills]);
 
-  const groupedSkills = useMemo(() => groupSkillsByScope(filteredSkills, target), [filteredSkills, target]);
-
-  // The chosen checkout is named once, on the group header. A per-row badge
-  // cannot say "this checkout" honestly: Settings has no working directory, so
-  // the only truthful name is the path the picker sent.
-  const groupLabel = useCallback((scope: SkillsScope): string => (
-    target.kind === 'workspace' && WORKSPACE_SCOPES.includes(scope)
-      ? target.displayName
-      : SCOPE_LABELS[scope]
-  ), [target]);
+  const groupedSkills = useMemo(
+    () => groupSkillsByLocation(filteredSkills, target),
+    [filteredSkills, target],
+  );
 
   const queueSkillFolders = useCallback((selectedFiles: File[]) => {
     const queuedFolders = buildQueuedSkillFolders(selectedFiles);
@@ -702,45 +721,51 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
         )}
 
         {groupedSkills.map((group) => (
-          <section key={group.scope} className="min-w-0 space-y-3">
+          <section key={group.key} className="min-w-0 space-y-3">
             {/*
-              A section label, not a status: six coloured pills down the page
-              read as six warnings. The count carries the only thing the pill
-              added.
+              A section label, not a status: coloured pills down the page read
+              as warnings. The count carries the only thing the pill added.
             */}
             <p className="min-w-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <span className="break-words">{groupLabel(group.scope)}</span>
+              <span className="break-words">{group.label}</span>
               <span className="ml-1.5 font-normal normal-case tracking-normal opacity-70">
                 {group.skills.length}
               </span>
             </p>
 
-            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-1.5 lg:grid-cols-2">
               {group.skills.map((skill) => (
-                <div
+                /*
+                  The card face is the accepted design: command, one line of
+                  description, scope badge. The whole face is the disclosure
+                  control, so the full description and source path sit one tap
+                  away without a visible "details" row lengthening every card.
+                */
+                <details
                   key={`${skill.command}:${skill.sourcePath}:${skill.projectPath || 'global'}`}
-                  className="min-w-0 rounded-lg border border-border bg-card/50 p-3"
+                  className="group/card min-w-0 rounded-lg border border-border/60 bg-card/50"
                 >
-                  {/*
-                    The command is what gets typed, so it is the only line that
-                    may wrap; the description is a paragraph written for the
-                    agent and is clamped to one line so a group reads as a list
-                    of skills. Both are one tap away under Details.
-                  */}
-                  <div className="min-w-0">
-                    <div className="break-all font-mono text-sm font-semibold text-foreground">{skill.command}</div>
-                    <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
-                      {skill.description || 'No description provided in the skill front matter.'}
-                    </p>
-                  </div>
+                  <summary className="flex min-h-11 min-w-0 cursor-pointer list-none items-start gap-3 px-3 py-2.5 marker:content-none [&::-webkit-details-marker]:hidden">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{skill.command}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {skill.description || 'No description provided in the skill front matter.'}
+                      </p>
+                    </div>
 
-                  <details className="group/details mt-3 min-w-0">
-                    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-muted-foreground marker:content-none hover:text-foreground">
-                      <ChevronRight className="h-3.5 w-3.5 transition-transform group-open/details:rotate-90" />
-                      Details
-                    </summary>
+                    {group.showScope && (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground"
+                      >
+                        {SCOPE_LABELS[skill.scope]}
+                      </Badge>
+                    )}
+                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-open/card:rotate-90" />
+                  </summary>
 
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  <div className="min-w-0 border-t border-border/60 px-3 py-3">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
                       {skill.description || 'No description provided in the skill front matter.'}
                     </p>
 
@@ -763,8 +788,8 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
                       <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Source</div>
                       <code className="mt-1 block whitespace-normal break-all text-xs text-foreground">{skill.sourcePath}</code>
                     </div>
-                  </details>
-                </div>
+                  </div>
+                </details>
               ))}
             </div>
           </section>

@@ -1213,7 +1213,7 @@ describe('AgentSkillsScreen', () => {
     const worktree = options.find((option) => option.textContent?.includes('worktree-a'));
     assert.match(worktree?.textContent ?? '', /~\/Projects\/cloudcli-wt-a/);
 
-    assert.deepEqual(groupHeadings(), ['User 1']);
+    assert.deepEqual(groupHeadings(), ['Available everywhere 1']);
     assert.match(host.textContent ?? '', /Add Skill/);
   });
 
@@ -1231,7 +1231,7 @@ describe('AgentSkillsScreen', () => {
       '/api/providers/codex/skills?workspacePath=%2Fhome%2Ftester%2FProjects%2Fcloudcli-wt-a',
     ]);
     // The checkout's own skills lead, under the name that was picked.
-    assert.deepEqual(groupHeadings(), ['worktree-a 1', 'User 1']);
+    assert.deepEqual(groupHeadings(), ['worktree-a 1', 'Available everywhere 1']);
     assert.match(host.textContent ?? '', /worktree-only/);
     // Installing still lands globally, and the button says so.
     assert.match(host.textContent ?? '', /Add to Global/);
