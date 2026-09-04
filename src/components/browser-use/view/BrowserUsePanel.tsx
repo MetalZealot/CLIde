@@ -507,9 +507,21 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                     <div className="truncate text-sm font-medium text-foreground">
                       {selectedSession?.title || getDomain(selectedSession?.url || null)}
                     </div>
-                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{selectedSession?.url || 'No page loaded'}</span>
+                    <div className="mt-0.5 flex min-w-0 items-center text-xs text-muted-foreground">
+                      {selectedSession?.url ? (
+                        <a
+                          href={selectedSession.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={selectedSession.url}
+                          className="flex min-w-0 items-center gap-1.5 py-1 hover:text-foreground hover:underline"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{selectedSession.url}</span>
+                        </a>
+                      ) : (
+                        <span className="truncate py-1">No page loaded</span>
+                      )}
                     </div>
                   </div>
                   {selectedSession && (
