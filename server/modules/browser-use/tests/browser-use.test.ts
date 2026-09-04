@@ -413,12 +413,14 @@ describe('browser-use-mcp endpoint', () => {
         device: request.device as 'desktop' | 'phone' | 'tablet' | null,
         orientation: request.orientation as 'portrait' | 'landscape' | null,
       }),
-      createConnection: async (context: { contextId: string }) => {
+      createConnection: async (getContext: () => Promise<{ contextId: string }>) => {
         const server = new Server({ name: 'fake-playwright-mcp', version: '0' }, { capabilities: { tools: {} } });
         server.setRequestHandler(ListToolsRequestSchema, async () => ({
           tools: [
             { name: 'browser_navigate', description: 'navigate', inputSchema: { type: 'object' as const } },
+            { name: 'browser_snapshot', description: 'snapshot', inputSchema: { type: 'object' as const } },
             { name: 'browser_run_code_unsafe', description: 'unsafe', inputSchema: { type: 'object' as const } },
+            { name: 'browser_file_upload', description: 'upload', inputSchema: { type: 'object' as const } },
           ],
         }));
         server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
@@ -432,7 +434,13 @@ describe('browser-use-mcp endpoint', () => {
               });
             });
           }
-          return { content: [{ type: 'text' as const, text: context.contextId }] };
+          if (request.params.name === 'browser_snapshot') {
+            return { content: [{ type: 'text' as const, text: 'S'.repeat(20_000) }] };
+          }
+          if (request.params.name === 'browser_navigate' && request.params.arguments?.big) {
+            return { content: [{ type: 'text' as const, text: 'N'.repeat(20_000) }] };
+          }
+          return { content: [{ type: 'text' as const, text: (await getContext()).contextId }] };
         });
         return server;
       },
@@ -494,11 +502,21 @@ describe('browser-use-mcp endpoint', () => {
     return { status: response.status, sessionId };
   }
 
-  const callTool = (harness: EndpointHarness, sessionId: string, id: number, name: string) => fetch(harness.url, {
+  const callTool = (
+    harness: EndpointHarness,
+    sessionId: string,
+    id: number,
+    name: string,
+    args: Record<string, unknown> = {},
+  ) => fetch(harness.url, {
     method: 'POST',
     headers: { ...HEADERS, 'mcp-session-id': sessionId },
-    body: rpc(id, 'tools/call', { name, arguments: {} }),
+    body: rpc(id, 'tools/call', { name, arguments: args }),
   });
+
+  const resultText = (payload: any): string => (payload.result.content || [])
+    .map((item: { text?: string }) => item.text || '')
+    .join('\n');
 
   test('initialize leases one context whose id is the MCP session id', async () => {
     const harness = await startEndpoint();
@@ -527,8 +545,9 @@ describe('browser-use-mcp endpoint', () => {
       const firstResult = await readRpc(await callTool(harness, first.sessionId, 2, 'browser_navigate'));
       const secondResult = await readRpc(await callTool(harness, second.sessionId, 2, 'browser_navigate'));
 
-      assert.equal(firstResult.result.content[0].text, harness.runtime.getLease(first.sessionId)?.context.contextId);
-      assert.notEqual(firstResult.result.content[0].text, secondResult.result.content[0].text);
+      assert.match(resultText(firstResult), /^\[Untrusted page content/);
+      assert.ok(resultText(firstResult).includes(harness.runtime.getLease(first.sessionId)!.context.contextId));
+      assert.notEqual(resultText(firstResult), resultText(secondResult));
 
       const unknown = await callTool(harness, 'not-a-session', 3, 'browser_navigate');
       assert.equal(unknown.status, 404);
@@ -550,11 +569,16 @@ describe('browser-use-mcp endpoint', () => {
         headers: { ...HEADERS, 'mcp-session-id': sessionId },
         body: rpc(2, 'tools/list'),
       }));
-      assert.deepEqual(listed.result.tools.map((tool: { name: string }) => tool.name), ['browser_navigate']);
+      assert.deepEqual(
+        listed.result.tools.map((tool: { name: string }) => tool.name),
+        ['browser_navigate', 'browser_snapshot', 'browser_use_device'],
+      );
 
-      const denied = await readRpc(await callTool(harness, sessionId, 3, 'browser_run_code_unsafe'));
-      assert.equal(denied.result.isError, true);
-      assert.match(denied.result.content[0].text, /not available/);
+      for (const [id, tool] of [[3, 'browser_run_code_unsafe'], [4, 'browser_file_upload']] as const) {
+        const denied = await readRpc(await callTool(harness, sessionId, id, tool));
+        assert.equal(denied.result.isError, true);
+        assert.match(denied.result.content[0].text, /not available/);
+      }
     } finally {
       await harness.close();
     }
@@ -591,7 +615,60 @@ describe('browser-use-mcp endpoint', () => {
       await pending;
 
       const after = await readRpc(await callTool(harness, sessionId, 3, 'browser_navigate'));
-      assert.equal(after.result.content[0].text, harness.runtime.getLease(sessionId)?.context.contextId);
+      assert.ok(resultText(after).includes(harness.runtime.getLease(sessionId)!.context.contextId));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('results are labelled untrusted and held to their tool budget', async () => {
+    const harness = await startEndpoint();
+    try {
+      const { sessionId } = await initialize(harness);
+
+      const ordinary = await readRpc(await callTool(harness, sessionId, 2, 'browser_navigate', { big: true }));
+      const ordinaryText = resultText(ordinary);
+      assert.match(ordinaryText, /^\[Untrusted page content/);
+      assert.match(ordinaryText, /Truncated to 4096 bytes\. Use browser_find/);
+      assert.ok(Buffer.byteLength(ordinaryText, 'utf8') <= 4_096);
+
+      // A snapshot is the agent's main way to read a page, so it gets the larger
+      // budget before the same explicit truncation.
+      const snapshot = await readRpc(await callTool(harness, sessionId, 3, 'browser_snapshot'));
+      const snapshotText = resultText(snapshot);
+      assert.match(snapshotText, /Truncated to 12288 bytes/);
+      assert.ok(Buffer.byteLength(snapshotText, 'utf8') <= 12_288);
+      assert.ok(Buffer.byteLength(snapshotText, 'utf8') > 12_000);
+
+      const small = await readRpc(await callTool(harness, sessionId, 4, 'browser_navigate'));
+      assert.equal(resultText(small).includes('Truncated'), false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('the device tool swaps the context under a live session', async () => {
+    const harness = await startEndpoint();
+    try {
+      const { sessionId } = await initialize(harness);
+      const before = harness.runtime.getLease(sessionId)!.context.contextId;
+      assert.equal(harness.runtime.getLease(sessionId)?.device, 'desktop');
+
+      const swapped = await readRpc(await callTool(harness, sessionId, 2, 'browser_use_device', { device: 'phone' }));
+      const lease = harness.runtime.getLease(sessionId)!;
+
+      assert.equal(lease.device, 'phone');
+      assert.equal(lease.orientation, 'portrait');
+      assert.deepEqual(lease.viewport, { width: 412, height: 839 });
+      assert.notEqual(lease.context.contextId, before);
+      assert.match(resultText(swapped), /Navigate again/);
+
+      // The same session id keeps working, now against the new context.
+      const after = await readRpc(await callTool(harness, sessionId, 3, 'browser_navigate'));
+      assert.ok(resultText(after).includes(lease.context.contextId));
+
+      const rejected = await readRpc(await callTool(harness, sessionId, 4, 'browser_use_device', { device: 'watch' }));
+      assert.equal(rejected.result.isError, true);
     } finally {
       await harness.close();
     }

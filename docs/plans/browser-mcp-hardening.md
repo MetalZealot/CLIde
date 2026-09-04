@@ -1,7 +1,7 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
-- Status: 3/7
-- Next: Phase 3 — capability policy, bounded artifacts and result limits.
+- Status: 4/7
+- Next: Phase 4 — make the Browser tab a live monitor.
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
@@ -23,8 +23,8 @@ visible state.
 - Temporary sessions share one headless browser with isolated contexts. A named
   persistent profile is locked to one context and never an agent-supplied path.
 - Contexts support desktop, phone and tablet presets (touch, user agent, pixel
-  density, orientation). `browser_resize` changes responsive width; full device
-  emulation takes effect on a new context.
+  density, orientation). `browser_resize` changes responsive width only, so
+  switching device swaps the lease's context in place, under one session id.
 - Service workers are allowed by default so PWA behaviour can be tested; a
   deliberate test configuration may block them, the bridge must not.
 - The Browser tab remains a monitor, not a second controller: session identity,
@@ -54,29 +54,27 @@ Codex already merges. The Browser work must not conceal or work around it.
 - [x] **1. CLIde-owned runtime boundary.** Shared temporary browser,
       per-connection contexts, device presets, named-profile locking, session
       cap, inactivity expiry and shutdown cleanup, split from the action service.
-- [x] **2. Embedded Playwright MCP endpoint.** One deduped Playwright tree at the
-      exact prerelease the package requires. Bearer-guarded Streamable HTTP at
-      `/api/browser-use-mcp/mcp`: POST initialize leases a context — device,
-      orientation and profile come from the query string — and the lease id *is*
-      the transport session id, so the MCP session, the Playwright context and
-      the panel row are one identity. DELETE, inactivity expiry, panel Stop and
-      shutdown each close the other side. Denied tools are filtered at the public
-      `Transport`, the only point a core tool cannot escape. Saved artifacts go
-      to a per-session directory under CLIde's config home and are removed on
-      close; unset, Playwright MCP writes them into the checkout. Tests cover
-      initialize, context binding, unknown ids, a dropped stream, cancellation
-      and close; live on real Chromium, 23 official tools without
-      `browser_run_code_unsafe`, a 412 px phone context taking ref clicks, and
-      navigate results 268 B and image-free. The legacy tool registry and REST
-      dispatcher stay until providers migrate.
-- [ ] **3. Policy, artifacts and result boundaries.** Expose the approved
-      official capabilities on top of Phase 2's deny filter. Restrict file
-      access to MCP client roots, cap the size of the per-session output
-      directory, redact known secrets and label page-derived content as
-      untrusted. Keep ordinary results within 4 KiB and snapshot-bearing results
-      within 12 KiB unless Phase 0 measurements justify a separately recorded
-      limit change; truncation is
-      explicit and recoverable through targeted snapshots or bounded files.
+- [x] **2. Embedded Playwright MCP endpoint.** Bearer-guarded Streamable HTTP at
+      `/api/browser-use-mcp/mcp`, on one Playwright tree pinned to the exact
+      prerelease the package requires; device, orientation and profile come from
+      the query string. The lease id is the transport session id, so the MCP
+      session, the context and the panel row are one identity, and a release on
+      any side closes the others. The legacy tool registry and REST dispatcher
+      stay until providers migrate.
+- [x] **3. Policy, artifacts and result boundaries.** `core` plus `testing`,
+      whose assertions answer "is this visible" in ~150 B instead of a snapshot;
+      storage, network mutation, PDF and devtools capture stay off.
+      `browser_file_upload` joins `browser_run_code_unsafe` in the deny set,
+      which leaves no host-file surface, so client roots need no separate
+      restriction. Known secrets are replaced by name, artifacts are capped at
+      32 MB per session, and every result is labelled untrusted page data.
+      Ordinary results hold to 4 KiB and snapshots to 12 KiB, truncation marker
+      included, with `browser_find` as the recovery path: a 120-section page
+      measured 27 KB unbounded, 12 KB bounded, and `browser_find` returned the
+      cut section in 421 B. `browser_use_device` swaps the lease's context under
+      a live session, since touch, user agent and pixel density are fixed when a
+      context is created — desktop 1440 px untouched, phone 412 px with touch,
+      both ways, same session id and panel row.
 - [ ] **4. Live Browser monitor.** Record tool name and outcome at the transport
       boundary, mirror safe tab/page metadata from the supplied context and
       capture a debounced screenshot after state-changing calls. Push or poll

@@ -177,6 +177,7 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
   const leases = new Map<string, BrowserContextLease>();
   const lockedProfiles = new Map<string, string>();
   const releaseListeners = new Set<(lease: BrowserContextLease, reason: BrowserLeaseReleaseReason) => void>();
+  const swapListeners = new Set<(lease: BrowserContextLease) => void>();
   // Temporary contexts share one headless browser; persistent profiles own theirs.
   let sharedBrowser: Promise<any> | null = null;
   let sharedBrowserGeneration = 0;
@@ -427,6 +428,59 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     return lease;
   }
 
+  // Touch, user agent and pixel density are fixed when a context is created, so
+  // changing device means a new context under the same lease: same id, same
+  // profile lock, same panel row, no pages.
+  async function swapContext(
+    id: string,
+    request: { device?: BrowserDevicePreset | null; orientation?: BrowserOrientation | null },
+  ): Promise<BrowserContextLease> {
+    const lease = leases.get(id);
+    if (!lease) {
+      throw new Error('Browser session not found.');
+    }
+
+    const playwright = requirePlaywright();
+    const device = request.device || lease.device;
+    const orientation = request.orientation || (device === 'desktop' ? 'landscape' : 'portrait');
+    if (device === lease.device && orientation === lease.orientation) {
+      return lease;
+    }
+
+    const contextOptions = contextOptionsFor(playwright, device, orientation);
+    const previous = lease.context;
+    let context: any;
+
+    if (lease.profileName) {
+      // A profile directory admits one context at a time, so the old one goes first.
+      const { directory } = resolveProfileDirectory(lease.profileName, profileRoot);
+      await previous?.close?.().catch(() => undefined);
+      context = await playwright.chromium.launchPersistentContext(directory, {
+        ...LAUNCH_OPTIONS,
+        ...contextOptions,
+      });
+    } else {
+      const browser = await getSharedBrowser(playwright);
+      context = await browser.newContext(contextOptions);
+      await previous?.close?.().catch(() => undefined);
+    }
+
+    const viewport = (contextOptions as { viewport?: { width: number; height: number } }).viewport || DESKTOP_VIEWPORT;
+    lease.context = context;
+    lease.device = device;
+    lease.orientation = orientation;
+    lease.viewport = { ...viewport };
+    lease.lastUsedAt = now();
+    for (const listener of swapListeners) {
+      try {
+        listener(lease);
+      } catch (error: any) {
+        console.warn('[Browser] Swap listener failed:', error?.message || error);
+      }
+    }
+    return lease;
+  }
+
   async function expireIdle(): Promise<BrowserContextLease[]> {
     const at = now();
     const expired = [...leases.values()].filter((lease) => at - lease.lastUsedAt > sessionTtlMs);
@@ -438,6 +492,7 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     getReadiness,
     installBrowsers,
     acquireContext,
+    swapContext,
     expireIdle,
 
     getLease(id: string): BrowserContextLease | null {
@@ -467,6 +522,11 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     onRelease(listener: (lease: BrowserContextLease, reason: BrowserLeaseReleaseReason) => void): () => void {
       releaseListeners.add(listener);
       return () => releaseListeners.delete(listener);
+    },
+
+    onSwap(listener: (lease: BrowserContextLease) => void): () => void {
+      swapListeners.add(listener);
+      return () => swapListeners.delete(listener);
     },
 
     // Shutdown: every context and the shared browser go, listeners hear 'shutdown'.

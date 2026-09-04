@@ -331,6 +331,23 @@ function createSessionRecord(lease: BrowserContextLease): BrowserUseSession {
   return session;
 }
 
+// A device swap keeps the lease id, so the panel row follows it rather than
+// being replaced.
+browserRuntime.onSwap((lease) => {
+  const session = sessions.get(lease.id);
+  if (!session) {
+    return;
+  }
+  session.device = lease.device;
+  session.viewport = { ...lease.viewport };
+  session.url = null;
+  session.title = null;
+  session.cursor = null;
+  session.lastAction = `device:${lease.device}`;
+  session.message = `Switched to ${lease.device} emulation. Pages were replaced; navigate again.`;
+  session.updatedAt = new Date().toISOString();
+});
+
 function readDevice(value: unknown): BrowserDevicePreset | null {
   return value === 'desktop' || value === 'phone' || value === 'tablet' ? value : null;
 }
