@@ -1,7 +1,7 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
-- Status: 1/7
-- Next: Phase 1 in progress — runtime boundary split; pin lands with Phase 2.
+- Status: 2/7
+- Next: Phase 2 — embed the official MCP endpoint; land the Playwright pin with it.
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
@@ -58,7 +58,7 @@ Codex already merges. The Browser work must not conceal or work around it.
       dedupes; a 1.62 context works but is unsupported. Trivial page:
       navigate 271 B, snapshot 329 B, JPEG 17 KB, panel capture ~200 ms; browser
       143 MB PSS at launch, +71 MB first context, +16 MB per idle extra.
-- [~] **1. CLIde-owned runtime boundary.** Pin decided: one Playwright tree
+- [x] **1. CLIde-owned runtime boundary.** Pin decided: one Playwright tree
       at the exact prerelease `@playwright/mcp` requires, changed together in
       Phase 2 (cross-version contexts are unsupported upstream; two trees cost
       two Chromium downloads). Split context/profile/browser lifecycle from the
