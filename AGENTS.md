@@ -176,12 +176,11 @@ inside narrative that condensing removes anyway — so these rules target length
   branches in the main checkout** while a service or dev server runs from it.
 - Merge a branch back and delete it as soon as its work lands; stale worktrees are the
   maintainer's overhead.
-- A worktree has no `node_modules`; link the main checkout's rather than running a
-  second install.  **Never share the tsc/eslint caches across checkouts** — if a
-  worktree's `.cache/tsbuildinfo/*.tsbuildinfo` is linked to another checkout's, tsc
-  reads that state, believes everything is emitted, and **silently produces no
-  `dist-server/` at all**, while `typecheck` skips files it thinks are unchanged so a
-  clean result is vacuous.
+- Every checkout owns its `node_modules`: `scripts/setup-worktree.sh` runs `npm ci`
+  in a new worktree.  **Never link or copy another checkout's `node_modules`** — a
+  branch could not change `package.json`, and tsc's incremental cache lives inside
+  it, so a shared cache makes tsc believe everything is emitted and **silently
+  produce no `dist-server/`**, while `typecheck` skips files and passes vacuously.
 - Keep `docs/TODO.md` current **in the same batch as the code change** — flip `[ ]` →
   `[~]` → `[x]` and move verified work to `docs/todo-done.md` as you go, not as a
   separate turn at the end.  Do not ask permission to update the board.  An item is

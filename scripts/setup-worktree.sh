@@ -5,12 +5,11 @@
 #   ~/Projects/cloudcli/scripts/setup-worktree.sh ~/Projects/cloudcli-wt-foo
 #
 # git worktree only checks out *tracked* files, so a fresh worktree is missing
-# every gitignored thing the app needs: node_modules, CLAUDE.md, .claude/, and
-# .env.local. This links them to the main worktree — except CLAUDE.md, which is
-# written as a real file because Claude Code will not load a symlinked one, and
-# which stays a thin stub because host facts ride in on linked .claude/rules — and
-# allocates a free SERVER_PORT / VITE_PORT pair so the worktree can run
-# alongside the 3001 systemd service without a collision.
+# the gitignored things the app needs: node_modules and .env.local. This runs a
+# real `npm ci` (every checkout owns its dependencies, so a branch may change
+# package.json without touching main), links Claude Code's memory directory and
+# personal permission grants, and allocates a free SERVER_PORT / VITE_PORT pair
+# so the worktree can run alongside the 3001 systemd service.
 #
 # Safe to re-run. It never overwrites a real file whose contents differ from
 # main's, and it never deletes anything through a symlink.
@@ -38,60 +37,22 @@ fi
 printf '\nSetting up \033[1m%s\033[0m\n' "$TARGET"
 printf '  (main worktree: %s)\n\n' "$MAIN"
 
-# --- link a gitignored path from main into the worktree --------------------
-#
-# Symlinked rather than copied so there is one source of truth: editing the
-# linked path in any worktree edits main's file.
-link_from_main() {
-  local name=$1
-  local src="$MAIN/$name"
-  local dst="$TARGET/$name"
-
-  if [ ! -e "$src" ]; then
-    skip "$name — not present in main, nothing to link"
-    return
-  fi
-
-  # Never touch a tracked file. Replacing one with a symlink shows up as a
-  # typechange in git status and would end up in a commit.
-  if git -C "$TARGET" ls-files --error-unmatch "$name" >/dev/null 2>&1; then
-    skip "$name — tracked by git, comes with the worktree already"
-    return
-  fi
-
-  if [ -L "$dst" ]; then
-    ok "$name — already linked"
-    return
-  fi
-
-  if [ -e "$dst" ]; then
-    # A real file/dir is already there. Only replace it if it is byte-identical
-    # to main's, so local edits are never silently destroyed.
-    if diff -rq "$dst" "$src" >/dev/null 2>&1; then
-      rm -rf -- "$dst"          # safe: $dst is a real path, not a symlink
-      ln -s "$src" "$dst"
-      ok "$name — replaced identical copy with a link"
-    else
-      warn "$name — a *different* copy exists here; left it alone"
-      warn "    compare with: diff -r '$dst' '$src'"
-    fi
-    return
-  fi
-
-  ln -s "$src" "$dst"
-  ok "$name — linked"
-}
-
 # --- node_modules ----------------------------------------------------------
+#
+# A real install, never a link to main's. Sharing one node_modules meant a branch
+# could not change package.json, `npm install` in a worktree silently edited the
+# checkout serving production, and tsc's cache (inside node_modules) was shared
+# too. Older worktrees that still carry the link are converted here.
 if [ -L "$TARGET/node_modules" ]; then
-  ok "node_modules — already linked to main"
-elif [ -d "$TARGET/node_modules" ]; then
-  size=$(du -sh "$TARGET/node_modules" 2>/dev/null | cut -f1)
-  warn "node_modules — real directory here ($size), not a link; left it alone"
-  warn "    to share main's instead:  rm -rf '$TARGET/node_modules' && $0 '$TARGET'"
+  rm -- "$TARGET/node_modules"     # removes the link only, never its target
+  warn "node_modules — removed the legacy link to main's; installing a real copy"
+fi
+if [ -d "$TARGET/node_modules" ]; then
+  ok "node_modules — present"
 else
-  ln -s "$MAIN/node_modules" "$TARGET/node_modules"
-  ok "node_modules — linked to main (no install needed)"
+  printf '  … node_modules — running npm ci (a few minutes on this machine)\n'
+  (cd "$TARGET" && npm ci --no-audit --no-fund) || die "npm ci failed in $TARGET"
+  ok "node_modules — installed"
 fi
 
 # --- agent + editor config -------------------------------------------------
@@ -208,16 +169,6 @@ $SERVER_PORT"
   } > "$TARGET/.env.local"
 
   ok ".env.local — created (SERVER_PORT=$SERVER_PORT, VITE_PORT=$VITE_PORT)"
-fi
-
-# --- playwright ------------------------------------------------------------
-# Check the node_modules this worktree will actually resolve, which is main's
-# only when the symlink is in place.
-if [ -d "$TARGET/node_modules/playwright" ]; then
-  ok "playwright — installed"
-else
-  warn "playwright — missing from this worktree's node_modules"
-  warn "    install with:  cd '$TARGET' && npm install --save-dev playwright"
 fi
 
 # --- what to do next -------------------------------------------------------
