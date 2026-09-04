@@ -1,8 +1,8 @@
 # Context-correct skills settings
 
-- Status: 4/4 built and screenshot-verified; awaiting Grayson's acceptance on 3002.
-- Next: `cloudcli-branch-test start <this worktree> --replace` from SSH, then he
-  checks Global and one worktree on the installed PWA.
+- Status: 4/4
+- Next: merged to `main` (`99cec6b4`); the server half needs a restart from SSH,
+  then he checks Global and one worktree on the installed PWA on 3001.
 - Note: the screen matches probe variant C, verified from the real component via
   `harness/` (untracked) at 320, 390 and 900 px, Global and worktree, collapsed
   and expanded — not from a drawing.
