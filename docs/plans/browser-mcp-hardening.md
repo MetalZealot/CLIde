@@ -1,7 +1,7 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
-- Status: not started
-- Next: Phase 0 — prove host-supplied context and authenticated HTTP transport.
+- Status: 1/7
+- Next: Phase 1 — CLIde-owned runtime boundary (Phase 0 proven 2026-09-03).
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
@@ -17,53 +17,55 @@ and browser actions; CLIde owns the browser contexts, policy and visible state.
   Playwright context. Its opaque id also identifies the panel session; no
   database row is required.
 - CLIde passes each context through Playwright MCP's public
-  `createConnection(config, contextGetter)` API. Do not fork the package, import
-  private Playwright internals or copy its tools into this repository.
+  `createConnection(config, contextGetter)` API, with `browser.isolated` unset:
+  the getter's context is used as-is and the package never closes it. Do not
+  fork the package, import private internals or copy its tools here.
 - Temporary sessions share one headless browser with isolated contexts. A named
   persistent profile has a locked context and cannot be selected by an arbitrary
   agent-supplied path.
-- Context creation supports desktop, phone and tablet presets with touch, user
-  agent, pixel density and orientation. `browser_resize` changes responsive
-  width; full device emulation takes effect on a new context.
-- Service workers are allowed by default so PWA behaviour can be tested. A
-  deliberate test configuration may block them; the bridge must not hardcode
-  that narrower mode.
-- The Browser tab remains a monitor, not a second controller. It shows safe
-  session identity, status, tabs, URL, title, device, viewport, last action and a
-  recent screenshot. Visible changes are agreed before panel code is edited.
-- Observe calls at the public MCP transport layer, never through Playwright MCP's
-  private active-tab or locator objects.
+- Contexts support desktop, phone and tablet presets (touch, user agent, pixel
+  density, orientation). `browser_resize` changes responsive width; full device
+  emulation takes effect on a new context.
+- Service workers are allowed by default so PWA behaviour can be tested; a
+  deliberate test configuration may block them, the bridge must not.
+- The Browser tab remains a monitor, not a second controller: session identity,
+  status, tabs, URL, title, device, viewport, last action and a recent
+  screenshot. Visible changes are agreed before panel code is edited.
+- Observe calls at the public MCP transport layer only.
 - Preserve `ef604c5`'s separation between agent results and panel screenshots:
   no routine MCP result contains a screenshot data URL, and only an explicit
   screenshot tool may return an MCP image.
 - Full browser capability does not include server-code execution.
-  `browser_run_code_unsafe` remains unavailable. Uploads, downloads, storage
-  writes, network mutation and persistent profiles remain disabled until their
-  cross-provider approval path is proven.
+  `browser_run_code_unsafe` is a `core` tool no config removes, so the transport
+  filter is all that keeps it out; it ships before any provider sees the
+  endpoint. Uploads, downloads, storage writes, network mutation and
+  persistent profiles stay disabled until their approval path is proven.
 
 ## Prerequisite
 
 Claude, Cursor and OpenCode MCP updates must preserve provider-native keys they
-do not model before the bridge rewrites their `cloudcli-browser` registration.
-Codex already has that merge behaviour. The Browser work must not conceal or
-work around that provider-config defect.
+do not model before the bridge rewrites their `cloudcli-browser` registration;
+Codex already merges. The Browser work must not conceal or work around it.
 
 ## Phases
 
-- [ ] **0. Public-API and transport proof.** In an isolated topic worktree, pin
-      compatible Playwright and `@playwright/mcp` versions and prove four things
-      without changing the current Browser: a CLIde-created context works through
-      `contextGetter`; authenticated Streamable HTTP supports MCP POST, GET and
-      DELETE lifecycle; Claude can navigate, snapshot by reference and resize;
-      and CLIde can observe the completed tool call and capture the correct page
-      using public APIs. Measure response bytes, screenshot latency and memory.
-      Stop and revise this plan if active-tab observation requires private APIs.
-- [ ] **1. CLIde-owned runtime boundary.** Split context/profile/browser
-      lifecycle from the current action service. Add one shared temporary
-      browser, per-connection contexts, named-profile locking, session cap,
-      inactivity expiry and shutdown cleanup. Keep installation and readiness
-      checks, but remove runtime `npm install --no-save`; the package version is
-      repository-pinned and the installer manages browser binaries only.
+- [x] **0. Public-API and transport proof.** Scratch install, no Browser code
+      changed. A CLIde phone context drives navigate, ref snapshot, click and
+      resize; a wrapper on the public `Transport` logs completed calls and
+      strips or rejects denied tools; bearer-guarded Streamable HTTP runs POST,
+      GET and DELETE with one context per session. The package is a shim over
+      `playwright-core`'s bundle and each release pins an exact Playwright
+      prerelease (0.0.80 → 1.63.0-alpha-2026-08-31) that `^1.62.0` never
+      dedupes; a 1.62 stable context works but is unsupported. Trivial page:
+      navigate 271 B, snapshot 329 B, JPEG 17 KB, panel capture ~200 ms; browser
+      143 MB PSS at launch, +71 MB first context, +16 MB per idle extra.
+- [ ] **1. CLIde-owned runtime boundary.** Decide the pin first: move the repo
+      to the prerelease `@playwright/mcp` requires, or carry two Playwright trees
+      and two browser downloads. Split context/profile/browser lifecycle from
+      the action service. Add one shared temporary browser, per-connection
+      contexts, named-profile locking, session cap, inactivity expiry and
+      shutdown cleanup. Keep readiness checks but remove runtime
+      `npm install --no-save`; the installer manages browser binaries only.
 - [ ] **2. Embedded Playwright MCP endpoint.** Create one official MCP server
       connection per authenticated transport session and supply its context from
       Phase 1. Keep the `cloudcli-browser` registration name. Replace the current
@@ -97,9 +99,8 @@ work around that provider-config defect.
       transport reconnect and cleanup through each provider. Confirm ordinary
       calls contain no image data, panel captures do not enter agent context and
       three concurrent temporary contexts stay inside the measured host budget.
-      Build and serve only the topic checkout until Grayson accepts the Browser
-      tab and real agent workflow; then remove obsolete implementation and move
-      the completed plan to the archive.
+      Serve only the topic checkout until Grayson accepts the Browser tab and a
+      real agent workflow; then remove the old implementation and archive this.
 
 ## Done when
 
@@ -109,18 +110,18 @@ work around that provider-config defect.
   CLIde-owned sessions without exposing screenshots or credentials to MCP text.
 - Temporary and persistent contexts are isolated, bounded and cleaned up after
   disconnect, expiry and server shutdown.
-- Output sizes, browser memory, screenshot cadence and provider configuration
+- Output sizes, browser memory, screenshot cadence and provider-config
   preservation have measured evidence; automated checks and Grayson's live
-  Browser-tab acceptance are reported separately.
+  acceptance are reported separately.
 
 ## Not doing
 
 - Forking or vendoring Playwright MCP, depending on its private internals, or
-  maintaining parallel CLIde implementations of its browser actions.
+  keeping parallel CLIde implementations of its browser actions.
 - Exposing `browser_run_code_unsafe`, unrestricted host-file access or secrets
   merely to claim the complete upstream tool count.
 - Turning the Browser tab into a manually operated remote browser.
 - Adding a public listener, cloud-browser vendor, database schema or real-device
   Android control.
 - Treating emulation as proof of Samsung Browser, Firefox Mobile or installed-PWA
-  acceptance, or claiming that browser automation solves web prompt injection.
+  acceptance, or claiming automation solves web prompt injection.
