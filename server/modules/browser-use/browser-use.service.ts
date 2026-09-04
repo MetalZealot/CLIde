@@ -8,6 +8,7 @@ import { getModuleDirectory } from '@/shared/utils.js';
 
 import {
   browserRuntime,
+  type BrowserContextLease,
   type BrowserDevicePreset,
   type BrowserLeaseReleaseReason,
   type BrowserOrientation,
@@ -304,6 +305,32 @@ browserRuntime.onRelease((lease, reason) => {
   session.message = RELEASE_MESSAGES[reason].message;
 });
 
+// Every leased context gets a panel row, whether the tools reached it through
+// the MCP endpoint or the legacy dispatcher; the lease id is the row's id.
+function createSessionRecord(lease: BrowserContextLease): BrowserUseSession {
+  const createdAt = new Date(lease.createdAt).toISOString();
+  const session: BrowserUseSession = {
+    id: lease.id,
+    ownerId: AGENT_OWNER_ID,
+    createdBy: 'agent',
+    runtime: getRuntime(),
+    status: 'ready',
+    url: null,
+    title: null,
+    screenshotDataUrl: null,
+    createdAt,
+    updatedAt: createdAt,
+    lastAction: 'create',
+    message: 'Browser session is ready.',
+    profileName: lease.profileName,
+    device: lease.device,
+    viewport: { ...lease.viewport },
+    cursor: null,
+  };
+  sessions.set(session.id, session);
+  return session;
+}
+
 function readDevice(value: unknown): BrowserDevicePreset | null {
   return value === 'desktop' || value === 'phone' || value === 'tablet' ? value : null;
 }
@@ -466,29 +493,36 @@ export const browserUseService = {
       orientation: readOrientation(options?.orientation),
     });
     const page = lease.context.pages()[0] || await lease.context.newPage();
-    const now = new Date(lease.createdAt).toISOString();
-    const session: BrowserUseSession = {
-      id: lease.id,
-      ownerId: AGENT_OWNER_ID,
-      createdBy: 'agent',
-      runtime: getRuntime(),
-      status: 'ready',
-      url: null,
-      title: null,
-      screenshotDataUrl: null,
-      createdAt: now,
-      updatedAt: now,
-      lastAction: 'create',
-      message: 'Browser session is ready.',
-      profileName: lease.profileName,
-      device: lease.device,
-      viewport: { ...lease.viewport },
-      cursor: null,
-    };
-    sessions.set(session.id, session);
+    const session = createSessionRecord(lease);
     handles.set(session.id, { context: lease.context, page });
     await captureSession(session, page);
     return agentSessionSummary(session);
+  },
+
+  // The MCP endpoint leases a context per authenticated transport session; the
+  // page belongs to Playwright MCP, so nothing is opened or captured here.
+  async openAgentContext(request: {
+    device?: unknown;
+    orientation?: unknown;
+    profileName?: string | null;
+  } = {}): Promise<BrowserContextLease> {
+    const settings = readSettings();
+    if (!settings.enabled) {
+      throw new Error('Browser agent tools are disabled.');
+    }
+
+    const readiness = browserRuntime.getReadiness();
+    if (!readiness.playwrightInstalled || !readiness.chromiumInstalled) {
+      throw new Error(getSetupMessage(settings, readiness));
+    }
+
+    const lease = await browserRuntime.acquireContext({
+      profileName: request.profileName,
+      device: readDevice(request.device),
+      orientation: readOrientation(request.orientation),
+    });
+    createSessionRecord(lease);
+    return lease;
   },
 
   async listAgentSessions() {

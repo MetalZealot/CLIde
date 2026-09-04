@@ -1,5 +1,6 @@
 import express from 'express';
 
+import { browserMcpEndpoint } from '@/modules/browser-use/browser-use-mcp-endpoint.service.js';
 import { browserUseService } from '@/modules/browser-use/browser-use.service.js';
 
 const router = express.Router();
@@ -21,6 +22,30 @@ router.use((req, res, next) => {
   }
   next();
 });
+
+// Official Playwright MCP over Streamable HTTP: POST initialize or a request,
+// GET the notification stream, DELETE to end the session and its context.
+const handleMcpRequest = async (req: express.Request, res: express.Response) => {
+  try {
+    await browserMcpEndpoint.handleRequest(req, res);
+  } catch (error) {
+    if (res.headersSent) {
+      return;
+    }
+    res.status(400).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32000,
+        message: error instanceof Error ? error.message : 'Browser MCP request failed.',
+      },
+      id: null,
+    });
+  }
+};
+
+router.post('/mcp', handleMcpRequest);
+router.get('/mcp', handleMcpRequest);
+router.delete('/mcp', handleMcpRequest);
 
 router.post('/tools/:toolName', async (req, res) => {
   try {

@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
 
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import express from 'express';
+
+import { createBrowserMcpEndpoint } from '@/modules/browser-use/browser-use-mcp-endpoint.service.js';
 import {
   browserJsonResponse,
   browserScreenshotResponse,
@@ -22,6 +27,66 @@ import {
   resolveProfileDirectory,
   type BrowserLeaseReleaseReason,
 } from '@/modules/browser-use/browser-use-runtime.service.js';
+
+let contextSeq = 0;
+
+function makeFakePlaywright() {
+  const calls = {
+    launches: 0,
+    browserCloses: 0,
+    persistentLaunches: [] as Array<{ directory: string; options: Record<string, unknown> }>,
+    contextOptions: [] as Array<Record<string, unknown>>,
+    contextCloses: 0,
+  };
+  const makeContext = () => ({
+    contextId: `context-${++contextSeq}`,
+    pages: () => [],
+    close: async () => {
+      calls.contextCloses += 1;
+    },
+  });
+  const playwright = {
+    chromium: {
+      executablePath: () => '/nonexistent/chromium',
+      launch: async () => {
+        calls.launches += 1;
+        return {
+          on: () => undefined,
+          newContext: async (options: Record<string, unknown>) => {
+            calls.contextOptions.push(options);
+            return makeContext();
+          },
+          close: async () => {
+            calls.browserCloses += 1;
+          },
+        };
+      },
+      launchPersistentContext: async (directory: string, options: Record<string, unknown>) => {
+        calls.persistentLaunches.push({ directory, options });
+        return makeContext();
+      },
+    },
+    devices: {
+      'Pixel 7': { userAgent: 'phone-ua', viewport: { width: 412, height: 839 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
+      'Pixel 7 landscape': { userAgent: 'phone-ua', viewport: { width: 863, height: 360 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
+      'Galaxy Tab S4': { userAgent: 'tablet-ua', viewport: { width: 712, height: 1138 }, deviceScaleFactor: 2.25, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
+    },
+  };
+  return { playwright, calls };
+}
+
+function makeRuntime(overrides: { maxSessions?: number; sessionTtlMs?: number; profileRoot?: string } = {}) {
+  const { playwright, calls } = makeFakePlaywright();
+  let clock = 1_000;
+  const runtime = createBrowserRuntime({
+    loadPlaywright: () => playwright,
+    maxSessions: overrides.maxSessions ?? 3,
+    sessionTtlMs: overrides.sessionTtlMs ?? 60_000,
+    profileRoot: overrides.profileRoot ?? '/tmp/clide-browser-runtime-test/profiles',
+    now: () => clock,
+  });
+  return { runtime, calls, advance: (ms: number) => { clock += ms; } };
+}
 
 describe('browser-use.service', () => {
   function makeSession(overrides: Partial<BrowserUseSession> = {}): BrowserUseSession {
@@ -211,63 +276,6 @@ describe('browser-use-mcp-content', () => {
 });
 
 describe('browser-use-runtime.service', () => {
-  function makeFakePlaywright() {
-    const calls = {
-      launches: 0,
-      browserCloses: 0,
-      persistentLaunches: [] as Array<{ directory: string; options: Record<string, unknown> }>,
-      contextOptions: [] as Array<Record<string, unknown>>,
-      contextCloses: 0,
-    };
-    const makeContext = () => ({
-      pages: () => [],
-      close: async () => {
-        calls.contextCloses += 1;
-      },
-    });
-    const playwright = {
-      chromium: {
-        executablePath: () => '/nonexistent/chromium',
-        launch: async () => {
-          calls.launches += 1;
-          return {
-            on: () => undefined,
-            newContext: async (options: Record<string, unknown>) => {
-              calls.contextOptions.push(options);
-              return makeContext();
-            },
-            close: async () => {
-              calls.browserCloses += 1;
-            },
-          };
-        },
-        launchPersistentContext: async (directory: string, options: Record<string, unknown>) => {
-          calls.persistentLaunches.push({ directory, options });
-          return makeContext();
-        },
-      },
-      devices: {
-        'Pixel 7': { userAgent: 'phone-ua', viewport: { width: 412, height: 839 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
-        'Pixel 7 landscape': { userAgent: 'phone-ua', viewport: { width: 863, height: 360 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
-        'Galaxy Tab S4': { userAgent: 'tablet-ua', viewport: { width: 712, height: 1138 }, deviceScaleFactor: 2.25, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
-      },
-    };
-    return { playwright, calls };
-  }
-
-  function makeRuntime(overrides: { maxSessions?: number; sessionTtlMs?: number; profileRoot?: string } = {}) {
-    const { playwright, calls } = makeFakePlaywright();
-    let clock = 1_000;
-    const runtime = createBrowserRuntime({
-      loadPlaywright: () => playwright,
-      maxSessions: overrides.maxSessions ?? 3,
-      sessionTtlMs: overrides.sessionTtlMs ?? 60_000,
-      profileRoot: overrides.profileRoot ?? '/tmp/clide-browser-runtime-test/profiles',
-      now: () => clock,
-    });
-    return { runtime, calls, advance: (ms: number) => { clock += ms; } };
-  }
-
   test('temporary contexts share one browser that closes with its last lease', async () => {
     const { runtime, calls } = makeRuntime();
 
@@ -375,5 +383,242 @@ describe('browser-use-runtime.service', () => {
     assert.equal(readiness.chromiumInstalled, false);
     assert.equal(readiness.chromiumExecutablePath, '/nonexistent/chromium');
     assert.equal(readiness.installInProgress, false);
+  });
+});
+
+describe('browser-use-mcp endpoint', () => {
+  type EndpointHarness = {
+    url: string;
+    runtime: ReturnType<typeof makeRuntime>['runtime'];
+    endpoint: ReturnType<typeof createBrowserMcpEndpoint>;
+    cancelled: Promise<string>;
+    close: () => Promise<void>;
+  };
+
+  const SLOW_TOOL_MS = 30_000;
+
+  // A real MCP Server stands in for Playwright MCP so initialize, cancellation
+  // and close run through SDK code without launching a browser.
+  async function startEndpoint(overrides: { maxSessions?: number } = {}): Promise<EndpointHarness> {
+    const { runtime } = makeRuntime({ maxSessions: overrides.maxSessions ?? 3 });
+    let signalCancelled: (name: string) => void = () => undefined;
+    const cancelled = new Promise<string>((resolve) => {
+      signalCancelled = resolve;
+    });
+
+    const endpoint = createBrowserMcpEndpoint({
+      runtime,
+      openContext: (request) => runtime.acquireContext({
+        profileName: request.profileName,
+        device: request.device as 'desktop' | 'phone' | 'tablet' | null,
+        orientation: request.orientation as 'portrait' | 'landscape' | null,
+      }),
+      createConnection: async (context: { contextId: string }) => {
+        const server = new Server({ name: 'fake-playwright-mcp', version: '0' }, { capabilities: { tools: {} } });
+        server.setRequestHandler(ListToolsRequestSchema, async () => ({
+          tools: [
+            { name: 'browser_navigate', description: 'navigate', inputSchema: { type: 'object' as const } },
+            { name: 'browser_run_code_unsafe', description: 'unsafe', inputSchema: { type: 'object' as const } },
+          ],
+        }));
+        server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+          if (request.params.name === 'slow') {
+            await new Promise((resolve, reject) => {
+              const timer = setTimeout(resolve, SLOW_TOOL_MS);
+              extra.signal.addEventListener('abort', () => {
+                clearTimeout(timer);
+                signalCancelled(request.params.name);
+                reject(new Error('cancelled'));
+              });
+            });
+          }
+          return { content: [{ type: 'text' as const, text: context.contextId }] };
+        });
+        return server;
+      },
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.all('/mcp', (req, res) => {
+      void endpoint.handleRequest(req, res).catch(() => {
+        if (!res.headersSent) {
+          res.status(400).json({ jsonrpc: '2.0', error: { code: -32000, message: 'failed' }, id: null });
+        }
+      });
+    });
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => server.once('listening', resolve));
+    const port = (server.address() as { port: number }).port;
+
+    return {
+      url: `http://127.0.0.1:${port}/mcp`,
+      runtime,
+      endpoint,
+      cancelled,
+      close: async () => {
+        await runtime.closeAll();
+        await new Promise((resolve) => server.close(resolve));
+      },
+    };
+  }
+
+  const HEADERS = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
+  const rpc = (id: number | null, method: string, params: Record<string, unknown> = {}) => JSON.stringify(
+    id === null ? { jsonrpc: '2.0', method, params } : { jsonrpc: '2.0', id, method, params },
+  );
+
+  async function readRpc(response: Response): Promise<any> {
+    const body = await response.text();
+    const event = body.match(/^data: (.*)$/m);
+    return JSON.parse(event ? event[1] : body);
+  }
+
+  async function initialize(harness: EndpointHarness, query = ''): Promise<{ status: number; sessionId: string }> {
+    const response = await fetch(`${harness.url}${query}`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: rpc(1, 'initialize', {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'clide-test', version: '0' },
+      }),
+    });
+    const sessionId = response.headers.get('mcp-session-id') || '';
+    await readRpc(response);
+    await fetch(harness.url, {
+      method: 'POST',
+      headers: { ...HEADERS, 'mcp-session-id': sessionId },
+      body: rpc(null, 'notifications/initialized'),
+    });
+    return { status: response.status, sessionId };
+  }
+
+  const callTool = (harness: EndpointHarness, sessionId: string, id: number, name: string) => fetch(harness.url, {
+    method: 'POST',
+    headers: { ...HEADERS, 'mcp-session-id': sessionId },
+    body: rpc(id, 'tools/call', { name, arguments: {} }),
+  });
+
+  test('initialize leases one context whose id is the MCP session id', async () => {
+    const harness = await startEndpoint();
+    try {
+      const first = await initialize(harness, '?device=phone');
+
+      assert.equal(first.status, 200);
+      assert.equal(harness.runtime.getLease(first.sessionId)?.id, first.sessionId);
+      assert.equal(harness.runtime.getLease(first.sessionId)?.device, 'phone');
+      assert.deepEqual(harness.endpoint.listSessionIds(), [first.sessionId]);
+
+      const second = await initialize(harness);
+      assert.notEqual(second.sessionId, first.sessionId);
+      assert.equal(harness.runtime.listLeases().length, 2);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('each session calls tools against its own context and rejects unknown ids', async () => {
+    const harness = await startEndpoint();
+    try {
+      const first = await initialize(harness);
+      const second = await initialize(harness);
+
+      const firstResult = await readRpc(await callTool(harness, first.sessionId, 2, 'browser_navigate'));
+      const secondResult = await readRpc(await callTool(harness, second.sessionId, 2, 'browser_navigate'));
+
+      assert.equal(firstResult.result.content[0].text, harness.runtime.getLease(first.sessionId)?.context.contextId);
+      assert.notEqual(firstResult.result.content[0].text, secondResult.result.content[0].text);
+
+      const unknown = await callTool(harness, 'not-a-session', 3, 'browser_navigate');
+      assert.equal(unknown.status, 404);
+
+      const withoutSession = await fetch(harness.url, { method: 'POST', headers: HEADERS, body: rpc(4, 'tools/list') });
+      assert.equal(withoutSession.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('the denied tool is hidden from tools/list and never reaches the server', async () => {
+    const harness = await startEndpoint();
+    try {
+      const { sessionId } = await initialize(harness);
+
+      const listed = await readRpc(await fetch(harness.url, {
+        method: 'POST',
+        headers: { ...HEADERS, 'mcp-session-id': sessionId },
+        body: rpc(2, 'tools/list'),
+      }));
+      assert.deepEqual(listed.result.tools.map((tool: { name: string }) => tool.name), ['browser_navigate']);
+
+      const denied = await readRpc(await callTool(harness, sessionId, 3, 'browser_run_code_unsafe'));
+      assert.equal(denied.result.isError, true);
+      assert.match(denied.result.content[0].text, /not available/);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('a session survives a dropped notification stream and a cancelled call', async () => {
+    const harness = await startEndpoint();
+    try {
+      const { sessionId } = await initialize(harness);
+
+      const streamAbort = new AbortController();
+      const stream = await fetch(harness.url, {
+        method: 'GET',
+        headers: { ...HEADERS, 'mcp-session-id': sessionId },
+        signal: streamAbort.signal,
+      });
+      assert.equal(stream.status, 200);
+      assert.match(stream.headers.get('content-type') || '', /text\/event-stream/);
+      streamAbort.abort();
+
+      const callAbort = new AbortController();
+      const pending = callTool(harness, sessionId, 2, 'slow').catch(() => null);
+      // The slow call must be in flight before its cancellation arrives.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const cancel = await fetch(harness.url, {
+        method: 'POST',
+        headers: { ...HEADERS, 'mcp-session-id': sessionId },
+        body: rpc(null, 'notifications/cancelled', { requestId: 2, reason: 'client gave up' }),
+        signal: callAbort.signal,
+      });
+      assert.equal(cancel.status, 202);
+      assert.equal(await harness.cancelled, 'slow');
+      callAbort.abort();
+      await pending;
+
+      const after = await readRpc(await callTool(harness, sessionId, 3, 'browser_navigate'));
+      assert.equal(after.result.content[0].text, harness.runtime.getLease(sessionId)?.context.contextId);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('closing releases the context, and releasing the context closes the session', async () => {
+    const harness = await startEndpoint();
+    try {
+      const deleted = await initialize(harness);
+      const expired = await initialize(harness);
+
+      const response = await fetch(harness.url, {
+        method: 'DELETE',
+        headers: { ...HEADERS, 'mcp-session-id': deleted.sessionId },
+      });
+      assert.equal(response.status, 200);
+      assert.equal(harness.runtime.getLease(deleted.sessionId), null);
+      assert.equal(harness.endpoint.listSessionIds().includes(deleted.sessionId), false);
+      assert.equal((await callTool(harness, deleted.sessionId, 2, 'browser_navigate')).status, 404);
+
+      // A lease released anywhere else — expiry, panel Stop, shutdown — takes its
+      // transport with it.
+      await harness.runtime.releaseContext(expired.sessionId);
+      assert.deepEqual(harness.endpoint.listSessionIds(), []);
+      assert.equal((await callTool(harness, expired.sessionId, 3, 'browser_navigate')).status, 404);
+    } finally {
+      await harness.close();
+    }
   });
 });

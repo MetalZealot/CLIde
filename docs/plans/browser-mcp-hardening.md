@@ -1,7 +1,7 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
-- Status: 2/7
-- Next: Phase 2 — embed the official MCP endpoint; land the Playwright pin with it.
+- Status: 3/7
+- Next: Phase 3 — capability policy, bounded artifacts and result limits.
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
@@ -34,11 +34,11 @@ visible state.
 - Preserve `ef604c5`'s separation between agent results and panel screenshots:
   no routine MCP result contains a screenshot data URL, and only an explicit
   screenshot tool may return an MCP image.
-- Full browser capability does not include server-code execution.
+- Full browser capability does not include server-code execution:
   `browser_run_code_unsafe` is a `core` tool no config removes, so the transport
-  filter is all that keeps it out; it ships before any provider sees the
-  endpoint. Uploads, downloads, storage writes, network mutation and
-  persistent profiles stay disabled until their approval path is proven.
+  filter is all that keeps it out. Uploads, downloads, storage writes, network
+  mutation and persistent profiles stay disabled until their approval path is
+  proven.
 
 ## Prerequisite
 
@@ -48,36 +48,34 @@ Codex already merges. The Browser work must not conceal or work around it.
 
 ## Phases
 
-- [x] **0. Public-API and transport proof.** Scratch install, no Browser code
-      changed. A CLIde phone context drives navigate, ref snapshot, click and
-      resize; a public `Transport` wrapper logs calls and rejects denied tools;
-      bearer-guarded Streamable HTTP runs POST, GET and DELETE with one context
-      per session. The package is a shim over
-      `playwright-core`'s bundle and each release pins an exact Playwright
-      prerelease (0.0.80 → 1.63.0-alpha-2026-08-31) that `^1.62.0` never
-      dedupes; a 1.62 context works but is unsupported. Trivial page:
-      navigate 271 B, snapshot 329 B, JPEG 17 KB, panel capture ~200 ms; browser
-      143 MB PSS at launch, +71 MB first context, +16 MB per idle extra.
-- [x] **1. CLIde-owned runtime boundary.** Pin decided: one Playwright tree
-      at the exact prerelease `@playwright/mcp` requires, changed together in
-      Phase 2 (cross-version contexts are unsupported upstream; two trees cost
-      two Chromium downloads). Split context/profile/browser lifecycle from the
-      action service. Add one shared temporary browser, per-connection contexts,
-      device presets, named-profile locking, session cap, inactivity expiry and
-      shutdown cleanup. Keep readiness checks but remove runtime
-      `npm install --no-save`; the installer manages browser binaries only.
-- [ ] **2. Embedded Playwright MCP endpoint.** Create one official MCP server
-      connection per authenticated transport session and supply its context from
-      Phase 1. Keep the `cloudcli-browser` registration name. Replace the current
-      static tool registry and per-tool REST dispatcher only after initialize,
-      reconnect, cancellation and close behaviour have focused tests.
+- [x] **0. Public-API and transport proof.** Trivial page: navigate 271 B,
+      snapshot 329 B, JPEG 17 KB, panel capture ~200 ms; browser 143 MB PSS at
+      launch, +71 MB first context, +16 MB per idle extra.
+- [x] **1. CLIde-owned runtime boundary.** Shared temporary browser,
+      per-connection contexts, device presets, named-profile locking, session
+      cap, inactivity expiry and shutdown cleanup, split from the action service.
+- [x] **2. Embedded Playwright MCP endpoint.** One deduped Playwright tree at the
+      exact prerelease the package requires. Bearer-guarded Streamable HTTP at
+      `/api/browser-use-mcp/mcp`: POST initialize leases a context — device,
+      orientation and profile come from the query string — and the lease id *is*
+      the transport session id, so the MCP session, the Playwright context and
+      the panel row are one identity. DELETE, inactivity expiry, panel Stop and
+      shutdown each close the other side. Denied tools are filtered at the public
+      `Transport`, the only point a core tool cannot escape. Saved artifacts go
+      to a per-session directory under CLIde's config home and are removed on
+      close; unset, Playwright MCP writes them into the checkout. Tests cover
+      initialize, context binding, unknown ids, a dropped stream, cancellation
+      and close; live on real Chromium, 23 official tools without
+      `browser_run_code_unsafe`, a 412 px phone context taking ref clicks, and
+      navigate results 268 B and image-free. The legacy tool registry and REST
+      dispatcher stay until providers migrate.
 - [ ] **3. Policy, artifacts and result boundaries.** Expose the approved
-      official capabilities while filtering denied tools at both `tools/list`
-      and `tools/call`. Restrict file access to MCP client roots, put outputs in
-      a size-limited per-session directory outside the repository, redact known
-      secrets and label page-derived content as untrusted. Keep ordinary results
-      within 4 KiB and snapshot-bearing results within 12 KiB unless Phase 0
-      measurements justify a separately recorded limit change; truncation is
+      official capabilities on top of Phase 2's deny filter. Restrict file
+      access to MCP client roots, cap the size of the per-session output
+      directory, redact known secrets and label page-derived content as
+      untrusted. Keep ordinary results within 4 KiB and snapshot-bearing results
+      within 12 KiB unless Phase 0 measurements justify a separately recorded
+      limit change; truncation is
       explicit and recoverable through targeted snapshots or bounded files.
 - [ ] **4. Live Browser monitor.** Record tool name and outcome at the transport
       boundary, mirror safe tab/page metadata from the supplied context and

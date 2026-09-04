@@ -23,7 +23,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Markdown-native project board](markdown-project-board.md) | not started | First observe the existing dashboard, then test the status contract across three projects |
 | [Claude settings surface](claude-settings-surface.md) | 1/5 | Phase 2: read-only cascade screen, taking the `@alpha` `resolveSettings()` risk |
-| [Playwright MCP bridge](browser-mcp-hardening.md) | 2/7 | Phase 2: embed the official MCP endpoint and land the Playwright pin with it |
+| [Playwright MCP bridge](browser-mcp-hardening.md) | 3/7 | Phase 3: capability policy, bounded artifacts and result limits |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |
 | [Cross-provider chat handoff](cross-provider-chat-handoff.md) | not started | Re-verify its four assumed contracts |
