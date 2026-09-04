@@ -1,15 +1,15 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
 - Status: 1/7
-- Next: Phase 1 — CLIde-owned runtime boundary (Phase 0 proven 2026-09-03).
+- Next: Phase 1 in progress — runtime boundary split; pin lands with Phase 2.
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
 
 Replace CLIde's hand-written tools with a pinned `@playwright/mcp` package while
-retaining the Browser tab as a live monitor.
-Playwright MCP owns tool schemas, accessibility snapshots, element references
-and browser actions; CLIde owns the browser contexts, policy and visible state.
+keeping the Browser tab as a live monitor. Playwright MCP owns tool schemas,
+snapshots, element references and actions; CLIde owns contexts, policy and
+visible state.
 
 ## Contract
 
@@ -21,8 +21,7 @@ and browser actions; CLIde owns the browser contexts, policy and visible state.
   the getter's context is used as-is and the package never closes it. Do not
   fork the package, import private internals or copy its tools here.
 - Temporary sessions share one headless browser with isolated contexts. A named
-  persistent profile has a locked context and cannot be selected by an arbitrary
-  agent-supplied path.
+  persistent profile is locked to one context and never an agent-supplied path.
 - Contexts support desktop, phone and tablet presets (touch, user agent, pixel
   density, orientation). `browser_resize` changes responsive width; full device
   emulation takes effect on a new context.
@@ -51,19 +50,20 @@ Codex already merges. The Browser work must not conceal or work around it.
 
 - [x] **0. Public-API and transport proof.** Scratch install, no Browser code
       changed. A CLIde phone context drives navigate, ref snapshot, click and
-      resize; a wrapper on the public `Transport` logs completed calls and
-      strips or rejects denied tools; bearer-guarded Streamable HTTP runs POST,
-      GET and DELETE with one context per session. The package is a shim over
+      resize; a public `Transport` wrapper logs calls and rejects denied tools;
+      bearer-guarded Streamable HTTP runs POST, GET and DELETE with one context
+      per session. The package is a shim over
       `playwright-core`'s bundle and each release pins an exact Playwright
       prerelease (0.0.80 → 1.63.0-alpha-2026-08-31) that `^1.62.0` never
-      dedupes; a 1.62 stable context works but is unsupported. Trivial page:
+      dedupes; a 1.62 context works but is unsupported. Trivial page:
       navigate 271 B, snapshot 329 B, JPEG 17 KB, panel capture ~200 ms; browser
       143 MB PSS at launch, +71 MB first context, +16 MB per idle extra.
-- [ ] **1. CLIde-owned runtime boundary.** Decide the pin first: move the repo
-      to the prerelease `@playwright/mcp` requires, or carry two Playwright trees
-      and two browser downloads. Split context/profile/browser lifecycle from
-      the action service. Add one shared temporary browser, per-connection
-      contexts, named-profile locking, session cap, inactivity expiry and
+- [~] **1. CLIde-owned runtime boundary.** Pin decided: one Playwright tree
+      at the exact prerelease `@playwright/mcp` requires, changed together in
+      Phase 2 (cross-version contexts are unsupported upstream; two trees cost
+      two Chromium downloads). Split context/profile/browser lifecycle from the
+      action service. Add one shared temporary browser, per-connection contexts,
+      device presets, named-profile locking, session cap, inactivity expiry and
       shutdown cleanup. Keep readiness checks but remove runtime
       `npm install --no-save`; the installer manages browser binaries only.
 - [ ] **2. Embedded Playwright MCP endpoint.** Create one official MCP server

@@ -71,11 +71,13 @@ const sessionIdSchema = {
 const tools: ToolDefinition[] = [
   {
     name: 'browser_create_session',
-    description: 'Create a temporary Browser session that the agent can control. Optionally provide a background profileName to reuse cookies and storage.',
+    description: 'Create a temporary Browser session that the agent can control. Optionally provide a background profileName to reuse cookies and storage, and a device preset for phone or tablet emulation.',
     inputSchema: {
       type: 'object',
       properties: {
         profileName: { type: 'string', description: 'Optional background profile name for persistent browser storage.' },
+        device: { type: 'string', enum: ['desktop', 'phone', 'tablet'], description: 'Device preset; desktop when omitted.' },
+        orientation: { type: 'string', enum: ['portrait', 'landscape'], description: 'Landscape for desktop, portrait for phone and tablet when omitted.' },
       },
     },
   },
@@ -222,6 +224,8 @@ async function callTool(name: string, args: Record<string, unknown>) {
     case 'browser_create_session':
       return browserJsonResponse(await callBrowserUseApi(name, {
         profileName: readOptionalString(args.profileName),
+        device: readOptionalString(args.device),
+        orientation: readOptionalString(args.orientation),
       }));
     case 'browser_list_sessions':
       return browserJsonResponse(await callBrowserUseApi(name, {}));

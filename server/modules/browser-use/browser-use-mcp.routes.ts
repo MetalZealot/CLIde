@@ -33,6 +33,8 @@ router.post('/tools/:toolName', async (req, res) => {
       case 'browser_create_session':
         result = await browserUseService.createAgentSession({
           profileName: typeof input.profileName === 'string' ? input.profileName : null,
+          device: input.device,
+          orientation: input.orientation,
         });
         break;
       case 'browser_list_sessions':
