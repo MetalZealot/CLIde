@@ -39,6 +39,7 @@ main checkout only).
 - [ ] **Duplicate-session double-send:** pressing send twice on a brand-new chat creates two sessions running the same message. `handleSubmit` (`useChatComposerState.ts`) awaits `POST /api/providers/sessions` before anything visible happens — no optimistic append, no processing state, and **no in-flight guard**. Observed 2026-07-16, two JSONLs 250 ms apart. **S/M**
 - [ ] **Project force-delete orphans subagent transcripts on disk.** It unlinks each session's top-level `<slug>/<session-id>.jsonl`, but nested `<slug>/<session-id>/subagents/agent-*.jsonl` were never session rows, so they survive and keep the whole `<slug>/` tree alive against the non-recursive prune. Pre-existing, not caused by `0a738ae`. **S/M**
 - [~] **Replace CLIde's home-grown Browser MCP with official Playwright MCP while retaining the monitored Browser tab.** CLIde will own contexts, auth, profiles/devices, bounded results and live panel state around the official tools. Blocked on native-key-safe MCP config edits. [Plan](plans/browser-mcp-hardening.md). **L**
+- [ ] **The Browser tab needs a layout pass.** At phone width the header row crams status, title, viewport, fullscreen, Stop and Delete onto one line, so the title truncates to two characters and Stop's square reads as a checkbox beside Delete. Deferred deliberately: the panel still serves the retiring legacy path, so redesign after [the plan](plans/browser-mcp-hardening.md) Phase 6. **M**
 
 ## Mobile UX polish
 
