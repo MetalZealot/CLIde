@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
   Clock3,
+  Smartphone,
+  Tablet,
+  Monitor,
   Download,
   Expand,
   ExternalLink,
@@ -28,6 +31,12 @@ type BrowserUseStatus = {
   message: string;
 };
 
+type BrowserAgentAction = {
+  tool: string;
+  ok: boolean;
+  at: string;
+};
+
 type BrowserUseSession = {
   id: string;
   status: 'ready' | 'stopped' | 'unavailable';
@@ -40,6 +49,9 @@ type BrowserUseSession = {
   message: string | null;
   createdBy: 'agent';
   profileName: string | null;
+  device: 'desktop' | 'phone' | 'tablet';
+  screenshotVersion: number;
+  actions: BrowserAgentAction[];
   viewport: {
     width: number;
     height: number;
@@ -80,6 +92,24 @@ function formatRelativeTime(value: string | null): string {
   return `${Math.round(elapsedHours / 24)}d ago`;
 }
 
+const DEVICE_ICONS = {
+  desktop: Monitor,
+  phone: Smartphone,
+  tablet: Tablet,
+} as const;
+
+// Playwright MCP tool names read as machine identifiers; the trail is for
+// glancing at, so drop the prefix and the underscores.
+function formatToolName(tool: string): string {
+  return tool.replace(/^browser_/, '').replace(/_/g, ' ');
+}
+
+function formatClockTime(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return '';
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 function getDomain(url: string | null): string {
   if (!url) return 'No page loaded';
 
@@ -118,6 +148,10 @@ function getStatusDot(status: BrowserUseSession['status']): string {
   return 'bg-border';
 }
 
+// Fast enough to feel live on a phone, slow enough that a poll costs metadata
+// only; images arrive on their own version change.
+const LIVE_POLL_MS = 2_000;
+
 const PROMPTS = [
   'Use Browser to inspect the checkout flow and report any broken UI states.',
   'Open <url> with Browser, interact with the page, and summarize what changed after each step.',
@@ -132,6 +166,8 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   const [isInstalling, setIsInstalling] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sessionsRef = useRef<BrowserUseSession[]>([]);
+  sessionsRef.current = sessions;
 
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) || sessions[0] || null,
@@ -180,10 +216,45 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
     }
   }, []);
 
+  const pollSummary = useCallback(async () => {
+    const response = await authenticatedFetch('/api/browser-use/sessions?view=summary');
+    const data = await readJson<{ data: { sessions: BrowserUseSession[] } }>(response);
+    const summaries = data.data.sessions;
+
+    setSessions((current) => summaries.map((summary) => {
+      const previous = current.find((session) => session.id === summary.id);
+      // The summary carries no image, so keep the one already on screen until
+      // its version says a newer capture exists.
+      return previous && previous.screenshotVersion === summary.screenshotVersion
+        ? { ...summary, screenshotDataUrl: previous.screenshotDataUrl }
+        : summary;
+    }));
+
+    const stale = summaries.filter((summary) => {
+      const previous = sessionsRef.current.find((session) => session.id === summary.id);
+      return summary.screenshotVersion > 0 && (!previous || previous.screenshotVersion !== summary.screenshotVersion);
+    });
+    for (const summary of stale) {
+      const full = await authenticatedFetch(`/api/browser-use/sessions/${summary.id}`);
+      const session = (await readJson<{ data: { session: BrowserUseSession } }>(full)).data.session;
+      setSessions((current) => current.map((item) => (item.id === session.id ? session : item)));
+    }
+  }, []);
+
   useEffect(() => {
     if (!isVisible) return;
     void refresh();
   }, [isVisible, refresh]);
+
+  // Opening the tab shows current state, and it keeps up on its own while the
+  // tab is on screen. Hidden tabs poll nothing.
+  useEffect(() => {
+    if (!isVisible) return undefined;
+    const timer = setInterval(() => {
+      void pollSummary().catch(() => undefined);
+    }, LIVE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [isVisible, pollSummary]);
 
   const runAction = useCallback(async (action: () => Promise<void>) => {
     setIsBusy(true);
@@ -441,6 +512,23 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                       <span className="truncate">{selectedSession?.url || 'No page loaded'}</span>
                     </div>
                   </div>
+                  {selectedSession && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 gap-1 border-border bg-background text-[10px] text-muted-foreground"
+                      title={selectedSession.viewport
+                        ? `${selectedSession.device} — ${selectedSession.viewport.width}×${selectedSession.viewport.height}`
+                        : selectedSession.device}
+                    >
+                      {(() => {
+                        const DeviceIcon = DEVICE_ICONS[selectedSession.device] || Monitor;
+                        return <DeviceIcon className="h-3 w-3" />;
+                      })()}
+                      {selectedSession.viewport
+                        ? `${selectedSession.viewport.width}×${selectedSession.viewport.height}`
+                        : selectedSession.device}
+                    </Badge>
+                  )}
                   <div className="hidden text-xs text-muted-foreground md:block">
                     {formatAction(selectedSession?.lastAction || null)}
                   </div>
@@ -501,6 +589,23 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                   <span className="truncate font-medium text-foreground">{selectedSession?.profileName || 'Temporary'}</span>
                 </div>
               </div>
+              {selectedSession && selectedSession.actions.length > 0 && (
+                <div className="mt-3 border-t border-border/60 pt-3">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Recent actions</div>
+                  <ol className="mt-2 space-y-1">
+                    {[...selectedSession.actions].reverse().slice(0, 8).map((action, index) => (
+                      <li key={`${action.at}-${index}`} className="flex items-baseline justify-between gap-2 text-xs">
+                        <span className="flex min-w-0 items-baseline gap-1.5">
+                          <span className={cn('h-1.5 w-1.5 shrink-0 translate-y-[-1px] rounded-full', action.ok ? 'bg-primary' : 'bg-destructive')} />
+                          <span className="truncate text-foreground">{formatToolName(action.tool)}</span>
+                        </span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{formatClockTime(action.at)}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Button variant="outline" size="sm" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'}>
                   <Square className="h-4 w-4" />
@@ -517,7 +622,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       </div>
 
       {isFullscreen && selectedSession && (
-        <div className="fixed inset-0 safe-top z-50 bg-black/90 p-6">
+        <div className="safe-top fixed inset-0 z-50 bg-black/90 p-6">
           <div className="flex h-full flex-col rounded-md border border-white/10 bg-black">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-sm text-white/80">
               <div className="min-w-0 truncate">{selectedSession.title || selectedSession.url || 'Browser session'}</div>

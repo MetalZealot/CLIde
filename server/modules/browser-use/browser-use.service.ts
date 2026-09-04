@@ -23,6 +23,12 @@ const BROWSER_USE_MCP_TOKEN_KEY = 'browser_use_mcp_token';
 type BrowserUseRuntime = 'cloud' | 'local';
 export type BrowserUseSessionStatus = 'ready' | 'stopped' | 'unavailable';
 
+export type BrowserAgentAction = {
+  tool: string;
+  ok: boolean;
+  at: string;
+};
+
 export type BrowserUseSession = {
   id: string;
   ownerId: string;
@@ -38,6 +44,10 @@ export type BrowserUseSession = {
   message: string | null;
   profileName: string | null;
   device: BrowserDevicePreset;
+  // Bumped on every capture so the panel can poll metadata and fetch the image
+  // only when it actually changed.
+  screenshotVersion: number;
+  actions: BrowserAgentAction[];
   viewport: {
     width: number;
     height: number;
@@ -91,6 +101,9 @@ const MCP_SERVER_NAME = 'cloudcli-browser';
 const LEGACY_MCP_SERVER_NAMES = ['cloudcli-browser-use'];
 const SCREENSHOT_DATA_URL_PREFIX = 'data:image/jpeg;base64,';
 const MAX_AGENT_TABS = 8;
+const MAX_RECORDED_ACTIONS = 20;
+// One trailing capture per window: a burst of calls costs a single screenshot.
+const CAPTURE_DEBOUNCE_MS = 700;
 export const SNAPSHOT_TEXT_MAX_CHARS = 12_000;
 
 // Keep the default three-session list and tab-list results within the MCP
@@ -326,6 +339,8 @@ function createSessionRecord(lease: BrowserContextLease): BrowserUseSession {
     device: lease.device,
     viewport: { ...lease.viewport },
     cursor: null,
+    screenshotVersion: 0,
+    actions: [],
   };
   sessions.set(session.id, session);
   return session;
@@ -359,6 +374,7 @@ function readOrientation(value: unknown): BrowserOrientation | null {
 async function captureSession(session: BrowserUseSession, page: any): Promise<void> {
   const screenshot = await page.screenshot({ type: 'jpeg', quality: 72, fullPage: false });
   session.screenshotDataUrl = `data:image/jpeg;base64,${Buffer.from(screenshot).toString('base64')}`;
+  session.screenshotVersion += 1;
   session.title = await page.title().catch(() => null);
   session.url = page.url() || session.url;
   session.viewport = page.viewportSize?.() || session.viewport;
@@ -389,6 +405,53 @@ async function getActionPoint(page: any, input: { selector?: string; text?: stri
     x: Math.round(box.x + box.width / 2),
     y: Math.round(box.y + box.height / 2),
   };
+}
+
+// Playwright MCP owns the pages, so the panel reads whichever one the agent is
+// most likely looking at: the newest page that has actually navigated.
+function monitoredPage(context: any): any {
+  const pages: any[] = context?.pages?.() || [];
+  if (pages.length === 0) {
+    return null;
+  }
+  const loaded = pages.filter((page) => {
+    const url = typeof page?.url === 'function' ? page.url() : '';
+    return url && url !== 'about:blank';
+  });
+  const candidates = loaded.length > 0 ? loaded : pages;
+  return candidates[candidates.length - 1];
+}
+
+const captureTimers = new Map<string, NodeJS.Timeout>();
+
+async function captureFromLease(sessionId: string): Promise<void> {
+  const session = sessions.get(sessionId);
+  const lease = browserRuntime.getLease(sessionId);
+  if (!session || !lease || session.status !== 'ready') {
+    return;
+  }
+  const page = monitoredPage(lease.context);
+  if (!page) {
+    return;
+  }
+  try {
+    await captureSession(session, page);
+  } catch (error: any) {
+    // A page can navigate or close mid-capture; the next action captures again.
+    console.warn('[Browser] Monitor capture failed:', error?.message || error);
+  }
+}
+
+function scheduleCapture(sessionId: string): void {
+  if (captureTimers.has(sessionId)) {
+    return;
+  }
+  const timer = setTimeout(() => {
+    captureTimers.delete(sessionId);
+    void captureFromLease(sessionId);
+  }, CAPTURE_DEBOUNCE_MS);
+  timer.unref?.();
+  captureTimers.set(sessionId, timer);
 }
 
 export const browserUseService = {
@@ -467,11 +530,22 @@ export const browserUseService = {
     };
   },
 
-  async listSessions() {
+  async listSessions(options: { view?: 'summary' } = {}) {
     await browserRuntime.expireIdle();
-    return [...sessions.values()]
-      .filter((session) => session.ownerId === AGENT_OWNER_ID)
-      .map(publicBrowserSession);
+    const visible = [...sessions.values()].filter((session) => session.ownerId === AGENT_OWNER_ID);
+    // The summary view is what the panel polls, so it carries no image bytes;
+    // screenshotVersion tells it when to fetch one.
+    return options.view === 'summary'
+      ? visible.map((session) => ({ ...publicBrowserSession(session), screenshotDataUrl: null }))
+      : visible.map(publicBrowserSession);
+  },
+
+  async getSession(sessionId: string) {
+    const session = sessions.get(sessionId);
+    if (!session || session.ownerId !== AGENT_OWNER_ID) {
+      throw new Error('Browser session not found.');
+    }
+    return publicBrowserSession(session);
   },
 
   async createAgentSession(options?: { profileName?: string | null; device?: unknown; orientation?: unknown }) {
@@ -500,6 +574,8 @@ export const browserUseService = {
         device: readDevice(options?.device) || 'desktop',
         viewport: null,
         cursor: null,
+        screenshotVersion: 0,
+        actions: [],
       };
       return agentSessionSummary(session);
     }
@@ -540,6 +616,21 @@ export const browserUseService = {
     });
     createSessionRecord(lease);
     return lease;
+  },
+
+  // Called at the MCP transport boundary for every tool call that reaches
+  // Playwright MCP, so the panel reflects agent work without the agent
+  // reporting it.
+  recordAgentAction(sessionId: string, action: { tool: string; ok: boolean }) {
+    const session = sessions.get(sessionId);
+    if (!session) {
+      return;
+    }
+    const at = new Date().toISOString();
+    session.actions = [...session.actions, { tool: action.tool, ok: action.ok, at }].slice(-MAX_RECORDED_ACTIONS);
+    session.lastAction = action.tool;
+    session.updatedAt = at;
+    scheduleCapture(sessionId);
   },
 
   async listAgentSessions() {

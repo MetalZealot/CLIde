@@ -78,6 +78,7 @@ export type BrowserMcpContextRequest = {
 
 type BrowserMcpEndpointOptions = {
   runtime?: BrowserRuntime;
+  recordAction?: (sessionId: string, action: { tool: string; ok: boolean }) => void;
   openContext?: (request: BrowserMcpContextRequest) => Promise<BrowserContextLease>;
   createConnection?: (getContext: () => Promise<any>, sessionId: string) => Promise<McpServerConnection>;
 };
@@ -204,7 +205,11 @@ function boundResult(result: JsonRpcMessage, toolName: string): JsonRpcMessage {
 // The public MCP Transport interface is the only observation and policy point:
 // denied calls never reach Playwright MCP, and no result leaves unlabelled or
 // unbounded.
-function guardTransport(inner: any, handleDeviceTool: (args: JsonRpcMessage) => Promise<JsonRpcMessage>) {
+function guardTransport(
+  inner: any,
+  handleDeviceTool: (args: JsonRpcMessage) => Promise<JsonRpcMessage>,
+  onToolCompleted: (tool: string, ok: boolean) => void,
+) {
   const pendingTools = new Map<string | number, string>();
 
   const wrapper: any = {
@@ -229,6 +234,7 @@ function guardTransport(inner: any, handleDeviceTool: (args: JsonRpcMessage) => 
       const toolName = outgoing?.id === undefined ? undefined : pendingTools.get(outgoing.id);
       if (toolName && outgoing?.result) {
         pendingTools.delete(outgoing.id);
+        onToolCompleted(toolName, outgoing.result.isError !== true);
         outgoing = { ...outgoing, result: boundResult(outgoing.result, toolName) };
       }
       return inner.send(outgoing, options);
@@ -247,7 +253,10 @@ function guardTransport(inner: any, handleDeviceTool: (args: JsonRpcMessage) => 
     }
     if (toolName === DEVICE_TOOL.name) {
       void handleDeviceTool(message?.params?.arguments || {})
-        .then((result) => inner.send({ jsonrpc: '2.0', id: message.id, result }))
+        .then((result) => {
+          onToolCompleted(toolName, true);
+          return inner.send({ jsonrpc: '2.0', id: message.id, result });
+        })
         .catch((error: Error) => inner.send({
           jsonrpc: '2.0',
           id: message.id,
@@ -270,6 +279,8 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
   const openContext = options.openContext
     || ((request: BrowserMcpContextRequest) => browserUseService.openAgentContext(request));
   const createConnection = options.createConnection || createPlaywrightMcpConnection;
+  const recordAction = options.recordAction
+    || ((sessionId: string, action: { tool: string; ok: boolean }) => browserUseService.recordAgentAction(sessionId, action));
   const transports = new Map<string, { transport: any; connection: McpServerConnection }>();
 
   async function closeSession(id: string, closeOptions: { releaseContext: boolean }): Promise<boolean> {
@@ -315,7 +326,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
         }
         return current.context;
       }, lease.id);
-      await connection.connect(guardTransport(transport, async (args) => {
+      const guarded = guardTransport(transport, async (args) => {
         const swapped = await runtime.swapContext(lease.id, {
           device: args.device as 'desktop' | 'phone' | 'tablet' | null,
           orientation: args.orientation as 'portrait' | 'landscape' | null,
@@ -326,7 +337,8 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
           viewport: swapped.viewport,
           note: 'Open pages were replaced. Navigate again.',
         }));
-      }));
+      }, (tool, ok) => recordAction(lease.id, { tool, ok }));
+      await connection.connect(guarded);
       transports.set(lease.id, { transport, connection });
     } catch (error) {
       await transport?.close?.().catch(() => undefined);

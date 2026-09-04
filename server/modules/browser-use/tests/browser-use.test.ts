@@ -107,6 +107,8 @@ describe('browser-use.service', () => {
       device: 'desktop',
       viewport: { width: 1440, height: 900 },
       cursor: { x: 120, y: 240, actor: 'agent' },
+      screenshotVersion: 3,
+      actions: [{ tool: 'browser_navigate', ok: true, at: '2026-07-29T12:00:30.000Z' }],
       ...overrides,
     };
   }
@@ -190,6 +192,61 @@ describe('browser-use.service', () => {
     assert.equal(result.totalTabs, 12);
     assert.equal(result.tabsTruncated, true);
     assert.ok(Buffer.byteLength(JSON.stringify(result), 'utf8') <= 4_096);
+  });
+});
+
+describe('browser-use monitor projections', () => {
+  function makeMonitorSession(): BrowserUseSession {
+    return {
+      id: 'browser-session-1',
+      ownerId: 'agent',
+      createdBy: 'agent',
+      runtime: 'local',
+      status: 'ready',
+      url: 'https://example.com/',
+      title: 'Example',
+      screenshotDataUrl: 'data:image/jpeg;base64,c2Vuc2l0aXZlLWltYWdl',
+      createdAt: '2026-07-29T12:00:00.000Z',
+      updatedAt: '2026-07-29T12:01:00.000Z',
+      lastAction: 'browser_click',
+      message: null,
+      profileName: null,
+      device: 'phone',
+      viewport: { width: 412, height: 839 },
+      cursor: null,
+      screenshotVersion: 7,
+      actions: [
+        { tool: 'browser_navigate', ok: true, at: '2026-07-29T12:00:30.000Z' },
+        { tool: 'browser_click', ok: false, at: '2026-07-29T12:01:00.000Z' },
+      ],
+    };
+  }
+
+  test('the panel projection carries the trail, device and screenshot version', () => {
+    const result = publicBrowserSession(makeMonitorSession());
+
+    assert.equal(result.screenshotVersion, 7);
+    assert.equal(result.device, 'phone');
+    assert.deepEqual(result.actions.map((action) => [action.tool, action.ok]), [
+      ['browser_navigate', true],
+      ['browser_click', false],
+    ]);
+    assert.equal(result.screenshotDataUrl, 'data:image/jpeg;base64,c2Vuc2l0aXZlLWltYWdl');
+  });
+
+  test('the agent projection gains no monitor fields', () => {
+    const result = agentSessionSummary(makeMonitorSession());
+
+    assert.equal('actions' in result, false);
+    assert.equal('screenshotVersion' in result, false);
+    assert.equal(JSON.stringify(result).includes('data:image'), false);
+  });
+
+  test('recording against a released session is a no-op, not a throw', () => {
+    assert.doesNotThrow(() => browserUseService.recordAgentAction('missing-session', {
+      tool: 'browser_navigate',
+      ok: true,
+    }));
   });
 });
 
@@ -399,7 +456,10 @@ describe('browser-use-mcp endpoint', () => {
 
   // A real MCP Server stands in for Playwright MCP so initialize, cancellation
   // and close run through SDK code without launching a browser.
-  async function startEndpoint(overrides: { maxSessions?: number } = {}): Promise<EndpointHarness> {
+  async function startEndpoint(overrides: {
+    maxSessions?: number;
+    recordAction?: (sessionId: string, action: { tool: string; ok: boolean }) => void;
+  } = {}): Promise<EndpointHarness> {
     const { runtime } = makeRuntime({ maxSessions: overrides.maxSessions ?? 3 });
     let signalCancelled: (name: string) => void = () => undefined;
     const cancelled = new Promise<string>((resolve) => {
@@ -408,6 +468,7 @@ describe('browser-use-mcp endpoint', () => {
 
     const endpoint = createBrowserMcpEndpoint({
       runtime,
+      recordAction: overrides.recordAction,
       openContext: (request) => runtime.acquireContext({
         profileName: request.profileName,
         device: request.device as 'desktop' | 'phone' | 'tablet' | null,
@@ -433,6 +494,9 @@ describe('browser-use-mcp endpoint', () => {
                 reject(new Error('cancelled'));
               });
             });
+          }
+          if (request.params.name === 'browser_fails') {
+            return { content: [{ type: 'text' as const, text: 'nope' }], isError: true };
           }
           if (request.params.name === 'browser_snapshot') {
             return { content: [{ type: 'text' as const, text: 'S'.repeat(20_000) }] };
@@ -669,6 +733,30 @@ describe('browser-use-mcp endpoint', () => {
 
       const rejected = await readRpc(await callTool(harness, sessionId, 4, 'browser_use_device', { device: 'watch' }));
       assert.equal(rejected.result.isError, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('completed tool calls are recorded at the transport with their outcome', async () => {
+    const recorded: Array<{ sessionId: string; tool: string; ok: boolean }> = [];
+    const harness = await startEndpoint({
+      recordAction: (sessionId, action) => recorded.push({ sessionId, ...action }),
+    });
+    try {
+      const { sessionId } = await initialize(harness);
+
+      await callTool(harness, sessionId, 2, 'browser_navigate');
+      await callTool(harness, sessionId, 3, 'browser_use_device', { device: 'phone' });
+      await callTool(harness, sessionId, 4, 'browser_fails');
+      // Denied tools never reach Playwright MCP, so they are not agent work.
+      await callTool(harness, sessionId, 5, 'browser_run_code_unsafe');
+
+      assert.deepEqual(recorded, [
+        { sessionId, tool: 'browser_navigate', ok: true },
+        { sessionId, tool: 'browser_use_device', ok: true },
+        { sessionId, tool: 'browser_fails', ok: false },
+      ]);
     } finally {
       await harness.close();
     }

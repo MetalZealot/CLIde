@@ -1,7 +1,7 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
-- Status: 4/7
-- Next: Phase 4 — make the Browser tab a live monitor.
+- Status: 5/7
+- Next: Phase 5 — register the endpoint with all four providers.
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
@@ -75,13 +75,16 @@ Codex already merges. The Browser work must not conceal or work around it.
       a live session, since touch, user agent and pixel density are fixed when a
       context is created — desktop 1440 px untouched, phone 412 px with touch,
       both ways, same session id and panel row.
-- [ ] **4. Live Browser monitor.** Record tool name and outcome at the transport
-      boundary, mirror safe tab/page metadata from the supplied context and
-      capture a debounced screenshot after state-changing calls. Push or poll
-      updates only while the Browser tab is visible; opening the tab must show
-      current state without a manual Refresh. Preserve Stop/Delete and profile
-      visibility. Retain the cursor marker only if its position is available
-      through the public contract.
+- [x] **4. Live Browser monitor.** Tool name and outcome are recorded at the
+      transport as each call completes, so the panel reflects agent work without
+      the agent reporting it; denied calls never count. A capture follows on a
+      700 ms trailing debounce, so a burst costs one screenshot. The panel polls
+      a summary view that carries no image bytes and fetches a screenshot only
+      when its version moves, and only while the tab is on screen. Opening the
+      tab shows current state. Visible: a recent-actions list with per-call
+      outcome, and a viewport badge that tracks device swaps. Stop, Delete and
+      profile visibility are unchanged; the cursor marker retires with the
+      legacy path, since the official contract exposes no pointer position.
 - [ ] **5. Provider migration and compatibility.** Register the authenticated
       HTTP endpoint for Claude, Codex, Cursor and OpenCode without disturbing
       unrelated native MCP keys. Remove the old `browser_create_session`,
