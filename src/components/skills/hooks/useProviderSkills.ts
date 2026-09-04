@@ -1,25 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
+import { GLOBAL_SKILLS_TARGET } from '../types';
 import type {
   ApiResponse,
   ProviderSkill,
   ProviderSkillCreatePayload,
   ProviderSkillsResponse,
-  SkillsProject,
   SkillsProvider,
   SkillsScope,
+  SkillsTarget,
 } from '../types';
 
 type SkillsCacheEntry = {
   skills: ProviderSkill[];
   updatedAt: number;
-};
-
-type ProjectTarget = {
-  projectId: string;
-  displayName: string;
-  path: string;
 };
 
 const SKILLS_CACHE_TTL_MS = 5 * 60_000;
@@ -75,34 +70,14 @@ const normalizeScope = (value: unknown): SkillsScope => (
   isSkillsScope(value) ? value : 'user'
 );
 
-const createProjectTargets = (projects: SkillsProject[]): ProjectTarget[] => {
-  const seenPaths = new Set<string>();
-
-  const targets = projects.reduce<ProjectTarget[]>((acc, project) => {
-    const projectPath = project.fullPath || project.path || '';
-    if (!projectPath || seenPaths.has(projectPath)) {
-      return acc;
-    }
-
-    seenPaths.add(projectPath);
-    acc.push({
-      projectId: project.projectId,
-      displayName: project.displayName || project.projectId,
-      path: projectPath,
-    });
-    return acc;
-  }, []);
-
-  return targets.sort((left, right) => left.path.localeCompare(right.path));
-};
-
 const normalizeSkill = (
   provider: SkillsProvider,
   skill: Partial<ProviderSkill>,
-  project?: ProjectTarget,
+  target: SkillsTarget,
 ): ProviderSkill => {
   const scope = normalizeScope(skill.scope);
   const shouldAttachProject = scope === 'project' || scope === 'repo';
+  const workspace = target.kind === 'workspace' ? target : undefined;
 
   return {
     provider,
@@ -114,23 +89,13 @@ const normalizeSkill = (
     pluginName: typeof skill.pluginName === 'string' ? skill.pluginName : undefined,
     pluginId: typeof skill.pluginId === 'string' ? skill.pluginId : undefined,
     projectDisplayName: shouldAttachProject
-      ? project?.displayName ?? skill.projectDisplayName
+      ? workspace?.displayName ?? skill.projectDisplayName
       : skill.projectDisplayName,
     projectPath: shouldAttachProject
-      ? project?.path ?? skill.projectPath
+      ? workspace?.path ?? skill.projectPath
       : skill.projectPath,
   };
 };
-
-const getSkillIdentity = (skill: ProviderSkill): string => (
-  [
-    skill.provider,
-    skill.scope,
-    skill.command,
-    skill.sourcePath || 'no-source-path',
-    skill.projectPath || 'global',
-  ].join(':')
-);
 
 const sortSkills = (skills: ProviderSkill[]): ProviderSkill[] => (
   [...skills].sort((left, right) => {
@@ -148,39 +113,26 @@ const sortSkills = (skills: ProviderSkill[]): ProviderSkill[] => (
   })
 );
 
-const mergeSkills = (
-  existingSkills: ProviderSkill[],
-  incomingSkills: ProviderSkill[],
-): ProviderSkill[] => {
-  const skillsById = new Map<string, ProviderSkill>();
-  existingSkills.forEach((skill) => {
-    skillsById.set(getSkillIdentity(skill), skill);
-  });
-  incomingSkills.forEach((skill) => {
-    skillsById.set(getSkillIdentity(skill), skill);
-  });
-
-  return sortSkills([...skillsById.values()]);
-};
-
 const fetchProviderSkills = async (
   provider: SkillsProvider,
-  project?: ProjectTarget,
+  target: SkillsTarget,
+  signal: AbortSignal,
 ): Promise<ProviderSkill[]> => {
   const params = new URLSearchParams();
-  if (project?.path) {
-    params.set('workspacePath', project.path);
+  if (target.kind === 'workspace') {
+    params.set('workspacePath', target.path);
   }
 
   const response = await authenticatedFetch(
     `/api/providers/${provider}/skills${params.toString() ? `?${params.toString()}` : ''}`,
+    { signal },
   );
   const data = await toResponseJson<ApiResponse<ProviderSkillsResponse>>(response);
   if (!response.ok || !data.success) {
     throw new Error(getApiErrorMessage(data, `Failed to load ${provider} skills`));
   }
 
-  return (data.data.skills || []).map((skill) => normalizeSkill(provider, skill, project));
+  return sortSkills((data.data.skills || []).map((skill) => normalizeSkill(provider, skill, target)));
 };
 
 const saveProviderSkills = async (
@@ -196,13 +148,16 @@ const saveProviderSkills = async (
     throw new Error(getApiErrorMessage(data, 'Failed to save skills'));
   }
 
-  return (data.data.skills || []).map((skill) => normalizeSkill(provider, skill));
+  return (data.data.skills || []).map((skill) => normalizeSkill(provider, skill, GLOBAL_SKILLS_TARGET));
 };
 
-const getCacheKey = (provider: SkillsProvider, projects: ProjectTarget[]): string => {
-  const projectKey = JSON.stringify(projects);
-  return `${provider}:${projectKey}`;
-};
+const getTargetKey = (target: SkillsTarget): string => (
+  target.kind === 'global' ? 'global' : `workspace:${target.path}`
+);
+
+const getCacheKey = (provider: SkillsProvider, target: SkillsTarget): string => (
+  `${provider}:${getTargetKey(target)}`
+);
 
 const clearProviderSkillCache = (provider: SkillsProvider): void => {
   for (const cacheKey of [...skillsCache.keys()]) {
@@ -214,37 +169,49 @@ const clearProviderSkillCache = (provider: SkillsProvider): void => {
 
 type UseProviderSkillsArgs = {
   selectedProvider: SkillsProvider;
-  currentProjects: SkillsProject[];
+  target: SkillsTarget;
 };
 
-export function useProviderSkills({ selectedProvider, currentProjects }: UseProviderSkillsArgs) {
+export function useProviderSkills({ selectedProvider, target }: UseProviderSkillsArgs) {
   const [skills, setSkills] = useState<ProviderSkill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingProjectScopes, setIsLoadingProjectScopes] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | null>(null);
   const activeLoadIdRef = useRef(0);
+  const activeLoadControllerRef = useRef<AbortController | null>(null);
 
-  const serializedProjectTargets = JSON.stringify(createProjectTargets(currentProjects));
-  const projectTargets = useMemo<ProjectTarget[]>(
-    () => JSON.parse(serializedProjectTargets) as ProjectTarget[],
-    [serializedProjectTargets],
+  const targetProjectId = target.kind === 'workspace' ? target.projectId : '';
+  const targetDisplayName = target.kind === 'workspace' ? target.displayName : '';
+  const targetPath = target.kind === 'workspace' ? target.path : '';
+  const stableTarget = useMemo<SkillsTarget>(
+    () => target.kind === 'global'
+      ? GLOBAL_SKILLS_TARGET
+      : {
+        kind: 'workspace',
+        projectId: targetProjectId,
+        displayName: targetDisplayName,
+        path: targetPath,
+      },
+    [target.kind, targetDisplayName, targetPath, targetProjectId],
   );
-  const cacheKey = useMemo(() => getCacheKey(selectedProvider, projectTargets), [projectTargets, selectedProvider]);
+  const cacheKey = useMemo(() => getCacheKey(selectedProvider, stableTarget), [selectedProvider, stableTarget]);
 
   const refreshSkills = useCallback(async (options: { force?: boolean } = {}) => {
     const loadId = activeLoadIdRef.current + 1;
     activeLoadIdRef.current = loadId;
+    activeLoadControllerRef.current?.abort();
 
     const cachedEntry = skillsCache.get(cacheKey);
     const canUseCache = !options.force && cachedEntry && Date.now() - cachedEntry.updatedAt < SKILLS_CACHE_TTL_MS;
     if (canUseCache) {
       setSkills(cachedEntry.skills);
       setIsLoading(false);
-      setIsLoadingProjectScopes(false);
       setLoadError(null);
       return;
     }
+
+    const controller = new AbortController();
+    activeLoadControllerRef.current = controller;
 
     if (cachedEntry) {
       setSkills(cachedEntry.skills);
@@ -253,64 +220,30 @@ export function useProviderSkills({ selectedProvider, currentProjects }: UseProv
     }
 
     setIsLoading(Boolean(options.force) || !cachedEntry);
-    setIsLoadingProjectScopes(false);
     setLoadError(null);
 
-    let nextSkills = cachedEntry && !options.force ? cachedEntry.skills : [];
-    let firstError: string | null = null;
-
     try {
-      const globalSkills = await fetchProviderSkills(selectedProvider);
+      const nextSkills = await fetchProviderSkills(selectedProvider, stableTarget, controller.signal);
       if (activeLoadIdRef.current !== loadId) {
         return;
       }
 
-      nextSkills = mergeSkills(nextSkills, globalSkills);
+      skillsCache.set(cacheKey, { skills: nextSkills, updatedAt: Date.now() });
       setSkills(nextSkills);
     } catch (error) {
-      firstError = error instanceof Error ? error.message : 'Failed to load skills';
-    }
-
-    if (activeLoadIdRef.current !== loadId) {
-      return;
-    }
-
-    setIsLoading(false);
-
-    if (projectTargets.length === 0) {
-      const finalSkills = sortSkills(nextSkills);
-      skillsCache.set(cacheKey, { skills: finalSkills, updatedAt: Date.now() });
-      setSkills(finalSkills);
-      setLoadError(firstError);
-      return;
-    }
-
-    setIsLoadingProjectScopes(true);
-
-    await Promise.all(projectTargets.map(async (project) => {
-      try {
-        const projectSkills = await fetchProviderSkills(selectedProvider, project);
-        if (activeLoadIdRef.current !== loadId) {
-          return;
-        }
-
-        nextSkills = mergeSkills(nextSkills, projectSkills);
-        setSkills(nextSkills);
-      } catch (error) {
-        firstError = firstError || (error instanceof Error ? error.message : 'Failed to load skills');
+      if (activeLoadIdRef.current !== loadId || (error instanceof Error && error.name === 'AbortError')) {
+        return;
       }
-    }));
-
-    if (activeLoadIdRef.current !== loadId) {
-      return;
+      setLoadError(error instanceof Error ? error.message : 'Failed to load skills');
+    } finally {
+      if (activeLoadIdRef.current === loadId) {
+        setIsLoading(false);
+        if (activeLoadControllerRef.current === controller) {
+          activeLoadControllerRef.current = null;
+        }
+      }
     }
-
-    const finalSkills = sortSkills(nextSkills);
-    skillsCache.set(cacheKey, { skills: finalSkills, updatedAt: Date.now() });
-    setSkills(finalSkills);
-    setLoadError(firstError);
-    setIsLoadingProjectScopes(false);
-  }, [cacheKey, projectTargets, selectedProvider]);
+  }, [cacheKey, selectedProvider, stableTarget]);
 
   const addSkills = useCallback(async (payload: ProviderSkillCreatePayload) => {
     try {
@@ -330,6 +263,8 @@ export function useProviderSkills({ selectedProvider, currentProjects }: UseProv
 
     return () => {
       activeLoadIdRef.current += 1;
+      activeLoadControllerRef.current?.abort();
+      activeLoadControllerRef.current = null;
     };
   }, [refreshSkills]);
 
@@ -349,7 +284,6 @@ export function useProviderSkills({ selectedProvider, currentProjects }: UseProv
   return {
     skills,
     isLoading,
-    isLoadingProjectScopes,
     loadError,
     saveStatus,
     addSkills,

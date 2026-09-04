@@ -24,7 +24,6 @@ import type {
   AnyRecord,
   ApiSuccessShape,
   AppErrorOptions,
-  LLMProvider,
   NormalizedMessage,
   ProviderCurrentActiveModel,
   ProviderModelsDefinition,
@@ -648,6 +647,36 @@ export async function findTopmostGitRoot(startPath: string): Promise<string | nu
   }
 
   return topmostGitRoot;
+}
+
+/**
+ * Lists every directory from one provider working directory up to its Git root.
+ *
+ * Claude, Codex, Cursor, and OpenCode skill adapters use this hierarchy to
+ * reproduce their working-directory-scoped lookup without scanning unrelated
+ * saved projects. A path outside a Git repository returns only itself.
+ */
+export async function findDirectoriesToGitRoot(startPath: string): Promise<string[]> {
+  const normalizedStartPath = path.resolve(startPath);
+  const repoRoot = await findTopmostGitRoot(normalizedStartPath);
+  const roots: string[] = [];
+  let currentPath = normalizedStartPath;
+
+  while (true) {
+    roots.push(currentPath);
+    if (!repoRoot || currentPath === repoRoot) {
+      break;
+    }
+
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      break;
+    }
+
+    currentPath = parentPath;
+  }
+
+  return roots;
 }
 
 /**

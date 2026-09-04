@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useMcpServers } from '../../../mcp/hooks/useMcpServers';
 import type { McpProject } from '../../../mcp/types';
 import { useProviderSkills } from '../../../skills/hooks/useProviderSkills';
+import { GLOBAL_SKILLS_TARGET } from '../../../skills/types';
 import {
   AGENT_PROVIDERS,
   type AgentProviderId,
@@ -36,8 +37,7 @@ type SubsystemRowProps = {
 /**
  * `SettingsProject.name` is populated from the DB projectId by
  * `normalizeProjectForSettings`, so it maps straight through to the identifier
- * the MCP and Skills subsystems expect. `McpProject` and `SkillsProject` are
- * structurally identical, so one mapping serves both.
+ * the MCP subsystem expects.
  */
 const toSubsystemProjects = (projects: SettingsProject[]): McpProject[] => (
   projects.map((project) => ({
@@ -80,10 +80,12 @@ function McpSubsystemRow({ provider, projects, onOpenScreen }: SubsystemRowProps
   );
 }
 
-function SkillsSubsystemRow({ provider, projects, onOpenScreen }: SubsystemRowProps) {
+function SkillsSubsystemRow({ provider, onOpenScreen }: SubsystemRowProps) {
   const { t } = useTranslation('settings');
-  const currentProjects = useSubsystemProjects(projects);
-  const { skills, isLoading } = useProviderSkills({ selectedProvider: provider, currentProjects });
+  const { skills, isLoading } = useProviderSkills({
+    selectedProvider: provider,
+    target: GLOBAL_SKILLS_TARGET,
+  });
   const screen = getScreen(agentScreenId(provider, 'skills'));
 
   if (!screen) {

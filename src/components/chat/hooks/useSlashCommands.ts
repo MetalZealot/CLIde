@@ -259,9 +259,12 @@ export function useSlashCommands({
         }
 
         const data = await response.json();
+        // Skills are global-only without a workspace path, so fall back to the
+        // selected project the same way the commands request above does.
+        const skillsWorkspacePath = workspacePath || selectedProject.path;
         const skillsParams = new URLSearchParams();
-        if (workspacePath) {
-          skillsParams.set('workspacePath', workspacePath);
+        if (skillsWorkspacePath) {
+          skillsParams.set('workspacePath', skillsWorkspacePath);
         }
 
         const skillsResponse = await authenticatedFetch(

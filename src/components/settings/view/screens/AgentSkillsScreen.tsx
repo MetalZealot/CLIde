@@ -1,34 +1,131 @@
+import { useMemo, useState } from 'react';
+
+import { compactHomePath } from '../../../sidebar/utils/worktreeManager';
 import { ProviderSkills } from '../../../skills';
-import type { SkillsProject } from '../../../skills/types';
+import { GLOBAL_SKILLS_TARGET, type SkillsTarget } from '../../../skills/types';
 import type { AgentProviderId } from '../../registry/registry';
 import type { SettingsProject } from '../../types/types';
-import { SettingsScreen } from '../primitives';
+import {
+  SettingsChoicePopover,
+  SettingsGroup,
+  SettingsRow,
+  SettingsScreen,
+} from '../primitives';
 
 type AgentSkillsScreenProps = {
   provider: AgentProviderId;
   projects: SettingsProject[];
 };
 
+type SkillsWorkspace = {
+  projectId: string;
+  displayName: string;
+  path: string;
+};
+
+const GLOBAL_OPTION_VALUE = 'global';
+
 /**
- * Re-parenting, not a rewrite. The `overflow-y-auto` inside `ProviderSkills` is
- * in its add-skill Dialog, which is portalled out of the screen, so it does not
- * make a second scroller here.
+ * Saved projects are the only workspaces a skill can be listed for. Two saved
+ * entries can point at one checkout, so paths are de-duplicated; sorting by
+ * path keeps a main checkout next to its worktrees, whose display names are
+ * often identical.
+ */
+const toSkillsWorkspaces = (projects: SettingsProject[]): SkillsWorkspace[] => {
+  const seenPaths = new Set<string>();
+
+  return projects
+    .reduce<SkillsWorkspace[]>((workspaces, project) => {
+      const projectPath = project.fullPath || project.path || '';
+      if (!projectPath || seenPaths.has(projectPath)) {
+        return workspaces;
+      }
+
+      seenPaths.add(projectPath);
+      workspaces.push({
+        projectId: project.name,
+        displayName: project.displayName || project.name,
+        path: projectPath,
+      });
+      return workspaces;
+    }, [])
+    .sort((left, right) => left.path.localeCompare(right.path));
+};
+
+/**
+ * Skills for one provider, listed for one workspace at a time.
+ *
+ * Settings is opened from the sidebar and has no working directory of its own,
+ * so there is no checkout to infer: the screen lists global skills until you
+ * name a workspace, and the chosen path is what makes a project skill visible.
+ * That is also why the choice resets — a remembered checkout would claim a
+ * context this screen does not have.
  *
  * Only reachable for providers whose registry entry lists `skills`, which is
  * every provider but OpenCode.
  */
 export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScreenProps) {
+  const [target, setTarget] = useState<SkillsTarget>(GLOBAL_SKILLS_TARGET);
+  const [listedProvider, setListedProvider] = useState(provider);
+  const workspaces = useMemo(() => toSkillsWorkspaces(projects), [projects]);
+
+  // Reset while rendering, not in an effect: an effect runs after the children
+  // have already rendered, so the new provider would be asked for the previous
+  // provider's checkout first.
+  if (provider !== listedProvider) {
+    setListedProvider(provider);
+    setTarget(GLOBAL_SKILLS_TARGET);
+  }
+
+  const options = useMemo(() => [
+    {
+      value: GLOBAL_OPTION_VALUE,
+      label: 'Global',
+      detail: 'Available in every project',
+    },
+    ...workspaces.map((workspace) => ({
+      value: workspace.path,
+      label: workspace.displayName,
+      detail: compactHomePath(workspace.path),
+      keywords: `${workspace.projectId} ${workspace.path}`,
+    })),
+  ], [workspaces]);
+
+  const handleTargetChange = (value: string) => {
+    const workspace = workspaces.find((candidate) => candidate.path === value);
+    setTarget(workspace ? { kind: 'workspace', ...workspace } : GLOBAL_SKILLS_TARGET);
+  };
+
   return (
     <SettingsScreen>
-      <ProviderSkills
-        selectedProvider={provider}
-        currentProjects={projects.map<SkillsProject>((project) => ({
-          projectId: project.name,
-          displayName: project.displayName,
-          fullPath: project.fullPath,
-          path: project.path,
-        }))}
-      />
+      <SettingsGroup>
+        {/*
+          No description line and no `stacked`: the control sits beside its
+          label, as agreed. A sentence here is what forces the row to stack and
+          the popover to go full width on a phone.
+
+          The trigger's default minimum is wider than the space left beside the
+          label at 320px, and a project name is longer than "Global", so both
+          ends need bounding or the label wraps onto two lines. The label wants
+          109px; 40vw leaves that at every width down to 320. A longer project
+          name truncates, and the picker still names the checkout underneath.
+        */}
+        <SettingsRow label="Showing skills for">
+          <SettingsChoicePopover
+            value={target.kind === 'global' ? GLOBAL_OPTION_VALUE : target.path}
+            options={options}
+            onChange={handleTargetChange}
+            ariaLabel="Showing skills for"
+            searchable
+            searchPlaceholder="Search projects"
+            showSelectedDetail={false}
+            stackedOptionDetails
+            className="min-w-28 max-w-[40vw]"
+          />
+        </SettingsRow>
+      </SettingsGroup>
+
+      <ProviderSkills selectedProvider={provider} target={target} />
     </SettingsScreen>
   );
 }

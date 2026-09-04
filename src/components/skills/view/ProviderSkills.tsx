@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   CheckCircle2,
-  FileCode2,
+  ChevronRight,
   FileText,
   FileUp,
   FolderUp,
@@ -27,14 +27,14 @@ import { useProviderSkills } from '../hooks/useProviderSkills';
 import type {
   ProviderSkill,
   ProviderSkillCreateEntryPayload,
-  SkillsProject,
   SkillsProvider,
   SkillsScope,
+  SkillsTarget,
 } from '../types';
 
 type ProviderSkillsProps = {
   selectedProvider: SkillsProvider;
-  currentProjects: SkillsProject[];
+  target: SkillsTarget;
 };
 
 type QueuedSkillSourceFile = {
@@ -68,7 +68,7 @@ const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> 
 };
 
 const SCOPE_LABELS: Record<SkillsScope, string> = {
-  user: 'User',
+  user: 'Personal',
   plugin: 'Plugin',
   repo: 'Repo',
   project: 'Project',
@@ -76,22 +76,50 @@ const SCOPE_LABELS: Record<SkillsScope, string> = {
   system: 'System',
 };
 
-const SCOPE_BADGE_CLASSES: Record<SkillsScope, string> = {
-  user: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  plugin: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  repo: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  project: 'border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300',
-  admin: 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  system: 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300',
+const WORKSPACE_SCOPES: SkillsScope[] = ['project', 'repo'];
+
+const GLOBAL_GROUP_LABEL = 'Available everywhere';
+
+type SkillsGroup = {
+  key: string;
+  label: string;
+  skills: ProviderSkill[];
+  /**
+   * Only the everywhere group badges its rows. Inside a checkout's own group
+   * the scope is what the heading already said.
+   */
+  showScope: boolean;
 };
 
-const SCOPE_ORDER: SkillsScope[] = ['user', 'plugin', 'repo', 'project', 'admin', 'system'];
+/**
+ * Grouped by where a skill comes from, not by its scope: the chosen checkout's
+ * own skills are the reason it was chosen, and there are usually a handful of
+ * them against twenty-odd global ones, so anywhere else on the list is
+ * effectively buried. Scope rides on the row badge instead.
+ */
+const groupSkillsByLocation = (
+  skills: ProviderSkill[],
+  target: SkillsTarget,
+): SkillsGroup[] => {
+  const isWorkspaceSkill = (skill: ProviderSkill) => WORKSPACE_SCOPES.includes(skill.scope);
+  const workspaceSkills = skills.filter(isWorkspaceSkill);
+  const everywhereSkills = skills.filter((skill) => !isWorkspaceSkill(skill));
 
-const groupSkillsByScope = (skills: ProviderSkill[]): Array<{ scope: SkillsScope; skills: ProviderSkill[] }> => (
-  SCOPE_ORDER
-    .map((scope) => ({ scope, skills: skills.filter((skill) => skill.scope === scope) }))
-    .filter((group) => group.skills.length > 0)
-);
+  return [
+    {
+      key: 'workspace',
+      label: target.kind === 'workspace' ? target.displayName : 'This checkout',
+      skills: workspaceSkills,
+      showScope: false,
+    },
+    {
+      key: 'everywhere',
+      label: GLOBAL_GROUP_LABEL,
+      skills: everywhereSkills,
+      showScope: true,
+    },
+  ].filter((group) => group.skills.length > 0);
+};
 
 const formatFileSize = (size: number): string => {
   if (size < 1024) {
@@ -197,16 +225,15 @@ const buildQueuedSkillFolders = (selectedFiles: File[]): QueuedSkillFile[] => {
   });
 };
 
-export default function ProviderSkills({ selectedProvider, currentProjects }: ProviderSkillsProps) {
+export default function ProviderSkills({ selectedProvider, target }: ProviderSkillsProps) {
   const {
     skills,
     isLoading,
-    isLoadingProjectScopes,
     loadError,
     saveStatus,
     addSkills,
     refreshSkills,
-  } = useProviderSkills({ selectedProvider, currentProjects });
+  } = useProviderSkills({ selectedProvider, target });
   const [queuedFiles, setQueuedFiles] = useState<QueuedSkillFile[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -261,7 +288,10 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
     ));
   }, [searchQuery, skills]);
 
-  const groupedSkills = useMemo(() => groupSkillsByScope(filteredSkills), [filteredSkills]);
+  const groupedSkills = useMemo(
+    () => groupSkillsByLocation(filteredSkills, target),
+    [filteredSkills, target],
+  );
 
   const queueSkillFolders = useCallback((selectedFiles: File[]) => {
     const queuedFolders = buildQueuedSkillFolders(selectedFiles);
@@ -519,24 +549,15 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
         No heading: this renders as its own Settings screen, whose header already
         says "Skills".
       */}
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/20 text-muted-foreground">
-          <FileCode2 className="h-4 w-4" strokeWidth={1.7} />
-        </div>
-        <p className="min-w-0 text-sm text-muted-foreground">
-          Manage {providerName} skills from local files, complete folders, and project-aware locations.
-        </p>
-      </div>
-
       <div className="space-y-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative min-w-0 flex-1 sm:max-w-md">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search skills..."
+              placeholder="Search"
               aria-label="Search skills"
               className="h-9 w-full pl-9 pr-9"
             />
@@ -551,32 +572,32 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
               </button>
             )}
           </div>
+          {/*
+            Named for where it installs, not for the list being viewed: a
+            workspace is selectable here, but a new skill always lands in the
+            provider's global location.
+          */}
           <Button
             type="button"
             size="sm"
-            className="w-full sm:w-auto"
+            className="shrink-0"
             onClick={() => handleAddDialogOpenChange(true)}
           >
             <Plus className="h-4 w-4" />
-            Add Skill
+            {target.kind === 'workspace' ? 'Add to Global' : 'Add Skill'}
           </Button>
           <Button
             onClick={() => void refreshSkills({ force: true })}
             variant="outline"
             size="sm"
-            className="w-full sm:w-auto"
-            disabled={isLoading || isLoadingProjectScopes}
+            aria-label="Refresh skills"
+            title="Refresh skills"
+            className="h-9 w-9 shrink-0 px-0"
+            disabled={isLoading}
           >
-            <RefreshCw className={cn('h-4 w-4', (isLoading || isLoadingProjectScopes) && 'animate-spin')} />
-            Refresh
+            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
           </Button>
         </div>
-        {isLoadingProjectScopes && (
-          <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Scanning project skills...
-          </div>
-        )}
       </div>
 
       <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogOpenChange}>
@@ -700,49 +721,75 @@ export default function ProviderSkills({ selectedProvider, currentProjects }: Pr
         )}
 
         {groupedSkills.map((group) => (
-          <section key={group.scope} className="min-w-0 space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={cn('rounded-full px-2.5 py-1 text-xs', SCOPE_BADGE_CLASSES[group.scope])}>
-                {SCOPE_LABELS[group.scope]}
-              </Badge>
-              <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {group.skills.length} skill{group.skills.length === 1 ? '' : 's'}
+          <section key={group.key} className="min-w-0 space-y-3">
+            {/*
+              A section label, not a status: coloured pills down the page read
+              as warnings. The count carries the only thing the pill added.
+            */}
+            <p className="min-w-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="break-words">{group.label}</span>
+              <span className="ml-1.5 font-normal normal-case tracking-normal opacity-70">
+                {group.skills.length}
               </span>
-            </div>
+            </p>
 
-            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-1.5 lg:grid-cols-2">
               {group.skills.map((skill) => (
-                <div
+                /*
+                  The card face is the accepted design: command, one line of
+                  description, scope badge. The whole face is the disclosure
+                  control, so the full description and source path sit one tap
+                  away without a visible "details" row lengthening every card.
+                */
+                <details
                   key={`${skill.command}:${skill.sourcePath}:${skill.projectPath || 'global'}`}
-                  className="min-w-0 rounded-lg border border-border bg-card/50 p-4"
+                  className="group/card min-w-0 rounded-lg border border-border/60 bg-card/50"
                 >
-                  <div className="min-w-0 space-y-1">
-                    <div className="break-all font-mono text-sm font-semibold text-foreground">{skill.command}</div>
-                    <div className="text-sm text-muted-foreground">{skill.name}</div>
-                  </div>
+                  <summary className="flex min-h-11 min-w-0 cursor-pointer list-none items-start gap-3 px-3 py-2.5 marker:content-none [&::-webkit-details-marker]:hidden">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{skill.command}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {skill.description || 'No description provided in the skill front matter.'}
+                      </p>
+                    </div>
 
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    {skill.description || 'No description provided in the skill front matter.'}
-                  </p>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {skill.pluginName && (
-                      <Badge variant="outline" className="rounded-full bg-background/70">
-                        Plugin: {skill.pluginName}
+                    {group.showScope && (
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground"
+                      >
+                        {SCOPE_LABELS[skill.scope]}
                       </Badge>
                     )}
-                    {skill.projectDisplayName && (
-                      <Badge variant="outline" className="rounded-full bg-background/70">
-                        Project: {skill.projectDisplayName}
-                      </Badge>
-                    )}
-                  </div>
+                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-open/card:rotate-90" />
+                  </summary>
 
-                  <div className="mt-4 min-w-0 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                    <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Source</div>
-                    <code className="mt-1 block whitespace-normal break-all text-xs text-foreground">{skill.sourcePath}</code>
+                  <div className="min-w-0 border-t border-border/60 px-3 py-3">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {skill.description || 'No description provided in the skill front matter.'}
+                    </p>
+
+                    {(skill.pluginName || skill.projectDisplayName) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {skill.pluginName && (
+                          <Badge variant="outline" className="rounded-full bg-background/70">
+                            Plugin: {skill.pluginName}
+                          </Badge>
+                        )}
+                        {skill.projectDisplayName && (
+                          <Badge variant="outline" className="rounded-full bg-background/70">
+                            Project: {skill.projectDisplayName}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="mt-3 min-w-0 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Source</div>
+                      <code className="mt-1 block whitespace-normal break-all text-xs text-foreground">{skill.sourcePath}</code>
+                    </div>
                   </div>
-                </div>
+                </details>
               ))}
             </div>
           </section>

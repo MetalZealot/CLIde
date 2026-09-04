@@ -26,6 +26,7 @@ main checkout only).
 
 ## Bugs
 
+- [~] **Skills Settings combines every saved project/worktree into one provider list.** Built and screenshot-verified against the accepted design; awaiting acceptance on 3002. [Plan](plans/skills-settings-discovery-scope.md). **S/M**
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
