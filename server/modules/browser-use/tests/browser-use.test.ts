@@ -265,6 +265,7 @@ describe('browser-use-mcp endpoint', () => {
       runtime,
       recordAction: overrides.recordAction,
       openContext: (request) => runtime.acquireContext({
+        id: request.id,
         profileName: request.profileName,
         device: request.device as 'desktop' | 'phone' | 'tablet' | null,
         orientation: request.orientation as 'portrait' | 'landscape' | null,
@@ -377,18 +378,36 @@ describe('browser-use-mcp endpoint', () => {
     .map((item: { text?: string }) => item.text || '')
     .join('\n');
 
-  test('initialize leases one context whose id is the MCP session id', async () => {
+  // A provider connects to every configured MCP server just to read its tools,
+  // so connecting must not cost a browser or a panel row.
+  test('connecting leases nothing; the first tool call leases one context under the session id', async () => {
     const harness = await startEndpoint();
     try {
       const first = await initialize(harness, '?device=phone');
 
       assert.equal(first.status, 200);
+      assert.equal(harness.runtime.getLease(first.sessionId), null);
+      assert.equal(harness.runtime.listLeases().length, 0);
+      assert.deepEqual(harness.endpoint.listSessionIds(), [first.sessionId]);
+
+      await readRpc(await fetch(harness.url, {
+        method: 'POST',
+        headers: { ...HEADERS, 'mcp-session-id': first.sessionId },
+        body: rpc(2, 'tools/list'),
+      }));
+      assert.equal(harness.runtime.listLeases().length, 0);
+
+      await readRpc(await callTool(harness, first.sessionId, 3, 'browser_navigate'));
       assert.equal(harness.runtime.getLease(first.sessionId)?.id, first.sessionId);
       assert.equal(harness.runtime.getLease(first.sessionId)?.device, 'phone');
-      assert.deepEqual(harness.endpoint.listSessionIds(), [first.sessionId]);
+
+      // A second call reuses that lease rather than opening another.
+      await readRpc(await callTool(harness, first.sessionId, 4, 'browser_navigate'));
+      assert.equal(harness.runtime.listLeases().length, 1);
 
       const second = await initialize(harness);
       assert.notEqual(second.sessionId, first.sessionId);
+      await readRpc(await callTool(harness, second.sessionId, 2, 'browser_navigate'));
       assert.equal(harness.runtime.listLeases().length, 2);
     } finally {
       await harness.close();
@@ -510,6 +529,7 @@ describe('browser-use-mcp endpoint', () => {
     const harness = await startEndpoint();
     try {
       const { sessionId } = await initialize(harness);
+      await callTool(harness, sessionId, 1, 'browser_navigate');
       const before = harness.runtime.getLease(sessionId)!.context.contextId;
       assert.equal(harness.runtime.getLease(sessionId)?.device, 'desktop');
 
@@ -568,12 +588,14 @@ describe('browser-use-mcp endpoint', () => {
         headers: { ...HEADERS, 'mcp-session-id': deleted.sessionId },
       });
       assert.equal(response.status, 200);
+      // This one never called a tool, so it closes with no lease to release.
       assert.equal(harness.runtime.getLease(deleted.sessionId), null);
       assert.equal(harness.endpoint.listSessionIds().includes(deleted.sessionId), false);
       assert.equal((await callTool(harness, deleted.sessionId, 2, 'browser_navigate')).status, 404);
 
       // A lease released anywhere else — expiry, panel Stop, shutdown — takes its
       // transport with it.
+      await callTool(harness, expired.sessionId, 2, 'browser_navigate');
       await harness.runtime.releaseContext(expired.sessionId);
       assert.deepEqual(harness.endpoint.listSessionIds(), []);
       assert.equal((await callTool(harness, expired.sessionId, 3, 'browser_navigate')).status, 404);

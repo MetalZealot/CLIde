@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,8 +14,12 @@ import {
 import { browserUseService } from './browser-use.service.js';
 
 // One authenticated MCP transport, one CLIde context lease, one Playwright MCP
-// server. The lease id is the transport's session id, so the panel row, the
-// browser context and the MCP session are one identity.
+// server. The transport's session id is also the lease id, so the panel row,
+// the browser context and the MCP session are one identity.
+//
+// A provider connects to every configured MCP server at startup just to read
+// its tool list, so the browser and its panel row are created by the first tool
+// call that needs a page, never by connecting.
 
 // `browser_run_code_unsafe` runs server code and `browser_file_upload` reads any
 // host path. Both are `core` tools no configuration removes, so the transport is
@@ -42,6 +47,11 @@ const TRUNCATION_HINT = 'Use browser_find (text or regex) or browser_verify_text
 
 // Values that must never travel back inside page text if a page happens to
 // render them; Playwright MCP replaces each with its name.
+// A connected transport that never leased a context costs nothing but its own
+// entry, and a provider that exits without a DELETE leaves one behind. Leases
+// have the runtime's expiry; these need their own.
+const IDLE_TRANSPORT_TTL_MS = 30 * 60 * 1000;
+
 const SECRET_ENV_KEYS = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
@@ -74,6 +84,7 @@ export type BrowserMcpContextRequest = {
   device?: string | null;
   orientation?: string | null;
   profileName?: string | null;
+  id?: string;
 };
 
 type BrowserMcpEndpointOptions = {
@@ -281,7 +292,16 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
   const createConnection = options.createConnection || createPlaywrightMcpConnection;
   const recordAction = options.recordAction
     || ((sessionId: string, action: { tool: string; ok: boolean }) => browserUseService.recordAgentAction(sessionId, action));
-  const transports = new Map<string, { transport: any; connection: McpServerConnection }>();
+  const transports = new Map<string, { transport: any; connection: McpServerConnection; lastUsedAt: number }>();
+
+  function sweepIdleTransports(): void {
+    const cutoff = Date.now() - IDLE_TRANSPORT_TTL_MS;
+    for (const [id, entry] of transports) {
+      if (entry.lastUsedAt < cutoff && !runtime.getLease(id)) {
+        void closeSession(id, { releaseContext: false });
+      }
+    }
+  }
 
   async function closeSession(id: string, closeOptions: { releaseContext: boolean }): Promise<boolean> {
     const entry = transports.get(id);
@@ -304,30 +324,42 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
   });
 
   async function openSession(req: any, res: any): Promise<void> {
-    const lease = await openContext({
+    const sessionId = randomUUID();
+    const request: BrowserMcpContextRequest = {
+      id: sessionId,
       device: readQuery(req.query?.device),
       orientation: readQuery(req.query?.orientation),
       profileName: readQuery(req.query?.profile),
-    });
+    };
+    // Concurrent first calls must open one browser, not one each.
+    let opening: Promise<BrowserContextLease> | null = null;
+    const leaseContext = async (): Promise<BrowserContextLease> => {
+      const existing = runtime.getLease(sessionId);
+      if (existing) {
+        return existing;
+      }
+      opening = opening || openContext(request);
+      try {
+        return await opening;
+      } finally {
+        opening = null;
+      }
+    };
 
     let transport: any;
     try {
       transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => lease.id,
+        sessionIdGenerator: () => sessionId,
         onsessionclosed: (id: string) => {
           void closeSession(id, { releaseContext: true });
         },
       });
-      // Read the lease on every call: a device switch replaces its context.
-      const connection = await createConnection(async () => {
-        const current = runtime.getLease(lease.id);
-        if (!current) {
-          throw new Error('Browser session has ended.');
-        }
-        return current.context;
-      }, lease.id);
+      // Lease on first use, then read it on every call: a device switch
+      // replaces the context under the same id.
+      const connection = await createConnection(async () => (await leaseContext()).context, sessionId);
       const guarded = guardTransport(transport, async (args) => {
-        const swapped = await runtime.swapContext(lease.id, {
+        await leaseContext();
+        const swapped = await runtime.swapContext(sessionId, {
           device: args.device as 'desktop' | 'phone' | 'tablet' | null,
           orientation: args.orientation as 'portrait' | 'landscape' | null,
         });
@@ -337,12 +369,12 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
           viewport: swapped.viewport,
           note: 'Open pages were replaced. Navigate again.',
         }));
-      }, (tool, ok) => recordAction(lease.id, { tool, ok }));
+      }, (tool, ok) => recordAction(sessionId, { tool, ok }));
       await connection.connect(guarded);
-      transports.set(lease.id, { transport, connection });
+      transports.set(sessionId, { transport, connection, lastUsedAt: Date.now() });
     } catch (error) {
       await transport?.close?.().catch(() => undefined);
-      await runtime.releaseContext(lease.id);
+      await runtime.releaseContext(sessionId);
       throw error;
     }
 
@@ -351,6 +383,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
 
   return {
     async handleRequest(req: any, res: any): Promise<void> {
+      sweepIdleTransports();
       const sessionId = readHeader(req.headers['mcp-session-id']);
       if (sessionId) {
         const entry = transports.get(sessionId);
@@ -358,6 +391,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
           res.status(404).json(jsonRpcError(-32001, 'Browser MCP session not found.'));
           return;
         }
+        entry.lastUsedAt = Date.now();
         runtime.touch(sessionId);
         await entry.transport.handleRequest(req, res, req.body);
         return;

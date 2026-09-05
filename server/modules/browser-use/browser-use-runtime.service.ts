@@ -20,6 +20,9 @@ export type BrowserContextRequest = {
   profileName?: string | null;
   device?: BrowserDevicePreset | null;
   orientation?: BrowserOrientation | null;
+  // Callers that already own an identity for the session pass it here so the
+  // lease, the panel row and that identity stay one id.
+  id?: string;
 };
 
 // One leased context. `id` is opaque and doubles as the panel session id.
@@ -381,7 +384,7 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     const orientation = request.orientation || (device === 'desktop' ? 'landscape' : 'portrait');
     const profileName = normalizeProfileName(request.profileName);
     const contextOptions = contextOptionsFor(playwright, device, orientation);
-    const id = randomUUID();
+    const id = request.id || randomUUID();
     let context: any;
 
     if (profileName) {

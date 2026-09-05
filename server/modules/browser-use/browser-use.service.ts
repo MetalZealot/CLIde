@@ -371,12 +371,14 @@ export const browserUseService = {
     return publicBrowserSession(session);
   },
 
-  // The MCP endpoint leases a context per authenticated transport session; the
-  // page belongs to Playwright MCP, so nothing is opened or captured here.
+  // Called by the MCP endpoint on the first tool call that needs a page, not on
+  // connect; the page belongs to Playwright MCP, so nothing is opened or
+  // captured here.
   async openAgentContext(request: {
     device?: unknown;
     orientation?: unknown;
     profileName?: string | null;
+    id?: string;
   } = {}): Promise<BrowserContextLease> {
     const settings = readSettings();
     if (!settings.enabled) {
@@ -389,6 +391,7 @@ export const browserUseService = {
     }
 
     const lease = await browserRuntime.acquireContext({
+      id: request.id,
       profileName: request.profileName,
       device: readDevice(request.device),
       orientation: readOrientation(request.orientation),

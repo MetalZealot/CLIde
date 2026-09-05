@@ -15,7 +15,9 @@ visible state.
 
 - One authenticated MCP transport maps to one CLIde Browser session and one
   Playwright context. Its opaque id also identifies the panel session; no
-  database row is required.
+  database row is required. A provider connects to every configured MCP server
+  just to read its tool list, so the context and the panel row are created by
+  the first tool call that needs a page, never by connecting.
 - CLIde passes each context through Playwright MCP's public
   `createConnection(config, contextGetter)` API, with `browser.isolated` unset:
   the getter's context is used as-is and the package never closes it. Do not
