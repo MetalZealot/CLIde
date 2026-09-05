@@ -45,13 +45,27 @@ const SNAPSHOT_RESULT_MAX_BYTES = 12_288;
 const SNAPSHOT_TOOLS = new Set(['browser_snapshot', 'browser_find']);
 const TRUNCATION_HINT = 'Use browser_find (text or regex) or browser_verify_text_visible to read the rest.';
 
-// Values that must never travel back inside page text if a page happens to
-// render them; Playwright MCP replaces each with its name.
+// Playwright MCP inlines a snapshot only for a bare `browser_snapshot`; every
+// other tool that refreshes the page writes it to a file and returns a link, so
+// the page's own text would reach the agent outside the label and the budget.
+// The transport reads that file back into the result and removes it.
+const SNAPSHOT_LINK = /^- \[Snapshot\]\((.+)\)$/m;
+const SNAPSHOT_MISSING = '[Snapshot unavailable — call browser_snapshot.]';
+
+// Every tool that writes a file takes an optional `filename`, resolved against
+// the server's working directory: an agent could name a checkout file and have
+// its page text written over it. CLIde names every output file instead, which
+// also keeps them all inside the session directory it deletes on close.
+const AGENT_FILENAME_ARG = 'filename';
+
 // A connected transport that never leased a context costs nothing but its own
 // entry, and a provider that exits without a DELETE leaves one behind. Leases
 // have the runtime's expiry; these need their own.
 const IDLE_TRANSPORT_TTL_MS = 30 * 60 * 1000;
 
+// Handed to Playwright MCP, which replaces each value with its name if a page
+// happens to render it. The package documents this as a convenience against
+// accidental disclosure, not a boundary, so nothing here may depend on it.
 const SECRET_ENV_KEYS = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
@@ -91,7 +105,12 @@ type BrowserMcpEndpointOptions = {
   runtime?: BrowserRuntime;
   recordAction?: (sessionId: string, action: { tool: string; ok: boolean }) => void;
   openContext?: (request: BrowserMcpContextRequest) => Promise<BrowserContextLease>;
-  createConnection?: (getContext: () => Promise<any>, sessionId: string) => Promise<McpServerConnection>;
+  createConnection?: (
+    getContext: () => Promise<any>,
+    sessionId: string,
+    outputDir: string,
+  ) => Promise<McpServerConnection>;
+  outputRoot?: string;
 };
 
 function collectSecrets(): Record<string, string> {
@@ -112,12 +131,13 @@ function collectSecrets(): Record<string, string> {
 async function createPlaywrightMcpConnection(
   getContext: () => Promise<any>,
   sessionId: string,
+  outputDir: string,
 ): Promise<McpServerConnection> {
   // Imported on first connection so the Playwright tree stays out of startup.
   const { createConnection } = await import('@playwright/mcp');
   return createConnection({
     capabilities: ENABLED_CAPABILITIES as [],
-    outputDir: path.join(OUTPUT_ROOT, sessionId),
+    outputDir,
     outputMaxSize: OUTPUT_MAX_BYTES,
     secrets: collectSecrets(),
   }, getContext) as unknown as McpServerConnection;
@@ -161,16 +181,50 @@ function truncateUtf8(value: string, maxBytes: number): string {
   return result;
 }
 
+// Replace a snapshot file link with the file's own text and delete the file, so
+// the snapshot is subject to the same label and budget as an inline one and
+// there is no copy left to read around them.
+async function inlineSnapshotFile(
+  result: JsonRpcMessage,
+  outputDir: string,
+): Promise<{ result: JsonRpcMessage; carriedSnapshot: boolean }> {
+  const content = result?.content;
+  if (!Array.isArray(content)) {
+    return { result, carriedSnapshot: false };
+  }
+  const index = content.findIndex((item: JsonRpcMessage) => (
+    item?.type === 'text' && typeof item.text === 'string' && SNAPSHOT_LINK.test(item.text)
+  ));
+  if (index === -1) {
+    return { result, carriedSnapshot: false };
+  }
+
+  const item = content[index];
+  // Only ever a file this session wrote: CLIde owns both the name and the
+  // directory, so page text that merely looks like a link resolves to nothing.
+  const file = path.join(outputDir, path.basename(String(item.text.match(SNAPSHOT_LINK)?.[1] || '')));
+  const snapshot = await fs.readFile(file, 'utf8').catch(() => null);
+  await fs.rm(file, { force: true }).catch(() => undefined);
+
+  const inlined = snapshot === null ? SNAPSHOT_MISSING : `\`\`\`yaml\n${snapshot}\n\`\`\``;
+  const next = [...content];
+  next[index] = { ...item, text: item.text.replace(SNAPSHOT_LINK, () => inlined) };
+  return { result: { ...result, content: next }, carriedSnapshot: snapshot !== null };
+}
+
 // Text content is labelled once and then held to the tool's budget, marker
 // included, so the stated limit is the real one. Image content is left alone so
 // an explicit screenshot still returns a usable image.
-function boundResult(result: JsonRpcMessage, toolName: string): JsonRpcMessage {
+function boundResult(result: JsonRpcMessage, toolName: string, carriedSnapshot = false): JsonRpcMessage {
   const content = result?.content;
   if (!Array.isArray(content)) {
     return result;
   }
 
-  const limit = SNAPSHOT_TOOLS.has(toolName) ? SNAPSHOT_RESULT_MAX_BYTES : ORDINARY_RESULT_MAX_BYTES;
+  // The larger budget belongs to page text, whichever tool returned it.
+  const limit = SNAPSHOT_TOOLS.has(toolName) || carriedSnapshot
+    ? SNAPSHOT_RESULT_MAX_BYTES
+    : ORDINARY_RESULT_MAX_BYTES;
   const marker = `[Truncated to ${limit} bytes. ${TRUNCATION_HINT}]`;
   const label = `${UNTRUSTED_LABEL}\n`;
   const labelBytes = Buffer.byteLength(label, 'utf8');
@@ -213,11 +267,21 @@ function boundResult(result: JsonRpcMessage, toolName: string): JsonRpcMessage {
   return { ...result, content: bounded };
 }
 
+function withoutFilenameArg(tool: JsonRpcMessage): JsonRpcMessage {
+  const properties = tool?.inputSchema?.properties;
+  if (!properties || !(AGENT_FILENAME_ARG in properties)) {
+    return tool;
+  }
+  const { [AGENT_FILENAME_ARG]: _dropped, ...kept } = properties;
+  return { ...tool, inputSchema: { ...tool.inputSchema, properties: kept } };
+}
+
 // The public MCP Transport interface is the only observation and policy point:
 // denied calls never reach Playwright MCP, and no result leaves unlabelled or
 // unbounded.
 function guardTransport(
   inner: any,
+  outputDir: string,
   handleDeviceTool: (args: JsonRpcMessage) => Promise<JsonRpcMessage>,
   onToolCompleted: (tool: string, ok: boolean) => void,
 ) {
@@ -238,22 +302,36 @@ function guardTransport(
           ...outgoing,
           result: {
             ...outgoing.result,
-            tools: [...tools.filter((tool: { name?: string }) => !DENIED_TOOLS.has(String(tool?.name))), DEVICE_TOOL],
+            tools: [
+              ...tools
+                .filter((tool: { name?: string }) => !DENIED_TOOLS.has(String(tool?.name)))
+                .map(withoutFilenameArg),
+              DEVICE_TOOL,
+            ],
           },
         };
       }
       const toolName = outgoing?.id === undefined ? undefined : pendingTools.get(outgoing.id);
-      if (toolName && outgoing?.result) {
-        pendingTools.delete(outgoing.id);
-        onToolCompleted(toolName, outgoing.result.isError !== true);
-        outgoing = { ...outgoing, result: boundResult(outgoing.result, toolName) };
+      if (!toolName || !outgoing?.result) {
+        return inner.send(outgoing, options);
       }
-      return inner.send(outgoing, options);
+      pendingTools.delete(outgoing.id);
+      onToolCompleted(toolName, outgoing.result.isError !== true);
+      const pending = outgoing;
+      return (async () => {
+        const { result, carriedSnapshot } = await inlineSnapshotFile(pending.result, outputDir);
+        return inner.send({ ...pending, result: boundResult(result, toolName, carriedSnapshot) }, options);
+      })();
     },
   };
 
-  inner.onmessage = (message: JsonRpcMessage, extra?: unknown) => {
+  inner.onmessage = (incoming: JsonRpcMessage, extra?: unknown) => {
+    let message = incoming;
     const toolName = message?.method === 'tools/call' ? String(message?.params?.name || '') : '';
+    if (toolName && message?.params?.arguments && AGENT_FILENAME_ARG in message.params.arguments) {
+      const { [AGENT_FILENAME_ARG]: _dropped, ...kept } = message.params.arguments;
+      message = { ...message, params: { ...message.params, arguments: kept } };
+    }
     if (toolName && DENIED_TOOLS.has(toolName)) {
       void inner.send({
         jsonrpc: '2.0',
@@ -290,6 +368,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
   const openContext = options.openContext
     || ((request: BrowserMcpContextRequest) => browserUseService.openAgentContext(request));
   const createConnection = options.createConnection || createPlaywrightMcpConnection;
+  const outputRoot = options.outputRoot || OUTPUT_ROOT;
   const recordAction = options.recordAction
     || ((sessionId: string, action: { tool: string; ok: boolean }) => browserUseService.recordAgentAction(sessionId, action));
   const transports = new Map<string, { transport: any; connection: McpServerConnection; lastUsedAt: number }>();
@@ -314,7 +393,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
     if (closeOptions.releaseContext) {
       await runtime.releaseContext(id);
     }
-    await fs.rm(path.join(OUTPUT_ROOT, id), { recursive: true, force: true }).catch(() => undefined);
+    await fs.rm(path.join(outputRoot, id), { recursive: true, force: true }).catch(() => undefined);
     return true;
   }
 
@@ -356,8 +435,9 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
       });
       // Lease on first use, then read it on every call: a device switch
       // replaces the context under the same id.
-      const connection = await createConnection(async () => (await leaseContext()).context, sessionId);
-      const guarded = guardTransport(transport, async (args) => {
+      const outputDir = path.join(outputRoot, sessionId);
+      const connection = await createConnection(async () => (await leaseContext()).context, sessionId, outputDir);
+      const guarded = guardTransport(transport, outputDir, async (args) => {
         await leaseContext();
         const swapped = await runtime.swapContext(sessionId, {
           device: args.device as 'desktop' | 'phone' | 'tablet' | null,

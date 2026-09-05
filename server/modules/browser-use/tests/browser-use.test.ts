@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test, { describe } from 'node:test';
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -244,6 +247,8 @@ describe('browser-use-mcp endpoint', () => {
     runtime: ReturnType<typeof makeRuntime>['runtime'];
     endpoint: ReturnType<typeof createBrowserMcpEndpoint>;
     cancelled: Promise<string>;
+    outputRoot: string;
+    toolArgs: Array<{ name: string; arguments: Record<string, unknown> }>;
     close: () => Promise<void>;
   };
 
@@ -260,6 +265,8 @@ describe('browser-use-mcp endpoint', () => {
     const cancelled = new Promise<string>((resolve) => {
       signalCancelled = resolve;
     });
+    const outputRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'clide-browser-mcp-'));
+    const toolArgs: Array<{ name: string; arguments: Record<string, unknown> }> = [];
 
     const endpoint = createBrowserMcpEndpoint({
       runtime,
@@ -270,17 +277,41 @@ describe('browser-use-mcp endpoint', () => {
         device: request.device as 'desktop' | 'phone' | 'tablet' | null,
         orientation: request.orientation as 'portrait' | 'landscape' | null,
       }),
-      createConnection: async (getContext: () => Promise<{ contextId: string }>) => {
+      outputRoot,
+      createConnection: async (
+        getContext: () => Promise<{ contextId: string }>,
+        _sessionId: string,
+        outputDir: string,
+      ) => {
         const server = new Server({ name: 'fake-playwright-mcp', version: '0' }, { capabilities: { tools: {} } });
         server.setRequestHandler(ListToolsRequestSchema, async () => ({
           tools: [
             { name: 'browser_navigate', description: 'navigate', inputSchema: { type: 'object' as const } },
-            { name: 'browser_snapshot', description: 'snapshot', inputSchema: { type: 'object' as const } },
+            {
+              name: 'browser_snapshot',
+              description: 'snapshot',
+              inputSchema: { type: 'object' as const, properties: { target: {}, filename: {} } },
+            },
             { name: 'browser_run_code_unsafe', description: 'unsafe', inputSchema: { type: 'object' as const } },
             { name: 'browser_file_upload', description: 'upload', inputSchema: { type: 'object' as const } },
           ],
         }));
         server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+          toolArgs.push({ name: request.params.name, arguments: { ...(request.params.arguments || {}) } });
+          // Playwright MCP writes the page snapshot to its output directory and
+          // returns only a link for every tool but a bare browser_snapshot.
+          if (request.params.name === 'browser_navigate' && request.params.arguments?.toFile) {
+            const size = Number(request.params.arguments.toFile);
+            const file = path.join(outputDir, 'page-2026-01-01T00-00-00-000Z.yml');
+            await fs.mkdir(outputDir, { recursive: true });
+            await fs.writeFile(file, 'P'.repeat(size), 'utf8');
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `### Page\n- Page URL: about:blank\n### Snapshot\n- [Snapshot](${path.relative(process.cwd(), file)})`,
+              }],
+            };
+          }
           if (request.params.name === 'slow') {
             await new Promise((resolve, reject) => {
               const timer = setTimeout(resolve, SLOW_TOOL_MS);
@@ -324,9 +355,12 @@ describe('browser-use-mcp endpoint', () => {
       runtime,
       endpoint,
       cancelled,
+      outputRoot,
+      toolArgs,
       close: async () => {
         await runtime.closeAll();
         await new Promise((resolve) => server.close(resolve));
+        await fs.rm(outputRoot, { recursive: true, force: true });
       },
     };
   }
@@ -520,6 +554,55 @@ describe('browser-use-mcp endpoint', () => {
 
       const small = await readRpc(await callTool(harness, sessionId, 4, 'browser_navigate'));
       assert.equal(resultText(small).includes('Truncated'), false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // Playwright MCP puts the page's own text on disk and returns a link, which
+  // would carry it past both the label and the budget.
+  test('a snapshot written to a file comes back inside the result, and the file goes', async () => {
+    const harness = await startEndpoint();
+    try {
+      const { sessionId } = await initialize(harness);
+      const sessionDir = path.join(harness.outputRoot, sessionId);
+
+      const small = await readRpc(await callTool(harness, sessionId, 2, 'browser_navigate', { toFile: 40 }));
+      const smallText = resultText(small);
+      assert.match(smallText, /^\[Untrusted page content/);
+      assert.match(smallText, /```yaml\nP{40}\n```/);
+      assert.equal(smallText.includes('[Snapshot]('), false);
+      assert.deepEqual(await fs.readdir(sessionDir), []);
+
+      // The larger budget follows the page text, not the tool that returned it.
+      const big = await readRpc(await callTool(harness, sessionId, 3, 'browser_navigate', { toFile: 60_000 }));
+      const bigText = resultText(big);
+      assert.match(bigText, /^\[Untrusted page content/);
+      assert.match(bigText, /Truncated to 12288 bytes\. Use browser_find/);
+      assert.ok(Buffer.byteLength(bigText, 'utf8') <= 12_288);
+      assert.deepEqual(await fs.readdir(sessionDir), []);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // An agent-chosen filename resolves against the server's working directory,
+  // so CLIde names every output file itself.
+  test('an agent-supplied filename is neither advertised nor forwarded', async () => {
+    const harness = await startEndpoint();
+    try {
+      const { sessionId } = await initialize(harness);
+
+      const listed = await readRpc(await fetch(harness.url, {
+        method: 'POST',
+        headers: { ...HEADERS, 'mcp-session-id': sessionId },
+        body: rpc(2, 'tools/list'),
+      }));
+      const snapshotTool = listed.result.tools.find((tool: { name: string }) => tool.name === 'browser_snapshot');
+      assert.deepEqual(Object.keys(snapshotTool.inputSchema.properties), ['target']);
+
+      await readRpc(await callTool(harness, sessionId, 3, 'browser_snapshot', { filename: '../../package.json' }));
+      assert.deepEqual(harness.toolArgs.at(-1), { name: 'browser_snapshot', arguments: {} });
     } finally {
       await harness.close();
     }

@@ -33,6 +33,15 @@ visible state.
   status, tabs, URL, title, device, viewport, last action and a recent
   screenshot. Visible changes are agreed before panel code is edited.
 - Observe calls at the public MCP transport layer only.
+- Page text reaches an agent only through a labelled, capped MCP result. For
+  every tool but a bare `browser_snapshot` the package writes the snapshot to a
+  file and returns a link, so the transport inlines that file and deletes it,
+  and CLIde names every output file rather than taking the agent's `filename`.
+  Without both, the stated byte limits bound a link, not the page.
+- Playwright MCP's secrets filter and file-access guard are configured, but its
+  own documentation calls each a convenience against accidental disclosure and
+  not a boundary. Nothing may depend on either; the tool filter, the context
+  isolation and CLIde-owned paths are what actually hold.
 - Preserve `ef604c5`'s separation between agent results and panel screenshots:
   no routine MCP result contains a screenshot data URL, and only an explicit
   screenshot tool may return an MCP image.
@@ -60,9 +69,13 @@ base; each provider declares `modeledConfigKeys`.
       the MCP session, the context and the panel row are one identity.
 - [x] **3. Policy, artifacts and result boundaries.** `core` plus `testing`;
       `browser_run_code_unsafe` and `browser_file_upload` refused at the
-      transport; secrets replaced by name, artifacts capped, results labelled
-      untrusted and bounded to 4 KiB (12 KiB for snapshots) with `browser_find`
-      as the recovery path; `browser_use_device` swaps the context in place.
+      transport; artifacts capped and confined to a per-session directory CLIde
+      names and deletes; results labelled untrusted and bounded to 4 KiB, or
+      12 KiB for any result carrying page text, with `browser_find` as the
+      recovery path; snapshot files inlined and removed so those limits bind the
+      page rather than a link; `browser_use_device` swaps the context in place.
+      Secrets substitution and the package's file-access guard are enabled as
+      conveniences, not counted as controls.
 - [x] **4. Live Browser monitor.** Tool name and outcome recorded at the
       transport, a capture on a 700 ms trailing debounce, and a summary view
       that carries no image bytes; denied calls never count.
