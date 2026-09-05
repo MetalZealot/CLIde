@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import type { IProviderMcp } from '@/shared/interfaces.js';
 import type { LLMProvider, McpScope, McpTransport, ProviderMcpServer, UpsertProviderMcpServerInput } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
+import { AppError, readObjectRecord } from '@/shared/utils.js';
 
 const resolveWorkspacePath = (workspacePath?: string): string =>
   path.resolve(workspacePath ?? process.cwd());
@@ -26,6 +26,14 @@ export abstract class McpProvider implements IProviderMcp {
   protected readonly provider: LLMProvider;
   protected readonly supportedScopes: McpScope[];
   protected readonly supportedTransports: McpTransport[];
+
+  /**
+   * Every key this provider's `buildServerConfig` owns, across all transports.
+   * An upsert clears exactly these and keeps everything else the user or the
+   * provider itself wrote, so a rewrite cannot silently drop native settings
+   * CLIde does not model, and cannot leave stale keys from the old transport.
+   */
+  protected abstract readonly modeledConfigKeys: readonly string[];
 
   protected constructor(
     provider: LLMProvider,
@@ -73,7 +81,10 @@ export abstract class McpProvider implements IProviderMcp {
     const workspacePath = resolveWorkspacePath(input.workspacePath);
     const normalizedName = normalizeServerName(input.name);
     const scopedServers = await this.readScopedServers(scope, workspacePath);
-    scopedServers[normalizedName] = this.buildServerConfig(input, scopedServers[normalizedName]);
+    scopedServers[normalizedName] = {
+      ...this.preserveNativeKeys(scopedServers[normalizedName]),
+      ...this.buildServerConfig(input),
+    };
     await this.writeScopedServers(scope, workspacePath, scopedServers);
 
     return {
@@ -124,7 +135,6 @@ export abstract class McpProvider implements IProviderMcp {
 
   protected abstract buildServerConfig(
     input: UpsertProviderMcpServerInput,
-    existingConfig?: unknown,
   ): Record<string, unknown>;
 
   protected abstract normalizeServerConfig(
@@ -132,6 +142,22 @@ export abstract class McpProvider implements IProviderMcp {
     name: string,
     rawConfig: unknown,
   ): ProviderMcpServer | null;
+
+  private preserveNativeKeys(existingConfig: unknown): Record<string, unknown> {
+    const existing = readObjectRecord(existingConfig);
+    if (!existing) {
+      return {};
+    }
+
+    const preserved: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(existing)) {
+      if (!this.modeledConfigKeys.includes(key)) {
+        preserved[key] = value;
+      }
+    }
+
+    return preserved;
+  }
 
   protected assertScope(scope: McpScope): void {
     if (!this.supportedScopes.includes(scope)) {

@@ -56,11 +56,6 @@ type BrowserUseSession = {
     width: number;
     height: number;
   } | null;
-  cursor: {
-    x: number;
-    y: number;
-    actor: 'agent';
-  } | null;
 };
 
 type BrowserUsePanelProps = {
@@ -183,13 +178,6 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       : status.installInProgress || isInstalling
         ? 'Installing'
         : 'Setup required';
-
-  const cursorStyle = selectedSession?.cursor && selectedSession.viewport
-    ? {
-      left: `${(selectedSession.cursor.x / selectedSession.viewport.width) * 100}%`,
-      top: `${(selectedSession.cursor.y / selectedSession.viewport.height) * 100}%`,
-    }
-    : null;
 
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -385,21 +373,11 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   const renderBrowserSurface = (fullscreen = false) => (
     <div className={cn('flex flex-1 items-center justify-center bg-neutral-950', fullscreen ? 'min-h-[80vh]' : 'min-h-[420px]')}>
       {selectedSession?.screenshotDataUrl ? (
-        <div className="relative inline-block max-h-full">
-          <img
-            src={selectedSession.screenshotDataUrl}
-            alt="Browser session screenshot"
-            className={fullscreen ? 'block max-h-[80vh] w-auto max-w-full object-contain' : 'block max-h-[72vh] w-auto max-w-full object-contain'}
-          />
-          {cursorStyle && (
-            <div
-              className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/90 bg-primary/80 shadow-[0_0_0_6px_hsl(var(--primary)/0.18)]"
-              style={cursorStyle}
-            >
-              <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
-            </div>
-          )}
-        </div>
+        <img
+          src={selectedSession.screenshotDataUrl}
+          alt="Browser session screenshot"
+          className={fullscreen ? 'block max-h-[80vh] w-auto max-w-full object-contain' : 'block max-h-[72vh] w-auto max-w-full object-contain'}
+        />
       ) : (
         <div className="px-6 text-center">
           <MonitorPlay className="mx-auto h-9 w-9 text-neutral-500" />

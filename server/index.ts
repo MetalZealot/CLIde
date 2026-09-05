@@ -46,11 +46,9 @@ import {
 } from './modules/plugins/index.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import { voiceRoutes } from './modules/voice/index.js';
-import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
-import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
-import { browserUseService } from './modules/browser-use/browser-use.service.js';
+import { browserUseMcpRoutes, browserUseRoutes, browserUseService } from './modules/browser-use/index.js';
 import { initializeDatabase, sessionsDb } from './modules/database/index.js';
 import { configureWebPush } from './modules/notifications/index.js';
 import { IS_PLATFORM } from './constants/config.js';
@@ -368,6 +366,12 @@ async function startServer() {
             console.log(`${terminalTextStyles.info('[INFO]')} Installed at: ${terminalTextStyles.dim(appInstallPath)}`);
             console.log(`${terminalTextStyles.tip('[TIP]')}  Run "cloudcli status" for full configuration details`);
             console.log('');
+
+            // Providers address the browser tools by URL, so re-point them at
+            // this server before any session can call one.
+            await browserUseService.syncAgentMcpRegistration().catch((err) => {
+                console.error('[Browser] Could not register the browser MCP endpoint:', getErrorMessage(err));
+            });
 
             // Start watching the projects folder for changes
             await initializeSessionsWatcher();

@@ -34,19 +34,12 @@ const writeTomlConfig = async (filePath: string, data: Record<string, unknown>):
   await writeFile(filePath, toml, 'utf8');
 };
 
-const CODEX_MCP_MODELED_KEYS = [
-  'command',
-  'args',
-  'env',
-  'env_vars',
-  'cwd',
-  'url',
-  'bearer_token_env_var',
-  'http_headers',
-  'env_http_headers',
-] as const;
-
 export class CodexMcpProvider extends McpProvider {
+  protected readonly modeledConfigKeys = [
+    'command', 'args', 'env', 'env_vars', 'cwd',
+    'url', 'bearer_token_env_var', 'http_headers', 'env_http_headers',
+  ] as const;
+
   constructor() {
     super('codex', ['user', 'project'], ['stdio', 'http']);
   }
@@ -72,15 +65,7 @@ export class CodexMcpProvider extends McpProvider {
     await writeTomlConfig(filePath, config);
   }
 
-  protected buildServerConfig(
-    input: UpsertProviderMcpServerInput,
-    existingConfig?: unknown,
-  ): Record<string, unknown> {
-    const config = { ...(readObjectRecord(existingConfig) ?? {}) };
-    for (const key of CODEX_MCP_MODELED_KEYS) {
-      delete config[key];
-    }
-
+  protected buildServerConfig(input: UpsertProviderMcpServerInput): Record<string, unknown> {
     if (input.transport === 'stdio') {
       if (!input.command?.trim()) {
         throw new AppError('command is required for stdio MCP servers.', {
@@ -90,7 +75,6 @@ export class CodexMcpProvider extends McpProvider {
       }
 
       return {
-        ...config,
         command: input.command,
         args: input.args ?? [],
         env: input.env ?? {},
@@ -107,7 +91,6 @@ export class CodexMcpProvider extends McpProvider {
     }
 
     return {
-      ...config,
       url: input.url,
       bearer_token_env_var: input.bearerTokenEnvVar,
       http_headers: input.headers ?? {},

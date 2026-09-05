@@ -1,7 +1,7 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
-- Status: 5/7
-- Next: Phase 5 — register the endpoint with all four providers.
+- Status: 6/7
+- Next: Phase 6 — live acceptance through each provider, then retirement.
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
@@ -42,56 +42,37 @@ visible state.
 
 ## Prerequisite
 
-Claude, Cursor and OpenCode MCP updates must preserve provider-native keys they
-do not model before the bridge rewrites their `cloudcli-browser` registration;
-Codex already merges. The Browser work must not conceal or work around it.
+Met in Phase 5: an upsert clears only the keys a provider's writer owns, so
+native settings survive a rewrite. The rule lives in the shared `McpProvider`
+base; each provider declares `modeledConfigKeys`.
 
 ## Phases
 
 - [x] **0. Public-API and transport proof.** Trivial page: navigate 271 B,
-      snapshot 329 B, JPEG 17 KB, panel capture ~200 ms; browser 143 MB PSS at
-      launch, +71 MB first context, +16 MB per idle extra.
+      snapshot 329 B, JPEG 17 KB; browser 143 MB PSS, +71 MB first context.
 - [x] **1. CLIde-owned runtime boundary.** Shared temporary browser,
       per-connection contexts, device presets, named-profile locking, session
-      cap, inactivity expiry and shutdown cleanup, split from the action service.
+      cap, inactivity expiry and shutdown cleanup.
 - [x] **2. Embedded Playwright MCP endpoint.** Bearer-guarded Streamable HTTP at
-      `/api/browser-use-mcp/mcp`, on one Playwright tree pinned to the exact
-      prerelease the package requires; device, orientation and profile come from
-      the query string. The lease id is the transport session id, so the MCP
-      session, the context and the panel row are one identity, and a release on
-      any side closes the others. The legacy tool registry and REST dispatcher
-      stay until providers migrate.
-- [x] **3. Policy, artifacts and result boundaries.** `core` plus `testing`,
-      whose assertions answer "is this visible" in ~150 B instead of a snapshot;
-      storage, network mutation, PDF and devtools capture stay off.
-      `browser_file_upload` joins `browser_run_code_unsafe` in the deny set,
-      which leaves no host-file surface, so client roots need no separate
-      restriction. Known secrets are replaced by name, artifacts are capped at
-      32 MB per session, and every result is labelled untrusted page data.
-      Ordinary results hold to 4 KiB and snapshots to 12 KiB, truncation marker
-      included, with `browser_find` as the recovery path: a 120-section page
-      measured 27 KB unbounded, 12 KB bounded, and `browser_find` returned the
-      cut section in 421 B. `browser_use_device` swaps the lease's context under
-      a live session, since touch, user agent and pixel density are fixed when a
-      context is created — desktop 1440 px untouched, phone 412 px with touch,
-      both ways, same session id and panel row.
-- [x] **4. Live Browser monitor.** Tool name and outcome are recorded at the
-      transport as each call completes, so the panel reflects agent work without
-      the agent reporting it; denied calls never count. A capture follows on a
-      700 ms trailing debounce, so a burst costs one screenshot. The panel polls
-      a summary view that carries no image bytes and fetches a screenshot only
-      when its version moves, and only while the tab is on screen. Opening the
-      tab shows current state. Visible: a recent-actions list with per-call
-      outcome, and a viewport badge that tracks device swaps. Stop, Delete and
-      profile visibility are unchanged; the cursor marker retires with the
-      legacy path, since the official contract exposes no pointer position.
-- [ ] **5. Provider migration and compatibility.** Register the authenticated
-      HTTP endpoint for Claude, Codex, Cursor and OpenCode without disturbing
-      unrelated native MCP keys. Remove the old `browser_create_session`,
-      session-id arguments, selector tools and stdio bridge after all providers
-      see the official schemas. Existing named profile directories remain owned
-      by CLIde. Record the chosen transport, capability and profile policy in an
-      ADR once the proof fixes those decisions.
+      `/api/browser-use-mcp/mcp`; the lease id is the transport session id, so
+      the MCP session, the context and the panel row are one identity.
+- [x] **3. Policy, artifacts and result boundaries.** `core` plus `testing`;
+      `browser_run_code_unsafe` and `browser_file_upload` refused at the
+      transport; secrets replaced by name, artifacts capped, results labelled
+      untrusted and bounded to 4 KiB (12 KiB for snapshots) with `browser_find`
+      as the recovery path; `browser_use_device` swaps the context in place.
+- [x] **4. Live Browser monitor.** Tool name and outcome recorded at the
+      transport, a capture on a 700 ms trailing debounce, and a summary view
+      that carries no image bytes; denied calls never count.
+- [x] **5. Provider migration and compatibility.** All four providers hold an
+      `http` `cloudcli-browser` entry carrying the bearer header, written at
+      boot as well as on enable, because the URL names this server's port. An
+      upsert now clears only the keys that provider's writer owns, so native
+      settings survive and the old stdio keys cannot linger. The stdio bridge,
+      its REST dispatcher, the CLI subcommand, `browser_create_session`, every
+      `sessionId` argument, the selector tools and the panel's cursor marker are
+      gone; profile directories stay CLIde-owned. Policy is [ADR
+      0053](../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md).
 - [ ] **6. Isolated live acceptance and retirement.** Exercise desktop and
       phone contexts, reference actions, tabs, dialogs, console/network reads,
       PWA service workers, explicit screenshots, denied tools, profile locking,

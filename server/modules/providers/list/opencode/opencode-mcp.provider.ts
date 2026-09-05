@@ -124,6 +124,10 @@ const resolveOpenCodeConfigPath = async (scope: McpScope, workspacePath: string)
 };
 
 export class OpenCodeMcpProvider extends McpProvider {
+  protected readonly modeledConfigKeys = [
+    'type', 'command', 'args', 'enabled', 'environment', 'env', 'url', 'headers',
+  ] as const;
+
   constructor() {
     super('opencode', ['user', 'project'], ['stdio', 'http']);
   }

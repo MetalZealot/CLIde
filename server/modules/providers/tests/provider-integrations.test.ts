@@ -320,6 +320,88 @@ describe('mcp', () => {
   });
 
   /**
+   * This test covers the contract every provider config writer owns: an upsert may
+   * only touch the keys CLIde models, so provider-native settings survive a rewrite
+   * and the previous transport's keys never linger.
+   */
+  test('providerMcpService upserts preserve native keys and clear the old transport', { concurrency: false }, async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-mcp-native-'));
+    const workspacePath = path.join(tempRoot, 'workspace');
+    await fs.mkdir(workspacePath, { recursive: true });
+
+    const restoreHomeDir = patchHomeDir(tempRoot);
+    try {
+      await providerMcpService.addMcpServerToAllProviders({
+        name: 'native-keys',
+        scope: 'project',
+        transport: 'stdio',
+        command: 'npx',
+        args: ['-y', 'legacy-bridge'],
+        env: { LEGACY_TOKEN: 'value' },
+        workspacePath,
+      });
+
+      // Stand in for settings each provider understands and CLIde does not.
+      const claudePath = path.join(workspacePath, '.mcp.json');
+      const claudeConfig = await readJson(claudePath);
+      ((claudeConfig.mcpServers as Record<string, any>)['native-keys']).disabledTools = ['danger'];
+      await fs.writeFile(claudePath, JSON.stringify(claudeConfig, null, 2), 'utf8');
+
+      const codexPath = path.join(workspacePath, '.codex', 'config.toml');
+      const codexConfig = TOML.parse(await fs.readFile(codexPath, 'utf8')) as Record<string, any>;
+      codexConfig.mcp_servers['native-keys'].startup_timeout_sec = 30;
+      await fs.writeFile(codexPath, TOML.stringify(codexConfig as never), 'utf8');
+
+      const cursorPath = path.join(workspacePath, '.cursor', 'mcp.json');
+      const cursorConfig = await readJson(cursorPath);
+      ((cursorConfig.mcpServers as Record<string, any>)['native-keys']).timeout = 60;
+      await fs.writeFile(cursorPath, JSON.stringify(cursorConfig, null, 2), 'utf8');
+
+      const opencodePath = path.join(workspacePath, 'opencode.json');
+      const opencodeConfig = await readJson(opencodePath);
+      ((opencodeConfig.mcp as Record<string, any>)['native-keys']).timeout = 90;
+      await fs.writeFile(opencodePath, JSON.stringify(opencodeConfig, null, 2), 'utf8');
+
+      await providerMcpService.addMcpServerToAllProviders({
+        name: 'native-keys',
+        scope: 'project',
+        transport: 'http',
+        url: 'http://127.0.0.1:3001/api/browser-use-mcp/mcp',
+        headers: { Authorization: 'Bearer secret-token' },
+        workspacePath,
+      });
+
+      const claudeServer = ((await readJson(claudePath)).mcpServers as Record<string, any>)['native-keys'];
+      assert.deepEqual(claudeServer.disabledTools, ['danger']);
+      assert.equal(claudeServer.command, undefined);
+      assert.equal(claudeServer.args, undefined);
+      assert.equal(claudeServer.env, undefined);
+      assert.equal(claudeServer.type, 'http');
+      assert.deepEqual(claudeServer.headers, { Authorization: 'Bearer secret-token' });
+
+      const codexServer = (TOML.parse(await fs.readFile(codexPath, 'utf8')) as Record<string, any>)
+        .mcp_servers['native-keys'];
+      assert.equal(codexServer.startup_timeout_sec, 30);
+      assert.equal(codexServer.command, undefined);
+      assert.deepEqual(codexServer.http_headers, { Authorization: 'Bearer secret-token' });
+
+      const cursorServer = ((await readJson(cursorPath)).mcpServers as Record<string, any>)['native-keys'];
+      assert.equal(cursorServer.timeout, 60);
+      assert.equal(cursorServer.command, undefined);
+      assert.deepEqual(cursorServer.headers, { Authorization: 'Bearer secret-token' });
+
+      const opencodeServer = ((await readJson(opencodePath)).mcp as Record<string, any>)['native-keys'];
+      assert.equal(opencodeServer.timeout, 90);
+      assert.equal(opencodeServer.command, undefined);
+      assert.equal(opencodeServer.type, 'remote');
+      assert.deepEqual(opencodeServer.headers, { Authorization: 'Bearer secret-token' });
+    } finally {
+      restoreHomeDir();
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  /**
    * This test covers the global MCP adder requirement: only http/stdio are allowed and
    * one payload is written to all providers.
    */
