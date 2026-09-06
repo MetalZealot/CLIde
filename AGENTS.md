@@ -176,33 +176,33 @@ inside narrative that condensing removes anyway — so these rules target length
   branches in the main checkout** while a service or dev server runs from it.
 - Merge a branch back and delete it as soon as its work lands; stale worktrees are the
   maintainer's overhead.
-- Every checkout owns its `node_modules`: `scripts/setup-worktree.sh` runs `npm ci`
-  in a new worktree.  **Never link or copy another checkout's `node_modules`** — a
-  branch could not change `package.json`, and tsc's incremental cache lives inside
-  it, so a shared cache makes tsc believe everything is emitted and **silently
-  produce no `dist-server/`**, while `typecheck` skips files and passes vacuously.
-- Keep `docs/TODO.md` current **in the same batch as the code change** — flip `[ ]` →
-  `[~]` → `[x]` and move verified work to `docs/todo-done.md` as you go, not as a
-  separate turn at the end.  Do not ask permission to update the board.  An item is
-  one line naming the work and pointing at its plan, ADR, or commit, under an enforced
-  400-character ceiling.
+- **Asking for a change never authorises the branch it lands on.**  If the work
+  already exists uncommitted in another checkout, say so and ask which one owns it
+  — copying it onto `main` is a merge, and leaves a conflicting duplicate.
+- Every checkout owns its `node_modules`; `scripts/setup-worktree.sh` runs `npm ci`.
+  **Never link or copy another checkout's** — a branch could not change
+  `package.json`, and tsc's incremental cache lives inside it, so a shared one makes
+  tsc **emit no `dist-server/`** while `typecheck` skips files and passes vacuously.
+- Keep `docs/TODO.md` current **in the same batch as the code change**: flip `[ ]` →
+  `[~]` → `[x]` and move verified work to `docs/todo-done.md` as you go, never as a
+  separate turn at the end.  Never ask permission to update the board.  An item is one
+  line naming the work and pointing at its plan, ADR, or commit, capped at 400
+  characters.
 - When a document and reality diverge, **edit the document**.  Never append a
-  correction, re-measurement, or audit section to preserve the wrong text — git holds
-  the old version, and that habit turned the v1.37 integration document into 79 KB
-  whose two largest sections were both audits.
+  correction or audit section to preserve the wrong text — git holds the old version,
+  and that habit grew the v1.37 integration document to 79 KB, mostly audits.
 - **Git's conflict set is an anti-signal when merging upstream.**  In the v1.37
   merge every genuine defect was in a file that merged cleanly.  Diff the
   *contract* surfaces — runtime options, gateway addressing, provider context —
   and write one test per contract driving every provider with the ids
   deliberately unequal (`server/modules/websocket/tests/chat-session.test.ts`).
 - Categorize fixes as fork-only or upstreamable in `docs/upstream-candidates.md`.
-  Before describing a defect as upstream-wide, inspect upstream code as well as
-  searching issues/PRs.  Never open, push, or update an upstream PR without the user's
-  explicit approval.
+  Before calling a defect upstream-wide, inspect upstream code, not just issues/PRs.
+  Never open, push, or update an upstream PR without the user's explicit approval.
 - **Never end a turn by asking "worth an ADR?"** — write one only when asked, or
   when a decision is the kind a future session would otherwise undo (a deliberate
   constraint that looks like a bug); then write it in the same batch as the work,
-  unasked, in five sentences.  Otherwise the commit message is the record.  ADRs
+  in five sentences.  Otherwise the commit message is the record.  ADRs
   are append-only: supersede, never rewrite.
 
 ## Keeping the guides honest
