@@ -1,7 +1,7 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
 - Status: 6/7
-- Next: Phase 6 — live acceptance through each provider, then retirement.
+- Next: Phase 6 — Grayson's acceptance on the topic server, then retirement.
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
@@ -69,33 +69,37 @@ base; each provider declares `modeledConfigKeys`.
       the MCP session, the context and the panel row are one identity.
 - [x] **3. Policy, artifacts and result boundaries.** `core` plus `testing`;
       `browser_run_code_unsafe` and `browser_file_upload` refused at the
-      transport; artifacts capped and confined to a per-session directory CLIde
-      names and deletes; results labelled untrusted and bounded to 4 KiB, or
-      12 KiB for any result carrying page text, with `browser_find` as the
-      recovery path; snapshot files inlined and removed so those limits bind the
-      page rather than a link; `browser_use_device` swaps the context in place.
-      Secrets substitution and the package's file-access guard are enabled as
-      conveniences, not counted as controls.
+      transport; artifacts confined to a per-session directory CLIde names and
+      deletes; results labelled untrusted and bounded to 4 KiB, or 12 KiB
+      carrying page text, with `browser_find` as the recovery path; snapshot
+      files inlined so those limits bind the page, not a link;
+      `browser_use_device` swaps the context in place. Secrets substitution and
+      the file-access guard are conveniences, not controls.
 - [x] **4. Live Browser monitor.** Tool name and outcome recorded at the
       transport, a capture on a 700 ms trailing debounce, and a summary view
       that carries no image bytes; denied calls never count.
-- [x] **5. Provider migration and compatibility.** All four providers hold an
-      `http` `cloudcli-browser` entry carrying the bearer header, written at
-      boot as well as on enable, because the URL names this server's port. An
-      upsert now clears only the keys that provider's writer owns, so native
-      settings survive and the old stdio keys cannot linger. The stdio bridge,
-      its REST dispatcher, the CLI subcommand, `browser_create_session`, every
-      `sessionId` argument, the selector tools and the panel's cursor marker are
-      gone; profile directories stay CLIde-owned. Policy is [ADR
+- [x] **5. Provider migration and compatibility.** All four providers hold a
+      `cloudcli-browser` entry in their own native shape carrying the bearer
+      header, written at boot as well as on enable because the URL names this
+      server's port. An upsert clears only the keys that provider's writer owns,
+      so native settings survive and old stdio keys cannot linger. The stdio
+      bridge, its REST dispatcher, the CLI subcommand, `browser_create_session`,
+      every `sessionId` argument, the selector tools and the panel's cursor
+      marker are gone. Policy is [ADR
       0053](../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md).
-- [ ] **6. Isolated live acceptance and retirement.** Exercise desktop and
-      phone contexts, reference actions, tabs, dialogs, console/network reads,
-      PWA service workers, explicit screenshots, denied tools, profile locking,
-      transport reconnect and cleanup through each provider. Confirm ordinary
-      calls contain no image data, panel captures do not enter agent context and
-      three concurrent temporary contexts stay inside the measured host budget.
-      Serve only the topic checkout until Grayson accepts the Browser tab and a
-      real agent workflow; then remove the old implementation and archive this.
+- [~] **6. Isolated live acceptance and retirement.** Driven live on the topic
+      server: device presets carry the right user agent, touch and density and
+      swap in place; reference actions, forms, dialogs, tabs, console and
+      network reads, service workers and `browser_find` recovery behave.
+      `run_code_unsafe` and `file_upload` are refused, a slugged profile cannot
+      leave the profile root, a second claim on a profile is rejected, the
+      fourth session is capped, contexts share no cookies, a transport
+      reconnects on its session id, and release returns the host to baseline.
+      Three contexts cost 293 MB PSS (236 MB for the browser plus the first,
+      then ~25-35 MB each). Open: screenshots return uncapped image bytes while
+      text caps at 4/12 KiB, `fullPage` trips the package's 5 s default action
+      timeout, and an unclean shutdown leaves output directories with no boot
+      sweep. Grayson's acceptance is outstanding; then retire and archive.
 
 ## Done when
 
