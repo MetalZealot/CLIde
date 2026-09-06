@@ -33,15 +33,14 @@ visible state.
   status, tabs, URL, title, device, viewport, last action and a recent
   screenshot. Visible changes are agreed before panel code is edited.
 - Observe calls at the public MCP transport layer only.
-- Page text reaches an agent only through a labelled, capped MCP result. For
-  every tool but a bare `browser_snapshot` the package writes the snapshot to a
-  file and returns a link, so the transport inlines that file and deletes it,
-  and CLIde names every output file rather than taking the agent's `filename`.
-  Without both, the stated byte limits bound a link, not the page.
-- Playwright MCP's secrets filter and file-access guard are configured, but its
-  own documentation calls each a convenience against accidental disclosure and
-  not a boundary. Nothing may depend on either; the tool filter, the context
-  isolation and CLIde-owned paths are what actually hold.
+- Page text reaches an agent only through a labelled, capped MCP result. Every
+  tool but a bare `browser_snapshot` writes the snapshot to a file and returns
+  a link, so the transport inlines and deletes that file and CLIde names every
+  output path; without both, the byte limits bound a link, not the page.
+- The package's secrets filter and file-access guard are configured but are
+  conveniences by its own documentation, not boundaries. Nothing may depend on
+  either: the tool filter, context isolation and CLIde-owned paths are what
+  hold.
 - Preserve `ef604c5`'s separation between agent results and panel screenshots:
   no routine MCP result contains a screenshot data URL, and only an explicit
   screenshot tool may return an MCP image.
@@ -87,21 +86,23 @@ base; each provider declares `modeledConfigKeys`.
       every `sessionId` argument, the selector tools and the panel's cursor
       marker are gone. Policy is [ADR
       0053](../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md).
-- [~] **6. Isolated live acceptance and retirement.** Driven live on the topic
-      server: device presets carry the right user agent, touch and density and
-      swap in place; reference actions, forms, dialogs, tabs, console and
-      network reads, service workers and `browser_find` recovery behave.
+- [~] **6. Isolated live acceptance and retirement.** Driven at the HTTP
+      transport on the topic server, not yet through four provider
+      conversations; all four registrations were read and confirmed separately.
+      Device presets carry the right user agent, touch and density and swap in
+      place; reference actions, forms, dialogs, tabs, console and network
+      reads, service-worker registration and `browser_find` recovery behave.
       `run_code_unsafe` and `file_upload` are refused, a slugged profile cannot
       leave the profile root, a second claim on a profile is rejected, the
       fourth session is capped, contexts share no cookies, a transport
       reconnects on its session id, and release returns the host to baseline.
       Three contexts cost 293 MB PSS (236 MB for the browser plus the first,
-      then ~25-35 MB each). Open: `fullPage` is the only unbounded screenshot —
-      viewport shots are bounded by the preset and cost ~1.7k tokens, since
-      images bill by dimension, not bytes — and it trips the package's 5 s
-      default action timeout; an unclean shutdown leaves output directories
-      with no boot sweep; stopped panel rows are never pruned. Grayson's
-      acceptance is outstanding; then retire and archive.
+      then ~25-35 MB each). Open: `fullPage` is the only unbounded screenshot,
+      since images bill by dimension and a viewport shot is capped by its
+      preset, and it trips the package's 5 s default action timeout; an
+      unclean shutdown leaves output directories with no boot sweep; stopped
+      panel rows are never pruned. Provider-level runs and Grayson's
+      acceptance are outstanding; then retire and archive.
 
 ## Done when
 
