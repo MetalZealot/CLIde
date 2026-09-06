@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Download, Maximize2, Minimize2, X } from 'lucide-react';
 
 import { authenticatedFetch } from '../../../../utils/api';
 import type { CodeEditorFile } from '../../types/types';
 import { getPreviewMimeType, type PreviewKind } from '../../utils/previewableFile';
+
+import CodeEditorImageCanvas from './CodeEditorImageCanvas';
 
 type CodeEditorMediaPreviewProps = {
   file: CodeEditorFile;
@@ -18,6 +21,7 @@ type CodeEditorMediaPreviewProps = {
     loading: string;
     error: string;
     openInNewTab: string;
+    download: string;
     fullscreen: string;
     exitFullscreen: string;
     close: string;
@@ -51,6 +55,8 @@ export default function CodeEditorMediaPreview({
   // this so a blob from a previously-opened file can never show under the new
   // file (the editor reuses this component instance across files).
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  // Fullscreen goes immersive: the header hides until the user asks for it back.
+  const [chromeVisible, setChromeVisible] = useState(false);
   const sourceKey = `${projectId ?? ''}:${file.path}:${kind}`;
 
   useEffect(() => {
@@ -138,6 +144,10 @@ export default function CodeEditorMediaPreview({
     };
   }, [file.path, file.name, projectId, kind, sourceKey, labels.error]);
 
+  useEffect(() => {
+    if (!isFullscreen) setChromeVisible(false);
+  }, [isFullscreen]);
+
   // Only expose the blob once it matches the file currently being shown, so a
   // stale URL from the previous file is never rendered during a switch.
   const currentUrl = url && loadedKey === sourceKey ? url : null;
@@ -149,15 +159,29 @@ export default function CodeEditorMediaPreview({
   const isSvg = getPreviewMimeType(file.name) === 'image/svg+xml';
   const canOpenInNewTab = Boolean(currentUrl) && !isSvg;
 
+  const handleDownload = useCallback(() => {
+    if (!currentUrl) return;
+    const anchor = document.createElement('a');
+    anchor.href = currentUrl;
+    anchor.download = file.name;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  }, [currentUrl, file.name]);
+
+  const immersive = !isSidebar && isFullscreen && !chromeVisible;
+
+  const iconButtonClassName = 'flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white';
+
   const renderMedia = () => {
     if (!currentUrl) return null;
     switch (kind) {
       case 'image':
         return (
-          <img
+          <CodeEditorImageCanvas
             src={currentUrl}
             alt={file.name}
-            className="max-h-full max-w-full object-contain"
+            onTap={isFullscreen && !isSidebar ? () => setChromeVisible((previous) => !previous) : undefined}
           />
         );
       case 'pdf':
@@ -187,7 +211,7 @@ export default function CodeEditorMediaPreview({
   };
 
   const previewBody = (
-    <div className="relative flex h-full w-full flex-col items-center justify-center bg-muted/30 p-2">
+    <div className={`relative flex h-full w-full flex-col items-center justify-center bg-muted/30 ${immersive ? 'p-0' : 'p-2'}`}>
       {loading && (
         <div className="text-sm text-muted-foreground">{labels.loading}</div>
       )}
@@ -210,7 +234,7 @@ export default function CodeEditorMediaPreview({
           href={currentUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          className={iconButtonClassName}
           aria-label={labels.openInNewTab}
           title={labels.openInNewTab}
         >
@@ -219,43 +243,44 @@ export default function CodeEditorMediaPreview({
           </svg>
         </a>
       )}
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={!currentUrl}
+        className={`${iconButtonClassName} disabled:opacity-40`}
+        aria-label={labels.download}
+        title={labels.download}
+      >
+        <Download className="h-4 w-4" />
+      </button>
       {!isSidebar && (
         <button
           type="button"
           onClick={onToggleFullscreen}
-          className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          className={iconButtonClassName}
           aria-label={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
           title={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
         >
-          {isFullscreen ? (
-            <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.5 3.5M9 15v4.5M9 15H4.5M9 15l-5.5 5.5M15 9h4.5M15 9V4.5M15 9l5.5-5.5M15 15h4.5M15 15v4.5m0-4.5l5.5 5.5" />
-            </svg>
-          ) : (
-            <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
-          )}
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </button>
       )}
       <button
         type="button"
         onClick={onClose}
-        className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+        className={iconButtonClassName}
         aria-label={labels.close}
         title={labels.close}
       >
-        <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <X className="h-4 w-4" />
       </button>
     </div>
   );
 
   const header = (
-    <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+      <div className="min-w-0 flex-1 shrink">
         <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white">{file.name}</h3>
+        <p className="truncate text-xs text-gray-500 dark:text-gray-400" title={file.path}>{file.path}</p>
       </div>
       {headerActions}
     </div>
@@ -275,14 +300,27 @@ export default function CodeEditorMediaPreview({
     : 'fixed inset-0 safe-top z-[9999] md:bg-black/50 md:flex md:items-center md:justify-center md:p-4';
 
   const innerClassName = isFullscreen
-    ? 'bg-background flex flex-col w-full h-full'
+    ? 'relative bg-background flex flex-col w-full h-full'
     : 'bg-background shadow-2xl flex flex-col w-full h-full md:rounded-lg md:shadow-2xl md:w-full md:max-w-6xl md:h-[80vh] md:max-h-[80vh]';
 
   return (
     <div className={containerClassName}>
       <div className={innerClassName}>
-        {header}
+        {!immersive && header}
         {previewBody}
+        {/* An image restores the header on tap; other media has no tap target,
+            so it keeps a floating way out of immersive mode. */}
+        {immersive && kind !== 'image' && (
+          <button
+            type="button"
+            onClick={() => setChromeVisible(true)}
+            className="absolute right-3 top-3 rounded-md bg-black/50 p-2 text-white hover:bg-black/70"
+            aria-label={labels.exitFullscreen}
+            title={labels.exitFullscreen}
+          >
+            <Minimize2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );

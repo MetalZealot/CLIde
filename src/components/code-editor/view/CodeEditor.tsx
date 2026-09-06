@@ -196,6 +196,7 @@ export default function CodeEditor({
           loading: t('filePreview.loading', 'Loading preview...'),
           error: t('filePreview.error', 'Unable to display this file.'),
           openInNewTab: t('filePreview.openInNewTab', 'Open in new tab'),
+          download: t('actions.download', 'Download file'),
           fullscreen: t('actions.fullscreen', 'Fullscreen'),
           exitFullscreen: t('actions.exitFullscreen', 'Exit fullscreen'),
           close: t('actions.close', 'Close'),
