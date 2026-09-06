@@ -96,10 +96,12 @@ base; each provider declares `modeledConfigKeys`.
       fourth session is capped, contexts share no cookies, a transport
       reconnects on its session id, and release returns the host to baseline.
       Three contexts cost 293 MB PSS (236 MB for the browser plus the first,
-      then ~25-35 MB each). Open: screenshots return uncapped image bytes while
-      text caps at 4/12 KiB, `fullPage` trips the package's 5 s default action
-      timeout, and an unclean shutdown leaves output directories with no boot
-      sweep. Grayson's acceptance is outstanding; then retire and archive.
+      then ~25-35 MB each). Open: `fullPage` is the only unbounded screenshot —
+      viewport shots are bounded by the preset and cost ~1.7k tokens, since
+      images bill by dimension, not bytes — and it trips the package's 5 s
+      default action timeout; an unclean shutdown leaves output directories
+      with no boot sweep; stopped panel rows are never pruned. Grayson's
+      acceptance is outstanding; then retire and archive.
 
 ## Done when
 
