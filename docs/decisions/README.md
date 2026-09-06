@@ -89,3 +89,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0049 — File browsing loads folders, not whole projects](0049-file-tree-loads-folders-not-projects.md)
 - [0050 — The voice runtime owns shared settings](0050-voice-runtime-owns-shared-settings.md)
 - [0051 — Voice Studio is a standalone personal tool](0051-voice-studio-is-a-standalone-personal-tool.md)
+- [0052 — Reads reach the workspace and temp roots; writes stay in the project](0052-reads-reach-the-workspace-and-temp-roots.md)

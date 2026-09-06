@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import os from 'node:os';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -213,6 +214,42 @@ describe('file-tree.service', () => {
         && error.statusCode === 403,
     );
     assert.deepEqual(readPaths, []);
+  });
+
+  test('readTextFile opens a file under the temp root that sits outside the project', async () => {
+    const projectRoot = path.resolve('file-tree-test-project');
+    const snapshotPath = path.join(os.tmpdir(), 'clide-snapshot.txt');
+    const fileSystem = createFakeFileSystem({
+      readTextFile: async (filePath) => (filePath === snapshotPath ? 'snapshot' : 'wrong file'),
+    });
+    const service = createFileTreeService(createDependencies(fileSystem, projectRoot));
+
+    assert.deepEqual(
+      await service.readTextFile('project-1', snapshotPath),
+      { content: 'snapshot', path: snapshotPath },
+    );
+  });
+
+  test('resolveProjectFile reports an out-of-project match by absolute path', async () => {
+    const projectRoot = path.resolve('file-tree-test-project');
+    const snapshotPath = path.join(os.tmpdir(), 'clide-snapshot.png');
+    const fileSystem = createFakeFileSystem({
+      stat: async () => createStats(false, 0o644),
+    });
+    const service = createFileTreeService(createDependencies(fileSystem, projectRoot));
+
+    assert.deepEqual(
+      await service.resolveProjectFile({ projectId: 'project-1', fileReference: snapshotPath }),
+      {
+        status: 'resolved',
+        match: {
+          name: 'clide-snapshot.png',
+          path: snapshotPath,
+          relativePath: snapshotPath,
+          type: 'file',
+        },
+      },
+    );
   });
 
   test('createEntry performs filesystem mutation only through the injected adapter', async () => {

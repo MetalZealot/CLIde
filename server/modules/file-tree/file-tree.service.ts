@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 
 import ignore from 'ignore';
@@ -105,6 +106,13 @@ function isPathInside(rootPath: string, candidatePath: string): boolean {
   const relativePath = path.relative(rootPath, candidatePath);
   return relativePath === ''
     || (!relativePath.startsWith(`..${path.sep}`) && relativePath !== '..' && !path.isAbsolute(relativePath));
+}
+
+/** Project-relative when the target is inside the project, absolute when it is not. */
+function toProjectRelativePath(projectRoot: string, targetPath: string): string {
+  return isPathInside(projectRoot, targetPath)
+    ? path.relative(projectRoot, targetPath).split(path.sep).join('/')
+    : targetPath;
 }
 
 function resolvePathInsideProject(projectRoot: string, targetPath: string): string {
@@ -298,6 +306,26 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
     }
   }
 
+  // Roots a read may reach beyond the project: the workspace root and the OS
+  // temp directory. Canonicalised once because macOS resolves /tmp elsewhere.
+  let canonicalReadableRoots: string[] | null = null;
+
+  async function resolveReadableRoots(signal?: AbortSignal): Promise<string[]> {
+    if (canonicalReadableRoots) return canonicalReadableRoots;
+    const roots: string[] = [];
+    for (const rootPath of [dependencies.workspace.rootPath, os.tmpdir()]) {
+      if (!rootPath) continue;
+      try {
+        roots.push(await runFileSystemOperation(() => fileSystem.realpath(rootPath), signal));
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        roots.push(path.resolve(rootPath));
+      }
+    }
+    canonicalReadableRoots = roots;
+    return roots;
+  }
+
   async function resolveProjectRoot(projectId: string): Promise<string> {
     const projectRoot = await dependencies.projects.getProjectPathById(projectId);
     if (!projectRoot) {
@@ -318,14 +346,16 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
     }
   }
 
-  async function resolveExistingPathInsideProject(
-    canonicalProjectRoot: string,
+  async function resolveExistingPathInsideRoots(
+    allowedRoots: readonly string[],
+    baseDirectory: string,
     targetPath: string,
+    boundaryMessage: string,
     signal?: AbortSignal,
   ): Promise<string> {
     const candidatePath = path.isAbsolute(targetPath)
       ? path.resolve(targetPath)
-      : path.resolve(canonicalProjectRoot, targetPath);
+      : path.resolve(baseDirectory, targetPath);
     let realPath: string;
     try {
       realPath = await runFileSystemOperation(() => fileSystem.realpath(candidatePath), signal);
@@ -335,10 +365,43 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
       }
       throw error;
     }
-    if (!isPathInside(canonicalProjectRoot, realPath)) {
-      throw createFileTreeError('Path must be under project root', 403, 'PATH_OUTSIDE_PROJECT');
+    if (!allowedRoots.some((rootPath) => isPathInside(rootPath, realPath))) {
+      throw createFileTreeError(boundaryMessage, 403, 'PATH_OUTSIDE_PROJECT');
     }
     return realPath;
+  }
+
+  async function resolveExistingPathInsideProject(
+    canonicalProjectRoot: string,
+    targetPath: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    return resolveExistingPathInsideRoots(
+      [canonicalProjectRoot],
+      canonicalProjectRoot,
+      targetPath,
+      'Path must be under project root',
+      signal,
+    );
+  }
+
+  /**
+   * Resolution for read-only viewing, which may reach outside the project so a
+   * chat link to a snapshot or another checkout opens instead of failing.
+   * Never use for a mutation: writes stay inside the project root.
+   */
+  async function resolveExistingReadablePath(
+    canonicalProjectRoot: string,
+    targetPath: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    return resolveExistingPathInsideRoots(
+      [canonicalProjectRoot, ...await resolveReadableRoots(signal)],
+      canonicalProjectRoot,
+      targetPath,
+      'Path must be under the project, workspace, or temporary directory',
+      signal,
+    );
   }
 
   async function resolveExistingDirectoryInsideProject(
@@ -1063,7 +1126,7 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
 
     async readTextFile(projectId, filePath) {
       const projectRoot = await resolveCanonicalProjectRoot(projectId);
-      const resolvedPath = await resolveExistingPathInsideProject(projectRoot, filePath);
+      const resolvedPath = await resolveExistingReadablePath(projectRoot, filePath);
       try {
         const content = await fileSystem.readTextFile(resolvedPath);
         return { content, path: resolvedPath };
@@ -1077,7 +1140,7 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
 
     async openFile(projectId, filePath) {
       const projectRoot = await resolveCanonicalProjectRoot(projectId);
-      const resolvedPath = await resolveExistingPathInsideProject(projectRoot, filePath);
+      const resolvedPath = await resolveExistingReadablePath(projectRoot, filePath);
       try {
         await fileSystem.access(resolvedPath);
       } catch {
@@ -1211,7 +1274,7 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
         ? fileReference
         : path.resolve(projectRoot, fileReference.replace(/^\.\//, ''));
       try {
-        const exactPath = await resolveExistingPathInsideProject(
+        const exactPath = await resolveExistingReadablePath(
           projectRoot,
           exactCandidate,
           input.signal,
@@ -1223,7 +1286,7 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
             match: {
               name: path.basename(exactPath),
               path: exactPath,
-              relativePath: path.relative(projectRoot, exactPath).split(path.sep).join('/'),
+              relativePath: toProjectRelativePath(projectRoot, exactPath),
               type: 'file',
             },
           };
