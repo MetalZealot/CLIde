@@ -19,7 +19,7 @@ import { AppError } from '@/shared/utils.js';
 
 describe('codex-app-server-protocol-drift', () => {
   const moduleRequire = createRequire(import.meta.url);
-  const EXPECTED_CODEX_VERSION = '0.152.1';
+  const EXPECTED_CODEX_VERSION = '0.153.4';
 
   test(`Codex source, lockfile, SDK, and bundled CLI stay pinned to ${EXPECTED_CODEX_VERSION}`, () => {
     const manifest = JSON.parse(readFileSync(

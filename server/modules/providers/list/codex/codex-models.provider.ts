@@ -32,9 +32,21 @@ import {
 
 // Only reached when `models_cache.json` and the App Server both fail to answer;
 // the live list carries each model's own reasoning levels. Mirrors the visible
-// models and their supported levels as of Codex 0.150.0.
+// models and their supported levels as of Codex 0.153.4.
 export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
+    {
+      value: 'gpt-6-astra',
+      label: 'GPT-6-Astra',
+      isDefault: true,
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low' }, { value: 'medium' }, { value: 'high' },
+          { value: 'xhigh' }, { value: 'max' }, { value: 'ultra' },
+        ],
+      },
+    },
     {
       value: 'gpt-5.6-sol',
       label: 'GPT-5.6-Sol',
@@ -93,7 +105,7 @@ export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
       },
     },
   ],
-  DEFAULT: 'gpt-5.6-terra',
+  DEFAULT: 'gpt-6-astra',
   source: 'fallback',
 };
 

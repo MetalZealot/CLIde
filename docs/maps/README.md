@@ -19,10 +19,10 @@ CLIde or its provider runtimes change.
 | [Claude Code and Agent SDK map](claude-agent-sdk.md) | Claude-native SDK/CLI/control surface and CLIde destinations | Snapshot re-measured at SDK 0.3.258 / runtime 2.1.258, 2026-09-01; the prose below it still reads 0.3.165 / 2.1.220 |
 | [Claude command surface](claude-command-surface.md) | The `/help` commands, `/config` rows and 159 settings keys, each with a CLIde destination | Settings keys re-counted 2026-09-01 at 2.1.258 / 0.3.258; commands and `/config` rows still 2.1.246's, and the live `/help` and `supportedCommands()` counts 2.1.235's |
 | [Claude upgrade ledger](claude-upgrade-ledger.md) | Compact audit decisions and verification history | Current through SDK 0.3.258 / runtime 2.1.258, 2026-09-01 |
-| [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Pin, protocol counts and dispositions current at 0.152.1, 2026-09-01; model rows still 0.150.0's |
-| [Codex upgrade ledger](codex-upgrade-ledger.md) | Compact release decisions and verification history | Current through 0.152.1, 2026-09-01 |
+| [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Pin, protocol, model rows, and dispositions current at 0.153.4, 2026-09-06 |
+| [Codex upgrade ledger](codex-upgrade-ledger.md) | Compact release decisions and verification history | Current through 0.153.4, 2026-09-06 |
 | [Tool activity stream](tool-activity-stream.md) | What each provider reports about its own tool calls, what CLIde drops, and the measured shape of a real transcript | Measured 2026-08-23; Cursor/OpenCode rows are source inspection only |
-| [Codex integration conformance](codex-integration-conformance.md) | Executable cross-layer regression matrix and live acceptance rows | Harness current; live rows unverified since Codex 0.147 |
+| [Codex integration conformance](codex-integration-conformance.md) | Executable cross-layer regression matrix and live acceptance rows | Harness current; Astra default/new Chat passed at 0.153.4, broader lifecycle rows last complete at 0.147 |
 
 Future provider maps should use stable, undated filenames:
 

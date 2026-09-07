@@ -165,7 +165,7 @@
     "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/rest": "^22.0.0",
-    "@openai/codex-sdk": "0.152.1",
+    "@openai/codex-sdk": "0.153.4",
     "@playwright/mcp": "0.0.80",
     "@replit/codemirror-minimap": "^0.5.2",
     "@tailwindcss/typography": "^0.5.16",

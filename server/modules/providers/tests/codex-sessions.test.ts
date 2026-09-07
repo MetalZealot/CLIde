@@ -909,8 +909,15 @@ describe('codex-models', () => {
       readLiveModels: async () => { throw new Error('offline'); },
       modelsCachePath: path.join(os.tmpdir(), `missing-codex-models-${Date.now()}.json`),
     });
-    assert.deepEqual(await provider.getSupportedModels(), CODEX_FALLBACK_MODELS);
-    assert.equal((await provider.getSupportedModels()).source, 'fallback');
+    const models = await provider.getSupportedModels();
+    assert.deepEqual(models, CODEX_FALLBACK_MODELS);
+    assert.equal(models.source, 'fallback');
+    assert.equal(models.DEFAULT, 'gpt-6-astra');
+    assert.equal(models.OPTIONS[0]?.isDefault, true);
+    assert.deepEqual(
+      models.OPTIONS[0]?.effort?.values.map((option) => option.value),
+      ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+    );
   });
 
   test('Codex reads each session model from that session rollout', async () => {

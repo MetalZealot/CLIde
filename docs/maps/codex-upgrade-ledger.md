@@ -210,3 +210,34 @@ Each stable upgrade records:
   with no errors, and exact snapshot reloads of five affected transcripts.
   Grayson then confirmed the restored messages by reopening affected sessions
   on the isolated port-3006 server. Production acceptance remains separate.
+
+## 0.152.1 → 0.153.4 — 2026-09-06
+
+- **Sources:** [official changelog](https://learn.chatgpt.com/docs/changelog),
+  [0.153.4 release](https://github.com/openai/codex/releases/tag/rust-v0.153.4),
+  [compare](https://github.com/openai/codex/compare/rust-v0.152.1...rust-v0.153.4),
+  [tagged SDK](https://github.com/openai/codex/tree/rust-v0.153.4/sdk/typescript),
+  [tagged protocol](https://github.com/openai/codex/tree/rust-v0.153.4/codex-rs/app-server-protocol),
+  and the [GPT-6-Astra guide](https://developers.openai.com/api/docs/guides/latest-model).
+- **Version set:** exact SDK and transitive bundled CLI pins move together to
+  0.153.4. The discovered standalone CLI already reports 0.153.4.
+- **Protocol and SDK:** generated method counts move to 102/10/83 by default and
+  158/11/83 with experimental features. The sole addition is deferred
+  `plugin/reconcile`; the curated contract verifies without change. Published
+  declaration differences are comments only.
+- **Integrated:** the runtime model catalog now exposes `gpt-6-astra` first and
+  as default, with low through ultra reasoning. Dynamic discovery needed no
+  change; the offline server catalog and client's pre-catalog seed now match.
+  Existing sessions remain governed by transcript/provider truth.
+- **Dispositions:** asynchronous structured questions already fit CLIde's
+  blocking flag contract. Thread-reported model/effort does not replace
+  transcript truth. Remote plugins and experimental context management remain
+  deferred; TUI, Bedrock listing, and Fast-mode copy changes need no shared UI.
+  Guardian, MCP approval, reconnect, fork, compaction, and subagent fixes are
+  inherited compatibility watches covered by regression smoke.
+- **Automated verification:** the 315-check Codex gate, typecheck, lint with no
+  errors, client/server build, docs check, package/version report, and generated
+  protocol measurement pass.
+- **Isolated live evidence:** Grayson confirmed the Astra default and a
+  successful new Chat session on the branch server. Broader conformance rows
+  and production deployment remain separate; production is unchanged.

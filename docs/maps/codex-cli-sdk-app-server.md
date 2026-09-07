@@ -1,9 +1,8 @@
 # Codex CLI, SDK, and App Server living surface map
 
-*Originated 2026-07-24. Surface last audited 2026-08-12 against CLIde's
-managed-runtime branch and two 0.147.0 installations; the model rows below were
-re-measured 2026-08-26 against 0.150.0, and the pin and protocol counts
-2026-09-01 against 0.152.1.*
+*Originated 2026-07-24. Runtime selection was audited 2026-08-12; the release
+dispositions, model rows, pin, and protocol counts were re-measured 2026-09-06
+against Codex 0.153.4.*
 
 This map records current Codex behavior and CLIde destinations. The
 [upgrade ledger](codex-upgrade-ledger.md) keeps release history; generated
@@ -15,16 +14,16 @@ semantics belong in the
 
 | Evidence | Current value |
 |---|---|
-| Dispositions compiled at | 0.152.1, spanning the 0.151.0–0.152.1 notes |
+| Dispositions compiled at | 0.153.4, spanning the 0.153.0–0.153.4 notes |
 | Native thread store | `~/.codex/state_*.sqlite`, table `threads`; `session_index.jsonl` is a legacy mirror and absent on a current install |
-| Repository pin | `@openai/codex-sdk` 0.152.1, with `@openai/codex` 0.152.1 transitively |
-| Host installations | Bundled 0.152.1 and standalone 0.152.1, distinct by path |
-| Default generated protocol | 101 client requests, 10 server requests, 83 notifications |
-| Experimental generated protocol | 157 client requests, 11 server requests, 83 notifications |
+| Repository pin | `@openai/codex-sdk` 0.153.4, with `@openai/codex` 0.153.4 transitively |
+| Available installations | Repository bundle and discovered standalone both 0.153.4; selection remains explicit and installation-specific |
+| Default generated protocol | 102 client requests, 10 server requests, 83 notifications |
+| Experimental generated protocol | 158 client requests, 11 server requests, 83 notifications |
 | Interactive Chat | App Server by default; SDK by explicit escape hatch or initialization-only fallback |
 | Runtime selection | Bundled seed, explicit compatible promotion, no silent fallback |
-| Isolated live evidence | New/resumed Chat; every facet resolving one executable; Check, Use, idle promotion, and Roll back on 3002 |
-| Production state | Port 3001 intentionally untouched by this branch |
+| Isolated live evidence | Managed-runtime lifecycle proven at 0.147.0; 0.153.4 Astra default and new Chat passed |
+| Production state | Intentionally unchanged by this isolated update |
 
 The SDK and bundled CLI stay pinned as one compatibility pair, but version is
 not installation identity. A provider-generic resolver persists one approved
@@ -136,23 +135,36 @@ changed selections do not fall back to bundled.
 | Models, auth, usage, MCP, skills | Their Codex provider facets |
 | Shell | `server/modules/websocket/services/shell-websocket.service.ts` |
 
-## 4. Delta at 0.152.1, and current dispositions
+## 4. Current compatibility result and dispositions
 
 ### Compatibility result
 
-- SDK and bundled CLI pins moved together to 0.152.1, and the standalone
-  install on `PATH` caught up from 0.149.1.
+- SDK and bundled CLI pins moved together from 0.152.1 to 0.153.4; the
+  discovered standalone installation already reports 0.153.4.
 - The curated protocol subset regenerates and verifies unchanged: every method
   and field CLIde consumes survives.
-- Default client requests grew 98 → 101, experimental 156 → 157, and
-  notifications 81 → 83 in both modes; server requests (10/11) held. None of the
-  additions is consumed yet.
-- `ModelReasoningEffort` gained `max` and `ultra`; `ThreadOptions` gained
-  `threadSource` and `CodexOptions` raw `configOverrides`. Only the effort
-  levels reach a CLIde surface, and the live model list already carried them.
-- App Server MCP event streaming explains the notification-count rise.
+- Generated protocol counts moved by one client request: default 101 → 102 and
+  experimental 157 → 158; server requests remain 10/11 and notifications 83.
+  The addition is `plugin/reconcile`, outside CLIde's current surface. Published
+  SDK declaration changes are comments only.
+- The 0.153.4 App Server catalog puts `gpt-6-astra` first, marks it as the
+  bundled default, and reports low through ultra reasoning. The live catalog
+  already carries that contract; CLIde's server and pre-catalog client
+  fallbacks now match it. Existing sessions still use transcript/provider truth.
 
-### Material upstream surfaces, compiled at 0.152.1
+### Material upstream surfaces at 0.153.4
+
+| Upstream change | CLIde impact | Disposition |
+|---|---|---|
+| GPT-6-Astra catalog/default and picker visibility fixes | Dynamic discovery already works; stale offline and pre-catalog defaults would disagree | **Integrated** by refreshing both fallbacks |
+| Asynchronous structured questions | CLIde already handles `request_user_input` and honors non-blocking requests | **Integrated**, retain live regression coverage |
+| Thread model and reasoning effort returned by App Server | CLIde's transcript remains ground truth for what ran under ADRs 0003 and 0025 | **No action** |
+| Remote plugin marketplace availability and `plugin/reconcile` | CLIde has no shared provider-slotted extensions interface | **Defer** |
+| Guardian, MCP approval, reconnect, fork, rollout compaction, and subagent fixes | Runtime behavior below existing Chat contracts | **Compatibility watch** and live smoke |
+| TUI reconnect, history, recap, paste, Vim, Bedrock model listing, and Fast-mode copy | Shell-owned or absent from CLIde's shared product surface | **No action** |
+| Experimental context-management controls | Provider-specific and disabled by default | **Defer** |
+
+### Carried open surfaces from 0.152.1
 
 Spans 0.148.0 through 0.152.1. Rows still open from the 0.147.0 pass are
 carried forward rather than restated.
@@ -203,19 +215,19 @@ generated protocol, the curated compatibility guard, focused/full tests, and an
 isolated live gate. Production process/version and installed-app evidence remain
 separate deployment facts.
 
-Dispositions above were compiled against the three release notes plus tagged
-source and the installed state store; `session_index.jsonl`'s demotion is
+Current dispositions were compiled against the 0.153.0–0.153.4 release notes,
+tagged source, generated bindings, and runtime behavior. `session_index.jsonl`'s demotion is
 established by upstream's own test, which removes the file and asserts that
 naming still resolves from SQLite.
 
 Primary current sources:
 
-- [Codex 0.152.1 release](https://github.com/openai/codex/releases/tag/rust-v0.152.1),
-  [0.149.0](https://github.com/openai/codex/releases/tag/rust-v0.149.0),
-  [0.148.0](https://github.com/openai/codex/releases/tag/rust-v0.148.0)
-- [OpenAI tag comparison: 0.150.0 to 0.152.1](https://github.com/openai/codex/compare/rust-v0.150.0...rust-v0.152.1)
-- [Tagged TypeScript SDK](https://github.com/openai/codex/tree/rust-v0.152.1/sdk/typescript)
-- [Tagged App Server protocol](https://github.com/openai/codex/tree/rust-v0.152.1/codex-rs/app-server-protocol)
+- [Official Codex changelog](https://learn.chatgpt.com/docs/changelog)
+- [Codex 0.153.4 release](https://github.com/openai/codex/releases/tag/rust-v0.153.4)
+- [OpenAI tag comparison: 0.152.1 to 0.153.4](https://github.com/openai/codex/compare/rust-v0.152.1...rust-v0.153.4)
+- [Tagged TypeScript SDK](https://github.com/openai/codex/tree/rust-v0.153.4/sdk/typescript)
+- [Tagged App Server protocol](https://github.com/openai/codex/tree/rust-v0.153.4/codex-rs/app-server-protocol)
+- [GPT-6-Astra guide](https://developers.openai.com/api/docs/guides/latest-model)
 - [Codex App Server docs](https://developers.openai.com/codex/app-server)
 - [Codex CLI reference](https://developers.openai.com/codex/cli/reference)
 

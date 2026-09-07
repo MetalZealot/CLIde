@@ -24,7 +24,7 @@ const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   // built-in Sonnet instead of the settings-cascade model.
   claude: 'sonnet',
   cursor: 'gpt-5.3-codex',
-  codex: 'gpt-5.4',
+  codex: 'gpt-6-astra',
   opencode: 'anthropic/claude-sonnet-4-5',
 };
 
