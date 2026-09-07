@@ -99,9 +99,10 @@ base; each provider declares `modeledConfigKeys`.
       Three contexts cost 293 MB PSS (236 MB for the browser plus the first,
       then ~25-35 MB each). Output dirs are swept at boot, stopped rows cap at
       the newest five, and the action timeout is CLIde's, not the package's 5 s.
-      Open: measure a successful `fullPage` shot before bounding it — images
-      bill by dimension, so its cost is transport bytes and an unreadable
-      image, not tokens. Provider runs and acceptance are outstanding.
+      An image result is capped at 1 MiB: a viewport shot measures 183 KiB and
+      passes, a full page of 30,584 px measures 6.4 MB and is refused with a
+      hint, since scaled to a model's long edge it is too narrow to read.
+      Provider runs and acceptance are outstanding.
 
 ## Done when
 

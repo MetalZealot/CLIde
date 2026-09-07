@@ -342,6 +342,10 @@ describe('browser-use-mcp endpoint', () => {
               });
             });
           }
+          if (request.params.name === 'browser_take_screenshot') {
+            const bytes = Number(request.params.arguments?.bytes || 1024);
+            return { content: [{ type: 'image' as const, mimeType: 'image/png', data: 'a'.repeat(bytes) }] };
+          }
           if (request.params.name === 'browser_fails') {
             return { content: [{ type: 'text' as const, text: 'nope' }], isError: true };
           }
@@ -651,6 +655,25 @@ describe('browser-use-mcp endpoint', () => {
 
       const rejected = await readRpc(await callTool(harness, sessionId, 4, 'browser_use_device', { device: 'watch' }));
       assert.equal(rejected.result.isError, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('an oversized screenshot is dropped for a hint; a viewport-sized one passes', async () => {
+    const harness = await startEndpoint();
+    try {
+      const session = await initialize(harness);
+      const kept = await readRpc(await callTool(harness, session.sessionId, 2, 'browser_take_screenshot', {
+        bytes: 1024,
+      }));
+      const dropped = await readRpc(await callTool(harness, session.sessionId, 3, 'browser_take_screenshot', {
+        bytes: 2 * 1024 * 1024,
+      }));
+
+      assert.deepEqual(kept.result.content.map((item: { type: string }) => item.type), ['image']);
+      assert.deepEqual(dropped.result.content.map((item: { type: string }) => item.type), ['text']);
+      assert.match(resultText(dropped), /exceeds the 1024 KiB image budget/);
     } finally {
       await harness.close();
     }
