@@ -879,6 +879,56 @@ for await (const line of lines) {
   }
 });
 
+test('App Server steers an active turn with its exact id precondition', async () => {
+  const fake = await createFakeServer(`
+import readline from 'node:readline';
+const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
+for await (const line of lines) {
+  const message = JSON.parse(line);
+  if (message.method === 'initialize') send({ id: message.id, result: {} });
+  else if (message.method === 'thread/start') send({ id: message.id, result: {
+    thread: { id: 'thread-steer', sessionId: 'thread-steer', path: null, cwd: '/tmp' },
+    model: 'gpt-test', cwd: '/tmp', reasoningEffort: null
+  } });
+  else if (message.method === 'turn/start') {
+    send({ id: message.id, result: { turn: { id: 'turn-steer', status: 'inProgress', error: null } } });
+  } else if (message.method === 'turn/steer') {
+    if (message.params.threadId !== 'thread-steer') process.exit(61);
+    if (message.params.expectedTurnId !== 'turn-steer') process.exit(62);
+    if (message.params.input?.[0]?.text !== '> Which environment?\\n\\nStaging') process.exit(63);
+    send({ id: message.id, result: { turnId: 'turn-steer' } });
+    send({ method: 'item/completed', params: {
+      threadId: 'thread-steer', turnId: 'turn-steer', completedAtMs: Date.now(),
+      item: { type: 'agentMessage', id: 'steer-capture', text: 'STEER_ACCEPTED', questions: null }
+    } });
+    send({ method: 'turn/completed', params: {
+      threadId: 'thread-steer', turn: { id: 'turn-steer', status: 'completed', error: null }
+    } });
+  }
+}`);
+  const transport = new CodexAppServerChatTransport({ command: fake.command });
+  transports.push(transport);
+  providerModelsService.resolveResumeModel = async () => 'gpt-test';
+  const writer = createWriter();
+  try {
+    const query = transport.query('start', { sessionId: 'app-steer', cwd: fake.root }, writer);
+    const deadline = Date.now() + 3_000;
+    let steered = false;
+    while (!steered && Date.now() < deadline) {
+      steered = await transport.steer('app-steer', '> Which environment?\n\nStaging');
+      if (steered) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(steered, true);
+    await query;
+    assert.ok(writer.messages.some((message) => message.content === 'STEER_ACCEPTED'));
+    assert.equal(transport.isActive('app-steer'), false);
+  } finally {
+    await fake.cleanup();
+  }
+});
+
 test('App Server reports a usage-limit failure once, as its message text', async () => {
   const limit = "You've hit your usage limit. Try again at 1:00 AM.";
   const fake = await createFakeServer(`
@@ -1144,6 +1194,10 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     );
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, true);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, true);
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex').supportsActiveTurnSteering,
+      true,
+    );
     assert.equal(getCodexChatTransportDiagnostics().sdkVersion, INSTALLED_CODEX_SDK_VERSION);
     assert.equal(getCodexChatTransportDiagnostics().bundledCliVersion, INSTALLED_CODEX_CLI_VERSION);
     assert.deepEqual(
@@ -1186,6 +1240,10 @@ test('Codex App Server is the default and sdk is the explicit capability escape 
     );
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsRewind, false);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('codex').supportsFork, false);
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex').supportsActiveTurnSteering,
+      false,
+    );
     assert.equal(getCodexChatTransportDiagnostics().health, 'disabled');
 
     process.env.CLIDE_CODEX_CHAT_TRANSPORT = 'app-server';
@@ -1211,6 +1269,7 @@ test('Codex startup fallback is reflected in actual transport and runtime capabi
     assert.equal(capabilities.defaultCollaborationMode, null);
     assert.equal(capabilities.supportsRewind, false);
     assert.equal(capabilities.supportsFork, false);
+    assert.equal(capabilities.supportsActiveTurnSteering, false);
     assert.equal(capabilities.chatTransport?.configured, 'app-server');
     assert.equal(capabilities.chatTransport?.actual, 'sdk');
     assert.equal(capabilities.chatTransport?.health, 'fallback');

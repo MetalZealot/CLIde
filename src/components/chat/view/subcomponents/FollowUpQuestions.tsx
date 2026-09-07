@@ -36,7 +36,7 @@ export default function FollowUpQuestions({ questions }: FollowUpQuestionsProps)
         </div>
       ))}
       <p className="text-xs text-muted-foreground">
-        {t('followUpQuestions.instruction', { defaultValue: 'Reply in the composer.' })}
+        {t('followUpQuestions.transcriptRecord', { defaultValue: 'Asked while the response continued.' })}
       </p>
     </section>
   );

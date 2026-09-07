@@ -23,6 +23,7 @@ import {
   isCodexAppServerChatEnabled,
   isCodexAppServerSessionActive,
   queryCodexAppServer,
+  steerCodexAppServerSession,
   withCodexAppServerStartupFallback,
 } from '@/modules/providers/list/codex/codex-app-server-chat.transport.js';
 import { resolveSelectedCodexRuntime } from '@/modules/providers/list/codex/codex-native-runtime.provider.js';
@@ -515,6 +516,7 @@ export function getActiveCodexSessions() {
 export const codexRuntime = {
   run: queryCodexChat,
   abort: abortCodexSession,
+  steer: steerCodexSession,
   permissions: {
     resolve: (requestId, response) => interactiveRequestRegistry.resolve(requestId, response),
     // Provider-scoped for the same reason Claude's is: one shared map, so an
@@ -606,4 +608,11 @@ export async function abortCodexSession(sessionId) {
     return abortCodexAppServerSession(sessionId);
   }
   return abortCodexSdkSession(sessionId);
+}
+
+export async function steerCodexSession(sessionId, content) {
+  if (!isCodexAppServerSessionActive(sessionId)) {
+    return false;
+  }
+  return steerCodexAppServerSession(sessionId, content);
 }

@@ -111,11 +111,15 @@ profile changes when App Server falls back to the SDK.
 | `turn.start` | Start a text turn through the selected provider | E | E | E | E |
 | `turn.abort` | Signal-first cancellation with native graceful interruption where possible | E | E | E | E |
 | `turn.queue-followup` | Queue a later CLIde turn rather than native active-turn steering | C | C | C | C |
+| `turn.steer-input` | Append accepted user input to an active turn | — | R | — | — |
 
 Notes:
 
 - Codex rewind/fork require the effective App Server transport and disappear on
   SDK fallback.
+- Codex active-turn steering is likewise App Server runtime-dependent and is
+  currently consumed only by asynchronous-question answers. The ordinary
+  composer retains CLIde's app-owned later-turn queue.
 - Claude's upstream SDK exposes native fork helpers, but CLIde's current
   capability contract does not advertise a provider fork binding.
 - Claude's rewind is conversation-only. File checkpoints are written on every
@@ -158,7 +162,7 @@ after downtime (ADR 0039).
 | `interaction.command-approval` | Surface a command approval request | — | R | — | — |
 | `interaction.file-approval` | Surface a file-change approval request | — | R | — | — |
 | `interaction.permission-approval` | Surface a scoped permission amendment | — | R | — | — |
-| `interaction.user-input` | Structured questions with reconnect-safe pending state | E | R | — | — |
+| `interaction.user-input` | Structured questions with reconnect-safe pending state; asynchronous questions add Send now and a separate FIFO Queue | E | R | — | — |
 
 The canonical access model is not a single `permissionMode` string. Filesystem
 boundary, network, approval behavior, reviewer, collaboration intent, and

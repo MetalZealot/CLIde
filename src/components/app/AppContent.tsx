@@ -10,6 +10,7 @@ import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
+import { useAsyncAnswerQueueAutoSend } from '../../hooks/useAsyncAnswerQueueAutoSend';
 import { api } from '../../utils/api';
 
 import MobileSidebarOverlay from './MobileSidebarOverlay';
@@ -103,6 +104,12 @@ function AppContentInner() {
   useQueuedMessageAutoSend({
     processingSessions,
     activeSessionId: selectedSession?.id ?? sessionId ?? null,
+    ws,
+    sendMessage,
+    markSessionProcessing,
+  });
+  useAsyncAnswerQueueAutoSend({
+    processingSessions,
     ws,
     sendMessage,
     markSessionProcessing,

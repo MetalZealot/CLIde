@@ -91,3 +91,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0051 — Voice Studio is a standalone personal tool](0051-voice-studio-is-a-standalone-personal-tool.md)
 - [0052 — Reads reach the workspace and temp roots; writes stay in the project](0052-reads-reach-the-workspace-and-temp-roots.md)
 - [0053 — Browser tools are official Playwright MCP over an authenticated HTTP endpoint](0053-browser-tools-are-official-playwright-mcp-over-http.md)
+- [0054 — Async question answers steer now or queue separately](0054-async-question-answer-delivery.md)

@@ -20,6 +20,7 @@ export type ProviderCapabilities = {
   supportsImages?: boolean;
   supportsFiles?: boolean;
   supportsAbort?: boolean;
+  supportsActiveTurnSteering?: boolean;
   supportsPermissionRequests?: boolean;
   supportsTokenUsage?: boolean;
   supportsUsageResetAlerts?: boolean;

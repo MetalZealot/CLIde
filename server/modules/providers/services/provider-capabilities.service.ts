@@ -28,6 +28,8 @@ type ProviderCapabilities = {
   supportsFiles: boolean;
   /** Whether an in-flight run can be cancelled via chat.abort. */
   supportsAbort: boolean;
+  /** Whether new user input can be appended to an in-flight turn. */
+  supportsActiveTurnSteering: boolean;
   /** Whether interactive tool permission prompts can reach the UI. */
   supportsPermissionRequests: boolean;
   /** Whether the token-usage endpoint has data for this provider. */
@@ -75,6 +77,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
+    supportsActiveTurnSteering: false,
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
@@ -93,6 +96,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
+    supportsActiveTurnSteering: false,
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
     supportsUsageResetAlerts: false,
@@ -111,6 +115,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
+    supportsActiveTurnSteering: false,
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
@@ -132,6 +137,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
+    supportsActiveTurnSteering: false,
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: false,
@@ -153,6 +159,7 @@ function withRuntimeCapabilities(capabilities: ProviderCapabilities): ProviderCa
       collaborationModes: ['build', 'plan'],
       defaultCollaborationMode: 'build',
       supportsPermissionRequests: true,
+      supportsActiveTurnSteering: true,
       supportsRewind: true,
       supportsFork: true,
       chatTransport: getCodexChatTransportDiagnostics(),

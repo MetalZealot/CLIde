@@ -93,6 +93,11 @@ export function createProviderRuntimeService(
       return Boolean(await dependencies.resolveProvider(providerName).runtime.abort(sessionId));
     },
 
+    async steer(providerName: LLMProvider, sessionId: string, content: string): Promise<boolean> {
+      const runtime = dependencies.resolveProvider(providerName).runtime;
+      return runtime.steer ? Boolean(await runtime.steer(sessionId, content)) : false;
+    },
+
     /**
      * Answers one pending interactive request and reports the outcome.
      *

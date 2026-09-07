@@ -80,6 +80,7 @@ type ProviderRuntimeGateway = {
    * early Stop is addressable.
    */
   abort(provider: LLMProvider, appSessionId: string): Promise<boolean>;
+  steer?(provider: LLMProvider, appSessionId: string, content: string): Promise<boolean>;
   resolveInteractiveRequest(
     requestId: string,
     response: InteractiveRequestResponse,
@@ -140,6 +141,71 @@ function sendProtocolError(
     code,
     error,
     sessionId: sessionId ?? null,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/** Appends structured user input when the active provider runtime supports it. */
+async function handleChatSteer(
+  ws: WebSocket,
+  data: AnyRecord,
+  dependencies: ChatWebSocketDependencies,
+): Promise<void> {
+  const sessionId = readRequiredSessionId(data);
+  const requestId = typeof data.requestId === 'string' ? data.requestId.trim() : '';
+  const content = typeof data.content === 'string' ? data.content.trim() : '';
+  const reject = (code: string, error: string, resolvedSessionId = sessionId) => {
+    sendJson(ws, {
+      kind: 'chat_input_rejected',
+      code,
+      error,
+      requestId: requestId || null,
+      sessionId: resolvedSessionId ?? null,
+      timestamp: new Date().toISOString(),
+    });
+  };
+  if (!sessionId) {
+    reject('SESSION_ID_REQUIRED', 'chat.steer requires a sessionId.', null);
+    return;
+  }
+  if (!requestId) {
+    reject('REQUEST_ID_REQUIRED', 'chat.steer requires a requestId.');
+    return;
+  }
+  if (!content) {
+    reject('CONTENT_REQUIRED', 'chat.steer requires non-empty content.');
+    return;
+  }
+
+  const session = sessionsDb.getSessionById(sessionId);
+  if (!session) {
+    reject('SESSION_NOT_FOUND', `Session "${sessionId}" was not found.`);
+    return;
+  }
+  const run = chatRunRegistry.getRun(sessionId);
+  if (!run || run.status !== 'running') {
+    reject('NO_ACTIVE_RUN', `Session "${sessionId}" has no active run.`);
+    return;
+  }
+  const provider = session.provider as LLMProvider;
+  if (
+    run.provider !== provider
+    || !providerCapabilitiesService.getProviderCapabilities(provider).supportsActiveTurnSteering
+  ) {
+    reject('STEER_UNSUPPORTED', `Provider "${provider}" does not support active-turn steering.`);
+    return;
+  }
+
+  if (!dependencies.runtime.steer || !(await dependencies.runtime.steer(provider, sessionId, content))) {
+    reject('STEER_REJECTED', 'The provider did not accept the answer into the active turn.');
+    return;
+  }
+
+  sendJson(ws, {
+    kind: 'chat_input_accepted',
+    requestId,
+    sessionId,
+    delivery: 'steer',
     timestamp: new Date().toISOString(),
   });
 }
@@ -521,6 +587,7 @@ async function handlePermissionResponse(
  *
  * Inbound protocol (client to server):
  * - `chat.send`                { sessionId, content, options? }
+ * - `chat.steer`               { requestId, sessionId, content }
  * - `chat.abort`               { sessionId }
  * - `chat.subscribe`           { sessions: [{ sessionId, lastSeq?, runId? }] }
  * - `chat.permission-response` { requestId, allow, updatedInput?, message?, rememberEntry? }
@@ -554,6 +621,9 @@ export function handleChatConnection(
       switch (messageType) {
         case 'chat.send':
           await handleChatSend(ws, userId, data, dependencies);
+          return;
+        case 'chat.steer':
+          await handleChatSteer(ws, data, dependencies);
           return;
         case 'chat.abort':
           await handleChatAbort(ws, data, dependencies);

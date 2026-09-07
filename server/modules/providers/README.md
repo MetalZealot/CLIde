@@ -83,7 +83,7 @@ import the service from `server/modules/providers/index.ts`.
 
 | Facet | Responsibility | Base / Service |
 | --- | --- | --- |
-| `runtime` | Run and abort live SDK/CLI sessions | `IProviderRuntime` -> `providerRuntimeService` |
+| `runtime` | Run and abort live SDK/CLI sessions; optionally steer input into an active turn | `IProviderRuntime` -> `providerRuntimeService` |
 | `models` | Resolve supported and active models | `IProviderModels` -> `providerModelsService` |
 | `auth` | Report install/auth state for the provider runtime | `IProviderAuth` -> `providerAuthService` |
 | `mcp` | Read, list, write, and remove provider-native MCP config | `McpProvider` -> `providerMcpService` |

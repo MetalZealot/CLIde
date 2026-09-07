@@ -63,11 +63,12 @@ CLIde owns `session_id`; Codex owns the thread id persisted as
 | Start/resume, text, image, model, effort | SDK and App Server | Implemented | Keep |
 | Plan collaboration mode | App Server | Implemented when App Server is effective | Keep |
 | Command/file/permission approvals | App Server server requests | Reconnect-safe shared request registry and UI | Keep |
-| Structured questions | App Server `request_user_input` | Implemented with secret redaction and 0.147 blocking/timeout semantics | Keep |
+| Blocking structured questions | App Server `request_user_input` | Implemented with secret redaction and 0.147 blocking/timeout semantics | Keep |
+| Asynchronous structured questions | Final `agentMessage.questions` metadata | Sequential editor above the composer; default choice, Other, reconnect-safe handled state, Send now, and a separate answer FIFO | Keep |
 | Abort, rewind, fork | App Server; SDK abort | Implemented and capability-gated | Keep |
 | Completed agent/tool/reasoning items | SDK and App Server | Normalized live and from history | Keep |
 | Text/tool deltas | App Server notifications | Completed items only | Integrate when progressive rendering is prioritized |
-| Active-turn steering | App Server | CLIde queues a later turn | Defer pending provider-neutral semantics |
+| Active-turn steering | App Server `turn/steer` | Capability-gated for asynchronous-question answers; the ordinary composer still queues a later turn | Keep scoped |
 | Structured output, audio, realtime | SDK/experimental App Server | No current consumer | Defer or no action |
 
 App Server capabilities are runtime-derived. SDK fallback hides Plan,
@@ -157,7 +158,7 @@ changed selections do not fall back to bundled.
 | Upstream change | CLIde impact | Disposition |
 |---|---|---|
 | GPT-6-Astra catalog/default and picker visibility fixes | Dynamic discovery already works; stale offline and pre-catalog defaults would disagree | **Integrated** by refreshing both fallbacks |
-| Asynchronous structured questions | `agentMessage.questions` is final-message metadata, separate from blocking `request_user_input` requests | **Integrated** as read-only follow-up choices in live and reloaded chat; retain live regression coverage |
+| Asynchronous structured questions | `agentMessage.questions` is final-message metadata, separate from blocking `request_user_input` requests | **Integrated** as a sequential editor: first choice selected, Other accepted, Send now steers the active turn (or starts an idle one), and Queue persists a separate FIFO; live interaction acceptance remains |
 | Thread model and reasoning effort returned by App Server | CLIde's transcript remains ground truth for what ran under ADRs 0003 and 0025 | **No action** |
 | Remote plugin marketplace availability and `plugin/reconcile` | CLIde has no shared provider-slotted extensions interface | **Defer** |
 | Guardian, MCP approval, reconnect, fork, rollout compaction, and subagent fixes | Runtime behavior below existing Chat contracts | **Compatibility watch** and live smoke |
@@ -218,7 +219,8 @@ separate deployment facts.
 Current dispositions were compiled against the 0.153.0–0.153.4 release notes,
 tagged source, generated bindings, and runtime behavior. `session_index.jsonl`'s demotion is
 established by upstream's own test, which removes the file and asserts that
-naming still resolves from SQLite.
+naming still resolves from SQLite. Async-question interaction semantics were
+also checked against OpenAI's post-tag TUI implementation.
 
 Primary current sources:
 
@@ -229,6 +231,8 @@ Primary current sources:
 - [Tagged App Server protocol](https://github.com/openai/codex/tree/rust-v0.153.4/codex-rs/app-server-protocol)
 - [GPT-6-Astra guide](https://developers.openai.com/api/docs/guides/latest-model)
 - [Codex App Server docs](https://developers.openai.com/codex/app-server)
+- [OpenAI asynchronous-question delivery](https://github.com/openai/codex/pull/42178)
+- [OpenAI TUI answer and FIFO queue behavior](https://github.com/openai/codex/pull/42903)
 - [Codex CLI reference](https://developers.openai.com/codex/cli/reference)
 
 ## 6. Recurring update procedure

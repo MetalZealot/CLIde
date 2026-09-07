@@ -21,6 +21,8 @@ import { ComposerAttachmentGallery } from './ComposerAttachment';
 import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
 import FollowUpQuestions from './FollowUpQuestions';
+import AsyncQuestionPanel from './AsyncQuestionPanel';
+import QueuedAsyncAnswersCard from './QueuedAsyncAnswersCard';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import TokenUsageSummary from './TokenUsageSummary';
 
@@ -101,7 +103,7 @@ describe('chatSubcomponents', () => {
   });
 
   describe('non-blocking follow-up questions', () => {
-    test('renders question text and choices as read-only content', async () => {
+    test('keeps the transcript copy read-only and identifies it as history', async () => {
       const questionI18n = i18next.createInstance();
       await questionI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
       const markup = renderToStaticMarkup(
@@ -117,8 +119,64 @@ describe('chatSubcomponents', () => {
       assert.match(markup, /Staging/);
       assert.match(markup, /Production/);
       assert.match(markup, /Anything else\?/);
-      assert.match(markup, /Reply in the composer\./);
+      assert.match(markup, /Asked while the response continued\./);
       assert.doesNotMatch(markup, /<button/);
+    });
+
+    test('renders the pending question as an accessible editor with default choice and delivery actions', async () => {
+      const questionI18n = i18next.createInstance();
+      await questionI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
+      const markup = renderToStaticMarkup(
+        <I18nextProvider i18n={questionI18n} defaultNS="chat">
+          <AsyncQuestionPanel
+            sessionId="session-1"
+            question={{
+              id: 'question-1:0',
+              messageId: 'question-1',
+              question: 'Which environment?',
+              options: ['Staging', 'Production'],
+            }}
+            pendingCount={2}
+            isProcessing
+            isSending={false}
+            error={null}
+            onSubmit={() => true}
+          />
+        </I18nextProvider>,
+      );
+
+      assert.match(markup, /<fieldset/);
+      assert.match(markup, /type="radio"[^>]+checked=""[^>]+value="Staging"/);
+      assert.match(markup, /Other/);
+      assert.match(markup, /Type an answer…/);
+      assert.match(markup, />Queue</);
+      assert.match(markup, />Send now</);
+      assert.match(markup, /2 remaining/);
+    });
+
+    test('keeps queued answers visible and removable', async () => {
+      const questionI18n = i18next.createInstance();
+      await questionI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
+      const markup = renderToStaticMarkup(
+        <I18nextProvider i18n={questionI18n} defaultNS="chat">
+          <QueuedAsyncAnswersCard
+            answers={[{
+              id: 'answer-1',
+              questionId: 'question-1:0',
+              question: 'Which environment?',
+              answer: 'Staging',
+              content: '> Which environment?\n\nStaging',
+              provider: 'codex',
+              queuedAt: '2026-09-07T12:00:00.000Z',
+            }]}
+            onRemove={() => {}}
+          />
+        </I18nextProvider>,
+      );
+
+      assert.match(markup, /1 answer queued for the next turn/);
+      assert.match(markup, /Which environment\?/);
+      assert.match(markup, /aria-label="Remove queued answer to Which environment\?"/);
     });
   });
 

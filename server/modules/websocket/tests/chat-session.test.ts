@@ -198,6 +198,76 @@ describe('chat-session-addressing', () => {
     });
   });
 
+  test('chat.steer addresses the active Codex turn and acknowledges acceptance', async () => {
+    await withIsolatedDatabase(async () => {
+      const appSessionId = 'app-steer';
+      sessionsDb.createAppSession(appSessionId, 'codex', '/workspace/demo');
+      let releaseRun = (): void => {};
+      const steers: unknown[][] = [];
+      const dependencies: ChatDependencies = {
+        runtime: {
+          hasRuntime: () => true,
+          run: async () => new Promise<void>((resolve) => { releaseRun = resolve; }),
+          abort: async () => true,
+          steer: async (provider, sessionId, content) => {
+            steers.push([provider, sessionId, content]);
+            return true;
+          },
+          resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+          getPendingApprovalsForSession: () => [],
+        },
+      };
+      const connection = new FakeConnection();
+      handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      connection.emit('message', JSON.stringify({
+        type: 'chat.send', sessionId: appSessionId, content: 'start',
+      }));
+      await flush();
+      connection.emit('message', JSON.stringify({
+        type: 'chat.steer', requestId: 'answer-1', sessionId: appSessionId,
+        content: '> Which environment?\n\nStaging',
+      }));
+      await flush();
+
+      assert.deepEqual(steers, [[
+        'codex', appSessionId, '> Which environment?\n\nStaging',
+      ]]);
+      assert.ok(connection.frames.some((frame) =>
+        frame.kind === 'chat_input_accepted'
+        && frame.requestId === 'answer-1'
+        && frame.delivery === 'steer'));
+      releaseRun();
+      await flush();
+    });
+  });
+
+  test('chat.steer rejects an idle session without consuming its answer', async () => {
+    await withIsolatedDatabase(async () => {
+      const appSessionId = 'app-idle-steer';
+      sessionsDb.createAppSession(appSessionId, 'codex', '/workspace/demo');
+      const dependencies: ChatDependencies = {
+        runtime: {
+          hasRuntime: () => true,
+          run: async () => undefined,
+          abort: async () => true,
+          steer: async () => true,
+          resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+          getPendingApprovalsForSession: () => [],
+        },
+      };
+      const connection = new FakeConnection();
+      handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      connection.emit('message', JSON.stringify({
+        type: 'chat.steer', requestId: 'answer-idle', sessionId: appSessionId, content: 'Later',
+      }));
+      await flush();
+
+      const rejected = connection.frames.find((frame) => frame.kind === 'chat_input_rejected');
+      assert.equal(rejected?.requestId, 'answer-idle');
+      assert.equal(rejected?.code, 'NO_ACTIVE_RUN');
+    });
+  });
+
   test('chat.send forwards validated mixed attachments through the runtime contract', async () => {
     await withIsolatedDatabase(async () => {
       const appSessionId = 'app-attachments';

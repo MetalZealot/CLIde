@@ -114,6 +114,17 @@ export type CodexTurnStartResponse = {
   turn: CodexTurn;
 };
 
+export type CodexTurnSteerParams = {
+  threadId: string;
+  input: CodexUserInput[];
+  /** Active-turn precondition; App Server rejects a stale turn id. */
+  expectedTurnId: string;
+};
+
+export type CodexTurnSteerResponse = {
+  turnId: string;
+};
+
 export type CodexTokenUsage = {
   total: CodexTokenUsageBreakdown;
   last: CodexTokenUsageBreakdown;

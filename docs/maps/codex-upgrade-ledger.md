@@ -218,7 +218,8 @@ Each stable upgrade records:
   [compare](https://github.com/openai/codex/compare/rust-v0.152.1...rust-v0.153.4),
   [tagged SDK](https://github.com/openai/codex/tree/rust-v0.153.4/sdk/typescript),
   [tagged protocol](https://github.com/openai/codex/tree/rust-v0.153.4/codex-rs/app-server-protocol),
-  and the [GPT-6-Astra guide](https://developers.openai.com/api/docs/guides/latest-model).
+  the [GPT-6-Astra guide](https://developers.openai.com/api/docs/guides/latest-model),
+  and OpenAI's post-tag [TUI answer/queue implementation](https://github.com/openai/codex/pull/42903).
 - **Version set:** exact SDK and transitive bundled CLI pins move together to
   0.153.4. The discovered standalone CLI already reports 0.153.4.
 - **Protocol and SDK:** generated method counts move to 102/10/83 by default and
@@ -231,16 +232,21 @@ Each stable upgrade records:
   Existing sessions remain governed by transcript/provider truth.
 - **Dispositions:** asynchronous structured questions use separate
   `agentMessage.questions` metadata; CLIde preserves it through live delivery
-  and transcript reload, then renders read-only choices beneath the response.
+  and transcript reload. CLIde now presents each pending question sequentially
+  above the composer, preserves its draft and handled state across reload,
+  steers an accepted answer into the active turn, or persists it in a separate
+  FIFO that releases one answer per later turn. The original transcript card
+  remains the durable informational record rather than the input owner.
   Thread-reported model/effort does not replace transcript truth. Remote plugins
   and experimental context management remain deferred; TUI, Bedrock listing,
   and Fast-mode copy changes need no shared UI.
   Guardian, MCP approval, reconnect, fork, compaction, and subagent fixes are
   inherited compatibility watches covered by regression smoke.
-- **Automated verification:** the 315-check Codex gate, typecheck, lint with no
+- **Automated verification:** the 330-check Codex gate, typecheck, lint with no
   errors, client/server build, docs check, package/version report, and generated
   protocol measurement pass.
 - **Isolated live evidence:** Grayson confirmed the Astra default, a successful
   new Chat session, and the async-question card with all suggested answers on
-  mobile. Broader conformance rows and production deployment remain separate;
-  production is unchanged.
+  mobile. The interactive Send now/Queue replacement is automated and built but
+  still needs live acceptance; broader conformance rows and production
+  deployment remain separate, and production is unchanged.

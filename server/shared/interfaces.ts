@@ -38,6 +38,8 @@ export interface IProviderRuntime {
     context: ProviderRuntimeContext,
   ): Promise<unknown>;
   abort(sessionId: string): boolean | Promise<boolean>;
+  /** Appends ordinary user input to an already-running provider turn. */
+  steer?(sessionId: string, content: string): boolean | Promise<boolean>;
   permissions?: ProviderRuntimePermissionGateway;
 }
 

@@ -227,6 +227,12 @@ export function useChatRealtimeHandlers({
         case 'provider_usage':
           return;
 
+        // Delivery acks belong to the async-question controller. They carry no
+        // transcript content and must not enter the session message store.
+        case 'chat_input_accepted':
+        case 'chat_input_rejected':
+          return;
+
         default:
           break;
       }

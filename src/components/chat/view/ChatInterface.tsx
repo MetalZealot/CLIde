@@ -11,6 +11,7 @@ import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
+import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 
@@ -19,6 +20,8 @@ import ChatComposer from './subcomponents/ChatComposer';
 import NewSessionLauncher from './subcomponents/NewSessionLauncher';
 import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
+import AsyncQuestionPanel from './subcomponents/AsyncQuestionPanel';
+import QueuedAsyncAnswersCard from './subcomponents/QueuedAsyncAnswersCard';
 
 /** How long the Stop button stays armed after the first Escape/tap before it resets. */
 const STOP_ARM_TIMEOUT_MS = 4000;
@@ -284,6 +287,31 @@ function ChatInterface({
     supportsRewind: getSupportsRewindForProvider(provider),
     supportsFork: getSupportsForkForProvider(provider),
     supportsCompactCommand: getSupportsCompactCommandForProvider(provider),
+  });
+
+  const asyncQuestionSendOptions = useMemo(() => ({
+    model: currentProviderModel,
+    effort: currentProviderEffort,
+    permissionMode: resolvePermissionModeForProvider(provider, permissionMode),
+    ...(collaborationMode ? { collaborationMode } : {}),
+  }), [
+    collaborationMode,
+    currentProviderEffort,
+    currentProviderModel,
+    permissionMode,
+    provider,
+    resolvePermissionModeForProvider,
+  ]);
+  const asyncQuestions = useAsyncQuestions({
+    sessionId: currentSessionId || selectedSession?.id || null,
+    provider,
+    messages: chatMessages,
+    isProcessing,
+    sendOptions: asyncQuestionSendOptions,
+    sendMessage,
+    subscribe,
+    sessionStore,
+    onSessionProcessing,
   });
 
   // On WebSocket reconnect, re-fetch the current session's messages from the
@@ -620,6 +648,31 @@ function ChatInterface({
               onShowAllTasks={onShowAllTasks}
               setInput={setInput}
             />
+          )}
+
+          {asyncQuestions.queued.length > 0 && (
+            <div className="px-4 md:px-6">
+              <QueuedAsyncAnswersCard
+                answers={asyncQuestions.queued}
+                onRemove={asyncQuestions.removeQueued}
+              />
+            </div>
+          )}
+
+          {asyncQuestions.pendingQuestion && (currentSessionId || selectedSession?.id) && (
+            <div className="px-4 md:px-6">
+              <AsyncQuestionPanel
+                key={`${currentSessionId || selectedSession?.id}:${asyncQuestions.pendingQuestion.id}`}
+                sessionId={(currentSessionId || selectedSession?.id)!}
+                question={asyncQuestions.pendingQuestion}
+                pendingCount={asyncQuestions.pendingCount}
+                isProcessing={isProcessing}
+                isSending={asyncQuestions.sendingQuestionId === asyncQuestions.pendingQuestion.id}
+                error={asyncQuestions.error}
+                onSubmit={(answer, delivery) =>
+                  asyncQuestions.submit(asyncQuestions.pendingQuestion!, answer, delivery)}
+              />
+            </div>
           )}
 
           <ChatComposer

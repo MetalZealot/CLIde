@@ -6,6 +6,7 @@ import test, { describe } from 'node:test';
 import { type Project } from '../../../types/app';
 import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
+import type { ChatMessage } from '../types/types';
 
 import {
   extractInternalMemoryCitation,
@@ -15,6 +16,16 @@ import {
 } from './chatFormatting';
 import { exportToHTML, exportToMarkdown } from './chatExport';
 import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
+import {
+  collectPendingAsyncQuestions,
+  enqueueAsyncAnswer,
+  formatAsyncQuestionAnswer,
+  markAsyncQuestionHandled,
+  readHandledAsyncQuestions,
+  readQueuedAsyncAnswers,
+  removeQueuedAsyncAnswer,
+  unmarkAsyncQuestionHandled,
+} from './asyncQuestionState';
 
 describe('chatFormatting', () => {
   const citation = `<oai-mem-citation>
@@ -113,6 +124,84 @@ describe('chatFormatting', () => {
     assert.deepEqual(message?.followUpQuestions, [
       { question: 'Which environment?', options: ['Staging'] },
     ]);
+  });
+});
+
+describe('async question state', () => {
+  test('frames one answer as the ordinary user message Codex expects', () => {
+    assert.equal(
+      formatAsyncQuestionAnswer(' Which environment? ', ' Staging '),
+      '> Which environment?\n\nStaging',
+    );
+  });
+
+  test('keeps questions sequential and does not let a persisted answer echo consume the next one', () => {
+    const messages: ChatMessage[] = [
+      {
+        id: 'ask-1',
+        type: 'assistant',
+        content: '',
+        timestamp: '2026-09-07T12:00:00.000Z',
+        followUpQuestions: [
+          { question: 'First?', options: ['One'] },
+          { question: 'Second?', options: ['Two'] },
+        ],
+      },
+      {
+        id: 'user-answer-1',
+        type: 'user',
+        content: '> First?\n\nOne',
+        timestamp: '2026-09-07T12:01:00.000Z',
+      },
+    ];
+    const pending = collectPendingAsyncQuestions(messages, [
+      { id: 'ask-1:0', content: '> First?\n\nOne' },
+    ]);
+
+    assert.deepEqual(pending.map((question) => question.id), ['ask-1:1']);
+  });
+
+  test('does not mistake an unrelated composer message for an async-question answer', () => {
+    const pending = collectPendingAsyncQuestions([
+      {
+        id: 'ask-1',
+        type: 'assistant',
+        content: '',
+        timestamp: '2026-09-07T12:00:00.000Z',
+        followUpQuestions: [{ question: 'Which environment?', options: ['Staging'] }],
+      },
+      {
+        id: 'normal-user-turn',
+        type: 'user',
+        content: 'Please also update the tests.',
+        timestamp: '2026-09-07T12:01:00.000Z',
+      },
+    ], []);
+
+    assert.deepEqual(pending.map((question) => question.id), ['ask-1:0']);
+  });
+
+  test('persists handled state and a FIFO independently from the normal composer queue', () => {
+    const sessionId = `async-state-${Date.now()}`;
+    const content = '> Continue?\n\nYes';
+    markAsyncQuestionHandled(sessionId, 'ask:0', content);
+    enqueueAsyncAnswer(sessionId, {
+      id: 'answer-1',
+      questionId: 'ask:0',
+      question: 'Continue?',
+      answer: 'Yes',
+      content,
+      provider: 'codex',
+      options: { model: 'gpt-6-astra' },
+      queuedAt: '2026-09-07T12:00:00.000Z',
+    });
+
+    assert.deepEqual(readHandledAsyncQuestions(sessionId), [{ id: 'ask:0', content }]);
+    assert.equal(readQueuedAsyncAnswers(sessionId)[0]?.content, content);
+    assert.equal(removeQueuedAsyncAnswer(sessionId, 'answer-1')?.questionId, 'ask:0');
+    assert.deepEqual(readQueuedAsyncAnswers(sessionId), []);
+    unmarkAsyncQuestionHandled(sessionId, 'ask:0');
+    assert.deepEqual(readHandledAsyncQuestions(sessionId), []);
   });
 });
 

@@ -34,6 +34,8 @@ import type {
   CodexToolRequestUserInputResponse,
   CodexTurn,
   CodexTurnStartResponse,
+  CodexTurnSteerParams,
+  CodexTurnSteerResponse,
   CodexUserInput,
 } from '@/modules/providers/list/codex/codex-app-server.protocol.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
@@ -817,6 +819,28 @@ export class CodexAppServerChatTransport {
     }
   }
 
+  async steer(sessionId: string, content: string): Promise<boolean> {
+    const active = this.findActiveTurn(sessionId);
+    const client = this.client;
+    const text = content.trim();
+    if (!active || active.terminal || !active.turnId || !client?.isOpen || !text) {
+      return false;
+    }
+
+    try {
+      const params: CodexTurnSteerParams = {
+        threadId: active.threadId,
+        expectedTurnId: active.turnId,
+        input: [{ type: 'text', text, text_elements: [] }],
+      };
+      const response = await client.request<CodexTurnSteerResponse>('turn/steer', params);
+      return response.turnId === active.turnId;
+    } catch (error) {
+      console.warn(`[Codex App Server] Failed to steer thread ${active.threadId}:`, error);
+      return false;
+    }
+  }
+
   /**
    * Creates an intentional sibling thread without starting a turn.
    *
@@ -1442,6 +1466,10 @@ export async function queryCodexAppServer(
 
 export function abortCodexAppServerSession(threadId: string): Promise<boolean> {
   return sharedTransport.abort(threadId);
+}
+
+export function steerCodexAppServerSession(threadId: string, content: string): Promise<boolean> {
+  return sharedTransport.steer(threadId, content);
 }
 
 export function isCodexAppServerSessionActive(threadId: string): boolean {

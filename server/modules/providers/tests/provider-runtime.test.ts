@@ -91,7 +91,7 @@ describe('provider-runtime.service', () => {
     assert.equal(providers.every((provider) => typeof provider.runtime.abort === 'function'), true);
   });
 
-  test('dispatches runs and aborts through the runtime owned by providerRegistry', async () => {
+  test('dispatches runs, steering, and aborts through the runtime owned by providerRegistry', async () => {
     const calls: unknown[][] = [];
     const runtime = createRuntime({
       async run(command, options, writer, context) {
@@ -107,6 +107,10 @@ describe('provider-runtime.service', () => {
         calls.push(['abort', sessionId]);
         return true;
       },
+      async steer(sessionId, content) {
+        calls.push(['steer', sessionId, content]);
+        return true;
+      },
     });
     const service = createService([createProvider('claude', runtime)]);
     const writer = { send() {} };
@@ -114,11 +118,18 @@ describe('provider-runtime.service', () => {
     assert.equal(service.hasRuntime('claude'), true);
     assert.equal(service.hasRuntime('unknown'), false);
     assert.equal(await service.getRunner('claude')('hello', { model: 'sonnet' }, writer), 'complete');
+    assert.equal(await service.steer('claude', 'session-1', 'one more detail'), true);
     assert.equal(await service.abort('claude', 'session-1'), true);
     assert.deepEqual(calls, [
       ['run', 'hello', { model: 'sonnet' }, writer],
+      ['steer', 'session-1', 'one more detail'],
       ['abort', 'session-1'],
     ]);
+  });
+
+  test('reports steering as unsupported when a runtime omits it', async () => {
+    const service = createService([createProvider('cursor', createRuntime())]);
+    assert.equal(await service.steer('cursor', 'session-1', 'detail'), false);
   });
 
   test('routes interactive responses through provider-owned runtime capabilities', async () => {

@@ -25,6 +25,7 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RequiredProtocolPattern[]>([
     required('method thread/resume', /"method": "thread\/resume"/),
     required('method thread/fork', /"method": "thread\/fork"/),
     required('method turn/start', /"method": "turn\/start"/),
+    required('method turn/steer', /"method": "turn\/steer"/),
     required('method turn/interrupt', /"method": "turn\/interrupt"/),
     required('method model/list', /"method": "model\/list"/),
   ]],
@@ -48,6 +49,10 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RequiredProtocolPattern[]>([
     required('field collaborationMode', /collaborationMode\?: CollaborationMode/),
     required('field sandboxPolicy', /sandboxPolicy\?: SandboxPolicy/),
     required('field effort', /effort\?: ReasoningEffort/),
+  ]],
+  ['v2/TurnSteerParams.ts', [
+    required('field expectedTurnId', /expectedTurnId: string/),
+    required('field input', /input: Array<UserInput>/),
   ]],
   ['v2/TokenUsageBreakdown.ts', [
     required('field cacheWriteInputTokens', /cacheWriteInputTokens: number/),
