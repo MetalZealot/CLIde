@@ -11,6 +11,7 @@ import express from 'express';
 import { createBrowserMcpEndpoint } from '@/modules/browser-use/browser-use-mcp-endpoint.service.js';
 import {
   browserUseService,
+  pruneStoppedSessions,
   publicBrowserSession,
   type BrowserUseSession,
 } from '@/modules/browser-use/browser-use.service.js';
@@ -127,6 +128,25 @@ describe('browser-use monitor projections', () => {
       tool: 'browser_navigate',
       ok: true,
     }));
+  });
+
+  test('stopped rows are capped at the newest few, and ready rows are never pruned', () => {
+    const entries = new Map<string, BrowserUseSession>();
+    for (let index = 0; index < 6; index += 1) {
+      entries.set(`stopped-${index}`, {
+        ...makeMonitorSession(),
+        id: `stopped-${index}`,
+        status: 'stopped',
+        updatedAt: `2026-07-29T12:0${index}:00.000Z`,
+      });
+    }
+    entries.set('live', { ...makeMonitorSession(), id: 'live', status: 'ready' });
+
+    pruneStoppedSessions(entries, 3);
+
+    assert.deepEqual([...entries.keys()].sort(), [
+      'live', 'stopped-3', 'stopped-4', 'stopped-5',
+    ]);
   });
 });
 

@@ -97,12 +97,11 @@ base; each provider declares `modeledConfigKeys`.
       fourth session is capped, contexts share no cookies, a transport
       reconnects on its session id, and release returns the host to baseline.
       Three contexts cost 293 MB PSS (236 MB for the browser plus the first,
-      then ~25-35 MB each). Open: `fullPage` is the only unbounded screenshot,
-      since images bill by dimension and a viewport shot is capped by its
-      preset, and it trips the package's 5 s default action timeout; an
-      unclean shutdown leaves output directories with no boot sweep; stopped
-      panel rows are never pruned. Provider-level runs and Grayson's
-      acceptance are outstanding; then retire and archive.
+      then ~25-35 MB each). Output dirs are swept at boot, stopped rows cap at
+      the newest five, and the action timeout is CLIde's, not the package's 5 s.
+      Open: measure a successful `fullPage` shot before bounding it — images
+      bill by dimension, so its cost is transport bytes and an unreadable
+      image, not tokens. Provider runs and acceptance are outstanding.
 
 ## Done when
 

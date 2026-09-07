@@ -57,6 +57,7 @@ type BrowserUseSettings = {
 };
 
 const sessions = new Map<string, BrowserUseSession>();
+const MAX_STOPPED_SESSIONS = 5;
 
 const DEFAULT_SETTINGS: BrowserUseSettings = {
   enabled: false,
@@ -161,7 +162,23 @@ browserRuntime.onRelease((lease, reason) => {
   session.updatedAt = new Date().toISOString();
   session.lastAction = RELEASE_MESSAGES[reason].lastAction;
   session.message = RELEASE_MESSAGES[reason].message;
+  pruneStoppedSessions(sessions);
 });
+
+// A stopped row is history, and only an explicit delete removed one, so a long
+// session accumulated a row per agent connection. Newest first, so the row that
+// just stopped always survives.
+export function pruneStoppedSessions(
+  entries: Map<string, BrowserUseSession>,
+  max = MAX_STOPPED_SESSIONS,
+): void {
+  const stopped = [...entries.values()]
+    .filter((entry) => entry.status === 'stopped')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  for (const entry of stopped.slice(max)) {
+    entries.delete(entry.id);
+  }
+}
 
 // Every leased context gets a panel row; the lease id is the row's id.
 function createSessionRecord(lease: BrowserContextLease): BrowserUseSession {
