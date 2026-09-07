@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
+  CircleStop,
   Clock3,
   Smartphone,
   Tablet,
@@ -12,7 +13,6 @@ import {
   MonitorPlay,
   RefreshCw,
   Settings,
-  Square,
   Trash2,
   X,
 } from 'lucide-react';
@@ -388,6 +388,36 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
     </div>
   );
 
+  const viewportBadge = selectedSession ? (
+    <Badge
+      variant="outline"
+      className="shrink-0 gap-1 border-border bg-background text-[10px] text-muted-foreground"
+      title={selectedSession.viewport
+        ? `${selectedSession.device} — ${selectedSession.viewport.width}×${selectedSession.viewport.height}`
+        : selectedSession.device}
+    >
+      {(() => {
+        const DeviceIcon = DEVICE_ICONS[selectedSession.device] || Monitor;
+        return <DeviceIcon className="h-3 w-3" />;
+      })()}
+      {selectedSession.viewport
+        ? `${selectedSession.viewport.width}×${selectedSession.viewport.height}`
+        : selectedSession.device}
+    </Badge>
+  ) : null;
+
+  const lastActionText = (
+    <div className="min-w-0 truncate text-xs text-muted-foreground">
+      {formatAction(selectedSession?.lastAction || null)}
+    </div>
+  );
+
+  const fullscreenButton = (
+    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setIsFullscreen(true)} disabled={!selectedSession?.screenshotDataUrl} title="Full screen" aria-label="Full screen">
+      <Expand className="h-4 w-4" />
+    </Button>
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
@@ -399,7 +429,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               {runtimeLabel}
             </Badge>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">Monitor browser sessions opened by AI agents.</p>
+          <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Monitor browser sessions opened by AI agents.</p>
         </div>
         <div className="flex items-center gap-1.5">
           {onShowSettings && (
@@ -477,60 +507,53 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           ) : (
             <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4">
               <div className="mx-auto flex min-h-[500px] max-w-7xl flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
-                <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-3 py-2">
-                  <Badge variant="outline" className={selectedSession ? cn('text-[10px]', getStatusTone(selectedSession.status)) : 'text-[10px]'}>
-                    {selectedSession?.status || 'empty'}
-                  </Badge>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-foreground">
-                      {selectedSession?.title || getDomain(selectedSession?.url || null)}
-                    </div>
-                    <div className="mt-0.5 flex min-w-0 items-center text-xs text-muted-foreground">
-                      {selectedSession?.url ? (
-                        <a
-                          href={selectedSession.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={selectedSession.url}
-                          className="flex min-w-0 items-center gap-1.5 py-1 hover:text-foreground hover:underline"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{selectedSession.url}</span>
-                        </a>
-                      ) : (
-                        <span className="truncate py-1">No page loaded</span>
-                      )}
-                    </div>
-                  </div>
-                  {selectedSession && (
-                    <Badge
-                      variant="outline"
-                      className="shrink-0 gap-1 border-border bg-background text-[10px] text-muted-foreground"
-                      title={selectedSession.viewport
-                        ? `${selectedSession.device} — ${selectedSession.viewport.width}×${selectedSession.viewport.height}`
-                        : selectedSession.device}
-                    >
-                      {(() => {
-                        const DeviceIcon = DEVICE_ICONS[selectedSession.device] || Monitor;
-                        return <DeviceIcon className="h-3 w-3" />;
-                      })()}
-                      {selectedSession.viewport
-                        ? `${selectedSession.viewport.width}×${selectedSession.viewport.height}`
-                        : selectedSession.device}
+                <div className="border-b border-border/60 px-3 py-2">
+                  <div className="flex items-start gap-2">
+                    <Badge variant="outline" className={selectedSession ? cn('mt-0.5 shrink-0 text-[10px]', getStatusTone(selectedSession.status)) : 'mt-0.5 shrink-0 text-[10px]'}>
+                      {selectedSession?.status || 'empty'}
                     </Badge>
-                  )}
-                  <div className="hidden text-xs text-muted-foreground md:block">
-                    {formatAction(selectedSession?.lastAction || null)}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-foreground">
+                        {selectedSession?.title || getDomain(selectedSession?.url || null)}
+                      </div>
+                      <div className="mt-0.5 flex min-w-0 items-center text-xs text-muted-foreground">
+                        {selectedSession?.url ? (
+                          <a
+                            href={selectedSession.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={selectedSession.url}
+                            className="flex min-w-0 items-center gap-1.5 py-1 hover:text-foreground hover:underline"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{selectedSession.url}</span>
+                          </a>
+                        ) : (
+                          <span className="truncate py-1">No page loaded</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="hidden shrink-0 items-center gap-2 lg:flex">
+                      {viewportBadge}
+                      {lastActionText}
+                      {fullscreenButton}
+                    </div>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setIsFullscreen(true)} disabled={!selectedSession?.screenshotDataUrl} title="Full screen" aria-label="Full screen">
-                    <Expand className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 lg:hidden" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'} title="Stop session" aria-label="Stop session">
-                    <Square className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 lg:hidden" onClick={deleteSession} disabled={isBusy || !selectedSession} title="Delete session" aria-label="Delete session">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+
+                  <div className="mt-2 flex items-center gap-2 lg:hidden">
+                    {viewportBadge}
+                    <div className="hidden min-w-0 flex-1 sm:block">{lastActionText}</div>
+                    <div className="ml-auto flex shrink-0 items-center gap-1">
+                      {fullscreenButton}
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'} title="Stop session" aria-label="Stop session">
+                        <CircleStop className="h-4 w-4" />
+                      </Button>
+                      <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={deleteSession} disabled={isBusy || !selectedSession} title="Delete session" aria-label="Delete session">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
                 {renderBrowserSurface()}
               </div>
@@ -598,7 +621,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Button variant="outline" size="sm" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'}>
-                  <Square className="h-4 w-4" />
+                  <CircleStop className="h-4 w-4" />
                   Stop
                 </Button>
                 <Button variant="outline" size="sm" onClick={deleteSession} disabled={isBusy || !selectedSession}>

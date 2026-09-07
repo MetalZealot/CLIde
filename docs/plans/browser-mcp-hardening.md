@@ -87,26 +87,27 @@ base; each provider declares `modeledConfigKeys`.
       marker are gone. Policy is [ADR
       0053](../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md).
 - [~] **6. Isolated live acceptance and retirement.** Driven at the HTTP
-      transport on the topic server, not yet through four provider
-      conversations; all four registrations were read and confirmed separately.
+      transport on the topic server, and by Claude and Codex in a conversation.
       Device presets, reference actions, forms, dialogs, tabs, console and
       network reads, service-worker registration and `browser_find` all behave;
       denied tools, profile locking and containment, the session cap, cookie
-      isolation, reconnect and release-to-baseline all hold. Three contexts
-      cost 293 MB PSS (236 MB for the browser plus the first, ~25-35 MB each). Output dirs are swept at boot, stopped rows cap at
-      the newest five, and the action timeout is CLIde's, not the package's 5 s.
+      isolation, reconnect and release-to-baseline all hold. Three contexts cost
+      293 MB PSS (236 MB for the browser plus the first, ~25-35 MB each). Output
+      dirs are swept at boot, stopped rows cap at the newest five, and the
+      action timeout is CLIde's, not the package's 5 s.
       An image result caps at 1 MiB: a viewport shot measures 183 KiB and
       passes, a 30,584 px full page measures 6.4 MB and is refused with a hint.
       Codex refuses a tool call whose MCP server is not pre-approved, so the
       registration carries `default_tools_approval_mode = "approve"` — `auto`
       routes through a review a session with approvals off auto-denies, which
-      is why the browser worked only in Bypass. Cursor and OpenCode runs and
-      acceptance are outstanding.
+      is why the browser worked only in Bypass. Cursor and OpenCode are
+      uninstalled here: config-verified only. Acceptance is outstanding.
 
 ## Done when
 
-- Agents use the official Playwright MCP tool contract through all four
-  providers, including structured references and mobile-sized browsing.
+- Agents use the official Playwright MCP tool contract, including structured
+  references and mobile-sized browsing. Claude and Codex are driven live;
+  Cursor and OpenCode are uninstalled here and config-verified only.
 - The Browser tab updates during agent work and remains able to stop and remove
   CLIde-owned sessions without exposing screenshots or credentials to MCP text.
 - Temporary and persistent contexts are isolated, bounded and cleaned up after
