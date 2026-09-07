@@ -507,6 +507,12 @@ export type InteractiveRequestResponse = {
   rememberEntry?: unknown;
 };
 
+/** A non-blocking question the user can answer in a later chat turn. */
+export type FollowUpQuestion = {
+  question: string;
+  options: string[];
+};
+
 /**
  * Provider-neutral message envelope used in REST responses and realtime channels.
  *
@@ -534,6 +540,8 @@ export type NormalizedMessage = {
   runId?: string;
   role?: 'user' | 'assistant';
   content?: string;
+  /** Non-blocking questions attached to an assistant message. */
+  followUpQuestions?: FollowUpQuestion[];
   /**
    * Optional display-oriented metadata used by providers that need to expose
    * richer transcript artifacts without introducing a brand-new message kind.

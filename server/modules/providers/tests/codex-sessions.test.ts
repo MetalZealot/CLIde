@@ -7,6 +7,7 @@ import test, { describe } from 'node:test';
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import type { CodexLiveModel } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import { readCodexAccountUsage, readCodexModelList } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/codex-async-questions.js';
 import { CODEX_FALLBACK_MODELS, CodexProviderModels } from '@/modules/providers/list/codex/codex-models.provider.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
 import {
@@ -154,6 +155,17 @@ describe('codex-sessions', () => {
     });
   });
 
+  test('Codex async questions discard malformed titles and choices', () => {
+    assert.deepEqual(normalizeCodexAsyncQuestions([
+      { title: ' Which environment? ', options: [' Staging ', '', 42] },
+      { title: '', options: ['Production'] },
+      null,
+    ]), [
+      { question: 'Which environment?', options: ['Staging'] },
+    ]);
+    assert.equal(normalizeCodexAsyncQuestions([{ title: ' ' }]), undefined);
+  });
+
   test('Codex history links request_user_input calls to redacted answer arrays', { concurrency: false }, async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-question-history-'));
     const workspacePath = path.join(tempRoot, 'workspace');
@@ -247,6 +259,56 @@ describe('codex-sessions', () => {
           },
         });
         assert.ok(!JSON.stringify(history).includes('never-deliver-this'));
+      });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('Codex history restores asynchronous questions from agent-message events', { concurrency: false }, async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-async-question-history-'));
+    const workspacePath = path.join(tempRoot, 'workspace');
+    const transcriptPath = path.join(tempRoot, 'rollout-async-question.jsonl');
+    await mkdir(workspacePath, { recursive: true });
+    await writeFile(transcriptPath, `${JSON.stringify({
+      timestamp: '2026-09-06T12:00:00.000Z',
+      type: 'event_msg',
+      payload: {
+        type: 'item_completed',
+        item: {
+          type: 'AgentMessage',
+          id: 'async-question-1',
+          content: [{
+            type: 'Text',
+            text: 'Which environment?\n- Staging\n- Production\n\nAnything else?',
+          }],
+          delivery: 'async',
+          questions: [
+            { title: 'Which environment?', options: ['Staging', 'Production'] },
+            { title: 'Anything else?', options: null },
+          ],
+        },
+      },
+    })}\n`, 'utf8');
+
+    try {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createSession(
+          'codex-async-question-history',
+          'codex',
+          workspacePath,
+          undefined,
+          undefined,
+          undefined,
+          transcriptPath,
+        );
+        const history = await new CodexSessionsProvider().fetchHistory('codex-async-question-history');
+        assert.equal(history.messages.length, 1);
+        assert.equal(history.messages[0]?.content, 'Which environment?\n- Staging\n- Production\n\nAnything else?');
+        assert.deepEqual(history.messages[0]?.followUpQuestions, [
+          { question: 'Which environment?', options: ['Staging', 'Production'] },
+          { question: 'Anything else?', options: [] },
+        ]);
       });
     } finally {
       await rm(tempRoot, { recursive: true, force: true });

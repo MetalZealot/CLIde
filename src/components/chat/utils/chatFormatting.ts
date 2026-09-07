@@ -1,4 +1,4 @@
-import type { MemoryCitation } from '../types/types';
+import type { FollowUpQuestion, MemoryCitation } from '../types/types';
 
 export function decodeHtmlEntities(text: string) {
   if (!text) return text;
@@ -23,6 +23,13 @@ export type ExtractedMemoryCitation = {
   text: string;
   citations: MemoryCitation[];
 };
+
+/** Produces the readable text fallback used for copy and speech controls. */
+export function formatFollowUpQuestions(questions: FollowUpQuestion[] | undefined): string {
+  return (questions || [])
+    .map(({ question, options }) => [question, ...options.map((option) => `- ${option}`)].join('\n'))
+    .join('\n\n');
+}
 
 /** Abbreviates a token count for a chip or a one-line label ("158K", "1.2M"). */
 export const formatTokenCount = (value: number) => {

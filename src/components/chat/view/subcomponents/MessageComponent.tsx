@@ -9,7 +9,11 @@ import type {
   PermissionGrantResult,
   Provider,
 } from '../../types/types';
-import { formatMemoryCitationSource, formatUsageLimitText } from '../../utils/chatFormatting';
+import {
+  formatFollowUpQuestions,
+  formatMemoryCitationSource,
+  formatUsageLimitText,
+} from '../../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import type { Project } from '../../../../types/app';
 import { ToolRenderer, ToolErrorDisplay, shouldHideToolResult } from '../../tools';
@@ -17,6 +21,7 @@ import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../share
 
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
+import FollowUpQuestions from './FollowUpQuestions';
 import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
@@ -68,9 +73,20 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     () => formatUsageLimitText(String(message.content || '')),
     [message.content]
   );
+  const followUpQuestionContent = useMemo(
+    () => formatFollowUpQuestions(message.followUpQuestions),
+    [message.followUpQuestions],
+  );
+  // Codex includes the questions as readable fallback text. Hide that exact
+  // duplicate when structured metadata is available.
+  const assistantBodyContent = message.type === 'assistant'
+    && followUpQuestionContent
+    && formattedMessageContent.trim() === followUpQuestionContent.trim()
+    ? ''
+    : formattedMessageContent;
   const assistantCopyContent = message.isToolUse
     ? String(message.displayText || message.content || '')
-    : formattedMessageContent;
+    : [assistantBodyContent, followUpQuestionContent].filter(Boolean).join('\n\n');
   const isCommandOrFileEditToolResponse = Boolean(
     message.isToolUse && COPY_HIDDEN_TOOL_NAMES.has(String(message.toolName || ''))
   );
@@ -431,7 +447,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                 )}
 
                 {(() => {
-                  const content = formattedMessageContent;
+                  const content = assistantBodyContent;
 
                   // Detect if content is pure JSON (starts with { or [)
                   const trimmedContent = content.trim();
@@ -479,6 +495,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   );
                 })()}
               </div>
+            )}
+
+            {message.type === 'assistant' && message.followUpQuestions && (
+              <FollowUpQuestions questions={message.followUpQuestions} />
             )}
 
             {/* Files carried across a compaction boundary. The CLI lists these

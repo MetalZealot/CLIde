@@ -7,7 +7,12 @@ import { type Project } from '../../../types/app';
 import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
 
-import { extractInternalMemoryCitation, formatMemoryCitationSource, splitLeadingCommand } from './chatFormatting';
+import {
+  extractInternalMemoryCitation,
+  formatFollowUpQuestions,
+  formatMemoryCitationSource,
+  splitLeadingCommand,
+} from './chatFormatting';
 import { exportToHTML, exportToMarkdown } from './chatExport';
 import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
 
@@ -40,6 +45,13 @@ describe('chatFormatting', () => {
 
   test('formats a cited line range compactly for display', () => {
     assert.equal(formatMemoryCitationSource('MEMORY.md:48-69'), 'MEMORY.md:48–69');
+  });
+
+  test('formats non-blocking questions as readable copied text', () => {
+    assert.equal(formatFollowUpQuestions([
+      { question: 'Which environment?', options: ['Staging', 'Production'] },
+      { question: 'Anything else?', options: [] },
+    ]), 'Which environment?\n- Staging\n- Production\n\nAnything else?');
   });
 
   test('preserves reserved citation markup when it is not the final block', () => {
@@ -83,6 +95,24 @@ describe('chatFormatting', () => {
     ]);
     assert.equal(messages[1]?.content, citation);
     assert.equal(messages[1]?.memoryCitations, undefined);
+  });
+
+  test('assistant normalization preserves a question-only message', () => {
+    const [message] = normalizedToChatMessages([{
+      id: 'question-1',
+      sessionId: 'session-1',
+      timestamp: '2026-09-06T12:00:00.000Z',
+      provider: 'codex',
+      kind: 'text',
+      role: 'assistant',
+      content: '',
+      followUpQuestions: [{ question: 'Which environment?', options: ['Staging'] }],
+    }]);
+
+    assert.equal(message?.content, '');
+    assert.deepEqual(message?.followUpQuestions, [
+      { question: 'Which environment?', options: ['Staging'] },
+    ]);
   });
 });
 

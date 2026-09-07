@@ -109,6 +109,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       isCompactSummary: msg.isCompactSummary,
       compactReferences: msg.compactReferences,
       isSystemNotice: msg.isSystemNotice,
+      followUpQuestions: msg.followUpQuestions,
     };
 
     switch (msg.kind) {
@@ -116,7 +117,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         const content = msg.content || '';
         const images = Array.isArray(msg.images) && msg.images.length > 0 ? msg.images : undefined;
         const files = Array.isArray(msg.files) && msg.files.length > 0 ? msg.files : undefined;
-        if (!content.trim() && !images && !files) continue;
+        if (!content.trim() && !images && !files && !msg.followUpQuestions?.length) continue;
 
         if (msg.role === 'user') {
           // Parse task notifications
@@ -159,7 +160,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           }
         } else {
           const { text, citations: memoryCitations } = formatAssistantText(content);
-          if (!text.trim() && memoryCitations.length === 0) continue;
+          if (!text.trim() && memoryCitations.length === 0 && !msg.followUpQuestions?.length) continue;
           converted.push({
             type: 'assistant',
             content: text,

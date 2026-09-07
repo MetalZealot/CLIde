@@ -65,6 +65,13 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RequiredProtocolPattern[]>([
   ['v2/ToolRequestUserInputResponse.ts', [
     required('field answers', /answers: \{ \[key in string\]\?: ToolRequestUserInputAnswer \}/),
   ]],
+  ['v2/AsyncUserInputQuestion.ts', [
+    required('field title', /title: string/),
+    required('field options', /options: Array<string> \| null/),
+  ]],
+  ['v2/ThreadItem.ts', [
+    required('field agentMessage.questions', /questions: Array<AsyncUserInputQuestion> \| null/),
+  ]],
   ['v2/Model.ts', [
     required('field model', /model: string/),
     required('field displayName', /displayName: string/),

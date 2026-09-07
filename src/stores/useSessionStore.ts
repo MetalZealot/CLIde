@@ -41,6 +41,11 @@ export type CompactBoundaryInfo = {
   durationMs: number | null;
 };
 
+export type FollowUpQuestion = {
+  question: string;
+  options: string[];
+};
+
 export interface NormalizedMessage {
   id: string;
   sessionId: string;
@@ -58,6 +63,8 @@ export interface NormalizedMessage {
   // kind-specific fields (flat for simplicity)
   role?: 'user' | 'assistant';
   content?: string;
+  /** Non-blocking questions the user answers in a later chat turn. */
+  followUpQuestions?: FollowUpQuestion[];
   /**
    * Mirrors optional transcript metadata from the server.
    *

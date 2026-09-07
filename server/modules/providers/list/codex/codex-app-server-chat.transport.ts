@@ -51,6 +51,7 @@ import {
   buildCodexInputItems,
   normalizeImageDescriptors,
 } from '@/shared/image-attachments.js';
+import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/codex-async-questions.js';
 import type {
   AnyRecord,
   InteractiveRequestDecision,
@@ -307,15 +308,18 @@ function completedItemMessages(item: CodexThreadItem, threadId: string): Normali
   switch (item.type) {
     case 'userMessage':
       return [];
-    case 'agentMessage':
-      return item.text.trim()
+    case 'agentMessage': {
+      const followUpQuestions = normalizeCodexAsyncQuestions(item.questions);
+      return item.text.trim() || followUpQuestions
         ? [createNormalizedMessage({
             ...common,
             kind: 'text',
             role: 'assistant',
             content: item.text,
+            followUpQuestions,
           })]
         : [];
+    }
     case 'plan':
       return item.text.trim()
         ? [createNormalizedMessage({

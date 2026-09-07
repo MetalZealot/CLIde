@@ -6,7 +6,7 @@ import i18next from 'i18next';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { initReactI18next } from 'react-i18next';
+import { I18nextProvider, initReactI18next } from 'react-i18next';
 
 import { PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../shared/view/ui';
 import { QuestionAnswerContent } from '../../tools/components/ContentRenderers/QuestionAnswerContent';
@@ -20,6 +20,7 @@ import CompactBoundaryDivider from './CompactBoundaryDivider';
 import { ComposerAttachmentGallery } from './ComposerAttachment';
 import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
+import FollowUpQuestions from './FollowUpQuestions';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import TokenUsageSummary from './TokenUsageSummary';
 
@@ -96,6 +97,28 @@ describe('chatSubcomponents', () => {
       assert.match(speakControlSource, /voice\.cancelGeneration/);
       assert.match(speakControlSource, /generationElapsedSeconds/);
       assert.match(speakControlSource, /max-w-\[min\(240px,calc\(100vw-2rem\)\)\]/);
+    });
+  });
+
+  describe('non-blocking follow-up questions', () => {
+    test('renders question text and choices as read-only content', async () => {
+      const questionI18n = i18next.createInstance();
+      await questionI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
+      const markup = renderToStaticMarkup(
+        <I18nextProvider i18n={questionI18n} defaultNS="chat">
+          <FollowUpQuestions questions={[
+            { question: 'Which environment?', options: ['Staging', 'Production'] },
+            { question: 'Anything else?', options: [] },
+          ]} />
+        </I18nextProvider>,
+      );
+
+      assert.match(markup, /Which environment\?/);
+      assert.match(markup, /Staging/);
+      assert.match(markup, /Production/);
+      assert.match(markup, /Anything else\?/);
+      assert.match(markup, /Reply in the composer\./);
+      assert.doesNotMatch(markup, /<button/);
     });
   });
 

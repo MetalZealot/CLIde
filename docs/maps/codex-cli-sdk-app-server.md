@@ -22,7 +22,7 @@ semantics belong in the
 | Experimental generated protocol | 158 client requests, 11 server requests, 83 notifications |
 | Interactive Chat | App Server by default; SDK by explicit escape hatch or initialization-only fallback |
 | Runtime selection | Bundled seed, explicit compatible promotion, no silent fallback |
-| Isolated live evidence | Managed-runtime lifecycle proven at 0.147.0; 0.153.4 Astra default and new Chat passed |
+| Isolated live evidence | Managed-runtime lifecycle proven at 0.147.0; 0.153.4 Astra default, new Chat, and mobile async-question display passed |
 | Production state | Intentionally unchanged by this isolated update |
 
 The SDK and bundled CLI stay pinned as one compatibility pair, but version is
@@ -157,7 +157,7 @@ changed selections do not fall back to bundled.
 | Upstream change | CLIde impact | Disposition |
 |---|---|---|
 | GPT-6-Astra catalog/default and picker visibility fixes | Dynamic discovery already works; stale offline and pre-catalog defaults would disagree | **Integrated** by refreshing both fallbacks |
-| Asynchronous structured questions | CLIde already handles `request_user_input` and honors non-blocking requests | **Integrated**, retain live regression coverage |
+| Asynchronous structured questions | `agentMessage.questions` is final-message metadata, separate from blocking `request_user_input` requests | **Integrated** as read-only follow-up choices in live and reloaded chat; retain live regression coverage |
 | Thread model and reasoning effort returned by App Server | CLIde's transcript remains ground truth for what ran under ADRs 0003 and 0025 | **No action** |
 | Remote plugin marketplace availability and `plugin/reconcile` | CLIde has no shared provider-slotted extensions interface | **Defer** |
 | Guardian, MCP approval, reconnect, fork, rollout compaction, and subagent fixes | Runtime behavior below existing Chat contracts | **Compatibility watch** and live smoke |

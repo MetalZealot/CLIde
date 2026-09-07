@@ -130,7 +130,13 @@ for await (const line of lines) {
     send({ id: message.id, result: { turn: { id: turnId, status: 'inProgress', error: null } } });
     send({ method: 'item/completed', params: {
       threadId: pendingThread.id, turnId, completedAtMs: Date.now(),
-      item: { type: 'agentMessage', id: 'capture-' + turnId, text: 'CAPTURE:' + JSON.stringify(capture) }
+      item: {
+        type: 'agentMessage', id: 'capture-' + turnId, text: 'CAPTURE:' + JSON.stringify(capture),
+        questions: [
+          { title: 'Which environment?', options: ['Staging', 'Production'] },
+          { title: 'Anything else?', options: null }
+        ]
+      }
     } });
     send({ method: 'item/completed', params: {
       threadId: pendingThread.id, turnId, completedAtMs: Date.now(),
@@ -206,6 +212,10 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
       message.kind === 'text' && String(message.content).startsWith('CAPTURE:'));
     assert.ok(firstCaptureMessage);
     assert.equal(firstCaptureMessage.id, 'capture-turn-1');
+    assert.deepEqual(firstCaptureMessage.followUpQuestions, [
+      { question: 'Which environment?', options: ['Staging', 'Production'] },
+      { question: 'Anything else?', options: [] },
+    ]);
     const firstCapture = JSON.parse(String(firstCaptureMessage.content).slice(8));
     assert.equal(firstCapture.thread.method, 'thread/start');
     assert.equal(firstCapture.thread.params.model, 'gpt-test');

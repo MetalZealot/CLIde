@@ -1,4 +1,5 @@
 import { sessionsDb } from '@/modules/database/index.js';
+import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/codex-async-questions.js';
 import { isCodexAppServerChatEnabled } from '@/modules/providers/list/codex/codex-chat-transport-state.js';
 import {
   buildCodexTranscriptChain,
@@ -120,7 +121,7 @@ export function extractCodexTextContent(content: unknown): string {
 
       const record = item as AnyRecord;
       if (
-        (record.type === 'input_text' || record.type === 'output_text' || record.type === 'text')
+        (record.type === 'input_text' || record.type === 'output_text' || record.type === 'text' || record.type === 'Text')
         && typeof record.text === 'string'
         && !CODEX_IMAGE_WRAPPER.test(record.text.trim())
       ) {
@@ -569,6 +570,41 @@ async function getCodexSessionMessages(
                 role: 'assistant',
                 content: textContent,
               },
+            });
+          }
+        }
+
+        if (
+          entry.type === 'event_msg'
+          && entry.payload?.type === 'item_completed'
+          && entry.payload.item?.type === 'AgentMessage'
+        ) {
+          const followUpQuestions = normalizeCodexAsyncQuestions(entry.payload.item.questions);
+          if (followUpQuestions) {
+            messages.push({
+              type: 'assistant',
+              uuid: typeof entry.payload.item.id === 'string' ? entry.payload.item.id : undefined,
+              timestamp: entry.timestamp,
+              message: {
+                role: 'assistant',
+                content: extractCodexTextContent(entry.payload.item.content),
+              },
+              asyncQuestions: entry.payload.item.questions,
+            });
+          }
+        }
+
+        if (entry.type === 'event_msg' && entry.payload?.type === 'agent_message') {
+          const followUpQuestions = normalizeCodexAsyncQuestions(entry.payload.questions);
+          if (followUpQuestions) {
+            messages.push({
+              type: 'assistant',
+              timestamp: entry.timestamp,
+              message: {
+                role: 'assistant',
+                content: typeof entry.payload.message === 'string' ? entry.payload.message : '',
+              },
+              asyncQuestions: entry.payload.questions,
             });
           }
         }
@@ -1023,7 +1059,8 @@ export class CodexSessionsProvider implements IProviderSessions {
               .filter(Boolean)
               .join('\n')
           : '';
-      if (!content.trim()) {
+      const followUpQuestions = normalizeCodexAsyncQuestions(raw.asyncQuestions);
+      if (!content.trim() && !followUpQuestions) {
         return [];
       }
       return [createNormalizedMessage({
@@ -1034,6 +1071,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         kind: 'text',
         role: 'assistant',
         content,
+        followUpQuestions,
       })];
     }
 
@@ -1096,16 +1134,20 @@ export class CodexSessionsProvider implements IProviderSessions {
 
     if (raw.type === 'item') {
       switch (raw.itemType) {
-        case 'agent_message':
-          return [createNormalizedMessage({
+        case 'agent_message': {
+          const followUpQuestions = normalizeCodexAsyncQuestions(raw.questions);
+          const content = typeof raw.message?.content === 'string' ? raw.message.content : '';
+          return content.trim() || followUpQuestions ? [createNormalizedMessage({
             id: baseId,
             sessionId,
             timestamp: ts,
             provider: PROVIDER,
             kind: 'text',
             role: 'assistant',
-            content: raw.message?.content || '',
-          })];
+            content,
+            followUpQuestions,
+          })] : [];
+        }
         case 'reasoning':
           return [createNormalizedMessage({
             id: baseId,

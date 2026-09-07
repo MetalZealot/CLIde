@@ -216,9 +216,19 @@ export type CodexPermissionsApprovalParams = {
   permissions: CodexRequestPermissionProfile;
 };
 
+export type CodexAsyncUserInputQuestion = {
+  title: string;
+  options: string[] | null;
+};
+
 export type CodexThreadItem =
   | { type: 'userMessage'; id: string; content: CodexUserInput[] }
-  | { type: 'agentMessage'; id: string; text: string }
+  | {
+      type: 'agentMessage';
+      id: string;
+      text: string;
+      questions?: CodexAsyncUserInputQuestion[] | null;
+    }
   | { type: 'plan'; id: string; text: string }
   | { type: 'reasoning'; id: string; summary: string[]; content: string[] }
   | {

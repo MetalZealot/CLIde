@@ -49,6 +49,11 @@ export interface MemoryCitation {
   note?: string;
 }
 
+export interface FollowUpQuestion {
+  question: string;
+  options: string[];
+}
+
 export interface ChatMessage {
   type: string;
   /**
@@ -58,6 +63,7 @@ export interface ChatMessage {
    */
   id?: string;
   content?: string;
+  followUpQuestions?: FollowUpQuestion[];
   displayText?: string;
   timestamp: string | number | Date;
   images?: ChatImage[];
