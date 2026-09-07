@@ -101,6 +101,7 @@ export abstract class McpProvider implements IProviderMcp {
       envVars: input.envVars,
       bearerTokenEnvVar: input.bearerTokenEnvVar,
       envHttpHeaders: input.envHttpHeaders,
+      toolsApprovalMode: input.toolsApprovalMode,
     };
   }
 

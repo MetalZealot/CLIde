@@ -347,6 +347,10 @@ export const browserUseService = {
       transport: 'http',
       url,
       headers: { Authorization: `Bearer ${getOrCreateMcpToken()}` },
+      // The endpoint is bearer-guarded and its tool list is already filtered, so
+      // these need no second gate. `approve` pre-approves them; `auto` still
+      // routes through a review that a session with approvals off auto-denies.
+      toolsApprovalMode: 'approve',
     });
     return { name: MCP_SERVER_NAME, url, results };
   },

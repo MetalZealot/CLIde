@@ -854,6 +854,9 @@ export type ProviderMcpServer = {
   envVars?: string[];
   bearerTokenEnvVar?: string;
   envHttpHeaders?: Record<string, string>;
+  // Codex asks before every MCP tool call and auto-denies when a session runs
+  // with approvals off. Only Codex models this; other providers ignore it.
+  toolsApprovalMode?: 'auto' | 'prompt' | 'writes' | 'approve';
 };
 
 /**
@@ -876,6 +879,9 @@ export type UpsertProviderMcpServerInput = {
   envVars?: string[];
   bearerTokenEnvVar?: string;
   envHttpHeaders?: Record<string, string>;
+  // Codex asks before every MCP tool call and auto-denies when a session runs
+  // with approvals off. Only Codex models this; other providers ignore it.
+  toolsApprovalMode?: 'auto' | 'prompt' | 'writes' | 'approve';
 };
 
 // ---------------------------

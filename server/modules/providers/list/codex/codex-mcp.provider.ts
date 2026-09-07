@@ -38,6 +38,7 @@ export class CodexMcpProvider extends McpProvider {
   protected readonly modeledConfigKeys = [
     'command', 'args', 'env', 'env_vars', 'cwd',
     'url', 'bearer_token_env_var', 'http_headers', 'env_http_headers',
+    'default_tools_approval_mode',
   ] as const;
 
   constructor() {
@@ -95,6 +96,9 @@ export class CodexMcpProvider extends McpProvider {
       bearer_token_env_var: input.bearerTokenEnvVar,
       http_headers: input.headers ?? {},
       env_http_headers: input.envHttpHeaders ?? {},
+      // Absent, Codex asks before each tool call and auto-denies it in a
+      // session running with approvals off.
+      ...(input.toolsApprovalMode ? { default_tools_approval_mode: input.toolsApprovalMode } : {}),
     };
   }
 

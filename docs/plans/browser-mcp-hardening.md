@@ -89,20 +89,19 @@ base; each provider declares `modeledConfigKeys`.
 - [~] **6. Isolated live acceptance and retirement.** Driven at the HTTP
       transport on the topic server, not yet through four provider
       conversations; all four registrations were read and confirmed separately.
-      Device presets carry the right user agent, touch and density and swap in
-      place; reference actions, forms, dialogs, tabs, console and network
-      reads, service-worker registration and `browser_find` recovery behave.
-      `run_code_unsafe` and `file_upload` are refused, a slugged profile cannot
-      leave the profile root, a second claim on a profile is rejected, the
-      fourth session is capped, contexts share no cookies, a transport
-      reconnects on its session id, and release returns the host to baseline.
-      Three contexts cost 293 MB PSS (236 MB for the browser plus the first,
-      then ~25-35 MB each). Output dirs are swept at boot, stopped rows cap at
+      Device presets, reference actions, forms, dialogs, tabs, console and
+      network reads, service-worker registration and `browser_find` all behave;
+      denied tools, profile locking and containment, the session cap, cookie
+      isolation, reconnect and release-to-baseline all hold. Three contexts
+      cost 293 MB PSS (236 MB for the browser plus the first, ~25-35 MB each). Output dirs are swept at boot, stopped rows cap at
       the newest five, and the action timeout is CLIde's, not the package's 5 s.
-      An image result is capped at 1 MiB: a viewport shot measures 183 KiB and
-      passes, a full page of 30,584 px measures 6.4 MB and is refused with a
-      hint, since scaled to a model's long edge it is too narrow to read.
-      Provider runs and acceptance are outstanding.
+      An image result caps at 1 MiB: a viewport shot measures 183 KiB and
+      passes, a 30,584 px full page measures 6.4 MB and is refused with a hint.
+      Codex refuses a tool call whose MCP server is not pre-approved, so the
+      registration carries `default_tools_approval_mode = "approve"` — `auto`
+      routes through a review a session with approvals off auto-denies, which
+      is why the browser worked only in Bypass. Cursor and OpenCode runs and
+      acceptance are outstanding.
 
 ## Done when
 
