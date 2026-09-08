@@ -17,8 +17,12 @@ import {
 } from '@/modules/browser-use/browser-use.service.js';
 import {
   createBrowserRuntime,
+  normalizeViewportProfiles,
   resolveProfileDirectory,
+  DEFAULT_VIEWPORT_PROFILES,
+  MAX_VIEWPORT_EDGE,
   type BrowserLeaseReleaseReason,
+  type BrowserViewportProfiles,
 } from '@/modules/browser-use/browser-use-runtime.service.js';
 
 let contextSeq = 0;
@@ -63,12 +67,18 @@ function makeFakePlaywright() {
       'Pixel 7': { userAgent: 'phone-ua', viewport: { width: 412, height: 839 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
       'Pixel 7 landscape': { userAgent: 'phone-ua', viewport: { width: 863, height: 360 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
       'Galaxy Tab S4': { userAgent: 'tablet-ua', viewport: { width: 712, height: 1138 }, deviceScaleFactor: 2.25, isMobile: true, hasTouch: true, defaultBrowserType: 'chromium' },
+      'Desktop Chrome': { userAgent: 'desktop-ua', viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false, defaultBrowserType: 'chromium' },
     },
   };
   return { playwright, calls };
 }
 
-function makeRuntime(overrides: { maxSessions?: number; sessionTtlMs?: number; profileRoot?: string } = {}) {
+function makeRuntime(overrides: {
+  maxSessions?: number;
+  sessionTtlMs?: number;
+  profileRoot?: string;
+  viewportProfiles?: BrowserViewportProfiles;
+} = {}) {
   const { playwright, calls } = makeFakePlaywright();
   let clock = 1_000;
   const runtime = createBrowserRuntime({
@@ -76,6 +86,7 @@ function makeRuntime(overrides: { maxSessions?: number; sessionTtlMs?: number; p
     maxSessions: overrides.maxSessions ?? 3,
     sessionTtlMs: overrides.sessionTtlMs ?? 60_000,
     profileRoot: overrides.profileRoot ?? '/tmp/clide-browser-runtime-test/profiles',
+    loadViewportProfiles: () => overrides.viewportProfiles ?? null,
     now: () => clock,
   });
   return { runtime, calls, advance: (ms: number) => { clock += ms; } };
@@ -187,6 +198,54 @@ describe('browser-use-runtime.service', () => {
     assert.equal('defaultBrowserType' in calls.contextOptions[1], false);
     assert.deepEqual(landscapePhone.viewport, { width: 863, height: 360 });
     await runtime.closeAll();
+  });
+
+  test('configured presets resolve to a registry device or a custom size', async () => {
+    const { runtime, calls } = makeRuntime({
+      maxSessions: 6,
+      viewportProfiles: {
+        desktop: { mode: 'device', device: 'Desktop Chrome' },
+        phone: { mode: 'custom', width: 360, height: 780 },
+        tablet: { mode: 'device', device: 'Galaxy Tab S4' },
+      },
+    });
+
+    const desktop = await runtime.acquireContext();
+    assert.deepEqual(desktop.viewport, { width: 1280, height: 720 });
+    assert.equal(calls.contextOptions[0].isMobile, false);
+
+    // A custom size overrides the viewport and nothing else: the preset's own
+    // descriptor still supplies touch, user agent and pixel density.
+    const phone = await runtime.acquireContext({ device: 'phone' });
+    assert.deepEqual(phone.viewport, { width: 360, height: 780 });
+    assert.equal(calls.contextOptions[1].hasTouch, true);
+    assert.equal(calls.contextOptions[1].userAgent, 'phone-ua');
+    assert.equal(calls.contextOptions[1].deviceScaleFactor, 2.625);
+
+    // No landscape twin exists for a custom size or for this tablet, so the
+    // axes swap instead.
+    const landscapePhone = await runtime.acquireContext({ device: 'phone', orientation: 'landscape' });
+    assert.deepEqual(landscapePhone.viewport, { width: 780, height: 360 });
+    const landscapeTablet = await runtime.acquireContext({ device: 'tablet', orientation: 'landscape' });
+    assert.deepEqual(landscapeTablet.viewport, { width: 1138, height: 712 });
+
+    // The picker is offered base entries only; landscape twins are derived.
+    assert.deepEqual(runtime.listDeviceDescriptors().map((device) => device.name), [
+      'Desktop Chrome', 'Galaxy Tab S4', 'Pixel 7',
+    ]);
+    await runtime.closeAll();
+  });
+
+  test('stored viewport profiles are clamped, and an unreadable one falls back', () => {
+    const profiles = normalizeViewportProfiles({
+      desktop: { mode: 'custom', width: '2560', height: 99_999 },
+      phone: { mode: 'device', device: '  iPhone 15  ' },
+      tablet: { mode: 'nonsense' },
+    });
+
+    assert.deepEqual(profiles.desktop, { mode: 'custom', width: 2560, height: MAX_VIEWPORT_EDGE });
+    assert.deepEqual(profiles.phone, { mode: 'device', device: 'iPhone 15' });
+    assert.deepEqual(profiles.tablet, DEFAULT_VIEWPORT_PROFILES.tablet);
   });
 
   test('the session cap counts temporary and profile leases together', async () => {

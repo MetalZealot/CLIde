@@ -6,8 +6,11 @@ import { Button } from '../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../utils/api';
 import { SettingsGroup, SettingsRow, SettingsScreen, SettingsToggle } from '../primitives';
 
+import BrowserViewportSettings, { type BrowserViewportProfiles } from './BrowserViewportSettings';
+
 type BrowserUseSettings = {
   enabled: boolean;
+  viewports: BrowserViewportProfiles;
 };
 
 type BrowserUseStatus = {
@@ -191,6 +194,18 @@ export default function ExtensionsBrowserScreen() {
             </div>
           )}
         </div>
+      </SettingsGroup>
+
+      <SettingsGroup
+        divided
+        title={t('browserSettings.viewport.title')}
+        description={t('browserSettings.viewport.description')}
+      >
+        <BrowserViewportSettings
+          viewports={settings?.viewports || null}
+          onChange={(viewports) => void updateSettings({ viewports })}
+          disabled={isSaving}
+        />
       </SettingsGroup>
     </SettingsScreen>
   );

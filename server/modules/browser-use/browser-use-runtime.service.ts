@@ -16,6 +16,24 @@ const require = createRequire(import.meta.url);
 export type BrowserDevicePreset = 'desktop' | 'phone' | 'tablet';
 export type BrowserOrientation = 'portrait' | 'landscape';
 
+// What a preset resolves to: a name from Playwright's device registry, or an
+// explicit size. A custom size on a touch preset keeps that preset's registry
+// descriptor for user agent, pixel density and touch, and overrides only the
+// viewport.
+export type BrowserViewportProfile =
+  | { mode: 'device'; device: string }
+  | { mode: 'custom'; width: number; height: number };
+export type BrowserViewportProfiles = Record<BrowserDevicePreset, BrowserViewportProfile>;
+
+export type BrowserDeviceDescriptorInfo = {
+  name: string;
+  width: number;
+  height: number;
+  isMobile: boolean;
+  hasTouch: boolean;
+  deviceScaleFactor: number;
+};
+
 export type BrowserContextRequest = {
   profileName?: string | null;
   device?: BrowserDevicePreset | null;
@@ -62,6 +80,7 @@ type BrowserRuntimeOptions = {
   sessionTtlMs?: number;
   profileRoot?: string;
   now?: () => number;
+  loadViewportProfiles?: () => BrowserViewportProfiles | null;
 };
 
 type RuntimeProbe = Omit<BrowserRuntimeReadiness, 'installInProgress' | 'installMessage'>;
@@ -80,10 +99,76 @@ const LAUNCH_OPTIONS = {
 };
 const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
 // Playwright's public device registry supplies touch, UA and pixel density.
-const DEVICE_DESCRIPTORS: Record<Exclude<BrowserDevicePreset, 'desktop'>, string> = {
+const TOUCH_BASE_DESCRIPTORS: Record<Exclude<BrowserDevicePreset, 'desktop'>, string> = {
   phone: 'Pixel 7',
   tablet: 'Galaxy Tab S4',
 };
+// A landscape twin exists for most registry devices but not all, so an
+// unmatched orientation is reached by swapping the axes.
+const LANDSCAPE_SUFFIX = ' landscape';
+
+export const DEFAULT_VIEWPORT_PROFILES: BrowserViewportProfiles = {
+  desktop: { mode: 'custom', width: DESKTOP_VIEWPORT.width, height: DESKTOP_VIEWPORT.height },
+  phone: { mode: 'device', device: TOUCH_BASE_DESCRIPTORS.phone },
+  tablet: { mode: 'device', device: TOUCH_BASE_DESCRIPTORS.tablet },
+};
+
+export const MIN_VIEWPORT_EDGE = 240;
+export const MAX_VIEWPORT_EDGE = 4000;
+// A screenshot is resized to roughly this long edge before a model reads it, so
+// a wider viewport costs the same and arrives softer. Advisory, not a limit.
+export const RECOMMENDED_MAX_VIEWPORT_EDGE = 1568;
+
+function clampViewportEdge(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.min(MAX_VIEWPORT_EDGE, Math.max(MIN_VIEWPORT_EDGE, Math.round(parsed)));
+}
+
+// Anything that reaches a context option passes through here: stored settings,
+// request bodies and test doubles alike.
+export function normalizeViewportProfile(value: unknown): BrowserViewportProfile | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (candidate.mode === 'device') {
+    const device = typeof candidate.device === 'string' ? candidate.device.trim() : '';
+    return device ? { mode: 'device', device } : null;
+  }
+  if (candidate.mode === 'custom') {
+    const width = clampViewportEdge(candidate.width);
+    const height = clampViewportEdge(candidate.height);
+    return width && height ? { mode: 'custom', width, height } : null;
+  }
+  return null;
+}
+
+export function normalizeViewportProfiles(value: unknown): BrowserViewportProfiles {
+  const source = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  return {
+    desktop: normalizeViewportProfile(source.desktop) || DEFAULT_VIEWPORT_PROFILES.desktop,
+    phone: normalizeViewportProfile(source.phone) || DEFAULT_VIEWPORT_PROFILES.phone,
+    tablet: normalizeViewportProfile(source.tablet) || DEFAULT_VIEWPORT_PROFILES.tablet,
+  };
+}
+
+function withOrientation(
+  contextOptions: Record<string, unknown>,
+  orientation: BrowserOrientation,
+): Record<string, unknown> {
+  const viewport = contextOptions.viewport as { width: number; height: number } | undefined;
+  if (!viewport) {
+    return contextOptions;
+  }
+  const isLandscape = viewport.width >= viewport.height;
+  if (isLandscape === (orientation === 'landscape')) {
+    return contextOptions;
+  }
+  return { ...contextOptions, viewport: { width: viewport.height, height: viewport.width } };
+}
 
 function loadPlaywrightPackage(): PlaywrightLike | null {
   try {
@@ -176,6 +261,9 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
   const profileRoot = options.profileRoot || DEFAULT_PROFILE_ROOT;
   const now = options.now || Date.now;
+  // Set by the settings service, which owns the stored profiles; read on every
+  // context creation so a saved change reaches the next session without a restart.
+  let loadViewportProfiles = options.loadViewportProfiles || ((): BrowserViewportProfiles | null => null);
 
   const leases = new Map<string, BrowserContextLease>();
   const lockedProfiles = new Map<string, string>();
@@ -276,22 +364,67 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     }
   }
 
-  function contextOptionsFor(playwright: PlaywrightLike, device: BrowserDevicePreset, orientation: BrowserOrientation) {
-    if (device === 'desktop') {
-      return {
-        viewport: orientation === 'landscape'
-          ? DESKTOP_VIEWPORT
-          : { width: DESKTOP_VIEWPORT.height, height: DESKTOP_VIEWPORT.width },
-      };
+  function viewportProfileFor(device: BrowserDevicePreset): BrowserViewportProfile {
+    let configured: BrowserViewportProfiles | null = null;
+    try {
+      configured = loadViewportProfiles();
+    } catch (error: any) {
+      console.warn('[Browser] Failed to read viewport profiles:', error?.message || error);
     }
+    return normalizeViewportProfile(configured?.[device]) || DEFAULT_VIEWPORT_PROFILES[device];
+  }
 
-    const name = `${DEVICE_DESCRIPTORS[device]}${orientation === 'landscape' ? ' landscape' : ''}`;
+  function descriptorOptions(playwright: PlaywrightLike, name: string): Record<string, unknown> {
     const descriptor = playwright.devices[name];
     if (!descriptor) {
       throw new Error(`Playwright has no "${name}" device descriptor.`);
     }
     const { defaultBrowserType: _browserType, ...contextOptions } = descriptor;
     return contextOptions;
+  }
+
+  function contextOptionsFor(playwright: PlaywrightLike, device: BrowserDevicePreset, orientation: BrowserOrientation) {
+    const profile = viewportProfileFor(device);
+
+    if (profile.mode === 'device') {
+      const twin = `${profile.device}${LANDSCAPE_SUFFIX}`;
+      const useTwin = orientation === 'landscape' && Boolean(playwright.devices[twin]);
+      const contextOptions = descriptorOptions(playwright, useTwin ? twin : profile.device);
+      return useTwin ? contextOptions : withOrientation(contextOptions, orientation);
+    }
+
+    const base = device === 'desktop' ? {} : descriptorOptions(playwright, TOUCH_BASE_DESCRIPTORS[device]);
+    return withOrientation(
+      { ...base, viewport: { width: profile.width, height: profile.height } },
+      orientation,
+    );
+  }
+
+  function listDeviceDescriptors(): BrowserDeviceDescriptorInfo[] {
+    const playwright = loadPlaywright();
+    if (!playwright) {
+      return [];
+    }
+    // Landscape twins are derived from their base entry, so only bases are offered.
+    return Object.entries(playwright.devices)
+      .filter(([name]) => !name.endsWith(LANDSCAPE_SUFFIX))
+      .flatMap(([name, descriptor]) => {
+        const viewport = descriptor?.viewport as { width?: unknown; height?: unknown } | undefined;
+        const width = clampViewportEdge(viewport?.width);
+        const height = clampViewportEdge(viewport?.height);
+        if (!width || !height) {
+          return [];
+        }
+        return [{
+          name,
+          width,
+          height,
+          isMobile: descriptor?.isMobile === true,
+          hasTouch: descriptor?.hasTouch === true,
+          deviceScaleFactor: typeof descriptor?.deviceScaleFactor === 'number' ? descriptor.deviceScaleFactor : 1,
+        }];
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async function getSharedBrowser(playwright: PlaywrightLike): Promise<any> {
@@ -497,6 +630,12 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     acquireContext,
     swapContext,
     expireIdle,
+
+    listDeviceDescriptors,
+
+    setViewportProfileLoader(loader: () => BrowserViewportProfiles | null): void {
+      loadViewportProfiles = loader;
+    },
 
     getLease(id: string): BrowserContextLease | null {
       return leases.get(id) || null;

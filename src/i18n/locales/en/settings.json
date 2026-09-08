@@ -839,6 +839,27 @@
       "install": "Install Runtime",
       "installing": "Installing..."
     },
+    "viewport": {
+      "title": "Viewport",
+      "description": "The size each device preset opens at. Agents pick the preset; this picks what it means. Applies to sessions created after the change.",
+      "custom": "Custom size...",
+      "width": "Viewport width in pixels",
+      "height": "Viewport height in pixels",
+      "descriptorDetail": "{{scale}}× pixel density, {{input}}",
+      "touch": "touch input",
+      "pointer": "mouse and keyboard",
+      "oversized": "Wider than {{limit}} px — screenshots are scaled down to about that before an agent reads them, so the extra width costs the same and reads softer.",
+      "presets": {
+        "desktop": "Desktop",
+        "tablet": "Tablet",
+        "phone": "Mobile"
+      },
+      "descriptions": {
+        "desktop": "Mouse and keyboard, no touch emulation.",
+        "tablet": "Touch emulation with a tablet user agent.",
+        "phone": "Touch emulation with a phone user agent."
+      }
+    },
     "errors": {
       "loadSettings": "Failed to load Browser settings",
       "loadStatus": "Failed to load Browser status",

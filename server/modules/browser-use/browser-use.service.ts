@@ -5,11 +5,17 @@ import { providerMcpService } from '@/modules/providers/index.js';
 
 import {
   browserRuntime,
+  normalizeViewportProfiles,
+  DEFAULT_VIEWPORT_PROFILES,
+  MAX_VIEWPORT_EDGE,
+  MIN_VIEWPORT_EDGE,
+  RECOMMENDED_MAX_VIEWPORT_EDGE,
   type BrowserContextLease,
   type BrowserDevicePreset,
   type BrowserLeaseReleaseReason,
   type BrowserOrientation,
   type BrowserRuntimeReadiness,
+  type BrowserViewportProfiles,
 } from './browser-use-runtime.service.js';
 
 const IS_PLATFORM = process.env.VITE_IS_PLATFORM === 'true';
@@ -54,6 +60,7 @@ type PublicBrowserUseSession = Omit<BrowserUseSession, 'ownerId'>;
 
 type BrowserUseSettings = {
   enabled: boolean;
+  viewports: BrowserViewportProfiles;
 };
 
 const sessions = new Map<string, BrowserUseSession>();
@@ -61,6 +68,7 @@ const MAX_STOPPED_SESSIONS = 5;
 
 const DEFAULT_SETTINGS: BrowserUseSettings = {
   enabled: false,
+  viewports: DEFAULT_VIEWPORT_PROFILES,
 };
 const AGENT_OWNER_ID = 'agent';
 const MCP_SERVER_NAME = 'cloudcli-browser';
@@ -82,6 +90,7 @@ function readSettings(): BrowserUseSettings {
     const parsed = JSON.parse(raw) as Partial<BrowserUseSettings>;
     return {
       enabled: parsed.enabled === true,
+      viewports: normalizeViewportProfiles(parsed.viewports),
     };
   } catch (error: any) {
     console.warn('[Browser] Failed to read settings:', error?.message || error);
@@ -90,8 +99,9 @@ function readSettings(): BrowserUseSettings {
 }
 
 function writeSettings(settings: BrowserUseSettings): BrowserUseSettings {
-  const normalized = {
+  const normalized: BrowserUseSettings = {
     enabled: settings.enabled === true,
+    viewports: normalizeViewportProfiles(settings.viewports),
   };
 
   appConfigDb.set(BROWSER_USE_SETTINGS_KEY, JSON.stringify(normalized));
@@ -150,6 +160,8 @@ const RELEASE_MESSAGES: Record<BrowserLeaseReleaseReason, { lastAction: string; 
   shutdown: { lastAction: 'shutdown', message: 'Browser session stopped during server shutdown.' },
   disconnected: { lastAction: 'disconnect', message: 'Browser process exited. Create a new session to continue browsing.' },
 };
+
+browserRuntime.setViewportProfileLoader(() => readSettings().viewports);
 
 // Every lease release, whatever triggered it, lands here so the panel row and
 // the runtime never disagree about whether a session is alive.
@@ -294,18 +306,39 @@ export const browserUseService = {
 
   async updateSettings(settings: Partial<BrowserUseSettings>) {
     const current = readSettings();
-    const nextSettings = {
+    const nextSettings: BrowserUseSettings = {
       enabled: typeof settings.enabled === 'boolean' ? settings.enabled : current.enabled,
+      viewports: settings.viewports
+        ? normalizeViewportProfiles({ ...current.viewports, ...settings.viewports })
+        : current.viewports,
     };
 
     const next = writeSettings(nextSettings);
-    if (next.enabled) {
-      await this.registerAgentMcp();
-    } else if (current.enabled) {
-      await this.unregisterAgentMcp();
-      await this.stopAllSessions();
+    // Only the enable flag owns provider registration; a viewport save must not
+    // rewrite every provider's MCP config.
+    if (next.enabled !== current.enabled) {
+      if (next.enabled) {
+        await this.registerAgentMcp();
+      } else {
+        await this.unregisterAgentMcp();
+        await this.stopAllSessions();
+      }
     }
     return next;
+  },
+
+  // The registry lives in the Playwright package, so the picker in Settings can
+  // only be filled from the server.
+  async listDeviceDescriptors() {
+    return {
+      devices: browserRuntime.listDeviceDescriptors(),
+      defaults: DEFAULT_VIEWPORT_PROFILES,
+      limits: {
+        min: MIN_VIEWPORT_EDGE,
+        max: MAX_VIEWPORT_EDGE,
+        recommendedMax: RECOMMENDED_MAX_VIEWPORT_EDGE,
+      },
+    };
   },
 
   async getStatus() {

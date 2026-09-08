@@ -4,6 +4,8 @@ type SettingsTextFieldProps = {
   value: string;
   onChange: (value: string) => void;
   type?: 'text' | 'password' | 'email';
+  /** Numeric keypad on a phone without the spinner a `number` input adds. */
+  inputMode?: 'text' | 'numeric';
   placeholder?: string;
   autoComplete?: string;
   ariaLabel: string;
@@ -22,6 +24,7 @@ export default function SettingsTextField({
   value,
   onChange,
   type = 'text',
+  inputMode,
   placeholder,
   autoComplete,
   ariaLabel,
@@ -32,6 +35,7 @@ export default function SettingsTextField({
   return (
     <input
       type={type}
+      inputMode={inputMode}
       value={value}
       placeholder={placeholder}
       autoComplete={autoComplete}

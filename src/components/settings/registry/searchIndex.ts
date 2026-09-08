@@ -107,6 +107,7 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'plugins', labelKey: 'pluginSettings.installButton', keywords: 'git repository url' },
 
   { screenId: 'browser', labelKey: 'browserSettings.enable.label', keywords: 'playwright chromium runtime' },
+  { screenId: 'browser', labelKey: 'browserSettings.viewport.title', keywords: 'device size resolution desktop tablet mobile emulation' },
 
   { screenId: 'tasks', labelKey: 'tasks.settings.enableLabel', keywords: 'taskmaster' },
 

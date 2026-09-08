@@ -42,6 +42,17 @@ router.put('/settings', async (req, res) => {
   }
 });
 
+router.get('/devices', async (_req, res) => {
+  try {
+    res.json({ success: true, data: await browserUseService.listDeviceDescriptors() });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to load device presets.',
+    });
+  }
+});
+
 router.post('/runtime/install', async (_req, res) => {
   try {
     const result = await browserUseService.installRuntime();
