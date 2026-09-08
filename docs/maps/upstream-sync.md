@@ -102,7 +102,9 @@ branding. These are refused permanently and do not need re-assessing each time.
   are upstream's, the surrounding repository is not.
   `0d517749`, which stops a failed server build destroying the running one;
   found by `check:upstream`, not by either assessment, because it carries no PR
-  number and sat between two release commits.
+  number and sat between two release commits. Its staging half only — the
+  `preserver` recover hook fires from `npm run server`, which no CLIde
+  deployment uses.
 - **Deferred with a TODO item:** `#1238` composer history recall; the sidebar
   localization gap that `#1192` pointed at; `#1239` scheduled-message
   interrupt semantics, blocked on the interrupt-versus-wait decision.
