@@ -242,11 +242,23 @@ Each stable upgrade records:
   and Fast-mode copy changes need no shared UI.
   Guardian, MCP approval, reconnect, fork, compaction, and subagent fixes are
   inherited compatibility watches covered by regression smoke.
-- **Automated verification:** the 330-check Codex gate, typecheck, lint with no
+- **Automated verification:** the 332-check Codex gate, typecheck, lint with no
   errors, client/server build, docs check, package/version report, and generated
   protocol measurement pass.
 - **Isolated live evidence:** Grayson confirmed the Astra default, a successful
   new Chat session, and the async-question card with all suggested answers on
-  mobile. The interactive Send now/Queue replacement is automated and built but
-  still needs live acceptance; broader conformance rows and production
-  deployment remain separate, and production is unchanged.
+  mobile. Three fresh desktop Chats then confirmed that Send now enters the
+  active turn without stopping its work, Queue waits for natural completion,
+  and a queued composer message runs before a queued async answer. All three
+  fresh transcripts had no fork parent; rewinding one remapped its sole CLIde
+  row to a native child carrying the original thread as `forked_from_id`.
+  The focused 32-client regression file now covers the queue collision; the
+  requested 23-client and 21-server checks plus client typecheck pass from the
+  checkout shell. The same commands initially could not start inside these live
+  turns because the branch-test fake home lacked shell startup files: login Bash
+  replaced the inherited Node 24 path with Debian's Node 20 path, where npm is
+  absent. The host harness now generates minimal `.profile` and `.bashrc` files
+  restoring its selected Node directory; both slots and an ephemeral low-effort
+  Codex execution returned npm 11.13.0 without linking worktree dependencies.
+  Broader conformance rows and production deployment remain separate, and
+  production is unchanged.

@@ -69,7 +69,7 @@ upstream integration.
 | Runtime identity | Diagnostics report the intended SDK, bundled CLI, configured transport, and actual transport | Dependency/runtime or transport changes |
 | New then resumed Chat | One sidebar row, one user turn, one final response; the resumed turn stays in the same CLIde session | Any gateway, session-ID, or App Server change |
 | Plan then Default | Plan tools appear in Plan; the next Default turn explicitly clears collaboration mode | Mode/capability changes |
-| Interactive request | One command/file/permission approval or structured question appears, survives one refresh, and resolves exactly once | App Server, registry, WebSocket, or client replay changes |
+| Interactive request | One command/file/permission approval or structured question appears, survives one refresh, and resolves exactly once; Send now steers the active turn, Queue waits for idle, and a composer queue wins their collision | App Server, registry, WebSocket, or client replay changes |
 | Mixed attachments | One image and one non-image file both reach Codex; reload preserves both attachment indicators | Composer, upload, gateway, adapter, or history changes |
 | Tool lifecycle | Command, file change, MCP call, and web search render during the turn and materially match after reload | Normalizer, renderer, or rollout-parser changes |
 | Stop | Abort an early first turn and a resumed turn; neither continues in the background or creates a second sidebar row | Abort, run-registry, or session-mapping changes |
