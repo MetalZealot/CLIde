@@ -10,6 +10,8 @@ Current active work comes first, followed by the queue Grayson ordered on
 
 | Plan | Status | Next |
 |---|---|---|
+| [Upstream v1.37.3 sync](upstream-1373-sync.md) | 2/5 | Cherry-pick `aa2755b8`, then port the `#1220` rescan rule and its tests |
+| [Upstream feature harvest](upstream-feature-harvest.md) | not started | Blocked on the v1.37.3 picks; then give each of the nine gaps a verdict |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
 | [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
 | [Context-correct skills settings](skills-settings-discovery-scope.md) | 2/4 | Add the Context choice to each supported Agent Skills screen |
