@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
-import { Badge, Button } from '../../../shared/view/ui';
+import { Badge, Button, Dialog, DialogContent, DialogTitle } from '../../../shared/view/ui';
 import { authenticatedFetch } from '../../../utils/api';
 
 type BrowserUseStatus = {
@@ -160,6 +160,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   const [isBusy, setIsBusy] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionsRef = useRef<BrowserUseSession[]>([]);
   sessionsRef.current = sessions;
@@ -198,7 +199,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       ));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load Browser');
+      setError(err instanceof Error ? err.message : 'Unable to load Browser. Check that it is enabled in settings, then refresh.');
     } finally {
       setIsRefreshing(false);
     }
@@ -251,7 +252,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       await action();
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Browser action failed');
+      setError(err instanceof Error ? err.message : 'Browser action failed. Refresh to see the session\u2019s current state, then try again.');
     } finally {
       setIsBusy(false);
     }
@@ -264,6 +265,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   });
 
   const deleteSession = () => runAction(async () => {
+    setIsConfirmingDelete(false);
     if (!selectedSession) return;
     const response = await authenticatedFetch(`/api/browser-use/sessions/${selectedSession.id}`, { method: 'DELETE' });
     await readJson(response);
@@ -298,7 +300,9 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', getStatusDot(session.status))} />
-              <div className="truncate text-sm font-medium">{session.title || getDomain(session.url)}</div>
+              <div className="truncate text-sm font-medium" title={session.title || getDomain(session.url)}>
+                {session.title || getDomain(session.url)}
+              </div>
             </div>
             <div className="mt-1 truncate pl-3.5 text-xs text-muted-foreground">{getDomain(session.url)}</div>
           </div>
@@ -376,7 +380,10 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         <img
           src={selectedSession.screenshotDataUrl}
           alt="Browser session screenshot"
-          className={fullscreen ? 'block max-h-[80vh] w-auto max-w-full object-contain' : 'block max-h-[72vh] w-auto max-w-full object-contain'}
+          className={cn(
+            'block w-auto max-w-full object-contain outline outline-1 -outline-offset-1 outline-white/10',
+            fullscreen ? 'max-h-[80vh]' : 'max-h-[72vh]',
+          )}
         />
       ) : (
         <div className="px-6 text-center">
@@ -413,7 +420,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   );
 
   const fullscreenButton = (
-    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setIsFullscreen(true)} disabled={!selectedSession?.screenshotDataUrl} title="Full screen" aria-label="Full screen">
+    <Button variant="ghost" size="sm" className="composer-send-hit-target h-8 w-8 p-0" onClick={() => setIsFullscreen(true)} disabled={!selectedSession?.screenshotDataUrl} title="Full screen" aria-label="Full screen">
       <Expand className="h-4 w-4" />
     </Button>
   );
@@ -431,12 +438,12 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           </div>
           <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Monitor browser sessions opened by AI agents.</p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {onShowSettings && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0"
+              className="composer-send-hit-target h-8 w-8 p-0"
               onClick={() => onShowSettings('browser')}
               title="Open Browser settings"
               aria-label="Open Browser settings"
@@ -447,7 +454,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 w-7 p-0"
+            className="composer-send-hit-target h-8 w-8 p-0"
             onClick={() => void refresh()}
             disabled={isRefreshing || isBusy}
             title="Refresh browser sessions"
@@ -459,7 +466,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       </div>
 
       {error && (
-        <div className="border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+        <div role="alert" className="border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -483,6 +490,9 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                 <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
                   {session.title || getDomain(session.url)}
                 </span>
+                <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {session.status}
+                </span>
               </button>
             ))}
           </div>
@@ -491,7 +501,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
         <main className="flex min-h-0 flex-col overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
+          <div role="status" aria-live="polite" className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
             <div className="min-w-0 truncate">
               {activeSessions.length} active
               <span className="px-1.5">/</span>
@@ -513,7 +523,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                       {selectedSession?.status || 'empty'}
                     </Badge>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-foreground">
+                      <div className="truncate text-sm font-medium text-foreground" title={selectedSession?.title || getDomain(selectedSession?.url || null)}>
                         {selectedSession?.title || getDomain(selectedSession?.url || null)}
                       </div>
                       <div className="mt-0.5 flex min-w-0 items-center text-xs text-muted-foreground">
@@ -543,13 +553,13 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                   <div className="mt-2 flex items-center gap-2 lg:hidden">
                     {viewportBadge}
                     <div className="hidden min-w-0 flex-1 sm:block">{lastActionText}</div>
-                    <div className="ml-auto flex shrink-0 items-center gap-1">
+                    <div className="ml-auto flex shrink-0 items-center gap-3">
                       {fullscreenButton}
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'} title="Stop session" aria-label="Stop session">
+                      <Button variant="ghost" size="sm" className="composer-send-hit-target h-8 w-8 p-0" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'} title="Stop session" aria-label="Stop session">
                         <CircleStop className="h-4 w-4" />
                       </Button>
                       <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={deleteSession} disabled={isBusy || !selectedSession} title="Delete session" aria-label="Delete session">
+                      <Button variant="ghost" size="sm" className="composer-send-hit-target h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setIsConfirmingDelete(true)} disabled={isBusy || !selectedSession} title="Delete session" aria-label="Delete session">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -624,7 +634,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                   <CircleStop className="h-4 w-4" />
                   Stop
                 </Button>
-                <Button variant="outline" size="sm" onClick={deleteSession} disabled={isBusy || !selectedSession}>
+                <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setIsConfirmingDelete(true)} disabled={isBusy || !selectedSession}>
                   <Trash2 className="h-4 w-4" />
                   Delete
                 </Button>
@@ -633,6 +643,25 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           </div>
         </aside>
       </div>
+
+      <Dialog open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
+        <DialogContent className="max-w-sm">
+          <DialogTitle>Delete this browser session?</DialogTitle>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {selectedSession?.title || getDomain(selectedSession?.url || null)} closes and its
+            screenshot and action history are removed. This cannot be undone.
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsConfirmingDelete(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={deleteSession} disabled={isBusy}>
+              <Trash2 className="h-4 w-4" />
+              Delete session
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {isFullscreen && selectedSession && (
         <div className="safe-top fixed inset-0 z-50 bg-black/90 p-6">
