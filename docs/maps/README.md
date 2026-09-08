@@ -22,7 +22,7 @@ CLIde or its provider runtimes change.
 | [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Pin, protocol, model rows, and dispositions current at 0.153.4, 2026-09-07 |
 | [Codex upgrade ledger](codex-upgrade-ledger.md) | Compact release decisions and verification history | Current through 0.153.4, 2026-09-07 |
 | [Tool activity stream](tool-activity-stream.md) | What each provider reports about its own tool calls, what CLIde drops, and the measured shape of a real transcript | Measured 2026-08-23; Cursor/OpenCode rows are source inspection only |
-| [Codex integration conformance](codex-integration-conformance.md) | Executable cross-layer regression matrix and live acceptance rows | Harness current; Astra default/new Chat, async Send now/Queue priority, and rewind lineage passed at 0.153.4; broader lifecycle rows last complete at 0.147 |
+| [Codex integration conformance](codex-integration-conformance.md) | Executable cross-layer regression matrix and live acceptance rows | Harness current; Astra default/new/resumed Chat, async queue priority, command reload, runtime identity, rewind, and explicit fork passed at 0.153.4; broader rows last complete at 0.147 |
 
 Future provider maps should use stable, undated filenames:
 

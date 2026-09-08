@@ -260,5 +260,10 @@ Each stable upgrade records:
   absent. The host harness now generates minimal `.profile` and `.bashrc` files
   restoring its selected Node directory; both slots and an ephemeral low-effort
   Codex execution returned npm 11.13.0 without linking worktree dependencies.
+  After rebasing onto the complete rewind-lineage fix and rebuilding slot B, one
+  low-effort Auto-in-Workspace Chat ran npm 11.13.0, retained its single CLIde
+  id and tool rendering across reload and resume, then explicit `/fork` created
+  a separate CLIde row whose native `forked_from_id` points to the parent. The
+  service ran the checkout-bundled Codex App Server 0.153.4 throughout.
   Broader conformance rows and production deployment remain separate, and
   production is unchanged.
