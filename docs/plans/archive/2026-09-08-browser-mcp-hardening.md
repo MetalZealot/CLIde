@@ -1,7 +1,7 @@
 # Official Playwright MCP bridge with a monitored Browser tab
 
-- Status: 6/7
-- Next: Phase 6 — Grayson's acceptance on the topic server, then retirement.
+- Status: complete (7/7)
+- Next: nothing; accepted on the topic server 2026-09-08.
 - Context: `server/modules/browser-use/` · token boundary `ef604c5` ·
   [Playwright MCP API](https://github.com/microsoft/playwright-mcp/blob/main/index.d.ts) ·
   [configuration](https://github.com/microsoft/playwright-mcp/blob/main/config.d.ts)
@@ -85,8 +85,8 @@ base; each provider declares `modeledConfigKeys`.
       bridge, its REST dispatcher, the CLI subcommand, `browser_create_session`,
       every `sessionId` argument, the selector tools and the panel's cursor
       marker are gone. Policy is [ADR
-      0053](../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md).
-- [~] **6. Isolated live acceptance and retirement.** Driven at the HTTP
+      0053](../../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md).
+- [x] **6. Isolated live acceptance and retirement.** Driven at the HTTP
       transport on the topic server, and by Claude and Codex in a conversation.
       Device presets, reference actions, forms, dialogs, tabs, console and
       network reads, service-worker registration and `browser_find` all behave;
@@ -101,7 +101,8 @@ base; each provider declares `modeledConfigKeys`.
       registration carries `default_tools_approval_mode = "approve"` — `auto`
       routes through a review a session with approvals off auto-denies, which
       is why the browser worked only in Bypass. Cursor and OpenCode are
-      uninstalled here: config-verified only. Acceptance is outstanding.
+      uninstalled here: config-verified only. Accepted 2026-09-08: the Browser
+      tab follows agent work and matches the agreed Filled layout.
 
 ## Done when
 

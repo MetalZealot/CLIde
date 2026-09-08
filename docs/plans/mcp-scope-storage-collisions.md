@@ -65,4 +65,4 @@ policy or reproducing its full config-layer discovery. Merging user and project
 entries by name or content. Changing provider precedence. Redesigning the MCP
 Settings screen. Making global add transactional. Touching `auth.db`, project
 rows, sessions, or provider authentication. The separate
-[Browser MCP hardening](browser-mcp-hardening.md) work.
+[Browser MCP hardening](archive/2026-09-08-browser-mcp-hardening.md) work.

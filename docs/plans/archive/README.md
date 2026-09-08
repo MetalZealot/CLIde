@@ -4,6 +4,7 @@ Nothing here is read by default. Completed plans are frozen; current behavior be
 
 | Plan | Archived | Current authority |
 |---|---|---|
+| [Playwright MCP bridge with a monitored Browser tab](2026-09-08-browser-mcp-hardening.md) | 2026-09-08 | [ADR 0053](../../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md) and source/tests |
 | [Bounded, lazy project files](2026-08-30-lazy-file-tree-loading.md) | 2026-08-30 | [ADR 0049](../../decisions/0049-file-tree-loads-folders-not-projects.md) and source/tests |
 | [Provider upgrade debt](provider-upgrade-debt.md) | 2026-08-27 | [Claude](../../maps/claude-upgrade-ledger.md) and [Codex](../../maps/codex-upgrade-ledger.md) ledgers, the [command surface](../../maps/claude-command-surface.md) and [Codex surface](../../maps/codex-cli-sdk-app-server.md) maps, and source/tests |
 | [HTML file preview](2026-08-23-html-file-preview.md) | 2026-08-23 | [ADR 0045](../../decisions/0045-html-file-preview-is-static-and-isolated.md) and source/tests |
