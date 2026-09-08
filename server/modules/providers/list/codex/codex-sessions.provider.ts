@@ -36,10 +36,17 @@ const CODEX_INJECTED_USER_TAGS = [
   'memory',
   'skill',
   'cwd',
+  'INSTRUCTIONS',
 ];
+
+/** A mid-thread AGENTS.md refresh opens with a markdown heading, not a tag. */
+const CODEX_AGENTS_INSTRUCTIONS_HEADING = /^#[ \t]+AGENTS\.md instructions for[ \t]/;
 
 export function isCodexInjectedUserText(text: string): boolean {
   const trimmed = text.trimStart();
+  if (CODEX_AGENTS_INSTRUCTIONS_HEADING.test(trimmed)) {
+    return true;
+  }
   return CODEX_INJECTED_USER_TAGS.some((tag) => (
     trimmed.startsWith(`<${tag}>`) || trimmed.startsWith(`<${tag} `)
   ));

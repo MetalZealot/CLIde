@@ -805,7 +805,9 @@ describe('codex-sessions', () => {
             forked_from_ordinal_exclusive: 3,
           },
         }),
-        ...userRow(4, '2026-09-01T12:02:00.000Z', 'turn-resent', 'Edited prompt, resent'),
+        // Codex re-injects the AGENTS.md set into the new thread as a user row.
+        ...userRow(4, '2026-09-01T12:01:30.000Z', 'turn-injected', '# AGENTS.md instructions for /repo\n\n<INSTRUCTIONS>\nBe good.\n</INSTRUCTIONS>'),
+        ...userRow(6, '2026-09-01T12:02:00.000Z', 'turn-resent', 'Edited prompt, resent'),
       ].join('\n') + '\n', 'utf8');
 
       await withIsolatedDatabase(async () => {
