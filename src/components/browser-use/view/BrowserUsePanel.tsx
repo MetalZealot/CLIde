@@ -20,6 +20,9 @@ import {
 import { cn } from '../../../lib/utils';
 import { Badge, Button, Dialog, DialogContent, DialogTitle } from '../../../shared/view/ui';
 import { authenticatedFetch } from '../../../utils/api';
+// Temporary variant harness; removed when a direction is promoted.
+import { useVariant, VariantPicker } from '../variants/VariantPicker';
+import { VariantSurface } from '../variants/VariantSurfaces';
 
 type BrowserUseStatus = {
   enabled: boolean;
@@ -161,6 +164,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   const [isInstalling, setIsInstalling] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [variant, selectVariant] = useVariant();
   const [error, setError] = useState<string | null>(null);
   const sessionsRef = useRef<BrowserUseSession[]>([]);
   sessionsRef.current = sessions;
@@ -514,6 +518,17 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
 
           {sessions.length === 0 ? (
             renderEmptyState()
+          ) : variant ? (
+            <VariantSurface
+              variant={variant}
+              sessions={sessions}
+              selected={selectedSession}
+              isBusy={isBusy}
+              onSelect={setSelectedSessionId}
+              onFullscreen={() => setIsFullscreen(true)}
+              onStop={stopSession}
+              onRequestDelete={() => setIsConfirmingDelete(true)}
+            />
           ) : (
             <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4">
               <div className="mx-auto flex min-h-[500px] max-w-7xl flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
@@ -643,6 +658,8 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
           </div>
         </aside>
       </div>
+
+      {variant && <VariantPicker active={variant} onSelect={selectVariant} />}
 
       <Dialog open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
         <DialogContent className="max-w-sm">
