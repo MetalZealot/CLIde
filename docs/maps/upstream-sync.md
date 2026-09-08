@@ -95,9 +95,11 @@ branding. These are refused permanently and do not need re-assessing each time.
   are what produced the traps above.
 - **Already ours:** `#1074`, `#1078`, `#1085`, `#1115`, `#1036`, `#1084`,
   `#1207`, `#1274`, `#1249`, `#1265`.
-- **Taken:** `#1223` editor highlighting for `.mts`/`.cts`/`.mjs`/`.cjs`, as a
-  direct cherry-pick. `#1220` archived-session rescan, hand-ported — the rule
-  and its two tests are upstream's, the surrounding repository is not.
+- **Taken:** `#1223` editor highlighting for `.mts`/`.cts`/`.mjs`/`.cjs`. Its
+  commit `aa2755b8` lands after `#1206`, in `src/modules/`, so the four `case`
+  lines were applied by hand like everything else on that side of the break.
+  `#1220` archived-session rescan, hand-ported — the rule and its three tests
+  are upstream's, the surrounding repository is not.
   `0d517749`, which stops a failed server build destroying the running one;
   found by `check:upstream`, not by either assessment, because it carries no PR
   number and sat between two release commits.

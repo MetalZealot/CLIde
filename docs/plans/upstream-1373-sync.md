@@ -1,7 +1,7 @@
 # Upstream v1.37.3 picks and a repeatable sync procedure
 
-- Status: 2/5
-- Next: Cherry-pick `aa2755b8`, then port the `#1220` rescan rule and its tests
+- Status: 4/5
+- Next: Phase 3 — `0d517749`, staged `dist-server` build, awaiting the maintainer's go-ahead
 - Context: [upstream sync map](../maps/upstream-sync.md) holds the buckets, the
   refusals and the ledger; [upstream candidates](../upstream-candidates.md) is
   the outbound ledger and is unaffected
@@ -12,11 +12,13 @@ lands the fixes and the procedure that makes the next assessment mechanical.
 
 ## Phases
 
-- [ ] 1. `.mts`, `.cts`, `.mjs` and `.cjs` highlight in the editor — cherry-pick
-      `aa2755b8`, four `case` lines in `editorExtensions.ts`
-- [ ] 2. An archived session survives a rescan — hand-port `bfe7c495`'s
-      `CASE WHEN` guard onto both write paths in `sessions.db.ts`, with its two
-      tests. Back up the user database first; this touches a session write path
+- [x] 1. `.mts`, `.cts`, `.mjs` and `.cjs` highlight in the editor — four `case`
+      lines in `editorExtensions.ts`. `aa2755b8` sits after `#1206`, so it
+      touches `src/modules/` and was applied by hand, not cherry-picked
+- [x] 2. An archived session survives a rescan — hand-port `bfe7c495`'s
+      `CASE WHEN` guard onto both write paths in `sessions.db.ts`, with its
+      three tests. Back up the user database first; this touches a session
+      write path
 - [ ] 3. A failed server build can no longer leave the app without an
       entrypoint — cherry-pick `0d517749`, which stages tsc output into
       `dist-server.next` and promotes it only after `tsc-alias` finishes, with a
@@ -35,7 +37,7 @@ lands the fixes and the procedure that makes the next assessment mechanical.
 - Opening a `.mts` file in the editor shows syntax colour, not plain text
 - A session archived immediately after it ends is still archived after the
   sidebar reloads its project list
-- `npm run test:server` passes, including the two new `sessions.db` cases
+- `npm run test:server` passes, including the three new `sessions.db` cases
 - Interrupting `npm run build:server` leaves `dist-server/server/index.js`
   intact and the app still starts
 - `npm run check:upstream` on an unchanged tree names `264e0946` as the merge
