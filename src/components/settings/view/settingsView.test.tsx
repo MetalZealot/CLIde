@@ -1381,7 +1381,7 @@ describe('AgentSkillsScreen', () => {
   });
 });
 
-describe('ExtensionsBrowserScreen viewport', () => {
+describe('ExtensionsBrowserScreen', () => {
   let root: Root | null = null;
   let container: HTMLDivElement | null = null;
   const originalFetch = globalThis.fetch;
@@ -1423,7 +1423,15 @@ describe('ExtensionsBrowserScreen viewport', () => {
       }
       // The screen is server-authoritative on save, so the reply carries the
       // stored settings, not the request.
-      const settings = { enabled: true, viewports, ...(saved.at(-1) || {}) };
+      const settings = {
+        enabled: true,
+        viewports,
+        defaultDevice: 'desktop',
+        maxSessions: 3,
+        sessionTtlMinutes: 30,
+        network: { allowedOrigins: [], blockedOrigins: [] },
+        ...(saved.at(-1) || {}),
+      };
       return new Response(JSON.stringify({ success: true, data: { settings } }), { status: 200 });
     }) as typeof globalThis.fetch;
   });
@@ -1478,5 +1486,49 @@ describe('ExtensionsBrowserScreen viewport', () => {
     const widths = [...(container?.querySelectorAll('input[aria-label="Viewport width in pixels"]') ?? [])];
     assert.equal((widths.at(-1) as HTMLInputElement).value, '412');
     assert.equal(container?.textContent?.includes('Wider than 1568 px'), false);
+  });
+
+  test('the session limits save the stored shape, and Never is offered last', async () => {
+    await render();
+
+    const timeout = selects().find((select) => select.getAttribute('aria-label') === 'Idle timeout');
+    assert.ok(timeout);
+    assert.deepEqual([...timeout.options].map((option) => option.value), ['5', '15', '30', '60', '0']);
+    assert.equal(timeout.value, '30');
+
+    await React.act(async () => {
+      timeout.value = '0';
+      timeout.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    assert.deepEqual(saved.at(-1), { sessionTtlMinutes: 0 });
+  });
+
+  test('an origin list saves on blur, one origin per line', async () => {
+    await render();
+
+    const allowed = container?.querySelector('textarea[aria-label="Allowed"]') as HTMLTextAreaElement;
+    assert.ok(allowed);
+    assert.equal(allowed.value, '');
+
+    await React.act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        'value',
+      )?.set;
+      valueSetter?.call(allowed, ' http://localhost:*  \n\nhttps://example.com\n');
+      allowed.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+    // Typing is a draft; only losing focus saves.
+    assert.equal(saved.length, 0);
+
+    await React.act(async () => {
+      // React maps onBlur to the bubbling focusout event.
+      allowed.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true }));
+    });
+
+    assert.deepEqual(saved.at(-1), {
+      network: { allowedOrigins: ['http://localhost:*', 'https://example.com'], blockedOrigins: [] },
+    });
   });
 });

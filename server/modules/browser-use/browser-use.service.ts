@@ -6,8 +6,14 @@ import { providerMcpService } from '@/modules/providers/index.js';
 import {
   browserRuntime,
   normalizeViewportProfiles,
+  sessionTtlMinutesToMs,
+  sessionTtlMsToMinutes,
+  DEFAULT_SESSION_POLICY,
   DEFAULT_VIEWPORT_PROFILES,
+  MAX_MAX_SESSIONS,
+  MAX_SESSION_TTL_MINUTES,
   MAX_VIEWPORT_EDGE,
+  MIN_MAX_SESSIONS,
   MIN_VIEWPORT_EDGE,
   RECOMMENDED_MAX_VIEWPORT_EDGE,
   type BrowserContextLease,
@@ -15,6 +21,7 @@ import {
   type BrowserLeaseReleaseReason,
   type BrowserOrientation,
   type BrowserRuntimeReadiness,
+  type BrowserSessionPolicy,
   type BrowserViewportProfiles,
 } from './browser-use-runtime.service.js';
 
@@ -58,10 +65,57 @@ export type BrowserUseSession = {
 
 type PublicBrowserUseSession = Omit<BrowserUseSession, 'ownerId'>;
 
+export type BrowserNetworkPolicy = {
+  allowedOrigins: string[];
+  blockedOrigins: string[];
+};
+
 type BrowserUseSettings = {
   enabled: boolean;
   viewports: BrowserViewportProfiles;
+  defaultDevice: BrowserDevicePreset;
+  maxSessions: number;
+  // Minutes, with 0 meaning idle sessions are never reclaimed.
+  sessionTtlMinutes: number;
+  network: BrowserNetworkPolicy;
 };
+
+const DEVICE_PRESETS: BrowserDevicePreset[] = ['desktop', 'phone', 'tablet'];
+// An origin list is a guardrail, not an address book: long enough for a project
+// and its dependencies, short enough that it cannot become the settings blob.
+const MAX_ORIGINS = 100;
+const MAX_ORIGIN_LENGTH = 200;
+
+function clampInteger(value: unknown, min: number, max: number, fallback: number): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+// One origin per line in the UI, so the stored form is the split, trimmed list.
+// A malformed entry simply never matches, which fails closed on the allow list.
+export function normalizeOriginList(value: unknown): string[] {
+  const entries = Array.isArray(value)
+    ? value
+    : String(value ?? '').split(/[\n,]/);
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const origin = String(entry ?? '').trim().replace(/\/+$/, '').slice(0, MAX_ORIGIN_LENGTH);
+    if (origin) {
+      seen.add(origin);
+    }
+    if (seen.size >= MAX_ORIGINS) {
+      break;
+    }
+  }
+  return [...seen];
+}
+
+function normalizeDevicePreset(value: unknown, fallback: BrowserDevicePreset): BrowserDevicePreset {
+  return DEVICE_PRESETS.includes(value as BrowserDevicePreset) ? value as BrowserDevicePreset : fallback;
+}
 
 const sessions = new Map<string, BrowserUseSession>();
 const MAX_STOPPED_SESSIONS = 5;
@@ -69,6 +123,10 @@ const MAX_STOPPED_SESSIONS = 5;
 const DEFAULT_SETTINGS: BrowserUseSettings = {
   enabled: false,
   viewports: DEFAULT_VIEWPORT_PROFILES,
+  defaultDevice: DEFAULT_SESSION_POLICY.defaultDevice,
+  maxSessions: DEFAULT_SESSION_POLICY.maxSessions,
+  sessionTtlMinutes: sessionTtlMsToMinutes(DEFAULT_SESSION_POLICY.sessionTtlMs),
+  network: { allowedOrigins: [], blockedOrigins: [] },
 };
 const AGENT_OWNER_ID = 'agent';
 const MCP_SERVER_NAME = 'cloudcli-browser';
@@ -88,22 +146,32 @@ function readSettings(): BrowserUseSettings {
     }
 
     const parsed = JSON.parse(raw) as Partial<BrowserUseSettings>;
-    return {
-      enabled: parsed.enabled === true,
-      viewports: normalizeViewportProfiles(parsed.viewports),
-    };
+    return normalizeSettings({ ...parsed, enabled: parsed.enabled === true });
   } catch (error: any) {
     console.warn('[Browser] Failed to read settings:', error?.message || error);
     return DEFAULT_SETTINGS;
   }
 }
 
-function writeSettings(settings: BrowserUseSettings): BrowserUseSettings {
-  const normalized: BrowserUseSettings = {
+// Anything that reaches the runtime or the MCP connection passes through here:
+// stored JSON and request bodies alike.
+function normalizeSettings(settings: Partial<BrowserUseSettings>): BrowserUseSettings {
+  const network = (settings.network || {}) as Partial<BrowserNetworkPolicy>;
+  return {
     enabled: settings.enabled === true,
     viewports: normalizeViewportProfiles(settings.viewports),
+    defaultDevice: normalizeDevicePreset(settings.defaultDevice, DEFAULT_SETTINGS.defaultDevice),
+    maxSessions: clampInteger(settings.maxSessions, MIN_MAX_SESSIONS, MAX_MAX_SESSIONS, DEFAULT_SETTINGS.maxSessions),
+    sessionTtlMinutes: clampInteger(settings.sessionTtlMinutes, 0, MAX_SESSION_TTL_MINUTES, DEFAULT_SETTINGS.sessionTtlMinutes),
+    network: {
+      allowedOrigins: normalizeOriginList(network.allowedOrigins),
+      blockedOrigins: normalizeOriginList(network.blockedOrigins),
+    },
   };
+}
 
+function writeSettings(settings: BrowserUseSettings): BrowserUseSettings {
+  const normalized = normalizeSettings(settings);
   appConfigDb.set(BROWSER_USE_SETTINGS_KEY, JSON.stringify(normalized));
   return normalized;
 }
@@ -162,6 +230,14 @@ const RELEASE_MESSAGES: Record<BrowserLeaseReleaseReason, { lastAction: string; 
 };
 
 browserRuntime.setViewportProfileLoader(() => readSettings().viewports);
+browserRuntime.setSessionPolicyLoader((): BrowserSessionPolicy => {
+  const settings = readSettings();
+  return {
+    defaultDevice: settings.defaultDevice,
+    maxSessions: settings.maxSessions,
+    sessionTtlMs: sessionTtlMinutesToMs(settings.sessionTtlMinutes),
+  };
+});
 
 // Every lease release, whatever triggered it, lands here so the panel row and
 // the runtime never disagree about whether a session is alive.
@@ -307,13 +383,20 @@ export const browserUseService = {
   async updateSettings(settings: Partial<BrowserUseSettings>) {
     const current = readSettings();
     const nextSettings: BrowserUseSettings = {
+      ...current,
+      ...settings,
       enabled: typeof settings.enabled === 'boolean' ? settings.enabled : current.enabled,
       viewports: settings.viewports
         ? normalizeViewportProfiles({ ...current.viewports, ...settings.viewports })
         : current.viewports,
+      network: settings.network ? { ...current.network, ...settings.network } : current.network,
     };
 
     const next = writeSettings(nextSettings);
+    // A shorter timeout or a lower ceiling must reach sessions already open.
+    if (next.sessionTtlMinutes !== current.sessionTtlMinutes) {
+      await browserRuntime.applySessionPolicy();
+    }
     // Only the enable flag owns provider registration; a viewport save must not
     // rewrite every provider's MCP config.
     if (next.enabled !== current.enabled) {
@@ -327,6 +410,12 @@ export const browserUseService = {
     return next;
   },
 
+  // Read when an MCP connection is opened, so a change reaches the next agent
+  // session without a restart.
+  getNetworkPolicy(): BrowserNetworkPolicy {
+    return readSettings().network;
+  },
+
   // The registry lives in the Playwright package, so the picker in Settings can
   // only be filled from the server.
   async listDeviceDescriptors() {
@@ -337,6 +426,11 @@ export const browserUseService = {
         min: MIN_VIEWPORT_EDGE,
         max: MAX_VIEWPORT_EDGE,
         recommendedMax: RECOMMENDED_MAX_VIEWPORT_EDGE,
+      },
+      sessions: {
+        minSessions: MIN_MAX_SESSIONS,
+        maxSessions: MAX_MAX_SESSIONS,
+        maxTtlMinutes: MAX_SESSION_TTL_MINUTES,
       },
     };
   },

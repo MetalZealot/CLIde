@@ -81,6 +81,7 @@ type BrowserRuntimeOptions = {
   profileRoot?: string;
   now?: () => number;
   loadViewportProfiles?: () => BrowserViewportProfiles | null;
+  loadSessionPolicy?: () => BrowserSessionPolicy | null;
 };
 
 type RuntimeProbe = Omit<BrowserRuntimeReadiness, 'installInProgress' | 'installMessage'>;
@@ -112,6 +113,34 @@ export const DEFAULT_VIEWPORT_PROFILES: BrowserViewportProfiles = {
   phone: { mode: 'device', device: TOUCH_BASE_DESCRIPTORS.phone },
   tablet: { mode: 'device', device: TOUCH_BASE_DESCRIPTORS.tablet },
 };
+
+// Which preset a session opens at when the agent names none, and the two
+// limits that bound how much of this machine's memory sessions may hold.
+export type BrowserSessionPolicy = {
+  defaultDevice: BrowserDevicePreset;
+  maxSessions: number;
+  // Infinite means idle sessions are never reclaimed; they still close on
+  // release, disconnect and shutdown.
+  sessionTtlMs: number;
+};
+
+export const MIN_MAX_SESSIONS = 1;
+export const MAX_MAX_SESSIONS = 10;
+export const MAX_SESSION_TTL_MINUTES = 720;
+
+export const DEFAULT_SESSION_POLICY: BrowserSessionPolicy = {
+  defaultDevice: 'desktop',
+  maxSessions: DEFAULT_MAX_SESSIONS,
+  sessionTtlMs: DEFAULT_SESSION_TTL_MS,
+};
+
+export function sessionTtlMinutesToMs(minutes: number): number {
+  return minutes > 0 ? minutes * 60_000 : Number.POSITIVE_INFINITY;
+}
+
+export function sessionTtlMsToMinutes(ms: number): number {
+  return Number.isFinite(ms) ? Math.round(ms / 60_000) : 0;
+}
 
 export const MIN_VIEWPORT_EDGE = 240;
 export const MAX_VIEWPORT_EDGE = 4000;
@@ -257,13 +286,21 @@ export function resolveProfileDirectory(profileName: string, profileRoot = DEFAU
 
 export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
   const loadPlaywright = options.loadPlaywright || loadPlaywrightPackage;
-  const maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS;
-  const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
+  const fallbackPolicy: BrowserSessionPolicy = {
+    defaultDevice: DEFAULT_SESSION_POLICY.defaultDevice,
+    maxSessions: options.maxSessions ?? DEFAULT_SESSION_POLICY.maxSessions,
+    sessionTtlMs: options.sessionTtlMs ?? DEFAULT_SESSION_POLICY.sessionTtlMs,
+  };
   const profileRoot = options.profileRoot || DEFAULT_PROFILE_ROOT;
   const now = options.now || Date.now;
   // Set by the settings service, which owns the stored profiles; read on every
   // context creation so a saved change reaches the next session without a restart.
   let loadViewportProfiles = options.loadViewportProfiles || ((): BrowserViewportProfiles | null => null);
+  let loadSessionPolicy = options.loadSessionPolicy || ((): BrowserSessionPolicy | null => null);
+
+  function policy(): BrowserSessionPolicy {
+    return loadSessionPolicy() || fallbackPolicy;
+  }
 
   const leases = new Map<string, BrowserContextLease>();
   const lockedProfiles = new Map<string, string>();
@@ -273,6 +310,7 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
   let sharedBrowser: Promise<any> | null = null;
   let sharedBrowserGeneration = 0;
   let expiryTimer: NodeJS.Timeout | null = null;
+  let expiryIntervalMs = 0;
   let installPromise: Promise<{ success: boolean; message: string }> | null = null;
   let lastInstallMessage: string | null = null;
   let probeCache: { value: RuntimeProbe; updatedAt: number } | null = null;
@@ -462,18 +500,26 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     await browser?.close?.().catch(() => undefined);
   }
 
+  // Also the path a settings change takes: the interval is derived from the
+  // current timeout, so a shortened one replaces a running timer rather than
+  // waiting for it to lapse.
   function updateExpiryTimer(): void {
-    if (leases.size === 0) {
-      if (expiryTimer) {
-        clearInterval(expiryTimer);
-        expiryTimer = null;
-      }
+    const sessionTtlMs = policy().sessionTtlMs;
+    const wanted = leases.size > 0 && Number.isFinite(sessionTtlMs) && sessionTtlMs > 0
+      ? Math.min(sessionTtlMs, 60_000)
+      : 0;
+    if (wanted === expiryIntervalMs) {
       return;
     }
-    if (!expiryTimer && Number.isFinite(sessionTtlMs) && sessionTtlMs > 0) {
+    if (expiryTimer) {
+      clearInterval(expiryTimer);
+      expiryTimer = null;
+    }
+    expiryIntervalMs = wanted;
+    if (wanted > 0) {
       expiryTimer = setInterval(() => {
         void expireIdle();
-      }, Math.min(sessionTtlMs, 60_000));
+      }, wanted);
       expiryTimer.unref?.();
     }
   }
@@ -508,12 +554,13 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
 
   async function acquireContext(request: BrowserContextRequest = {}): Promise<BrowserContextLease> {
     await expireIdle();
+    const { defaultDevice, maxSessions } = policy();
     if (leases.size >= maxSessions) {
       throw new Error(`Browser is limited to ${maxSessions} active agent sessions.`);
     }
 
     const playwright = requirePlaywright();
-    const device = request.device || 'desktop';
+    const device = request.device || defaultDevice;
     const orientation = request.orientation || (device === 'desktop' ? 'landscape' : 'portrait');
     const profileName = normalizeProfileName(request.profileName);
     const contextOptions = contextOptionsFor(playwright, device, orientation);
@@ -619,6 +666,7 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
 
   async function expireIdle(): Promise<BrowserContextLease[]> {
     const at = now();
+    const sessionTtlMs = policy().sessionTtlMs;
     const expired = [...leases.values()].filter((lease) => at - lease.lastUsedAt > sessionTtlMs);
     await Promise.all(expired.map((lease) => dropLease(lease, 'expired', { closeContext: true })));
     return expired;
@@ -635,6 +683,18 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
 
     setViewportProfileLoader(loader: () => BrowserViewportProfiles | null): void {
       loadViewportProfiles = loader;
+    },
+
+    setSessionPolicyLoader(loader: () => BrowserSessionPolicy | null): void {
+      loadSessionPolicy = loader;
+      updateExpiryTimer();
+    },
+
+    // Called when the stored policy changes, so a shortened timeout reaches
+    // sessions that are already open.
+    async applySessionPolicy(): Promise<void> {
+      updateExpiryTimer();
+      await expireIdle();
     },
 
     getLease(id: string): BrowserContextLease | null {

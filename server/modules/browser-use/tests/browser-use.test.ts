@@ -11,6 +11,7 @@ import express from 'express';
 import { createBrowserMcpEndpoint } from '@/modules/browser-use/browser-use-mcp-endpoint.service.js';
 import {
   browserUseService,
+  normalizeOriginList,
   pruneStoppedSessions,
   publicBrowserSession,
   type BrowserUseSession,
@@ -19,9 +20,11 @@ import {
   createBrowserRuntime,
   normalizeViewportProfiles,
   resolveProfileDirectory,
+  sessionTtlMinutesToMs,
   DEFAULT_VIEWPORT_PROFILES,
   MAX_VIEWPORT_EDGE,
   type BrowserLeaseReleaseReason,
+  type BrowserSessionPolicy,
   type BrowserViewportProfiles,
 } from '@/modules/browser-use/browser-use-runtime.service.js';
 
@@ -78,18 +81,26 @@ function makeRuntime(overrides: {
   sessionTtlMs?: number;
   profileRoot?: string;
   viewportProfiles?: BrowserViewportProfiles;
+  sessionPolicy?: BrowserSessionPolicy | null;
 } = {}) {
   const { playwright, calls } = makeFakePlaywright();
   let clock = 1_000;
+  let policy = overrides.sessionPolicy ?? null;
   const runtime = createBrowserRuntime({
     loadPlaywright: () => playwright,
     maxSessions: overrides.maxSessions ?? 3,
     sessionTtlMs: overrides.sessionTtlMs ?? 60_000,
     profileRoot: overrides.profileRoot ?? '/tmp/clide-browser-runtime-test/profiles',
     loadViewportProfiles: () => overrides.viewportProfiles ?? null,
+    loadSessionPolicy: () => policy,
     now: () => clock,
   });
-  return { runtime, calls, advance: (ms: number) => { clock += ms; } };
+  return {
+    runtime,
+    calls,
+    advance: (ms: number) => { clock += ms; },
+    setPolicy: (next: BrowserSessionPolicy | null) => { policy = next; },
+  };
 }
 
 describe('browser-use monitor projections', () => {
@@ -306,6 +317,43 @@ describe('browser-use-runtime.service', () => {
     assert.equal(events[1]?.reason, 'shutdown');
     assert.equal(calls.browserCloses, 1);
     assert.equal(runtime.listLeases().length, 0);
+  });
+
+  test('the stored policy supplies the starting preset, the cap and the timeout', async () => {
+    const { runtime, advance, setPolicy } = makeRuntime({
+      maxSessions: 3,
+      sessionTtlMs: 60_000,
+      sessionPolicy: { defaultDevice: 'tablet', maxSessions: 1, sessionTtlMs: 1_000 },
+    });
+
+    // The preset applies only when the agent names none of its own.
+    const tablet = await runtime.acquireContext();
+    assert.equal(tablet.device, 'tablet');
+    assert.equal(tablet.orientation, 'portrait');
+    await assert.rejects(() => runtime.acquireContext(), /limited to 1 active agent session/);
+
+    advance(1_100);
+    assert.deepEqual((await runtime.expireIdle()).map((lease) => lease.id), [tablet.id]);
+
+    // Raising the cap and turning the timeout off both land without a restart.
+    setPolicy({ defaultDevice: 'desktop', maxSessions: 2, sessionTtlMs: sessionTtlMinutesToMs(0) });
+    const desktop = await runtime.acquireContext();
+    const phone = await runtime.acquireContext({ device: 'phone' });
+    assert.equal(desktop.device, 'desktop');
+    assert.equal(phone.device, 'phone');
+
+    advance(24 * 60 * 60_000);
+    assert.deepEqual(await runtime.expireIdle(), []);
+    await runtime.closeAll();
+  });
+
+  test('origin lists are split, trimmed and deduplicated', () => {
+    assert.deepEqual(
+      normalizeOriginList('  http://localhost:*  \n\nhttps://example.com/\nhttp://localhost:*\n'),
+      ['http://localhost:*', 'https://example.com'],
+    );
+    assert.deepEqual(normalizeOriginList(['  ', null, 'https://example.com']), ['https://example.com']);
+    assert.deepEqual(normalizeOriginList(undefined), []);
   });
 
   test('readiness reports missing Chromium without installing packages', () => {

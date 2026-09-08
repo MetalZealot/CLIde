@@ -148,12 +148,16 @@ async function createPlaywrightMcpConnection(
 ): Promise<McpServerConnection> {
   // Imported on first connection so the Playwright tree stays out of startup.
   const { createConnection } = await import('@playwright/mcp');
+  const network = browserUseService.getNetworkPolicy();
   return createConnection({
     capabilities: ENABLED_CAPABILITIES as [],
     outputDir,
     outputMaxSize: OUTPUT_MAX_BYTES,
     secrets: collectSecrets(),
     timeouts: { action: ACTION_TIMEOUT_MS },
+    // Both lists guard on length, so an empty allow list means "any origin"
+    // rather than "none" (read from playwright-core's coreBundle).
+    network,
   }, getContext) as unknown as McpServerConnection;
 }
 
