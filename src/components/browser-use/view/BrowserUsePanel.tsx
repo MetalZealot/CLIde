@@ -200,6 +200,22 @@ function SessionChip({
   );
 }
 
+// The fullscreen viewer's three scales.  Native pinch-zoom is suppressed
+// app-wide, so the scale is picked here rather than by gesture.
+type CaptureZoom = 'fit' | 'fill' | 'actual';
+
+const CAPTURE_ZOOMS: { id: CaptureZoom; label: string; title: string }[] = [
+  { id: 'fit', label: 'Fit', title: 'Fit the whole capture on screen' },
+  { id: 'fill', label: 'Fill', title: 'Fill the width and scroll' },
+  { id: 'actual', label: '1:1', title: 'Actual pixels' },
+];
+
+const CAPTURE_ZOOM_CLASSES: Record<CaptureZoom, string> = {
+  fit: 'max-h-full max-w-full object-contain',
+  fill: 'w-full max-w-none',
+  actual: 'max-w-none',
+};
+
 export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUsePanelProps) {
   const [status, setStatus] = useState<BrowserUseStatus | null>(null);
   const [sessions, setSessions] = useState<BrowserUseSession[]>([]);
@@ -207,6 +223,8 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   const [isBusy, setIsBusy] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [captureZoom, setCaptureZoom] = useState<CaptureZoom>('fill');
+  const lastCaptureTapRef = useRef(0);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [actionMenu, setActionMenu] = useState<{ sessionId: string; anchor: ContextMenuAnchor } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -316,6 +334,31 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
     await readJson(response);
     setIsFullscreen(false);
   });
+
+  const openFullscreen = () => {
+    setCaptureZoom('fill');
+    setIsFullscreen(true);
+  };
+
+  // dblclick is unreliable on touch once page zoom is disabled, so time the taps.
+  const handleCaptureTap = () => {
+    const now = Date.now();
+    if (now - lastCaptureTapRef.current < 300) {
+      lastCaptureTapRef.current = 0;
+      setCaptureZoom((zoom) => (zoom === 'actual' ? 'fit' : 'actual'));
+      return;
+    }
+    lastCaptureTapRef.current = now;
+  };
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isFullscreen]);
 
   const installBrowserBinaries = () => runAction(async () => {
     setIsInstalling(true);
@@ -555,7 +598,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                       variant="ghost"
                       size="sm"
                       className="composer-send-hit-target h-8 w-8 shrink-0 p-0 text-white hover:bg-white/20 hover:text-white"
-                      onClick={() => setIsFullscreen(true)}
+                      onClick={openFullscreen}
                       disabled={!selectedSession?.screenshotDataUrl}
                       title="Full screen"
                       aria-label="Full screen"
@@ -720,26 +763,56 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       </Dialog>
 
       {isFullscreen && selectedSession && (
-        <div className="safe-top fixed inset-0 z-50 bg-black/90 p-6">
-          <div className="flex h-full flex-col rounded-md border border-white/10 bg-black">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-sm text-white/80">
-              <div className="min-w-0 truncate">{selectedSession.title || selectedSession.url || 'Browser session'}</div>
-              <Button variant="outline" size="sm" onClick={() => setIsFullscreen(false)}>
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="safe-top shrink-0 border-b border-white/10 bg-black">
+            <div className="flex items-center gap-2 px-3 py-2 text-sm text-white/80">
+              <div className="min-w-0 flex-1 truncate">{selectedSession.title || selectedSession.url || 'Browser session'}</div>
+              <div className="flex shrink-0 items-center gap-0.5 rounded-md border border-white/15 p-0.5" role="group" aria-label="Capture zoom">
+                {CAPTURE_ZOOMS.map((zoom) => (
+                  <Button
+                    key={zoom.id}
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'h-7 px-2 text-xs text-white/70 hover:bg-white/20 hover:text-white',
+                      captureZoom === zoom.id && 'bg-white/20 text-white',
+                    )}
+                    onClick={() => setCaptureZoom(zoom.id)}
+                    title={zoom.title}
+                    aria-pressed={captureZoom === zoom.id}
+                  >
+                    {zoom.label}
+                  </Button>
+                ))}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="composer-send-hit-target h-8 w-8 shrink-0 p-0 text-white hover:bg-white/20 hover:text-white"
+                onClick={() => setIsFullscreen(false)}
+                title="Close full screen"
+                aria-label="Close full screen"
+              >
                 <X className="h-4 w-4" />
-                Close
               </Button>
             </div>
-            <div className="flex flex-1 items-center justify-center overflow-auto bg-neutral-950">
-              {selectedSession.screenshotDataUrl ? (
-                <img
-                  src={selectedSession.screenshotDataUrl}
-                  alt={`Latest capture of ${selectedSession.title || getDomain(selectedSession.url)}`}
-                  className="block max-h-full w-auto max-w-full object-contain"
-                />
-              ) : (
-                <div className="px-6 text-center text-sm text-neutral-100">{selectedSession.message || 'Waiting for screenshot'}</div>
-              )}
-            </div>
+          </div>
+          <div
+            className={cn(
+              'min-h-0 flex-1 overflow-auto bg-neutral-950',
+              (captureZoom === 'fit' || !selectedSession.screenshotDataUrl) && 'flex items-center justify-center',
+            )}
+            onClick={handleCaptureTap}
+          >
+            {selectedSession.screenshotDataUrl ? (
+              <img
+                src={selectedSession.screenshotDataUrl}
+                alt={`Latest capture of ${selectedSession.title || getDomain(selectedSession.url)}`}
+                className={cn('block', CAPTURE_ZOOM_CLASSES[captureZoom])}
+              />
+            ) : (
+              <div className="px-6 text-center text-sm text-neutral-100">{selectedSession.message || 'Waiting for screenshot'}</div>
+            )}
           </div>
         </div>
       )}
