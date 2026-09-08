@@ -64,6 +64,7 @@
     "update:platform": "./update-platform.sh",
     "check:docs": "node scripts/check-docs.mjs",
     "check:providers": "node scripts/check-providers.mjs",
+    "check:upstream": "node scripts/check-upstream.mjs",
     "check:tests": "node scripts/check-tests.mjs",
     "docs:dashboard": "node scripts/build-project-dashboard.mjs",
     "test:docs:dashboard": "node --test scripts/build-project-dashboard.test.mjs"
