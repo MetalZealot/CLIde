@@ -1,12 +1,19 @@
-// Pure helpers exported by the chat hooks: composer popover routing, send-time
-// model/effort selection, effort/model compatibility, and realtime
-// permission-request de-duplication.
+// Chat-hook regressions: composer routing and settings, queued-send ordering,
+// realtime request de-duplication, message normalization, and voice playback.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+
+import { useAsyncAnswerQueueAutoSend } from '../../../hooks/useAsyncAnswerQueueAutoSend';
+import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSend';
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import type { PendingPermissionRequest } from '../types/types';
 import { formatPlaybackTime, VoicePlayer, voiceId } from '../../../lib/voicePlayer';
+import { api } from '../../../utils/api';
+import { enqueueAsyncAnswer } from '../utils/asyncQuestionState';
+import { writeQueuedMessage } from '../utils/chatStorage';
 
 import {
   describeDropRejections,
@@ -128,6 +135,97 @@ test('an established session with no tracked value sends none, so the server res
 test('only a chat with no id yet inherits the provider seed', () => {
   assert.equal(resolveSessionSendSetting(null, 'high', false), 'high');
   assert.equal(resolveSessionSendSetting(null, undefined, false), undefined);
+});
+
+test('a composer message dispatches before a queued async answer', async () => {
+  const sessionId = `queue-priority-${Date.now()}`;
+  const sent: Array<{ content?: string }> = [];
+  const originalRunningSessions = api.runningSessions;
+  const originalWebSocket = globalThis.WebSocket;
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  let markIdle: (() => void) | null = null;
+
+  class OpenWebSocket {
+    static readonly OPEN = 1;
+    readonly readyState = OpenWebSocket.OPEN;
+  }
+
+  writeQueuedMessage(sessionId, { content: 'COMPOSER-FIRST' });
+  enqueueAsyncAnswer(sessionId, {
+    id: 'async-answer-1',
+    questionId: 'question-1',
+    question: 'Continue?',
+    answer: 'Yes',
+    content: '> Continue?\n\nYes',
+    provider: 'codex',
+    queuedAt: '2026-09-07T12:00:00.000Z',
+  });
+
+  globalThis.WebSocket = OpenWebSocket as unknown as typeof WebSocket;
+  api.runningSessions = async () => new Response(JSON.stringify({ data: { sessions: [] } }));
+  document.body.appendChild(host);
+
+  function Harness() {
+    const [processingSessions, setProcessingSessions] = React.useState(new Map([[
+      sessionId,
+      { statusText: null, canInterrupt: true, startedAt: Date.now() },
+    ]]));
+    const markSessionProcessing = React.useCallback((targetSessionId?: string | null) => {
+      if (!targetSessionId) return;
+      setProcessingSessions((previous) => new Map(previous).set(targetSessionId, {
+        statusText: null,
+        canInterrupt: true,
+        startedAt: Date.now(),
+      }));
+    }, []);
+    markIdle = () => setProcessingSessions(new Map());
+
+    const ws = React.useMemo(() => new OpenWebSocket() as unknown as WebSocket, []);
+    const sendMessage = React.useCallback((message: unknown) => {
+      sent.push(message as { content?: string });
+      return true;
+    }, []);
+
+    useQueuedMessageAutoSend({
+      processingSessions,
+      activeSessionId: null,
+      ws,
+      sendMessage,
+      markSessionProcessing,
+    });
+    useAsyncAnswerQueueAutoSend({
+      processingSessions,
+      ws,
+      sendMessage,
+      markSessionProcessing,
+    });
+    return null;
+  }
+
+  try {
+    await React.act(async () => root.render(React.createElement(Harness)));
+    await React.act(async () => markIdle?.());
+    await React.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 850));
+    });
+    assert.deepEqual(sent.map((message) => message.content), ['COMPOSER-FIRST']);
+
+    await React.act(async () => markIdle?.());
+    await React.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 850));
+    });
+    assert.deepEqual(sent.map((message) => message.content), [
+      'COMPOSER-FIRST',
+      '> Continue?\n\nYes',
+    ]);
+  } finally {
+    await React.act(async () => root.unmount());
+    host.remove();
+    localStorage.clear();
+    api.runningSessions = originalRunningSessions;
+    globalThis.WebSocket = originalWebSocket;
+  }
 });
 
 test('composer Tab shortcuts keep permissions and collaboration distinct', () => {
