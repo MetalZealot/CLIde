@@ -20,6 +20,7 @@ import AccountScreen from './screens/AccountScreen';
 import AgentProviderScreen from './screens/AgentProviderScreen';
 import AgentSkillsScreen from './screens/AgentSkillsScreen';
 import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
+import ExtensionsBrowserScreen from './screens/ExtensionsBrowserScreen';
 import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
 import AgentAccountCard from './sections/agent/AgentAccountCard';
 import AgentCodexRuntimeSection from './sections/agent/AgentCodexRuntimeSection';
@@ -1377,5 +1378,157 @@ describe('AgentSkillsScreen', () => {
     const skillsRow = [...container.querySelectorAll('button')]
       .find((row) => row.textContent?.includes('Skills'));
     assert.match(skillsRow?.textContent ?? '', /1/);
+  });
+});
+
+describe('ExtensionsBrowserScreen', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+  const originalFetch = globalThis.fetch;
+  let saved: Record<string, unknown>[] = [];
+
+  const DEVICES = [
+    { name: 'Desktop Chrome', width: 1280, height: 720, isMobile: false, hasTouch: false, deviceScaleFactor: 1 },
+    { name: 'Galaxy Tab S4', width: 712, height: 1138, isMobile: true, hasTouch: true, deviceScaleFactor: 2.25 },
+    { name: 'Pixel 7', width: 412, height: 839, isMobile: true, hasTouch: true, deviceScaleFactor: 2.625 },
+  ];
+
+  const viewports = {
+    desktop: { mode: 'custom', width: 1440, height: 900 },
+    tablet: { mode: 'device', device: 'Galaxy Tab S4' },
+    phone: { mode: 'device', device: 'Pixel 7' },
+  };
+
+  beforeEach(() => {
+    saved = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/browser-use/devices')) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: { devices: DEVICES, defaults: viewports, limits: { min: 240, max: 4000, recommendedMax: 1568 } },
+        }), { status: 200 });
+      }
+      if (url.includes('/browser-use/status')) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            enabled: true, available: true, playwrightInstalled: true,
+            chromiumInstalled: true, installInProgress: false, message: 'ready',
+          },
+        }), { status: 200 });
+      }
+      if (init?.method === 'PUT') {
+        saved.push(JSON.parse(String(init.body)));
+      }
+      // The screen is server-authoritative on save, so the reply carries the
+      // stored settings, not the request.
+      const settings = {
+        enabled: true,
+        viewports,
+        defaultDevice: 'desktop',
+        maxSessions: 3,
+        sessionTtlMinutes: 30,
+        network: { allowedOrigins: [], blockedOrigins: [] },
+        ...(saved.at(-1) || {}),
+      };
+      return new Response(JSON.stringify({ success: true, data: { settings } }), { status: 200 });
+    }) as typeof globalThis.fetch;
+  });
+
+  afterEach(async () => {
+    await React.act(async () => root?.unmount());
+    container?.remove();
+    globalThis.fetch = originalFetch;
+    root = null;
+    container = null;
+  });
+
+  const render = async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => root?.render(<ExtensionsBrowserScreen />));
+    await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    return container;
+  };
+
+  const selects = () => [...(container?.querySelectorAll('select') ?? [])];
+
+  test('each preset offers only the devices that belong to it, plus a custom size', async () => {
+    await render();
+
+    const [desktop, tablet, phone] = selects();
+    const labels = (select: HTMLSelectElement) => [...select.options].map((option) => option.value);
+
+    assert.deepEqual(labels(desktop), ['device:Desktop Chrome', 'custom']);
+    assert.deepEqual(labels(tablet), ['device:Galaxy Tab S4', 'custom']);
+    assert.deepEqual(labels(phone), ['device:Pixel 7', 'custom']);
+    // Desktop is stored as a custom size, so it selects that rather than a device.
+    assert.equal(desktop.value, 'custom');
+    assert.equal(phone.value, 'device:Pixel 7');
+  });
+
+  test('switching a preset to a custom size saves it, and an oversized one is called out', async () => {
+    await render();
+
+    const phone = selects()[2];
+    await React.act(async () => {
+      phone.value = 'custom';
+      phone.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    assert.deepEqual(saved.at(-1), {
+      viewports: { ...viewports, phone: { mode: 'custom', width: 412, height: 839 } },
+    });
+
+    // Desktop is custom too, so the phone's pair is the last one on the screen.
+    const widths = [...(container?.querySelectorAll('input[aria-label="Viewport width in pixels"]') ?? [])];
+    assert.equal((widths.at(-1) as HTMLInputElement).value, '412');
+    assert.equal(container?.textContent?.includes('Wider than 1568 px'), false);
+  });
+
+  test('the session limits save the stored shape, and Never is offered last', async () => {
+    await render();
+
+    const timeout = selects().find((select) => select.getAttribute('aria-label') === 'Idle timeout');
+    assert.ok(timeout);
+    assert.deepEqual([...timeout.options].map((option) => option.value), ['5', '15', '30', '60', '0']);
+    assert.equal(timeout.value, '30');
+
+    await React.act(async () => {
+      timeout.value = '0';
+      timeout.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    assert.deepEqual(saved.at(-1), { sessionTtlMinutes: 0 });
+  });
+
+  test('an origin list saves on blur, one origin per line', async () => {
+    await render();
+
+    const allowed = container?.querySelector('textarea[aria-label="Allowed"]') as HTMLTextAreaElement;
+    assert.ok(allowed);
+    assert.equal(allowed.value, '');
+
+    await React.act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        'value',
+      )?.set;
+      valueSetter?.call(allowed, ' http://localhost:*  \n\nhttps://example.com\n');
+      allowed.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+    // Typing is a draft; only losing focus saves.
+    assert.equal(saved.length, 0);
+
+    await React.act(async () => {
+      // React maps onBlur to the bubbling focusout event.
+      allowed.dispatchEvent(new window.FocusEvent('focusout', { bubbles: true }));
+    });
+
+    assert.deepEqual(saved.at(-1), {
+      network: { allowedOrigins: ['http://localhost:*', 'https://example.com'], blockedOrigins: [] },
+    });
   });
 });

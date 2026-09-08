@@ -839,6 +839,59 @@
       "install": "Install Runtime",
       "installing": "Installing..."
     },
+    "viewport": {
+      "title": "Viewport",
+      "description": "The size each device preset opens at. Agents pick the preset; this picks what it means. Applies to sessions created after the change.",
+      "custom": "Custom size...",
+      "width": "Viewport width in pixels",
+      "height": "Viewport height in pixels",
+      "descriptorDetail": "{{scale}}× pixel density, {{input}}",
+      "touch": "touch input",
+      "pointer": "mouse and keyboard",
+      "oversized": "Wider than {{limit}} px — screenshots are scaled down to about that before an agent reads them, so the extra width costs the same and reads softer.",
+      "presets": {
+        "desktop": "Desktop",
+        "tablet": "Tablet",
+        "phone": "Mobile"
+      },
+      "descriptions": {
+        "desktop": "Mouse and keyboard, no touch emulation.",
+        "tablet": "Touch emulation with a tablet user agent.",
+        "phone": "Touch emulation with a phone user agent."
+      }
+    },
+    "sessions": {
+      "title": "Sessions",
+      "description": "What an agent's browser opens as, and how many may be open at once. A shorter idle timeout also reaches sessions that are already open.",
+      "defaultDevice": {
+        "label": "Starting preset",
+        "description": "Which preset a session opens at when the agent asks for no particular one. An agent can still switch preset mid-session."
+      },
+      "maxSessions": {
+        "label": "Concurrent sessions",
+        "description": "How many sessions may be open at once. Each one is a separate Chromium context holding its own memory."
+      },
+      "idleTimeout": {
+        "label": "Idle timeout",
+        "description": "A session with no agent activity for this long is closed and its memory released."
+      },
+      "minutes_one": "{{count}} minute",
+      "minutes_other": "{{count}} minutes",
+      "never": "Never"
+    },
+    "origins": {
+      "title": "Allowed sites",
+      "description": "Which sites an agent's browser may load. An origin is a scheme, host and port — https://example.com, or http://localhost:* for any port on localhost.",
+      "allowedOrigins": {
+        "label": "Allowed",
+        "description": "One origin per line. Leave empty to allow every site."
+      },
+      "blockedOrigins": {
+        "label": "Blocked",
+        "description": "One origin per line. A site on both lists is blocked."
+      },
+      "placeholder": "https://example.com"
+    },
     "errors": {
       "loadSettings": "Failed to load Browser settings",
       "loadStatus": "Failed to load Browser status",

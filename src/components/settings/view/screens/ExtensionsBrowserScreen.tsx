@@ -6,8 +6,14 @@ import { Button } from '../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../utils/api';
 import { SettingsGroup, SettingsRow, SettingsScreen, SettingsToggle } from '../primitives';
 
-type BrowserUseSettings = {
+import BrowserOriginSettings, { type BrowserNetworkPolicy } from './BrowserOriginSettings';
+import BrowserSessionSettings, { type BrowserSessionPolicy } from './BrowserSessionSettings';
+import BrowserViewportSettings, { type BrowserViewportProfiles } from './BrowserViewportSettings';
+
+type BrowserUseSettings = BrowserSessionPolicy & {
   enabled: boolean;
+  viewports: BrowserViewportProfiles;
+  network: BrowserNetworkPolicy;
 };
 
 type BrowserUseStatus = {
@@ -191,6 +197,48 @@ export default function ExtensionsBrowserScreen() {
             </div>
           )}
         </div>
+      </SettingsGroup>
+
+      <SettingsGroup
+        divided
+        title={t('browserSettings.viewport.title')}
+        description={t('browserSettings.viewport.description')}
+      >
+        <BrowserViewportSettings
+          viewports={settings?.viewports || null}
+          onChange={(viewports) => void updateSettings({ viewports })}
+          disabled={isSaving}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup
+        divided
+        title={t('browserSettings.sessions.title')}
+        description={t('browserSettings.sessions.description')}
+      >
+        <BrowserSessionSettings
+          policy={settings
+            ? {
+              defaultDevice: settings.defaultDevice,
+              maxSessions: settings.maxSessions,
+              sessionTtlMinutes: settings.sessionTtlMinutes,
+            }
+            : null}
+          onChange={(policy) => void updateSettings(policy)}
+          disabled={isSaving}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup
+        divided
+        title={t('browserSettings.origins.title')}
+        description={t('browserSettings.origins.description')}
+      >
+        <BrowserOriginSettings
+          network={settings?.network || null}
+          onChange={(network) => void updateSettings({ network })}
+          disabled={isSaving}
+        />
       </SettingsGroup>
     </SettingsScreen>
   );
