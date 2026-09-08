@@ -6,6 +6,8 @@
 
 **Automated entry point:** `npm run test:codex`
 
+**Last full live acceptance:** 0.153.4 on isolated slot B, 2026-09-08
+
 This map answers a narrower question than the
 [Codex native surface map](codex-cli-sdk-app-server.md): does the Codex behavior
 CLIde already claims still survive every application boundary?

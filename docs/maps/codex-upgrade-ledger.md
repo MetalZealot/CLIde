@@ -265,5 +265,16 @@ Each stable upgrade records:
   id and tool rendering across reload and resume, then explicit `/fork` created
   a separate CLIde row whose native `forked_from_id` points to the parent. The
   service ran the checkout-bundled Codex App Server 0.153.4 throughout.
-  Broader conformance rows and production deployment remain separate, and
+  The remaining live matrix then passed in low-effort Test-account sessions:
+  Plan recorded native `plan` context and the next Build turn explicitly reset
+  to `default`; an image and JSON file reached Codex and survived reload;
+  command, file-change, MCP, and web activity persisted; first and resumed
+  Stops emitted `turn_aborted`, cleared the run registry, produced no later
+  final, and kept one CLIde row. Session and account usage loaded, with the
+  account request spawning a separate short-lived App Server beside Chat's
+  persistent process. The explicit SDK transport completed a text/image Chat
+  while advertising none of the App-Server-only capabilities, after which slot
+  B returned to the bundled App Server with its database unchanged. Codex
+  0.153.4 presents the MCP invocation inside its generic `exec` wrapper rather
+  than as a dedicated MCP card. Production deployment remains separate and
   production is unchanged.
