@@ -762,6 +762,75 @@ describe('codex-sessions', () => {
       await rm(tempRoot, { recursive: true, force: true });
     }
   });
+
+  test('Codex history stitches a rewind fork back onto its parent rollout', { concurrency: false }, async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-fork-history-'));
+    const workspacePath = path.join(tempRoot, 'workspace');
+    // The parent sits under its own creation date, so the child's directory is
+    // never enough to find it.
+    const parentDir = path.join(tempRoot, '.codex', 'sessions', '2026', '07', '07');
+    const childDir = path.join(tempRoot, '.codex', 'sessions', '2026', '07', '08');
+    await mkdir(workspacePath, { recursive: true });
+    await mkdir(parentDir, { recursive: true });
+    await mkdir(childDir, { recursive: true });
+    const restoreHomeDir = patchHomeDir(tempRoot);
+
+    const userRow = (ordinal: number, timestamp: string, turnId: string, text: string) => [
+      JSON.stringify({ ordinal, timestamp, type: 'turn_context', payload: { turn_id: turnId } }),
+      JSON.stringify({
+        ordinal: ordinal + 1,
+        timestamp,
+        type: 'response_item',
+        payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
+      }),
+    ];
+
+    try {
+      await writeFile(path.join(parentDir, 'rollout-fork-parent.jsonl'), [
+        JSON.stringify({ ordinal: 0, type: 'session_meta', payload: { id: 'fork-parent', cwd: workspacePath } }),
+        ...userRow(1, '2026-09-01T12:00:00.000Z', 'turn-kept', 'Prompt before the rewind'),
+        // The turn the rewind abandoned; it survives on disk but must not render.
+        ...userRow(3, '2026-09-01T12:01:00.000Z', 'turn-abandoned', 'Draft that was edited away'),
+      ].join('\n') + '\n', 'utf8');
+
+      const childPath = path.join(childDir, 'rollout-fork-child.jsonl');
+      await writeFile(childPath, [
+        JSON.stringify({
+          ordinal: 3,
+          type: 'session_meta',
+          payload: {
+            id: 'fork-child',
+            cwd: workspacePath,
+            forked_from_id: 'fork-parent',
+            forked_from_ordinal_exclusive: 3,
+          },
+        }),
+        ...userRow(4, '2026-09-01T12:02:00.000Z', 'turn-resent', 'Edited prompt, resent'),
+      ].join('\n') + '\n', 'utf8');
+
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createSession(
+          'app-fork-session',
+          'codex',
+          workspacePath,
+          undefined,
+          undefined,
+          undefined,
+          childPath,
+        );
+        const history = await new CodexSessionsProvider().fetchHistory('app-fork-session');
+        const users = history.messages.filter((message) => message.role === 'user');
+
+        assert.deepEqual(users.map((message) => message.content), [
+          'Prompt before the rewind',
+          'Edited prompt, resent',
+        ]);
+      });
+    } finally {
+      restoreHomeDir();
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('codex-models', () => {

@@ -1,8 +1,9 @@
-import fsSync from 'node:fs';
-import readline from 'node:readline';
-
 import { sessionsDb } from '@/modules/database/index.js';
 import { isCodexAppServerChatEnabled } from '@/modules/providers/list/codex/codex-chat-transport-state.js';
+import {
+  buildCodexTranscriptChain,
+  streamCodexTranscriptRows,
+} from '@/modules/providers/list/codex/codex-transcript-chain.js';
 import { parseFilesInputTag, toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
@@ -431,20 +432,12 @@ async function getCodexSessionMessages(
       timestamp?: string;
       rawMessage: AnyRecord;
     } | null = null;
-    const fileStream = fsSync.createReadStream(sessionFilePath);
-    const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity,
-    });
+    // A rewound or forked Codex session lives across several rollouts; the one
+    // on the row holds only what came after the fork.
+    const segments = await buildCodexTranscriptChain(sessionFilePath);
 
-    for await (const line of rl) {
-      if (!line.trim()) {
-        continue;
-      }
-
+    for await (const entry of streamCodexTranscriptRows(segments)) {
       try {
-        const entry = JSON.parse(line) as AnyRecord;
-
         if (
           (entry.type === 'turn_context' || entry.type === 'event_msg')
           && typeof entry.payload?.turn_id === 'string'
@@ -889,7 +882,7 @@ async function getCodexSessionMessages(
           });
         }
       } catch {
-        // Skip malformed lines.
+        // Skip rows this reader cannot interpret.
       }
     }
 
