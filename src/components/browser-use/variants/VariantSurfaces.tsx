@@ -1,10 +1,11 @@
 // Temporary variant harness. Three structural answers to one question:
 // how the capture gets the screen. Deleted when one is promoted.
 // Self-contained by design — it must not import from the panel it replaces.
-import { ChevronRight, CircleStop, Expand, ExternalLink, Monitor, MonitorPlay, Smartphone, Tablet, Trash2 } from 'lucide-react';
+import { ChevronRight, CircleStop, Expand, ExternalLink, Monitor, MonitorPlay, MoreVertical, Settings, Smartphone, Tablet, Trash2 } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
 import { Badge, Button } from '../../../shared/view/ui';
+import ActionMenu, { type ActionMenuItem } from '../../../shared/view/ui/ActionMenu';
 
 import type { VariantName } from './VariantPicker';
 
@@ -31,6 +32,7 @@ type SurfaceProps = {
   onFullscreen: () => void;
   onStop: () => void;
   onRequestDelete: () => void;
+  onShowSettings?: (tab?: string) => void;
 };
 
 const DEVICE_ICONS = { desktop: Monitor, phone: Smartphone, tablet: Tablet } as const;
@@ -91,6 +93,39 @@ function Capture({ session, className }: { session: VariantSession | null; class
   );
 }
 
+function sessionMenuItems(
+  session: VariantSession | null,
+  { isBusy, onStop, onRequestDelete, onShowSettings }: Pick<SurfaceProps, 'isBusy' | 'onStop' | 'onRequestDelete' | 'onShowSettings'>,
+): ActionMenuItem[] {
+  const items: ActionMenuItem[] = [
+    {
+      key: 'stop',
+      label: 'Stop session',
+      icon: CircleStop,
+      onSelect: onStop,
+      disabled: isBusy || !session || session.status !== 'ready',
+    },
+    {
+      key: 'delete',
+      label: 'Delete session',
+      icon: Trash2,
+      onSelect: onRequestDelete,
+      disabled: isBusy || !session,
+      isDanger: true,
+    },
+  ];
+  if (onShowSettings) {
+    items.push({
+      key: 'settings',
+      label: 'Browser settings',
+      icon: Settings,
+      onSelect: () => onShowSettings('browser'),
+      showDividerBefore: true,
+    });
+  }
+  return items;
+}
+
 function Controls({
   isBusy,
   selected,
@@ -123,33 +158,96 @@ function Controls({
   );
 }
 
-/* Filled — the capture is the surface. Chrome sits on it, not above it. */
+/* Filled — the capture is the surface. The bar over it is an address bar:
+   identity and one look-closer control. Everything else lives in a menu, on
+   the row that represents the session. */
 function Filled(props: SurfaceProps) {
-  const { selected } = props;
+  const { sessions, selected, onSelect, onFullscreen, isBusy } = props;
+  const manySessions = sessions.length > 1;
+
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-neutral-950">
-      <div className="relative mx-auto max-w-7xl">
-        <div className="sticky top-0 z-10 flex items-center gap-2 bg-black/80 px-3 py-2">
-          <span className="shrink-0 rounded border border-white/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
-            {selected?.status || 'empty'}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium text-white" title={nameOf(selected)}>
-              {nameOf(selected)}
+    <div className="flex min-h-0 flex-1 flex-col bg-neutral-950">
+      {manySessions && (
+        <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-white/10 px-2 py-1.5">
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              className={cn(
+                'flex min-w-[10rem] shrink-0 items-center gap-1 rounded-md border pl-2.5 pr-1',
+                selected?.id === session.id ? 'border-white/40 bg-white/10' : 'border-white/15',
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => onSelect(session.id)}
+                aria-current={selected?.id === session.id ? 'true' : undefined}
+                className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left"
+              >
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-white" title={nameOf(session)}>
+                  {nameOf(session)}
+                </span>
+                <span className="shrink-0 text-[10px] uppercase tracking-wide text-white/50">{session.status}</span>
+              </button>
+              <ActionMenu
+                label=""
+                icon={MoreVertical}
+                ariaLabel={`Actions for ${nameOf(session)}`}
+                items={sessionMenuItems(session, { ...props, onStop: () => { onSelect(session.id); props.onStop(); }, onRequestDelete: () => { onSelect(session.id); props.onRequestDelete(); } })}
+                variant="ghost"
+                size="sm"
+                triggerClassName="composer-send-hit-target h-8 w-8 p-0 text-white/70 hover:bg-white/20 hover:text-white [&>svg:last-child]:hidden"
+              />
             </div>
-            <div className="truncate text-xs text-white/60" title={selected?.url || undefined}>
-              {selected?.url || 'No page loaded'}
-            </div>
-          </div>
-          <Controls {...props} tone="onImage" />
+          ))}
         </div>
-        <Capture session={selected} />
-        {selected && (
-          <div className="flex items-center gap-2 px-3 py-2 text-xs text-white/60">
-            <DeviceLabel session={selected} />
-            <span className="truncate">{actionText(selected.lastAction)}</span>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        <div className="mx-auto max-w-7xl">
+          <div className="sticky top-0 z-10 flex items-center gap-2 bg-black/80 px-3 py-2">
+            <span className="shrink-0 rounded border border-white/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
+              {selected?.status || 'empty'}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-white" title={nameOf(selected)}>
+                {nameOf(selected)}
+              </div>
+              <div className="truncate text-xs text-white/60" title={selected?.url || undefined}>
+                {selected?.url || 'No page loaded'}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="composer-send-hit-target h-8 w-8 shrink-0 p-0 text-white hover:bg-white/20 hover:text-white"
+              onClick={onFullscreen}
+              disabled={!selected?.screenshotDataUrl}
+              title="Full screen"
+              aria-label="Full screen"
+            >
+              <Expand className="h-4 w-4" />
+            </Button>
+            {!manySessions && (
+              <ActionMenu
+                label=""
+                icon={MoreVertical}
+                ariaLabel={`Actions for ${nameOf(selected)}`}
+                items={sessionMenuItems(selected, props)}
+                variant="ghost"
+                size="sm"
+                disabled={isBusy && !selected}
+                triggerClassName="composer-send-hit-target h-8 w-8 p-0 text-white hover:bg-white/20 hover:text-white [&>svg:last-child]:hidden"
+              />
+            )}
           </div>
-        )}
+          <Capture session={selected} />
+          {selected && (
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-white/60">
+              <DeviceLabel session={selected} />
+              <span className="truncate">{actionText(selected.lastAction)}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

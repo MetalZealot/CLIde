@@ -431,43 +431,45 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <MonitorPlay className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">Browser</h3>
-            <Badge variant="outline" className={cn('text-[10px]', getRuntimeTone(status, isInstalling))}>
-              {runtimeLabel}
-            </Badge>
+      {!variant && (
+        <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <MonitorPlay className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Browser</h3>
+              <Badge variant="outline" className={cn('text-[10px]', getRuntimeTone(status, isInstalling))}>
+                {runtimeLabel}
+              </Badge>
+            </div>
+            <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Monitor browser sessions opened by AI agents.</p>
           </div>
-          <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Monitor browser sessions opened by AI agents.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {onShowSettings && (
+          <div className="flex items-center gap-2">
+            {onShowSettings && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="composer-send-hit-target h-8 w-8 p-0"
+                onClick={() => onShowSettings('browser')}
+                title="Open Browser settings"
+                aria-label="Open Browser settings"
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
               className="composer-send-hit-target h-8 w-8 p-0"
-              onClick={() => onShowSettings('browser')}
-              title="Open Browser settings"
-              aria-label="Open Browser settings"
+              onClick={() => void refresh()}
+              disabled={isRefreshing || isBusy}
+              title="Refresh browser sessions"
+              aria-label="Refresh browser sessions"
             >
-              <Settings className="h-3.5 w-3.5" />
+              <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="composer-send-hit-target h-8 w-8 p-0"
-            onClick={() => void refresh()}
-            disabled={isRefreshing || isBusy}
-            title="Refresh browser sessions"
-            aria-label="Refresh browser sessions"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
-          </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {error && (
         <div role="alert" className="border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-sm text-destructive">
@@ -475,7 +477,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         </div>
       )}
 
-      {sessions.length > 0 && (
+      {!variant && sessions.length > 0 && (
         <div className="border-b border-border/60 bg-muted/20 px-3 py-2 lg:hidden">
           <div className="flex gap-2 overflow-x-auto">
             {sessions.map((session) => (
@@ -505,16 +507,18 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
         <main className="flex min-h-0 flex-col overflow-hidden">
-          <div role="status" aria-live="polite" className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
-            <div className="min-w-0 truncate">
-              {activeSessions.length} active
-              <span className="px-1.5">/</span>
-              {sessions.length} total
+          {!variant && (
+            <div role="status" aria-live="polite" className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
+              <div className="min-w-0 truncate">
+                {activeSessions.length} active
+                <span className="px-1.5">/</span>
+                {sessions.length} total
+              </div>
+              <div className="min-w-0 truncate">
+                Updated {formatRelativeTime(selectedSession?.updatedAt || null)}
+              </div>
             </div>
-            <div className="min-w-0 truncate">
-              Updated {formatRelativeTime(selectedSession?.updatedAt || null)}
-            </div>
-          </div>
+          )}
 
           {sessions.length === 0 ? (
             renderEmptyState()
@@ -528,6 +532,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               onFullscreen={() => setIsFullscreen(true)}
               onStop={stopSession}
               onRequestDelete={() => setIsConfirmingDelete(true)}
+              onShowSettings={onShowSettings}
             />
           ) : (
             <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4">
