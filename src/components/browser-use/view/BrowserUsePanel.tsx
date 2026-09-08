@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
   CircleStop,
@@ -11,7 +11,6 @@ import {
   ExternalLink,
   Loader2,
   MonitorPlay,
-  RefreshCw,
   Settings,
   Trash2,
   X,
@@ -19,10 +18,10 @@ import {
 
 import { cn } from '../../../lib/utils';
 import { Badge, Button, Dialog, DialogContent, DialogTitle } from '../../../shared/view/ui';
+import ContextMenuOverlay, { anchorFromElement, type ContextMenuAnchor } from '../../../shared/view/ui/ContextMenuOverlay';
+import RowActionsTrigger from '../../../shared/view/ui/RowActionsTrigger';
 import { authenticatedFetch } from '../../../utils/api';
-// Temporary variant harness; removed when a direction is promoted.
-import { useVariant, VariantPicker } from '../variants/VariantPicker';
-import { VariantSurface } from '../variants/VariantSurfaces';
+import { useLongPress } from '../../../hooks/useLongPress';
 
 type BrowserUseStatus = {
   enabled: boolean;
@@ -123,15 +122,6 @@ function formatAction(action: string | null): string {
   return action.replace(/_/g, ' ').replace(/:/g, ': ');
 }
 
-function getStatusTone(status: BrowserUseSession['status']): string {
-  if (status === 'ready') {
-    return 'border-primary/30 bg-primary/5 text-foreground';
-  }
-  if (status === 'stopped') {
-    return 'border-border bg-muted text-muted-foreground';
-  }
-  return 'border-border bg-background text-muted-foreground';
-}
 
 function getRuntimeTone(status: BrowserUseStatus | null, installing: boolean): string {
   if (!status?.enabled) return 'border-border bg-muted text-muted-foreground';
@@ -155,16 +145,70 @@ const PROMPTS = [
   'Open <url> with Browser, interact with the page, and summarize what changed after each step.',
 ];
 
+/**
+ * One session in the mobile picker. Tap selects; long-press, right-click and
+ * the kebab all raise the same menu, so acting on a session belongs to its own
+ * row rather than to the address bar above the capture.
+ */
+function SessionChip({
+  session,
+  isSelected,
+  isMenuOpen,
+  onSelect,
+  onOpenMenu,
+}: {
+  session: BrowserUseSession;
+  isSelected: boolean;
+  isMenuOpen: boolean;
+  onSelect: () => void;
+  onOpenMenu: (session: BrowserUseSession, anchor: ContextMenuAnchor) => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  // useLongPress supplies the right-click path too, so one handler set covers
+  // long-press and context menu; the kebab passes its own anchor.
+  const { handlers: longPress } = useLongPress(
+    (coords) => onOpenMenu(session, anchorFromElement(rowRef.current, coords)),
+  );
+
+  return (
+    <div
+      ref={rowRef}
+      className={cn(
+        'flex min-w-[10rem] shrink-0 items-center gap-1 rounded-md border pl-2.5 pr-1',
+        isSelected ? 'border-white/40 bg-white/10' : 'border-white/15',
+      )}
+      {...longPress}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={isSelected ? 'true' : undefined}
+        className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left"
+      >
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-white" title={session.title || getDomain(session.url)}>
+          {session.title || getDomain(session.url)}
+        </span>
+        <span className="shrink-0 text-[10px] uppercase tracking-wide text-white/50">{session.status}</span>
+      </button>
+      <RowActionsTrigger
+        label={`Actions for ${session.title || getDomain(session.url)}`}
+        isOpen={isMenuOpen}
+        onOpen={(anchor) => onOpenMenu(session, anchor)}
+        className="text-white/80 hover:bg-white/20 hover:text-white"
+      />
+    </div>
+  );
+}
+
 export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUsePanelProps) {
   const [status, setStatus] = useState<BrowserUseStatus | null>(null);
   const [sessions, setSessions] = useState<BrowserUseSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [variant, selectVariant] = useVariant();
+  const [actionMenu, setActionMenu] = useState<{ sessionId: string; anchor: ContextMenuAnchor } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const sessionsRef = useRef<BrowserUseSession[]>([]);
   sessionsRef.current = sessions;
@@ -185,7 +229,6 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         : 'Setup required';
 
   const refresh = useCallback(async () => {
-    setIsRefreshing(true);
     try {
       const [statusResponse, sessionsResponse] = await Promise.all([
         authenticatedFetch('/api/browser-use/status'),
@@ -204,8 +247,6 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load Browser. Check that it is enabled in settings, then refresh.');
-    } finally {
-      setIsRefreshing(false);
     }
   }, []);
 
@@ -378,96 +419,79 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
     </div>
   );
 
-  const renderBrowserSurface = (fullscreen = false) => (
-    <div className={cn('flex flex-1 items-center justify-center bg-neutral-950', fullscreen ? 'min-h-[80vh]' : 'min-h-[420px]')}>
-      {selectedSession?.screenshotDataUrl ? (
-        <img
-          src={selectedSession.screenshotDataUrl}
-          alt="Browser session screenshot"
-          className={cn(
-            'block w-auto max-w-full object-contain outline outline-1 -outline-offset-1 outline-white/10',
-            fullscreen ? 'max-h-[80vh]' : 'max-h-[72vh]',
-          )}
-        />
-      ) : (
-        <div className="px-6 text-center">
-          <MonitorPlay className="mx-auto h-9 w-9 text-neutral-500" />
-          <div className="mt-3 text-sm font-medium text-neutral-100">{selectedSession?.message || 'Waiting for screenshot'}</div>
-          <p className="mt-1 text-xs text-neutral-400">The next agent browser snapshot will render here.</p>
-        </div>
-      )}
-    </div>
-  );
+  const sessionMenuActions = (session: BrowserUseSession | null) => [
+    {
+      key: 'stop',
+      label: 'Stop session',
+      icon: CircleStop,
+      disabled: isBusy || !session || session.status !== 'ready',
+      onSelect: stopSession,
+    },
+    {
+      key: 'delete',
+      label: 'Delete session',
+      icon: Trash2,
+      isDanger: true,
+      disabled: isBusy || !session,
+      onSelect: () => setIsConfirmingDelete(true),
+    },
+    ...(onShowSettings
+      ? [{
+          key: 'settings',
+          label: 'Browser settings',
+          icon: Settings,
+          showDividerBefore: true,
+          disabled: false,
+          onSelect: () => onShowSettings('browser'),
+        }]
+      : []),
+  ];
 
-  const viewportBadge = selectedSession ? (
-    <Badge
-      variant="outline"
-      className="shrink-0 gap-1 border-border bg-background text-[10px] text-muted-foreground"
-      title={selectedSession.viewport
-        ? `${selectedSession.device} — ${selectedSession.viewport.width}×${selectedSession.viewport.height}`
-        : selectedSession.device}
-    >
-      {(() => {
-        const DeviceIcon = DEVICE_ICONS[selectedSession.device] || Monitor;
-        return <DeviceIcon className="h-3 w-3" />;
-      })()}
-      {selectedSession.viewport
-        ? `${selectedSession.viewport.width}×${selectedSession.viewport.height}`
-        : selectedSession.device}
-    </Badge>
-  ) : null;
+  const openSessionMenu = (session: BrowserUseSession, anchor: ContextMenuAnchor) => {
+    setSelectedSessionId(session.id);
+    setActionMenu({ sessionId: session.id, anchor });
+  };
 
-  const lastActionText = (
-    <div className="min-w-0 truncate text-xs text-muted-foreground">
-      {formatAction(selectedSession?.lastAction || null)}
-    </div>
-  );
+  const menuSession = actionMenu ? sessions.find((item) => item.id === actionMenu.sessionId) || null : null;
 
-  const fullscreenButton = (
-    <Button variant="ghost" size="sm" className="composer-send-hit-target h-8 w-8 p-0" onClick={() => setIsFullscreen(true)} disabled={!selectedSession?.screenshotDataUrl} title="Full screen" aria-label="Full screen">
-      <Expand className="h-4 w-4" />
-    </Button>
+  // The capture is the surface: full column width, height from its own aspect,
+  // so nothing is letterboxed and no minimum reserves empty space.
+  const renderCapture = () => (
+    selectedSession?.screenshotDataUrl ? (
+      <img
+        src={selectedSession.screenshotDataUrl}
+        alt={`Latest capture of ${selectedSession.title || getDomain(selectedSession.url)}`}
+        className="block w-full outline outline-1 -outline-offset-1 outline-white/10"
+      />
+    ) : (
+      <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+        <MonitorPlay className="h-9 w-9 text-neutral-500" />
+        <div className="mt-3 text-sm font-medium text-neutral-100">{selectedSession?.message || 'Waiting for screenshot'}</div>
+        <p className="mt-1 text-xs text-neutral-400">The next agent browser snapshot renders here.</p>
+      </div>
+    )
   );
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      {!variant && (
-        <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <MonitorPlay className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">Browser</h3>
-              <Badge variant="outline" className={cn('text-[10px]', getRuntimeTone(status, isInstalling))}>
-                {runtimeLabel}
-              </Badge>
-            </div>
-            <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Monitor browser sessions opened by AI agents.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {onShowSettings && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="composer-send-hit-target h-8 w-8 p-0"
-                onClick={() => onShowSettings('browser')}
-                title="Open Browser settings"
-                aria-label="Open Browser settings"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="composer-send-hit-target h-8 w-8 p-0"
-              onClick={() => void refresh()}
-              disabled={isRefreshing || isBusy}
-              title="Refresh browser sessions"
-              aria-label="Refresh browser sessions"
-            >
-              <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
+      {runtimeLabel !== 'Ready' && (
+        <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-4 py-2 text-xs">
+          <MonitorPlay className="h-4 w-4 shrink-0 text-primary" />
+          <Badge variant="outline" className={cn('shrink-0 text-[10px]', getRuntimeTone(status, isInstalling))}>
+            {runtimeLabel}
+          </Badge>
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">{status?.message || 'Browser is not ready.'}</span>
+          {needsBrowserBinaries && (
+            <Button type="button" size="sm" className="h-7 shrink-0" onClick={installBrowserBinaries} disabled={isBusy || isInstalling || status?.installInProgress}>
+              {isInstalling || status?.installInProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isInstalling || status?.installInProgress ? 'Installing...' : 'Install'}
             </Button>
-          </div>
+          )}
+          {onShowSettings && (
+            <Button variant="ghost" size="sm" className="composer-send-hit-target h-8 w-8 shrink-0 p-0" onClick={() => onShowSettings('browser')} title="Open Browser settings" aria-label="Open Browser settings">
+              <Settings className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       )}
 
@@ -477,117 +501,99 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         </div>
       )}
 
-      {!variant && sessions.length > 0 && (
-        <div className="border-b border-border/60 bg-muted/20 px-3 py-2 lg:hidden">
-          <div className="flex gap-2 overflow-x-auto">
-            {sessions.map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => setSelectedSessionId(session.id)}
-                className={cn(
-                  'flex min-w-[180px] items-center gap-2 rounded-md border px-2.5 py-2 text-left',
-                  selectedSession?.id === session.id
-                    ? 'border-primary/40 bg-primary/5'
-                    : 'border-border bg-background',
-                )}
-              >
-                <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', getStatusDot(session.status))} />
-                <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
-                  {session.title || getDomain(session.url)}
-                </span>
-                <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {session.status}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <main className="flex min-h-0 flex-col overflow-hidden">
-          {!variant && (
-            <div role="status" aria-live="polite" className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground">
-              <div className="min-w-0 truncate">
-                {activeSessions.length} active
-                <span className="px-1.5">/</span>
-                {sessions.length} total
-              </div>
-              <div className="min-w-0 truncate">
-                Updated {formatRelativeTime(selectedSession?.updatedAt || null)}
-              </div>
-            </div>
-          )}
-
+        <main className={cn('flex min-h-0 flex-col overflow-hidden', sessions.length > 0 && 'bg-neutral-950')}>
           {sessions.length === 0 ? (
             renderEmptyState()
-          ) : variant ? (
-            <VariantSurface
-              variant={variant}
-              sessions={sessions}
-              selected={selectedSession}
-              isBusy={isBusy}
-              onSelect={setSelectedSessionId}
-              onFullscreen={() => setIsFullscreen(true)}
-              onStop={stopSession}
-              onRequestDelete={() => setIsConfirmingDelete(true)}
-              onShowSettings={onShowSettings}
-            />
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-4">
-              <div className="mx-auto flex min-h-[500px] max-w-7xl flex-col overflow-hidden rounded-md border border-border bg-background shadow-sm">
-                <div className="border-b border-border/60 px-3 py-2">
-                  <div className="flex items-start gap-2">
-                    <Badge variant="outline" className={selectedSession ? cn('mt-0.5 shrink-0 text-[10px]', getStatusTone(selectedSession.status)) : 'mt-0.5 shrink-0 text-[10px]'}>
+            <>
+              {/* Session picker. Desktop has the sidebar list, and one session
+                  needs no picker at all. */}
+              {sessions.length > 1 && (
+                <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-white/10 px-2 py-1.5 lg:hidden">
+                  {sessions.map((session) => (
+                    <SessionChip
+                      key={session.id}
+                      session={session}
+                      isSelected={selectedSession?.id === session.id}
+                      isMenuOpen={actionMenu?.sessionId === session.id}
+                      onSelect={() => setSelectedSessionId(session.id)}
+                      onOpenMenu={openSessionMenu}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="min-h-0 flex-1 overflow-auto">
+                <div className="mx-auto max-w-7xl">
+                  {/* An address bar: what this is and one way to look closer.
+                      Acting on the session belongs to its own row's menu. */}
+                  <div className="sticky top-0 z-10 flex items-center gap-2 bg-black/80 px-3 py-2">
+                    <span className="shrink-0 rounded border border-white/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
                       {selectedSession?.status || 'empty'}
-                    </Badge>
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-foreground" title={selectedSession?.title || getDomain(selectedSession?.url || null)}>
+                      <div className="truncate text-sm font-medium text-white" title={selectedSession?.title || getDomain(selectedSession?.url || null)}>
                         {selectedSession?.title || getDomain(selectedSession?.url || null)}
                       </div>
-                      <div className="mt-0.5 flex min-w-0 items-center text-xs text-muted-foreground">
-                        {selectedSession?.url ? (
-                          <a
-                            href={selectedSession.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={selectedSession.url}
-                            className="flex min-w-0 items-center gap-1.5 py-1 hover:text-foreground hover:underline"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{selectedSession.url}</span>
-                          </a>
-                        ) : (
-                          <span className="truncate py-1">No page loaded</span>
-                        )}
-                      </div>
+                      {selectedSession?.url ? (
+                        <a
+                          href={selectedSession.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={selectedSession.url}
+                          className="flex min-w-0 items-center gap-1.5 text-xs text-white/60 hover:text-white hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{selectedSession.url}</span>
+                        </a>
+                      ) : (
+                        <div className="truncate text-xs text-white/60">No page loaded</div>
+                      )}
                     </div>
-                    <div className="hidden shrink-0 items-center gap-2 lg:flex">
-                      {viewportBadge}
-                      {lastActionText}
-                      {fullscreenButton}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="composer-send-hit-target h-8 w-8 shrink-0 p-0 text-white hover:bg-white/20 hover:text-white"
+                      onClick={() => setIsFullscreen(true)}
+                      disabled={!selectedSession?.screenshotDataUrl}
+                      title="Full screen"
+                      aria-label="Full screen"
+                    >
+                      <Expand className="h-4 w-4" />
+                    </Button>
+                    {/* Below lg with a chip row, every session carries its own
+                        menu; otherwise the bar holds the selected one's. */}
+                    <div className={cn('shrink-0', sessions.length > 1 && 'hidden lg:block')}>
+                      <RowActionsTrigger
+                        label={`Actions for ${selectedSession?.title || getDomain(selectedSession?.url || null)}`}
+                        isOpen={actionMenu?.sessionId === selectedSession?.id}
+                        onOpen={(anchor) => selectedSession && openSessionMenu(selectedSession, anchor)}
+                        className="text-white/80 hover:bg-white/20 hover:text-white"
+                      />
                     </div>
                   </div>
 
-                  <div className="mt-2 flex items-center gap-2 lg:hidden">
-                    {viewportBadge}
-                    <div className="hidden min-w-0 flex-1 sm:block">{lastActionText}</div>
-                    <div className="ml-auto flex shrink-0 items-center gap-3">
-                      {fullscreenButton}
-                      <Button variant="ghost" size="sm" className="composer-send-hit-target h-8 w-8 p-0" onClick={stopSession} disabled={isBusy || !selectedSession || selectedSession.status !== 'ready'} title="Stop session" aria-label="Stop session">
-                        <CircleStop className="h-4 w-4" />
-                      </Button>
-                      <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-                      <Button variant="ghost" size="sm" className="composer-send-hit-target h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setIsConfirmingDelete(true)} disabled={isBusy || !selectedSession} title="Delete session" aria-label="Delete session">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  {renderCapture()}
+
+                  {selectedSession && (
+                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-white/60">
+                      <span className="inline-flex shrink-0 items-center gap-1">
+                        {(() => {
+                          const DeviceIcon = DEVICE_ICONS[selectedSession.device] || Monitor;
+                          return <DeviceIcon className="h-3 w-3" />;
+                        })()}
+                        {selectedSession.viewport
+                          ? `${selectedSession.viewport.width}×${selectedSession.viewport.height}`
+                          : selectedSession.device}
+                      </span>
+                      <span className="truncate">{formatAction(selectedSession.lastAction)}</span>
+                      <span className="ml-auto shrink-0">{formatRelativeTime(selectedSession.updatedAt)}</span>
                     </div>
-                  </div>
+                  )}
                 </div>
-                {renderBrowserSurface()}
               </div>
-            </div>
+            </>
           )}
         </main>
 
@@ -620,10 +626,6 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
               </div>
               <div className="mt-3 space-y-2 text-xs text-muted-foreground">
                 <div className="flex items-center justify-between gap-3">
-                  <span>Status</span>
-                  <span className="font-medium text-foreground">{selectedSession?.status || 'None'}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
                   <span>Last action</span>
                   <span className="truncate font-medium text-foreground">{formatAction(selectedSession?.lastAction || null)}</span>
                 </div>
@@ -641,6 +643,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                         <span className="flex min-w-0 items-baseline gap-1.5">
                           <span className={cn('h-1.5 w-1.5 shrink-0 translate-y-[-1px] rounded-full', action.ok ? 'bg-primary' : 'bg-destructive')} />
                           <span className="truncate text-foreground">{formatToolName(action.tool)}</span>
+                          <span className="sr-only">{action.ok ? 'succeeded' : 'failed'}</span>
                         </span>
                         <span className="shrink-0 tabular-nums text-muted-foreground">{formatClockTime(action.at)}</span>
                       </li>
@@ -664,7 +667,38 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
         </aside>
       </div>
 
-      {variant && <VariantPicker active={variant} onSelect={selectVariant} />}
+      {actionMenu && (
+        <ContextMenuOverlay
+          anchor={actionMenu.anchor}
+          onDismiss={() => setActionMenu(null)}
+          ariaLabel="Browser session actions"
+          className="min-w-[200px] px-1 py-1"
+        >
+          {sessionMenuActions(menuSession).map((action) => (
+            <Fragment key={action.key}>
+              {action.showDividerBefore && <div className="mx-2 my-1 h-px bg-border" />}
+              <button
+                type="button"
+                role="menuitem"
+                disabled={action.disabled}
+                onClick={() => { setActionMenu(null); action.onSelect(); }}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
+                  'focus:bg-accent focus:outline-none',
+                  action.disabled
+                    ? 'cursor-not-allowed opacity-50'
+                    : action.isDanger
+                      ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950'
+                      : 'hover:bg-accent',
+                )}
+              >
+                <action.icon className="h-4 w-4 flex-shrink-0" />
+                <span className="flex-1">{action.label}</span>
+              </button>
+            </Fragment>
+          ))}
+        </ContextMenuOverlay>
+      )}
 
       <Dialog open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
         <DialogContent className="max-w-sm">
@@ -695,7 +729,17 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
                 Close
               </Button>
             </div>
-            {renderBrowserSurface(true)}
+            <div className="flex flex-1 items-center justify-center overflow-auto bg-neutral-950">
+              {selectedSession.screenshotDataUrl ? (
+                <img
+                  src={selectedSession.screenshotDataUrl}
+                  alt={`Latest capture of ${selectedSession.title || getDomain(selectedSession.url)}`}
+                  className="block max-h-full w-auto max-w-full object-contain"
+                />
+              ) : (
+                <div className="px-6 text-center text-sm text-neutral-100">{selectedSession.message || 'Waiting for screenshot'}</div>
+              )}
+            </div>
           </div>
         </div>
       )}
