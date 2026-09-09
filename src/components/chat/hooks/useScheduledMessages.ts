@@ -75,9 +75,15 @@ export function useScheduledMessages(
     });
   }, [onSent, refresh, sessionId, subscribe]);
 
-  const schedule = useCallback(async (input: CreateInput): Promise<boolean> => {
-    if (!sessionId) return false;
-    const response = await api.createScheduledMessage({ sessionId, ...input });
+  /**
+   * `intoSessionId` covers the first message in a chat: the session is created
+   * as the message is scheduled, so the id arrives before this hook re-renders
+   * with it.
+   */
+  const schedule = useCallback(async (input: CreateInput, intoSessionId?: string): Promise<boolean> => {
+    const target = intoSessionId ?? sessionId;
+    if (!target) return false;
+    const response = await api.createScheduledMessage({ sessionId: target, ...input });
     if (!response.ok) return false;
     await refresh();
     return true;

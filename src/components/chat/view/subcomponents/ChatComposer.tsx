@@ -113,6 +113,8 @@ interface ChatComposerProps {
   isRefreshingContextBreakdown: boolean;
   /** Active conversation id, or null on a chat with no session yet. */
   sessionKey: string | null;
+  /** True when a chat with no session yet could still start one. */
+  canStartSession: boolean;
   provider: LLMProvider;
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
   isDragActive: boolean;
@@ -200,6 +202,7 @@ export default function ChatComposer({
   onRefreshContextBreakdown,
   isRefreshingContextBreakdown,
   sessionKey,
+  canStartSession,
   provider,
   onSubmit,
   isDragActive,
@@ -315,7 +318,7 @@ export default function ChatComposer({
   // Long-press (touch) and right-click (pointer) open the same "send later"
   // sheet; a plain tap still sends, so the send button keeps its one meaning.
   const [isScheduleMenuOpen, setIsScheduleMenuOpen] = useState(false);
-  const canScheduleCurrentInput = Boolean(sessionKey) && Boolean(input.trim());
+  const canScheduleCurrentInput = Boolean(sessionKey || canStartSession) && Boolean(input.trim());
   const { handlers: scheduleLongPress } = useLongPress(
     () => setIsScheduleMenuOpen(true),
     { disabled: !canScheduleCurrentInput },

@@ -243,6 +243,7 @@ function ChatInterface({
     attachedFiles,
     setAttachedFiles,
     buildSendOptions,
+    ensureSessionId,
     uploadingFiles,
     fileErrors,
     attachmentRejections,
@@ -526,19 +527,24 @@ function ChatInterface({
         }
       }
 
+      // A first message needs the session a send would have created, or the
+      // row has nothing to fire into.
+      const sessionId = scheduledSessionId ?? await ensureSessionId(content);
+      if (!sessionId) return;
+
       const scheduled = await scheduleMessage({
         content,
         trigger,
         scheduledFor,
         options: { ...buildSendOptions(content), attachments },
-      });
+      }, sessionId);
       if (scheduled) {
         setInput('');
         setAttachedFiles([]);
         setEditingSchedule(null);
       }
     },
-    [attachedFiles, buildSendOptions, input, scheduleMessage, setAttachedFiles, setInput],
+    [attachedFiles, buildSendOptions, ensureSessionId, input, scheduledSessionId, scheduleMessage, setAttachedFiles, setInput],
   );
 
   // Editing drops the stored row immediately so it cannot fire mid-rewrite, but
@@ -865,6 +871,7 @@ function ChatInterface({
             onRefreshContextBreakdown={refreshContextPopover}
             isRefreshingContextBreakdown={isRefreshingContext}
             sessionKey={currentSessionId || selectedSession?.id || null}
+            canStartSession={Boolean(selectedProject)}
             provider={provider}
             onSubmit={handleSubmit}
             isDragActive={isDragActive}

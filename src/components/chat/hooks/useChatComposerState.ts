@@ -1002,6 +1002,61 @@ export function useChatComposerState({
     sessionStore,
   ]);
 
+  /**
+   * The session id this conversation will keep for its lifetime, allocating
+   * one for a brand-new chat.
+   *
+   * Sending is not the only thing that needs it: a message scheduled as the
+   * first thing in a chat has to attach to a real session row too, or there is
+   * nothing for the timer to fire into.
+   */
+  const ensureSessionId = useCallback(async (draft: string): Promise<string | null> => {
+    const existing = selectedSession?.id || currentSessionId || null;
+    if (existing) return existing;
+    if (!selectedProject) return null;
+
+    let created: string | null = null;
+    try {
+      const response = await authenticatedFetch('/api/providers/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          provider,
+          projectPath: selectedProject.fullPath || selectedProject.path || '',
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to create session (${response.status})`);
+      }
+      const body = await response.json();
+      created = body?.data?.sessionId || null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Session creation failed:', error);
+      addMessage({
+        type: 'error',
+        content: `Failed to start a new session: ${message}`,
+        timestamp: new Date(),
+      });
+      return null;
+    }
+
+    if (!created) {
+      addMessage({
+        type: 'error',
+        content: 'Failed to start a new session: no session id returned.',
+        timestamp: new Date(),
+      });
+      return null;
+    }
+
+    onSessionEstablished?.(created, {
+      provider,
+      project: selectedProject,
+      summary: getNotificationSessionSummary(selectedSession, draft),
+    });
+    return created;
+  }, [addMessage, currentSessionId, onSessionEstablished, provider, selectedProject, selectedSession]);
+
   const handleSubmit = useCallback(
     async (
       event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>,
@@ -1165,53 +1220,9 @@ export function useChatComposerState({
         }
       }
 
-      const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
-      const sessionSummary = getNotificationSessionSummary(selectedSession, currentInput);
-
-      // The conversation always has a stable backend-allocated session id
-      // BEFORE the first websocket send: brand-new chats allocate one here
-      // via the session gateway. There is no client-visible session-id
-      // handoff later — this id stays valid for the conversation's lifetime.
-      let targetSessionId = selectedSession?.id || currentSessionId || null;
+      const targetSessionId = await ensureSessionId(currentInput);
       if (!targetSessionId) {
-        try {
-          const response = await authenticatedFetch('/api/providers/sessions', {
-            method: 'POST',
-            body: JSON.stringify({
-              provider,
-              projectPath: resolvedProjectPath,
-            }),
-          });
-          if (!response.ok) {
-            throw new Error(`Failed to create session (${response.status})`);
-          }
-          const body = await response.json();
-          targetSessionId = body?.data?.sessionId || null;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          console.error('Session creation failed:', error);
-          addMessage({
-            type: 'error',
-            content: `Failed to start a new session: ${message}`,
-            timestamp: new Date(),
-          });
-          return;
-        }
-
-        if (!targetSessionId) {
-          addMessage({
-            type: 'error',
-            content: 'Failed to start a new session: no session id returned.',
-            timestamp: new Date(),
-          });
-          return;
-        }
-
-        onSessionEstablished?.(targetSessionId, {
-          provider,
-          project: selectedProject,
-          summary: sessionSummary,
-        });
+        return;
       }
 
       // A rewind send drops the edited message and its tail before the
@@ -1780,8 +1791,10 @@ export function useChatComposerState({
     getInputProps,
     isDragActive,
     handleSubmit,
-    // Scheduling stores the same option snapshot a send would have carried.
+    // Scheduling stores the same option snapshot a send would have carried,
+    // and needs the same session row a send would have created.
     buildSendOptions,
+    ensureSessionId,
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
