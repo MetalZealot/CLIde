@@ -1,8 +1,8 @@
 # Harvest the capabilities CLIde lacks from upstream
 
 - Status: not started
-- Next: Blocked until [the v1.37.3 picks](upstream-1373-sync.md) land; then
-  inventory every gap with a build/defer/refuse verdict
+- Next: Inventory every gap with a build/defer/refuse verdict; the
+  [v1.37.3 picks](upstream-1373-sync.md) they were blocked on have landed
 - Context: [upstream sync map](../maps/upstream-sync.md) holds the buckets and
   the ledger; [provider capability map](../maps/clide-provider-capability-map.md)
   owns what each adapter can be asked to do
