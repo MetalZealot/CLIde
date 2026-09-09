@@ -89,7 +89,8 @@ branding. These are refused permanently and do not need re-assessing each time.
 ## Gap inventory
 
 The nine capabilities upstream has and CLIde does not, each read against what
-this fork already ships. Assessed 2026-09-08 under
+this fork already ships. One of them, scheduled messages, has since been built
+here on a different design — see the ledger. Assessed 2026-09-08 under
 [the harvest plan](../plans/upstream-feature-harvest.md) phase 1. Everything
 listed sits after `99ea0525`, so "where it lives" names research material, never
 a cherry-pick source.
@@ -111,16 +112,6 @@ before it is a menu change. Exactly the confusion the glossary exists to
 prevent, and worth taking for the relabel alone. Provider answer: every adapter
 has a provider id; Claude and Codex expose one per session, so the action shows
 only when the row carries one.
-
-**Scheduled messages** (`#1206` core, `#1239` interrupt semantics). The
-interrupt-versus-wait question the TODO item is blocked on is already answered
-here, in the other direction: `useQueuedMessageAutoSend.ts` and the composer's
-`queuedDraft` queue a message against a busy session and send it when the run
-ends. Upstream chose to interrupt because they had no queue. So scheduling is
-"send at time T", a genuinely separate capability, and it should not inherit
-`#1239`'s interrupt behaviour. Upstream's server side is four files and a
-dispatcher; provider answer: the dispatcher sends through the same chat
-websocket path every adapter already uses, so it is provider-neutral.
 
 ### Refuse
 
@@ -183,11 +174,24 @@ believed.
   `preserver` recover hook fires from `npm run server`, which no CLIde
   deployment uses.
 - **Deferred with a TODO item:** `#1238` composer history recall; the sidebar
-  localization gap that `#1192` pointed at; `#1239` scheduled-message
-  interrupt semantics, blocked on the interrupt-versus-wait decision.
+  localization gap that `#1192` pointed at.
 - **Owned by another branch:** `#1289` GPT-6 Astra and `#1290` Codex SDK
   0.153.x. The Astra worktree owns both; this fork's adapter reads the Codex
   catalog live, so upstream's replacement runtime adapter is not the route.
+- **Scheduled messages (`#1206` core, `#1239` interrupt semantics): built here
+  instead, decided 2026-09-09.** CLIde's version fires at a time *or* at the
+  provider's usage reset, which upstream has no equivalent of — its rows store
+  a time and a status with no trigger. Where upstream interrupts a run the
+  message lands mid-way through, CLIde queues, because
+  `useQueuedMessageAutoSend.ts` already does; inheriting `#1239` would be a
+  downgrade. Upstream also hands its scheduled run a **null** connection and
+  relies on a client subscribing afterwards to replay it, so a chat that is
+  already open sees nothing live; CLIde fans the run out to every listening
+  client. The two implementations occupy the same paths
+  (`server/modules/scheduled-messages/`, `scheduled-messages.db.ts`,
+  a composer popover and hook), so the next rebase conflicts there: **keep this
+  fork's files and delete upstream's four.** Design and phases:
+  [the plan](../plans/scheduled-messages.md).
 - **Considered, not taken — fork has diverged by choice:** `#1041` and `#1157`
   recent-conversation rows, against CLIde's own sidebar with starring and its
   action menus; `#1229` collapsible model groups, against a picker that shows
