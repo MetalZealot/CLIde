@@ -2,6 +2,10 @@ import { appConfigDb, notificationPreferencesDb, userDb } from '@/modules/databa
 import { createNotificationEvent, notifyUserIfEnabled } from '@/modules/notifications/index.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerUsageService } from '@/modules/providers/services/provider-usage.service.js';
+import {
+  fireUsageResetMessages,
+  hasPendingUsageResetMessages,
+} from '@/modules/scheduled-messages/index.js';
 import type { LLMProvider, ProviderUsageStatus, ProviderUsageWindow } from '@/shared/types.js';
 
 /**
@@ -32,7 +36,12 @@ type ResetMonitorDependencies = {
   /** Providers whose capability entry declares `supportsUsageResetAlerts`. */
   listMonitoredProviders(): LLMProvider[];
   getUsage(provider: LLMProvider): Promise<ProviderUsageStatus>;
+  /** Gates the reset *alert* only. Auto-Continue must never inherit it. */
   isEnabled(userId: number, provider: LLMProvider): boolean;
+  /** Whether a scheduled message is waiting on this provider's reset. */
+  hasPendingAutoContinue(provider: LLMProvider): boolean;
+  /** Sends the messages waiting on this provider's reset. */
+  fireAutoContinue(provider: LLMProvider): Promise<void>;
   readState(userId: number): ResetState;
   writeState(userId: number, state: ResetState): void;
   notify(userId: number, provider: LLMProvider, reset: ScheduledReset): void;
@@ -189,23 +198,50 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
 
       armResetTimer(monitor, reset.identity, reset.resetsAtMs, () => {
         monitor.resetTimers.delete(reset.identity);
-        if (!dependencies.isEnabled(userId, provider)) return;
 
-        // Recorded before delivery: a crash between the two is one missed
-        // alert, whereas the reverse order is a duplicate on every restart.
-        const latestNotified = dependencies.readState(userId).notified;
-        if (latestNotified.includes(reset.identity)) return;
-        dependencies.writeState(userId, {
-          notified: [...latestNotified, reset.identity].slice(-MAX_PERSISTED_IDENTITIES),
-        });
-        dependencies.notify(userId, provider, reset);
-        schedulePostResetRefresh(userId, provider, monitor, 0);
+        // Two independent consumers of the same instant. Auto-Continue is
+        // deduped by its own rows, which the send claims out of 'pending', so
+        // it neither reads nor writes `notified` and the two cannot silence
+        // each other.
+        let delivered = false;
+
+        if (dependencies.hasPendingAutoContinue(provider)) {
+          delivered = true;
+          void dependencies.fireAutoContinue(provider).catch((error: unknown) => {
+            console.error('[UsageResetMonitor] Auto-Continue failed', { provider, error });
+          });
+        }
+
+        if (dependencies.isEnabled(userId, provider)) {
+          // Recorded before delivery: a crash between the two is one missed
+          // alert, whereas the reverse order is a duplicate on every restart.
+          const latestNotified = dependencies.readState(userId).notified;
+          if (!latestNotified.includes(reset.identity)) {
+            dependencies.writeState(userId, {
+              notified: [...latestNotified, reset.identity].slice(-MAX_PERSISTED_IDENTITIES),
+            });
+            dependencies.notify(userId, provider, reset);
+            delivered = true;
+          }
+        }
+
+        if (delivered) schedulePostResetRefresh(userId, provider, monitor, 0);
       });
     }
   };
 
+  /**
+   * Whether this provider is worth polling at all.
+   *
+   * A message waiting on the reset keeps the monitor alive on its own, so
+   * switching reset alerts off cannot silently stop Auto-Continue.
+   */
+  const shouldMonitor = (userId: number, provider: LLMProvider) => (
+    dependencies.isEnabled(userId, provider) || dependencies.hasPendingAutoContinue(provider)
+  );
+
   const refreshProvider = async (userId: number, provider: LLMProvider) => {
-    if (!dependencies.isEnabled(userId, provider)) {
+    if (!shouldMonitor(userId, provider)) {
       stopProvider(userId, provider);
       return;
     }
@@ -232,7 +268,7 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
   return {
     reconcileUser(userId: number) {
       for (const provider of dependencies.listMonitoredProviders()) {
-        if (dependencies.isEnabled(userId, provider)) startProvider(userId, provider);
+        if (shouldMonitor(userId, provider)) startProvider(userId, provider);
         else stopProvider(userId, provider);
       }
     },
@@ -269,6 +305,8 @@ const resetMonitor = createProviderUsageResetMonitor({
   isEnabled: (userId, provider) => (
     notificationPreferencesDb.getPreferences(userId).events.usageReset[provider] === true
   ),
+  hasPendingAutoContinue: hasPendingUsageResetMessages,
+  fireAutoContinue: fireUsageResetMessages,
   readState: readPersistedState,
   writeState: (userId, state) => appConfigDb.set(stateKey(userId), JSON.stringify(state)),
   notify: (userId, provider, reset) => notifyUserIfEnabled({
@@ -289,7 +327,13 @@ const resetMonitor = createProviderUsageResetMonitor({
   now: Date.now,
 });
 
-/** Reconciles one user's provider monitors after notification settings change. */
+/**
+ * Reconciles one user's provider monitors.
+ *
+ * Call it after notification settings change, and after scheduling or
+ * cancelling a message that waits on a usage reset — that message is what
+ * keeps a monitor alive when the provider's reset alerts are switched off.
+ */
 export function reconcileProviderUsageResetMonitor(userId: number): void {
   resetMonitor.reconcileUser(userId);
 }

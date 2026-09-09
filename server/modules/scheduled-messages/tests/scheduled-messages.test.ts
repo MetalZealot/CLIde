@@ -11,7 +11,12 @@ import {
   sessionsDb,
   type ScheduledMessageRow,
 } from '@/modules/database/index.js';
-import { createScheduledMessageDispatcher } from '@/modules/scheduled-messages/index.js';
+import {
+  createScheduledMessageDispatcher,
+  fireUsageResetMessages,
+  hasPendingUsageResetMessages,
+  setActiveScheduledMessageDispatcher,
+} from '@/modules/scheduled-messages/index.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
   const previousDatabasePath = process.env.DATABASE_PATH;
@@ -251,6 +256,39 @@ describe('scheduled-messages', () => {
       await harness.dispatcher.fireUsageReset('claude');
       assert.equal(harness.sent.length, 1);
       assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'sent');
+    });
+  });
+
+  test('the runtime seam reports and fires only what a registered dispatcher can send', async () => {
+    await withIsolatedDatabase(async () => {
+      seedSession('session-10');
+      const harness = createHarness();
+      const row = scheduledMessagesDb.create({
+        sessionId: 'session-10',
+        provider: 'claude',
+        content: 'carry on',
+        trigger: 'usage-reset',
+      });
+
+      try {
+        // Nothing can be sent without a dispatcher, so the reset monitor is
+        // told there is nothing worth staying awake for.
+        assert.equal(hasPendingUsageResetMessages('claude'), false);
+        await fireUsageResetMessages('claude');
+        assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'pending');
+
+        setActiveScheduledMessageDispatcher(harness.dispatcher);
+        assert.equal(hasPendingUsageResetMessages('claude'), true);
+        assert.equal(hasPendingUsageResetMessages('codex'), false);
+
+        await fireUsageResetMessages('claude');
+        assert.equal(harness.sent.length, 1);
+        assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'sent');
+        // Settled rows stop keeping the monitor alive.
+        assert.equal(hasPendingUsageResetMessages('claude'), false);
+      } finally {
+        setActiveScheduledMessageDispatcher(null);
+      }
     });
   });
 

@@ -1,7 +1,7 @@
 # Scheduled messages and Auto-Continue
 
-- Status: 1/4
-- Next: Phase 2 — Auto-Continue at the reset monitor's fire point
+- Status: 2/4
+- Next: Phase 3 — long-press the send button to compose one
 - Context: [gap inventory](../maps/upstream-sync.md) holds the verdict and why
   upstream's `#1239` interrupt behaviour is not wanted here; ADR 0031 governs
   the sidebar status visuals phase 4 touches
@@ -23,13 +23,18 @@ can, not whenever you next look at your phone.
   `#1239` interrupt is explicitly not wanted: CLIde chose waiting, and has
   shipped it.
 
-## Two traps at the fire point
+## How the two consumers stay independent
 
-- **`isEnabled` there gates the notification preference.** Auto-Continue must
-  not inherit it, or turning reset alerts off silently stops sending messages
-  the user scheduled.
-- **The `notified` identity list dedupes alerts.** Auto-Continue needs its own
-  dedupe record, or delivering one suppresses the other for that reset.
+`isEnabled` gates the **alert** and nothing else. It gated the whole monitor
+lifecycle too — `reconcileUser` and `refreshProvider` both stopped a provider
+whose alerts were off — so `shouldMonitor` now also keeps a provider alive
+while a message waits on its reset.
+
+The `notified` identity list still dedupes alerts only. Auto-Continue is
+deduped by its own rows: the dispatcher claims each out of `'pending'` in one
+statement, which survives a restart and cannot be re-fired, so it neither
+reads nor writes `notified` and the two cannot silence each other. The
+post-reset usage re-fetch now runs when either consumer delivers.
 
 ## Phases
 
@@ -37,9 +42,15 @@ can, not whenever you next look at your phone.
       repository, the dispatcher, and the time trigger. The sender is written
       against an injected `runTurn`; wiring that to the real runtime waits for
       phase 3, since nothing can create a row until there is a surface
-- [ ] 2. Auto-Continue — a second consumer at the reset monitor's fire point,
-      with its own enablement and its own dedupe, per the traps above
-- [ ] 3. Composing one — long-press the send button offers "when usage resets"
+- [x] 2. Auto-Continue — a second consumer at the reset monitor's fire point.
+      One message, one firing: the pending row *is* the enablement and the
+      dedupe, so nothing new is persisted and no standing per-session mode
+      exists. A pending row also keeps a provider's monitor alive on its own
+- [ ] 3. Composing one — creating a row must register the dispatcher through
+      `setActiveScheduledMessageDispatcher` at startup and call
+      `reconcileProviderUsageResetMonitor` after create and cancel, or a
+      message scheduled while reset alerts are off waits on a stopped monitor.
+      Long-press the send button offers "when usage resets"
       (only where the provider supports it) and "at a time". Cancel and inspect
       from the same surface
 - [ ] 4. A session with one pending shows a timer in its status column,

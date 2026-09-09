@@ -126,12 +126,15 @@ describe('provider-usage-reset-monitor', () => {
   type HarnessOptions = {
     now?: number;
     enabled?: boolean;
+    pendingAutoContinue?: boolean;
     state?: { notified: string[] };
     usage?: ProviderUsageStatus;
   };
 
   function createHarness(options: HarnessOptions = {}) {
     let enabled = options.enabled ?? true;
+    const pendingAutoContinue = options.pendingAutoContinue ?? false;
+    const autoContinued: LLMProvider[] = [];
     let state = options.state ?? { notified: [] };
     const timeouts = new Map<number, ScheduledTimeout>();
     const intervals = new Map<number, () => void>();
@@ -160,6 +163,8 @@ describe('provider-usage-reset-monitor', () => {
         return usage;
       },
       isEnabled: (_userId, provider) => enabled && provider === 'claude',
+      hasPendingAutoContinue: (provider) => pendingAutoContinue && provider === 'claude',
+      fireAutoContinue: async (provider) => { autoContinued.push(provider); },
       readState: () => state,
       writeState: (_userId, nextState) => { state = nextState; },
       notify: (_userId, provider, reset) => notifications.push({
@@ -192,6 +197,7 @@ describe('provider-usage-reset-monitor', () => {
     return {
       monitor,
       notifications,
+      autoContinued,
       timeouts,
       /** The single pending timeout, asserting there is exactly one. */
       onlyTimeout: () => {
@@ -367,6 +373,50 @@ describe('provider-usage-reset-monitor', () => {
     remainder.fire();
     await flushPromises();
 
+    assert.equal(harness.notifications.length, 1);
+  });
+
+  test('fires Auto-Continue with reset alerts off, and keeps the monitor alive for it', async () => {
+    const harness = createHarness({ enabled: false, pendingAutoContinue: true });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    // The alert preference alone would have stopped this provider outright.
+    const resetTimer = harness.onlyTimeout();
+    resetTimer.fire();
+    await flushPromises();
+
+    assert.deepEqual(harness.autoContinued, ['claude']);
+    assert.equal(harness.notifications.length, 0);
+    // Nothing is written to the alert dedupe list, so a later alert for the
+    // same reset is still deliverable.
+    assert.deepEqual(harness.getState().notified, []);
+    // The panel is refreshed for whoever looks, alert or not.
+    assert.equal(harness.onlyTimeout().delayMs, 20_000);
+  });
+
+  test('an alert and Auto-Continue for one reset do not suppress each other', async () => {
+    const harness = createHarness({ pendingAutoContinue: true });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    harness.onlyTimeout().fire();
+    await flushPromises();
+
+    assert.deepEqual(harness.autoContinued, ['claude']);
+    assert.equal(harness.notifications.length, 1);
+    assert.equal(harness.getState().notified.length, 1);
+  });
+
+  test('leaves Auto-Continue alone on a provider nothing is waiting on', async () => {
+    const harness = createHarness();
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    harness.onlyTimeout().fire();
+    await flushPromises();
+
+    assert.deepEqual(harness.autoContinued, []);
     assert.equal(harness.notifications.length, 1);
   });
 });

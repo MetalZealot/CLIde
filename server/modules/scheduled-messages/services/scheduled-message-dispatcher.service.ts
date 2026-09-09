@@ -22,9 +22,18 @@ export type ScheduledMessageDispatcherDependencies = {
   clearTimeout(timer: ReturnType<typeof setTimeout>): void;
 };
 
+/** The dispatcher's public surface, as the runtime seam and its tests hold it. */
+export type ScheduledMessageDispatcher = {
+  reconcile(): void;
+  schedule(row: ScheduledMessageRow): void;
+  cancel(id: string): boolean;
+  fireUsageReset(provider: string): Promise<void>;
+  close(): void;
+};
+
 export function createScheduledMessageDispatcher(
   dependencies: ScheduledMessageDispatcherDependencies,
-) {
+): ScheduledMessageDispatcher {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
   const cancelTimer = (id: string) => {
