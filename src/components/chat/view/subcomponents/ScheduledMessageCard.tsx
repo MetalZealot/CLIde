@@ -1,20 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { ClockIcon, PencilIcon, XIcon } from 'lucide-react';
 
+import { formatClockTimeWithDay } from '../../../../utils/formatTime';
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 
 interface ScheduledMessageCardProps {
   message: ScheduledMessage;
   onCancel: (id: string) => void;
   onEdit: (message: ScheduledMessage) => void;
-}
-
-/** Today needs no weekday; anything further out is ambiguous without one. */
-function formatWhen(at: Date): string {
-  const clock = at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  return at.toDateString() === new Date().toDateString()
-    ? clock
-    : `${at.toLocaleDateString(undefined, { weekday: 'short' })} ${clock}`;
 }
 
 /** Same slot and shape as the queued-message card, so both read as "not sent yet". */
@@ -25,7 +18,7 @@ export default function ScheduledMessageCard({ message, onCancel, onEdit }: Sche
     ? t('input.schedule.whenUsageResets', { defaultValue: 'Sending when usage resets' })
     : t('input.schedule.whenAt', {
       defaultValue: 'Sending at {{time}}',
-      time: message.scheduledFor ? formatWhen(new Date(message.scheduledFor)) : '',
+      time: message.scheduledFor ? formatClockTimeWithDay(message.scheduledFor) : '',
     });
 
   return (

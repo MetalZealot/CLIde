@@ -17,6 +17,7 @@ import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useChatFind } from '../hooks/useChatFind';
 import {
   useScheduledMessages,
+  type ScheduledMessage,
   type ScheduledMessageTrigger,
 } from '../hooks/useScheduledMessages';
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
@@ -459,6 +460,9 @@ function ChatInterface({
     setInput(content);
   }, [selectedSession?.id, currentSessionId, setInput]);
 
+  const [editingSchedule, setEditingSchedule] = useState<
+    { trigger: ScheduledMessageTrigger; scheduledFor: string | null } | null
+  >(null);
   const scheduledSessionId = currentSessionId || selectedSession?.id || null;
   const {
     pending: scheduledMessages,
@@ -495,16 +499,19 @@ function ChatInterface({
       if (scheduled) {
         setInput('');
         setAttachedFiles([]);
+        setEditingSchedule(null);
       }
     },
     [attachedFiles, buildSendOptions, input, scheduleMessage, setAttachedFiles, setInput],
   );
 
-  // Editing is cancel-then-recompose: the row is the only durable copy, so it
-  // goes back into the box and the stored one is dropped in the same step.
+  // Editing drops the stored row immediately so it cannot fire mid-rewrite, but
+  // keeps its timing here: sending re-arms the same schedule rather than
+  // sending now, which is what "edit" has to mean for a scheduled message.
   const handleEditScheduledMessage = useCallback(
-    (message: { id: string; content: string }) => {
+    (message: ScheduledMessage) => {
       setInput(message.content);
+      setEditingSchedule({ trigger: message.trigger, scheduledFor: message.scheduledFor });
       void cancelScheduledMessage(message.id);
     },
     [cancelScheduledMessage, setInput],
@@ -831,6 +838,8 @@ function ChatInterface({
             scheduledMessages={scheduledMessages}
             onCancelScheduledMessage={(id) => { void cancelScheduledMessage(id); }}
             onEditScheduledMessage={handleEditScheduledMessage}
+            editingSchedule={editingSchedule}
+            onCancelScheduleEdit={() => setEditingSchedule(null)}
             onScheduleMessage={(trigger, scheduledFor) => {
               void handleScheduleMessage(trigger, scheduledFor);
             }}

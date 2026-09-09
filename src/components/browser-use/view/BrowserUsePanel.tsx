@@ -20,6 +20,7 @@ import type { BrowserSessionSummary } from '../../../../shared/browser-use';
 import { cn } from '../../../lib/utils';
 import { Badge, Button, Dialog, DialogContent, DialogTitle } from '../../../shared/view/ui';
 import ContextMenuOverlay, { anchorFromElement, type ContextMenuAnchor } from '../../../shared/view/ui/ContextMenuOverlay';
+import { formatClockTime as formatTime } from '../../../utils/formatTime';
 import RowActionsTrigger from '../../../shared/view/ui/RowActionsTrigger';
 import { authenticatedFetch } from '../../../utils/api';
 import { useLongPress } from '../../../hooks/useLongPress';
@@ -80,9 +81,7 @@ function formatToolName(tool: string): string {
 }
 
 function formatClockTime(value: string): string {
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return '';
-  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return formatTime(value, { withSeconds: true });
 }
 
 function getDomain(url: string | null): string {

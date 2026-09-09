@@ -13,6 +13,7 @@ import type {
 import { XIcon, ArrowUpIcon } from 'lucide-react';
 
 import { useLongPress } from '../../../../hooks/useLongPress';
+import { formatClockTimeWithDay } from '../../../../utils/formatTime';
 import type { ScheduledMessage, ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useSttAvailable } from '../../hooks/useVoiceAvailable';
@@ -122,6 +123,9 @@ interface ChatComposerProps {
   onCancelScheduledMessage: (id: string) => void;
   /** Pulls a scheduled message back into the composer and drops the stored row. */
   onEditScheduledMessage: (message: ScheduledMessage) => void;
+  /** Set while a scheduled message is being rewritten; send re-arms it unchanged. */
+  editingSchedule: { trigger: ScheduledMessageTrigger; scheduledFor: string | null } | null;
+  onCancelScheduleEdit: () => void;
   /** Stores the composer's current text to send later; clears the box on success. */
   onScheduleMessage: (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => void;
   /** False on providers with no usage reset to wait on, which omits that item. */
@@ -205,6 +209,8 @@ export default function ChatComposer({
   scheduledMessages,
   onCancelScheduledMessage,
   onEditScheduledMessage,
+  editingSchedule,
+  onCancelScheduleEdit,
   onScheduleMessage,
   canScheduleOnUsageReset,
   pendingRewind,
@@ -315,11 +321,17 @@ export default function ChatComposer({
     { disabled: !canScheduleCurrentInput },
   );
 
+  // The sheet belongs to one conversation; switching away must not leave it
+  // covering the next one's composer.
+  useEffect(() => { setIsScheduleMenuOpen(false); }, [sessionKey]);
+
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim() || attachedFiles.length > 0);
   const submitAriaLabel = disabled
     ? t('input.selectProjectToSend', { defaultValue: 'Select a project to send' })
-    : canQueueDraft
+    : editingSchedule
+      ? t('input.schedule.reschedule', { defaultValue: 'Save and keep it scheduled' })
+      : canQueueDraft
       ? hasQueuedDraft
         ? t('input.queue.update', { defaultValue: 'Update queued message' })
         : t('input.queue.sendNext', { defaultValue: 'Queue next message' })
@@ -371,6 +383,30 @@ export default function ChatComposer({
             onScheduleMessage(trigger, scheduledFor);
           }}
         />
+      )}
+
+      {editingSchedule && (
+        <div className="settings-content-enter mx-auto mb-2 flex max-w-[54.25rem] items-center gap-2 rounded-xl border border-dashed border-primary/25 bg-primary/[0.04] px-3 py-2 text-xs">
+          <span className="flex-1 text-muted-foreground">
+            {editingSchedule.trigger === 'usage-reset'
+              ? t('input.schedule.editingUsageReset', {
+                defaultValue: 'Editing — still sends when usage resets',
+              })
+              : t('input.schedule.editingAt', {
+                defaultValue: 'Editing — still sends at {{time}}',
+                time: editingSchedule.scheduledFor
+                  ? formatClockTimeWithDay(editingSchedule.scheduledFor)
+                  : '',
+              })}
+          </span>
+          <button
+            type="button"
+            onClick={onCancelScheduleEdit}
+            className="shrink-0 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            {t('input.schedule.sendNormally', { defaultValue: 'Send normally' })}
+          </button>
+        </div>
       )}
 
       {scheduledMessages.map((message) => (
@@ -591,7 +627,12 @@ export default function ChatComposer({
 
             <PromptInputSubmit
               onClick={
-                canQueueDraft
+                editingSchedule
+                  ? (e: MouseEvent<HTMLButtonElement>) => {
+                      e.preventDefault();
+                      onScheduleMessage(editingSchedule.trigger, editingSchedule.scheduledFor);
+                    }
+                  : canQueueDraft
                   ? (e: MouseEvent<HTMLButtonElement>) => {
                       e.preventDefault();
                       onSubmit(e);

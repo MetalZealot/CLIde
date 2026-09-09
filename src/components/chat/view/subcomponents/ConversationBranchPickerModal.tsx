@@ -5,6 +5,7 @@ import { GitForkIcon, HistoryIcon, SearchIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
 import type { ChatMessage } from '../../types/types';
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
+import { formatDateTime } from '../../../../utils/formatTime';
 
 type ConversationBranchPickerModalProps = {
   open: boolean;
@@ -119,12 +120,7 @@ export default function ConversationBranchPickerModal({
               >
                 <p className="line-clamp-2 break-words text-sm text-foreground">{message.content}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {new Date(message.timestamp).toLocaleString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
+                  {formatDateTime(message.timestamp)}
                 </p>
               </button>
             ))

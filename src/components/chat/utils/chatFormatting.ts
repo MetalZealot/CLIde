@@ -1,4 +1,5 @@
 import type { FollowUpQuestion, MemoryCitation } from '../types/types';
+import { formatClockTime } from '../../../utils/formatTime';
 
 export function decodeHtmlEntities(text: string) {
   if (!text) return text;
@@ -140,11 +141,7 @@ export function formatUsageLimitText(text: string) {
       if (timestampMs < 1e12) timestampMs *= 1000;
       const reset = new Date(timestampMs);
 
-      const timeStr = new Intl.DateTimeFormat(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(reset);
+      const timeStr = formatClockTime(reset);
 
       const offsetMinutesLocal = -reset.getTimezoneOffset();
       const sign = offsetMinutesLocal >= 0 ? '+' : '-';

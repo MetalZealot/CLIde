@@ -27,6 +27,7 @@ import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
+import { formatClockTime } from '../../../../utils/formatTime';
 
 type DiffLine = {
   type: string;
@@ -112,16 +113,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     !message.isCompactSummary;
 
 
-  // Locale is pinned and the fields are explicit: the device's own locale renders
-  // seconds and varies the AM/PM marker, so timestamps drift between phone and desktop.
-  const formattedTime = useMemo(
-    () => new Date(message.timestamp).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }),
-    [message.timestamp],
-  );
+  const formattedTime = useMemo(() => formatClockTime(message.timestamp), [message.timestamp]);
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
   const isFindableConversationMessage = isChatFindConversationMessage(message);
   const usesMobileReadingInset =
