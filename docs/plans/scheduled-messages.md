@@ -47,6 +47,16 @@ statement, which survives a restart and cannot be re-fired, so it neither
 reads nor writes `notified` and the two cannot silence each other. The
 post-reset usage re-fetch now runs when either consumer delivers.
 
+## Who a scheduled turn is written to
+
+Nobody sent it, so there is no originating socket and no client subscribed to
+the run: the writer is given a connection that fans out to every listening
+client, and a `scheduled_message_sent` frame draws the user bubble the composer
+never drew and clears the waiting card. `chat.subscribe` must not re-attach
+such a run — replacing its connection hands the stream to one client and
+silences every other, terminal `complete` included, so `attachConnection` is a
+no-op for a broadcast run and subscribers catch up through replay.
+
 ## Phases
 
 - [x] 1. A scheduled message survives a restart — `scheduled_messages` table and
