@@ -468,7 +468,13 @@ function ChatInterface({
     pending: scheduledMessages,
     schedule: scheduleMessage,
     cancel: cancelScheduledMessage,
-  } = useScheduledMessages(scheduledSessionId);
+  } = useScheduledMessages(
+    scheduledSessionId,
+    subscribe,
+    useCallback((content: string) => {
+      addMessage({ type: 'user', content, timestamp: new Date() });
+    }, [addMessage]),
+  );
   const providerCapabilities = useProviderCapabilities();
 
   // Stores whatever is in the composer and clears it, the way sending does.

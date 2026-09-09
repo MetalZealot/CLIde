@@ -430,7 +430,8 @@ export type GatewayEventKind =
   | 'session_upserted'
   | 'loading_progress'
   | 'provider_usage'
-  | 'protocol_error';
+  | 'protocol_error'
+  | 'scheduled_message_sent';
 
 /**
  * Complete set of `kind` values emitted to websocket clients.

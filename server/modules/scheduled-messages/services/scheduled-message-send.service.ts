@@ -3,21 +3,16 @@ import type { RealtimeClientConnection } from '@/shared/types.js';
 
 import type { DispatchResult } from './scheduled-message-dispatcher.service.js';
 
-/**
- * A connection that is never open.
- *
- * A scheduled message fires with no client attached — the phone may be asleep.
- * The run registry only needs `{ readyState, send }`, and the writer checks
- * readyState before every send, so this sink discards outbound frames while
- * the registry still records them. A client that connects later re-attaches
- * through `attachConnection` and receives the recorded events.
- */
-const DETACHED_CONNECTION: RealtimeClientConnection = {
-  readyState: 3, // CLOSED
-  send() {},
-};
-
 export type ScheduledMessageSendDependencies<TRun> = {
+  /**
+   * Where a scheduled run's output goes.
+   *
+   * Nobody sent this turn, so no client is subscribed to it and there is no
+   * originating socket to answer. The connection therefore has to reach every
+   * client that is listening, which is what makes the run visible in a chat
+   * that is already open.
+   */
+  connection: RealtimeClientConnection;
   startRun(input: {
     appSessionId: string;
     provider: string;
@@ -65,7 +60,7 @@ export function createScheduledMessageSender<TRun>(
       appSessionId: row.session_id,
       provider: session.provider,
       providerSessionId: session.provider_session_id,
-      connection: DETACHED_CONNECTION,
+      connection: dependencies.connection,
       userId: null,
     });
     if (!run) {

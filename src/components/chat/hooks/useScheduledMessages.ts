@@ -31,7 +31,14 @@ type CreateInput = {
  * message in the transcript, so showing it above the composer would say the
  * same thing twice.
  */
-export function useScheduledMessages(sessionId: string | null) {
+type ScheduledSendEvent = { kind?: string; sessionId?: string; content?: unknown };
+
+export function useScheduledMessages(
+  sessionId: string | null,
+  subscribe?: (listener: (event: ScheduledSendEvent) => void) => () => void,
+  /** Draws the bubble the composer never drew, since nobody typed this turn. */
+  onSent?: (content: string) => void,
+) {
   const [pending, setPending] = useState<ScheduledMessage[]>([]);
 
   const refresh = useCallback(async () => {
@@ -50,6 +57,18 @@ export function useScheduledMessages(sessionId: string | null) {
   }, [sessionId]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // A message that fires stops being pending, and nothing else would tell the
+  // card above the composer to go.
+  useEffect(() => {
+    if (!subscribe || !sessionId) return;
+    return subscribe((event) => {
+      if (event.kind === 'scheduled_message_sent' && event.sessionId === sessionId) {
+        onSent?.(String(event.content ?? ''));
+        void refresh();
+      }
+    });
+  }, [onSent, refresh, sessionId, subscribe]);
 
   const schedule = useCallback(async (input: CreateInput): Promise<boolean> => {
     if (!sessionId) return false;

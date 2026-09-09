@@ -15,6 +15,7 @@ import {
   cancelScheduledMessage,
   createScheduledMessage,
   createScheduledMessageDispatcher,
+  createScheduledMessageSender,
   fireUsageResetMessages,
   hasPendingUsageResetMessages,
   listScheduledMessagesForSession,
@@ -354,6 +355,34 @@ describe('scheduled-messages', () => {
       } finally {
         setScheduledMessageRuntime(null);
       }
+    });
+  });
+
+  test('a fired message is written to whoever is listening, not to a dead socket', async () => {
+    await withIsolatedDatabase(async () => {
+      seedSession('session-12');
+      const delivered: unknown[] = [];
+      const row = scheduledMessagesDb.create({
+        sessionId: 'session-12',
+        provider: 'claude',
+        content: 'say something',
+        trigger: 'usage-reset',
+      });
+
+      // Nobody sent this turn, so no client is subscribed to it. A connection
+      // that reports closed silently discards the whole run.
+      const send = createScheduledMessageSender<{ id: string }>({
+        connection: { readyState: 1, send: (data) => { delivered.push(data); } },
+        startRun: (input) => {
+          input.connection.send('frame-for-open-clients');
+          return { id: input.appSessionId };
+        },
+        runTurn: async () => {},
+      });
+
+      const result = await send(row);
+      assert.deepEqual(result, { ok: true });
+      assert.deepEqual(delivered, ['frame-for-open-clients']);
     });
   });
 
