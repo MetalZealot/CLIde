@@ -37,6 +37,7 @@ import type { SessionStore } from '../../../stores/useSessionStore';
 
 import { MESSAGES_PER_PAGE } from './useChatSessionState';
 import { useFileMentions } from './useFileMentions';
+import { useInputHistory } from './useInputHistory';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
 
 interface UseChatComposerStateArgs {
@@ -442,6 +443,15 @@ export function useChatComposerState({
   // Which project the composer last restored a draft for; `undefined` means no
   // project has been picked yet, so the current text belongs to no draft key.
   const lastRestoredProjectIdRef = useRef(selectedProjectId);
+
+  const { recordSentMessage, handleHistoryKeyDown } = useInputHistory({
+    setInput: (value) => {
+      setInput(value);
+      inputValueRef.current = value;
+    },
+    textareaRef,
+    scope: selectedProjectId ?? null,
+  });
   // Prefer the stable backend-allocated id (selectedSession.id) but fall back
   // to currentSessionId for a just-established session that hasn't been
   // handed back to the parent's `selectedSession` prop yet.
@@ -1081,6 +1091,7 @@ export function useChatComposerState({
 
         queuedDraftSessionRef.current = queuedSessionKey;
         setQueuedDraft(durableDraft);
+        recordSentMessage(durableDraft.content);
         setInput('');
         inputValueRef.current = '';
         setAttachedFiles([]);
@@ -1245,6 +1256,7 @@ export function useChatComposerState({
         },
       });
 
+      recordSentMessage(messageContent);
       setInput('');
       inputValueRef.current = '';
       resetCommandMenuState();
@@ -1266,6 +1278,7 @@ export function useChatComposerState({
       currentSessionId,
       executeCommand,
       isLoading,
+      recordSentMessage,
       onSessionProcessing,
       onSessionEstablished,
       pendingRewind,
@@ -1557,6 +1570,10 @@ export function useChatComposerState({
         return;
       }
 
+      if (handleHistoryKeyDown(event)) {
+        return;
+      }
+
       if (event.key === 'Tab' && !showFileDropdown && !showCommandMenu) {
         const action = resolveComposerTabAction(event.shiftKey, Boolean(toggleCollaborationMode));
         if (!action) return;
@@ -1592,6 +1609,7 @@ export function useChatComposerState({
       handleCommandMenuKeyDown,
       enterToSend,
       handleFileMentionsKeyDown,
+      handleHistoryKeyDown,
       handleSubmit,
       isTouchPrimary,
       sendByCtrlEnter,

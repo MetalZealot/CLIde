@@ -16,9 +16,88 @@ import {
   selectPastedAttachments,
 } from './useChatComposerState';
 import { normalizedToChatMessages } from './useChatMessages';
+import { resolveHistoryNavigation, type HistoryNav } from './useInputHistory';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
 import { appendStreamChunk, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
 import { normalizeVoiceTranscript } from './useVoiceInput';
+
+// --- useInputHistory --------------------------------------------------------
+
+const HISTORY = ['first', 'second', 'third'];
+const readHistory = () => HISTORY;
+const navAt = (index: number, draft = ''): HistoryNav => ({
+  history: HISTORY,
+  index,
+  draft,
+  recalled: HISTORY[index],
+});
+
+test('ArrowUp in an empty box recalls the newest message', () => {
+  const result = resolveHistoryNavigation('ArrowUp', '', null, readHistory);
+  assert.deepEqual(result, {
+    handled: true,
+    nav: { history: HISTORY, index: 2, draft: '', recalled: 'third' },
+    input: 'third',
+  });
+});
+
+test('ArrowUp leaves a box the user has typed in alone', () => {
+  assert.deepEqual(
+    resolveHistoryNavigation('ArrowUp', 'half a thought', null, readHistory),
+    { handled: false },
+  );
+});
+
+test('ArrowUp walks backwards, then stops at the oldest without clearing the box', () => {
+  const second = resolveHistoryNavigation('ArrowUp', 'third', navAt(2), readHistory);
+  assert.equal(second.handled && second.input, 'second');
+
+  const first = resolveHistoryNavigation('ArrowUp', 'second', navAt(1), readHistory);
+  assert.equal(first.handled && first.input, 'first');
+
+  // Consumed, so the caret does not jump, but nothing changes.
+  const oldest = resolveHistoryNavigation('ArrowUp', 'first', navAt(0), readHistory);
+  assert.equal(oldest.handled && oldest.input, null);
+});
+
+test('ArrowDown past the newest entry restores the draft that recall interrupted', () => {
+  const result = resolveHistoryNavigation('ArrowDown', 'third', navAt(2, 'my draft'), readHistory);
+  assert.deepEqual(result, { handled: true, nav: null, input: 'my draft' });
+});
+
+test('editing a recalled message hands the arrows back', () => {
+  assert.deepEqual(
+    resolveHistoryNavigation('ArrowUp', 'third and a bit', navAt(2), readHistory),
+    { handled: false },
+  );
+  assert.deepEqual(
+    resolveHistoryNavigation('ArrowDown', 'third and a bit', navAt(2), readHistory),
+    { handled: false },
+  );
+});
+
+test('ArrowDown outside a recall is never taken over', () => {
+  assert.deepEqual(
+    resolveHistoryNavigation('ArrowDown', '', null, readHistory),
+    { handled: false },
+  );
+});
+
+test('an empty history leaves ArrowUp as caret movement', () => {
+  assert.deepEqual(
+    resolveHistoryNavigation('ArrowUp', '', null, () => []),
+    { handled: false },
+  );
+});
+
+test('a walk in progress keeps its own snapshot, not a later read', () => {
+  // A send from another tab appends mid-recall; the arrows must keep landing
+  // on the list the walk started with.
+  const grown = () => [...HISTORY, 'fourth'];
+  const result = resolveHistoryNavigation('ArrowUp', 'third', navAt(2), grown);
+  assert.equal(result.handled && result.input, 'second');
+  assert.deepEqual(result.handled && result.nav?.history, HISTORY);
+});
 
 // --- useChatComposerState ---------------------------------------------------
 
