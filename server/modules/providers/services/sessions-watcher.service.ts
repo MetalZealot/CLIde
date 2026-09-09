@@ -152,6 +152,7 @@ async function buildSessionUpsertedEvent(updatedProviderSessionId: string): Prom
     provider: row.provider,
     session: {
       id: row.session_id,
+      providerSessionId: row.provider_session_id ?? null,
       summary: row.custom_name || '',
       messageCount: 0,
       lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),

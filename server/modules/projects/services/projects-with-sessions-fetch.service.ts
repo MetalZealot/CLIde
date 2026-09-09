@@ -13,6 +13,8 @@ import { discoverUnregisteredCheckouts } from './worktree-inventory.service.js';
 type SessionSummary = {
   id: string;
   provider: string;
+  /** The provider's own id for this conversation, which names its transcript on disk. Null until the runtime announces one. */
+  providerSessionId: string | null;
   summary: string;
   messageCount: number;
   lastActivity: string;
@@ -22,6 +24,7 @@ type SessionSummary = {
 type SessionRepositoryRow = {
   provider: string;
   session_id: string;
+  provider_session_id?: string | null;
   custom_name?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
@@ -141,10 +144,11 @@ function normalizeSessionPagination(options: SessionPaginationOptions = {}): { l
   };
 }
 
-function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
+export function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
   return {
     id: row.session_id,
     provider: row.provider,
+    providerSessionId: row.provider_session_id ?? null,
     summary: row.custom_name || '',
     messageCount: 0,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),

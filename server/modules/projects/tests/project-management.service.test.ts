@@ -12,7 +12,36 @@ import { removeJsonlFilesAndPruneEmptyDirs } from '@/modules/projects/services/p
 import { createProject } from '@/modules/projects/services/project-management.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { getProjectTaskMaster, getProjectTaskMasterById } from '@/modules/projects/services/projects-has-taskmaster.service.js';
+import { mapSessionRowToSummary } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { AppError } from '@/shared/utils.js';
+
+describe('sidebar session serialization', () => {
+  // The row menu's copy action needs the provider's own id: it names the
+  // transcript on disk, which the app-facing id does not.
+  test('a session row carries the provider id alongside the app id', () => {
+    const summary = mapSessionRowToSummary({
+      provider: 'claude',
+      session_id: 'app-id',
+      provider_session_id: 'provider-id',
+      custom_name: 'A Name',
+      updated_at: '2026-07-18T10:00:00.000Z',
+    });
+
+    assert.equal(summary.id, 'app-id');
+    assert.equal(summary.providerSessionId, 'provider-id');
+  });
+
+  test('an app row with no provider id yet reports null rather than the app id', () => {
+    const summary = mapSessionRowToSummary({
+      provider: 'codex',
+      session_id: 'app-id',
+      provider_session_id: null,
+      updated_at: '2026-07-18T10:00:00.000Z',
+    });
+
+    assert.equal(summary.providerSessionId, null);
+  });
+});
 
 describe('project-management.service', () => {
   const projectRow = {

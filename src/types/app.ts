@@ -42,6 +42,9 @@ export interface ProjectSession {
   lastActivity?: string;
   messageCount?: number;
   provider?: LLMProvider;
+  // The provider's own id for this conversation; it names the transcript on
+  // disk, which the app-facing `id` does not. Null until the runtime announces one.
+  providerSessionId?: string | null;
   // Starred conversations float to the top of their project and show a small star.
   isStarred?: boolean;
   __provider?: LLMProvider;

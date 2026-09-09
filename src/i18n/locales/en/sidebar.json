@@ -90,7 +90,13 @@
     "rename": "Rename",
     "customize": "Customize",
     "open": "Open",
-    "copySessionId": "Copy session ID",
+    "copyProviderSessionId": "Copy {{provider}} session ID",
+    "providerNames": {
+      "claude": "Claude",
+      "codex": "Codex",
+      "cursor": "Cursor",
+      "opencode": "OpenCode"
+    },
     "rowActions": "Actions for {{name}}",
     "account": "Account",
     "accountMenu": "Account menu",

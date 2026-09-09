@@ -348,16 +348,24 @@ function Sidebar({
             setEditingSessionName(sessionName);
           },
         },
-        {
-          // PWA has no URL bar, so this is the only way to see/share a session id
-          // (e.g. to point a Claude session at another chat's transcript).
-          key: 'copy-id',
-          label: t('actions.copySessionId', 'Copy session ID'),
-          icon: Copy,
-          onSelect: () => {
-            void copyTextToClipboard(session.id);
-          },
-        },
+        // PWA has no URL bar, so this is the only way to see or share an id.
+        // The provider's id is the one that names the transcript on disk, which
+        // is what this is reached for; the app id addresses nothing outside CLIde.
+        ...(session.providerSessionId
+          ? [{
+              key: 'copy-id',
+              label: t('actions.copyProviderSessionId', {
+                provider: t(`providerNames.${session.provider}`, {
+                  defaultValue: session.provider ?? '',
+                }),
+                defaultValue: 'Copy {{provider}} session ID',
+              }),
+              icon: Copy,
+              onSelect: () => {
+                void copyTextToClipboard(session.providerSessionId as string);
+              },
+            }]
+          : []),
         // Opens with this row ticked, so one gesture selects rather than two.
         ...(contextMenu.selectionScope
           ? [{
