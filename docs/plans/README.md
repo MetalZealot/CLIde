@@ -11,7 +11,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | Plan | Status | Next |
 |---|---|---|
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
-| [Upstream feature harvest](upstream-feature-harvest.md) | not started | Unblocked — give each of the nine gaps a verdict |
+| [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
 | [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
 | [Context-correct skills settings](skills-settings-discovery-scope.md) | 2/4 | Add the Context choice to each supported Agent Skills screen |

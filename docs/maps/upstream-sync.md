@@ -86,6 +86,83 @@ branding. These are refused permanently and do not need re-assessing each time.
 | `#1162` archive dialog keys | The dialog they belong to does not exist here |
 | Release plumbing, README, Electron | Upstream operations; the README would restore their branding |
 
+## Gap inventory
+
+The nine capabilities upstream has and CLIde does not, each read against what
+this fork already ships. Assessed 2026-09-08 under
+[the harvest plan](../plans/upstream-feature-harvest.md) phase 1. Everything
+listed sits after `99ea0525`, so "where it lives" names research material, never
+a cherry-pick source.
+
+### Build
+
+**Composer message recall** (`#1238`, `8f9a2e43`). Arrow keys walk previously
+sent messages. Upstream: `useInputHistory.ts` plus a wiring hook and its test,
+three self-contained files, no server side. CLIde has nothing — no input-history
+state exists anywhere in `src/`. Provider answer: none needed; the composer is
+above the adapter boundary. The smallest of the nine and the only one with no
+open design question.
+
+**Provider session-id copy** (`#1040`, `428b1052`). CLIde already has a
+`copy-id` action in the sidebar row menu, but it copies `session.id` — the app
+id — under the label "Copy session ID", which names neither id. The sidebar row
+never receives `provider_session_id` at all, so this is a serializer change
+before it is a menu change. Exactly the confusion the glossary exists to
+prevent, and worth taking for the relabel alone. Provider answer: every adapter
+has a provider id; Claude and Codex expose one per session, so the action shows
+only when the row carries one.
+
+**Scheduled messages** (`#1206` core, `#1239` interrupt semantics). The
+interrupt-versus-wait question the TODO item is blocked on is already answered
+here, in the other direction: `useQueuedMessageAutoSend.ts` and the composer's
+`queuedDraft` queue a message against a busy session and send it when the run
+ends. Upstream chose to interrupt because they had no queue. So scheduling is
+"send at time T", a genuinely separate capability, and it should not inherit
+`#1239`'s interrupt behaviour. Upstream's server side is four files and a
+dispatcher; provider answer: the dispatcher sends through the same chat
+websocket path every adapter already uses, so it is provider-neutral.
+
+### Refuse
+
+**Model catalog cached in SQLite** (`#1095`, `0f67810c`). The premise does not
+hold here. CLIde already persists the catalog across restarts at
+`~/.cloudcli/provider-models-cache.json` — versioned, per-provider entries, a
+three-day TTL. Upstream's table buys durability this fork has and adds a
+migration. No ADR needed; there is no decision left.
+
+**Collapsible model-picker groups** (`#1229`, `66c0e4df`). Upstream is solving a
+flat list of every provider's models at once. `ComposerModelMenu.tsx` is one
+popover with three panes — the current provider's models, a providers pane, and
+a legacy pane — so the problem does not occur. Revisit only if one provider's
+own catalog grows awkward, which ADRs 0003 and 0025 already constrain.
+
+**Recent-conversations feed** (`#1041`, redrawn by `#1157`). Recency already has
+several surfaces here: an urgency-ordered Activity section, Pinned, starring,
+persistent search, and the archive. Upstream added a feed to a sidebar that had
+none of it. Adding a fourth recency surface competes with the three that work.
+
+### Defer
+
+**Database-backed drafts and preferences** (`#1206`). Two differences, and the
+smaller one is the storage. CLIde keys drafts by `projectId` in `localStorage`;
+upstream keys them per session in SQLite. Whether a draft belongs to a project
+or to a conversation is a product decision, not a storage one, and it has to be
+settled before the storage question is worth asking. Blocked on that answer,
+not on cost.
+
+**Spanish locale** (`#1090`). Reframed by measurement: 225 `t(key, 'fallback')`
+calls across `src/components/` carry their English inline and exist in no locale
+file, 122 of them in the sidebar. All nine non-English locales already render
+English for those strings, so this is not a Spanish gap — adding a tenth locale
+would inherit the same holes. Extract to keys first; translating is the cheap
+half.
+
+**Transcript performance** (`#1206`). Unchanged from the ledger above: server-
+side history caching, lazy row mounting, streaming markdown and scan coalescing
+are real, and every measurement behind them is upstream's architecture. Phase 4
+of the harvest plan profiles CLIde's own transcript before any of it is
+believed.
+
 ## Ledger
 
 ### v1.37.1 – v1.37.3, assessed 2026-09-08
@@ -127,8 +204,6 @@ branding. These are refused permanently and do not need re-assessing each time.
   performance work — server-side history caching, lazy row mounting, streaming
   markdown, scan coalescing. Real, but measured on upstream's architecture.
   Profile CLIde first; the restructure is the cost of entry.
-- **Gap inventory:** the nine capabilities CLIde lacks get a verdict each in
-  [the harvest plan](../plans/upstream-feature-harvest.md); until that runs,
-  "deferred" above means deferred on cost, not judged on merit.
+- **Gap inventory:** all nine have verdicts — see the section below.
 - **Structural note:** `#1206` is the reason this map exists. Everything after
   it is a reimplementation, and the fork should expect that permanently.

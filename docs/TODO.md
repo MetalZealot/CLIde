@@ -117,8 +117,9 @@ new work.
 - [ ] **The activity indicator's changed state isn't legible.** A provider status like "Compacting conversation" phases in the same grey as the idle Thinking/Processing cycle, so it reads as normal waiting. Part of the wider indicator/panel rework: distinct treatment for a real status. **M**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [ ] **Recall sent messages in the composer with the arrow keys.** Upstream `8f9a2e43` (#1238) is three self-contained files and lands after the `#1206` restructure, so reimplement rather than cherry-pick. [Map](maps/upstream-sync.md). **S**
-- [ ] **Scheduled messages.** When usage runs out you often want work to resume the moment it resets, mid-task. A "schedule send" in the composer; also useful for follow-ups. **M/L**
+- [ ] **Recall sent messages in the composer with the arrow keys.** Upstream `8f9a2e43` (#1238) is three self-contained files and lands after the `#1206` restructure, so reimplement rather than cherry-pick. Provider answer: none needed, the composer sits above the adapter boundary. Verdict: build. [Map](maps/upstream-sync.md). **S**
+- [ ] **The sidebar's "Copy session ID" copies the app id and does not say so.** Needs the list serializer to carry `provider_session_id` before the menu changes; show the action only on rows that have one. Verdict: build ([gap inventory](maps/upstream-sync.md)). **S**
+- [ ] **Scheduled messages.** A "schedule send" in the composer, so work resumes the moment usage resets. Unblocked: CLIde already queues against a busy session, so this means "send at time T" and must not inherit `#1239`'s interrupt. Dispatcher is provider-neutral. Verdict: build ([gap inventory](maps/upstream-sync.md)). **M/L**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
 

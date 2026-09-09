@@ -1,8 +1,8 @@
 # Harvest the capabilities CLIde lacks from upstream
 
-- Status: not started
-- Next: Inventory every gap with a build/defer/refuse verdict; the
-  [v1.37.3 picks](upstream-1373-sync.md) they were blocked on have landed
+- Status: 1/4
+- Next: Grayson ranks the three "build" verdicts, then each gets a design
+  agreed before code
 - Context: [upstream sync map](../maps/upstream-sync.md) holds the buckets and
   the ledger; [provider capability map](../maps/clide-provider-capability-map.md)
   owns what each adapter can be asked to do
@@ -24,9 +24,10 @@ plug in or explicitly no-op, per `AGENTS.md`.
 
 ## Phases
 
-- [ ] 1. Each gap has a verdict — one inventory row in the sync map giving what
-      upstream ships, where their implementation lives, what CLIde has instead,
-      the provider answer, and build/defer/refuse. No gap left in "unknown"
+- [x] 1. Each gap has a verdict — the [gap inventory](../maps/upstream-sync.md)
+      holds all nine: three build, three refuse, three defer. Two premises were
+      wrong and are recorded as such — the model-catalog cache and the Spanish
+      locale
 - [ ] 2. For each survivor, a design agreed before code: the integration point,
       the adapter answer, and what it must not inherit from `#1206`
 - [ ] 3. Build in the ranked order phase 1 produces, one branch per feature,
@@ -36,38 +37,22 @@ plug in or explicitly no-op, per `AGENTS.md`.
 
 ## The gaps
 
-Ranked as they stand today; phase 1 is allowed to reorder this.
+Verdicts, evidence and the provider answer for each of the nine live in the
+[gap inventory](../maps/upstream-sync.md). Summary only:
 
-- **Composer message recall** (`#1238`). Arrow keys walk sent messages. Three
-  self-contained files upstream. Client-only, provider-neutral. **Smallest real
-  win of the nine.**
-- **Scheduled messages** (`#1206` core, `#1239` interrupt semantics). Already
-  an item in `docs/TODO.md`. Decide interrupt-versus-wait *before* building:
-  upstream now interrupts a busy run, and that is a behaviour choice, not a
-  detail.
-- **Recent-conversations feed** (`#1041`, redrawn by `#1157`). Collides with
-  CLIde's own sidebar, which already has starring, activity states and its
-  action menus. The question is whether recency deserves a surface at all here,
-  not how upstream drew it.
-- **Provider session-id copy** (`#1040`). Small, and it touches the id space
-  the glossary already cares about. Check it copies the provider id and says so
-  — the two ids are exactly what `AGENTS.md` warns about confusing.
-- **Collapsible model-picker groups** (`#1229`). Upstream solves a flat
-  all-provider list. CLIde shows one provider at a time and drills into legacy
-  models, so this is only worth it if a large catalog proves awkward in use.
-  ADRs 0003 and 0025 constrain anything here.
-- **Model catalog cached in SQLite** (`#1095`). CLIde caches in-process and on
-  disk at a JSON path. Upstream's table survives a restart and is shared. A
-  storage decision with an ADR attached, not a feature.
-- **Database-backed drafts and preferences** (`#1206`). Upstream gains
-  cross-device sync; CLIde's browser-local drafts keep per-device choices. Both
-  are defensible — this is a product decision about who owns a draft.
-- **Transcript performance** (`#1206`): server-side history caching, lazy row
-  mounting, streaming markdown, scan coalescing. Real work, measured on their
-  architecture. **Profile before believing any of it transfers.**
-- **Spanish locale** (`#1090`). Blocked behind CLIde's own gap: the sidebar's
-  keys are inline `t()` fallbacks in no locale file. Extract first, translate
-  second.
+| Gap | Verdict |
+|---|---|
+| Composer message recall (`#1238`) | build — smallest, no open design question |
+| Provider session-id copy (`#1040`) | build — fixes an ambiguous existing action |
+| Scheduled messages (`#1206`, `#1239`) | build — unblocked; CLIde already queues |
+| Model catalog in SQLite (`#1095`) | refuse — ours already survives a restart |
+| Collapsible model-picker groups (`#1229`) | refuse — the flat list never occurs here |
+| Recent-conversations feed (`#1041`, `#1157`) | refuse — three recency surfaces already |
+| DB-backed drafts and preferences (`#1206`) | defer — project-scoped or session-scoped is the real question |
+| Spanish locale (`#1090`) | defer — 225 strings sit in no locale file; extract first |
+| Transcript performance (`#1206`) | defer — phase 4, profile first |
+
+Build order is Grayson's to set; the ranking above is size, not priority.
 
 ## Done when
 
