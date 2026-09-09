@@ -57,6 +57,12 @@ type ChatRun = {
   completedAt: number | null;
   abortInFlight: boolean;
   abortController: AbortController;
+  /**
+   * True when the run answers to every listening client instead of one socket.
+   * Nobody sent the turn, so there is no owner to hand the stream to and a
+   * subscribing client must not take it away from the rest.
+   */
+  broadcast: boolean;
 };
 
 /**
@@ -267,6 +273,8 @@ export const chatRunRegistry = {
     providerSessionId: string | null;
     connection: RealtimeClientConnection;
     userId: string | number | null;
+    /** Set when `connection` already fans out; keeps `attachConnection` off it. */
+    broadcast?: boolean;
   }): ChatRun | null {
     const existing = runs.get(input.appSessionId);
     if (existing && existing.status === 'running') {
@@ -286,6 +294,7 @@ export const chatRunRegistry = {
       completedAt: null,
       abortInFlight: false,
       abortController: new AbortController(),
+      broadcast: input.broadcast === true,
     };
 
     run.writer = new ChatSessionWriter({
@@ -357,11 +366,18 @@ export const chatRunRegistry = {
    * This is the generic replacement for the Claude-only writer reconnect:
    * after a page refresh the new socket subscribes and immediately starts
    * receiving the still-running stream, for every provider.
+   *
+   * A broadcast run keeps its own connection: it is already reaching this
+   * client along with every other one, and replacing it would silence them.
    */
   attachConnection(appSessionId: string, connection: RealtimeClientConnection): boolean {
     const run = runs.get(appSessionId);
     if (!run) {
       return false;
+    }
+
+    if (run.broadcast) {
+      return true;
     }
 
     run.writer.updateWebSocket(connection);

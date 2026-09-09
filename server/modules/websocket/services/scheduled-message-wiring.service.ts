@@ -70,6 +70,7 @@ export function initializeScheduledMessages(): void {
     startRun: (input) => chatRunRegistry.startRun({
       ...input,
       provider: input.provider as LLMProvider,
+      broadcast: true,
     }),
     runTurn: async ({ row, run, provider, options }) => {
       const session = sessionsDb.getSessionById(row.session_id);

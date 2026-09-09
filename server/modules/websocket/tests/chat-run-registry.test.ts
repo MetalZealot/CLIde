@@ -566,3 +566,26 @@ test('startRun rejects a second concurrent run for the same session', async () =
     assert.ok(third);
   });
 });
+
+test('a broadcast run keeps its fan-out connection when a client subscribes', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-broadcast', 'claude', '/workspace/demo');
+    const audience = new FakeConnection();
+    const subscriber = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-broadcast',
+      provider: 'claude',
+      providerSessionId: null,
+      connection: audience,
+      userId: null,
+      broadcast: true,
+    });
+    assert.ok(run);
+
+    assert.equal(chatRunRegistry.attachConnection('app-broadcast', subscriber), true);
+    run.writer.send({ kind: 'text', provider: 'claude', sessionId: 'provider-id-1', content: 'scheduled reply' });
+
+    assert.equal(audience.frames.length, 1);
+    assert.equal(subscriber.frames.length, 0);
+  });
+});
