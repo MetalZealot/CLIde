@@ -78,18 +78,23 @@ same edit.
 **What breaks:** the context ring goes blank or reads zero, usually only on sessions that
 hit a limit — so it looks intermittent and unrelated to whatever was changed.
 
-## 6. The client rebuilds without a restart; the server doesn't
+## 6. Merged, built, and live are three different facts
 
 `dist/` is the browser code, built by `npm run build:client`. The server reads it from
 disk on every request, so a rebuild plus a browser refresh is a complete deploy.
 `dist-server/` is the backend, built by `npm run build:server`, and only a restart picks
-it up.
+it up. A merge changes source only; it does not install dependencies, rebuild either
+artifact, or replace the already-running server process.
 
-**The rule:** match the build to what changed. Frontend edit → `build:client` → refresh.
-Backend edit → `build:server` → restart from SSH, never from inside a CLIde session.
+**The rule:** establish each boundary separately: source merged, dependencies current,
+client and server built from that source, then the current server process running that
+build. Frontend-only work can still use `build:client` then refresh; anything crossing
+dependencies or the backend uses the production deployment path that verifies every
+boundary.
 
 **What breaks:** you refresh, see no change, and conclude the fix failed when it was
-never loaded. Or a restart from inside a session kills the session issuing it.
+never built or loaded. Or “merged” is mistaken for “live” while production keeps serving
+an older client, server, or dependency set.
 
 ## 7. Which port you check is not a judgment call
 

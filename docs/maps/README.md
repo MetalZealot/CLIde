@@ -7,7 +7,7 @@ CLIde or its provider runtimes change.
 
 | Document | Role | Status |
 |---|---|---|
-| [Orientation](orientation.md) | Plain-language map of CLIde's nine governing assumptions, written for Grayson rather than for an agent | Written 2026-09-01; verified against the code |
+| [Orientation](orientation.md) | Plain-language map of CLIde's nine governing assumptions, written for Grayson rather than for an agent | Updated 2026-09-09 with source, build, and live release boundaries |
 | [Upstream sync](upstream-sync.md) | How this fork takes work from `siteboon/claudecodeui`, what has been refused, and the release ledger | Written 2026-09-08 for the v1.37.3 span |
 | [Code anchors](code-anchors.md) | Symbol-anchored map of the code worth not blind-reading; the areas where a wrong assumption is expensive | Moved out of the local `CLAUDE.md` 2026-08-04 |
 | [Test suite](test-suite.md) | What the suites own, their measured cost, and what they cannot establish | Measured 2026-08-15 after consolidation to 82 files |

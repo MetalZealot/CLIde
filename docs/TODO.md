@@ -9,6 +9,10 @@ Sizes: **S** small/frontend-only, **M** medium, **L** large/needs design, **?** 
 enforced by `npm run check:docs`. Screenshots live in `UI Visual References/` (untracked,
 main checkout only).
 
+## Operations
+
+- [~] **Builds identify the source and dependency state that produced them.** Dependency installs and client/server builds emit ignored whole-artifact release markers for host tooling; live deployment proof remains. **S**
+
 ## Provider maintenance
 
 - [ ] **Codex Chat and Shell can claim the same native thread.** Add App Server-native Chat compaction and a backend-owned single-writer handoff so retained Shell PTYs cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**
