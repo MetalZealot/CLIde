@@ -31,13 +31,17 @@ type CreateInput = {
  * message in the transcript, so showing it above the composer would say the
  * same thing twice.
  */
-type ScheduledSendEvent = { kind?: string; sessionId?: string; content?: unknown };
+type ScheduledSendEvent = { kind?: string; sessionId?: string; content?: unknown; timestamp?: unknown };
 
 export function useScheduledMessages(
   sessionId: string | null,
   subscribe?: (listener: (event: ScheduledSendEvent) => void) => () => void,
-  /** Draws the bubble the composer never drew, since nobody typed this turn. */
-  onSent?: (content: string) => void,
+  /**
+   * Draws the bubble the composer never drew, since nobody typed this turn.
+   * `sentAt` is when the message actually went out, not when this client heard
+   * about it — a phone that was asleep hears about it late.
+   */
+  onSent?: (content: string, sentAt: Date) => void,
 ) {
   const [pending, setPending] = useState<ScheduledMessage[]>([]);
 
@@ -64,7 +68,8 @@ export function useScheduledMessages(
     if (!subscribe || !sessionId) return;
     return subscribe((event) => {
       if (event.kind === 'scheduled_message_sent' && event.sessionId === sessionId) {
-        onSent?.(String(event.content ?? ''));
+        const sentAt = typeof event.timestamp === 'string' ? new Date(event.timestamp) : new Date();
+        onSent?.(String(event.content ?? ''), Number.isNaN(sentAt.getTime()) ? new Date() : sentAt);
         void refresh();
       }
     });

@@ -36,6 +36,13 @@ import ChatFindBar from './subcomponents/ChatFindBar';
 /** How long the Stop button stays armed after the first Escape/tap before it resets. */
 const STOP_ARM_TIMEOUT_MS = 4000;
 
+/**
+ * How long after a scheduled message fires the transcript is re-read, so its
+ * reply appears even if this client heard none of the run's own frames. Long
+ * enough that a normal turn has already drawn itself from the live stream.
+ */
+const SCHEDULED_SEND_RECONCILE_MS = 60_000;
+
 function ChatInterface({
   projects,
   selectedProject,
@@ -487,9 +494,16 @@ function ChatInterface({
   } = useScheduledMessages(
     scheduledSessionId,
     subscribe,
-    useCallback((content: string) => {
-      addMessage({ type: 'user', content, timestamp: new Date() });
-    }, [addMessage]),
+    useCallback((content: string, sentAt: Date) => {
+      addMessage({ type: 'user', content, timestamp: sentAt });
+      // The turn's own frames are the only thing carrying the reply, and a
+      // phone that slept through them gets no second chance from the socket.
+      // One re-read of the transcript afterwards puts the answer on screen
+      // whatever the connection did meanwhile.
+      const sessionId = scheduledSessionId;
+      if (!sessionId) return;
+      window.setTimeout(() => { void sessionStore.refreshFromServer(sessionId); }, SCHEDULED_SEND_RECONCILE_MS);
+    }, [addMessage, scheduledSessionId, sessionStore]),
   );
   const providerCapabilities = useProviderCapabilities();
 
