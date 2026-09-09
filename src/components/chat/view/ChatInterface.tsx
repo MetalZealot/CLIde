@@ -354,6 +354,22 @@ function ChatInterface({
     });
   }, [selectedProject, selectedSession, sendMessage, sessionStore, getReplayProgress]);
 
+  // Same catch-up when the tab comes back to the foreground.
+  //
+  // A frozen tab stops running its listener while its socket stays OPEN, so
+  // whatever streamed meanwhile is gone with no reconnect to signal it — the
+  // conversation just sits missing a turn until something else reloads it.
+  // Re-fetching costs one request per foreground and cannot show less than
+  // what the transcript holds.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void handleWebSocketReconnect();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [handleWebSocketReconnect]);
+
   // Shown after a model or effort change made mid-conversation. Both alter the
   // prefix the provider caches against, so the next turn may re-read tokens it
   // would otherwise have reused; nothing in the conversation is lost. Before
