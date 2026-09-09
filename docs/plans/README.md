@@ -12,6 +12,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 |---|---|---|
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
+| [Scheduled messages and Auto-Continue](scheduled-messages.md) | not started | The table, the repository, and the time trigger |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
 | [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
 | [Context-correct skills settings](skills-settings-discovery-scope.md) | complete | none — accepted live 2026-09-09 |
