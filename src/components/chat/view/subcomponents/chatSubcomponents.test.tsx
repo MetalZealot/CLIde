@@ -1609,6 +1609,57 @@ describe('QuestionAnswerContent', () => {
     assert.ok(!html.includes('Skips in'));
   });
 
+  test('mobile question control collapses without answering and restores the selection', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    let decisionCount = 0;
+
+    try {
+      await React.act(async () => {
+        root.render(
+          <UserInputRequestPanel
+            request={{
+              requestId: 'request-collapse',
+              provider: 'claude',
+              sessionId: 'session-1',
+              requestType: 'user_input',
+              toolName: 'AskUserQuestion',
+              receivedAt: new Date().toISOString(),
+              questions: [{
+                question: 'Choose one',
+                options: [{ label: 'A' }, { label: 'B' }],
+              }],
+            }}
+            onDecision={() => { decisionCount += 1; }}
+          />,
+        );
+      });
+
+      const option = container.querySelector<HTMLButtonElement>('[role="radio"]');
+      const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Collapse question"]');
+      assert.ok(option);
+      assert.ok(toggle);
+
+      await React.act(async () => option.click());
+      assert.equal(option.getAttribute('aria-checked'), 'true');
+
+      await React.act(async () => toggle.click());
+      assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+      assert.match(toggle.textContent || '', /Claude question waiting/);
+      assert.match(toggle.textContent || '', /Show question/);
+      assert.equal(decisionCount, 0);
+
+      await React.act(async () => toggle.click());
+      assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+      assert.equal(option.getAttribute('aria-checked'), 'true');
+      assert.equal(decisionCount, 0);
+    } finally {
+      await React.act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
   test('free-text-only secret questions render a password input', () => {
     const html = renderToStaticMarkup(
       React.createElement(UserInputRequestPanel, {
