@@ -149,6 +149,35 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 `;
 
+export const SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS scheduled_messages (
+    -- A message written now and sent later, either at a concrete instant or
+    -- when the provider's usage limit resets. The row is the only durable
+    -- record: an in-memory timer is rebuilt from this table on every start, so
+    -- a restart between scheduling and firing loses nothing.
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    content TEXT NOT NULL,
+    -- Composer send options as JSON, snapshotted at schedule time so the
+    -- message fires with the model and effort it was written for.
+    options TEXT,
+    -- 'time' carries a concrete \`scheduled_for\`; 'usage-reset' leaves it NULL
+    -- and waits on the reset monitor, whose instant is not known until polled.
+    trigger_kind TEXT NOT NULL,
+    scheduled_for DATETIME,
+    -- 'pending' | 'sent' | 'cancelled' | 'failed'. Terminal rows are kept so
+    -- the composer can say what happened rather than silently dropping one.
+    state TEXT NOT NULL DEFAULT 'pending',
+    failure_reason TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    fired_at DATETIME,
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);
+`;
+
 export const SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS session_provider_aliases (
     -- Provider-native ids that used to belong to a session row but were
@@ -222,6 +251,10 @@ CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id);
 -- Creating it here can fail on upgraded installs where the legacy sessions table has no project_path.
 
 ${SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL}
+
+${SCHEDULED_MESSAGES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_scheduled_messages_pending ON scheduled_messages(state, scheduled_for);
+CREATE INDEX IF NOT EXISTS idx_scheduled_messages_session ON scheduled_messages(session_id, state);
 
 ${LAST_SCANNED_AT_SQL}
 

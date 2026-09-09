@@ -1,7 +1,7 @@
 # Scheduled messages and Auto-Continue
 
-- Status: not started
-- Next: Phase 1 — the table, the repository, and the dispatcher's time trigger
+- Status: 1/4
+- Next: Phase 2 — Auto-Continue at the reset monitor's fire point
 - Context: [gap inventory](../maps/upstream-sync.md) holds the verdict and why
   upstream's `#1239` interrupt behaviour is not wanted here; ADR 0031 governs
   the sidebar status visuals phase 4 touches
@@ -33,8 +33,10 @@ can, not whenever you next look at your phone.
 
 ## Phases
 
-- [ ] 1. A scheduled message survives a restart — `scheduled_messages` table and
-      repository, the dispatcher, and the time trigger. Server only, no UI
+- [x] 1. A scheduled message survives a restart — `scheduled_messages` table and
+      repository, the dispatcher, and the time trigger. The sender is written
+      against an injected `runTurn`; wiring that to the real runtime waits for
+      phase 3, since nothing can create a row until there is a surface
 - [ ] 2. Auto-Continue — a second consumer at the reset monitor's fire point,
       with its own enablement and its own dedupe, per the traps above
 - [ ] 3. Composing one — long-press the send button offers "when usage resets"

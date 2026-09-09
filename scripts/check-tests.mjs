@@ -17,7 +17,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
  *  and adding cases to an existing file costs nothing. Merge first, then justify
  *  the number in the commit message. */
 const HALVES = [
-  { name: 'server', dir: 'server', collected: /\.test\.(ts|js)$/, budget: 39 },
+  { name: 'server', dir: 'server', collected: /\.test\.(ts|js)$/, budget: 40 },
   { name: 'client', dir: 'src', collected: /\.test\.tsx?$/, budget: 18 },
 ];
 
