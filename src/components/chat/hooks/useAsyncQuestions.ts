@@ -23,6 +23,8 @@ import { safeLocalStorage, type QueuedSendOptions } from '../utils/chatStorage';
 
 type Delivery = 'send' | 'queue';
 
+const ANSWER_ACK_TIMEOUT_MS = 15_000;
+
 type UseAsyncQuestionsArgs = {
   sessionId: string | null;
   provider: LLMProvider;
@@ -66,11 +68,14 @@ export function useAsyncQuestions({
   const [revision, setRevision] = useState(0);
   const [sendingQuestionId, setSendingQuestionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const currentSessionId = useRef(sessionId);
+  currentSessionId.current = sessionId;
   const pendingSteers = useRef(new Map<string, {
     sessionId: string;
     provider: LLMProvider;
     question: PendingAsyncQuestion;
     content: string;
+    timeoutId: number;
   }>());
 
   // `revision` makes localStorage writes observable to this hook. Reading is
@@ -113,6 +118,34 @@ export function useAsyncQuestions({
     setError(null);
   }, [sessionId]);
 
+  const recoverUnconfirmed = useCallback((requestId: string) => {
+    const pendingSteer = pendingSteers.current.get(requestId);
+    if (!pendingSteer) return;
+    window.clearTimeout(pendingSteer.timeoutId);
+    pendingSteers.current.delete(requestId);
+    if (pendingSteer.sessionId === currentSessionId.current) {
+      setSendingQuestionId(null);
+      setError('Could not confirm answer delivery. Check the conversation before retrying.');
+    }
+    // Transcript replies settle pending questions; uncertain sends must never replay.
+    void sessionStore.refreshFromServer(pendingSteer.sessionId);
+  }, [sessionStore]);
+
+  useEffect(() => {
+    if (isProcessing) return;
+    for (const [requestId, pendingSteer] of pendingSteers.current) {
+      if (pendingSteer.sessionId === sessionId) recoverUnconfirmed(requestId);
+    }
+  }, [isProcessing, recoverUnconfirmed, sessionId]);
+
+  useEffect(() => {
+    const requests = pendingSteers.current;
+    return () => {
+      for (const request of requests.values()) window.clearTimeout(request.timeoutId);
+      requests.clear();
+    };
+  }, []);
+
   const accept = useCallback((
     targetSessionId: string,
     targetProvider: LLMProvider,
@@ -122,17 +155,24 @@ export function useAsyncQuestions({
     markAsyncQuestionHandled(targetSessionId, question.id, content);
     safeLocalStorage.removeItem(asyncQuestionDraftKey(targetSessionId, question.id));
     appendLocalAnswer(sessionStore, targetSessionId, targetProvider, content);
-    setSendingQuestionId(null);
-    setError(null);
+    if (targetSessionId === currentSessionId.current) {
+      setSendingQuestionId(null);
+      setError(null);
+    }
     setRevision((value) => value + 1);
   }, [sessionStore]);
 
   useEffect(() => subscribe((event) => {
+    if (event.kind === 'websocket_reconnected') {
+      for (const requestId of pendingSteers.current.keys()) recoverUnconfirmed(requestId);
+      return;
+    }
     const requestId = typeof event.requestId === 'string' ? event.requestId : '';
     const pendingSteer = pendingSteers.current.get(requestId);
     if (!pendingSteer) return;
 
     if (event.kind === 'chat_input_accepted') {
+      window.clearTimeout(pendingSteer.timeoutId);
       pendingSteers.current.delete(requestId);
       accept(
         pendingSteer.sessionId,
@@ -141,13 +181,14 @@ export function useAsyncQuestions({
         pendingSteer.content,
       );
     } else if (event.kind === 'chat_input_rejected') {
+      window.clearTimeout(pendingSteer.timeoutId);
       pendingSteers.current.delete(requestId);
       if (pendingSteer.sessionId === sessionId) {
         setSendingQuestionId(null);
         setError(typeof event.error === 'string' ? event.error : 'The provider did not accept the answer.');
       }
     }
-  }), [accept, sessionId, subscribe]);
+  }), [accept, recoverUnconfirmed, sessionId, subscribe]);
 
   const submit = useCallback((
     question: PendingAsyncQuestion,
@@ -192,16 +233,18 @@ export function useAsyncQuestions({
     }
 
     const requestId = `async_steer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    pendingSteers.current.set(requestId, { sessionId, provider, question, content });
+    const timeoutId = window.setTimeout(() => recoverUnconfirmed(requestId), ANSWER_ACK_TIMEOUT_MS);
+    pendingSteers.current.set(requestId, { sessionId, provider, question, content, timeoutId });
     setSendingQuestionId(question.id);
     const sent = sendMessage({ type: 'chat.steer', requestId, sessionId, content });
     if (!sent) {
+      window.clearTimeout(timeoutId);
       pendingSteers.current.delete(requestId);
       setSendingQuestionId(null);
       setError('Connection lost before the answer could be sent.');
     }
     return sent;
-  }, [accept, isProcessing, onSessionProcessing, provider, sendMessage, sendOptions, sessionId]);
+  }, [accept, isProcessing, onSessionProcessing, provider, recoverUnconfirmed, sendMessage, sendOptions, sessionId]);
 
   const removeQueued = useCallback((answerId: string) => {
     if (!sessionId) return;

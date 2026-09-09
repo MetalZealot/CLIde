@@ -8,13 +8,15 @@ import { createRoot } from 'react-dom/client';
 
 import { useAsyncAnswerQueueAutoSend } from '../../../hooks/useAsyncAnswerQueueAutoSend';
 import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSend';
-import type { NormalizedMessage } from '../../../stores/useSessionStore';
-import type { PendingPermissionRequest } from '../types/types';
+import type { ServerEvent } from '../../../contexts/WebSocketContext';
+import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
+import type { ChatMessage, PendingPermissionRequest } from '../types/types';
 import { formatPlaybackTime, VoicePlayer, voiceId } from '../../../lib/voicePlayer';
 import { api } from '../../../utils/api';
-import { enqueueAsyncAnswer } from '../utils/asyncQuestionState';
+import { asyncQuestionDraftKey, enqueueAsyncAnswer, readHandledAsyncQuestions } from '../utils/asyncQuestionState';
 import { writeQueuedMessage } from '../utils/chatStorage';
 
+import { useAsyncQuestions } from './useAsyncQuestions';
 import {
   describeDropRejections,
   resolveComposerTabAction,
@@ -136,6 +138,101 @@ test('only a chat with no id yet inherits the provider seed', () => {
   assert.equal(resolveSessionSendSetting(null, 'high', false), 'high');
   assert.equal(resolveSessionSendSetting(null, undefined, false), undefined);
 });
+
+for (const recovery of ['completion', 'reconnect', 'timeout', 'accepted', 'rejected', 'session switch'] as const) {
+  test(`async-answer delivery handles ${recovery}`, async (t) => {
+    const sessionId = `lost-ack-${recovery}`;
+    const question = { id: 'question:0', messageId: 'question', question: 'Continue?', options: ['Yes'] };
+    const messages: ChatMessage[] = [{
+      id: 'question', type: 'assistant', content: '', timestamp: new Date(),
+      followUpQuestions: [question],
+    }];
+    let controller: ReturnType<typeof useAsyncQuestions> | undefined;
+    let listener: ((event: ServerEvent) => void) | undefined;
+    let timeout: (() => void) | undefined;
+    const sent: unknown[] = [];
+    const refreshed: string[] = [];
+    const appended: unknown[] = [];
+    const subscribe = (callback: (event: ServerEvent) => void) => {
+      listener = callback;
+      return () => { listener = undefined; };
+    };
+    const sessionStore = {
+      appendRealtime: (...args: unknown[]) => appended.push(args),
+      refreshFromServer: async (id: string) => { refreshed.push(id); },
+    } as unknown as SessionStore;
+    t.mock.method(window, 'setTimeout', (callback: () => void) => {
+      timeout = callback;
+      return 1;
+    });
+    const clearTimer = t.mock.method(window, 'clearTimeout', () => {});
+    const root = createRoot(document.createElement('div'));
+    function Harness({ processing, activeSession = sessionId }: { processing: boolean; activeSession?: string }) {
+      controller = useAsyncQuestions({
+        sessionId: activeSession, provider: 'codex', messages, isProcessing: processing,
+        sendOptions: {}, sendMessage: (message) => { sent.push(message); return true; },
+        subscribe, sessionStore,
+      });
+      return null;
+    }
+    try {
+      await React.act(async () => root.render(React.createElement(Harness, { processing: true })));
+      localStorage.setItem(asyncQuestionDraftKey(sessionId, question.id), 'My answer');
+      await React.act(async () => { controller!.submit(question, 'My answer', 'send'); });
+      assert.equal(controller!.sendingQuestionId, question.id);
+      if (recovery === 'accepted' || recovery === 'rejected') {
+        await React.act(async () => listener!({
+          kind: recovery === 'accepted' ? 'chat_input_accepted' : 'chat_input_rejected',
+          requestId: (sent[0] as { requestId: string }).requestId,
+          sessionId, error: 'Not accepted',
+        }));
+        await React.act(async () => timeout?.());
+        assert.equal(controller!.sendingQuestionId, null);
+        assert.deepEqual(refreshed, [], 'settled requests must not time out');
+        assert.equal(appended.length, recovery === 'accepted' ? 1 : 0);
+        assert.equal(readHandledAsyncQuestions(sessionId).length, recovery === 'accepted' ? 1 : 0);
+        assert.equal(controller!.error, recovery === 'accepted' ? null : 'Not accepted');
+        return;
+      }
+      if (recovery === 'session switch') {
+        await React.act(async () => root.render(React.createElement(Harness, {
+          processing: true, activeSession: 'other-session',
+        })));
+        await React.act(async () => timeout?.());
+        assert.equal(controller!.sendingQuestionId, null);
+        assert.equal(controller!.error, null, 'old-session timeout must not alter the new session');
+        assert.deepEqual(refreshed, [sessionId]);
+        return;
+      }
+      await React.act(async () => {
+        if (recovery === 'completion') root.render(React.createElement(Harness, { processing: false }));
+        else if (recovery === 'reconnect') listener!({ kind: 'websocket_reconnected' });
+        else timeout?.();
+      });
+      assert.equal(controller!.sendingQuestionId, null);
+      assert.match(controller!.error ?? '', /confirm.*delivery|delivery.*confirm/i);
+      assert.equal(controller!.pendingQuestion?.id, question.id);
+      assert.equal(localStorage.getItem(asyncQuestionDraftKey(sessionId, question.id)), 'My answer');
+      assert.deepEqual(readHandledAsyncQuestions(sessionId), []);
+      assert.deepEqual(refreshed, [sessionId]);
+      assert.equal(sent.length, 1, 'recovery must never resend an uncertain answer');
+      assert.equal(appended.length, 0, 'an uncertain answer is not an accepted local echo');
+      assert.ok(clearTimer.mock.callCount() > 0);
+
+      // A refreshed transcript can confirm delivery without another send.
+      messages.push({ id: 'native-answer', type: 'user', content: '> Continue?\n\nMy answer', timestamp: new Date() });
+      await React.act(async () => root.render(React.createElement(Harness, { processing: false })));
+      assert.equal(controller!.pendingQuestion, null);
+      assert.equal(sent.length, 1);
+    } finally {
+      await React.act(async () => root.unmount());
+      const refreshCount = refreshed.length;
+      timeout?.();
+      assert.equal(refreshed.length, refreshCount, 'unmounted requests must not recover');
+      localStorage.clear();
+    }
+  });
+}
 
 test('a composer message dispatches before a queued async answer', async () => {
   const sessionId = `queue-priority-${Date.now()}`;
