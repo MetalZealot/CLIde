@@ -12,6 +12,8 @@ import type {
 } from 'react';
 import { XIcon, ArrowUpIcon } from 'lucide-react';
 
+import { useLongPress } from '../../../../hooks/useLongPress';
+import type { ScheduledMessage, ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useSttAvailable } from '../../hooks/useVoiceAvailable';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
@@ -23,6 +25,7 @@ import type {
 import type { CollaborationMode, PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import {
+  anchorFromElement,
   PROMPT_INPUT_TEXT_LAYOUT,
   PromptInput,
   PromptInputHeader,
@@ -31,6 +34,7 @@ import {
   PromptInputFooter,
   PromptInputTools,
   PromptInputSubmit,
+  type ContextMenuAnchor,
 } from '../../../../shared/view/ui';
 
 import { splitLeadingCommand } from '../../utils/chatFormatting';
@@ -43,6 +47,8 @@ import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
+import ScheduledMessageCard from './ScheduledMessageCard';
+import ScheduleSendMenu from './ScheduleSendMenu';
 import RewindEditCard from './RewindEditCard';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import ComposerModelMenu from './ComposerModelMenu';
@@ -114,6 +120,12 @@ interface ChatComposerProps {
   queuedDraft: QueuedDraft | null;
   onEditQueuedDraft: () => void;
   onDeleteQueuedDraft: () => void;
+  scheduledMessages: ScheduledMessage[];
+  onCancelScheduledMessage: (id: string) => void;
+  /** Stores the composer's current text to send later; clears the box on success. */
+  onScheduleMessage: (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => void;
+  /** False on providers with no usage reset to wait on, which omits that item. */
+  canScheduleOnUsageReset: boolean;
   pendingRewind: PendingRewind | null;
   onCancelRewindEdit: () => void;
   attachedFiles: File[];
@@ -190,6 +202,10 @@ export default function ChatComposer({
   queuedDraft,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
+  scheduledMessages,
+  onCancelScheduledMessage,
+  onScheduleMessage,
+  canScheduleOnUsageReset,
   pendingRewind,
   onCancelRewindEdit,
   attachedFiles,
@@ -289,6 +305,16 @@ export default function ChatComposer({
       || r.toolName === 'request_user_input'
   );
 
+  // Long-press (touch) and right-click (pointer) open the same "send later"
+  // menu; a plain tap still sends, so the send button keeps its one meaning.
+  const sendButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [scheduleAnchor, setScheduleAnchor] = useState<ContextMenuAnchor | null>(null);
+  const canScheduleCurrentInput = Boolean(sessionKey) && Boolean(input.trim());
+  const { handlers: scheduleLongPress } = useLongPress(
+    (coords) => setScheduleAnchor(anchorFromElement(sendButtonRef.current, coords)),
+    { disabled: !canScheduleCurrentInput },
+  );
+
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim() || attachedFiles.length > 0);
   const submitAriaLabel = disabled
@@ -335,6 +361,26 @@ export default function ChatComposer({
           onDelete={onDeleteQueuedDraft}
         />
       )}
+
+      {scheduleAnchor && (
+        <ScheduleSendMenu
+          anchor={scheduleAnchor}
+          canWaitForUsageReset={canScheduleOnUsageReset}
+          onDismiss={() => setScheduleAnchor(null)}
+          onSchedule={(trigger, scheduledFor) => {
+            setScheduleAnchor(null);
+            onScheduleMessage(trigger, scheduledFor);
+          }}
+        />
+      )}
+
+      {scheduledMessages.map((message) => (
+        <ScheduledMessageCard
+          key={message.id}
+          message={message}
+          onCancel={onCancelScheduledMessage}
+        />
+      ))}
 
       {pendingRewind && (
         <RewindEditCard snippet={pendingRewind.snippet} onCancel={onCancelRewindEdit} />
@@ -573,6 +619,15 @@ export default function ChatComposer({
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
               className="composer-send-hit-target ml-4 [&_svg]:size-5"
+              ref={sendButtonRef}
+              {...scheduleLongPress}
+              // After the spread: useLongPress only suppresses the native menu,
+              // so right-click has to open ours here or desktop gets nothing.
+              onContextMenu={(event: MouseEvent<HTMLButtonElement>) => {
+                event.preventDefault();
+                if (!canScheduleCurrentInput) return;
+                setScheduleAnchor({ top: event.clientY, bottom: event.clientY, left: event.clientX });
+              }}
             >
               <ArrowUpIcon className="h-5 w-5" />
             </PromptInputSubmit>

@@ -15,6 +15,11 @@ import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useChatFind } from '../hooks/useChatFind';
+import {
+  useScheduledMessages,
+  type ScheduledMessageTrigger,
+} from '../hooks/useScheduledMessages';
+import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 
@@ -453,6 +458,30 @@ function ChatInterface({
     setInput(content);
   }, [selectedSession?.id, currentSessionId, setInput]);
 
+  const scheduledSessionId = currentSessionId || selectedSession?.id || null;
+  const {
+    pending: scheduledMessages,
+    schedule: scheduleMessage,
+    cancel: cancelScheduledMessage,
+  } = useScheduledMessages(scheduledSessionId);
+  const providerCapabilities = useProviderCapabilities();
+
+  // Stores whatever is in the composer and clears it, the way sending does.
+  const handleScheduleMessage = useCallback(
+    async (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => {
+      const content = input.trim();
+      if (!content) return;
+      const scheduled = await scheduleMessage({
+        content,
+        trigger,
+        scheduledFor,
+        options: { model: currentProviderModel, effort: currentProviderEffort },
+      });
+      if (scheduled) setInput('');
+    },
+    [currentProviderEffort, currentProviderModel, input, scheduleMessage, setInput],
+  );
+
   useChatRealtimeHandlers({
     subscribe,
     provider,
@@ -771,6 +800,14 @@ function ChatInterface({
             queuedDraft={queuedDraft}
             onEditQueuedDraft={editQueuedDraft}
             onDeleteQueuedDraft={deleteQueuedDraft}
+            scheduledMessages={scheduledMessages}
+            onCancelScheduledMessage={(id) => { void cancelScheduledMessage(id); }}
+            onScheduleMessage={(trigger, scheduledFor) => {
+              void handleScheduleMessage(trigger, scheduledFor);
+            }}
+            canScheduleOnUsageReset={
+              providerCapabilities?.[provider]?.supportsUsageResetAlerts === true
+            }
             pendingRewind={pendingRewind}
             onCancelRewindEdit={cancelRewindEdit}
             attachedFiles={attachedFiles}

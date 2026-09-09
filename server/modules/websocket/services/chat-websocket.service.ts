@@ -216,6 +216,74 @@ function readRequiredSessionId(data: AnyRecord): string | null {
 }
 
 /**
+ * The options a provider runtime is handed for one turn.
+ *
+ * Consumed by `chat.send` and by the scheduled-message sender, which starts a
+ * turn with no client attached and must reach the runtime through exactly the
+ * same trust boundary — client-supplied attachments are re-validated here, and
+ * `cwd`, `projectPath` and `jsonlPath` come from the session row rather than
+ * from whoever asked for the turn.
+ */
+export async function buildChatRuntimeOptions(input: {
+  session: { project_path: string | null; jsonl_path: string | null };
+  sessionId: string;
+  provider: LLMProvider;
+  clientOptions: AnyRecord;
+  abortController: AbortController;
+}): Promise<AnyRecord> {
+  const { session, sessionId, provider, clientOptions, abortController } = input;
+
+  const attachmentCandidates = [
+    ...normalizeAttachmentDescriptors(clientOptions.images),
+    ...normalizeAttachmentDescriptors(clientOptions.files),
+    ...normalizeAttachmentDescriptors(clientOptions.attachments),
+  ];
+  const verifiedAttachments = filterAttachmentsToUploadStore(attachmentCandidates);
+  const uniqueAttachments = verifiedAttachments.filter(
+    (descriptor, index, all) => all.findIndex((candidate) => candidate.path === descriptor.path) === index,
+  );
+
+  // The provider runtimes receive the stable app session id. When their
+  // CLI/SDK needs the provider-native id for resume, they resolve it from the
+  // session row themselves (sessionsService.resolveProviderSessionId).
+  // Brand-new sessions have no provider id yet, so the runtime starts fresh
+  // and announces one, which the gateway writer captures and maps back to the
+  // app session id.
+  // The composer sends an effort only when it knows this session's own; an
+  // unresolved one omits it rather than leaking the provider-level seed that
+  // every session on a provider shares. Resolve the gap here, from the stored
+  // pick weighed against the provider's own turn evidence.
+  const clientEffort = typeof clientOptions.effort === 'string' && clientOptions.effort.trim()
+    ? clientOptions.effort.trim()
+    : null;
+  const resolvedEffort = clientEffort
+    ?? (await getProviderSessionEffort(provider, sessionId)).effort
+    ?? undefined;
+
+  return {
+    ...clientOptions,
+    effort: resolvedEffort,
+    // Attachments are re-validated server-side: only direct children of the
+    // global upload store may reach provider runtimes or their file tools.
+    attachments: uniqueAttachments,
+    images: uniqueAttachments.filter(isImageAttachmentDescriptor),
+    files: uniqueAttachments.filter((descriptor) => !isImageAttachmentDescriptor(descriptor)),
+    sessionId,
+    cwd: clientOptions.cwd ?? session.project_path ?? undefined,
+    projectPath: session.project_path ?? clientOptions.projectPath,
+    // Lets the runtime read the provider transcript (rewind anchor lookup)
+    // without re-deriving the path; runtimes with no use for it ignore it.
+    jsonlPath: session.jsonl_path ?? undefined,
+    // Cancellation that does not depend on the provider session id existing.
+    // `chat.abort` can only address a runtime by its provider-native id, which
+    // is unknown until the runtime announces it mid-stream and `null` for the
+    // whole first leg of a new session. Runtimes that honor this signal cancel
+    // whenever the abort lands; ones that ignore it keep id-keyed behaviour.
+    abortController,
+  };
+}
+
+/**
  * Handles `chat.send`: resolves the session row (provider, project path, and
  * provider-native id all come from the database — never from the client),
  * registers the run, and dispatches to the provider runtime.
@@ -286,54 +354,13 @@ async function handleChatSend(
   const clientOptions = (data.options ?? {}) as AnyRecord;
   const command = typeof data.content === 'string' ? data.content : '';
 
-  const attachmentCandidates = [
-    ...normalizeAttachmentDescriptors(clientOptions.images),
-    ...normalizeAttachmentDescriptors(clientOptions.files),
-    ...normalizeAttachmentDescriptors(clientOptions.attachments),
-  ];
-  const verifiedAttachments = filterAttachmentsToUploadStore(attachmentCandidates);
-  const uniqueAttachments = verifiedAttachments.filter(
-    (descriptor, index, all) => all.findIndex((candidate) => candidate.path === descriptor.path) === index,
-  );
-
-  // The provider runtimes receive the stable app session id. When their
-  // CLI/SDK needs the provider-native id for resume, they resolve it from the
-  // session row themselves (sessionsService.resolveProviderSessionId).
-  // Brand-new sessions have no provider id yet, so the runtime starts fresh
-  // and announces one, which the gateway writer captures and maps back to the
-  // app session id.
-  // The composer sends an effort only when it knows this session's own; an
-  // unresolved one omits it rather than leaking the provider-level seed that
-  // every session on a provider shares. Resolve the gap here, from the stored
-  // pick weighed against the provider's own turn evidence.
-  const clientEffort = typeof clientOptions.effort === 'string' && clientOptions.effort.trim()
-    ? clientOptions.effort.trim()
-    : null;
-  const resolvedEffort = clientEffort
-    ?? (await getProviderSessionEffort(provider, sessionId)).effort
-    ?? undefined;
-
-  const runtimeOptions: AnyRecord = {
-    ...clientOptions,
-    effort: resolvedEffort,
-    // Attachments are re-validated server-side: only direct children of the
-    // global upload store may reach provider runtimes or their file tools.
-    attachments: uniqueAttachments,
-    images: uniqueAttachments.filter(isImageAttachmentDescriptor),
-    files: uniqueAttachments.filter((descriptor) => !isImageAttachmentDescriptor(descriptor)),
+  const runtimeOptions = await buildChatRuntimeOptions({
+    session,
     sessionId,
-    cwd: clientOptions.cwd ?? session.project_path ?? undefined,
-    projectPath: session.project_path ?? clientOptions.projectPath,
-    // Lets the runtime read the provider transcript (rewind anchor lookup)
-    // without re-deriving the path; runtimes with no use for it ignore it.
-    jsonlPath: session.jsonl_path ?? undefined,
-    // Cancellation that does not depend on the provider session id existing.
-    // `chat.abort` can only address a runtime by its provider-native id, which
-    // is unknown until the runtime announces it mid-stream and `null` for the
-    // whole first leg of a new session. Runtimes that honor this signal cancel
-    // whenever the abort lands; ones that ignore it keep id-keyed behaviour.
+    provider,
+    clientOptions,
     abortController: run.abortController,
-  };
+  });
 
   try {
     await dependencies.runtime.run(provider, command, runtimeOptions, run.writer);

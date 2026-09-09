@@ -19,7 +19,11 @@ import {
     providerRuntimeService,
     queryCodexJob,
 } from '@/modules/providers/index.js';
-import { createWebSocketServer } from '@/modules/websocket/index.js';
+import {
+    closeScheduledMessages,
+    createWebSocketServer,
+    initializeScheduledMessages,
+} from '@/modules/websocket/index.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
 
@@ -45,6 +49,7 @@ import {
     stopAllPlugins,
 } from './modules/plugins/index.js';
 import providerRoutes from './modules/providers/provider.routes.js';
+import { scheduledMessageRoutes } from './modules/scheduled-messages/index.js';
 import { voiceRoutes } from './modules/voice/index.js';
 import { assetsRoutes } from './modules/assets/index.js';
 import { fileTreeRoutes } from './modules/file-tree/index.js';
@@ -182,6 +187,8 @@ app.use('/api/settings', authenticateToken, settingsRoutes);
 app.use('/api/system', authenticateToken, systemRoutes);
 
 app.use('/api/notifications', authenticateToken, notificationRoutes);
+
+app.use('/api/scheduled-messages', authenticateToken, scheduledMessageRoutes);
 
 // User API Routes (protected)
 app.use('/api/user', authenticateToken, userRoutes);
@@ -375,6 +382,9 @@ async function startServer() {
 
             // Start watching the projects folder for changes
             await initializeSessionsWatcher();
+            // Before the monitor: a pending message is what keeps a provider's
+            // monitor alive when its reset alerts are switched off.
+            initializeScheduledMessages();
             initializeProviderUsageResetMonitor();
 
             // Start server-side plugin processes for enabled plugins
@@ -387,6 +397,7 @@ async function startServer() {
         // Clean up plugin processes on shutdown
         const shutdownRuntimeServices = async () => {
             closeProviderUsageResetMonitor();
+            closeScheduledMessages();
             try {
                 await browserUseService.stopAllSessions();
             } catch (err) {

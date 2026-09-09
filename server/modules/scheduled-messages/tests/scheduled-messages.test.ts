@@ -12,10 +12,13 @@ import {
   type ScheduledMessageRow,
 } from '@/modules/database/index.js';
 import {
+  cancelScheduledMessage,
+  createScheduledMessage,
   createScheduledMessageDispatcher,
   fireUsageResetMessages,
   hasPendingUsageResetMessages,
-  setActiveScheduledMessageDispatcher,
+  listScheduledMessagesForSession,
+  setScheduledMessageRuntime,
 } from '@/modules/scheduled-messages/index.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
@@ -263,6 +266,7 @@ describe('scheduled-messages', () => {
     await withIsolatedDatabase(async () => {
       seedSession('session-10');
       const harness = createHarness();
+      let pendingChangedCount = 0;
       const row = scheduledMessagesDb.create({
         sessionId: 'session-10',
         provider: 'claude',
@@ -271,23 +275,71 @@ describe('scheduled-messages', () => {
       });
 
       try {
-        // Nothing can be sent without a dispatcher, so the reset monitor is
-        // told there is nothing worth staying awake for.
+        // Nothing can be sent without a runtime, so the reset monitor is told
+        // there is nothing worth staying awake for.
         assert.equal(hasPendingUsageResetMessages('claude'), false);
         await fireUsageResetMessages('claude');
         assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'pending');
 
-        setActiveScheduledMessageDispatcher(harness.dispatcher);
+        setScheduledMessageRuntime({
+          dispatcher: harness.dispatcher,
+          onPendingChanged: () => { pendingChangedCount += 1; },
+        });
         assert.equal(hasPendingUsageResetMessages('claude'), true);
         assert.equal(hasPendingUsageResetMessages('codex'), false);
 
         await fireUsageResetMessages('claude');
         assert.equal(harness.sent.length, 1);
         assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'sent');
-        // Settled rows stop keeping the monitor alive.
+        // Settled rows stop keeping the monitor alive, and the monitor is told
+        // so it can stop polling a provider nothing is waiting on.
         assert.equal(hasPendingUsageResetMessages('claude'), false);
+        assert.equal(pendingChangedCount, 1);
       } finally {
-        setActiveScheduledMessageDispatcher(null);
+        setScheduledMessageRuntime(null);
+      }
+    });
+  });
+
+  test('creating and cancelling through the service arms, reconciles, and settles', async () => {
+    await withIsolatedDatabase(async () => {
+      seedSession('session-11');
+      const harness = createHarness();
+      let pendingChangedCount = 0;
+
+      try {
+        setScheduledMessageRuntime({
+          dispatcher: harness.dispatcher,
+          onPendingChanged: () => { pendingChangedCount += 1; },
+        });
+
+        const row = createScheduledMessage({
+          sessionId: 'session-11',
+          provider: 'claude',
+          content: 'later',
+          trigger: 'time',
+          scheduledFor: '2026-07-18T12:00:00.000Z',
+        });
+        assert.equal(pendingChangedCount, 1);
+        assert.deepEqual(
+          listScheduledMessagesForSession('session-11').map((entry) => entry.id),
+          [row.id],
+        );
+
+        assert.equal(cancelScheduledMessage(row.id), true);
+        assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'cancelled');
+        assert.equal(pendingChangedCount, 2);
+
+        // Cancelling twice is not an error the caller can act on, and the
+        // second one must not fire the reconcile again.
+        assert.equal(cancelScheduledMessage(row.id), false);
+        assert.equal(pendingChangedCount, 2);
+
+        // The armed timer went with it.
+        await harness.advanceTo('2026-07-18T13:00:00.000Z');
+        assert.equal(harness.sent.length, 0);
+      } finally {
+        setScheduledMessageRuntime(null);
       }
     });
   });

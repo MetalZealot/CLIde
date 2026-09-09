@@ -236,6 +236,20 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ summary }),
     }),
+  // Messages written now and sent later, either at an instant or when the
+  // provider's usage limit resets.
+  scheduledMessages: (sessionId) =>
+    authenticatedFetch(`/api/scheduled-messages/session/${sessionId}`),
+  createScheduledMessage: (payload) =>
+    authenticatedFetch('/api/scheduled-messages', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  cancelScheduledMessage: (id) =>
+    authenticatedFetch(`/api/scheduled-messages/${id}`, {
+      method: 'DELETE',
+    }),
+
   // Toggles the starred flag server-side; response carries the new `{ isStarred }`.
   toggleSessionStar: (sessionId) =>
     authenticatedFetch(`/api/providers/sessions/${sessionId}/star`, {

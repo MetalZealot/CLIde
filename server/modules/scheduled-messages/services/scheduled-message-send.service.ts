@@ -17,17 +17,19 @@ const DETACHED_CONNECTION: RealtimeClientConnection = {
   send() {},
 };
 
-export type ScheduledMessageSendDependencies = {
+export type ScheduledMessageSendDependencies<TRun> = {
   startRun(input: {
     appSessionId: string;
     provider: string;
     providerSessionId: string | null;
     connection: RealtimeClientConnection;
     userId: string | number | null;
-  }): unknown;
+  }): TRun | null;
+  /** Owns the run it is handed, including completing it however the turn ends. */
   runTurn(input: {
     row: ScheduledMessageRow;
-    providerSessionId: string | null;
+    run: TRun;
+    provider: string;
     projectPath: string | null;
     options: Record<string, unknown>;
   }): Promise<void>;
@@ -47,7 +49,9 @@ function parseOptions(row: ScheduledMessageRow): Record<string, unknown> {
   }
 }
 
-export function createScheduledMessageSender(dependencies: ScheduledMessageSendDependencies) {
+export function createScheduledMessageSender<TRun>(
+  dependencies: ScheduledMessageSendDependencies<TRun>,
+) {
   return async function send(row: ScheduledMessageRow): Promise<DispatchResult> {
     const session = sessionsDb.getSessionById(row.session_id);
     if (!session) {
@@ -70,7 +74,8 @@ export function createScheduledMessageSender(dependencies: ScheduledMessageSendD
 
     await dependencies.runTurn({
       row,
-      providerSessionId: session.provider_session_id,
+      run,
+      provider: session.provider,
       projectPath: session.project_path,
       options: parseOptions(row),
     });

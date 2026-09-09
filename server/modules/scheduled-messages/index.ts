@@ -9,7 +9,12 @@ export {
   type ScheduledMessageSendDependencies,
 } from './services/scheduled-message-send.service.js';
 export {
+  cancelScheduledMessage,
+  createScheduledMessage,
   fireUsageResetMessages,
   hasPendingUsageResetMessages,
-  setActiveScheduledMessageDispatcher,
+  listScheduledMessagesForSession,
+  setScheduledMessageRuntime,
+  type ScheduledMessageRuntime,
 } from './services/scheduled-message-runtime.service.js';
+export { default as scheduledMessageRoutes } from './scheduled-messages.routes.js';

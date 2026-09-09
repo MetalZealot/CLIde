@@ -1,7 +1,7 @@
 # Scheduled messages and Auto-Continue
 
-- Status: 2/4
-- Next: Phase 3 — long-press the send button to compose one
+- Status: 3/4
+- Next: Phase 4 — a pending message in the sidebar status column
 - Context: [gap inventory](../maps/upstream-sync.md) holds the verdict and why
   upstream's `#1239` interrupt behaviour is not wanted here; ADR 0031 governs
   the sidebar status visuals phase 4 touches
@@ -22,6 +22,17 @@ can, not whenever you next look at your phone.
   that fires into a busy session queues the same way. This is why upstream's
   `#1239` interrupt is explicitly not wanted: CLIde chose waiting, and has
   shipped it.
+
+## Where the runtime is joined
+
+The module owns rows and timers and nothing that can start a turn, and imports
+neither the websocket nor the providers module — both import it. Startup
+registers the missing half through `setScheduledMessageRuntime`
+(`scheduled-message-wiring.service.ts`), which also supplies the
+`onPendingChanged` hook that reconciles the usage-reset monitor: without it a
+message scheduled while reset alerts are off waits on a monitor that was never
+started. `hasPendingUsageResetMessages` returns false until that registration
+happens, so nothing keeps a monitor awake for sends that cannot go out.
 
 ## How the two consumers stay independent
 
@@ -46,13 +57,12 @@ post-reset usage re-fetch now runs when either consumer delivers.
       One message, one firing: the pending row *is* the enablement and the
       dedupe, so nothing new is persisted and no standing per-session mode
       exists. A pending row also keeps a provider's monitor alive on its own
-- [ ] 3. Composing one — creating a row must register the dispatcher through
-      `setActiveScheduledMessageDispatcher` at startup and call
-      `reconcileProviderUsageResetMonitor` after create and cancel, or a
-      message scheduled while reset alerts are off waits on a stopped monitor.
-      Long-press the send button offers "when usage resets"
-      (only where the provider supports it) and "at a time". Cancel and inspect
-      from the same surface
+- [x] 3. Composing one — long-press or right-click the send button offers "when
+      usage resets" (only where the provider supports it) and "at a time"; a
+      card above the composer shows what is waiting, with a cancel. The turn
+      itself goes through `buildChatRuntimeOptions`, the same builder
+      `chat.send` uses, so a stored message is re-validated at firing time
+      rather than trusting options snapshotted when it was written
 - [ ] 4. A session with one pending shows a timer in its status column,
       resolved against the existing running / attention / unread order
 
