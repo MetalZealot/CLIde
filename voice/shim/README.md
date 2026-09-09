@@ -26,10 +26,8 @@ ready on loopback. CLIde's isolated Phase 4 server is configured to call it;
 production CLIde is unchanged pending installed-PWA acceptance. The initial
 default is `hfc-male-medium`.
 
-Phase 4 phone acceptance uses
-`https://nuthallpi.tailb083b8.ts.net:3003`. Tailscale Serve terminates HTTPS
-there and proxies the isolated CLIde server on port 3002; the direct HTTP port
-cannot expose the browser microphone API.
+The browser microphone API requires an HTTPS origin on a phone. Plain-HTTP
+branch-test slots cannot provide phone microphone acceptance.
 
 ## Service
 
