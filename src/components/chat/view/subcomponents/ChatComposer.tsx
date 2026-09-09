@@ -25,7 +25,6 @@ import type {
 import type { CollaborationMode, PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import {
-  anchorFromElement,
   PROMPT_INPUT_TEXT_LAYOUT,
   PromptInput,
   PromptInputHeader,
@@ -34,7 +33,6 @@ import {
   PromptInputFooter,
   PromptInputTools,
   PromptInputSubmit,
-  type ContextMenuAnchor,
 } from '../../../../shared/view/ui';
 
 import { splitLeadingCommand } from '../../utils/chatFormatting';
@@ -122,6 +120,8 @@ interface ChatComposerProps {
   onDeleteQueuedDraft: () => void;
   scheduledMessages: ScheduledMessage[];
   onCancelScheduledMessage: (id: string) => void;
+  /** Pulls a scheduled message back into the composer and drops the stored row. */
+  onEditScheduledMessage: (message: ScheduledMessage) => void;
   /** Stores the composer's current text to send later; clears the box on success. */
   onScheduleMessage: (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => void;
   /** False on providers with no usage reset to wait on, which omits that item. */
@@ -204,6 +204,7 @@ export default function ChatComposer({
   onDeleteQueuedDraft,
   scheduledMessages,
   onCancelScheduledMessage,
+  onEditScheduledMessage,
   onScheduleMessage,
   canScheduleOnUsageReset,
   pendingRewind,
@@ -306,12 +307,11 @@ export default function ChatComposer({
   );
 
   // Long-press (touch) and right-click (pointer) open the same "send later"
-  // menu; a plain tap still sends, so the send button keeps its one meaning.
-  const sendButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [scheduleAnchor, setScheduleAnchor] = useState<ContextMenuAnchor | null>(null);
+  // sheet; a plain tap still sends, so the send button keeps its one meaning.
+  const [isScheduleMenuOpen, setIsScheduleMenuOpen] = useState(false);
   const canScheduleCurrentInput = Boolean(sessionKey) && Boolean(input.trim());
   const { handlers: scheduleLongPress } = useLongPress(
-    (coords) => setScheduleAnchor(anchorFromElement(sendButtonRef.current, coords)),
+    () => setIsScheduleMenuOpen(true),
     { disabled: !canScheduleCurrentInput },
   );
 
@@ -362,13 +362,12 @@ export default function ChatComposer({
         />
       )}
 
-      {scheduleAnchor && (
+      {isScheduleMenuOpen && (
         <ScheduleSendMenu
-          anchor={scheduleAnchor}
           canWaitForUsageReset={canScheduleOnUsageReset}
-          onDismiss={() => setScheduleAnchor(null)}
+          onDismiss={() => setIsScheduleMenuOpen(false)}
           onSchedule={(trigger, scheduledFor) => {
-            setScheduleAnchor(null);
+            setIsScheduleMenuOpen(false);
             onScheduleMessage(trigger, scheduledFor);
           }}
         />
@@ -379,6 +378,7 @@ export default function ChatComposer({
           key={message.id}
           message={message}
           onCancel={onCancelScheduledMessage}
+          onEdit={onEditScheduledMessage}
         />
       ))}
 
@@ -619,14 +619,12 @@ export default function ChatComposer({
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
               className="composer-send-hit-target ml-4 [&_svg]:size-5"
-              ref={sendButtonRef}
               {...scheduleLongPress}
               // After the spread: useLongPress only suppresses the native menu,
               // so right-click has to open ours here or desktop gets nothing.
               onContextMenu={(event: MouseEvent<HTMLButtonElement>) => {
                 event.preventDefault();
-                if (!canScheduleCurrentInput) return;
-                setScheduleAnchor({ top: event.clientY, bottom: event.clientY, left: event.clientX });
+                if (canScheduleCurrentInput) setIsScheduleMenuOpen(true);
               }}
             >
               <ArrowUpIcon className="h-5 w-5" />

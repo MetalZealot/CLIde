@@ -326,18 +326,31 @@ describe('scheduled-messages', () => {
           [row.id],
         );
 
+        // The path a composer actually takes: created while running, armed by
+        // that call alone, with no reconcile in between.
+        const armed = createScheduledMessage({
+          sessionId: 'session-11',
+          provider: 'claude',
+          content: 'fires without a restart',
+          trigger: 'time',
+          scheduledFor: '2026-07-18T10:15:00.000Z',
+        });
+        await harness.advanceTo('2026-07-18T10:15:00.000Z');
+        assert.equal(harness.sent.length, 1);
+        assert.equal(scheduledMessagesDb.getById(armed.id)?.state, 'sent');
+
         assert.equal(cancelScheduledMessage(row.id), true);
         assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'cancelled');
-        assert.equal(pendingChangedCount, 2);
+        assert.equal(pendingChangedCount, 3);
 
         // Cancelling twice is not an error the caller can act on, and the
         // second one must not fire the reconcile again.
         assert.equal(cancelScheduledMessage(row.id), false);
-        assert.equal(pendingChangedCount, 2);
+        assert.equal(pendingChangedCount, 3);
 
-        // The armed timer went with it.
+        // The cancelled row's timer went with it; only the armed one ever sent.
         await harness.advanceTo('2026-07-18T13:00:00.000Z');
-        assert.equal(harness.sent.length, 0);
+        assert.equal(harness.sent.length, 1);
       } finally {
         setScheduledMessageRuntime(null);
       }

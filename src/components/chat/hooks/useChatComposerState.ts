@@ -296,7 +296,8 @@ const isImageAttachment = (attachment: ChatAttachment) => {
   return /\.(gif|jpe?g|png|svg|webp)$/i.test(attachment.path || attachment.name || '');
 };
 
-const uploadAttachmentFiles = async (files: File[]): Promise<unknown[]> => {
+/** Also used when scheduling: a message sent later still needs durable descriptors. */
+export const uploadAttachmentFiles = async (files: File[]): Promise<unknown[]> => {
   if (files.length === 0) {
     return [];
   }
@@ -1779,6 +1780,8 @@ export function useChatComposerState({
     getInputProps,
     isDragActive,
     handleSubmit,
+    // Scheduling stores the same option snapshot a send would have carried.
+    buildSendOptions,
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,

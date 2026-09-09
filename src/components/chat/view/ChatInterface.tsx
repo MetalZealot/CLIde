@@ -11,7 +11,7 @@ import type { LLMProvider } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
-import { useChatComposerState } from '../hooks/useChatComposerState';
+import { uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useChatFind } from '../hooks/useChatFind';
@@ -234,6 +234,7 @@ function ChatInterface({
     selectFile,
     attachedFiles,
     setAttachedFiles,
+    buildSendOptions,
     uploadingFiles,
     fileErrors,
     attachmentRejections,
@@ -467,19 +468,46 @@ function ChatInterface({
   const providerCapabilities = useProviderCapabilities();
 
   // Stores whatever is in the composer and clears it, the way sending does.
+  // Attachments are uploaded now rather than at firing time: the File objects
+  // die with this page, so the stored row has to carry durable descriptors —
+  // the same reason the queued-draft path uploads before it waits.
   const handleScheduleMessage = useCallback(
     async (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => {
       const content = input.trim();
       if (!content) return;
+
+      let attachments: unknown[] = [];
+      if (attachedFiles.length > 0) {
+        try {
+          attachments = await uploadAttachmentFiles(attachedFiles);
+        } catch (error) {
+          console.error('Scheduled message file upload failed:', error);
+          return;
+        }
+      }
+
       const scheduled = await scheduleMessage({
         content,
         trigger,
         scheduledFor,
-        options: { model: currentProviderModel, effort: currentProviderEffort },
+        options: { ...buildSendOptions(content), attachments },
       });
-      if (scheduled) setInput('');
+      if (scheduled) {
+        setInput('');
+        setAttachedFiles([]);
+      }
     },
-    [currentProviderEffort, currentProviderModel, input, scheduleMessage, setInput],
+    [attachedFiles, buildSendOptions, input, scheduleMessage, setAttachedFiles, setInput],
+  );
+
+  // Editing is cancel-then-recompose: the row is the only durable copy, so it
+  // goes back into the box and the stored one is dropped in the same step.
+  const handleEditScheduledMessage = useCallback(
+    (message: { id: string; content: string }) => {
+      setInput(message.content);
+      void cancelScheduledMessage(message.id);
+    },
+    [cancelScheduledMessage, setInput],
   );
 
   useChatRealtimeHandlers({
@@ -802,6 +830,7 @@ function ChatInterface({
             onDeleteQueuedDraft={deleteQueuedDraft}
             scheduledMessages={scheduledMessages}
             onCancelScheduledMessage={(id) => { void cancelScheduledMessage(id); }}
+            onEditScheduledMessage={handleEditScheduledMessage}
             onScheduleMessage={(trigger, scheduledFor) => {
               void handleScheduleMessage(trigger, scheduledFor);
             }}
