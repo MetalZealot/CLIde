@@ -339,7 +339,7 @@ test('activity summary counts each session at its highest-urgency state', () => 
     unreadSessionIds,
   );
 
-  assert.deepEqual(summary, { blocked: 1, running: 2, unread: 1 });
+  assert.deepEqual(summary, { blocked: 1, running: 2, unread: 1, scheduled: 0 });
 });
 
 test('activity summary assigns overlapping states once', () => {
@@ -348,7 +348,7 @@ test('activity summary assigns overlapping states once', () => {
 
   const summary = summarizeSessionActivity(entries, sessionIds, sessionIds, sessionIds);
 
-  assert.deepEqual(summary, { blocked: 1, running: 0, unread: 0 });
+  assert.deepEqual(summary, { blocked: 1, running: 0, unread: 0, scheduled: 0 });
 });
 
 test('sidebar status resolves blocked, then running, then unread', () => {
@@ -356,6 +356,16 @@ test('sidebar status resolves blocked, then running, then unread', () => {
   assert.equal(resolveActivityState({ isProcessing: true, needsAttention: false, isUnread: true }), 'running');
   assert.equal(resolveActivityState({ isProcessing: false, needsAttention: false, isUnread: true }), 'unread');
   assert.equal(resolveActivityState({ isProcessing: false, needsAttention: false, isUnread: false }), null);
+  // A waiting scheduled message yields to a run and to attention, but shows
+  // over unread — unread is found by opening the session, a timer is not.
+  assert.equal(
+    resolveActivityState({ isProcessing: false, needsAttention: false, isUnread: true, hasScheduledMessage: true }),
+    'scheduled',
+  );
+  assert.equal(
+    resolveActivityState({ isProcessing: true, needsAttention: false, isUnread: false, hasScheduledMessage: true }),
+    'running',
+  );
 });
 
 test('search matches session names, not project names, paths, or branches', () => {

@@ -101,6 +101,7 @@ type UseSidebarControllerArgs = {
   selectedSession: ProjectSession | null;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
+  scheduledSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   isLoading: boolean;
   isMobile: boolean;
@@ -140,6 +141,7 @@ export function useSidebarController({
   selectedSession: _selectedSession,
   activeSessions,
   attentionSessionIds,
+  scheduledSessionIds,
   unreadSessionIds,
   isLoading,
   isMobile,
@@ -670,8 +672,9 @@ export function useSidebarController({
       activeSessionIds,
       attentionSessionIds,
       unreadSessionIds,
+      scheduledSessionIds,
     ),
-    [activeSessionIds, allRepositoryEntries, attentionSessionIds, unreadSessionIds],
+    [activeSessionIds, allRepositoryEntries, attentionSessionIds, scheduledSessionIds, unreadSessionIds],
   );
 
   const repositoryEntries = allRepositoryEntries;

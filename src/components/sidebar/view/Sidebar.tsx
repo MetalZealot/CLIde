@@ -41,6 +41,7 @@ function Sidebar({
   selectedSession,
   activeSessions,
   attentionSessionIds,
+  scheduledSessionIds,
   unreadSessionIds,
   onProjectSelect,
   onOpenSourceControl,
@@ -161,6 +162,7 @@ function Sidebar({
     selectedSession,
     activeSessions,
     attentionSessionIds,
+    scheduledSessionIds,
     unreadSessionIds,
     isLoading,
     isMobile,
@@ -477,6 +479,7 @@ function Sidebar({
     loadingMoreProjects,
     activeSessions,
     attentionSessionIds,
+    scheduledSessionIds,
     unreadSessionIds,
     // A search narrows each row to its matching sessions, so the rows have to
     // open to show them.

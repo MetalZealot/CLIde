@@ -1,4 +1,4 @@
-import { userDb, type ScheduledMessageRow } from '@/modules/database/index.js';
+import { scheduledMessagesDb, userDb, type ScheduledMessageRow } from '@/modules/database/index.js';
 import { providerRuntimeService, reconcileProviderUsageResetMonitor } from '@/modules/providers/index.js';
 import {
   createScheduledMessageDispatcher,
@@ -49,6 +49,19 @@ function announceScheduledSend(row: ScheduledMessageRow): void {
   }));
 }
 
+/**
+ * Tells every client which sessions are still waiting on something, so the
+ * sidebar's timer column matches the rows rather than a client's own guess at
+ * what it scheduled.
+ */
+function broadcastPendingSessions(): void {
+  BROADCAST_CONNECTION.send(JSON.stringify({
+    kind: 'scheduled_messages_changed',
+    sessionIds: scheduledMessagesDb.listSessionIdsWithPending(),
+    timestamp: new Date().toISOString(),
+  }));
+}
+
 type ChatRun = NonNullable<ReturnType<typeof chatRunRegistry.startRun>>;
 
 let activeDispatcher: ReturnType<typeof createScheduledMessageDispatcher> | null = null;
@@ -75,6 +88,8 @@ export function initializeScheduledMessages(): void {
     runTurn: async ({ row, run, provider, options }) => {
       const session = sessionsDb.getSessionById(row.session_id);
       announceScheduledSend(row);
+      // The row left 'pending' when the dispatcher claimed it.
+      broadcastPendingSessions();
       try {
         const runtimeOptions: AnyRecord = await buildChatRuntimeOptions({
           session: {
@@ -114,6 +129,7 @@ export function initializeScheduledMessages(): void {
     onPendingChanged: () => {
       const user = userDb.getFirstUser();
       if (user) reconcileProviderUsageResetMonitor(user.id);
+      broadcastPendingSessions();
     },
   });
 

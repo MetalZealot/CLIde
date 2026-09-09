@@ -109,7 +109,7 @@ export type BrowseSession = CheckoutSession & {
   repositoryAccentColor: Project['accentColor'];
 };
 
-export type ActivityState = 'blocked' | 'unread' | 'running';
+export type ActivityState = 'blocked' | 'unread' | 'running' | 'scheduled';
 
 export type ActivitySummary = Record<ActivityState, number>;
 
@@ -163,6 +163,7 @@ export type SidebarProps = {
   selectedSession: ProjectSession | null;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
+  scheduledSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   onProjectSelect: (project: Project) => void;
   /** Selects a checkout and opens Source Control, which needs no session. */

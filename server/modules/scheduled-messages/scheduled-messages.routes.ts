@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { sessionsDb, type ScheduledMessageRow } from '@/modules/database/index.js';
+import { scheduledMessagesDb, sessionsDb, type ScheduledMessageRow } from '@/modules/database/index.js';
 import {
   cancelScheduledMessage,
   createScheduledMessage,
@@ -24,6 +24,11 @@ function serialize(row: ScheduledMessageRow) {
     firedAt: row.fired_at,
   };
 }
+
+/** The sidebar's timer column: which sessions are waiting on something. */
+router.get('/pending-sessions', (_req, res) => {
+  res.json({ sessionIds: scheduledMessagesDb.listSessionIdsWithPending() });
+});
 
 router.get('/session/:sessionId', (req, res) => {
   const messages = listScheduledMessagesForSession(req.params.sessionId).map(serialize);

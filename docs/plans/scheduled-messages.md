@@ -1,7 +1,7 @@
 # Scheduled messages and Auto-Continue
 
-- Status: 3/4
-- Next: Phase 4 — a pending message in the sidebar status column
+- Status: 4/4
+- Next: nothing — verified end to end in a browser
 - Context: [gap inventory](../maps/upstream-sync.md) holds the verdict and why
   upstream's `#1239` interrupt behaviour is not wanted here; ADR 0031 governs
   the sidebar status visuals phase 4 touches
@@ -73,8 +73,10 @@ no-op for a broadcast run and subscribers catch up through replay.
       itself goes through `buildChatRuntimeOptions`, the same builder
       `chat.send` uses, so a stored message is re-validated at firing time
       rather than trusting options snapshotted when it was written
-- [ ] 4. A session with one pending shows a timer in its status column,
-      resolved against the existing running / attention / unread order
+- [x] 4. A session with one pending shows a timer in its status column. The
+      server broadcasts the whole pending set, since a row can be created,
+      cancelled or fired from any client; the clock yields to a run and to
+      attention, and shows over unread
 
 ## Provider answer
 

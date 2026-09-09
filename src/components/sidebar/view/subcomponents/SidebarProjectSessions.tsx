@@ -22,6 +22,7 @@ type SidebarProjectSessionsProps = {
   isLoadingMoreSessions: boolean;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
+  scheduledSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   currentTime: Date;
   editingSession: string | null;
@@ -79,6 +80,7 @@ export default function SidebarProjectSessions({
   isLoadingMoreSessions,
   activeSessions,
   attentionSessionIds,
+  scheduledSessionIds,
   unreadSessionIds,
   currentTime,
   editingSession,
@@ -150,6 +152,7 @@ export default function SidebarProjectSessions({
               selectedSession={selectedSession}
               isProcessing={activeSessions.has(session.id)}
               needsAttention={attentionSessionIds.has(session.id)}
+              hasScheduledMessage={scheduledSessionIds.has(session.id)}
               isUnread={unreadSessionIds.has(session.id)}
               currentTime={currentTime}
               editingSession={editingSession}

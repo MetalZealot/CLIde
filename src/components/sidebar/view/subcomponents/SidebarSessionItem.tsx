@@ -29,6 +29,8 @@ type SidebarSessionItemProps = {
   needsAttention: boolean;
   /** Output the user hasn't opened yet; no action required. */
   isUnread: boolean;
+  /** A message is waiting to be sent into this session. */
+  hasScheduledMessage: boolean;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
@@ -100,6 +102,7 @@ export default function SidebarSessionItem({
   isProcessing,
   needsAttention,
   isUnread,
+  hasScheduledMessage,
   currentTime,
   editingSession,
   editingSessionName,
@@ -166,7 +169,7 @@ export default function SidebarSessionItem({
   const isMenuOpen = activeContextMenuKey === `session:${session.id}`;
   // Stays on for as long as this row's menu is open.
   const isContextActive = isPressing || isMenuOpen;
-  const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread });
+  const activityState = resolveActivityState({ isProcessing, needsAttention, isUnread, hasScheduledMessage });
   const toggleBatchSelected = () => onToggleBatchSelected?.(session.id);
   const hasDesktopActions = Boolean(onOpenActionsMenu && !isSelectionMode && !isEditing);
   // The trigger remains outside the session link, but this slot makes the title

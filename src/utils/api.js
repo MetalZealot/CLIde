@@ -240,6 +240,9 @@ export const api = {
   // provider's usage limit resets.
   scheduledMessages: (sessionId) =>
     authenticatedFetch(`/api/scheduled-messages/session/${sessionId}`),
+  // Which sessions still have one waiting, for the sidebar's timer column.
+  pendingScheduledSessions: () =>
+    authenticatedFetch('/api/scheduled-messages/pending-sessions'),
   createScheduledMessage: (payload) =>
     authenticatedFetch('/api/scheduled-messages', {
       method: 'POST',

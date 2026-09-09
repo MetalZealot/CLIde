@@ -1,4 +1,4 @@
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Clock, Loader2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { cn } from '../../../../lib/utils';
@@ -33,6 +33,7 @@ const dotSizes = {
 const getSidebarStatusLabel = (status: ActivityState, t: TFunction): string => {
   if (status === 'blocked') return t('projects.activityBlocked', 'Blocked');
   if (status === 'running') return t('projects.activityRunning', 'Running');
+  if (status === 'scheduled') return t('projects.activityScheduled', 'Message scheduled');
   return t('projects.activityUnread', 'Unread finished');
 };
 
@@ -65,6 +66,8 @@ export default function SidebarStatusIndicator({
         <AlertCircle aria-hidden className={cn(iconSizes[size], 'text-status-attention')} />
       ) : status === 'running' ? (
         <Loader2 aria-hidden className={cn(iconSizes[size], 'animate-spin text-status-running')} />
+      ) : status === 'scheduled' ? (
+        <Clock aria-hidden className={cn(iconSizes[size], 'text-status-running')} />
       ) : (
         <span aria-hidden className={cn(dotSizes[size], 'rounded-full bg-status-unread')} />
       )}

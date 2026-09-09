@@ -46,6 +46,7 @@ export type SidebarProjectListProps = {
   loadingMoreProjects: Set<string>;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
+  scheduledSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   forceExpanded?: boolean;
   onEditingNameChange: (value: string) => void;
@@ -101,6 +102,7 @@ export default function SidebarProjectList({
   loadingMoreProjects,
   activeSessions,
   attentionSessionIds,
+  scheduledSessionIds,
   unreadSessionIds,
   forceExpanded = false,
   onEditingNameChange,
@@ -180,6 +182,7 @@ export default function SidebarProjectList({
       onCollapseSessions={onCollapseSessions}
       activeSessions={activeSessions}
       attentionSessionIds={attentionSessionIds}
+        scheduledSessionIds={scheduledSessionIds}
       unreadSessionIds={unreadSessionIds}
       viewOptions={getRepositoryView(entry.key)}
       onOpenViewMenu={onOpenViewMenu}
@@ -220,6 +223,7 @@ export default function SidebarProjectList({
         selectedSession={selectedSession}
         isProcessing={activeSessions.has(session.id)}
         needsAttention={attentionSessionIds.has(session.id)}
+              hasScheduledMessage={scheduledSessionIds.has(session.id)}
         isUnread={unreadSessionIds.has(session.id)}
         currentTime={currentTime}
         editingSession={editingSession}

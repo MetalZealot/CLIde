@@ -244,6 +244,7 @@ describe('SidebarProjectList', () => {
     await React.act(async () => {
       root?.render(
         <SidebarProjectList
+          scheduledSessionIds={new Set<string>()}
           projects={[project]}
           filteredProjects={[project]}
           repositoryEntries={[{
@@ -374,6 +375,7 @@ describe('SidebarProjectSessions', () => {
   function sessionsView(visibleSessionCount: number) {
     return (
       <SidebarProjectSessions
+        scheduledSessionIds={new Set<string>()}
         entry={entry}
         accentColor={null}
         isExpanded
@@ -474,6 +476,7 @@ describe('SidebarSessionItem', () => {
           isProcessing={false}
           needsAttention={false}
           isUnread={false}
+      hasScheduledMessage={false}
           currentTime={new Date('2026-08-11T12:05:00.000Z')}
           editingSession={null}
           editingSessionName=""
@@ -558,6 +561,7 @@ describe('SidebarSessionItem', () => {
           isProcessing={false}
           needsAttention={false}
           isUnread={false}
+      hasScheduledMessage={false}
           currentTime={new Date('2026-08-11T12:05:00.000Z')}
           editingSession={null}
           editingSessionName=""
@@ -746,6 +750,7 @@ describe('SidebarRepositoryItem', () => {
     await React.act(async () => {
       root?.render(
         <SidebarRepositoryItem
+          scheduledSessionIds={new Set<string>()}
           entry={entry}
           selectedProject={null}
           selectedSession={null}

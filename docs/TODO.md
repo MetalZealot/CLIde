@@ -123,7 +123,7 @@ new work.
 - [ ] **The activity indicator's changed state isn't legible.** A provider status like "Compacting conversation" phases in the same grey as the idle Thinking/Processing cycle, so it reads as normal waiting. Part of the wider indicator/panel rework: distinct treatment for a real status. **M**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [~] **Scheduled messages and Auto-Continue.** Send a message at a time you pick, or the moment provider usage resets. Reuses the existing reset monitor and the existing queue; must not inherit upstream `#1239`'s interrupt. Phases 1-3 done; one message, one firing. Phase 4 (sidebar status) left. [Plan](plans/scheduled-messages.md). **M/L**
+- [x] **Scheduled messages and Auto-Continue.** Send a message at a time you pick, or the moment provider usage resets. Reuses the existing reset monitor and the existing queue; must not inherit upstream `#1239`'s interrupt. All four phases done; one message, one firing. [Plan](plans/scheduled-messages.md). **M/L**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
 

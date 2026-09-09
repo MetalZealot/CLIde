@@ -13,6 +13,7 @@
     "activityBlocked": "Blocked",
     "activityUnread": "Unread finished",
     "activityRunning": "Running",
+    "activityScheduled": "Message scheduled",
     "all": "All",
     "customizeColor": "Highlight colour",
     "customizeColorNone": "No highlight",

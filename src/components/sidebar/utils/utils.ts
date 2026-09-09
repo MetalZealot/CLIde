@@ -492,17 +492,25 @@ export const applyBrowseSessionViewOptions = (
  * most urgent; otherwise a live run stays a spinner until it finishes, even if
  * unseen transcript output has already marked it unread.
  */
+/**
+ * A waiting scheduled message outranks unread: unread is discovered by opening
+ * the session, while a timer that will act on its own is not visible anywhere
+ * else.
+ */
 export const resolveActivityState = ({
   isProcessing,
   needsAttention,
   isUnread,
+  hasScheduledMessage = false,
 }: {
   isProcessing: boolean;
   needsAttention: boolean;
   isUnread: boolean;
+  hasScheduledMessage?: boolean;
 }): ActivityState | null => {
   if (needsAttention) return 'blocked';
   if (isProcessing) return 'running';
+  if (hasScheduledMessage) return 'scheduled';
   if (isUnread) return 'unread';
   return null;
 };
@@ -513,6 +521,7 @@ export const summarizeSessionActivity = (
   activeSessionIds: ReadonlySet<string>,
   attentionSessionIds: ReadonlySet<string>,
   unreadSessionIds: ReadonlySet<string>,
+  scheduledSessionIds: ReadonlySet<string> = new Set(),
 ): ActivitySummary => {
   return entries.reduce<ActivitySummary>((summary, entry) => {
     for (const { session } of mergeCheckoutSessions(entry)) {
@@ -520,13 +529,14 @@ export const summarizeSessionActivity = (
         isProcessing: activeSessionIds.has(session.id),
         needsAttention: attentionSessionIds.has(session.id),
         isUnread: unreadSessionIds.has(session.id),
+        hasScheduledMessage: scheduledSessionIds.has(session.id),
       });
       if (activityState) {
         summary[activityState] += 1;
       }
     }
     return summary;
-  }, { blocked: 0, unread: 0, running: 0 });
+  }, { blocked: 0, unread: 0, running: 0, scheduled: 0 });
 };
 
 /** Newest first, every worktree shown — the order the row has always used. */

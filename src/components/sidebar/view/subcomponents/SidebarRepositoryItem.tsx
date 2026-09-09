@@ -54,6 +54,7 @@ type SidebarRepositoryItemProps = {
   onCollapseSessions: (entry: RepositoryEntry) => void;
   activeSessions: SessionActivityMap;
   attentionSessionIds: ReadonlySet<string>;
+  scheduledSessionIds: ReadonlySet<string>;
   unreadSessionIds: ReadonlySet<string>;
   /** How this row is currently sorted and filtered. */
   viewOptions: RepositoryViewOptions;
@@ -148,6 +149,7 @@ export default function SidebarRepositoryItem({
   activeSessions,
   unreadSessionIds,
   attentionSessionIds,
+  scheduledSessionIds,
   viewOptions,
   onOpenViewMenu,
   onEditingSessionNameChange,
@@ -619,6 +621,7 @@ export default function SidebarRepositoryItem({
         isLoadingMoreSessions={isLoadingMoreSessions}
         activeSessions={activeSessions}
         attentionSessionIds={attentionSessionIds}
+        scheduledSessionIds={scheduledSessionIds}
         unreadSessionIds={unreadSessionIds}
         currentTime={currentTime}
         editingSession={editingSession}

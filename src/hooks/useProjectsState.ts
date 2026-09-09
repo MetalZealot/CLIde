@@ -476,6 +476,23 @@ export function useProjectsState({
   // Two independent per-session signals with different lifecycles: amber follows
   // an unresolved permission/question request, green is read-aware output and
   // clears when the session opens.
+  /** Sessions with a message still waiting to be sent; the server's view of it. */
+  const [scheduledSessionIds, setScheduledSessionIds] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await api.pendingScheduledSessions();
+        if (!response.ok) return;
+        const body = await response.json() as { sessionIds?: string[] };
+        if (!cancelled) setScheduledSessionIds(new Set(body.sessionIds ?? []));
+      } catch {
+        // The sidebar is still usable without the timer column.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const [{ attentionSessionIds, unreadSessionIds }, dispatchSessionSignal] = useReducer(
     reduceSidebarSessionSignals,
     undefined,
@@ -876,6 +893,13 @@ export function useProjectsState({
           }, 500);
         }
 
+        return;
+      }
+
+      if (event.kind === 'scheduled_messages_changed') {
+        // The server owns this set: a row can be created, cancelled or fired
+        // from any client, so nobody's local list is authoritative.
+        setScheduledSessionIds(new Set(Array.isArray(event.sessionIds) ? event.sessionIds as string[] : []));
         return;
       }
 
@@ -1440,6 +1464,7 @@ export function useProjectsState({
       activeSessions,
       attentionSessionIds,
       unreadSessionIds,
+      scheduledSessionIds,
       onProjectSelect: handleProjectSelect,
       onOpenSourceControl: handleOpenSourceControl,
       onSessionSelect: handleSessionSelect,
@@ -1463,6 +1488,7 @@ export function useProjectsState({
     [
       attentionSessionIds,
       unreadSessionIds,
+      scheduledSessionIds,
       handleOpenNewSession,
       handleNewSession,
       createWorktree,
