@@ -368,6 +368,16 @@ describe('sessionMessageReconciliation', () => {
     assert.deepEqual(removeOptimisticUserEchoes([persisted], [local]), []);
   });
 
+  test('an id-less row passes through instead of throwing', () => {
+    // A control frame filed here by mistake used to throw on every append and
+    // every refresh, which froze the whole conversation rather than losing one
+    // row.
+    const persisted = createUserMessage('claude_1', '2026-07-28T20:30:22.000Z');
+    const idless = { kind: 'text', sessionId: 's1', content: 'x' } as unknown as NormalizedMessage;
+
+    assert.deepEqual(removeOptimisticUserEchoes([persisted], [idless]), [idless]);
+  });
+
   test('does not collapse an attachment-only turn into a server row without attachments', () => {
     const local = createUserMessage('local_image', '2026-07-28T20:30:21.000Z', {
       images: [{ path: 'C:/Users/test/.cloudcli/assets/upload.png' }],

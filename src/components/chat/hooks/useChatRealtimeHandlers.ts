@@ -221,6 +221,13 @@ export function useChatRealtimeHandlers({
         case 'loading_progress':
           return;
 
+        // Scheduled-message control frames: consumed by useScheduledMessages
+        // and the sidebar. They are not transcript rows and carry no message
+        // id, so filing them under a session corrupts its realtime buffer.
+        case 'scheduled_message_sent':
+        case 'scheduled_messages_changed':
+          return;
+
         // Account-level usage push — owned by useProviderUsage. It carries no
         // session id, so falling through would file it under whichever session
         // is on screen and evict a real message from the realtime buffer.
