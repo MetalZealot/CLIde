@@ -35,7 +35,9 @@ sessions under several slugs.
 
 ## Start here — resolve an unknown id
 
-The id you were handed could be either space. This settles it in one query:
+The id you were handed could be either space — except when it came from the
+sidebar row menu's copy action, which yields the **provider** id and names the
+provider in its label. This settles it in one query either way:
 
 ```bash
 sqlite3 ~/.cloudcli/auth.db \

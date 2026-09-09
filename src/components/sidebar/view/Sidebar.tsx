@@ -355,7 +355,7 @@ function Sidebar({
           ? [{
               key: 'copy-id',
               label: t('actions.copyProviderSessionId', {
-                provider: t(`providerNames.${session.provider}`, {
+                provider: t(`actions.providerNames.${session.provider}`, {
                   defaultValue: session.provider ?? '',
                 }),
                 defaultValue: 'Copy {{provider}} session ID',
