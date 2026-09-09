@@ -835,6 +835,47 @@ describe('chatSubcomponents', () => {
       assert.deepEqual(effortSelections, ['low'], 'release commits exactly once');
     });
 
+    test('tapping an effort stop snaps to that exact value once', async () => {
+      const effortSelections: string[] = [];
+      const host = await mount(
+        <ComposerModelMenu
+          effort="high"
+          effortOptions={[{ value: 'low' }, { value: 'high' }]}
+          onSelectEffort={(value) => effortSelections.push(value)}
+          model="model-a"
+          modelOptions={[{ value: 'model-a', label: 'Model A' }]}
+          onSelectModel={async () => {}}
+          modelsLoading={false}
+          openRequest={0}
+          provider="claude"
+          providerLabel="Claude"
+        />,
+      );
+
+      const trigger = host.querySelector('button');
+      assert.ok(trigger);
+      await React.act(async () => trigger.click());
+
+      const effortTrack = document.querySelector<HTMLElement>('[role="radiogroup"]');
+      assert.ok(effortTrack);
+      effortTrack.getBoundingClientRect = () => ({
+        x: 0, y: 0, left: 0, right: 208, top: 0, bottom: 32, width: 208, height: 32,
+        toJSON: () => ({}),
+      });
+
+      await React.act(async () => {
+        effortTrack.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 100 }));
+        effortTrack.dispatchEvent(new window.MouseEvent('pointerup', { bubbles: true, button: 0, clientX: 100 }));
+      });
+
+      assert.deepEqual(effortSelections, ['low']);
+
+      const defaultStop = document.querySelector<HTMLButtonElement>('[role="radio"][aria-label="Default"]');
+      assert.ok(defaultStop);
+      await React.act(async () => defaultStop.click());
+      assert.deepEqual(effortSelections, ['low', 'default'], 'keyboard-style activation stays available');
+    });
+
     test('a drag returning to where it started commits nothing', async () => {
       const effortSelections: string[] = [];
       const host = await mount(
@@ -1228,6 +1269,7 @@ describe('chatSubcomponents', () => {
       assert.ok(modeToggle);
       assert.match(modeToggle.parentElement?.className || '', /hidden.*sm:flex/, 'the split mode control is desktop-only');
       assert.match(modeToggle.textContent || '', /Build/, 'desktop names the active collaboration mode');
+      assert.ok(!modeToggle.className.split(/\s+/).includes('bg-muted'), 'Build is not permanently highlighted');
       await React.act(async () => modeToggle.click());
 
       assert.deepEqual(collaborationSelections, ['plan']);
@@ -1235,7 +1277,10 @@ describe('chatSubcomponents', () => {
 
       const modeMenuTrigger = host.querySelector<HTMLButtonElement>('[aria-label="Show collaboration modes"]');
       assert.ok(modeMenuTrigger);
+      assert.ok(!modeMenuTrigger.className.split(/\s+/).includes('bg-muted'), 'the closed chevron is not highlighted');
       await React.act(async () => modeMenuTrigger.click());
+
+      assert.ok(modeMenuTrigger.className.split(/\s+/).includes('bg-muted'), 'the open chevron is highlighted');
 
       const modeMenu = document.querySelector<HTMLElement>('[role="menu"]');
       assert.match(modeMenu?.textContent || '', /Collaboration mode/);

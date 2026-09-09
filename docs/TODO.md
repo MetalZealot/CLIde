@@ -44,7 +44,7 @@ main checkout only).
 
 ## Mobile UX polish
 
-- [~] **Composer controls:** desktop split pickers keep Permissions and Build/Plan separate through one shared control shell, Shift+Tab cycles collaboration mode, and the Clear Input/shortcut clutter is gone. Mobile keeps one compact access icon; tapping it opens the complete picker with Build/Plan inside. Desktop and mobile acceptance remain. **S**
+- [~] **Composer controls:** desktop split pickers keep Permissions and Build/Plan separate, with matching hover/open states; Shift+Tab cycles collaboration mode; Clear Input/shortcut clutter is gone. Mobile keeps one compact access icon; tapping opens the complete picker with Build/Plan inside. Effort dot taps now snap to that value. Desktop/mobile acceptance remain. **S**
 - [~] **One owner for safe-area insets.** `body.pwa-mode .fixed.inset-0` (index.css) offsets the app shell and 40 other overlays by `safe+8`; the drawer opts out inline; `#root`'s padding is dead against a fixed shell; nothing applies the bottom inset at shell level. Do this before the bottom nav. **M**
 - [ ] **Move the top tab strip to a bottom nav** — five default roles: Chat, Shell, Files, Source Control, Plugins; Plugins opens installed destinations. Blocked on the inset item above. [Plan](plans/mobile-bottom-navigation.md), [ADR 0048](decisions/0048-mobile-navbar-five-roles-plugin-overflow.md). **M**
 - [ ] **Consider personalizing the accepted bottom nav.** Rearrangement and pinned-plugin slots may be useful, but their owner and displacement rules are undecided; do not add them to the default-bar build. **S — design decision first**

@@ -63,7 +63,6 @@ export default function ComposerModelMenu({
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const effortTrackRef = useRef<HTMLDivElement | null>(null);
   const effortDragRef = useRef({ active: false, moved: false, startX: 0 });
-  const suppressEffortClickRef = useRef(false);
   // A drag paints the track locally and commits once, on release. Committing
   // per step would fire a write per stop crossed, and those writes race.
   const [effortPreview, setEffortPreview] = useState<string | null>(null);
@@ -166,15 +165,8 @@ export default function ComposerModelMenu({
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (!drag.moved) return;
-
     const nextEffort = effortValueAt(event.clientX) ?? effortPreview;
     setEffortPreview(null);
-    // The tap that ends a drag would otherwise re-fire on the button underneath.
-    suppressEffortClickRef.current = true;
-    queueMicrotask(() => {
-      suppressEffortClickRef.current = false;
-    });
     if (nextEffort && nextEffort !== effort) onSelectEffort(nextEffort);
   }, [effort, effortPreview, effortValueAt, onSelectEffort]);
 
@@ -408,9 +400,9 @@ export default function ComposerModelMenu({
                             aria-checked={isSelected}
                             aria-label={label}
                             title={option.description || label}
-                            onClick={() => {
-                              if (suppressEffortClickRef.current) return;
-                              onSelectEffort(option.value);
+                            onClick={(event) => {
+                              // The track owns pointer choices; detail-less activation is keyboard or assistive tech.
+                              if (event.detail === 0) onSelectEffort(option.value);
                             }}
                             className="group flex min-w-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >

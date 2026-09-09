@@ -216,8 +216,7 @@ export default function ComposerPermissionMenu({
           onMenuClick={toggleCollaborationMenu}
           menuAriaLabel={openCollaborationMenuLabel}
           className="hidden sm:flex"
-          mainButtonClassName="max-w-24 bg-muted text-foreground hover:bg-muted/80"
-          menuButtonClassName="bg-muted hover:bg-muted/80"
+          mainButtonClassName="max-w-24"
         />
       )}
 
