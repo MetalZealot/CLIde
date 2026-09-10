@@ -15,6 +15,7 @@ main checkout only).
 
 ## Provider maintenance
 
+- [ ] **Redeem earned Codex usage-limit resets inside CLIde.** Put the confirmed action beside the existing reset count on `/usage`, backed by Codex's idempotent App Server operation; keep Agent Settings for preferences and Plan and Balance for billing. [Plan](plans/codex-usage-limit-resets.md). **M**
 - [ ] **Codex Chat and Shell can claim the same native thread.** Add App Server-native Chat compaction and a backend-owned single-writer handoff so retained Shell PTYs cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**
 - [ ] **Claude, Cursor and OpenCode MCP edits still erase native keys CLIde does not model.** Codex was fixed in `2a4a727`; the shared base now hands `buildServerConfig` the existing record, so each remaining adapter needs the same merge plus its own owned-key list. **S each**
 - [ ] **Split [the Claude SDK map](maps/claude-agent-sdk.md)** — 29 KB against a 24 KB cap, and its "Current CLIde mapping" section alone is 13 KB. Split native surface from CLIde mapping, then drop its entry from `SIZE_EXCEPTIONS` in `scripts/check-docs.mjs`. Its 2026-07-19 delta section was already folded into [the ledger](maps/claude-upgrade-ledger.md) on 2026-08-06. **S/M**
