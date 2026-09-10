@@ -60,13 +60,14 @@ dead code, and neither the offer nor anything else should be built on it.
       trigger has to be "usage is available again", not "the predicted instant
       arrived". A defect in the unmerged branch, not in `main`
 - [ ] 1. A limit stop draws one row, identical live and after a reload, and the
-      same shape on Claude and Codex. Today both draw two live — a red error
-      frame plus the transcript-derived row — collapsing to one on reload,
-      because only the transcript row survives a re-read. `180352d4` deduped
-      Codex's two *notification* sources and the pair persisted, so this is
-      diagnosed from captured live frames before anything is changed. A generic
-      turn failure produces the same pair, so it reproduces without waiting to
-      run out of usage
+      same shape on Claude and Codex. Claude's pair is diagnosed, observed live
+      2026-09-09: the CLI streams the synthetic row that becomes the muted
+      notice, then the SDK *throws* ``Claude Code returned an error result:
+      `` + that same text, which the runtime's catch re-emits as a red
+      `kind: 'error'` row. Only the notice is a transcript row, so a reload
+      drops the red one. Every error result also arrives as a synthetic row, so
+      the whole wrapper class is a duplicate and the catch can drop it — but
+      confirm Codex's pair separately, since `180352d4` deduped a different one
 - [ ] 2. A limit notice in the chat offers Auto-Continue in one tap, and the
       offer disappears once a message is waiting. Matched on the text prefix
       `You've hit your `, which both providers share, across the two row shapes
