@@ -745,7 +745,7 @@
       user-select: none;
     }
 
-    /* Better mobile touch targets */
+    /* Opt-in comfort target for isolated mobile controls, not the baseline. */
     .mobile-touch-target {
       @apply min-h-[44px] min-w-[44px];
     }

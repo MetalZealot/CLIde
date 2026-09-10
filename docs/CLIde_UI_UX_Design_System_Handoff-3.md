@@ -370,11 +370,12 @@ Current TODO/code still contains smaller shared/mobile controls around 28x28px i
 
 Recommended principle:
 
-> Compact visual controls are allowed. Compact touch targets are not automatically acceptable.
+> Compact visual controls and compact touch targets are both allowed when the
+> surrounding density, separation, and interaction risk support them.
 
 A 16px icon can remain visually small while its clickable/tappable area is larger.
 
-Touch/coarse-pointer layouts should generally aim for comfortable ~44px interaction regions unless a specific exception is justified.
+WCAG 2.2 AA requires a 24×24 CSS-pixel target or a listed spacing/equivalent-control exception. Apple’s 44pt and Android’s 48dp figures are useful comfort recommendations, not a universal web rule. In CLIde, start with the established component rhythm and enlarge the hit area when frequency, consequence, adjacency, or real-device use supports it.
 
 Pointer-focused desktop layouts may legitimately be denser.
 

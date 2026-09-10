@@ -24,11 +24,11 @@ effectively unbounded, which makes it the right default home for a new idea.
 - Logo and wordmark; links to the dashboard only under `IS_PLATFORM`
 - New Session — desktop only; the mobile drawer puts it in the footer thumb zone
 - Collapse sidebar
-- Transparent 44px utility block: Projects/Sessions/Archive dropdown ·
+- Reserved utility row: Projects/Sessions/Archive dropdown ·
   permanently shaded Search field · contextual Sort button, absent in Archive.
   Clear appears only for a non-empty query. Its visible 32px controls fill the
-  44px hit area through the reserved 4px above and 8px below; desktop compacts
-  the selector to its icon.
+  available hit area through the reserved 4px above and 8px below; desktop
+  compacts the selector to its icon.
 - "Search inside messages" — appears inside the field once the query
   reaches 2 characters, and switches `searchMode` rather than opening a place
 
@@ -145,14 +145,16 @@ parses every `.tsx` under `src/` and fails on an element that its own container
 hides at the other breakpoint — the shape that kept `TaskIndicator` off screen.
 It carries a fixture of that original shape as a negative control.
 
-## Budget compliance (ADR 0044)
+## Budget and target audit (ADRs 0044 and 0055)
 
-Measured 2026-08-18 and updated 2026-08-22 against
-[ADR 0044](../decisions/0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md).
+Measured 2026-08-18 and updated 2026-09-10 against
+[ADR 0044](../decisions/0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md)
+and [ADR 0055](../decisions/0055-target-size-is-contextual-with-a-wcag-floor.md).
 
-**Only the touch-target floor is an external platform guideline** — 44px is
-Apple's and 48dp is Google's. Shortcut count and identity/state placement are
-house conventions: defensible and overrulable. Read the two lists differently.
+**WCAG's 24×24 CSS-pixel size-or-spacing rule is the external floor.** Apple’s
+44pt and Android’s 48dp values are platform comfort guidance. Shortcut count,
+identity/state placement, and CLIde's density are house conventions: defensible
+and overrulable. Read the lists differently.
 
 **Rule 1 — row shortcuts stay bounded.** A touch row normally keeps one
 permanent trailing control. The repository row deliberately keeps New Session
@@ -163,10 +165,12 @@ status and relative age are marks rather than controls.
 **Rule 2 — identity leads, state trails.** The session provider logo leads its
 title; pin, status, relative age and the expand chevron trail.
 
-**Rule 3 — 44px hit area on touch.** Fifteen controls across eleven locations
-fall short, all on touch.
-`.sidebar-utility-hit-target` (`index.css`) is the existing fix and reconciles a
-32px visual with a 44px hit area without resizing anything.
+**Rule 3 — assess compact touch targets in context.** The fifteen controls below
+were collected because they are below 44px, not because that measurement alone
+makes them defects. Verify WCAG size or spacing, hit-area collisions, adjacency,
+frequency, consequence, and Samsung usability before changing one.
+`.sidebar-utility-hit-target` (`index.css`) remains available when a larger
+invisible hit area improves operation without resizing or crowding the control.
 
 | Control | Where | Visible | Hit area |
 |---|---|---|---|
@@ -182,8 +186,8 @@ fall short, all on touch.
 | New Session / kebab | repository row in touch-driven desktop layout | 24px | 24px |
 | Kebab | session row in touch-driven desktop layout | 24px | 24px |
 
-The browse selector and Sort button are the compliant pair to copy: both are 32px
-visuals already wearing the helper class.
+The browse selector and Sort button show one valid treatment: both are 32px
+visuals with extra hit area supplied by the helper class.
 
 ## Dead surface
 

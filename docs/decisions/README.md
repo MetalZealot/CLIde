@@ -81,7 +81,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0041 — A checkout is named by its folder, with its branch as state](0041-checkouts-are-named-by-place-and-state.md)
 - [0042 — Input type sets the row budget; hover is a reveal channel](0042-input-type-sets-the-sidebar-budget.md) *(superseded by 0044)*
 - [0043 — Reading size is content-scoped and device-local](0043-reading-size-is-content-scoped-and-device-local.md)
-- [0044 — Input capability sets targets; row shortcuts stay bounded](0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md)
+- [0044 — Input capability sets targets; row shortcuts stay bounded](0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md) *(target-size rule superseded by 0055)*
 - [0045 — HTML file preview is static and isolated](0045-html-file-preview-is-static-and-isolated.md)
 - [0046 — Tool detail leaves the chat column instead of nesting inside it](0046-tool-detail-leaves-the-chat-column.md)
 - [0047 — The liveness probe clears on any inbound frame, not a matching echo](0047-ws-liveness-probe-clears-on-any-frame.md)
@@ -92,3 +92,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0052 — Reads reach the workspace and temp roots; writes stay in the project](0052-reads-reach-the-workspace-and-temp-roots.md)
 - [0053 — Browser tools are official Playwright MCP over an authenticated HTTP endpoint](0053-browser-tools-are-official-playwright-mcp-over-http.md)
 - [0054 — Async question answers steer now or queue separately](0054-async-question-answer-delivery.md)
+- [0055 — Target size is contextual, with a WCAG floor](0055-target-size-is-contextual-with-a-wcag-floor.md)

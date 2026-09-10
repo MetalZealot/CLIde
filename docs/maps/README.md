@@ -7,12 +7,12 @@ CLIde or its provider runtimes change.
 
 | Document | Role | Status |
 |---|---|---|
-| [Orientation](orientation.md) | Plain-language map of CLIde's nine governing assumptions, written for Grayson rather than for an agent | Updated 2026-09-09 with source, build, and live release boundaries |
+| [Orientation](orientation.md) | Plain-language map of CLIde's ten governing assumptions, written for Grayson rather than for an agent | Updated 2026-09-10 with contextual UI target sizing |
 | [Upstream sync](upstream-sync.md) | How this fork takes work from `siteboon/claudecodeui`, what has been refused, and the release ledger | Written 2026-09-08 for the v1.37.3 span |
 | [Code anchors](code-anchors.md) | Symbol-anchored map of the code worth not blind-reading; the areas where a wrong assumption is expensive | Moved out of the local `CLAUDE.md` 2026-08-04 |
 | [Test suite](test-suite.md) | What the suites own, their measured cost, and what they cannot establish | Measured 2026-08-15 after consolidation to 82 files |
 | [Sidebar surface](sidebar-surface.md) | Every sidebar affordance, the tier it sits in, and where the tiers and the code disagree | Inventory taken 2026-08-11 |
-| [UI standards](ui-standards.md) | What the interface is objectively required to do, what is only house convention, and which is which | Updated 2026-08-28 with mobile bottom-navigation guidance |
+| [UI standards](ui-standards.md) | What the interface is objectively required to do, what is only house convention, and which is which | Updated 2026-09-10 with WCAG-floor and contextual target guidance |
 | [Typography](typography.md) | Font-family routing, unchanged interface sizing, reading presets, and fixed-metric boundaries | Implemented and accepted 2026-08-21 |
 | [CLIde provider capability map](clide-provider-capability-map.md) | Canonical normalized behavior, implementation state, and provider/runtime bindings | Foundation baseline started 2026-07-30 |
 | [Provider permission and mode surfaces](provider-permission-modes.md) | How Claude and Codex permission concepts differ and how CLIde exposes them | CLIde mapping revalidated 2026-08-12 against Codex 0.147.0 |

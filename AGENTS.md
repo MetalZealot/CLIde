@@ -115,11 +115,10 @@ behaviour stays behind adapter interfaces.
 
 ### UI standards
 
-**Before building, say which bucket each part of a UI change falls in — external
-standard, house convention, or the maintainer's taste.**  A convention stated
-confidently is indistinguishable from a published standard to someone who cannot
-check it, and most layout decisions here are taste.  Sources and findings:
-[the UI standards map](docs/maps/ui-standards.md).
+**Before building, bucket each UI choice as external standard, house convention,
+or maintainer taste.**  A confident convention reads like a published standard
+to someone who cannot check it.  44px is contextual comfort guidance, not CLIde's
+universal target floor.  Sources: [the UI standards map](docs/maps/ui-standards.md).
 
 ## Code comments
 

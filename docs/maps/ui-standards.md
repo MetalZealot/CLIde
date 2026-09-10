@@ -15,8 +15,7 @@ These apply at **both** breakpoints unless the row says otherwise.
 
 | Requirement | Source | Notes |
 |---|---|---|
-| Interactive target ≥ 24×24 CSS px | WCAG 2.2 SC 2.5.8 (AA) | The floor at every input type, pointer included |
-| Touch target ≥ 44px (Apple) / 48dp (Material) | Platform HIGs | Touch only; reconcile a smaller visual with `.sidebar-utility-hit-target` |
+| Interactive target ≥ 24×24 CSS px, or a listed exception | WCAG 2.2 SC 2.5.8 (AA) | The compliance floor for pointer inputs; spacing and equivalent-control exceptions can apply |
 | Text contrast 4.5:1, large text 3:1 | WCAG 1.4.3 (AA) | Large = ≥24px, or ≥18.66px bold |
 | Icon and control-boundary contrast 3:1 | WCAG 1.4.11 (AA) | Catches muted-on-muted icon buttons |
 | Visible keyboard focus | WCAG 2.4.7 (AA) | |
@@ -24,6 +23,21 @@ These apply at **both** breakpoints unless the row says otherwise.
 | Hover/focus content is dismissable, hoverable, persistent | WCAG 1.4.13 (AA) | Tooltips and popovers need an Escape path |
 | Reflow at 320px and 200% zoom, no 2-D scrolling | WCAG 1.4.4, 1.4.10 (AA) | Bounds how narrow a resizable panel may go |
 | 16px minimum font on focusable inputs | iOS Safari behaviour | Anything smaller zooms the viewport |
+
+## Platform ergonomics — guidance, not a CLIde requirement
+
+- [Apple lists 44×44pt as the default iOS/iPadOS control size and 28×28pt as
+  its minimum](https://developer.apple.com/design/human-interface-guidelines/accessibility).
+  [Android recommends 48×48dp](https://developer.android.com/guide/topics/ui/accessibility/apps)
+  for native touch interfaces. Neither figure is a universal CSS-pixel floor
+  for this web app.
+- Start with the size and rhythm of neighbouring CLIde controls. Prefer more
+  room for frequent, isolated, edge-positioned, or consequential actions; a
+  compact target can be appropriate when it meets WCAG, has safe separation,
+  and works on the actual device.
+- A small visual may use a larger invisible hit area when that does not overlap
+  another target or distort the grouping. `44px` is one available value, not an
+  automatic fix.
 
 ### Mobile bottom navigation
 
@@ -61,6 +75,9 @@ Overrulable; say so when citing one.
 - **Desktop rows answer right-click.**
 - **Reduced motion is honoured** (`prefers-reduced-motion`). WCAG 2.3.3 is AAA,
   so this is a house floor rather than a required one.
+- **Target comfort is contextual.** Review size together with separation,
+  adjacency, frequency, consequence, input capability, and real-device use.
+  Preserve established visual density unless evidence supports changing it.
 
 ### Mobile bottom-navigation contract
 
@@ -88,5 +105,5 @@ guarantee. Sidebar-specific compliance lives in
 
 - The desktop row kebab is 24px — exactly the SC 2.5.8 floor. Nothing in a row
   may be made smaller.
-- Nine sidebar control sites miss the 44px touch guideline; table and fix in the
-  sidebar map.
+- The sidebar map records compact control measurements for contextual review;
+  being below 44px alone is not a defect.

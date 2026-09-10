@@ -1,7 +1,7 @@
 # 0044 — Input capability sets targets; row shortcuts stay bounded
 
 - Date: 2026-08-22
-- Status: Accepted
+- Status: Accepted; target-size rule superseded by 0055
 
 ## Decision
 

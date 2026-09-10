@@ -1,7 +1,7 @@
 # How CLIde works — orientation
 
 Written for Grayson, not for an agent. Every other document in `docs/` assumes you
-already know the architecture; this one doesn't. Nine areas, each with the one rule
+already know the architecture; this one doesn't. Ten areas, each with the one rule
 that governs it and what goes wrong when the rule is broken.
 
 Nothing here is implementation detail — it is the set of assumptions the code is built
@@ -134,6 +134,21 @@ eighteen files, one of them 79 KB, whose two largest sections were both audits a
 rather than edits made. Documents that expensive stop being read, and documents nobody
 reads drift into being confidently wrong.
 
+## 10. Accessibility sets a floor; it does not set CLIde's density
+
+The web accessibility requirement for a pointer target is 24×24 CSS pixels, with
+specific spacing and equivalent-control exceptions. Apple and Android recommend larger
+touch targets for comfort, but those platform figures do not make every CLIde control
+44px or 48px.
+
+**The rule:** start with the established controls around the change, then consider
+spacing, frequency, consequence, input method, and how it works on the actual device.
+Use a larger invisible hit area when it helps without overlapping nearby actions.
+
+**What breaks:** treating 44px as a universal rule makes compact menus and groups look
+unrelated to the rest of CLIde, then forces repeated visual corrections after the
+accessibility work was already technically complete.
+
 ---
 
 ## When to stop and ask
@@ -148,6 +163,7 @@ You do not need to understand a diff to catch these. If a proposed change would:
 - reach the backend but end with "just refresh" (6);
 - ask you to verify a branch's work on 3001 (7);
 - touch auth, schema, or migrations without a backup first (8);
+- turn a compact control into a 44px control solely because it is used by touch (10);
 
 — then say so. Being able to name the rule is enough; you don't have to be able to prove
 the violation. Asking is cheap, and every one of these is expensive to find later.
