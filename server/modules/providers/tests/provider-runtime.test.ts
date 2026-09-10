@@ -467,3 +467,30 @@ describe('interactive-request-registry', () => {
     );
   });
 });
+
+describe('claude-runtime error results', () => {
+  const notice = "You've hit your session limit \u00B7 resets 5:40pm (America/Edmonton)";
+  const wrapped = new Error(`Claude Code returned an error result: ${notice}`);
+
+  // Imported here, not at the top: the registry owns this module's
+  // initialization order, and pulling it in first breaks the cycle open.
+  const loadPredicate = async (): Promise<(streamed: boolean, error: unknown) => boolean> => (
+    // @ts-expect-error -- the Claude runtime stays JavaScript by migration exception
+    (await import('@/modules/providers/list/claude/claude-runtime.provider.js')).duplicatesStreamedNotice
+  );
+
+  test('the SDK rethrow of an already-streamed notice does not draw a second row', async () => {
+    assert.equal((await loadPredicate())(true, wrapped), true);
+  });
+
+  test('an error result nothing announced still reaches the user', async () => {
+    // Nothing was streamed, so suppressing here would end the turn in silence.
+    assert.equal((await loadPredicate())(false, wrapped), false);
+  });
+
+  test('a genuine failure is never mistaken for the notice wrapper', async () => {
+    const duplicates = await loadPredicate();
+    assert.equal(duplicates(true, new Error('spawn ENOENT')), false);
+    assert.equal(duplicates(true, undefined), false);
+  });
+});

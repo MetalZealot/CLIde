@@ -69,6 +69,23 @@ const CLAUDE_CONTEXT_USAGE_REFRESH_MS =
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
+/** Model the CLI stamps on rows it fabricated rather than the model producing. */
+const SYNTHETIC_MODEL = '<synthetic>';
+/** How the SDK rethrows a turn that ended on an error result. */
+const SDK_ERROR_RESULT_PREFIX = 'Claude Code returned an error result:';
+
+/**
+ * Whether a thrown error is only the SDK handing back text already streamed as
+ * a notice row. Drawing it again is the same event twice live and once after a
+ * reload, since only the notice reaches the transcript. Requires the row to
+ * have gone out, so an error result nothing announced still reaches the user.
+ */
+function duplicatesStreamedNotice(noticeStreamed, error) {
+  return noticeStreamed
+    && typeof error?.message === 'string'
+    && error.message.startsWith(SDK_ERROR_RESULT_PREFIX);
+}
+
 function resolveClaudeEffort(model, effort, modelsDefinition = CLAUDE_FALLBACK_MODELS) {
   const selectedModel = modelsDefinition?.OPTIONS?.find((option) => option.value === model) || null;
   const allowedEfforts = selectedModel?.effort?.values
@@ -630,6 +647,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   // captured from the stream for brand-new sessions).
   let capturedSessionId = providerSessionId;
   let sessionCreatedSent = false;
+  // The CLI fabricates a notice row for a usage limit or API error and *then*
+  // the SDK throws that same text back wrapped. Both would draw a row.
+  let noticeStreamed = false;
   // Process-map key: the app session id when the caller supplied one, else
   // the provider-native id once captured (legacy/direct API callers).
   const sessionKey = () => sessionId || capturedSessionId || null;
@@ -921,6 +941,10 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         }
       }
 
+      if (message?.isApiErrorMessage === true || message?.message?.model === SYNTHETIC_MODEL) {
+        noticeStreamed = true;
+      }
+
       // Use adapter to normalize SDK events into NormalizedMessage[]
       const normalized = context.normalizeMessage(transformedMessage, sid);
       for (const msg of normalized) {
@@ -989,7 +1013,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       : error.message;
 
     // Send error to WebSocket, then the terminal complete
-    ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+    if (!duplicatesStreamedNotice(noticeStreamed, error)) {
+      ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+    }
     ws.send(createCompleteMessage({ provider: 'claude', sessionId: capturedSessionId || sessionId || null, exitCode: 1 }));
     notifyRunFailed({
       userId: ws?.userId || null,
@@ -1120,5 +1146,6 @@ export {
   resolveToolApproval,
   getPendingApprovalsForSession,
   reconnectSessionWriter,
-  refreshClaudeContextUsage
+  refreshClaudeContextUsage,
+  duplicatesStreamedNotice
 };

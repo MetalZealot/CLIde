@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
 - Status: 1/6
-- Next: Phase 1 — one row per limit stop, live and after a reload
+- Next: Phase 1's Codex half — capture its pair, then match Claude's fix
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -59,15 +59,18 @@ dead code, and neither the offer nor anything else should be built on it.
       bankable ones as `rateLimitResetCredits`, which CLIde already reads. The
       trigger has to be "usage is available again", not "the predicted instant
       arrived". A defect in the unmerged branch, not in `main`
-- [ ] 1. A limit stop draws one row, identical live and after a reload, and the
+- [~] 1. A limit stop draws one row, identical live and after a reload, and the
       same shape on Claude and Codex. Claude's pair is diagnosed, observed live
       2026-09-09: the CLI streams the synthetic row that becomes the muted
       notice, then the SDK *throws* ``Claude Code returned an error result:
       `` + that same text, which the runtime's catch re-emits as a red
       `kind: 'error'` row. Only the notice is a transcript row, so a reload
-      drops the red one. Every error result also arrives as a synthetic row, so
-      the whole wrapper class is a duplicate and the catch can drop it — but
-      confirm Codex's pair separately, since `180352d4` deduped a different one
+      drops the red one. Claude's half is done: the catch drops the wrapper,
+      but only when the notice row actually went out, so an error result
+      nothing announced is never silenced. Codex still shows a pair and its
+      shape is unconfirmed — its synchronizer skips a `task_complete` carrying
+      no agent message, so the second row is not the transcript one and needs a
+      live capture before anything is changed
 - [ ] 2. A limit notice in the chat offers Auto-Continue in one tap, and the
       offer disappears once a message is waiting. Matched on the text prefix
       `You've hit your `, which both providers share, across the two row shapes

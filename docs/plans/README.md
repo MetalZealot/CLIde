@@ -13,7 +13,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Verified end to end 2026-09-09; unmerged on `feat/scheduled-messages` |
-| [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 1/6 | Phase 1 — one row per limit stop, live and after a reload |
+| [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 1/6 | Phase 1's Codex half — capture its pair, then match Claude's fix |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
 | [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
 | [Context-correct skills settings](skills-settings-discovery-scope.md) | complete | none — accepted live 2026-09-09 |
