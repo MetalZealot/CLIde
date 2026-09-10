@@ -72,7 +72,7 @@ UI buckets before implementation:
       Global when the screen is reopened or the provider changes. Preserve
       source paths and scope badges, empty/loading/error states, Add Skill's
       global destination, one scroll owner, and mobile reflow.
-- [~] **4. Isolated acceptance and documentation.** Add focused backend
+- [x] **4. Isolated acceptance and documentation.** Add focused backend
       provider cases plus client hook, parent-count, picker interaction, stale
       response, and narrow-screen tests without creating a near-empty test
       file. Build and serve the topic worktree on port 3002. Verify Global and
