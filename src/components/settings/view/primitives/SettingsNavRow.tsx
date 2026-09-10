@@ -6,6 +6,7 @@ import { cn } from '../../../../lib/utils';
 type SettingsNavRowProps = {
   label: string;
   description?: string;
+  wrapDescription?: boolean;
   icon?: ComponentType<{ className?: string }>;
   /** Trailing preview of the current value, or a count such as "3 configured". */
   value?: string;
@@ -23,6 +24,7 @@ type SettingsNavRowProps = {
 export default function SettingsNavRow({
   label,
   description,
+  wrapDescription = false,
   icon: Icon,
   value,
   trailing,
@@ -45,7 +47,12 @@ export default function SettingsNavRow({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-foreground">{label}</span>
         {description && (
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">{description}</span>
+          <span className={cn(
+            'mt-0.5 block text-xs text-muted-foreground',
+            wrapDescription ? 'whitespace-normal' : 'truncate',
+          )}>
+            {description}
+          </span>
         )}
       </span>
 

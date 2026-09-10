@@ -303,8 +303,16 @@ export default function ChatComposer({
 
   return (
     <div className="chat-composer-shell relative flex-shrink-0 px-4 pb-4 pt-0 md:px-6 md:pb-6">
-      {pendingPermissionRequests.length === 0 && (activity || reserveActivitySpace) && (
-        <div className="mx-auto mb-2 max-w-[54.25rem]" style={{ visibility: activity ? 'visible' : 'hidden' }}>
+      {(activity || reserveActivitySpace) && (
+        // Hidden, never unmounted, while the permission banner holds the slot: the
+        // message cycle and its no-repeat bag are per-turn state a remount restarts.
+        <div
+          className="mx-auto mb-2 max-w-[54.25rem]"
+          style={{
+            display: pendingPermissionRequests.length > 0 ? 'none' : undefined,
+            visibility: activity ? 'visible' : 'hidden',
+          }}
+        >
           <ActivityIndicator activity={activity} onAbort={onAbortSession} isStopArmed={isStopArmed} />
         </div>
       )}

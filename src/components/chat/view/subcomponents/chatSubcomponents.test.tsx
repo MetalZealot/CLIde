@@ -13,7 +13,22 @@ import { QuestionAnswerContent } from '../../tools/components/ContentRenderers/Q
 import { adaptUserInputAnswers } from '../../tools/components/InteractiveRenderers/user-input-request.adapter';
 import { UserInputRequestPanel } from '../../tools/components/InteractiveRenderers/UserInputRequestPanel';
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
+import {
+  DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
+  DEFAULT_THINKING_MESSAGE_ORDER,
+  MAX_THINKING_MESSAGE_LENGTH,
+  MAX_THINKING_MESSAGES,
+  THINKING_MESSAGE_CYCLE_STORAGE_KEY,
+  THINKING_MESSAGE_ORDER_STORAGE_KEY,
+  THINKING_MESSAGES_STORAGE_KEY,
+  parseThinkingMessageCycleMode,
+  parseThinkingMessageOrder,
+  parseThinkingMessages,
+  shuffleThinkingMessageIndices,
+  useThinkingMessages,
+} from '../../../../hooks/useThinkingMessages';
 
+import ActivityIndicator from './ActivityIndicator';
 import ChatExportMenu from './ChatExportMenu';
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
@@ -27,6 +42,180 @@ import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import TokenUsageSummary from './TokenUsageSummary';
 
 describe('chatSubcomponents', () => {
+  describe('activity messages', () => {
+    let root: Root | null = null;
+    let container: HTMLDivElement | null = null;
+
+    before(async () => {
+      const chatTranslations = JSON.parse(readFileSync(
+        new URL('../../../../i18n/locales/en/chat.json', import.meta.url),
+        'utf8',
+      )) as Record<string, unknown>;
+      await i18next.use(initReactI18next).init({
+        lng: 'en',
+        fallbackLng: false,
+        defaultNS: 'chat',
+        resources: { en: { chat: chatTranslations } },
+      });
+    });
+
+    afterEach(async () => {
+      await React.act(async () => root?.unmount());
+      container?.remove();
+      localStorage.clear();
+      root = null;
+      container = null;
+    });
+
+    test('bounds stored entries without accepting non-strings', () => {
+      const overlong = 'x'.repeat(MAX_THINKING_MESSAGE_LENGTH + 5);
+      const parsed = parseThinkingMessages([
+        overlong,
+        42,
+        ...Array.from({ length: MAX_THINKING_MESSAGES }, (_, index) => `Message ${index}`),
+      ]);
+
+      assert.equal(parsed?.length, MAX_THINKING_MESSAGES);
+      assert.equal(parsed?.[0], 'x'.repeat(MAX_THINKING_MESSAGE_LENGTH));
+      assert.equal(parseThinkingMessages('Thinking'), null);
+      assert.equal(parseThinkingMessageCycleMode('turn'), 'turn');
+      assert.equal(parseThinkingMessageCycleMode('9'), null);
+      assert.equal(parseThinkingMessageOrder('random'), 'random');
+      assert.equal(parseThinkingMessageOrder('alphabetical'), null);
+
+      const shuffled = shuffleThinkingMessageIndices(4, 2, () => 0);
+      assert.deepEqual([...shuffled].sort(), [0, 1, 2, 3]);
+      assert.notEqual(shuffled[0], 2, 'a reshuffle cannot immediately repeat its previous message');
+    });
+
+    test('applies each cycle mode in the same tab while provider status stays authoritative', async () => {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+
+      const initialStartedAt = Date.now() - 4_500;
+      const Harness = () => {
+        const {
+          cycleMode,
+          messageOrder,
+          setCustomMessages,
+          setCycleMode,
+          setMessageOrder,
+          resetThinkingMessages,
+        } = useThinkingMessages();
+        const [statusText, setStatusText] = React.useState<string | null>(null);
+        const [startedAt, setStartedAt] = React.useState(initialStartedAt);
+        return (
+          <>
+            <button type="button" onClick={() => setCustomMessages(['Pondering', 'Scheming'])}>
+              Customize
+            </button>
+            <button type="button" onClick={() => setCustomMessages([])}>
+              Clear
+            </button>
+            <button type="button" onClick={resetThinkingMessages}>
+              Reset
+            </button>
+            <button type="button" onClick={() => setStatusText('Compacting conversation')}>
+              Set provider status
+            </button>
+            <button type="button" onClick={() => setCycleMode('2')}>Every 2 seconds</button>
+            <button type="button" onClick={() => setCycleMode('never')}>Never</button>
+            <button type="button" onClick={() => setCycleMode('turn')}>Per turn</button>
+            <button type="button" onClick={() => setMessageOrder('random')}>Random order</button>
+            <button type="button" onClick={() => setStartedAt((current) => current + 1_000)}>Next turn</button>
+            <output>{cycleMode}:{messageOrder}</output>
+            <ActivityIndicator
+              activity={{ statusText, canInterrupt: true, startedAt }}
+            />
+          </>
+        );
+      };
+
+      await React.act(async () => root?.render(<Harness />));
+      assert.match(container.textContent ?? '', /Processing/);
+
+      const button = (label: string) => [...container!.querySelectorAll<HTMLButtonElement>('button')]
+        .find((candidate) => candidate.textContent?.trim() === label);
+      const customize = button('Customize');
+      const clear = button('Clear');
+      const reset = button('Reset');
+      const setProviderStatus = button('Set provider status');
+      await React.act(async () => customize?.click());
+      assert.match(container.textContent ?? '', /Scheming/);
+      assert.deepEqual(
+        JSON.parse(localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY) ?? 'null'),
+        ['Pondering', 'Scheming'],
+      );
+
+      await React.act(async () => clear?.click());
+      assert.match(container.textContent ?? '', /Processing/);
+      assert.deepEqual(JSON.parse(localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY) ?? 'null'), []);
+
+      await React.act(async () => customize?.click());
+      await React.act(async () => button('Every 2 seconds')?.click());
+      assert.match(container.textContent ?? '', /Pondering/);
+      assert.equal(localStorage.getItem(THINKING_MESSAGE_CYCLE_STORAGE_KEY), '2');
+
+      await React.act(async () => button('Never')?.click());
+      assert.match(container.textContent ?? '', /Pondering/);
+
+      await React.act(async () => button('Per turn')?.click());
+      assert.match(container.textContent ?? '', /Pondering/);
+      await React.act(async () => button('Next turn')?.click());
+      assert.match(container.textContent ?? '', /Scheming/);
+
+      // A settings change restarts the list instead of keeping its place, so the
+      // change proves itself on screen rather than resuming at an arbitrary word.
+      await React.act(async () => clear?.click());
+      assert.match(container.textContent ?? '', /Thinking/);
+      assert.doesNotMatch(container.textContent ?? '', /Processing/);
+      await React.act(async () => customize?.click());
+      assert.match(container.textContent ?? '', /Pondering/);
+
+      await React.act(async () => button('Random order')?.click());
+      const firstRandomMessage = container.querySelector<HTMLElement>('span[title]')?.title;
+      assert.ok(firstRandomMessage);
+      await React.act(async () => button('Next turn')?.click());
+      const secondRandomMessage = container.querySelector<HTMLElement>('span[title]')?.title;
+      assert.ok(secondRandomMessage);
+      assert.notEqual(secondRandomMessage, firstRandomMessage);
+      assert.equal(localStorage.getItem(THINKING_MESSAGE_ORDER_STORAGE_KEY), 'random');
+
+      await React.act(async () => setProviderStatus?.click());
+      assert.match(container.textContent ?? '', /Compacting conversation/);
+      assert.doesNotMatch(container.textContent ?? '', /Scheming/);
+      const activityLabel = container.querySelector<HTMLElement>('[title="Compacting conversation"]');
+      assert.ok(activityLabel);
+      assert.match(activityLabel.className, /min-w-0/);
+      assert.match(activityLabel.querySelector('span')?.className ?? '', /truncate/);
+
+      await React.act(async () => reset?.click());
+      assert.equal(
+        container.querySelector('output')?.textContent,
+        `${DEFAULT_THINKING_MESSAGE_CYCLE_MODE}:${DEFAULT_THINKING_MESSAGE_ORDER}`,
+      );
+      assert.equal(localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY), null);
+      assert.equal(localStorage.getItem(THINKING_MESSAGE_CYCLE_STORAGE_KEY), null);
+      assert.equal(localStorage.getItem(THINKING_MESSAGE_ORDER_STORAGE_KEY), null);
+    });
+
+    test('a permission prompt hides the indicator without unmounting its cycle', () => {
+      const composerSource = readFileSync(new URL('./ChatComposer.tsx', import.meta.url), 'utf8');
+      const mountConditionIndex = composerSource.indexOf('{(activity || reserveActivitySpace) && (');
+      const indicatorIndex = composerSource.indexOf('<ActivityIndicator activity={activity}');
+
+      assert.ok(mountConditionIndex > 0);
+      assert.ok(indicatorIndex > mountConditionIndex);
+      assert.match(
+        composerSource.slice(mountConditionIndex, indicatorIndex),
+        /display: pendingPermissionRequests\.length > 0 \? 'none' : undefined/,
+      );
+      // Gating the mount on this restarts the turn counter and the no-repeat bag per prompt.
+      assert.doesNotMatch(composerSource, /pendingPermissionRequests\.length === 0 &&/);
+    });
+  });
+
   describe('configurable chat typography', () => {
     test('keeps composer text and its highlight overlay on one layout contract', () => {
       const composerSource = readFileSync(new URL('./ChatComposer.tsx', import.meta.url), 'utf8');

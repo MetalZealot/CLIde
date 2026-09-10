@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SquareIcon } from 'lucide-react';
 
 import { Shimmer } from '../../../../shared/view/ui';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
+import {
+  DEFAULT_THINKING_MESSAGES,
+  shuffleThinkingMessageIndices,
+  THINKING_MESSAGE_TRANSLATION_KEYS,
+  useThinkingMessages,
+} from '../../../../hooks/useThinkingMessages';
 
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
@@ -12,15 +18,6 @@ type ActivityIndicatorProps = {
   isStopArmed?: boolean;
 };
 
-const ACTION_KEYS = [
-  'claudeStatus.actions.thinking',
-  'claudeStatus.actions.processing',
-  'claudeStatus.actions.analyzing',
-  'claudeStatus.actions.working',
-  'claudeStatus.actions.computing',
-  'claudeStatus.actions.reasoning',
-];
-const DEFAULT_ACTION_WORDS = ['Thinking', 'Processing', 'Analyzing', 'Working', 'Computing', 'Reasoning'];
 const EXIT_ANIMATION_MS = 220;
 
 /**
@@ -36,10 +33,18 @@ const EXIT_ANIMATION_MS = 220;
  */
 export default function ActivityIndicator({ activity, onAbort, isStopArmed = false }: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');
+  const { customMessages, cycleMode, messageOrder } = useThinkingMessages();
   const [renderedActivity, setRenderedActivity] = useState<SessionActivity | null>(activity);
   const [isExiting, setIsExiting] = useState(false);
   const startedAt = renderedActivity?.startedAt ?? null;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [turnIndex, setTurnIndex] = useState(0);
+  const previousStartedAtRef = useRef<number | null>(null);
+  const randomBagRef = useRef<number[]>([]);
+  const previousRandomIndexRef = useRef<number | null>(null);
+  const randomMessageSetRef = useRef('');
+  const processedRandomStepRef = useRef<string | null>(null);
+  const [randomMessageIndex, setRandomMessageIndex] = useState(0);
 
   useEffect(() => {
     if (activity) {
@@ -67,9 +72,73 @@ export default function ActivityIndicator({ activity, onAbort, isStopArmed = fal
     return () => clearInterval(timer);
   }, [startedAt]);
 
-  const actionWords = ACTION_KEYS.map((key, i) => t(key, { defaultValue: DEFAULT_ACTION_WORDS[i] }));
+  useEffect(() => {
+    if (startedAt === null || previousStartedAtRef.current === startedAt) return;
+
+    const isFirstTurn = previousStartedAtRef.current === null;
+    previousStartedAtRef.current = startedAt;
+    setTurnIndex((current) => isFirstTurn ? 0 : current + 1);
+  }, [startedAt]);
+
+  const translatedActionWords = THINKING_MESSAGE_TRANSLATION_KEYS.map((key, index) => (
+    t(key, { defaultValue: DEFAULT_THINKING_MESSAGES[index] })
+  ));
+  const customActionWords = customMessages
+    ?.map((message) => message.trim())
+    .filter(Boolean);
+  const actionWords = customActionWords?.length ? customActionWords : translatedActionWords;
+  const listedMessageIndex = cycleMode === 'never'
+    ? 0
+    : cycleMode === 'turn'
+      ? turnIndex % actionWords.length
+      : Math.floor(elapsedSeconds / Number(cycleMode)) % actionWords.length;
+  const randomStep = startedAt === null || cycleMode === 'never'
+    ? null
+    : cycleMode === 'turn'
+      ? `turn:${startedAt}`
+      : `time:${startedAt}:${cycleMode}:${Math.floor(elapsedSeconds / Number(cycleMode))}`;
+  const actionWordsFingerprint = JSON.stringify(actionWords);
+
+  // Editing the messages, the cycle, or the order restarts the list, so a settings
+  // change proves itself on screen. Must run before the random pick below.
+  useEffect(() => {
+    setTurnIndex(0);
+    setRandomMessageIndex(0);
+    randomBagRef.current = [];
+    previousRandomIndexRef.current = null;
+    processedRandomStepRef.current = null;
+  }, [actionWordsFingerprint, cycleMode, messageOrder]);
+
+  useEffect(() => {
+    if (messageOrder !== 'random' || randomStep === null) return;
+
+    if (randomMessageSetRef.current !== actionWordsFingerprint) {
+      randomBagRef.current = [];
+      previousRandomIndexRef.current = null;
+      randomMessageSetRef.current = actionWordsFingerprint;
+      processedRandomStepRef.current = null;
+    }
+
+    if (processedRandomStepRef.current === randomStep) return;
+    processedRandomStepRef.current = randomStep;
+
+    if (randomBagRef.current.length === 0) {
+      randomBagRef.current = shuffleThinkingMessageIndices(
+        actionWords.length,
+        previousRandomIndexRef.current,
+      );
+    }
+
+    const nextIndex = randomBagRef.current.shift() ?? 0;
+    previousRandomIndexRef.current = nextIndex;
+    setRandomMessageIndex(nextIndex);
+  }, [actionWords.length, actionWordsFingerprint, messageOrder, randomStep]);
+
+  const messageIndex = messageOrder === 'random' && cycleMode !== 'never'
+    ? randomMessageIndex
+    : listedMessageIndex;
   const label = renderedActivity
-    ? (renderedActivity.statusText || actionWords[Math.floor(elapsedSeconds / 4) % actionWords.length]).replace(/\.+$/, '')
+    ? (renderedActivity.statusText || actionWords[messageIndex] || actionWords[0]).replace(/\.+$/, '')
     : '';
 
   const stopLabel = isStopArmed
@@ -90,7 +159,9 @@ export default function ActivityIndicator({ activity, onAbort, isStopArmed = fal
     >
       <div className="flex items-center gap-2 px-3 py-1 text-xs">
         <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
-        <Shimmer className="font-medium">{renderedActivity ? `${label}…` : ''}</Shimmer>
+        <span className="min-w-0 overflow-hidden" title={renderedActivity ? label : undefined}>
+          <Shimmer className="block truncate font-medium">{renderedActivity ? `${label}…` : ''}</Shimmer>
+        </span>
         <span className="tabular-nums text-muted-foreground/60">{renderedActivity ? elapsedLabel : ''}</span>
         {onAbort && (
           <button

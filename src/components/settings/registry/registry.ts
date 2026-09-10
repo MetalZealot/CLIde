@@ -186,6 +186,15 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
   },
   {
     kind: 'screen',
+    id: 'chat.activityMessages',
+    labelKey: 'chat.activityMessages.title',
+    icon: 'chat',
+    group: 'app',
+    keywords: 'activity messages thinking processing analyzing working custom cycle status',
+    parent: 'chat',
+  },
+  {
+    kind: 'screen',
     id: 'chat.voice',
     labelKey: 'voiceSettings.backendTitle',
     icon: 'voice',

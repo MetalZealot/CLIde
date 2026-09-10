@@ -11,6 +11,7 @@ type SettingsSegmentedControlProps<T extends string> = {
   onChange: (value: T) => void;
   ariaLabel: string;
   className?: string;
+  disabled?: boolean;
 };
 
 /**
@@ -24,12 +25,18 @@ export default function SettingsSegmentedControl<T extends string>({
   onChange,
   ariaLabel,
   className,
+  disabled = false,
 }: SettingsSegmentedControlProps<T>) {
   return (
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cn('inline-flex rounded-lg border border-input bg-muted/50 p-0.5', className)}
+      aria-disabled={disabled || undefined}
+      className={cn(
+        'inline-flex rounded-lg border border-input bg-muted/50 p-0.5',
+        disabled && 'opacity-50',
+        className,
+      )}
     >
       {options.map((option) => {
         const isSelected = option.value === value;
@@ -40,6 +47,7 @@ export default function SettingsSegmentedControl<T extends string>({
             type="button"
             role="radio"
             aria-checked={isSelected}
+            disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(
               'flex-1 touch-manipulation rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-150',
@@ -47,6 +55,7 @@ export default function SettingsSegmentedControl<T extends string>({
               isSelected
                 ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
+              disabled && 'cursor-not-allowed',
             )}
           >
             {option.label}
