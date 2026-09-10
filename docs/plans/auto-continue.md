@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
-- Status: not started
-- Next: Phase 0 — an early reset must fire the message that waits on it
+- Status: 1/6
+- Next: Phase 1 — one row per limit stop, live and after a reload
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -50,7 +50,7 @@ dead code, and neither the offer nor anything else should be built on it.
 
 ## Phases
 
-- [ ] 0. A usage window that resets early fires the message waiting on it,
+- [x] 0. A usage window that resets early fires the message waiting on it,
       within one poll. Today it does the opposite: `scheduleUsage` cancels any
       armed timer whose identity has left the fresh poll, and the identity is
       built from `resetsAt`, so an early reset cancels the timer and re-arms for

@@ -17,6 +17,11 @@ import type { LLMProvider, ProviderUsageStatus, ProviderUsageWindow } from '@/sh
  */
 type ResetState = {
   notified: string[];
+  /**
+   * Whether each provider was blocked at its last trustworthy poll, persisted
+   * so a restart spanning a reset still sees the recovery as a transition.
+   */
+  exhausted?: Record<string, boolean>;
 };
 
 type ScheduledReset = {
@@ -54,6 +59,8 @@ type ResetMonitorDependencies = {
 
 const POLL_INTERVAL_MS = 5 * 60_000;
 const MAX_PERSISTED_IDENTITIES = 256;
+/** Utilization at or above which a window has nothing left to give. */
+const EXHAUSTED_UTILIZATION = 100;
 /**
  * `setTimeout`'s 32-bit ceiling (~24.8 days). A larger delay does not wait —
  * it fires on the next tick, which for a monthly credit limit would deliver a
@@ -81,11 +88,7 @@ const labelWindow = (window: ProviderUsageWindow): string => {
   return window.id.replace(/[:_]/g, ' ').replace(/^\w/, (character) => character.toUpperCase());
 };
 
-const collectScheduledResets = (
-  provider: LLMProvider,
-  usage: ProviderUsageStatus,
-  nowMs: number,
-): ScheduledReset[] => {
+const collectUsageWindows = (usage: ProviderUsageStatus): ProviderUsageWindow[] => {
   const windows = [...(usage.windows ?? [])];
   if (usage.credits?.kind === 'balance' && usage.credits.individualLimit?.resetsAt) {
     windows.push({
@@ -95,6 +98,25 @@ const collectScheduledResets = (
       resetsAt: usage.credits.individualLimit.resetsAt,
     });
   }
+  return windows;
+};
+
+/**
+ * A provider is blocked when any one window is spent. Recovery is the drop
+ * back below that, which is the only signal an *early* reset gives: the
+ * provider simply reports a later `resetsAt`, so the armed timer it was named
+ * after is cancelled rather than fired.
+ */
+const isExhausted = (windows: ProviderUsageWindow[]): boolean => (
+  windows.some((window) => window.utilization >= EXHAUSTED_UTILIZATION)
+);
+
+const collectScheduledResets = (
+  provider: LLMProvider,
+  usage: ProviderUsageStatus,
+  nowMs: number,
+): ScheduledReset[] => {
+  const windows = collectUsageWindows(usage);
 
   const grouped = new Map<number, ProviderUsageWindow[]>();
   for (const window of windows) {
@@ -181,7 +203,33 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
     const monitor = monitors.get(monitorKey(userId, provider));
     if (!monitor) return;
 
-    const notified = new Set(dependencies.readState(userId).notified);
+    const state = dependencies.readState(userId);
+
+    // An early reset never fires the timer named after it: the provider just
+    // reports a later `resetsAt`, so the identity leaves the poll and the timer
+    // is cancelled below. Recovery has to be read from utilization instead.
+    // Only Auto-Continue rides this; an alert still belongs to a reset that was
+    // actually predicted, and is deduped by `notified`.
+    if (!usage.stale && !usage.error) {
+      const exhausted = isExhausted(collectUsageWindows(usage));
+      const wasExhausted = state.exhausted?.[provider] === true;
+
+      if (wasExhausted && !exhausted && dependencies.hasPendingAutoContinue(provider)) {
+        void dependencies.fireAutoContinue(provider).catch((error: unknown) => {
+          console.error('[UsageResetMonitor] Auto-Continue failed', { provider, error });
+        });
+        schedulePostResetRefresh(userId, provider, monitor, 0);
+      }
+
+      if (wasExhausted !== exhausted) {
+        dependencies.writeState(userId, {
+          ...state,
+          exhausted: { ...(state.exhausted ?? {}), [provider]: exhausted },
+        });
+      }
+    }
+
+    const notified = new Set(state.notified);
     const nextResets = collectScheduledResets(provider, usage, dependencies.now())
       .filter((reset) => !notified.has(reset.identity));
     const nextIdentities = new Set(nextResets.map((reset) => reset.identity));
@@ -215,10 +263,11 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
         if (dependencies.isEnabled(userId, provider)) {
           // Recorded before delivery: a crash between the two is one missed
           // alert, whereas the reverse order is a duplicate on every restart.
-          const latestNotified = dependencies.readState(userId).notified;
-          if (!latestNotified.includes(reset.identity)) {
+          const latestState = dependencies.readState(userId);
+          if (!latestState.notified.includes(reset.identity)) {
             dependencies.writeState(userId, {
-              notified: [...latestNotified, reset.identity].slice(-MAX_PERSISTED_IDENTITIES),
+              ...latestState,
+              notified: [...latestState.notified, reset.identity].slice(-MAX_PERSISTED_IDENTITIES),
             });
             dependencies.notify(userId, provider, reset);
             delivered = true;
@@ -290,6 +339,9 @@ const readPersistedState = (userId: number): ResetState => {
       notified: Array.isArray(parsed.notified)
         ? parsed.notified.filter((value): value is string => typeof value === 'string')
         : [],
+      ...(parsed.exhausted && typeof parsed.exhausted === 'object'
+        ? { exhausted: parsed.exhausted }
+        : {}),
     };
   } catch {
     return { notified: [] };

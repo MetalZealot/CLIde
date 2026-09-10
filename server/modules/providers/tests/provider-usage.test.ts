@@ -127,7 +127,7 @@ describe('provider-usage-reset-monitor', () => {
     now?: number;
     enabled?: boolean;
     pendingAutoContinue?: boolean;
-    state?: { notified: string[] };
+    state?: { notified: string[]; exhausted?: Record<string, boolean> };
     usage?: ProviderUsageStatus;
   };
 
@@ -207,6 +207,11 @@ describe('provider-usage-reset-monitor', () => {
       getState: () => state,
       disable: () => { enabled = false; },
       advance: (ms: number) => { now += ms; },
+      /** Drives the five-minute poll every monitor is armed with. */
+      poll: async () => {
+        for (const callback of [...intervals.values()]) callback();
+        await flushPromises();
+      },
       setUsage: (next: ProviderUsageStatus) => { usage = next; },
       getUsageCalls: () => usageCalls,
     };
@@ -418,6 +423,85 @@ describe('provider-usage-reset-monitor', () => {
 
     assert.deepEqual(harness.autoContinued, []);
     assert.equal(harness.notifications.length, 1);
+  });
+
+  const claudeUsage = (utilization: number, resetsAt: string): ProviderUsageStatus => ({
+    provider: 'claude',
+    supported: true,
+    windows: [{ id: 'five_hour', utilization, resetsAt }],
+  });
+
+  const spent = claudeUsage(100, '2026-08-16T13:00:05.000Z');
+  /** An early reset looks like this: nothing left to use, and a later boundary. */
+  const recovered = claudeUsage(0, '2026-08-16T18:00:05.000Z');
+
+  test('an early reset fires Auto-Continue on the poll that sees usage recover', async () => {
+    const harness = createHarness({ pendingAutoContinue: true, usage: spent });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    harness.setUsage(recovered);
+    await harness.poll();
+
+    // The timer it was waiting on was cancelled, not fired: its identity left
+    // the poll with the old `resetsAt`.
+    assert.deepEqual(harness.autoContinued, ['claude']);
+  });
+
+  test('a poll that is stale or errored is not read as recovery', async () => {
+    const harness = createHarness({ pendingAutoContinue: true, usage: spent });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    harness.setUsage({ ...recovered, stale: true });
+    await harness.poll();
+    assert.deepEqual(harness.autoContinued, []);
+
+    harness.setUsage({ ...recovered, error: 'upstream refused' });
+    await harness.poll();
+    assert.deepEqual(harness.autoContinued, []);
+
+    harness.setUsage(recovered);
+    await harness.poll();
+    assert.deepEqual(harness.autoContinued, ['claude']);
+  });
+
+  test('usage that was never spent does not release a message waiting on the reset', async () => {
+    const harness = createHarness({ pendingAutoContinue: true, usage: recovered });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    await harness.poll();
+
+    // "When usage resets" scheduled on a healthy provider still means the next
+    // boundary, which is the armed timer's job.
+    assert.deepEqual(harness.autoContinued, []);
+  });
+
+  test('recording an alert keeps the spent flag a later recovery depends on', async () => {
+    const harness = createHarness({ pendingAutoContinue: true, usage: spent });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+    assert.equal(harness.getState().exhausted?.claude, true);
+
+    harness.onlyTimeout().fire();
+    await flushPromises();
+
+    assert.equal(harness.getState().notified.length, 1);
+    assert.equal(harness.getState().exhausted?.claude, true);
+  });
+
+  test('a restart spanning the reset still sees the recovery', async () => {
+    const harness = createHarness({
+      pendingAutoContinue: true,
+      usage: recovered,
+      state: { notified: [], exhausted: { claude: true } },
+    });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    assert.deepEqual(harness.autoContinued, ['claude']);
+    assert.equal(harness.getState().exhausted?.claude, false);
   });
 });
 
