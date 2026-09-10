@@ -15,6 +15,7 @@ import { uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatCom
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useChatFind } from '../hooks/useChatFind';
+import { useAutoContinueOffer } from '../hooks/useAutoContinueOffer';
 import {
   useScheduledMessages,
   type ScheduledMessage,
@@ -41,6 +42,9 @@ const STOP_ARM_TIMEOUT_MS = 4000;
  * reply appears even if this client heard none of the run's own frames. Long
  * enough that a normal turn has already drawn itself from the live stream.
  */
+/** Phase 3 makes this editable; until then the offer sends one fixed word. */
+const AUTO_CONTINUE_MESSAGE = 'Continue';
+
 const SCHEDULED_SEND_RECONCILE_MS = 60_000;
 
 function ChatInterface({
@@ -507,14 +511,22 @@ function ChatInterface({
     }, [addMessage, scheduledSessionId, sessionStore]),
   );
   const providerCapabilities = useProviderCapabilities();
+  const canScheduleOnUsageReset = providerCapabilities?.[provider]?.supportsUsageResetAlerts === true;
+  const autoContinueOffer = useAutoContinueOffer(
+    chatMessages,
+    scheduledMessages,
+    canScheduleOnUsageReset,
+  );
 
   // Stores whatever is in the composer and clears it, the way sending does.
   // Attachments are uploaded now rather than at firing time: the File objects
   // die with this page, so the stored row has to carry durable descriptors —
   // the same reason the queued-draft path uploads before it waits.
   const handleScheduleMessage = useCallback(
-    async (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => {
-      const content = input.trim();
+    async (trigger: ScheduledMessageTrigger, scheduledFor: string | null, override?: string) => {
+      // The Auto-Continue offer supplies its own text: nobody typed this one,
+      // so the composer is empty and the normal path would bail.
+      const content = (override ?? input).trim();
       if (!content) return;
 
       let attachments: unknown[] = [];
@@ -532,13 +544,13 @@ function ChatInterface({
       const sessionId = scheduledSessionId ?? await ensureSessionId(content);
       if (!sessionId) return;
 
-      const scheduled = await scheduleMessage({
-        content,
-        trigger,
-        scheduledFor,
-        options: { ...buildSendOptions(content), attachments },
-      }, sessionId);
-      if (scheduled) {
+      const options = { ...buildSendOptions(content), attachments } as Record<string, unknown>;
+      // An offer is not the composer's turn: it must not adopt an armed rewind,
+      // and it has no draft or attachments of its own to clear.
+      if (override !== undefined) delete options.rewindToMessageId;
+
+      const scheduled = await scheduleMessage({ content, trigger, scheduledFor, options }, sessionId);
+      if (scheduled && override === undefined) {
         setInput('');
         setAttachedFiles([]);
         setEditingSchedule(null);
@@ -886,9 +898,11 @@ function ChatInterface({
             onScheduleMessage={(trigger, scheduledFor) => {
               void handleScheduleMessage(trigger, scheduledFor);
             }}
-            canScheduleOnUsageReset={
-              providerCapabilities?.[provider]?.supportsUsageResetAlerts === true
-            }
+            canScheduleOnUsageReset={canScheduleOnUsageReset}
+            autoContinueOffer={autoContinueOffer}
+            onAcceptAutoContinue={() => {
+              void handleScheduleMessage('usage-reset', null, AUTO_CONTINUE_MESSAGE);
+            }}
             pendingRewind={pendingRewind}
             onCancelRewindEdit={cancelRewindEdit}
             attachedFiles={attachedFiles}

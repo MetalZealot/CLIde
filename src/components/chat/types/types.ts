@@ -3,7 +3,7 @@ import type {
   CreateWorktreeOptions,
   CreateWorktreeOutcome,
 } from '../../sidebar/types/types';
-import type { CompactBoundaryInfo } from '../../../stores/useSessionStore';
+import type { CompactBoundaryInfo, UsageLimitStop } from '../../../stores/useSessionStore';
 import type {
   MarkSessionIdle,
   MarkSessionProcessing,
@@ -92,6 +92,8 @@ export interface ChatMessage {
   compactBoundary?: CompactBoundaryInfo;
   /** CLI-fabricated notice rows (usage limits, API errors) — muted banner, not a Claude bubble. */
   isSystemNotice?: boolean;
+  /** Set when the provider stopped the turn on a usage limit; drives the Auto-Continue offer. */
+  usageLimit?: UsageLimitStop;
   /** Parsed from Codex's trailing provenance envelope; rendered as compact sources. */
   memoryCitations?: MemoryCitation[];
   isSubagentContainer?: boolean;

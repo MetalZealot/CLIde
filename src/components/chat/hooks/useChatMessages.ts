@@ -110,6 +110,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       compactReferences: msg.compactReferences,
       isSystemNotice: msg.isSystemNotice,
       followUpQuestions: msg.followUpQuestions,
+      usageLimit: msg.usageLimit,
     };
 
     switch (msg.kind) {

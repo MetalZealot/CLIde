@@ -14,6 +14,14 @@ import type { LLMProvider } from '../types/app';
 
 import { removeOptimisticUserEchoes } from './sessionMessageReconciliation';
 
+/** A turn the provider ended because usage ran out — see server types. */
+export type UsageLimitStop = {
+  /** False for a spent balance: nothing resets, so waiting is pointless. */
+  resumes: boolean;
+  resetsAt?: string;
+  windowId?: string;
+};
+
 // ─── NormalizedMessage (mirrors server/shared/types.ts) ─────────────────
 
 export type MessageKind =
@@ -85,6 +93,8 @@ export interface NormalizedMessage {
   compactBoundary?: CompactBoundaryInfo;
   /** CLI-fabricated notice rows (usage limits, API errors) — see server types. */
   isSystemNotice?: boolean;
+  /** Set when the provider stopped the turn on a usage limit — see server types. */
+  usageLimit?: UsageLimitStop;
   /**
    * On an aborted `complete`: false when the run was cancelled before the
    * provider emitted anything, meaning the user's turn never reached it and

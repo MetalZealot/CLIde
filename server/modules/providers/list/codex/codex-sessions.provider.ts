@@ -473,6 +473,12 @@ async function getCodexSessionMessages(
           messages.push({
             type: 'error',
             timestamp: entry.timestamp,
+            // Codex names the reason but not the reset instant; its windows and
+            // their `resets_at` arrive on `token_count`, which the usage
+            // provider already owns.
+            usageLimit: failure.codex_error_info === 'usage_limit_exceeded'
+              ? { resumes: true }
+              : undefined,
             message: {
               content: readNonEmptyString(failure.message)
                 || readNonEmptyString(failure.codex_error_info)
@@ -1083,6 +1089,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         provider: PROVIDER,
         kind: 'error',
         content: raw.message?.content || 'Codex turn failed.',
+        usageLimit: raw.usageLimit,
       })];
     }
 

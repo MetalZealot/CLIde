@@ -475,7 +475,6 @@ describe('claude-runtime error results', () => {
   // Imported here, not at the top: the registry owns this module's
   // initialization order, and pulling it in first breaks the cycle open.
   const loadPredicate = async (): Promise<(streamed: boolean, error: unknown) => boolean> => (
-    // @ts-expect-error -- the Claude runtime stays JavaScript by migration exception
     (await import('@/modules/providers/list/claude/claude-runtime.provider.js')).duplicatesStreamedNotice
   );
 

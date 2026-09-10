@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
 - Status: 1/6
-- Next: Phase 1's Codex half — capture its pair, then match Claude's fix
+- Next: see the offer on the branch-test slot, then phase 1's Codex half
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -15,38 +15,41 @@ way of asking for one that is not long-pressing the send button and typing
 ## What a new surface must reuse
 
 - **The reset instant is not the button's problem.** A `usage-reset` row waits
-  on `provider-usage-reset-monitor.service.ts`; it carries no time, and the
-  notice has no machine-readable one to parse anyway. Nor is a provider's
-  predicted instant binding — see phase 0.
+  on `provider-usage-reset-monitor.service.ts` and carries no time of its own.
+  Nor is a provider's predicted instant binding — see phase 0. The offer reads
+  one only to stop advertising itself once it has passed.
 - **The pending row is the dedupe.** `useScheduledMessages` already lists a
   session's pending rows, so an offer hides itself once taken.
 - **`supportsUsageResetAlerts` gates the offer**, as it already does in the
   send menu. True for Claude and Codex, false for Cursor and OpenCode.
 
-## What the notice actually is
+## How a limit stop is recognised
 
-Read from 47 real notices across the transcripts and from the CLI binary's own
-template, 2026-08-11 to 2026-09-09. Upstream's `formatUsageLimitText` matches
-`Claude AI usage limit reached|<epoch>`, which occurs in none of them: it is
-dead code, and neither the offer nor anything else should be built on it.
+Both providers classify it in a field. Read from real transcripts,
+2026-08-11 to 2026-09-09. Nothing here reads the sentence: the wording is
+localized prose that has already changed once — upstream's
+`formatUsageLimitText` matches a `Claude AI usage limit reached|<epoch>` form
+that occurs in none of 47 real notices, and is dead code.
 
-- **Claude** writes an assistant row stamped `model: "<synthetic>"` and
-  `isApiErrorMessage: true`, which `normalizeMessage` already flags
-  `isSystemNotice` on both the live and reload paths, so it renders as the
-  muted banner: `You've hit your session limit · resets 10:20pm
-  (America/Edmonton)`. The label varies with the window — session, weekly,
-  Opus, Sonnet, Fable, usage credit — and ` · progress saved` may follow.
-- **Codex** ends the turn with a `task_complete` carrying
-  `codex_error_info: "usage_limit_exceeded"`, which the adapter drops in favour
-  of the human string, so the chat gets a red `type: 'error'` row instead:
-  `You've hit your usage limit. Upgrade to Pro ... or try again at 12:59 PM.`
-  That code is the right input for phase 4's classifier.
-- **Neither carries a parseable reset time** — both are localized prose. So the
-  offer does not expire on the notice. A stale tap simply fires promptly, which
-  is harmless; real expiry can come later from `resetsAt` on the usage window,
-  which the chat already receives and ignores.
-- **`You're out of usage credits`** wants payment, not a wait, and the prefix
-  match excludes it. So does the still-running warning `You've used 90% of...`.
+- **Claude** stamps the row `error: "rate_limit"`, `apiErrorStatus: 429`, and a
+  `quotaLimits` object: `status`, a true epoch `resetsAt`, `rateLimitType`
+  (`five_hour`, `seven_day`, ...), and the overage fields. The row itself is an
+  assistant message with `model: "<synthetic>"` and `isApiErrorMessage: true`,
+  which `normalizeMessage` already flags `isSystemNotice` on both the live and
+  reload paths.
+- **A spent balance is `quotaLimits: null`** on an otherwise identical row —
+  same `error` and status. No quota object means no reset is coming, so that is
+  the test for "do not offer a wait", not an excluded sentence.
+- **Codex** puts the classification on `task_complete` as
+  `codex_error_info: "usage_limit_exceeded"`; that object carries nothing else.
+  Its reset instants live on `token_count.rate_limits` — `primary` (300 min)
+  and `secondary` (10080 min), each with a real `resets_at` — which the usage
+  provider already consumes, so no new plumbing carries them. Its sibling
+  `rate_limit_reached_type` is null in all 16,347 samples here: schema only.
+- **CLIde reads none of this today.** `quotaLimits` and `apiErrorStatus` are
+  read nowhere; the Codex adapter prefers `error.message` and drops
+  `codex_error_info`. Carrying them through `normalizeMessage` is phase 2's
+  real work, and phase 4's classifier wants the same fields.
 
 ## Phases
 
@@ -71,13 +74,14 @@ dead code, and neither the offer nor anything else should be built on it.
       shape is unconfirmed — its synchronizer skips a `task_complete` carrying
       no agent message, so the second row is not the transcript one and needs a
       live capture before anything is changed
-- [ ] 2. A limit notice in the chat offers Auto-Continue in one tap, and the
-      offer disappears once a message is waiting. Matched on the text prefix
-      `You've hit your `, which both providers share, across the two row shapes
-      they produce; `isSystemNotice` is a hint, never the test. `Continue` goes
-      through `buildSendOptions`, which reads the composer text only for a
-      notification label, so the session's own model and permission mode carry
-      over — minus `rewindToMessageId`, which an offer must not inherit
+- [~] 2. A limit stop in the chat offers Auto-Continue in one tap, and the
+      offer disappears once a message is waiting. Detected on the fields above,
+      never the wording, and absent when the row says no reset is coming.
+      `quotaLimits.resetsAt` also expires a stale offer, so an old conversation
+      that ended on a limit stops advertising one. `Continue` goes through
+      `buildSendOptions`, which reads the composer text only for a notification
+      label, so the session's own model and permission mode carry over — minus
+      `rewindToMessageId`, which an offer must not inherit
 - [ ] 3. The message Auto-Continue sends is editable in Settings › Chat.
       Server-side in `appConfigDb`, not `useUiPreferences` localStorage, so
       phase 4 can read it with no browser open
@@ -102,7 +106,7 @@ dead code, and neither the offer nor anything else should be built on it.
 
 ## Not doing
 
-- Recurring or repeating schedules, still. Phase 3 is per-limit-stop, capped
+- Recurring or repeating schedules, still. Phase 4 is per-limit-stop, capped
 - A second reset monitor, a second timer, or a second send path
-- Waiting for the bottom navbar. Phase 3 hangs off the composer's existing
+- Waiting for the bottom navbar. Phase 4 hangs off the composer's existing
   long-press menu; the chat-header kebab can adopt it later for free

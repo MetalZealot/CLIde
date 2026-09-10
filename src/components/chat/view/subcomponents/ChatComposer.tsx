@@ -13,6 +13,7 @@ import type {
 import { XIcon, ArrowUpIcon } from 'lucide-react';
 
 import { useLongPress } from '../../../../hooks/useLongPress';
+import type { UsageLimitStop } from '../../../../stores/useSessionStore';
 import { formatClockTimeWithDay } from '../../../../utils/formatTime';
 import type { ScheduledMessage, ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
@@ -46,6 +47,7 @@ import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessageCard from './QueuedMessageCard';
+import AutoContinueOfferCard from './AutoContinueOfferCard';
 import ScheduledMessageCard from './ScheduledMessageCard';
 import ScheduleSendMenu from './ScheduleSendMenu';
 import RewindEditCard from './RewindEditCard';
@@ -122,6 +124,8 @@ interface ChatComposerProps {
   onEditQueuedDraft: () => void;
   onDeleteQueuedDraft: () => void;
   scheduledMessages: ScheduledMessage[];
+  autoContinueOffer: UsageLimitStop | null;
+  onAcceptAutoContinue: () => void;
   onCancelScheduledMessage: (id: string) => void;
   /** Pulls a scheduled message back into the composer and drops the stored row. */
   onEditScheduledMessage: (message: ScheduledMessage) => void;
@@ -210,6 +214,8 @@ export default function ChatComposer({
   onEditQueuedDraft,
   onDeleteQueuedDraft,
   scheduledMessages,
+  autoContinueOffer,
+  onAcceptAutoContinue,
   onCancelScheduledMessage,
   onEditScheduledMessage,
   editingSchedule,
@@ -410,6 +416,10 @@ export default function ChatComposer({
             {t('input.schedule.sendNormally', { defaultValue: 'Send normally' })}
           </button>
         </div>
+      )}
+
+      {autoContinueOffer && (
+        <AutoContinueOfferCard stop={autoContinueOffer} onAccept={onAcceptAutoContinue} />
       )}
 
       {scheduledMessages.map((message) => (

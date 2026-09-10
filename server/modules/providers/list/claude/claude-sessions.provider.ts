@@ -5,7 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import type { IProviderSessions } from '@/shared/interfaces.js';
-import type { AnyRecord, CompactBoundaryInfo, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
+import type { AnyRecord, CompactBoundaryInfo, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage, UsageLimitStop } from '@/shared/types.js';
 import { parseFilesInputTag } from '@/shared/image-attachments.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
@@ -56,6 +56,31 @@ function readTokenCount(value: unknown): number {
  * banner. Gated on the synthetic flag, so a genuine model message saying the
  * same words is never swallowed.
  */
+/**
+ * The provider's own classification of a usage stop, taken from the row's
+ * fields rather than its sentence — the wording is localized prose and has
+ * already changed shape once.
+ *
+ * `quotaLimits: null` on an otherwise identical row is a spent balance: same
+ * `error` and status, but nothing resets, so it must not offer a wait.
+ */
+const readClaudeUsageLimit = (raw: AnyRecord): UsageLimitStop | undefined => {
+  if (raw.error !== 'rate_limit' && raw.apiErrorStatus !== 429) return undefined;
+
+  const quota = readObjectRecord(raw.quotaLimits);
+  if (!quota) return { resumes: false };
+
+  const epoch = typeof quota.resetsAt === 'number' && Number.isFinite(quota.resetsAt)
+    ? (quota.resetsAt < 1e12 ? quota.resetsAt * 1000 : quota.resetsAt)
+    : null;
+
+  return {
+    resumes: true,
+    ...(epoch ? { resetsAt: new Date(epoch).toISOString() } : {}),
+    ...(typeof quota.rateLimitType === 'string' ? { windowId: quota.rateLimitType } : {}),
+  };
+};
+
 const NO_RESPONSE_PLACEHOLDER = 'No response requested.';
 
 function isNoResponsePlaceholder(text: unknown): boolean {
@@ -1048,6 +1073,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
        */
       const isSyntheticNotice =
         raw.message?.model === '<synthetic>' || raw.isApiErrorMessage === true;
+      const usageLimit = readClaudeUsageLimit(raw);
 
       if (Array.isArray(raw.message.content)) {
         let partIndex = 0;
@@ -1063,6 +1089,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
                 role: 'assistant',
                 content: part.text,
                 isSystemNotice: isSyntheticNotice || undefined,
+                usageLimit,
               }));
             }
           } else if (part.type === 'tool_use') {
@@ -1099,6 +1126,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
             role: 'assistant',
             content: raw.message.content,
             isSystemNotice: isSyntheticNotice || undefined,
+            usageLimit,
           }));
         }
       }

@@ -575,6 +575,11 @@ export type NormalizedMessage = {
    */
   isSystemNotice?: boolean;
   /**
+   * Set when the provider stopped the turn because usage ran out, read from
+   * whichever field that provider classifies it in rather than its wording.
+   */
+  usageLimit?: UsageLimitStop;
+  /**
    * On an aborted terminal `complete`: whether this run produced anything before
    * cancellation. False means the Stop landed before the provider emitted a
    * single event, so the turn never reached it and was never written to the
@@ -939,6 +944,20 @@ export type ProviderAuthStatus = {
  * One plan rate-limit window reported by a provider (e.g. Claude's 5-hour and
  * weekly limits). `utilization` is a 0-100 percentage.
  */
+/**
+ * A turn the provider ended because usage ran out.
+ *
+ * `resumes` is the whole point: a spent window lifts on its own and is worth
+ * waiting for, a spent balance is not. `resetsAt` is what the provider
+ * predicted, which phase 0's monitor treats as a hint rather than a promise.
+ */
+export type UsageLimitStop = {
+  resumes: boolean;
+  resetsAt?: string;
+  /** Provider window id (`five_hour`, `seven_day`, ...) when it reports one. */
+  windowId?: string;
+};
+
 export type ProviderUsageWindow = {
   id: string;
   utilization: number;
