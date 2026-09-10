@@ -87,7 +87,8 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'chat', labelKey: 'quickSettings.showThinking', keywords: 'reasoning' },
   { screenId: 'chat', labelKey: 'quickSettings.enterToSend', keywords: 'keyboard return newline' },
   { screenId: 'chat', labelKey: 'quickSettings.sendByCtrlEnter', keywords: 'keyboard ime' },
-  { screenId: 'chat', labelKey: 'voiceSettings.enable', keywords: 'microphone dictation read aloud' },
+  { screenId: 'chat', labelKey: 'voiceSettings.enableTts', keywords: 'voice speak read aloud tts speaker' },
+  { screenId: 'chat', labelKey: 'voiceSettings.enableStt', keywords: 'voice microphone dictation stt speech to text' },
 
   { screenId: 'chat.voice', labelKey: 'voiceSettings.baseUrl' },
   { screenId: 'chat.voice', labelKey: 'voiceSettings.apiKey' },

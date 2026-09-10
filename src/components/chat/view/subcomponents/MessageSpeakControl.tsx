@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next';
 
 import { formatPlaybackTime } from '../../../../lib/voicePlayer';
 import { useTts } from '../../hooks/useTts';
-import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
+import { useTtsAvailable } from '../../hooks/useVoiceAvailable';
 
 // Tap-to-speak button beside the copy control on assistant messages.
 // Renders nothing unless the optional voice feature is enabled.
 const MessageSpeakControl = ({ content }: { content: string }) => {
   const { t } = useTranslation('chat');
-  const available = useVoiceAvailable();
+  const available = useTtsAvailable();
   const {
     state,
     toggle,

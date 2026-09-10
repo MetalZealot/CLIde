@@ -6,7 +6,8 @@ type UiPreferences = {
   sendByCtrlEnter: boolean;
   enterToSend: boolean;
   sidebarVisible: boolean;
-  voiceEnabled: boolean;
+  ttsEnabled: boolean;
+  sttEnabled: boolean;
 };
 
 type UiPreferenceKey = keyof UiPreferences;
@@ -38,10 +39,14 @@ const DEFAULTS: UiPreferences = {
   sendByCtrlEnter: false,
   enterToSend: false,
   sidebarVisible: true,
-  voiceEnabled: false,
+  ttsEnabled: false,
+  sttEnabled: false,
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
+/** The pre-split single switch seeds both halves when neither split key is stored. */
+const LEGACY_VOICE_KEY = 'voiceEnabled';
+const VOICE_KEYS = new Set<UiPreferenceKey>(['ttsEnabled', 'sttEnabled']);
 const VALID_KEYS = new Set<UiPreferenceKey>(PREFERENCE_KEYS); // prevents unknown keys from being written
 const SYNC_EVENT = 'ui-preferences:sync';
 
@@ -64,7 +69,7 @@ const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   return fallback;
 };
 
-const readLegacyPreference = (key: UiPreferenceKey, fallback: boolean): boolean => {
+const readLegacyPreference = (key: string, fallback: boolean): boolean => {
   try {
     const raw = localStorage.getItem(key);
     if (raw === null) return fallback;
@@ -91,7 +96,10 @@ const readInitialPreferences = (storageKey: string): UiPreferences => {
         const parsedRecord = parsed as Record<string, unknown>;
 
         return PREFERENCE_KEYS.reduce((acc, key) => {
-          acc[key] = parseBoolean(parsedRecord[key], DEFAULTS[key]);
+          const fallback = VOICE_KEYS.has(key) && !(key in parsedRecord)
+            ? parseBoolean(parsedRecord[LEGACY_VOICE_KEY], DEFAULTS[key])
+            : DEFAULTS[key];
+          acc[key] = parseBoolean(parsedRecord[key], fallback);
           return acc;
         }, { ...DEFAULTS });
       }
@@ -101,10 +109,17 @@ const readInitialPreferences = (storageKey: string): UiPreferences => {
   }
 
   return PREFERENCE_KEYS.reduce((acc, key) => {
-    acc[key] = readLegacyPreference(key, DEFAULTS[key]);
+    const fallback = VOICE_KEYS.has(key)
+      ? readLegacyPreference(LEGACY_VOICE_KEY, DEFAULTS[key])
+      : DEFAULTS[key];
+    acc[key] = readLegacyPreference(key, fallback);
     return acc;
   }, { ...DEFAULTS });
 };
+
+/** Same migrated view of the stored prefs, for readers outside React state. */
+export const readUiPreferences = (storageKey = 'uiPreferences'): UiPreferences =>
+  readInitialPreferences(storageKey);
 
 function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferences {
   switch (action.type) {

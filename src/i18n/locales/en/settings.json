@@ -54,8 +54,10 @@
   },
   "voiceSettings": {
     "title": "Voice",
-    "enable": "Enable voice",
-    "enableDescription": "Show the mic button and the read-aloud button on messages.",
+    "enableTts": "Read aloud",
+    "enableTtsDescription": "Speaker button on agent messages.",
+    "enableStt": "Dictation",
+    "enableSttDescription": "Mic button in the composer.",
     "backendTitle": "Voice",
     "backendDescription": "Choose voices, preview playback, and manage speech settings.",
     "baseUrl": "Base URL",
@@ -205,7 +207,7 @@
     "showThinking": "Show thinking",
     "sendByCtrlEnter": "Send by Ctrl+Enter",
     "enterToSend": "Enter to send",
-    "enterToSendDescription": "When enabled, pressing Enter sends the message instead of adding a new line. By default on touch devices, Enter adds a new line and the send button sends — like most messaging apps.",
+    "enterToSendDescription": "Off: Enter adds a new line, the send button sends.",
     "sendByCtrlEnterDescription": "When enabled, pressing Ctrl+Enter will send the message instead of just Enter. This is useful for IME users to avoid accidental sends."
   },
   "terminalShortcuts": {

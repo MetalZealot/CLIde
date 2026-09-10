@@ -18,9 +18,9 @@ type ChatScreenProps = {
 
 /**
  * Absorbs the QuickSettings panel's tool-display and input prefs (P5 deletes
- * that panel once this exists) plus the old top-level Voice tab's enable
- * toggle. `useUiPreferences` is untouched — this only moves which UI reads and
- * writes it, same as every other QuickSettings-owned instance of the hook.
+ * that panel once this exists) plus the voice enable toggles. Read aloud and
+ * dictation gate separately; the voice settings screen below is shared, so one
+ * of them being on is enough to reach it.
  */
 export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
   const { t } = useTranslation('settings');
@@ -73,20 +73,30 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
         )}
       </SettingsGroup>
 
-      <SettingsGroup title={t('voiceSettings.title')}>
+      <SettingsGroup title={t('voiceSettings.title')} divided>
         <SettingsRow
-          label={t('voiceSettings.enable')}
-          description={t('voiceSettings.enableDescription')}
+          label={t('voiceSettings.enableTts')}
+          description={t('voiceSettings.enableTtsDescription')}
         >
           <SettingsToggle
-            checked={preferences.voiceEnabled}
-            onChange={(value) => setPreference('voiceEnabled', value)}
-            ariaLabel={t('voiceSettings.enable')}
+            checked={preferences.ttsEnabled}
+            onChange={(value) => setPreference('ttsEnabled', value)}
+            ariaLabel={t('voiceSettings.enableTts')}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label={t('voiceSettings.enableStt')}
+          description={t('voiceSettings.enableSttDescription')}
+        >
+          <SettingsToggle
+            checked={preferences.sttEnabled}
+            onChange={(value) => setPreference('sttEnabled', value)}
+            ariaLabel={t('voiceSettings.enableStt')}
           />
         </SettingsRow>
       </SettingsGroup>
 
-      {preferences.voiceEnabled && voiceBackendScreen && (
+      {(preferences.ttsEnabled || preferences.sttEnabled) && voiceBackendScreen && (
         <SettingsGroup>
           <SettingsNavRow
             label={t(voiceBackendScreen.labelKey)}
