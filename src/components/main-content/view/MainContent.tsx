@@ -19,7 +19,7 @@ import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
 import type { Project } from '../../../types/app';
 import { TaskMasterPanel } from '../../task-master';
-import { getCheckoutContextLabel } from '../../sidebar/utils/utils';
+import { getCheckoutContextLabel, resolveActivityState } from '../../sidebar/utils/utils';
 import UsageDashboard from '../../usage-dashboard/view/UsageDashboard';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
@@ -54,6 +54,7 @@ function MainContent({
   onSessionProcessing,
   onSessionIdle,
   processingSessions,
+  unreadSessionIds,
   onNavigateToSession,
   onSessionEstablished,
   onShowSettings,
@@ -64,6 +65,7 @@ function MainContent({
   onCreateWorktree,
   onAdoptCheckout,
   onProjectsRefresh,
+  sessionActions,
   showUsage,
 }: MainContentProps) {
   const { t } = useTranslation();
@@ -72,6 +74,13 @@ function MainContent({
   const [chatNeedsAttention, setChatNeedsAttention] = useState(false);
   const isSoftKeyboardOpen = useSoftKeyboardOpen(isMobile);
   const showBottomNav = isMobile && Boolean(selectedProject) && !isSoftKeyboardOpen;
+  // Sidebar precedence, so output that lands mid-run is not flagged unread; the bar omits the spinner.
+  const chatActivity = resolveActivityState({
+    needsAttention: chatNeedsAttention,
+    isProcessing: Boolean(selectedSession && processingSessions.has(selectedSession.id)),
+    isUnread: Boolean(selectedSession && unreadSessionIds.has(selectedSession.id)),
+  });
+  const chatStatus = chatActivity === 'running' ? null : chatActivity;
 
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
@@ -202,7 +211,6 @@ function MainContent({
           shouldShowBrowserTab={shouldShowBrowserTab}
           isMobile={isMobile}
           onMenuClick={onMenuClick}
-          onShowSettings={onShowSettings}
         />
       ) : isMobile ? (
         <div className="app-bar border-b border-border/50 bg-background/80 px-3 sm:px-4">
@@ -240,6 +248,8 @@ function MainContent({
                 onProjectsRefresh={onProjectsRefresh}
                 onCreateWorktree={onCreateWorktree}
                 onAdoptCheckout={onAdoptCheckout}
+                sessionActions={sessionActions}
+                isVisible={activeTab === 'chat'}
               />
             </ErrorBoundary>
           </div>
@@ -322,7 +332,7 @@ function MainContent({
           setActiveTab={setActiveTab}
           shouldShowTasksTab={shouldShowTasksTab}
           shouldShowBrowserTab={shouldShowBrowserTab}
-          chatNeedsAttention={chatNeedsAttention}
+          chatStatus={chatStatus}
           onShowSettings={onShowSettings}
         />
       )}

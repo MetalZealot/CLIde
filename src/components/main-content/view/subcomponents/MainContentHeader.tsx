@@ -15,7 +15,6 @@ export default function MainContentHeader({
   shouldShowBrowserTab,
   isMobile,
   onMenuClick,
-  onShowSettings,
 }: MainContentHeaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -74,7 +73,7 @@ export default function MainContentHeader({
             )}
           </div>
         )}
-        {isMobile && <MainContentHeaderMenu onShowSettings={onShowSettings} />}
+        {isMobile && <MainContentHeaderMenu />}
       </div>
     </div>
   );

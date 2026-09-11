@@ -147,6 +147,8 @@ type ContextMenuOverlayProps = {
    * taking every pixel that limit allows. Requires the caller to scroll.
    */
   maxHeight?: number;
+  /** `dialog` for a small form (checkboxes, buttons) that isn't a list of menu items. */
+  role?: 'menu' | 'dialog';
 };
 
 /**
@@ -165,6 +167,7 @@ export default function ContextMenuOverlay({
   measureKey,
   placement = 'auto',
   maxHeight,
+  role = 'menu',
 }: ContextMenuOverlayProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -306,7 +309,7 @@ export default function ContextMenuOverlay({
       />
       <div
         ref={menuRef}
-        role="menu"
+        role={role}
         aria-label={ariaLabel}
         style={{
           position: 'absolute',

@@ -7,7 +7,10 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
+import { Download, RotateCcw } from 'lucide-react';
 
+import { HeaderMenuProvider, useRegisterHeaderMenu, type HeaderMenuSection } from '../../../../contexts/HeaderMenuContext';
+import MainContentHeaderMenu from '../../../main-content/view/subcomponents/MainContentHeaderMenu';
 import { PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../shared/view/ui';
 import { QuestionAnswerContent } from '../../tools/components/ContentRenderers/QuestionAnswerContent';
 import { adaptUserInputAnswers } from '../../tools/components/InteractiveRenderers/user-input-request.adapter';
@@ -547,6 +550,75 @@ describe('chatSubcomponents', () => {
         URL.createObjectURL = originalCreateObjectURL;
         URL.revokeObjectURL = originalRevokeObjectURL;
         window.HTMLAnchorElement.prototype.click = originalAnchorClick;
+      }
+    });
+  });
+
+  describe('header menu', () => {
+    function Registrant({ section }: { section: HeaderMenuSection | null }) {
+      useRegisterHeaderMenu(section);
+      return null;
+    }
+
+    const chatSection: HeaderMenuSection = {
+      items: [{
+        key: 'export',
+        label: 'Export…',
+        icon: Download,
+        renderPanel: (close) => <button type="button" onClick={close}>Markdown</button>,
+      }],
+    };
+    const shellSection: HeaderMenuSection = {
+      items: [{ key: 'restart', label: 'Restart', icon: RotateCcw, onSelect: () => undefined }],
+    };
+
+    test('shows only on a view with actions, a hidden view cannot clear the visible one, and a panel item opens in place of the menu', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      // Chat stays mounted while hidden; it sits after Shell so its effects run last.
+      const render = (visible: 'chat' | 'shell' | 'files') => root.render(
+        <HeaderMenuProvider>
+          <Registrant section={visible === 'shell' ? shellSection : null} />
+          <Registrant section={visible === 'chat' ? chatSection : null} />
+          <MainContentHeaderMenu />
+        </HeaderMenuProvider>,
+      );
+      const openMenu = async () => {
+        await React.act(async () => {
+          container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.click();
+        });
+        return Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitem"]'))
+          .map((item) => item.textContent);
+      };
+
+      try {
+        await React.act(async () => render('files'));
+        assert.equal(container.querySelector('button[aria-haspopup="menu"]'), null);
+
+        await React.act(async () => render('chat'));
+        await React.act(async () => render('shell'));
+        const shellItems = await openMenu();
+        assert.ok(shellItems.includes('Restart'));
+        assert.ok(!shellItems.includes('Export…'));
+        await React.act(async () => {
+          document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+        });
+
+        await React.act(async () => render('chat'));
+        await openMenu();
+        const exportItem = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+          .find((item) => item.textContent === 'Export…');
+        await React.act(async () => exportItem?.click());
+
+        assert.equal(document.querySelector('[role="menu"]'), null);
+        const panel = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Export…"]');
+        assert.ok(panel);
+        await React.act(async () => panel.querySelector('button')?.click());
+        assert.equal(document.querySelector('[role="dialog"]'), null);
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
       }
     });
   });

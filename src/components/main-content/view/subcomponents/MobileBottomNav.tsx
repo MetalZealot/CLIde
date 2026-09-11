@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { Check, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
+import { AlertCircle, Check, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
@@ -7,6 +7,7 @@ import { cn } from '../../../../lib/utils';
 import type { AppTab } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 import PluginIcon from '../../../plugins/view/PluginIcon';
+import type { ActivityState } from '../../../sidebar/types/types';
 import {
   BASE_TABS,
   BROWSER_TAB,
@@ -22,13 +23,15 @@ type MobileBottomNavProps = {
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
-  /** A permission prompt is waiting in the chat. */
-  chatNeedsAttention: boolean;
+  /** The open session's status in the sidebar's shapes; the spinner is left off the bar. */
+  chatStatus: Exclude<ActivityState, 'running'> | null;
   onShowSettings: (tab?: string) => void;
 };
 
 // A fifth of a phone's width holds one short word, so long names get a bar label.
 const BAR_LABEL_KEYS: Partial<Record<AppTab, string>> = { git: 'mobileNav.git' };
+
+const CHAT_STATUS_LABEL_KEYS = { blocked: 'mobileNav.attention', unread: 'mobileNav.unread' } as const;
 
 const barItemClassName = (isActive: boolean) =>
   cn(
@@ -44,7 +47,7 @@ export default function MobileBottomNav({
   setActiveTab,
   shouldShowTasksTab,
   shouldShowBrowserTab,
-  chatNeedsAttention,
+  chatStatus,
   onShowSettings,
 }: MobileBottomNavProps) {
   const { t } = useTranslation();
@@ -77,7 +80,7 @@ export default function MobileBottomNav({
       <ul className="flex h-full">
         {BASE_TABS.map((tab) => {
           const isActive = tab.id === activeTab;
-          const showAttention = tab.id === 'chat' && chatNeedsAttention && !isActive;
+          const status = tab.id === 'chat' && !isActive ? chatStatus : null;
           return (
             <li key={tab.id} className="min-w-0 flex-1">
               <button
@@ -88,15 +91,23 @@ export default function MobileBottomNav({
               >
                 <span className={indicatorClassName(isActive)}>
                   <tab.icon className="h-5 w-5" strokeWidth={isActive ? 2.2 : 1.8} aria-hidden="true" />
-                  {showAttention && (
+                  {status === 'blocked' && (
                     <span
                       aria-hidden="true"
-                      className="absolute right-2.5 top-0.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
+                      className="absolute -top-0.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-background"
+                    >
+                      <AlertCircle className="h-3 w-3 text-status-attention" />
+                    </span>
+                  )}
+                  {status === 'unread' && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-2.5 top-0.5 h-2 w-2 rounded-full bg-status-unread ring-2 ring-background"
                     />
                   )}
                 </span>
                 <span className="max-w-full truncate px-1">{t(BAR_LABEL_KEYS[tab.id] ?? tab.labelKey)}</span>
-                {showAttention && <span className="sr-only">{t('mobileNav.attention')}</span>}
+                {status && <span className="sr-only">{t(CHAT_STATUS_LABEL_KEYS[status])}</span>}
               </button>
             </li>
           );

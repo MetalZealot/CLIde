@@ -58,7 +58,8 @@
     "moreMenu": "More destinations",
     "noPlugins": "No plugins installed",
     "pluginSettings": "Plugin settings",
-    "attention": "Permission request waiting"
+    "attention": "Permission request waiting",
+    "unread": "Unread reply"
   },
   "status": {
     "loading": "Loading...",

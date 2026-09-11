@@ -388,5 +388,8 @@
   "compactBoundary": {
     "auto": "Context auto-compacted",
     "manual": "Context compacted"
+  },
+  "export": {
+    "menuLabel": "Export…"
   }
 }

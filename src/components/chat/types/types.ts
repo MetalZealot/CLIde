@@ -1,4 +1,4 @@
-import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
+import type { Project, ProjectSession, LLMProvider, SessionActions } from '../../../types/app';
 import type {
   CreateWorktreeOptions,
   CreateWorktreeOutcome,
@@ -199,4 +199,7 @@ export interface ChatInterfaceProps {
   onProjectsRefresh: () => Promise<Project[]>;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
+  sessionActions: SessionActions;
+  /** Whether Chat is the visible view; it stays mounted while hidden. */
+  isVisible: boolean;
 }

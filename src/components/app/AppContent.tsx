@@ -68,6 +68,7 @@ function AppContentInner() {
     projects,
     selectedProject,
     selectedSession,
+    unreadSessionIds,
     activeTab,
     sidebarOpen,
     isLoadingProjects,
@@ -80,6 +81,7 @@ function AppContentInner() {
     refreshProjectsSilently,
     registerOptimisticSession,
     sidebarSharedProps,
+    sessionActions,
     handleNewSession,
     createWorktree,
     adoptCheckout,
@@ -270,6 +272,7 @@ function AppContentInner() {
             onSessionProcessing={markSessionProcessing}
             onSessionIdle={markSessionIdle}
             processingSessions={processingSessions}
+            unreadSessionIds={unreadSessionIds}
             onNavigateToSession={(targetSessionId: string, options) =>
               navigate(`/session/${targetSessionId}`, { replace: Boolean(options?.replace) })
             }
@@ -284,6 +287,7 @@ function AppContentInner() {
             onCreateWorktree={createWorktree}
             onAdoptCheckout={adoptCheckout}
             onProjectsRefresh={refreshProjectsSilently}
+            sessionActions={sessionActions}
             showUsage={location.pathname === '/usage'}
           />
         </HeaderMenuProvider>

@@ -144,7 +144,8 @@
     "restoreSessionFailed": "Failed to restore session. Please try again.",
     "restoreSessionError": "Error restoring session. Please try again.",
     "renameProjectFailed": "Failed to rename project",
-    "createWorktreeFailed": "Failed to create worktree"
+    "createWorktreeFailed": "Failed to create worktree",
+    "archiveSessionFailed": "Failed to archive session. Please try again."
   },
   "version": {
     "updateAvailable": "Update available",

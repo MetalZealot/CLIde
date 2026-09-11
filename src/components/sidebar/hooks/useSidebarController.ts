@@ -110,8 +110,7 @@ type UseSidebarControllerArgs = {
   onOpenSourceControl: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onSessionDelete?: (sessionId: string) => void;
-  // Optimistic in-place patch of a session's starred flag (see useProjectsState).
-  onSessionStarPatch?: (sessionId: string, isStarred: boolean) => void;
+  onToggleSessionStar?: (sessionId: string, currentIsStarred: boolean) => Promise<boolean>;
   onLoadMoreSessions?: (projectId: string) => Promise<void> | void;
   // `projectId` is the DB-assigned identifier; callbacks use that post-migration.
   onProjectDelete?: (projectId: string) => void;
@@ -150,7 +149,7 @@ export function useSidebarController({
   onOpenSourceControl,
   onSessionSelect,
   onSessionDelete,
-  onSessionStarPatch,
+  onToggleSessionStar,
   onLoadMoreSessions,
   onProjectDelete,
   setCurrentProject,
@@ -906,36 +905,11 @@ export function useSidebarController({
     [removeSessions],
   );
 
-  // Optimistic star toggle: flip the icon immediately (which also pins the
-  // session via `getAllSessions`' starred-first sort), reconcile with the
-  // server's returned flag, revert on failure. No sequence guard needed — pin
-  // order follows `isStarred` directly, not a separate ordering map.
   const toggleStarSession = useCallback(
     (sessionId: string, currentIsStarred: boolean) => {
-      const optimisticIsStarred = !currentIsStarred;
-      onSessionStarPatch?.(sessionId, optimisticIsStarred);
-
-      const run = async () => {
-        try {
-          const response = await api.toggleSessionStar(sessionId);
-          if (!response.ok) {
-            throw new Error(`Star toggle failed with status ${response.status}`);
-          }
-
-          const payload = (await response.json()) as { data?: { isStarred?: boolean } };
-          const serverIsStarred = payload.data?.isStarred;
-          if (typeof serverIsStarred === 'boolean' && serverIsStarred !== optimisticIsStarred) {
-            onSessionStarPatch?.(sessionId, serverIsStarred);
-          }
-        } catch (error) {
-          console.error('[Sidebar] Failed to toggle session star:', error);
-          onSessionStarPatch?.(sessionId, currentIsStarred);
-        }
-      };
-
-      void run();
+      void onToggleSessionStar?.(sessionId, currentIsStarred);
     },
-    [onSessionStarPatch],
+    [onToggleSessionStar],
   );
 
   /** Confirms permanent CLIde-data deletion for worktrees selected in the manager. */

@@ -123,3 +123,13 @@ export interface FilePathChange {
   newPath: string;
   type: 'file' | 'directory';
 }
+
+/** Session edits offered outside the sidebar; each keeps the app's session list in step. */
+export interface SessionActions {
+  /** Flips at once; resolves to the flag the server settled on. */
+  toggleStar: (sessionId: string, currentIsStarred: boolean) => Promise<boolean>;
+  /** Resolves false when the server refused or could not be reached. */
+  rename: (sessionId: string, summary: string) => Promise<boolean>;
+  /** `hardDelete` false archives (recoverable); true deletes permanently. */
+  remove: (sessionId: string, hardDelete: boolean) => Promise<boolean>;
+}

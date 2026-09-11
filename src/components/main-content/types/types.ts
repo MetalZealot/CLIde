@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react';
 
-import type { AppTab, Project, ProjectSession } from '../../../types/app';
+import type { AppTab, Project, ProjectSession, SessionActions } from '../../../types/app';
 import type {
   MarkSessionIdle,
   MarkSessionProcessing,
@@ -56,6 +56,8 @@ export type MainContentProps = {
   onSessionProcessing: MarkSessionProcessing;
   onSessionIdle: MarkSessionIdle;
   processingSessions: SessionActivityMap;
+  /** Sessions whose output arrived while their chat was not visible. */
+  unreadSessionIds: ReadonlySet<string>;
   onNavigateToSession: (targetSessionId: string, options?: SessionNavigationOptions) => void;
   onSessionEstablished: (sessionId: string, context: SessionEstablishedContext) => void;
   onShowSettings: (tab?: string) => void;
@@ -70,6 +72,7 @@ export type MainContentProps = {
   onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
   /** Silently re-syncs the sidebar project list. */
   onProjectsRefresh: () => Promise<Project[]>;
+  sessionActions: SessionActions;
   /** Replaces project content with the routed account-level usage dashboard. */
   showUsage: boolean;
 };
@@ -89,7 +92,6 @@ export type MainContentHeaderProps = {
   shouldShowBrowserTab: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
-  onShowSettings: (tab?: string) => void;
 };
 
 export type MainContentStateViewProps = {

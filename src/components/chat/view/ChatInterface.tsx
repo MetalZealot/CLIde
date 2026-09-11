@@ -12,6 +12,7 @@ import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
+import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 
@@ -52,6 +53,8 @@ function ChatInterface({
   onProjectsRefresh,
   onCreateWorktree,
   onAdoptCheckout,
+  sessionActions,
+  isVisible,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
@@ -561,6 +564,18 @@ function ChatInterface({
   // be chosen while the chat is still brand new.
   const canSelectProvider = isNewSession;
 
+  const { dialogs: headerMenuDialogs } = useChatHeaderMenu({
+    isVisible,
+    projects,
+    selectedSession,
+    sessionActions,
+    chatMessages,
+    assistantLabel: getProviderLabel(selectedSession?.__provider ?? provider),
+    hasMoreMessages,
+    isLoadingAllMessages,
+    loadAllMessages,
+  });
+
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full min-h-0 flex-col">
@@ -788,6 +803,8 @@ function ChatInterface({
         payload={commandModalPayload}
         onClose={closeCommandModal}
       />
+
+      {headerMenuDialogs}
     </PermissionContext.Provider>
   );
 }

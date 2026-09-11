@@ -9,6 +9,7 @@ import type {
   LoadingProgress,
   Project,
   ProjectSession,
+  SessionActions,
 } from '../types/app';
 import type {
   CreateWorktreeOptions,
@@ -1299,6 +1300,74 @@ export function useProjectsState({
     }
   }, [projects, selectedProject, selectedSession]);
 
+  // Optimistic: the flag flips (and the row pins) at once, then reconciles with
+  // the server's flag or reverts on failure.
+  const toggleSessionStar = useCallback(async (sessionId: string, currentIsStarred: boolean) => {
+    const optimisticIsStarred = !currentIsStarred;
+    handleSessionStarPatch(sessionId, optimisticIsStarred);
+
+    try {
+      const response = await api.toggleSessionStar(sessionId);
+      if (!response.ok) {
+        throw new Error(`Star toggle failed with status ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { data?: { isStarred?: boolean } };
+      const serverIsStarred = payload.data?.isStarred;
+      if (typeof serverIsStarred === 'boolean' && serverIsStarred !== optimisticIsStarred) {
+        handleSessionStarPatch(sessionId, serverIsStarred);
+        return serverIsStarred;
+      }
+      return optimisticIsStarred;
+    } catch (error) {
+      console.error('Failed to toggle session star:', error);
+      handleSessionStarPatch(sessionId, currentIsStarred);
+      return currentIsStarred;
+    }
+  }, [handleSessionStarPatch]);
+
+  const renameSession = useCallback(async (sessionId: string, summary: string) => {
+    try {
+      const response = await api.renameSession(sessionId, summary);
+      if (!response.ok) {
+        console.error('Failed to rename session:', response.status);
+        return false;
+      }
+      await handleSidebarRefresh();
+      // An older session is absent from the refreshed pages, so its title is patched here.
+      // The search-jump hint is dropped so the new object doesn't scroll back to the hit.
+      setSelectedSession((previous) => (
+        previous?.id === sessionId && previous.summary !== summary
+          ? { ...previous, summary, __searchTargetSnippet: undefined, __searchTargetTimestamp: undefined }
+          : previous
+      ));
+      return true;
+    } catch (error) {
+      console.error('Error renaming session:', error);
+      return false;
+    }
+  }, [handleSidebarRefresh]);
+
+  const removeSession = useCallback(async (sessionId: string, hardDelete: boolean) => {
+    try {
+      const response = await api.deleteSession(sessionId, hardDelete);
+      if (!response.ok) {
+        console.error('Failed to remove session:', { sessionId, hardDelete, status: response.status });
+        return false;
+      }
+      handleSessionDelete(sessionId);
+      return true;
+    } catch (error) {
+      console.error('Error removing session:', error);
+      return false;
+    }
+  }, [handleSessionDelete]);
+
+  const sessionActions = useMemo<SessionActions>(
+    () => ({ toggleStar: toggleSessionStar, rename: renameSession, remove: removeSession }),
+    [toggleSessionStar, renameSession, removeSession],
+  );
+
   const loadMoreProjectSessions = useCallback(async (projectId: string) => {
     const project = projects.find((candidate) => candidate.projectId === projectId);
     if (!project) {
@@ -1379,7 +1448,7 @@ export function useProjectsState({
       onCreateWorktree: createWorktree,
       onAdoptCheckout: adoptCheckout,
       onSessionDelete: handleSessionDelete,
-      onSessionStarPatch: handleSessionStarPatch,
+      onToggleSessionStar: toggleSessionStar,
       onLoadMoreSessions: loadMoreProjectSessions,
       onProjectDelete: handleProjectDelete,
       isLoading: isLoadingProjects,
@@ -1402,7 +1471,7 @@ export function useProjectsState({
       handleProjectSelect,
       handleOpenSourceControl,
       handleSessionDelete,
-      handleSessionStarPatch,
+      toggleSessionStar,
       loadMoreProjectSessions,
       handleSessionSelect,
       handleSidebarRefresh,
@@ -1423,6 +1492,7 @@ export function useProjectsState({
     projects,
     selectedProject,
     selectedSession,
+    unreadSessionIds,
     activeTab,
     sidebarOpen,
     isLoadingProjects,
@@ -1441,6 +1511,7 @@ export function useProjectsState({
     refreshProjectsSilently,
     registerOptimisticSession,
     sidebarSharedProps,
+    sessionActions,
     handleProjectSelect,
     handleSessionSelect,
     handleNewSession,

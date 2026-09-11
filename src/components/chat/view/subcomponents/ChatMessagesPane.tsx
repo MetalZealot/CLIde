@@ -127,8 +127,9 @@ function ChatMessagesPane({
       className="chat-messages-pane relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-3 pt-3 sm:pb-4 sm:pt-4"
       style={{ overflowAnchor: 'none' }}
     >
+      {/* Mobile offers export from the header menu instead. */}
       {chatMessages.length > 0 && (
-        <div className="pointer-events-none sticky right-4 top-3 z-10 mb-2 flex justify-end sm:px-4">
+        <div className="pointer-events-none sticky right-4 top-3 z-10 mb-2 hidden justify-end sm:px-4 md:flex">
           <div className="pointer-events-auto">
             <ChatExportMenu
               messages={chatMessages}

@@ -325,3 +325,16 @@ export const EXPORT_FORMATS = [
   { id: 'html', label: 'Web Page (.html)', ext: '.html' },
   { id: 'pdf', label: 'PDF (Print to File)', ext: '.pdf' },
 ] as const;
+
+/** The export picker's include checkboxes. */
+export type ChatExportInclude = {
+  toolCalls: boolean;
+  toolResults: boolean;
+  thinking: boolean;
+};
+
+export const DEFAULT_CHAT_EXPORT_INCLUDE: ChatExportInclude = {
+  toolCalls: false,
+  toolResults: false,
+  thinking: false,
+};
