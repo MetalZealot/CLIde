@@ -105,12 +105,12 @@
     --safe-area-inset-left: env(safe-area-inset-left);
 
     /* Height of every top bar — see .app-bar */
-    --app-bar-height: 52px;
+    --app-bar-height: 56px;
 
     /* Height of every bottom bar — see .app-footer. Taller than the top bar
        because a thumb reaching the bottom edge has less precision than the same
        thumb mid-screen, and the gesture strip sits directly below. */
-    --app-footer-height: 56px;
+    --app-footer-height: 60px;
   }
 
   :root[data-chat-reading-size="smallest"] {
