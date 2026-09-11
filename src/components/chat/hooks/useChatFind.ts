@@ -14,6 +14,21 @@ export type ChatFindOccurrence = {
 
 type ChatFindIdentity = Pick<ChatFindOccurrence, 'messageElement' | 'offset'>;
 
+export function isChatFindConversationMessage(message: ChatMessage): boolean {
+  if (message.type === 'user') {
+    return true;
+  }
+
+  return message.type === 'assistant'
+    && !message.isToolUse
+    && !message.isThinking
+    && !message.isCompactSummary
+    && !message.isCompactBoundary
+    && !message.isSystemNotice
+    && !message.isTaskNotification
+    && !message.isLocalCommandStdout;
+}
+
 type UseChatFindArgs = {
   isVisible: boolean;
   sessionId: string | null;
@@ -39,13 +54,23 @@ export type ChatFindController = {
   retryLoad: () => void;
 };
 
-const isExcludedTextNode = (node: Text, messageElement: HTMLElement) => {
+const getChatFindContentElement = (node: Text, messageElement: HTMLElement): HTMLElement | null => {
   const parent = node.parentElement;
   if (!parent || parent.closest('.chat-message') !== messageElement) {
-    return true;
+    return null;
   }
 
-  return Boolean(parent.closest('button, input, textarea, select, script, style, [hidden], [aria-hidden="true"], .sr-only'));
+  const contentElement = parent.closest<HTMLElement>('[data-chat-find-content]');
+  if (!contentElement || contentElement.closest('.chat-message') !== messageElement) {
+    return null;
+  }
+
+  const containingControl = parent.closest('button, input, textarea, select');
+  const isExcluded = Boolean(
+    parent.closest('script, style, [hidden], [aria-hidden="true"], .sr-only')
+    || (containingControl && !containingControl.contains(contentElement)),
+  );
+  return isExcluded ? null : contentElement;
 };
 
 /** Finds literal, case-insensitive ranges without changing React's rendered DOM. */
@@ -59,21 +84,28 @@ export function collectChatFindOccurrences(root: HTMLElement, query: string): Ch
   const occurrences: ChatFindOccurrence[] = [];
   const showText = root.ownerDocument.defaultView?.NodeFilter.SHOW_TEXT ?? 4;
 
-  for (const messageElement of root.querySelectorAll<HTMLElement>('.chat-message')) {
+  for (const messageElement of root.querySelectorAll<HTMLElement>('.chat-message[data-chat-find-scope="conversation"]')) {
     const walker = root.ownerDocument.createTreeWalker(messageElement, showText);
     const segments: Array<{ node: Text; start: number; end: number }> = [];
     let searchableText = '';
+    let previousContentElement: HTMLElement | null = null;
     let currentNode = walker.nextNode();
 
     while (currentNode) {
       const textNode = currentNode as Text;
-      if (isExcludedTextNode(textNode, messageElement)) {
+      const contentElement = getChatFindContentElement(textNode, messageElement);
+      if (!contentElement) {
         // Prevent a match from joining visible text across an omitted control or nested message.
         searchableText += '\0';
+        previousContentElement = null;
       } else if (textNode.data) {
+        if (previousContentElement && previousContentElement !== contentElement) {
+          searchableText += '\0';
+        }
         const start = searchableText.length;
         searchableText += textNode.data;
         segments.push({ node: textNode, start, end: searchableText.length });
+        previousContentElement = contentElement;
       }
       currentNode = walker.nextNode();
     }

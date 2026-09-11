@@ -314,6 +314,7 @@ describe('chatSubcomponents', () => {
       assert.match(markup, /Production/);
       assert.match(markup, /Anything else\?/);
       assert.match(markup, /Asked while the response continued\./);
+      assert.equal((markup.match(/data-chat-find-content/g) || []).length, 4);
       assert.doesNotMatch(markup, /<button/);
     });
 

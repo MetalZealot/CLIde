@@ -29,33 +29,77 @@ import { resolveHistoryNavigation, type HistoryNav } from './useInputHistory';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
 import { appendStreamChunk, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
 import { normalizeVoiceTranscript } from './useVoiceInput';
-import { collectChatFindOccurrences, stepChatFindIndex, useChatFind, type ChatFindController } from './useChatFind';
+import {
+  collectChatFindOccurrences,
+  isChatFindConversationMessage,
+  stepChatFindIndex,
+  useChatFind,
+  type ChatFindController,
+} from './useChatFind';
 
 // --- useChatFind ------------------------------------------------------------
 
-test('chat find creates exact ranges across rendered Markdown nodes and excludes controls', () => {
+test('chat find searches marked conversation content and excludes controls and metadata', () => {
   const root = document.createElement('div');
   root.innerHTML = `
-    <div class="chat-message">A <strong>Needle</strong> beside NEEDLE<button>needle action</button></div>
-    <div class="chat-message">Literal a+b</div>
-    <div class="chat-message"><span class="sr-only">needle hidden</span></div>
+    <div class="chat-message" data-chat-find-scope="conversation">
+      <div data-chat-find-content>A <strong>Needle</strong> beside NEEDLE<button>needle action</button></div>
+      <span>needle timestamp</span>
+    </div>
+    <div class="chat-message" data-chat-find-scope="conversation">
+      <div data-chat-find-content>Literal a+b</div>
+      <button><span data-chat-find-content>needle option</span></button>
+      <span data-chat-find-content>cross</span><span data-chat-find-content>boundary</span>
+      <span class="sr-only" data-chat-find-content>needle hidden</span>
+    </div>
+    <div class="chat-message tool"><div data-chat-find-content>needle tool result</div></div>
   `;
 
   const words = collectChatFindOccurrences(root, 'needle');
-  assert.deepEqual(words.map((occurrence) => occurrence.range.toString()), ['Needle', 'NEEDLE']);
+  assert.deepEqual(words.map((occurrence) => occurrence.range.toString()), ['Needle', 'NEEDLE', 'needle']);
   assert.deepEqual(
     collectChatFindOccurrences(root, 'a+b').map((occurrence) => occurrence.range.toString()),
     ['a+b'],
   );
+  assert.equal(collectChatFindOccurrences(root, 'crossboundary').length, 0);
 });
 
 test('chat find does not double-count text inside nested message containers', () => {
   const root = document.createElement('div');
-  root.innerHTML = '<div class="chat-message">Tool group<div class="chat-message">one match</div></div>';
+  root.innerHTML = `
+    <div class="chat-message tool">
+      Tool group
+      <div class="chat-message" data-chat-find-scope="conversation">
+        <div data-chat-find-content>one match</div>
+      </div>
+    </div>
+  `;
 
   const matches = collectChatFindOccurrences(root, 'match');
   assert.equal(matches.length, 1);
-  assert.equal(matches[0]?.messageElement.textContent, 'one match');
+  assert.equal(matches[0]?.messageElement.textContent?.trim(), 'one match');
+});
+
+test('chat find includes authored turns and excludes transcript activity rows', () => {
+  const message = (overrides: Partial<ChatMessage>): ChatMessage => ({
+    type: 'assistant',
+    content: 'text',
+    timestamp: '2026-09-11T00:00:00.000Z',
+    ...overrides,
+  });
+
+  assert.equal(isChatFindConversationMessage(message({ type: 'user' })), true);
+  assert.equal(isChatFindConversationMessage(message({})), true);
+  assert.equal(isChatFindConversationMessage(message({ followUpQuestions: [{ question: 'Question?', options: [] }] })), true);
+  assert.equal(isChatFindConversationMessage(message({ isInteractivePrompt: true })), true);
+  assert.equal(isChatFindConversationMessage(message({ isToolUse: true })), false);
+  assert.equal(isChatFindConversationMessage(message({ isThinking: true })), false);
+  assert.equal(isChatFindConversationMessage(message({ isCompactSummary: true })), false);
+  assert.equal(isChatFindConversationMessage(message({ isCompactBoundary: true })), false);
+  assert.equal(isChatFindConversationMessage(message({ isSystemNotice: true })), false);
+  assert.equal(isChatFindConversationMessage(message({ isTaskNotification: true })), false);
+  assert.equal(isChatFindConversationMessage(message({ isLocalCommandStdout: true })), false);
+  assert.equal(isChatFindConversationMessage(message({ type: 'error' })), false);
 });
 
 test('chat find navigation wraps in both directions', () => {
@@ -99,7 +143,11 @@ test('chat find waits for complete history and closes on Escape or session chang
       React.createElement(
         'div',
         { ref: messagesContentRef },
-        React.createElement('div', { className: 'chat-message' }, 'Needle and needle again'),
+        React.createElement(
+          'div',
+          { className: 'chat-message', 'data-chat-find-scope': 'conversation' },
+          React.createElement('div', { 'data-chat-find-content': true }, 'Needle and needle again'),
+        ),
       ),
     );
   }

@@ -15,6 +15,7 @@ import {
   formatUsageLimitText,
 } from '../../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
+import { isChatFindConversationMessage } from '../../hooks/useChatFind';
 import type { Project } from '../../../../types/app';
 import { ToolRenderer, ToolErrorDisplay, shouldHideToolResult } from '../../tools';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../shared/view/ui';
@@ -122,6 +123,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     [message.timestamp],
   );
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
+  const isFindableConversationMessage = isChatFindConversationMessage(message);
   const usesMobileReadingInset =
     (message.type === 'user' || message.type === 'assistant') &&
     !message.isToolUse &&
@@ -144,6 +146,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     <div
       ref={messageRef}
       data-message-timestamp={message.timestamp || undefined}
+      data-chat-find-scope={isFindableConversationMessage ? 'conversation' : undefined}
       className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end' : ''} ${usesMobileReadingInset ? 'px-1 sm:px-0' : 'px-3 sm:px-0'}`}
     >
       {message.type === 'user' ? (
@@ -167,7 +170,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                     isRewindEditTarget ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
                   }`}
                 >
-                  <div dir="auto" className="break-words">
+                  <div dir="auto" className="break-words" data-chat-find-content>
                     {/* `breaks` keeps a typed single newline meaningful now that
                         user turns render as Markdown rather than pre-wrapped text. */}
                     <Markdown
@@ -354,7 +357,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
                       return (
                         <>
-                          <p className="mb-4 text-sm text-amber-800 dark:text-amber-200">
+                          <p className="mb-4 text-sm text-amber-800 dark:text-amber-200" data-chat-find-content>
                             {questionLine}
                           </p>
 
@@ -376,7 +379,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                                     }`}>
                                     {option.number}
                                   </span>
-                                  <span className="flex-1 text-sm font-medium sm:text-base">
+                                  <span className="flex-1 text-sm font-medium sm:text-base" data-chat-find-content>
                                     {option.text}
                                   </span>
                                   {option.isSelected && (
@@ -446,8 +449,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   </Reasoning>
                 )}
 
-                {(() => {
-                  const content = assistantBodyContent;
+                <div data-chat-find-content>
+                  {(() => {
+                    const content = assistantBodyContent;
 
                   // Detect if content is pure JSON (starts with { or [)
                   const trimmedContent = content.trim();
@@ -480,20 +484,21 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   }
 
                   // Normal rendering for non-JSON content
-                  return message.type === 'assistant' ? (
-                    <Markdown
-                      readingTypography
-                      insetFencedCode
-                      className="chat-reading prose prose-sm prose-gray max-w-none font-prose dark:prose-invert"
-                    >
-                      {content}
-                    </Markdown>
-                  ) : (
-                    <div className="whitespace-pre-wrap">
-                      {content}
-                    </div>
-                  );
-                })()}
+                    return message.type === 'assistant' ? (
+                      <Markdown
+                        readingTypography
+                        insetFencedCode
+                        className="chat-reading prose prose-sm prose-gray max-w-none font-prose dark:prose-invert"
+                      >
+                        {content}
+                      </Markdown>
+                    ) : (
+                      <div className="whitespace-pre-wrap">
+                        {content}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             )}
 

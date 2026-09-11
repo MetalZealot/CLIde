@@ -20,12 +20,13 @@ export default function FollowUpQuestions({ questions }: FollowUpQuestionsProps)
     >
       {questions.map(({ question, options }, questionIndex) => (
         <div key={`${question}-${questionIndex}`} className="space-y-2">
-          <p className="font-medium text-foreground">{question}</p>
+          <p className="font-medium text-foreground" data-chat-find-content>{question}</p>
           {options.length > 0 && (
             <ul className="space-y-1.5">
               {options.map((option, optionIndex) => (
                 <li
                   key={`${option}-${optionIndex}`}
+                  data-chat-find-content
                   className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                 >
                   {option}

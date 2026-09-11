@@ -32,6 +32,7 @@ main checkout only).
 
 ## Bugs
 
+- [ ] **Find in Chat can drop keystrokes while preparing or searching a long session.** The header receives its controlled value one effect behind, while complete-history rendering and per-keystroke DOM range creation block the main thread. Give the input local draft state and defer history/search work until typing pauses. **S/M**
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
