@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type MouseEvent, type SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { Check, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,6 +14,8 @@ import {
   getPluginTabs,
   type TabDefinition,
 } from '../../constants/workspaceTabs';
+import { MENU_CLASS_NAME, MENU_ITEM_CLASS_NAME } from '../../constants/menu';
+import { useMenuButton } from '../../hooks/useMenuButton';
 
 type MobileBottomNavProps = {
   activeTab: AppTab;
@@ -27,9 +29,6 @@ type MobileBottomNavProps = {
 
 // A fifth of a phone's width holds one short word, so long names get a bar label.
 const BAR_LABEL_KEYS: Partial<Record<AppTab, string>> = { git: 'mobileNav.git' };
-
-const menuItemClassName =
-  'flex min-h-11 w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-accent active:bg-accent';
 
 const barItemClassName = (isActive: boolean) =>
   cn(
@@ -50,11 +49,13 @@ export default function MobileBottomNav({
 }: MobileBottomNavProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
-  const firstItemRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // Keyboard-opened menus take focus and hand it back on close (APG menu button).
-  const openedByKeyboardRef = useRef(false);
+  const {
+    buttonRef: moreButtonRef,
+    firstItemRef,
+    isOpen: isMenuOpen,
+    toggle: toggleMenu,
+    close: closeMenu,
+  } = useMenuButton();
 
   const overflowTabs: TabDefinition[] = [
     ...(shouldShowBrowserTab ? [BROWSER_TAB] : []),
@@ -62,27 +63,6 @@ export default function MobileBottomNav({
     ...getPluginTabs(plugins),
   ];
   const isOverflowActive = !BASE_TABS.some((tab) => tab.id === activeTab);
-
-  const closeMenu = useCallback(() => {
-    setIsMenuOpen(false);
-    if (openedByKeyboardRef.current) {
-      moreButtonRef.current?.focus();
-    }
-  }, []);
-
-  const toggleMenu = (event: MouseEvent<HTMLButtonElement>) => {
-    // A click from Enter or Space has no pointer, so its detail is 0.
-    openedByKeyboardRef.current = event.detail === 0;
-    setIsMenuOpen((open) => !open);
-  };
-
-  useEffect(() => {
-    if (!isMenuOpen || !openedByKeyboardRef.current) {
-      return;
-    }
-    const frame = window.requestAnimationFrame(() => firstItemRef.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
-  }, [isMenuOpen]);
 
   const selectOverflowTab = (tab: AppTab) => {
     setActiveTab(tab);
@@ -146,7 +126,7 @@ export default function MobileBottomNav({
           ariaLabel={t('mobileNav.moreMenu')}
           placement="above"
           maxHeight={MENU_LIST_MAX_HEIGHT}
-          className="sidebar-context-menu min-w-56 max-w-[calc(100vw-1.25rem)] overflow-y-auto rounded-xl py-1"
+          className={MENU_CLASS_NAME}
           measureKey={overflowTabs.length}
         >
           {overflowTabs.length === 0 ? (
@@ -162,7 +142,7 @@ export default function MobileBottomNav({
                   closeMenu();
                   onShowSettings('plugins');
                 }}
-                className={menuItemClassName}
+                className={MENU_ITEM_CLASS_NAME}
               >
                 <span className="h-4 w-4 flex-shrink-0" />
                 <SettingsIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -180,7 +160,7 @@ export default function MobileBottomNav({
                   role="menuitem"
                   aria-current={isActive ? 'page' : undefined}
                   onClick={() => selectOverflowTab(tab.id)}
-                  className={menuItemClassName}
+                  className={MENU_ITEM_CLASS_NAME}
                 >
                   <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
                     {isActive && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}

@@ -89,6 +89,7 @@ export type MainContentHeaderProps = {
   shouldShowBrowserTab: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
+  onShowSettings: (tab?: string) => void;
 };
 
 export type MainContentStateViewProps = {

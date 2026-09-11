@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { RotateCcw, X } from 'lucide-react';
 
 import '@xterm/xterm/css/xterm.css';
 import type { Project, ProjectSession } from '../../../types/app';
@@ -14,6 +15,7 @@ import {
 import { useShellRuntime } from '../hooks/useShellRuntime';
 import { sendSocketMessage } from '../utils/socket';
 import { getSessionDisplayName } from '../utils/auth';
+import { useRegisterHeaderMenu, type HeaderMenuSection } from '../../../contexts/HeaderMenuContext';
 
 import ShellConnectionOverlay from './subcomponents/ShellConnectionOverlay';
 import ShellEmptyState from './subcomponents/ShellEmptyState';
@@ -227,6 +229,46 @@ export default function Shell({
     connectToShell({ forceRestart: true });
   }, [connectToShell, isConnected, isConnecting, isInitialized, isRestarting]);
 
+  const headerMenuSection = useMemo<HeaderMenuSection | null>(() => {
+    if (minimal || !selectedProject) {
+      return null;
+    }
+    const statusText = !isInitialized
+      ? t('shell.status.initializing')
+      : isRestarting
+        ? t('shell.status.restarting')
+        : selectedSession && sessionDisplayNameShort
+          ? `${sessionDisplayNameShort}…`
+          : t('shell.status.newSession');
+    return {
+      status: { text: statusText, isOk: isConnected },
+      items: [
+        ...(isConnected
+          ? [{ key: 'disconnect', label: t('shell.actions.disconnect'), icon: X, onSelect: handleDisconnectShell, isDanger: true }]
+          : []),
+        {
+          key: 'restart',
+          label: t('shell.actions.restart'),
+          icon: RotateCcw,
+          onSelect: handleRestartShell,
+          disabled: isRestarting || !isInitialized,
+        },
+      ],
+    };
+  }, [
+    minimal,
+    selectedProject,
+    selectedSession,
+    sessionDisplayNameShort,
+    isInitialized,
+    isRestarting,
+    isConnected,
+    handleDisconnectShell,
+    handleRestartShell,
+    t,
+  ]);
+  useRegisterHeaderMenu(headerMenuSection);
+
   if (!selectedProject) {
     return (
       <ShellEmptyState
@@ -272,23 +314,26 @@ export default function Shell({
 
   return (
     <div className="flex h-full w-full flex-col bg-gray-900">
-      <ShellHeader
-        isConnected={isConnected}
-        isInitialized={isInitialized}
-        isRestarting={isRestarting}
-        hasSession={Boolean(selectedSession)}
-        sessionDisplayNameShort={sessionDisplayNameShort}
-        onDisconnect={handleDisconnectShell}
-        onRestart={handleRestartShell}
-        statusNewSessionText={t('shell.status.newSession')}
-        statusInitializingText={t('shell.status.initializing')}
-        statusRestartingText={t('shell.status.restarting')}
-        disconnectLabel={t('shell.actions.disconnect')}
-        disconnectTitle={t('shell.actions.disconnectTitle')}
-        restartLabel={t('shell.actions.restart')}
-        restartTitle={t('shell.actions.restartTitle')}
-        disableRestart={isRestarting || !isInitialized}
-      />
+      {/* Mobile carries these actions in the header menu. */}
+      <div className="hidden md:block">
+        <ShellHeader
+          isConnected={isConnected}
+          isInitialized={isInitialized}
+          isRestarting={isRestarting}
+          hasSession={Boolean(selectedSession)}
+          sessionDisplayNameShort={sessionDisplayNameShort}
+          onDisconnect={handleDisconnectShell}
+          onRestart={handleRestartShell}
+          statusNewSessionText={t('shell.status.newSession')}
+          statusInitializingText={t('shell.status.initializing')}
+          statusRestartingText={t('shell.status.restarting')}
+          disconnectLabel={t('shell.actions.disconnect')}
+          disconnectTitle={t('shell.actions.disconnectTitle')}
+          restartLabel={t('shell.actions.restart')}
+          restartTitle={t('shell.actions.restartTitle')}
+          disableRestart={isRestarting || !isInitialized}
+        />
+      </div>
 
       <div className="relative flex-1 overflow-hidden p-2">
         <div

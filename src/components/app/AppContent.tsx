@@ -6,6 +6,7 @@ import MainContent from '../main-content/view/MainContent';
 import CommandPalette from '../command-palette/CommandPalette';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/PaletteOpsContext';
+import { HeaderMenuProvider } from '../../contexts/HeaderMenuContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
@@ -253,37 +254,39 @@ function AppContentInner() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <MainContent
-          projects={projects}
-          selectedProject={selectedProject}
-          selectedSession={selectedSession}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          ws={ws}
-          sendMessage={sendMessage}
-          isMobile={isMobile}
-          onMenuClick={openSidebar}
-          isLoading={isLoadingProjects}
-          onInputFocusChange={setIsInputFocused}
-          onSessionProcessing={markSessionProcessing}
-          onSessionIdle={markSessionIdle}
-          processingSessions={processingSessions}
-          onNavigateToSession={(targetSessionId: string, options) =>
-            navigate(`/session/${targetSessionId}`, { replace: Boolean(options?.replace) })
-          }
-          onSessionEstablished={(targetSessionId, context) =>
-            registerOptimisticSession({ sessionId: targetSessionId, ...context })
-          }
-          onShowSettings={openSettings}
-          externalMessageUpdate={externalMessageUpdate}
-          newSessionTrigger={newSessionTrigger}
-          onProjectSelect={handleProjectSelect}
-          onNewSessionTarget={handleNewSession}
-          onCreateWorktree={createWorktree}
-          onAdoptCheckout={adoptCheckout}
-          onProjectsRefresh={refreshProjectsSilently}
-          showUsage={location.pathname === '/usage'}
-        />
+        <HeaderMenuProvider>
+          <MainContent
+            projects={projects}
+            selectedProject={selectedProject}
+            selectedSession={selectedSession}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            ws={ws}
+            sendMessage={sendMessage}
+            isMobile={isMobile}
+            onMenuClick={openSidebar}
+            isLoading={isLoadingProjects}
+            onInputFocusChange={setIsInputFocused}
+            onSessionProcessing={markSessionProcessing}
+            onSessionIdle={markSessionIdle}
+            processingSessions={processingSessions}
+            onNavigateToSession={(targetSessionId: string, options) =>
+              navigate(`/session/${targetSessionId}`, { replace: Boolean(options?.replace) })
+            }
+            onSessionEstablished={(targetSessionId, context) =>
+              registerOptimisticSession({ sessionId: targetSessionId, ...context })
+            }
+            onShowSettings={openSettings}
+            externalMessageUpdate={externalMessageUpdate}
+            newSessionTrigger={newSessionTrigger}
+            onProjectSelect={handleProjectSelect}
+            onNewSessionTarget={handleNewSession}
+            onCreateWorktree={createWorktree}
+            onAdoptCheckout={adoptCheckout}
+            onProjectsRefresh={refreshProjectsSilently}
+            showUsage={location.pathname === '/usage'}
+          />
+        </HeaderMenuProvider>
       </div>
 
       <CommandPalette

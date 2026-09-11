@@ -202,6 +202,7 @@ function MainContent({
           shouldShowBrowserTab={shouldShowBrowserTab}
           isMobile={isMobile}
           onMenuClick={onMenuClick}
+          onShowSettings={onShowSettings}
         />
       ) : isMobile ? (
         <div className="app-bar border-b border-border/50 bg-background/80 px-3 sm:px-4">
