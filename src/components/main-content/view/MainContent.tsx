@@ -13,6 +13,7 @@ import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver, type FileOpenResolutionIssue } from '../../../hooks/useFileOpenResolver';
+import { useSoftKeyboardOpen } from '../../../hooks/useSoftKeyboardOpen';
 import { authenticatedFetch } from '../../../utils/api';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
@@ -24,6 +25,7 @@ import UsageDashboard from '../../usage-dashboard/view/UsageDashboard';
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
 import MobileMenuButton from './subcomponents/MobileMenuButton';
+import MobileBottomNav from './subcomponents/MobileBottomNav';
 import ErrorBoundary from './ErrorBoundary';
 
 type TaskMasterContextValue = {
@@ -67,6 +69,9 @@ function MainContent({
   const { t } = useTranslation();
   const { preferences } = useUiPreferences();
   const { showRawParameters, showThinking, sendByCtrlEnter, enterToSend } = preferences;
+  const [chatNeedsAttention, setChatNeedsAttention] = useState(false);
+  const isSoftKeyboardOpen = useSoftKeyboardOpen(isMobile);
+  const showBottomNav = isMobile && Boolean(selectedProject) && !isSoftKeyboardOpen;
 
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
@@ -216,6 +221,7 @@ function MainContent({
                 sendMessage={sendMessage}
                 onFileOpen={resolvedFileOpen}
                 onInputFocusChange={onInputFocusChange}
+                onPermissionAttentionChange={setChatNeedsAttention}
                 onSessionProcessing={onSessionProcessing}
                 onSessionIdle={onSessionIdle}
                 processingSessions={processingSessions}
@@ -308,10 +314,22 @@ function MainContent({
           />
         )}
       </div>
+
+      {showBottomNav && (
+        <MobileBottomNav
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          shouldShowTasksTab={shouldShowTasksTab}
+          shouldShowBrowserTab={shouldShowBrowserTab}
+          chatNeedsAttention={chatNeedsAttention}
+          onShowSettings={onShowSettings}
+        />
+      )}
+
       {fileOpenNotice && (
         <div
           role="alert"
-          className="fixed bottom-4 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border border-red-500/40 bg-background px-4 py-2 text-sm text-foreground shadow-lg"
+          className={`fixed ${showBottomNav ? 'bottom-[calc(var(--app-footer-height)+env(safe-area-inset-bottom,0px)+1rem)]' : 'bottom-4'} left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border border-red-500/40 bg-background px-4 py-2 text-sm text-foreground shadow-lg`}
         >
           {fileOpenNotice}
         </div>

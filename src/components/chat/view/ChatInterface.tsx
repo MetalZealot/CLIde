@@ -34,6 +34,7 @@ function ChatInterface({
   sendMessage,
   onFileOpen,
   onInputFocusChange,
+  onPermissionAttentionChange,
   onSessionProcessing,
   onSessionIdle,
   processingSessions,
@@ -130,6 +131,12 @@ function ChatInterface({
     sessionModel: settingsSlot?.model ?? null,
     sessionEffort: settingsSlot?.effort ?? null,
   });
+
+  const hasPendingPermission = pendingPermissionRequests.length > 0;
+  useEffect(() => {
+    onPermissionAttentionChange?.(hasPendingPermission);
+    return () => onPermissionAttentionChange?.(false);
+  }, [hasPendingPermission, onPermissionAttentionChange]);
 
   const {
     chatMessages,

@@ -87,9 +87,11 @@ Overrulable; say so when citing one.
   of installed plugins, and choosing one switches the main workspace view.
 - The bar is the final row in the app shell's normal flex layout, never a fixed
   overlay that makes individual views compensate with bottom padding.
-- `--app-footer-height` and `.app-footer` are the live shared bottom-bar sizing
-  contract. `--mobile-nav-*`, `.mobile-nav-float`, and `.chat-input-mobile` are
-  remnants of upstream's removed overlay, not implementation guidance.
+- `--app-footer-height` is the shared bottom-bar height. The app shell pads the
+  bottom safe-area inset, so the in-flow bar takes only that height; `.app-footer`,
+  which adds the inset itself, is for bars outside the shell.
+- The bar hides while a software keyboard is open: a shrunken visual viewport with
+  a text field focused, never focus alone.
 - The old four-icon SVG was an incomplete sketch, not a specification. Labels,
   active-plugin presentation, attention state, and software-keyboard behavior
   are agreed against the implementation plan before visual work starts.

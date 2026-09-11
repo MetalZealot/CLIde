@@ -179,6 +179,8 @@ export interface ChatInterfaceProps {
   sendMessage: (message: unknown) => boolean;
   onFileOpen?: (filePath: string, diffInfo?: any) => void;
   onInputFocusChange?: (focused: boolean) => void;
+  /** Reports whether a permission prompt is waiting, so other views can flag the chat. */
+  onPermissionAttentionChange?: (hasPending: boolean) => void;
   onSessionProcessing?: MarkSessionProcessing;
   onSessionIdle?: MarkSessionIdle;
   processingSessions?: SessionActivityMap;

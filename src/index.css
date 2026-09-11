@@ -874,8 +874,9 @@
 
   /* The bottom-edge counterpart of .app-bar: one fixed height with its contents
      centred, owning the bottom safe-area inset so its background paints under
-     the gesture strip while its controls clear it. Any bar sitting on the
-     viewport's bottom edge uses this, so they all share one centreline. */
+     the gesture strip while its controls clear it. For a bar whose own box
+     reaches the viewport's bottom edge; a bar inside the app shell takes only
+     --app-footer-height, because the shell already pads the inset. */
   .app-footer {
     display: flex;
     align-items: center;

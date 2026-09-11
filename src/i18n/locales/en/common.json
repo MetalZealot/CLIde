@@ -51,6 +51,15 @@
     "browser": "Browser",
     "computer": "Computer"
   },
+  "mobileNav": {
+    "label": "Workspace",
+    "git": "Git",
+    "more": "More",
+    "moreMenu": "More destinations",
+    "noPlugins": "No plugins installed",
+    "pluginSettings": "Plugin settings",
+    "attention": "Permission request waiting"
+  },
   "status": {
     "loading": "Loading...",
     "success": "Success",

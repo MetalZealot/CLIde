@@ -20,7 +20,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
 | [Subagent visibility](subagent-visibility.md) | 2/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
-| [Mobile bottom navigation](mobile-bottom-navigation.md) | 1/4 | Agree the remaining phase 3 defaults, then build the bar |
+| [Mobile bottom navigation](mobile-bottom-navigation.md) | 3/4 | Accept the bar in an installed test PWA, then merge |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Codex usage-limit resets](codex-usage-limit-resets.md) | not started | Add the capability-gated provider mutation and focused server tests |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
