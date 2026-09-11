@@ -103,6 +103,7 @@ export default function MainContentHeaderMenu() {
     <>
       <button
         ref={buttonRef}
+        data-main-content-header-menu-trigger
         type="button"
         aria-label={t('mainContent.moreOptions')}
         aria-haspopup="menu"

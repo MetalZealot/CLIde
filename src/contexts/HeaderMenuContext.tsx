@@ -17,6 +17,8 @@ export type HeaderMenuItem = HeaderMenuItemBase & (
 );
 
 export type HeaderMenuSection = {
+  /** Temporarily replaces the normal app-bar contents for a mode owned by the visible view. */
+  headerContent?: ReactNode | null;
   /** One line of view state shown above the actions, such as a connection. */
   status?: { text: string; isOk: boolean } | null;
   items: HeaderMenuItem[];

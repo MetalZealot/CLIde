@@ -29,6 +29,123 @@ import { resolveHistoryNavigation, type HistoryNav } from './useInputHistory';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
 import { appendStreamChunk, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
 import { normalizeVoiceTranscript } from './useVoiceInput';
+import { collectChatFindOccurrences, stepChatFindIndex, useChatFind, type ChatFindController } from './useChatFind';
+
+// --- useChatFind ------------------------------------------------------------
+
+test('chat find creates exact ranges across rendered Markdown nodes and excludes controls', () => {
+  const root = document.createElement('div');
+  root.innerHTML = `
+    <div class="chat-message">A <strong>Needle</strong> beside NEEDLE<button>needle action</button></div>
+    <div class="chat-message">Literal a+b</div>
+    <div class="chat-message"><span class="sr-only">needle hidden</span></div>
+  `;
+
+  const words = collectChatFindOccurrences(root, 'needle');
+  assert.deepEqual(words.map((occurrence) => occurrence.range.toString()), ['Needle', 'NEEDLE']);
+  assert.deepEqual(
+    collectChatFindOccurrences(root, 'a+b').map((occurrence) => occurrence.range.toString()),
+    ['a+b'],
+  );
+});
+
+test('chat find does not double-count text inside nested message containers', () => {
+  const root = document.createElement('div');
+  root.innerHTML = '<div class="chat-message">Tool group<div class="chat-message">one match</div></div>';
+
+  const matches = collectChatFindOccurrences(root, 'match');
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0]?.messageElement.textContent, 'one match');
+});
+
+test('chat find navigation wraps in both directions', () => {
+  assert.equal(stepChatFindIndex(2, 3, 1), 0);
+  assert.equal(stepChatFindIndex(0, 3, -1), 2);
+  assert.equal(stepChatFindIndex(-1, 3, 1), 0);
+  assert.equal(stepChatFindIndex(-1, 0, 1), -1);
+});
+
+test('chat find waits for complete history and closes on Escape or session change', async () => {
+  const host = document.createElement('div');
+  const previousFocus = document.createElement('button');
+  document.body.append(previousFocus, host);
+  previousFocus.focus();
+  const root = createRoot(host);
+  let controller: ChatFindController | undefined;
+  let resolveHistory!: (messages: ChatMessage[]) => void;
+  const history = new Promise<ChatMessage[]>((resolve) => { resolveHistory = resolve; });
+  const chatMessages: ChatMessage[] = [];
+  let loadCalls = 0;
+  const loadAllMessages = async () => {
+    loadCalls += 1;
+    return history;
+  };
+
+  function Harness({ sessionId }: { sessionId: string }) {
+    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+    const messagesContentRef = React.useRef<HTMLDivElement>(null);
+    controller = useChatFind({
+      isVisible: true,
+      sessionId,
+      chatMessages,
+      hasMoreMessages: true,
+      loadAllMessages,
+      scrollContainerRef,
+      messagesContentRef,
+    });
+    return React.createElement(
+      'div',
+      { ref: scrollContainerRef },
+      React.createElement(
+        'div',
+        { ref: messagesContentRef },
+        React.createElement('div', { className: 'chat-message' }, 'Needle and needle again'),
+      ),
+    );
+  }
+
+  try {
+    await React.act(async () => root.render(React.createElement(Harness, { sessionId: 'session-1' })));
+    await React.act(async () => {
+      window.dispatchEvent(new window.KeyboardEvent('keydown', {
+        key: 'f',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+    assert.equal(controller!.isOpen, true);
+    assert.equal(controller!.isPreparing, true);
+    assert.equal(loadCalls, 1);
+
+    await React.act(async () => controller!.setQuery('needle'));
+    assert.equal(controller!.total, 0);
+    await React.act(async () => resolveHistory([]));
+    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
+    assert.equal(controller!.isPreparing, false);
+    assert.equal(controller!.total, 2);
+
+    await React.act(async () => {
+      window.dispatchEvent(new window.KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+    await React.act(async () => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+    assert.equal(controller!.isOpen, false);
+    assert.equal(document.activeElement, previousFocus);
+
+    await React.act(async () => controller!.open());
+    assert.equal(controller!.isOpen, true);
+    await React.act(async () => root.render(React.createElement(Harness, { sessionId: 'session-2' })));
+    assert.equal(controller!.isOpen, false);
+  } finally {
+    await React.act(async () => root.unmount());
+    previousFocus.remove();
+    host.remove();
+  }
+});
 
 // --- useInputHistory --------------------------------------------------------
 

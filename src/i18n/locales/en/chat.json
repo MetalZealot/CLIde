@@ -42,6 +42,18 @@
     "pattern": "pattern:",
     "in": "in:"
   },
+  "findInChat": {
+    "menuLabel": "Find in Chat",
+    "inputLabel": "Find in chat",
+    "placeholder": "Find in chat",
+    "close": "Close find in chat",
+    "clear": "Clear search",
+    "loading": "Loading…",
+    "resultCount": "{{current}} of {{total}}",
+    "retry": "Retry",
+    "next": "Next match",
+    "previous": "Previous match"
+  },
   "fileOperations": {
     "updated": "File updated successfully",
     "created": "File created successfully",

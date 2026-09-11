@@ -1194,6 +1194,35 @@
     animation: search-flash 4s ease-out;
   }
 
+  .chat-find-input::-webkit-search-cancel-button {
+    display: none;
+    appearance: none;
+  }
+
+  ::highlight(chat-find-match) {
+    background-color: hsl(var(--primary) / 0.28);
+  }
+
+  ::highlight(chat-find-current) {
+    background-color: hsl(var(--primary) / 0.5);
+    text-decoration: underline 2px currentColor;
+    text-underline-offset: 2px;
+  }
+
+  .chat-find-current-fallback {
+    outline: 3px solid hsl(var(--primary));
+    outline-offset: 4px;
+    border-radius: 8px;
+  }
+
+  @media (forced-colors: active) {
+    ::highlight(chat-find-match),
+    ::highlight(chat-find-current) {
+      background-color: Highlight;
+      color: HighlightText;
+    }
+  }
+
   @keyframes search-flash {
     0%, 50% {
       outline: 3px solid hsl(var(--primary));

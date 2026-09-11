@@ -13,6 +13,7 @@ import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
+import { useChatFind } from '../hooks/useChatFind';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 
@@ -23,6 +24,7 @@ import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
 import AsyncQuestionPanel from './subcomponents/AsyncQuestionPanel';
 import QueuedAsyncAnswersCard from './subcomponents/QueuedAsyncAnswersCard';
+import ChatFindBar from './subcomponents/ChatFindBar';
 
 /** How long the Stop button stays armed after the first Escape/tap before it resets. */
 const STOP_ARM_TIMEOUT_MS = 4000;
@@ -564,6 +566,20 @@ function ChatInterface({
   // be chosen while the chat is still brand new.
   const canSelectProvider = isNewSession;
 
+  const chatFind = useChatFind({
+    isVisible,
+    sessionId: selectedSession?.id ?? null,
+    chatMessages,
+    hasMoreMessages,
+    loadAllMessages,
+    scrollContainerRef,
+    messagesContentRef,
+  });
+  const chatFindHeader = useMemo(
+    () => (chatFind.isOpen ? <ChatFindBar controller={chatFind} /> : null),
+    [chatFind],
+  );
+
   const { dialogs: headerMenuDialogs } = useChatHeaderMenu({
     isVisible,
     projects,
@@ -574,6 +590,8 @@ function ChatInterface({
     hasMoreMessages,
     isLoadingAllMessages,
     loadAllMessages,
+    onOpenFind: chatFind.open,
+    findHeaderContent: chatFindHeader,
   });
 
   return (

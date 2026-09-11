@@ -34,6 +34,7 @@ import {
 
 import ActivityIndicator from './ActivityIndicator';
 import { ChatExportOptions } from './ChatExportMenu';
+import ChatFindBar from './ChatFindBar';
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
 import { ComposerAttachmentGallery } from './ComposerAttachment';
@@ -622,6 +623,43 @@ describe('chatSubcomponents', () => {
         await React.act(async () => root.unmount());
         container.remove();
       }
+    });
+  });
+
+  describe('find in chat', () => {
+    test('renders a labelled mobile-sized search field and named navigation controls', async () => {
+      const findI18n = i18next.createInstance();
+      await findI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
+      const markup = renderToStaticMarkup(
+        <I18nextProvider i18n={findI18n} defaultNS="chat">
+          <ChatFindBar controller={{
+            isOpen: true,
+            query: 'needle',
+            currentIndex: 0,
+            total: 2,
+            isPreparing: false,
+            loadFailed: false,
+            open: () => undefined,
+            close: () => undefined,
+            setQuery: () => undefined,
+            next: () => undefined,
+            previous: () => undefined,
+            retryLoad: () => undefined,
+          }} />
+        </I18nextProvider>,
+      );
+
+      assert.match(markup, /type="search"/);
+      assert.match(markup, /aria-label="Close find in chat"/);
+      assert.match(markup, /aria-label="Clear search"/);
+      assert.match(markup, /aria-label="Next match"/);
+      assert.match(markup, /aria-label="Previous match"/);
+      assert.match(markup, /chat-find-input/);
+      assert.doesNotMatch(markup, /bg-border\/70/);
+      assert.match(markup, /text-base[^\"]*md:text-sm/);
+      assert.match(markup, />1 of 2</);
+      assert.ok(markup.indexOf('1 of 2') < markup.indexOf('aria-label="Clear search"'));
+      assert.ok(markup.indexOf('aria-label="Clear search"') < markup.indexOf('aria-label="Next match"'));
     });
   });
 

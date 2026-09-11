@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Download, Pencil, Pin, Trash2 } from 'lucide-react';
+import { Archive, Download, Pencil, Pin, Search, Trash2 } from 'lucide-react';
 
 import { useRegisterHeaderMenu, type HeaderMenuItem, type HeaderMenuSection } from '../../../contexts/HeaderMenuContext';
 import type { Project, ProjectSession, SessionActions } from '../../../types/app';
@@ -20,6 +20,8 @@ type UseChatHeaderMenuArgs = {
   hasMoreMessages: boolean;
   isLoadingAllMessages: boolean;
   loadAllMessages: () => Promise<ChatMessage[] | null>;
+  onOpenFind: () => void;
+  findHeaderContent: ReactNode | null;
 };
 
 type SessionTarget = { sessionId: string; name: string };
@@ -35,6 +37,8 @@ export function useChatHeaderMenu({
   hasMoreMessages,
   isLoadingAllMessages,
   loadAllMessages,
+  onOpenFind,
+  findHeaderContent,
 }: UseChatHeaderMenuArgs) {
   const { t } = useTranslation('sidebar');
   const { t: tChat } = useTranslation('chat');
@@ -104,6 +108,14 @@ export function useChatHeaderMenu({
       },
       ...(chatMessages.length > 0
         ? [{
+            key: 'find',
+            label: tChat('findInChat.menuLabel', { defaultValue: 'Find in Chat' }),
+            icon: Search,
+            onSelect: onOpenFind,
+          }]
+        : []),
+      ...(chatMessages.length > 0
+        ? [{
             key: 'export',
             label: tChat('export.menuLabel', { defaultValue: 'Export…' }),
             icon: Download,
@@ -140,7 +152,11 @@ export function useChatHeaderMenu({
       },
     ];
 
-    return { items, sessionIds: { appId: sessionId, providerId: providerSessionId, provider } };
+    return {
+      items,
+      headerContent: findHeaderContent,
+      sessionIds: { appId: sessionId, providerId: providerSessionId, provider },
+    };
   }, [
     isVisible,
     removeSession,
@@ -154,6 +170,8 @@ export function useChatHeaderMenu({
     isLoadingAllMessages,
     loadAllMessages,
     exportInclude,
+    onOpenFind,
+    findHeaderContent,
     t,
     tChat,
   ]);

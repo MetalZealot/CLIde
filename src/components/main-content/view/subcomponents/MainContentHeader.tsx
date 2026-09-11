@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
+
 import type { MainContentHeaderProps } from '../../types/types';
+import { useHeaderMenuSection } from '../../../../contexts/HeaderMenuContext';
+
 import MobileMenuButton from './MobileMenuButton';
 import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';
@@ -16,6 +19,7 @@ export default function MainContentHeader({
   isMobile,
   onMenuClick,
 }: MainContentHeaderProps) {
+  const headerMenuSection = useHeaderMenuSection();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -38,43 +42,45 @@ export default function MainContentHeader({
 
   return (
     <div className="app-bar border-b border-border/60 bg-background px-3 sm:px-4">
-      <div className="flex w-full items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}
-          <MainContentTitle
-            activeTab={activeTab}
-            selectedProject={selectedProject}
-            selectedSession={selectedSession}
-            checkoutLabel={checkoutLabel}
-            shouldShowTasksTab={shouldShowTasksTab}
-          />
-        </div>
-
-        {/* Mobile switches views from the bottom bar instead. */}
-        {!isMobile && (
-          <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
-            {canScrollLeft && (
-              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
-            )}
-            <div
-              ref={scrollRef}
-              onScroll={updateScrollState}
-              className="scrollbar-hide overflow-x-auto"
-            >
-              <MainContentTabSwitcher
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                shouldShowTasksTab={shouldShowTasksTab}
-                shouldShowBrowserTab={shouldShowBrowserTab}
-              />
-            </div>
-            {canScrollRight && (
-              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
-            )}
+      {headerMenuSection?.headerContent ?? (
+        <div className="flex w-full items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}
+            <MainContentTitle
+              activeTab={activeTab}
+              selectedProject={selectedProject}
+              selectedSession={selectedSession}
+              checkoutLabel={checkoutLabel}
+              shouldShowTasksTab={shouldShowTasksTab}
+            />
           </div>
-        )}
-        <MainContentHeaderMenu />
-      </div>
+
+          {/* Mobile switches views from the bottom bar instead. */}
+          {!isMobile && (
+            <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
+              {canScrollLeft && (
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
+              )}
+              <div
+                ref={scrollRef}
+                onScroll={updateScrollState}
+                className="scrollbar-hide overflow-x-auto"
+              >
+                <MainContentTabSwitcher
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  shouldShowTasksTab={shouldShowTasksTab}
+                  shouldShowBrowserTab={shouldShowBrowserTab}
+                />
+              </div>
+              {canScrollRight && (
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
+              )}
+            </div>
+          )}
+          <MainContentHeaderMenu />
+        </div>
+      )}
     </div>
   );
 }
