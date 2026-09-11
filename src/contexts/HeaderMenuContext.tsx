@@ -20,6 +20,8 @@ export type HeaderMenuSection = {
   /** One line of view state shown above the actions, such as a connection. */
   status?: { text: string; isOk: boolean } | null;
   items: HeaderMenuItem[];
+  /** The open session's ids, copyable from the menu's foot. */
+  sessionIds?: { appId: string; providerId?: string | null; provider?: string | null } | null;
 };
 
 const SectionContext = createContext<HeaderMenuSection | null>(null);

@@ -16,6 +16,7 @@ import { QuestionAnswerContent } from '../../tools/components/ContentRenderers/Q
 import { adaptUserInputAnswers } from '../../tools/components/InteractiveRenderers/user-input-request.adapter';
 import { UserInputRequestPanel } from '../../tools/components/InteractiveRenderers/UserInputRequestPanel';
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
+import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import {
   DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
   DEFAULT_THINKING_MESSAGE_ORDER,
@@ -32,7 +33,7 @@ import {
 } from '../../../../hooks/useThinkingMessages';
 
 import ActivityIndicator from './ActivityIndicator';
-import ChatExportMenu from './ChatExportMenu';
+import { ChatExportOptions } from './ChatExportMenu';
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
 import { ComposerAttachmentGallery } from './ComposerAttachment';
@@ -494,7 +495,12 @@ describe('chatSubcomponents', () => {
     });
   });
 
-  describe('ChatExportMenu', () => {
+  describe('ChatExportOptions', () => {
+    function ExportOptionsHarness(props: Omit<React.ComponentProps<typeof ChatExportOptions>, 'include' | 'onIncludeChange' | 'onExported'>) {
+      const [include, setInclude] = React.useState(DEFAULT_CHAT_EXPORT_INCLUDE);
+      return <ChatExportOptions {...props} include={include} onIncludeChange={setInclude} onExported={() => undefined} />;
+    }
+
     test('enables results only with tool calls and loads complete history before export', async () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
@@ -510,7 +516,7 @@ describe('chatSubcomponents', () => {
       try {
         await React.act(async () => {
           root.render(
-            <ChatExportMenu
+            <ExportOptionsHarness
               messages={[{ type: 'assistant', content: 'Loaded page', timestamp: '2026-08-17T12:00:00.000Z' }]}
               sessionTitle="Export test"
               assistantLabel="Codex"
@@ -522,10 +528,6 @@ describe('chatSubcomponents', () => {
               }}
             />,
           );
-        });
-
-        await React.act(async () => {
-          container.querySelector<HTMLButtonElement>('button[aria-label="Export chat"]')?.click();
         });
 
         const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');

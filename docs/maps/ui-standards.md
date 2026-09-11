@@ -90,9 +90,9 @@ Overrulable; say so when citing one.
 - `--app-footer-height` is the shared bottom-bar height. The app shell pads the
   bottom safe-area inset, so the in-flow bar takes only that height; `.app-footer`,
   which adds the inset itself, is for bars outside the shell.
-- View actions live in the header kebab, never in the bar. The kebab appears only
-  on a view that registers actions; app-wide entries such as Settings stay in the
-  sidebar.
+- View actions live in the header kebab, never in the bar. The kebab appears, on
+  desktop and mobile, only on a view that registers actions; app-wide entries such
+  as Settings stay in the sidebar.
 - The bar hides while a software keyboard is open: a shrunken visual viewport with
   a text field focused, never focus alone.
 - The old four-icon SVG was an incomplete sketch, not a specification. Labels,

@@ -82,7 +82,7 @@ menu. All use `ContextMenuOverlay` (ADR 0009).
 
 | Menu | Opened from | Items |
 |---|---|---|
-| Session actions | Long-press, kebab, right-click | Pin · Rename · Copy session ID ‖ Select… ‖ Archive · Delete |
+| Session actions | Long-press, kebab, right-click | Pin · Rename ‖ Select… ‖ Archive · Delete — session ids are copied from the header kebab |
 | Repository actions | Long-press, kebab, right-click | New session ‖ Rename · Customize · Sort and filter sessions · Worktrees ‖ Archive · Delete |
 | Global view | Header Sort | Projects: sort by name or date · Sessions: sort by date, title, or project · Reset |
 | Repository session view | Repository actions, or the row's "Filtered" cue | Sort by date, title, or worktree — retap the active one to reverse it · filter by worktree · Reset |

@@ -73,7 +73,7 @@ export default function MainContentHeader({
             )}
           </div>
         )}
-        {isMobile && <MainContentHeaderMenu />}
+        <MainContentHeaderMenu />
       </div>
     </div>
   );

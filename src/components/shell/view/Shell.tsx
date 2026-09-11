@@ -254,6 +254,13 @@ export default function Shell({
           disabled: isRestarting || !isInitialized,
         },
       ],
+      sessionIds: selectedSession
+        ? {
+            appId: selectedSession.id,
+            providerId: selectedSession.providerSessionId,
+            provider: selectedSession.__provider ?? selectedSession.provider,
+          }
+        : null,
     };
   }, [
     minimal,

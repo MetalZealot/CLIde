@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Download, FileJson, FileText } from 'lucide-react';
+import { FileJson, FileText } from 'lucide-react';
 
 import type { ChatMessage } from '../../types/types';
 import {
   downloadMarkdown,
   downloadHTML,
   downloadPDF,
-  DEFAULT_CHAT_EXPORT_INCLUDE,
   EXPORT_FORMATS,
   type ChatExportInclude,
   type ExportOptions,
@@ -27,7 +26,7 @@ type ChatExportOptionsProps = ChatExportSource & {
   onExported: () => void;
 };
 
-// Touch-sized below md, where only the header menu offers export.
+// Touch-sized below md.
 const ROW_CLASS_NAME = 'flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm md:min-h-9';
 
 /** What to include and which format to write; shared by every place export is offered. */
@@ -153,44 +152,6 @@ export function ChatExportOptions({
       )}
       {exportError && (
         <div role="alert" className="px-3 py-2 text-xs text-red-600 dark:text-red-400">{exportError}</div>
-      )}
-    </div>
-  );
-}
-
-export default function ChatExportMenu(props: ChatExportSource) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [include, setInclude] = useState(DEFAULT_CHAT_EXPORT_INCLUDE);
-
-  if (props.messages.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        aria-label="Export chat"
-        title="Export chat"
-        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/50 text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
-      >
-        <Download className="h-4 w-4" />
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-border/50 bg-card shadow-lg">
-          <ChatExportOptions
-            {...props}
-            include={include}
-            onIncludeChange={setInclude}
-            onExported={() => setIsOpen(false)}
-          />
-        </div>
-      )}
-
-      {isOpen && (
-        <div className="fixed inset-0" onClick={() => setIsOpen(false)} />
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import { useHeaderMenuSection, type HeaderMenuItem } from '../../../../contexts/HeaderMenuContext';
+import { copyTextToClipboard } from '../../../../utils/clipboard';
 import { MENU_CLASS_NAME, MENU_ITEM_CLASS_NAME } from '../../constants/menu';
 import { useMenuButton } from '../../hooks/useMenuButton';
 
@@ -19,6 +20,41 @@ export default function MainContentHeaderMenu() {
   const firstEnabledIndex = items.findIndex((item) => !item.disabled);
   // Gone with the section that offered it, e.g. once another view is visible.
   const panelItem = panelKey ? items.find((item) => item.key === panelKey && item.renderPanel) : undefined;
+
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copiedTimerRef = useRef<number | null>(null);
+  const sessionIds = section?.sessionIds;
+  const providerLabel = sessionIds?.provider
+    ? t(`actions.providerNames.${sessionIds.provider}`, { ns: 'sidebar', defaultValue: sessionIds.provider })
+    : '';
+  // One entry when the provider's id is unknown or is the app id.
+  const sessionIdEntries = !sessionIds
+    ? []
+    : sessionIds.providerId && sessionIds.providerId !== sessionIds.appId
+      ? [
+          { label: 'CLIde', value: sessionIds.appId },
+          { label: providerLabel, value: sessionIds.providerId },
+        ]
+      : [{ label: sessionIds.providerId ? `CLIde · ${providerLabel}` : 'CLIde', value: sessionIds.appId }];
+
+  const copyId = (value: string) => {
+    void copyTextToClipboard(value).then((ok) => {
+      if (!ok) {
+        return;
+      }
+      setCopiedId(value);
+      if (copiedTimerRef.current !== null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+      copiedTimerRef.current = window.setTimeout(() => setCopiedId(null), 1500);
+    });
+  };
+
+  useEffect(() => () => {
+    if (copiedTimerRef.current !== null) {
+      window.clearTimeout(copiedTimerRef.current);
+    }
+  }, []);
 
   const run = (item: HeaderMenuItem) => {
     close();
@@ -88,7 +124,7 @@ export default function MainContentHeaderMenu() {
           ariaLabel={t('mainContent.moreOptions')}
           maxHeight={MENU_LIST_MAX_HEIGHT}
           className={MENU_CLASS_NAME}
-          measureKey={`${items.length}:${section?.status?.text ?? ''}`}
+          measureKey={`${items.length}:${section?.status?.text ?? ''}:${sessionIdEntries.length}`}
         >
           {section?.status && (
             <div
@@ -125,6 +161,32 @@ export default function MainContentHeaderMenu() {
               </Fragment>
             );
           })}
+
+          {sessionIdEntries.length > 0 && (
+            <>
+              <div role="separator" className="my-1 border-t border-border" />
+              {/* Zero intrinsic width: the actions set the menu's width and the ids truncate to it. */}
+              <div className="flex w-0 min-w-full">
+                {sessionIdEntries.map((entry) => (
+                  <button
+                    key={entry.label}
+                    type="button"
+                    role="menuitem"
+                    aria-label={t('mainContent.copySessionId', { label: entry.label })}
+                    onClick={() => copyId(entry.value)}
+                    className="flex min-h-11 min-w-0 flex-1 flex-col items-start justify-center px-3 py-1 text-left transition-colors hover:bg-accent active:bg-accent"
+                  >
+                    <span className="text-[11px] leading-4 text-muted-foreground">{entry.label}</span>
+                    {copiedId === entry.value ? (
+                      <span className="text-xs leading-4 text-foreground">{t('mainContent.sessionIdCopied')}</span>
+                    ) : (
+                      <span className="w-full truncate font-mono text-xs leading-4 text-foreground/80">{entry.value}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </ContextMenuOverlay>
       )}
 

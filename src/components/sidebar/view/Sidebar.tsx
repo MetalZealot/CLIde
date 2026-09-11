@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, ListChecks, ListFilter, MessageSquarePlus, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
+import { Archive, ListChecks, ListFilter, MessageSquarePlus, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -20,7 +20,6 @@ import type {
 import type { ContextMenuAnchor } from '../../../shared/view/ui';
 import { getSessionName } from '../utils/utils';
 import { readProjectAccentColor, type ProjectAccentColor } from '../utils/accentColors';
-import { copyTextToClipboard } from '../../../utils/clipboard';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
@@ -348,24 +347,6 @@ function Sidebar({
             setEditingSessionName(sessionName);
           },
         },
-        // PWA has no URL bar, so this is the only way to see or share an id.
-        // The provider's id is the one that names the transcript on disk, which
-        // is what this is reached for; the app id addresses nothing outside CLIde.
-        ...(session.providerSessionId
-          ? [{
-              key: 'copy-id',
-              label: t('actions.copyProviderSessionId', {
-                provider: t(`actions.providerNames.${session.provider}`, {
-                  defaultValue: session.provider ?? '',
-                }),
-                defaultValue: 'Copy {{provider}} session ID',
-              }),
-              icon: Copy,
-              onSelect: () => {
-                void copyTextToClipboard(session.providerSessionId as string);
-              },
-            }]
-          : []),
         // Opens with this row ticked, so one gesture selects rather than two.
         ...(contextMenu.selectionScope
           ? [{

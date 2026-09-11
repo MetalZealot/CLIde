@@ -90,7 +90,6 @@
     "rename": "Rename",
     "customize": "Customize",
     "open": "Open",
-    "copyProviderSessionId": "Copy {{provider}} session ID",
     "providerNames": {
       "claude": "Claude",
       "codex": "Codex",

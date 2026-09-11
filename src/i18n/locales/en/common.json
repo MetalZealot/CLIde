@@ -131,7 +131,9 @@
     "newSession": "New Session",
     "untitledSession": "Untitled Session",
     "projectFiles": "Project Files",
-    "moreOptions": "More options"
+    "moreOptions": "More options",
+    "copySessionId": "Copy {{label}} ID",
+    "sessionIdCopied": "Copied"
   },
   "fileTree": {
     "loading": "Loading files...",

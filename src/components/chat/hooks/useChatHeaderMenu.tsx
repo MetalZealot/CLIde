@@ -1,10 +1,9 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Copy, Download, Pencil, Pin, Trash2 } from 'lucide-react';
+import { Archive, Download, Pencil, Pin, Trash2 } from 'lucide-react';
 
 import { useRegisterHeaderMenu, type HeaderMenuItem, type HeaderMenuSection } from '../../../contexts/HeaderMenuContext';
 import type { Project, ProjectSession, SessionActions } from '../../../types/app';
-import { copyTextToClipboard } from '../../../utils/clipboard';
 import type { ChatMessage } from '../types/types';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../utils/chatExport';
 import { ChatExportOptions } from '../view/subcomponents/ChatExportMenu';
@@ -103,20 +102,6 @@ export function useChatHeaderMenu({
         icon: Pencil,
         onSelect: () => setRenameTarget({ sessionId, name }),
       },
-      // The provider's id names the transcript on disk; the app id addresses nothing outside CLIde.
-      ...(providerSessionId
-        ? [{
-            key: 'copy-id',
-            label: t('actions.copyProviderSessionId', {
-              provider: t(`actions.providerNames.${provider}`, { defaultValue: provider ?? '' }),
-              defaultValue: 'Copy {{provider}} session ID',
-            }),
-            icon: Copy,
-            onSelect: () => {
-              void copyTextToClipboard(providerSessionId);
-            },
-          }]
-        : []),
       ...(chatMessages.length > 0
         ? [{
             key: 'export',
@@ -155,7 +140,7 @@ export function useChatHeaderMenu({
       },
     ];
 
-    return { items };
+    return { items, sessionIds: { appId: sessionId, providerId: providerSessionId, provider } };
   }, [
     isVisible,
     removeSession,
