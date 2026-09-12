@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { ArrowDownIcon, XIcon } from 'lucide-react';
 
+import { ChatBrowserPreview, useChatBrowser } from '../../browser-use';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
@@ -57,6 +58,7 @@ function ChatInterface({
   onAdoptCheckout,
   sessionActions,
   isVisible,
+  onOpenBrowser,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
@@ -594,6 +596,8 @@ function ChatInterface({
     findHeaderContent: chatFindHeader,
   });
 
+  const browser = useChatBrowser(selectedSession?.id || currentSessionId || null, isVisible && Boolean(onOpenBrowser));
+
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full min-h-0 flex-col">
@@ -690,30 +694,44 @@ function ChatInterface({
             />
           )}
 
-          {asyncQuestions.queued.length > 0 && (
-            <div className="px-4 md:px-6">
-              <QueuedAsyncAnswersCard
-                answers={asyncQuestions.queued}
-                onRemove={asyncQuestions.removeQueued}
+          <div
+            className="overflow-y-auto overscroll-contain"
+            style={{ maxHeight: browser?.session ? 'calc((100dvh - var(--keyboard-height, 0px)) / 2)' : undefined }}
+          >
+            {browser?.session && onOpenBrowser && (
+              <ChatBrowserPreview
+                session={browser.session}
+                unavailable={browser.unavailable}
+                compact={Boolean(queuedDraft || asyncQuestions.pendingQuestion || asyncQuestions.queued.length || pendingPermissionRequests.length || pendingRewind)}
+                onOpen={onOpenBrowser}
               />
-            </div>
-          )}
+            )}
 
-          {asyncQuestions.pendingQuestion && (currentSessionId || selectedSession?.id) && (
-            <div className="px-4 md:px-6">
-              <AsyncQuestionPanel
-                key={`${currentSessionId || selectedSession?.id}:${asyncQuestions.pendingQuestion.id}`}
-                sessionId={(currentSessionId || selectedSession?.id)!}
-                question={asyncQuestions.pendingQuestion}
-                pendingCount={asyncQuestions.pendingCount}
-                isProcessing={isProcessing}
-                isSending={asyncQuestions.sendingQuestionId === asyncQuestions.pendingQuestion.id}
-                error={asyncQuestions.error}
-                onSubmit={(answer, delivery) =>
-                  asyncQuestions.submit(asyncQuestions.pendingQuestion!, answer, delivery)}
-              />
-            </div>
-          )}
+            {asyncQuestions.queued.length > 0 && (
+              <div className="px-4 md:px-6">
+                <QueuedAsyncAnswersCard
+                  answers={asyncQuestions.queued}
+                  onRemove={asyncQuestions.removeQueued}
+                />
+              </div>
+            )}
+
+            {asyncQuestions.pendingQuestion && (currentSessionId || selectedSession?.id) && (
+              <div className="px-4 md:px-6">
+                <AsyncQuestionPanel
+                  key={`${currentSessionId || selectedSession?.id}:${asyncQuestions.pendingQuestion.id}`}
+                  sessionId={(currentSessionId || selectedSession?.id)!}
+                  question={asyncQuestions.pendingQuestion}
+                  pendingCount={asyncQuestions.pendingCount}
+                  isProcessing={isProcessing}
+                  isSending={asyncQuestions.sendingQuestionId === asyncQuestions.pendingQuestion.id}
+                  error={asyncQuestions.error}
+                  onSubmit={(answer, delivery) =>
+                    asyncQuestions.submit(asyncQuestions.pendingQuestion!, answer, delivery)}
+                />
+              </div>
+            )}
+          </div>
 
           <ChatComposer
             disabled={!selectedProject}

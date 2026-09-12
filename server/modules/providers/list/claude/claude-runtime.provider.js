@@ -54,6 +54,8 @@ import {
 import { interactiveRequestRegistry } from '@/modules/providers/services/interactive-request-registry.service.js';
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 
+import { scopeClaudeChatBrowser } from '../../shared/mcp/chat-browser.js';
+
 const activeSessions = new Map();
 // Sessions cancelled via abort-session. The abort handler already sent the
 // terminal `complete` (aborted: true) to the client, so the run loop must not
@@ -694,7 +696,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
     const mcpServers = await loadMcpConfig(options.cwd);
     if (mcpServers) {
-      sdkOptions.mcpServers = mcpServers;
+      sdkOptions.mcpServers = scopeClaudeChatBrowser(mcpServers, sessionId);
     }
 
     // Turns with image attachments switch to streaming input so the images

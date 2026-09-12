@@ -1,8 +1,12 @@
 import { randomBytes } from 'node:crypto';
 
+import type { BrowserToolObservation } from '@/shared/types.js';
 import { appConfigDb } from '@/modules/database/index.js';
 import { providerMcpService } from '@/modules/providers/index.js';
 
+import type { BrowserSessionSummary } from '../../../shared/browser-use.js';
+
+import { selectMonitoredPage } from './browser-use-monitor.service.js';
 import {
   browserRuntime,
   normalizeViewportProfiles,
@@ -30,37 +34,11 @@ const BROWSER_USE_SETTINGS_KEY = 'browser_use_settings';
 const BROWSER_USE_MCP_TOKEN_KEY = 'browser_use_mcp_token';
 
 type BrowserUseRuntime = 'cloud' | 'local';
-export type BrowserUseSessionStatus = 'ready' | 'stopped' | 'unavailable';
 
-export type BrowserAgentAction = {
-  tool: string;
-  ok: boolean;
-  at: string;
-};
 
-export type BrowserUseSession = {
-  id: string;
+export type BrowserUseSession = BrowserSessionSummary & {
   ownerId: string;
-  createdBy: 'agent';
   runtime: BrowserUseRuntime;
-  status: BrowserUseSessionStatus;
-  url: string | null;
-  title: string | null;
-  screenshotDataUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-  lastAction: string | null;
-  message: string | null;
-  profileName: string | null;
-  device: BrowserDevicePreset;
-  // Bumped on every capture so the panel can poll metadata and fetch the image
-  // only when it actually changed.
-  screenshotVersion: number;
-  actions: BrowserAgentAction[];
-  viewport: {
-    width: number;
-    height: number;
-  } | null;
 };
 
 type PublicBrowserUseSession = Omit<BrowserUseSession, 'ownerId'>;
@@ -247,6 +225,8 @@ browserRuntime.onRelease((lease, reason) => {
     return;
   }
   session.status = 'stopped';
+  session.activeToolCount = 0;
+  monitoredPages.delete(lease.id);
   session.updatedAt = new Date().toISOString();
   session.lastAction = RELEASE_MESSAGES[reason].lastAction;
   session.message = RELEASE_MESSAGES[reason].message;
@@ -269,10 +249,13 @@ export function pruneStoppedSessions(
 }
 
 // Every leased context gets a panel row; the lease id is the row's id.
-function createSessionRecord(lease: BrowserContextLease): BrowserUseSession {
+function createSessionRecord(lease: BrowserContextLease, chatSessionId: string | null = null): BrowserUseSession {
   const createdAt = new Date(lease.createdAt).toISOString();
   const session: BrowserUseSession = {
     id: lease.id,
+    chatSessionId,
+    activeToolCount: 0,
+    pageAvailable: false,
     ownerId: AGENT_OWNER_ID,
     createdBy: 'agent',
     runtime: getRuntime(),
@@ -303,6 +286,10 @@ browserRuntime.onSwap((lease) => {
   }
   session.device = lease.device;
   session.viewport = { ...lease.viewport };
+  session.screenshotDataUrl = null;
+  session.screenshotVersion += 1;
+  session.pageAvailable = false;
+  monitoredPages.delete(lease.id);
   session.url = null;
   session.title = null;
   session.lastAction = `device:${lease.device}`;
@@ -319,29 +306,19 @@ function readOrientation(value: unknown): BrowserOrientation | null {
 }
 
 async function captureSession(session: BrowserUseSession, page: any): Promise<void> {
+  const version = session.screenshotVersion;
   const screenshot = await page.screenshot({ type: 'jpeg', quality: 72, fullPage: false });
+  const title = await page.title().catch(() => null);
+  if (session.status !== 'ready' || monitoredPages.get(session.id) !== page || session.screenshotVersion !== version) return;
   session.screenshotDataUrl = `data:image/jpeg;base64,${Buffer.from(screenshot).toString('base64')}`;
   session.screenshotVersion += 1;
-  session.title = await page.title().catch(() => null);
+  session.title = title;
   session.url = page.url() || session.url;
   session.viewport = page.viewportSize?.() || session.viewport;
   session.updatedAt = new Date().toISOString();
 }
 
-// Playwright MCP owns the pages, so the panel reads whichever one the agent is
-// most likely looking at: the newest page that has actually navigated.
-function monitoredPage(context: any): any {
-  const pages: any[] = context?.pages?.() || [];
-  if (pages.length === 0) {
-    return null;
-  }
-  const loaded = pages.filter((page) => {
-    const url = typeof page?.url === 'function' ? page.url() : '';
-    return url && url !== 'about:blank';
-  });
-  const candidates = loaded.length > 0 ? loaded : pages;
-  return candidates[candidates.length - 1];
-}
+const monitoredPages = new Map<string, any>();
 
 const captureTimers = new Map<string, NodeJS.Timeout>();
 
@@ -351,7 +328,7 @@ async function captureFromLease(sessionId: string): Promise<void> {
   if (!session || !lease || session.status !== 'ready') {
     return;
   }
-  const page = monitoredPage(lease.context);
+  const page = monitoredPages.get(sessionId);
   if (!page) {
     return;
   }
@@ -501,9 +478,10 @@ export const browserUseService = {
     };
   },
 
-  async listSessions(options: { view?: 'summary' } = {}) {
+  async listSessions(options: { view?: 'summary'; chatSessionId?: string } = {}) {
     await browserRuntime.expireIdle();
-    const visible = [...sessions.values()].filter((session) => session.ownerId === AGENT_OWNER_ID);
+    const visible = [...sessions.values()].filter((session) => session.ownerId === AGENT_OWNER_ID
+      && (!options.chatSessionId || session.chatSessionId === options.chatSessionId));
     // The summary view is what the panel polls, so it carries no image bytes;
     // screenshotVersion tells it when to fetch one.
     return options.view === 'summary'
@@ -527,6 +505,7 @@ export const browserUseService = {
     orientation?: unknown;
     profileName?: string | null;
     id?: string;
+    chatSessionId?: string | null;
   } = {}): Promise<BrowserContextLease> {
     const settings = readSettings();
     if (!settings.enabled) {
@@ -544,14 +523,24 @@ export const browserUseService = {
       device: readDevice(request.device),
       orientation: readOrientation(request.orientation),
     });
-    createSessionRecord(lease);
+    createSessionRecord(lease, request.chatSessionId);
     return lease;
   },
 
   // Called at the MCP transport boundary for every tool call that reaches
   // Playwright MCP, so the panel reflects agent work without the agent
   // reporting it.
-  recordAgentAction(sessionId: string, action: { tool: string; ok: boolean }) {
+  setAgentActivity(sessionId: string, count: number) {
+    const session = sessions.get(sessionId);
+    if (!session || !browserRuntime.getLease(sessionId)) return;
+    session.activeToolCount = Math.max(0, count);
+    if (count > 0) {
+      session.status = 'ready';
+      session.updatedAt = new Date().toISOString();
+    }
+  },
+
+  recordAgentAction(sessionId: string, action: BrowserToolObservation) {
     const session = sessions.get(sessionId);
     if (!session) {
       return;
@@ -560,7 +549,31 @@ export const browserUseService = {
     session.actions = [...session.actions, { tool: action.tool, ok: action.ok, at }].slice(-MAX_RECORDED_ACTIONS);
     session.lastAction = action.tool;
     session.updatedAt = at;
-    scheduleCapture(sessionId);
+    const lease = browserRuntime.getLease(sessionId);
+    if (!lease) return;
+    const previous = monitoredPages.get(sessionId);
+    const page = selectMonitoredPage(lease.context, previous, action);
+    session.pageAvailable = Boolean(page);
+    if (page !== previous || (page && page.url() !== session.url)) {
+      session.screenshotDataUrl = null;
+      session.screenshotVersion += 1;
+    }
+    if (page) {
+      monitoredPages.set(sessionId, page);
+      session.url = page.url();
+      if (page !== previous) session.title = null;
+      scheduleCapture(sessionId);
+    } else {
+      monitoredPages.delete(sessionId);
+      session.url = null;
+      session.title = null;
+      session.screenshotDataUrl = null;
+    }
+    if (action.ok && (action.tool === 'browser_close' || (action.tool === 'browser_tabs' && action.noOpenTabs))) {
+      session.status = 'stopped';
+    }
+    session.device = lease.device;
+    session.viewport = { ...lease.viewport };
   },
 
   async stopSession(sessionId: string) {
@@ -580,6 +593,7 @@ export const browserUseService = {
     }
 
     await browserRuntime.releaseContext(sessionId);
+    monitoredPages.delete(sessionId);
     sessions.delete(sessionId);
     return { deleted: true, sessionId };
   },

@@ -7,7 +7,7 @@ CLIde or its provider runtimes change.
 
 | Document | Role | Status |
 |---|---|---|
-| [Orientation](orientation.md) | Plain-language map of CLIde's ten governing assumptions, written for Grayson rather than for an agent | Updated 2026-09-10 with contextual UI target sizing |
+| [Orientation](orientation.md) | Plain-language map of CLIde's governing assumptions, written for Grayson rather than for an agent | Covers contextual UI target sizing and chat browser ownership |
 | [Upstream sync](upstream-sync.md) | How this fork takes work from `siteboon/claudecodeui`, what has been refused, and the release ledger | Written 2026-09-08 for the v1.37.3 span |
 | [Code anchors](code-anchors.md) | Symbol-anchored map of the code worth not blind-reading; the areas where a wrong assumption is expensive | Moved out of the local `CLAUDE.md` 2026-08-04 |
 | [Test suite](test-suite.md) | What the suites own, their measured cost, and what they cannot establish | Measured 2026-08-15 after consolidation to 82 files |
@@ -21,6 +21,7 @@ CLIde or its provider runtimes change.
 | [Claude upgrade ledger](claude-upgrade-ledger.md) | Compact audit decisions and verification history | Current through SDK 0.3.258 / runtime 2.1.258, 2026-09-01 |
 | [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Pin, protocol, model rows, and dispositions current at 0.153.4, 2026-09-07 |
 | [Codex upgrade ledger](codex-upgrade-ledger.md) | Compact release decisions and verification history | Current through 0.153.4, 2026-09-07 |
+| [Chat browser activity](chat-browser-activity.md) | Chat-to-browser association, activity states, preview selection, and provider coverage | Ordinary Browser request accepted on the preview; dense phone acceptance pending |
 | [Tool activity stream](tool-activity-stream.md) | What each provider reports about its own tool calls, what CLIde drops, and the measured shape of a real transcript | Measured 2026-08-23; Cursor/OpenCode rows are source inspection only |
 | [Codex integration conformance](codex-integration-conformance.md) | Executable cross-layer regression matrix and live acceptance rows | Automated gate and full isolated live matrix passed at 0.153.4, 2026-09-08 |
 

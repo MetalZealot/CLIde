@@ -6,6 +6,9 @@ import path from 'node:path';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
+import type { BrowserToolObservation } from '@/shared/types.js';
+
+import { observeBrowserResult } from './browser-use-monitor.service.js';
 import {
   browserRuntime,
   type BrowserContextLease,
@@ -108,6 +111,7 @@ type McpServerConnection = {
 };
 
 export type BrowserMcpContextRequest = {
+  chatSessionId?: string | null;
   device?: string | null;
   orientation?: string | null;
   profileName?: string | null;
@@ -116,7 +120,8 @@ export type BrowserMcpContextRequest = {
 
 type BrowserMcpEndpointOptions = {
   runtime?: BrowserRuntime;
-  recordAction?: (sessionId: string, action: { tool: string; ok: boolean }) => void;
+  recordAction?: (sessionId: string, action: BrowserToolObservation) => void;
+  recordActivity?: (sessionId: string, count: number) => void;
   openContext?: (request: BrowserMcpContextRequest) => Promise<BrowserContextLease>;
   createConnection?: (
     getContext: () => Promise<any>,
@@ -328,7 +333,8 @@ function guardTransport(
   inner: any,
   outputDir: string,
   handleDeviceTool: (args: JsonRpcMessage) => Promise<JsonRpcMessage>,
-  onToolCompleted: (tool: string, ok: boolean) => void,
+  onToolCompleted: (observation: BrowserToolObservation) => void,
+  onToolStarted: () => void,
 ) {
   const pendingTools = new Map<string | number, string>();
 
@@ -357,11 +363,12 @@ function guardTransport(
         };
       }
       const toolName = outgoing?.id === undefined ? undefined : pendingTools.get(outgoing.id);
-      if (!toolName || !outgoing?.result) {
+      if (!toolName || (!outgoing?.result && !outgoing?.error)) {
         return inner.send(outgoing, options);
       }
       pendingTools.delete(outgoing.id);
-      onToolCompleted(toolName, outgoing.result.isError !== true);
+      onToolCompleted(observeBrowserResult(toolName, !outgoing.error && outgoing.result?.isError !== true, outgoing.result));
+      if (outgoing.error) return inner.send(outgoing, options);
       const pending = outgoing;
       return (async () => {
         const { result, carriedSnapshot } = await inlineSnapshotFile(pending.result, outputDir);
@@ -373,6 +380,14 @@ function guardTransport(
 
   inner.onmessage = (incoming: JsonRpcMessage, extra?: unknown) => {
     let message = incoming;
+    if (message?.method === 'notifications/cancelled') {
+      const requestId = message.params?.requestId;
+      const cancelledTool = pendingTools.get(requestId);
+      if (cancelledTool) {
+        pendingTools.delete(requestId);
+        onToolCompleted({ tool: cancelledTool, ok: false });
+      }
+    }
     const toolName = message?.method === 'tools/call' ? String(message?.params?.name || '') : '';
     if (toolName && message?.params?.arguments && AGENT_FILENAME_ARG in message.params.arguments) {
       const { [AGENT_FILENAME_ARG]: _dropped, ...kept } = message.params.arguments;
@@ -386,17 +401,21 @@ function guardTransport(
       });
       return;
     }
+    if (toolName) onToolStarted();
     if (toolName === DEVICE_TOOL.name) {
       void handleDeviceTool(message?.params?.arguments || {})
         .then((result) => {
-          onToolCompleted(toolName, true);
+          onToolCompleted({ tool: toolName, ok: true, noOpenTabs: true });
           return inner.send({ jsonrpc: '2.0', id: message.id, result });
         })
-        .catch((error: Error) => inner.send({
-          jsonrpc: '2.0',
-          id: message.id,
-          result: toolResult(error?.message || 'Failed to switch device.', true),
-        }));
+        .catch((error: Error) => {
+          onToolCompleted({ tool: toolName, ok: false });
+          return inner.send({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: toolResult(error?.message || 'Failed to switch device.', true),
+          });
+        });
       return;
     }
     if (toolName) {
@@ -416,7 +435,9 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
   const createConnection = options.createConnection || createPlaywrightMcpConnection;
   const outputRoot = options.outputRoot || OUTPUT_ROOT;
   const recordAction = options.recordAction
-    || ((sessionId: string, action: { tool: string; ok: boolean }) => browserUseService.recordAgentAction(sessionId, action));
+    || ((sessionId: string, action: BrowserToolObservation) => browserUseService.recordAgentAction(sessionId, action));
+  const recordActivity = options.recordActivity
+    || ((sessionId: string, count: number) => browserUseService.setAgentActivity(sessionId, count));
   const transports = new Map<string, { transport: any; connection: McpServerConnection; lastUsedAt: number }>();
 
   // A session's directory is removed when its transport closes, so anything
@@ -461,8 +482,10 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
 
   async function openSession(req: any, res: any): Promise<void> {
     const sessionId = randomUUID();
+    let activeToolCount = 0;
     const request: BrowserMcpContextRequest = {
       id: sessionId,
+      chatSessionId: readQuery(req.query?.chatSessionId),
       device: readQuery(req.query?.device),
       orientation: readQuery(req.query?.orientation),
       profileName: readQuery(req.query?.profile),
@@ -476,7 +499,9 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
       }
       opening = opening || openContext(request);
       try {
-        return await opening;
+        const lease = await opening;
+        recordActivity(sessionId, activeToolCount);
+        return lease;
       } finally {
         opening = null;
       }
@@ -506,7 +531,14 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
           viewport: swapped.viewport,
           note: 'Open pages were replaced. Navigate again.',
         }));
-      }, (tool, ok) => recordAction(sessionId, { tool, ok }));
+      }, (observation) => {
+        activeToolCount = Math.max(0, activeToolCount - 1);
+        recordActivity(sessionId, activeToolCount);
+        recordAction(sessionId, observation);
+      }, () => {
+        activeToolCount += 1;
+        recordActivity(sessionId, activeToolCount);
+      });
       await connection.connect(guarded);
       transports.set(sessionId, { transport, connection, lastUsedAt: Date.now() });
     } catch (error) {

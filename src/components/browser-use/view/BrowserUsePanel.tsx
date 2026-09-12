@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 
+import type { BrowserSessionSummary } from '../../../../shared/browser-use';
 import { cn } from '../../../lib/utils';
 import { Badge, Button, Dialog, DialogContent, DialogTitle } from '../../../shared/view/ui';
 import ContextMenuOverlay, { anchorFromElement, type ContextMenuAnchor } from '../../../shared/view/ui/ContextMenuOverlay';
@@ -33,35 +34,12 @@ type BrowserUseStatus = {
   message: string;
 };
 
-type BrowserAgentAction = {
-  tool: string;
-  ok: boolean;
-  at: string;
-};
 
-type BrowserUseSession = {
-  id: string;
-  status: 'ready' | 'stopped' | 'unavailable';
-  url: string | null;
-  title: string | null;
-  screenshotDataUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-  lastAction: string | null;
-  message: string | null;
-  createdBy: 'agent';
-  profileName: string | null;
-  device: 'desktop' | 'phone' | 'tablet';
-  screenshotVersion: number;
-  actions: BrowserAgentAction[];
-  viewport: {
-    width: number;
-    height: number;
-  } | null;
-};
+type BrowserUseSession = BrowserSessionSummary;
 
 type BrowserUsePanelProps = {
   isVisible: boolean;
+  initialSessionId?: string | null;
   onShowSettings?: (tab?: string) => void;
 };
 
@@ -216,10 +194,10 @@ const CAPTURE_ZOOM_CLASSES: Record<CaptureZoom, string> = {
   actual: 'max-w-none',
 };
 
-export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUsePanelProps) {
+export default function BrowserUsePanel({ isVisible, initialSessionId, onShowSettings }: BrowserUsePanelProps) {
   const [status, setStatus] = useState<BrowserUseStatus | null>(null);
   const [sessions, setSessions] = useState<BrowserUseSession[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialSessionId ?? null);
   const [isBusy, setIsBusy] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -232,7 +210,9 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
   sessionsRef.current = sessions;
 
   const selectedSession = useMemo(
-    () => sessions.find((session) => session.id === selectedSessionId) || sessions[0] || null,
+    () => selectedSessionId
+      ? sessions.find((session) => session.id === selectedSessionId) || null
+      : sessions[0] || null,
     [selectedSessionId, sessions],
   );
 
@@ -258,7 +238,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
       setStatus(statusData.data);
       setSessions(nextSessions);
       setSelectedSessionId((current) => (
-        current && nextSessions.some((session) => session.id === current)
+        current && (current === initialSessionId || nextSessions.some((session) => session.id === current))
           ? current
           : nextSessions[0]?.id || null
       ));
@@ -266,7 +246,7 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load Browser. Check that it is enabled in settings, then refresh.');
     }
-  }, []);
+  }, [initialSessionId]);
 
   const pollSummary = useCallback(async () => {
     const response = await authenticatedFetch('/api/browser-use/sessions?view=summary');
@@ -509,8 +489,8 @@ export default function BrowserUsePanel({ isVisible, onShowSettings }: BrowserUs
     ) : (
       <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
         <MonitorPlay className="h-9 w-9 text-neutral-500" />
-        <div className="mt-3 text-sm font-medium text-neutral-100">{selectedSession?.message || 'Waiting for screenshot'}</div>
-        <p className="mt-1 text-xs text-neutral-400">The next agent browser snapshot renders here.</p>
+        <div className="mt-3 text-sm font-medium text-neutral-100">{selectedSession?.message || (selectedSessionId ? 'This browser session is no longer available.' : 'Waiting for screenshot')}</div>
+        <p className="mt-1 text-xs text-neutral-400">{!selectedSession && selectedSessionId ? 'Select another session from the list.' : 'The next agent browser snapshot renders here.'}</p>
       </div>
     )
   );

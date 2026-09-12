@@ -28,6 +28,9 @@ import {
   type BrowserViewportProfiles,
 } from '@/modules/browser-use/browser-use-runtime.service.js';
 
+import type { BrowserMcpContextRequest } from '../browser-use-mcp-endpoint.service.js';
+import { observeBrowserResult, selectMonitoredPage } from '../browser-use-monitor.service.js';
+
 let contextSeq = 0;
 
 function makeFakePlaywright() {
@@ -385,6 +388,8 @@ describe('browser-use-mcp endpoint', () => {
   // and close run through SDK code without launching a browser.
   async function startEndpoint(overrides: {
     maxSessions?: number;
+    onOpenContext?: (request: BrowserMcpContextRequest) => void;
+    recordActivity?: (sessionId: string, count: number) => void;
     recordAction?: (sessionId: string, action: { tool: string; ok: boolean }) => void;
   } = {}): Promise<EndpointHarness> {
     const { runtime } = makeRuntime({ maxSessions: overrides.maxSessions ?? 3 });
@@ -398,12 +403,16 @@ describe('browser-use-mcp endpoint', () => {
     const endpoint = createBrowserMcpEndpoint({
       runtime,
       recordAction: overrides.recordAction,
-      openContext: (request) => runtime.acquireContext({
+      recordActivity: overrides.recordActivity,
+      openContext: (request) => {
+        overrides.onOpenContext?.(request);
+        return runtime.acquireContext({
         id: request.id,
         profileName: request.profileName,
         device: request.device as 'desktop' | 'phone' | 'tablet' | null,
         orientation: request.orientation as 'portrait' | 'landscape' | null,
-      }),
+        });
+      },
       outputRoot,
       createConnection: async (
         getContext: () => Promise<{ contextId: string }>,
@@ -802,9 +811,36 @@ describe('browser-use-mcp endpoint', () => {
 
       assert.deepEqual(recorded, [
         { sessionId, tool: 'browser_navigate', ok: true },
-        { sessionId, tool: 'browser_use_device', ok: true },
+        { sessionId, tool: 'browser_use_device', ok: true, noOpenTabs: true },
         { sessionId, tool: 'browser_fails', ok: false },
       ]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('chat identity is fixed at initialize and activity is isolated per connection', async () => {
+    const opened: BrowserMcpContextRequest[] = [];
+    const activity: Array<[string, number]> = [];
+    const harness = await startEndpoint({
+      onOpenContext: (request) => opened.push(request),
+      recordActivity: (id, count) => activity.push([id, count]),
+    });
+    try {
+      const first = await initialize(harness, '?chatSessionId=app-chat-a');
+      const second = await initialize(harness, '?chatSessionId=app-chat-b');
+      assert.equal(opened.length, 0);
+      await callTool(harness, first.sessionId, 2, 'browser_navigate');
+      await callTool(harness, second.sessionId, 2, 'browser_navigate');
+      assert.deepEqual(opened.map(({ id, chatSessionId }) => [id, chatSessionId]), [
+        [first.sessionId, 'app-chat-a'], [second.sessionId, 'app-chat-b'],
+      ]);
+      assert.notEqual(first.sessionId, 'app-chat-a');
+      assert.deepEqual(activity.filter(([id]) => id === first.sessionId).map(([, count]) => count), [1, 1, 0]);
+      await callTool(harness, first.sessionId, 3, 'browser_fails');
+      assert.deepEqual(activity.slice(-2), [[first.sessionId, 1], [first.sessionId, 0]]);
+      await callTool(harness, first.sessionId, 4, 'browser_use_device', { device: 'invalid' });
+      assert.equal(activity.at(-1)?.[1], 0);
     } finally {
       await harness.close();
     }
@@ -835,5 +871,38 @@ describe('browser-use-mcp endpoint', () => {
     } finally {
       await harness.close();
     }
+  });
+});
+
+
+describe('browser monitor page selection', () => {
+  test('the reported current tab wins over the newest page, including duplicate URLs', () => {
+    const first = { url: () => 'https://example.com/' };
+    const second = { url: () => 'https://example.com/' };
+    const context = { pages: () => [first, second] };
+    const observation = observeBrowserResult('browser_tabs', true, { content: [{
+      type: 'text', text: '### Open tabs\n- 0: (current) [First](https://example.com/)\n- 1: [Second](https://example.com/)\n### Page\n- Page URL: https://example.com/\n### Snapshot\n- Page URL: https://wrong.example/',
+    }] });
+    assert.equal(observation.pageIndex, 0);
+    assert.equal(observation.pageUrl, 'https://example.com/');
+    assert.equal(selectMonitoredPage(context, second, observation), first);
+    assert.equal(selectMonitoredPage(context, null, { tool: 'browser_snapshot', ok: true }), null);
+    assert.equal(selectMonitoredPage(context, first, { tool: 'browser_click', ok: true }), first);
+    assert.equal(selectMonitoredPage(context, first, { tool: 'browser_close', ok: true, noOpenTabs: true }), null);
+  });
+
+  test('the tab tool reports its current tab in Result, without an Open tabs section', () => {
+    const result = { content: [{ type: 'text', text: '### Result\n- 0: (current) [first](http://localhost/page/first)\n- 1: [newer](http://localhost/page/newer)' }] };
+    assert.equal(observeBrowserResult('browser_tabs', true, result).pageIndex, 0);
+    assert.equal(observeBrowserResult('browser_evaluate', true, result).pageIndex, undefined);
+  });
+
+  test('page URL locates an older tab and a closed page cannot remain the preview', () => {
+    const older = { url: () => 'https://older.example/' };
+    const newer = { url: () => 'https://newer.example/' };
+    assert.equal(selectMonitoredPage({ pages: () => [older, newer] }, null, {
+      tool: 'browser_navigate', ok: true, pageUrl: older.url(),
+    }), older);
+    assert.equal(selectMonitoredPage({ pages: () => [] }, older, { tool: 'browser_tabs', ok: true }), null);
   });
 });

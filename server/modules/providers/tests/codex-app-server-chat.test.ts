@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import test, { afterEach } from 'node:test';
+import test, { afterEach, beforeEach } from 'node:test';
 
 import {
   CodexAppServerChatTransport,
@@ -16,6 +16,7 @@ import {
   markCodexAppServerStartupFallback,
   resetCodexChatTransportStateForTests,
 } from '@/modules/providers/list/codex/codex-chat-transport-state.js';
+import { CodexMcpProvider } from '@/modules/providers/list/codex/codex-mcp.provider.js';
 import { interactiveRequestRegistry } from '@/modules/providers/services/interactive-request-registry.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
@@ -34,8 +35,14 @@ type Writer = {
 
 const transports: CodexAppServerChatTransport[] = [];
 const originalResolveResumeModel = providerModelsService.resolveResumeModel;
+const originalListMcpServers = CodexMcpProvider.prototype.listServers;
+
+beforeEach(() => {
+  CodexMcpProvider.prototype.listServers = async () => ({ user: [], project: [], local: [] });
+});
 
 afterEach(() => {
+  CodexMcpProvider.prototype.listServers = originalListMcpServers;
   interactiveRequestRegistry.clearForTests();
   for (const transport of transports.splice(0)) {
     transport.closeForTests();
@@ -185,6 +192,39 @@ const codexPackageVersion = (specifier: string): string => {
 const INSTALLED_CODEX_SDK_VERSION = codexPackageVersion('codex-sdk');
 const INSTALLED_CODEX_CLI_VERSION = codexPackageVersion('codex');
 
+test('Browser guidance reaches new, resumed, and forked Codex chats without replacing configured instructions', async () => {
+  const fake = await createFakeServer(BASIC_SERVER.replace(
+    "} else if (message.method === 'thread/start' || message.method === 'thread/resume') {",
+    "} else if (message.method === 'config/read') { send({ id: message.id, result: { config: { developer_instructions: 'Keep existing guidance.' } } }); } else if (['thread/start', 'thread/resume', 'thread/fork'].includes(message.method)) {",
+  ));
+  const originalList = CodexMcpProvider.prototype.listServers;
+  CodexMcpProvider.prototype.listServers = async () => ({
+    user: [{ provider: 'codex', name: 'cloudcli-browser', scope: 'user', transport: 'http', url: 'http://127.0.0.1:3003/api/browser-use-mcp/mcp' }],
+    project: [], local: [],
+  });
+  const transport = new CodexAppServerChatTransport({ command: fake.command });
+  transports.push(transport);
+  providerModelsService.resolveResumeModel = async () => 'gpt-test';
+  try {
+    for (const extra of [{}, { providerSessionId: 'native-thread' }, { providerSessionId: 'native-thread', rewindToMessageId: 'old-turn' }]) {
+      const writer = createWriter();
+      await transport.query('Open example.com in Browser', { cwd: fake.root, sessionId: 'app-chat', model: 'gpt-test', ...extra }, writer);
+      const message = writer.messages.find((item) => item.kind === 'text' && String(item.content).startsWith('CAPTURE:'));
+      assert.ok(message);
+      const capture = JSON.parse(String(message.content).slice(8));
+      assert.match(capture.thread.params.developerInstructions || '', /^Keep existing guidance\./);
+      assert.match(capture.thread.params.developerInstructions, /cloudcli-browser/);
+      assert.match(capture.thread.params.developerInstructions, /tool registry/);
+      assert.match(capture.thread.params.config['mcp_servers.cloudcli-browser.url'], /chatSessionId=app-chat/);
+      assert.equal(capture.turn.input[0].text, 'Open example.com in Browser');
+      assert.equal(capture.turn.collaborationMode.settings.developer_instructions, null);
+    }
+  } finally {
+    CodexMcpProvider.prototype.listServers = originalList;
+    await fake.cleanup();
+  }
+});
+
 test('App Server initializes before work and maps new/resumed turns, Plan, inputs, items, and usage', async () => {
   const fake = await createFakeServer(BASIC_SERVER);
   const imagePath = path.join(fake.root, 'image.png');
@@ -219,6 +259,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     const firstCapture = JSON.parse(String(firstCaptureMessage.content).slice(8));
     assert.equal(firstCapture.thread.method, 'thread/start');
     assert.equal(firstCapture.thread.params.model, 'gpt-test');
+    assert.equal(firstCapture.thread.params.developerInstructions, undefined);
     assert.equal(firstCapture.thread.params.approvalPolicy, 'never');
     assert.equal(firstCapture.turn.approvalPolicy, 'never');
     assert.deepEqual(firstCapture.turn.input, [

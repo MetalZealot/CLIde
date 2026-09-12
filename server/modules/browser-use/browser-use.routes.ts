@@ -72,7 +72,10 @@ router.post('/runtime/install', async (_req, res) => {
 router.get('/sessions', async (req, res) => {
   try {
     const view = req.query.view === 'summary' ? 'summary' as const : undefined;
-    res.json({ success: true, data: { sessions: await browserUseService.listSessions({ view }) } });
+    res.json({ success: true, data: { sessions: await browserUseService.listSessions({
+      view,
+      chatSessionId: typeof req.query.chatSessionId === 'string' ? req.query.chatSessionId : undefined,
+    }) } });
   } catch (error) {
     res.status(401).json({
       success: false,

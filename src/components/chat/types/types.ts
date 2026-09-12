@@ -200,6 +200,7 @@ export interface ChatInterfaceProps {
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
   sessionActions: SessionActions;
+  onOpenBrowser?: (browserSessionId: string) => void;
   /** Whether Chat is the visible view; it stays mounted while hidden. */
   isVisible: boolean;
 }

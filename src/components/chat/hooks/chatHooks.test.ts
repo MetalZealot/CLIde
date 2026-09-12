@@ -6,6 +6,7 @@ import test from 'node:test';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { useChatBrowser } from '../../browser-use/useChatBrowser';
 import { useAsyncAnswerQueueAutoSend } from '../../../hooks/useAsyncAnswerQueueAutoSend';
 import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSend';
 import type { ServerEvent } from '../../../contexts/WebSocketContext';
@@ -906,4 +907,42 @@ test('an ordinary tool call is not a subagent container', () => {
     transcriptRow({ id: 'tu3', kind: 'tool_use', toolId: 't3', toolName: 'Read', toolInput: {} }),
   ]);
   assert.equal(messages[0].isSubagentContainer, false);
+});
+
+
+test('browser polling cannot carry another chat into the preview and stops while hidden', async (t) => {
+  const descriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+  Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+  const requests: Array<{ url: string; signal?: AbortSignal; resolve: (response: Response) => void }> = [];
+  t.mock.method(globalThis, 'fetch', (url: string, options: RequestInit) => new Promise<Response>((resolve) => {
+    requests.push({ url, signal: options.signal ?? undefined, resolve });
+  }));
+  let current: ReturnType<typeof useChatBrowser> = null;
+  function Probe({ id, visible }: { id: string; visible: boolean }) {
+    current = useChatBrowser(id, visible);
+    return null;
+  }
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const reply = (chatSessionId: string, id: string) => new Response(JSON.stringify({
+    success: true, data: { sessions: [{ chatSessionId, id, screenshotVersion: 0, updatedAt: '2026-09-11T12:00:00Z' }] },
+  }), { status: 200 });
+  try {
+    await React.act(async () => root.render(React.createElement(Probe, { id: 'chat-a', visible: true })));
+    assert.match(requests[0].url, /chatSessionId=chat-a/);
+    await React.act(async () => root.render(React.createElement(Probe, { id: 'chat-b', visible: true })));
+    assert.equal(requests[0].signal?.aborted, true);
+    assert.equal(current, null);
+    await React.act(async () => { requests[1].resolve(reply('chat-b', 'browser-b')); });
+    assert.equal((current as ReturnType<typeof useChatBrowser>)?.session?.id, 'browser-b');
+    await React.act(async () => { requests[0].resolve(reply('chat-a', 'browser-a')); });
+    assert.equal((current as ReturnType<typeof useChatBrowser>)?.session?.id, 'browser-b');
+    await React.act(async () => root.render(React.createElement(Probe, { id: 'chat-b', visible: false })));
+    assert.equal(requests[1].signal?.aborted, true);
+    assert.equal(requests.length, 2);
+  } finally {
+    await React.act(async () => root.unmount());
+    if (descriptor) Object.defineProperty(document, 'hidden', descriptor);
+    else Reflect.deleteProperty(document, 'hidden');
+  }
 });

@@ -149,6 +149,19 @@ Use a larger invisible hit area when it helps without overlapping nearby actions
 unrelated to the rest of CLIde, then forces repeated visual corrections after the
 accessibility work was already technically complete.
 
+## 11. A browser window belongs to the chat that opened it
+
+Several chats can browse at once, and a browser can stay open while its agent is idle.
+
+**The rule:** the Chat preview opens only a browser explicitly linked to that chat.
+An open window alone does not mean the agent is using it; the preview distinguishes
+active, idle, stopped, and unavailable states. Questions and queued messages take
+priority over the thumbnail, which shrinks to a text row in the normal layout.
+
+**What breaks:** guessing from whichever browser was used most recently can show
+another chat's work, and treating an open window as activity leaves a false spinner.
+Provider coverage and current limits: [Chat browser activity](chat-browser-activity.md).
+
 ---
 
 ## When to stop and ask

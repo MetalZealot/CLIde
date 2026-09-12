@@ -1,3 +1,5 @@
+// Browser transport and monitor share public tool observations.
+export type { BrowserToolObservation } from '../../shared/browser-use.js';
 import type { IncomingMessage } from 'node:http';
 import type { Readable } from 'node:stream';
 

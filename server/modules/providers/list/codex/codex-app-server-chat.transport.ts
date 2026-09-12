@@ -67,6 +67,8 @@ import {
   readObjectRecord,
 } from '@/shared/utils.js';
 
+import { codexChatBrowserConfig } from '../../shared/mcp/chat-browser.js';
+
 type AppServerWriter = {
   send: (message: unknown) => void;
   setSessionId?: (
@@ -639,6 +641,20 @@ export class CodexAppServerChatTransport {
     let active: ActiveTurn | null = null;
 
     try {
+      const browserConfig = await codexChatBrowserConfig(workingDirectory, options.sessionId);
+      let browserInstructions: { developerInstructions?: string } = {};
+      if (Object.keys(browserConfig).length) {
+        // Preserve native project/user guidance when adding the app's Browser context.
+        const effective = await client.request<{ config: { developer_instructions?: string | null } }>(
+          'config/read', { cwd: workingDirectory, includeLayers: false },
+        );
+        browserInstructions = {
+          developerInstructions: [
+            effective.config.developer_instructions,
+            'CLIde has a Browser tab controlled by the cloudcli-browser MCP tools. When the user asks to open a page in Browser, discover and use those tools (browser_navigate for a URL). Search the available tool registry if they are not immediately visible. Shell URL openers such as xdg-open do not control CLIde Browser. If the tools fail, report that failure instead of claiming the page opened.',
+          ].filter(Boolean).join('\n\n'),
+        };
+      }
       let threadResponse: CodexThreadResponse;
       const rewindToMessageId = readNonEmptyString(options.rewindToMessageId);
       if (resumeThreadId && rewindToMessageId) {
@@ -650,6 +666,8 @@ export class CodexAppServerChatTransport {
           approvalPolicy: permissions.approvalPolicy,
           approvalsReviewer: 'user',
           sandbox: permissions.sandboxMode,
+          ...(Object.keys(browserConfig).length ? { config: browserConfig } : {}),
+          ...browserInstructions,
         });
       } else if (resumeThreadId) {
         threadResponse = await client.request<CodexThreadResponse>('thread/resume', {
@@ -659,6 +677,8 @@ export class CodexAppServerChatTransport {
           approvalPolicy: permissions.approvalPolicy,
           approvalsReviewer: 'user',
           sandbox: permissions.sandboxMode,
+          ...(Object.keys(browserConfig).length ? { config: browserConfig } : {}),
+          ...browserInstructions,
         });
       } else {
         threadResponse = await client.request<CodexThreadResponse>('thread/start', {
@@ -667,6 +687,8 @@ export class CodexAppServerChatTransport {
           approvalPolicy: permissions.approvalPolicy,
           approvalsReviewer: 'user',
           sandbox: permissions.sandboxMode,
+          ...(Object.keys(browserConfig).length ? { config: browserConfig } : {}),
+          ...browserInstructions,
         });
       }
 

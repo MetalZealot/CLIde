@@ -11,6 +11,8 @@ import {
 import { notifyRunFailed, notifyRunStopped } from '@/modules/notifications/index.js';
 import { createCompleteMessage, createNormalizedMessage, flattenPromptForWindowsShell, getOpenCodeDatabasePath } from '@/shared/utils.js';
 
+import { openCodeChatBrowserEnv } from '../../shared/mcp/chat-browser.js';
+
 // cross-spawn resolves .cmd shims/PATHEXT on Windows and delegates to
 // child_process.spawn everywhere else.
 const spawnFunction = crossSpawn;
@@ -287,10 +289,11 @@ async function spawnOpenCode(command, options = {}, ws, context) {
         args.push(flattenPromptForWindowsShell(promptWithAttachments));
       }
 
+      const browserEnv = await openCodeChatBrowserEnv(workingDir, sessionId);
       opencodeProcess = spawnFunction('opencode', args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, ...permissionOptions.env },
+        env: { ...process.env, ...permissionOptions.env, ...browserEnv },
       });
 
       activeOpenCodeProcesses.set(processKey, opencodeProcess);

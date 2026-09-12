@@ -71,6 +71,11 @@ function MainContent({
   const { t } = useTranslation();
   const { preferences } = useUiPreferences();
   const { showRawParameters, showThinking, sendByCtrlEnter, enterToSend } = preferences;
+  const [browserSessionId, setBrowserSessionId] = useState<string | null>(null);
+  const openBrowserSession = useCallback((id: string) => {
+    setBrowserSessionId(id);
+    setActiveTab('browser');
+  }, [setActiveTab]);
   const [chatNeedsAttention, setChatNeedsAttention] = useState(false);
   const isSoftKeyboardOpen = useSoftKeyboardOpen(isMobile);
   const showBottomNav = isMobile && Boolean(selectedProject) && !isSoftKeyboardOpen;
@@ -249,6 +254,7 @@ function MainContent({
                 onCreateWorktree={onCreateWorktree}
                 onAdoptCheckout={onAdoptCheckout}
                 sessionActions={sessionActions}
+                onOpenBrowser={shouldShowBrowserTab ? openBrowserSession : undefined}
                 isVisible={activeTab === 'chat'}
               />
             </ErrorBoundary>
@@ -293,7 +299,7 @@ function MainContent({
 
           {selectedProject && shouldShowBrowserTab && activeTab === 'browser' && (
             <div className="h-full overflow-hidden">
-              <BrowserUsePanel isVisible={activeTab === 'browser'} onShowSettings={onShowSettings} />
+              <BrowserUsePanel initialSessionId={browserSessionId} isVisible={activeTab === 'browser'} onShowSettings={onShowSettings} />
             </div>
           )}
 

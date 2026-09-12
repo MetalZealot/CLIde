@@ -49,6 +49,8 @@ main checkout only).
 ## Mobile UX polish
 
 - [~] **Composer controls:** desktop split pickers keep Permissions and Build/Plan separate, with matching hover/open states; Shift+Tab cycles collaboration mode; Clear Input/shortcut clutter is gone. Mobile keeps one compact access icon; tapping opens the complete picker with Build/Plan inside. Effort dot taps now snap to that value. Desktop/mobile acceptance remain. **S**
+- [~] **Show this chat's browser activity above the composer** — compact preview opens its browser session; active/idle/stopped states and compact question/queue layout. [Contract and coverage](maps/chat-browser-activity.md). Ordinary Browser request accepted live; 960 tests pass. Dense question/queue phone acceptance pending. **M**
+
 - [~] **Move the top tab strip to a bottom nav** — five default roles: Chat, Shell, Files, Source Control, Plugins; Plugins opens installed destinations. Its inset prerequisite is done (`eb54fb70`). [Plan](plans/mobile-bottom-navigation.md), [ADR 0048](decisions/0048-mobile-navbar-five-roles-plugin-overflow.md). **M**
 - [ ] **Bottom nav follow-ups:** hide the bar while scrolling down in chat, and decide how it appears for a new session before a project is picked (appear vs greyed-out items). [Plan](plans/mobile-bottom-navigation.md) **S — design first**
 - [ ] **Consider personalizing the accepted bottom nav.** Rearrangement and pinned-plugin slots may be useful, but their owner and displacement rules are undecided; do not add them to the default-bar build. **S — design decision first**

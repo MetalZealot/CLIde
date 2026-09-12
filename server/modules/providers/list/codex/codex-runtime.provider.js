@@ -40,6 +40,8 @@ import { providerModelsService } from '@/modules/providers/services/provider-mod
 import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 
+import { codexChatBrowserConfig } from '../../shared/mcp/chat-browser.js';
+
 const activeCodexSessions = new Map();
 
 function extractCodexTokenBudget(event) {
@@ -277,7 +279,10 @@ export async function queryCodexSdk(command, options = {}, ws, context = default
 
   try {
     const selectedRuntime = await resolveSelectedCodexRuntime(runtimeFacet);
-    codex = new Codex({ codexPathOverride: selectedRuntime.realPath });
+    codex = new Codex({
+      codexPathOverride: selectedRuntime.realPath,
+      config: await codexChatBrowserConfig(workingDirectory, sessionId),
+    });
 
     const threadOptions = {
       workingDirectory,

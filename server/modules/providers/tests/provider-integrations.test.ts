@@ -12,6 +12,8 @@ import { createProviderServiceStatusService } from '@/modules/providers/services
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { AppError } from '@/shared/utils.js';
 
+import { scopeChatBrowserUrl, scopeClaudeChatBrowser, codexChatBrowserConfig, openCodeChatBrowserEnv } from '../shared/mcp/chat-browser.js';
+
 describe('mcp', () => {
   const patchHomeDir = (nextHomeDir: string) => {
     const original = os.homedir;
@@ -20,6 +22,54 @@ describe('mcp', () => {
       (os as any).homedir = original;
     };
   };
+
+  test('browser URLs carry the app id without changing other MCP configuration', async () => {
+    const url = 'http://127.0.0.1:3003/api/browser-use-mcp/mcp?device=phone';
+    const input = {
+      'cloudcli-browser': { type: 'http', url, headers: { Authorization: 'Bearer test-only' }, disabled: true },
+      other: { type: 'stdio', command: 'example' },
+    };
+    const first = scopeClaudeChatBrowser(input, 'app-chat-a');
+    const second = scopeClaudeChatBrowser(input, 'app-chat-b');
+    assert.equal(new URL(first['cloudcli-browser'].url).searchParams.get('chatSessionId'), 'app-chat-a');
+    assert.equal(new URL(second['cloudcli-browser'].url).searchParams.get('chatSessionId'), 'app-chat-b');
+    assert.equal(new URL(first['cloudcli-browser'].url).searchParams.get('device'), 'phone');
+    assert.equal(first['cloudcli-browser'].headers, input['cloudcli-browser'].headers);
+    assert.equal(first['cloudcli-browser'].disabled, true);
+    assert.equal(first.other, input.other);
+    assert.equal(input['cloudcli-browser'].url, url);
+    assert.equal(scopeChatBrowserUrl('https://unrelated.example/mcp', 'app-chat-a'), null);
+    assert.equal(scopeClaudeChatBrowser(input, null), input);
+
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'clide-browser-chat-config-'));
+    const workspacePath = path.join(home, 'workspace');
+    await fs.mkdir(workspacePath);
+    const restore = patchHomeDir(home);
+    const oldInline = process.env.OPENCODE_CONFIG_CONTENT;
+    try {
+      for (const provider of ['codex', 'opencode']) {
+        await providerMcpService.upsertProviderMcpServer(provider, {
+          name: 'cloudcli-browser', scope: 'user', transport: 'http', url,
+          headers: { Authorization: 'Bearer test-only' },
+        });
+      }
+      const config = await codexChatBrowserConfig(workspacePath, 'app-chat-a');
+      assert.deepEqual(Object.keys(config), ['mcp_servers.cloudcli-browser.url']);
+      assert.equal(new URL(config['mcp_servers.cloudcli-browser.url']!).searchParams.get('chatSessionId'), 'app-chat-a');
+      process.env.OPENCODE_CONFIG_CONTENT = JSON.stringify({ model: 'keep-model', mcp: { other: { enabled: false } } });
+      const environment = await openCodeChatBrowserEnv(workspacePath, 'app-chat-b');
+      const inline = JSON.parse(environment.OPENCODE_CONFIG_CONTENT!);
+      assert.equal(inline.model, 'keep-model');
+      assert.deepEqual(inline.mcp.other, { enabled: false });
+      assert.equal(new URL(inline.mcp['cloudcli-browser'].url).searchParams.get('chatSessionId'), 'app-chat-b');
+      assert.equal((await providerMcpService.listProviderMcpServersForScope('codex', 'user'))[0].url, url);
+    } finally {
+      if (oldInline === undefined) delete process.env.OPENCODE_CONFIG_CONTENT;
+      else process.env.OPENCODE_CONFIG_CONTENT = oldInline;
+      restore();
+      await fs.rm(home, { recursive: true, force: true });
+    }
+  });
 
   const readJson = async (filePath: string): Promise<Record<string, unknown>> => {
     const content = await fs.readFile(filePath, 'utf8');

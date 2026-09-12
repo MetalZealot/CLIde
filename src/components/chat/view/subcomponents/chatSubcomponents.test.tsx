@@ -9,6 +9,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 import { Download, RotateCcw } from 'lucide-react';
 
+import type { BrowserSessionSummary } from '../../../../../shared/browser-use';
+import ChatBrowserPreview from '../../../browser-use/view/ChatBrowserPreview';
 import { HeaderMenuProvider, useRegisterHeaderMenu, type HeaderMenuSection } from '../../../../contexts/HeaderMenuContext';
 import MainContentHeaderMenu from '../../../main-content/view/subcomponents/MainContentHeaderMenu';
 import { PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../shared/view/ui';
@@ -2001,5 +2003,45 @@ describe('QuestionAnswerContent', () => {
       'Which?': 'A, B',
       'Why?': 'Because',
     });
+  });
+});
+
+
+describe('chat browser preview', () => {
+  const session: BrowserSessionSummary = {
+    id: 'browser-b', chatSessionId: 'app-chat-a', status: 'ready', activeToolCount: 1,
+    url: 'https://example.com', title: 'Example', screenshotDataUrl: 'data:image/jpeg;base64,aQ==',
+    screenshotVersion: 1, createdAt: '', updatedAt: '', lastAction: 'browser_click', message: null,
+    createdBy: 'agent', profileName: null, device: 'desktop', actions: [], viewport: null,
+  };
+
+  test('the preview identifies active, idle, stopped, and unavailable states independently', () => {
+    for (const [overrides, unavailable, label] of [
+      [{}, false, 'Using browser'],
+      [{ activeToolCount: 0 }, false, 'Browser idle'],
+      [{ status: 'stopped' }, false, 'Browser stopped'],
+      [{}, true, 'Browser unavailable'],
+    ] as const) {
+      const markup = renderToStaticMarkup(<ChatBrowserPreview session={{ ...session, ...overrides }} unavailable={unavailable} compact={false} onOpen={() => {}} />);
+      assert.ok(markup.includes(label));
+    }
+  });
+
+  test('compact mode removes the image but preserves the exact browser destination', async () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    let opened: string | null = null;
+    try {
+      await React.act(async () => root.render(<ChatBrowserPreview session={session} unavailable={false} compact onOpen={(id) => { opened = id; }} />));
+      assert.equal(container.querySelector('img'), null);
+      const button = container.querySelector('button')!;
+      assert.match(button.getAttribute('aria-label')!, /Using browser: Example/);
+      await React.act(async () => button.click());
+      assert.equal(opened, 'browser-b');
+    } finally {
+      await React.act(async () => root.unmount());
+      container.remove();
+    }
   });
 });
