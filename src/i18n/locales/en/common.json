@@ -58,6 +58,7 @@
     "moreMenu": "More destinations",
     "noPlugins": "No plugins installed",
     "pluginSettings": "Plugin settings",
+    "selectWorktreeFirst": "Select a worktree first",
     "attention": "Permission request waiting",
     "unread": "Unread reply"
   },

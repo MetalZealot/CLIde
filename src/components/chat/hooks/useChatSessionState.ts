@@ -911,12 +911,12 @@ export function useChatSessionState({
     capturedScrollRestoreRef.current = scrollRestore;
 
     try {
-      const slot = await sessionStore.fetchFromServer(requestSessionId, {
-        limit: null,
-        offset: 0,
-      });
+      // A complete cache can still have older rows hidden by the display limit.
+      const slot = hasMoreMessages
+        ? await sessionStore.fetchFromServer(requestSessionId, { limit: null, offset: 0 })
+        : sessionStore.getSessionSlot(requestSessionId);
 
-      if (currentSessionId !== requestSessionId) return null;
+      if (currentSessionIdRef.current !== requestSessionId) return null;
 
       if (slot && slot.status !== 'error') {
         if (scrollRestore) {
@@ -944,7 +944,7 @@ export function useChatSessionState({
       isLoadingMoreRef.current = false;
       setIsLoadingAllMessages(false);
     }
-  }, [selectedSession, selectedProject, isLoadingAllMessages, currentSessionId, sessionStore, viewHiddenCount]);
+  }, [selectedSession, selectedProject, isLoadingAllMessages, hasMoreMessages, sessionStore, viewHiddenCount]);
 
   return {
     chatMessages,

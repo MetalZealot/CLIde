@@ -2,11 +2,11 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { EllipsisVertical } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
+import { ContextMenuOverlay, anchorFromElement } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import { useHeaderMenuSection, type HeaderMenuItem } from '../../../../contexts/HeaderMenuContext';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
-import { MENU_CLASS_NAME, MENU_ITEM_CLASS_NAME } from '../../constants/menu';
+import { HEADER_MENU_CLASS_NAME, HEADER_MENU_ITEM_CLASS_NAME } from '../../constants/menu';
 import { useMenuButton } from '../../hooks/useMenuButton';
 
 /** The header's action menu: the visible view's own actions. Absent on a view that has none. */
@@ -123,8 +123,7 @@ export default function MainContentHeaderMenu() {
           anchorElement={buttonRef.current}
           onDismiss={close}
           ariaLabel={t('mainContent.moreOptions')}
-          maxHeight={MENU_LIST_MAX_HEIGHT}
-          className={MENU_CLASS_NAME}
+          className={HEADER_MENU_CLASS_NAME}
           measureKey={`${items.length}:${section?.status?.text ?? ''}:${sessionIdEntries.length}`}
         >
           {section?.status && (
@@ -132,7 +131,7 @@ export default function MainContentHeaderMenu() {
               role="menuitem"
               aria-disabled="true"
               tabIndex={-1}
-              className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
+              className="flex min-h-10 items-center gap-3 px-4 py-2.5 text-xs text-muted-foreground"
             >
               <span
                 aria-hidden="true"
@@ -146,7 +145,9 @@ export default function MainContentHeaderMenu() {
             const Icon = item.icon;
             return (
               <Fragment key={item.key}>
-                {item.showDividerBefore && index > 0 && <div role="separator" className="my-1 border-t border-border" />}
+                {item.showDividerBefore && index > 0 && (
+                  <div role="separator" className="mx-2 my-1 h-px bg-border" />
+                )}
                 <button
                   ref={index === firstEnabledIndex ? firstItemRef : undefined}
                   type="button"
@@ -154,7 +155,7 @@ export default function MainContentHeaderMenu() {
                   disabled={item.disabled}
                   aria-haspopup={item.renderPanel ? 'dialog' : undefined}
                   onClick={() => run(item)}
-                  className={cn(MENU_ITEM_CLASS_NAME, item.isDanger && 'text-red-600 dark:text-red-400')}
+                  className={cn(HEADER_MENU_ITEM_CLASS_NAME, item.isDanger && 'text-red-600 dark:text-red-400')}
                 >
                   <Icon className={cn('h-4 w-4 flex-shrink-0', !item.isDanger && 'text-muted-foreground')} aria-hidden="true" />
                   <span className="truncate">{item.label}</span>
@@ -165,7 +166,7 @@ export default function MainContentHeaderMenu() {
 
           {sessionIdEntries.length > 0 && (
             <>
-              <div role="separator" className="my-1 border-t border-border" />
+              <div role="separator" className="mx-2 my-1 h-px bg-border" />
               {/* Zero intrinsic width: the actions set the menu's width and the ids truncate to it. */}
               <div className="flex w-0 min-w-full">
                 {sessionIdEntries.map((entry) => (
@@ -175,7 +176,7 @@ export default function MainContentHeaderMenu() {
                     role="menuitem"
                     aria-label={t('mainContent.copySessionId', { label: entry.label })}
                     onClick={() => copyId(entry.value)}
-                    className="flex min-h-11 min-w-0 flex-1 flex-col items-start justify-center px-3 py-1 text-left transition-colors hover:bg-accent active:bg-accent"
+                    className="flex min-h-10 min-w-0 flex-1 flex-col items-start justify-center px-4 py-1 text-left transition-colors hover:bg-accent active:bg-accent"
                   >
                     <span className="text-[11px] leading-4 text-muted-foreground">{entry.label}</span>
                     {copiedId === entry.value ? (
@@ -198,8 +199,7 @@ export default function MainContentHeaderMenu() {
           anchorElement={buttonRef.current}
           onDismiss={closePanel}
           ariaLabel={panelItem.label}
-          maxHeight={MENU_LIST_MAX_HEIGHT}
-          className={MENU_CLASS_NAME}
+          className={HEADER_MENU_CLASS_NAME}
           measureKey={panelItem.key}
         >
           <div ref={panelRef}>{panelItem.renderPanel(closePanel)}</div>

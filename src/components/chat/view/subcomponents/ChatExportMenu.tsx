@@ -26,8 +26,7 @@ type ChatExportOptionsProps = ChatExportSource & {
   onExported: () => void;
 };
 
-// Touch-sized below md.
-const ROW_CLASS_NAME = 'flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm md:min-h-9';
+const ROW_CLASS_NAME = 'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm';
 
 /** What to include and which format to write; shared by every place export is offered. */
 export function ChatExportOptions({

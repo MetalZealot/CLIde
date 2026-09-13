@@ -20,6 +20,7 @@ import { useMenuButton } from '../../hooks/useMenuButton';
 
 type MobileBottomNavProps = {
   activeTab: AppTab;
+  hasSelectedProject: boolean;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
@@ -35,7 +36,7 @@ const CHAT_STATUS_LABEL_KEYS = { blocked: 'mobileNav.attention', unread: 'mobile
 
 const barItemClassName = (isActive: boolean) =>
   cn(
-    'flex h-full w-full touch-manipulation flex-col items-center justify-center gap-1 text-[11px] font-medium leading-none transition-colors',
+    'flex h-full w-full touch-manipulation flex-col items-center justify-center gap-1 text-[11px] font-medium leading-none transition-colors disabled:opacity-40',
     isActive ? 'text-foreground' : 'text-muted-foreground',
   );
 
@@ -44,6 +45,7 @@ const indicatorClassName = (isActive: boolean) =>
 
 export default function MobileBottomNav({
   activeTab,
+  hasSelectedProject,
   setActiveTab,
   shouldShowTasksTab,
   shouldShowBrowserTab,
@@ -80,11 +82,14 @@ export default function MobileBottomNav({
       <ul className="flex h-full">
         {BASE_TABS.map((tab) => {
           const isActive = tab.id === activeTab;
+          const isDisabled = tab.id !== 'chat' && !hasSelectedProject;
           const status = tab.id === 'chat' && !isActive ? chatStatus : null;
           return (
             <li key={tab.id} className="min-w-0 flex-1">
               <button
                 type="button"
+                disabled={isDisabled}
+                title={isDisabled ? t('mobileNav.selectWorktreeFirst') : undefined}
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => setActiveTab(tab.id)}
                 className={barItemClassName(isActive)}
@@ -170,8 +175,12 @@ export default function MobileBottomNav({
                   type="button"
                   role="menuitem"
                   aria-current={isActive ? 'page' : undefined}
-                  onClick={() => selectOverflowTab(tab.id)}
-                  className={MENU_ITEM_CLASS_NAME}
+                  aria-disabled={!hasSelectedProject || undefined}
+                  title={!hasSelectedProject ? t('mobileNav.selectWorktreeFirst') : undefined}
+                  onClick={() => {
+                    if (hasSelectedProject) selectOverflowTab(tab.id);
+                  }}
+                  className={cn(MENU_ITEM_CLASS_NAME, !hasSelectedProject && 'cursor-default opacity-40 hover:bg-transparent active:bg-transparent')}
                 >
                   <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
                     {isActive && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}

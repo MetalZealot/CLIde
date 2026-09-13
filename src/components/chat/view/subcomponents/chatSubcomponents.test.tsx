@@ -607,6 +607,13 @@ describe('chatSubcomponents', () => {
         const shellItems = await openMenu();
         assert.ok(shellItems.includes('Restart'));
         assert.ok(!shellItems.includes('Export…'));
+        const shellMenu = document.querySelector<HTMLElement>('[role="menu"]');
+        assert.equal(shellMenu?.style.maxHeight, '');
+        const shellItem = document.querySelector<HTMLElement>('[role="menu"] [role="menuitem"]');
+        assert.ok(shellItem?.classList.contains('gap-3'));
+        assert.ok(shellItem?.classList.contains('px-4'));
+        assert.ok(shellItem?.classList.contains('py-2.5'));
+        assert.ok(!shellItem?.classList.contains('min-h-11'));
         await React.act(async () => {
           document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
         });
@@ -630,6 +637,44 @@ describe('chatSubcomponents', () => {
   });
 
   describe('find in chat', () => {
+    test('keeps typed characters while the header controller is still behind', async () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const queries: string[] = [];
+      let navigations = 0;
+      const controller = {
+        isOpen: true, query: '', currentIndex: 0, total: 2,
+        isPreparing: false, loadFailed: false,
+        open: () => undefined, close: () => undefined,
+        setQuery: (query: string) => queries.push(query),
+        next: () => { navigations += 1; }, previous: () => undefined,
+        retryLoad: () => undefined,
+      };
+      try {
+        await React.act(async () => root.render(<ChatFindBar controller={controller} />));
+        const input = container.querySelector<HTMLInputElement>('input')!;
+        const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+        for (const character of 'navigation') {
+          await React.act(async () => {
+            setValue.call(input, input.value + character);
+            input.dispatchEvent(new window.Event('input', { bubbles: true }));
+          });
+        }
+        assert.equal(input.value, 'navigation');
+        assert.equal(queries.at(-1), 'navigation');
+        await React.act(async () => input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+        assert.equal(navigations, 0, 'old results cannot be navigated while the draft differs');
+        await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Clear search"]')!.click());
+        assert.equal(input.value, '');
+        assert.equal(queries.at(-1), '');
+        assert.equal(document.activeElement, input);
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+      }
+    });
+
     test('renders a labelled mobile-sized search field and named navigation controls', async () => {
       const findI18n = i18next.createInstance();
       await findI18n.init({ lng: 'en', resources: { en: { chat: {} } } });

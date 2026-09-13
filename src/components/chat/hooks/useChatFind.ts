@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 
 import type { ChatMessage } from '../types/types';
 
+const SEARCH_IDLE_MS = 200;
+
 const MATCH_HIGHLIGHT = 'chat-find-match';
 const CURRENT_HIGHLIGHT = 'chat-find-current';
 const FALLBACK_CURRENT_CLASS = 'chat-find-current-fallback';
@@ -33,7 +35,6 @@ type UseChatFindArgs = {
   isVisible: boolean;
   sessionId: string | null;
   chatMessages: ChatMessage[];
-  hasMoreMessages: boolean;
   loadAllMessages: () => Promise<ChatMessage[] | null>;
   scrollContainerRef: RefObject<HTMLDivElement>;
   messagesContentRef: RefObject<HTMLDivElement>;
@@ -202,7 +203,6 @@ export function useChatFind({
   isVisible,
   sessionId,
   chatMessages,
-  hasMoreMessages,
   loadAllMessages,
   scrollContainerRef,
   messagesContentRef,
@@ -215,17 +215,13 @@ export function useChatFind({
   const [loadFailed, setLoadFailed] = useState(false);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const loadAttemptRef = useRef(0);
+  const historyPreparedRef = useRef(false);
   const lastQueryRef = useRef('');
   const activeIdentityRef = useRef<ChatFindIdentity | null>(null);
 
   const prepareCompleteHistory = useCallback(async () => {
     const attempt = ++loadAttemptRef.current;
     setLoadFailed(false);
-    if (!hasMoreMessages) {
-      setIsPreparing(false);
-      return;
-    }
-
     setIsPreparing(true);
     const loaded = await loadAllMessages();
     if (attempt !== loadAttemptRef.current) {
@@ -233,7 +229,7 @@ export function useChatFind({
     }
     setIsPreparing(false);
     setLoadFailed(loaded === null);
-  }, [hasMoreMessages, loadAllMessages]);
+  }, [loadAllMessages]);
 
   const open = useCallback(() => {
     if (isOpen) {
@@ -247,12 +243,23 @@ export function useChatFind({
     setCurrentIndex(-1);
     activeIdentityRef.current = null;
     lastQueryRef.current = '';
+    historyPreparedRef.current = false;
+    setIsPreparing(true);
     setIsOpen(true);
-    void prepareCompleteHistory();
-  }, [isOpen, prepareCompleteHistory]);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || historyPreparedRef.current) return;
+    const timer = window.setTimeout(() => {
+      historyPreparedRef.current = true;
+      void prepareCompleteHistory();
+    }, SEARCH_IDLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, query, prepareCompleteHistory]);
 
   const closeWithoutFocus = useCallback(() => {
     loadAttemptRef.current += 1;
+    historyPreparedRef.current = false;
     clearHighlights(messagesContentRef.current);
     setIsOpen(false);
     setQueryState('');
@@ -324,7 +331,7 @@ export function useChatFind({
       return undefined;
     }
 
-    const frame = window.requestAnimationFrame(() => {
+    const timer = window.setTimeout(() => {
       const nextOccurrences = collectChatFindOccurrences(root, query);
       const queryChanged = lastQueryRef.current !== query;
       const retainedIndex = !queryChanged && activeIdentityRef.current
@@ -340,8 +347,8 @@ export function useChatFind({
       setCurrentIndex(nextIndex);
       activeIdentityRef.current = nextIndex >= 0 ? nextOccurrences[nextIndex] : null;
       lastQueryRef.current = query;
-    });
-    return () => window.cancelAnimationFrame(frame);
+    }, SEARCH_IDLE_MS);
+    return () => window.clearTimeout(timer);
   }, [chatMessages, isOpen, isPreparing, loadFailed, messagesContentRef, query, scrollContainerRef]);
 
   useEffect(() => {
@@ -375,7 +382,10 @@ export function useChatFind({
 
   const setQuery = useCallback((nextQuery: string) => {
     setQueryState(nextQuery);
-  }, []);
+    setOccurrences([]);
+    setCurrentIndex(-1);
+    clearHighlights(messagesContentRef.current);
+  }, [messagesContentRef]);
 
   const next = useCallback(() => {
     setCurrentIndex((index) => stepChatFindIndex(index, occurrences.length, 1));

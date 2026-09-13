@@ -1,7 +1,7 @@
 # How CLIde works — orientation
 
 Written for Grayson, not for an agent. Every other document in `docs/` assumes you
-already know the architecture; this one doesn't. Ten areas, each with the one rule
+already know the architecture; this one doesn't. Each area names the one rule
 that governs it and what goes wrong when the rule is broken.
 
 Nothing here is implementation detail — it is the set of assumptions the code is built
@@ -161,6 +161,17 @@ priority over the thumbnail, which shrinks to a text row in the normal layout.
 **What breaks:** guessing from whichever browser was used most recently can show
 another chat's work, and treating an open window as activity leaves a false spinner.
 Provider coverage and current limits: [Chat browser activity](chat-browser-activity.md).
+
+## 12. Mobile navigation stays in place before choosing a worktree
+
+Shell, Files, and Git need a worktree; a new Chat can begin at the picker.
+
+**The rule:** keep the bottom bar visible with Chat selected while choosing. Grey out
+destinations that need a worktree, including entries inside More. The bar still hides
+when the software keyboard opens.
+
+**What breaks:** hiding the whole bar shifts the composer when a worktree is picked;
+enabling dependent destinations leads to views with no working folder.
 
 ---
 

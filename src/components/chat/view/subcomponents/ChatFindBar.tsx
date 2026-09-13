@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ChevronDown, ChevronUp, Loader2, RotateCcw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -9,7 +9,13 @@ const BUTTON_CLASS = 'flex h-11 w-11 shrink-0 items-center justify-center rounde
 export default function ChatFindBar({ controller }: { controller: ChatFindController }) {
   const { t } = useTranslation('chat');
   const inputRef = useRef<HTMLInputElement>(null);
-  const canNavigate = !controller.isPreparing && !controller.loadFailed && controller.total > 0;
+  // Header registration trails input events; the mounted field owns its draft.
+  const [draft, setDraft] = useState(controller.query);
+  const setQuery = (value: string) => {
+    setDraft(value);
+    controller.setQuery(value);
+  };
+  const canNavigate = draft === controller.query && !controller.isPreparing && !controller.loadFailed && controller.total > 0;
   const visibleCurrent = controller.currentIndex >= 0 ? controller.currentIndex + 1 : 0;
 
   useEffect(() => {
@@ -47,13 +53,14 @@ export default function ChatFindBar({ controller }: { controller: ChatFindContro
           name="chat-find"
           autoComplete="off"
           enterKeyHint="search"
-          value={controller.query}
-          onChange={(event) => controller.setQuery(event.target.value)}
+          value={draft}
+          onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key !== 'Enter') {
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing) {
               return;
             }
             event.preventDefault();
+            if (!canNavigate) return;
             if (event.shiftKey) {
               controller.previous();
             } else {
@@ -85,16 +92,16 @@ export default function ChatFindBar({ controller }: { controller: ChatFindContro
             <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
             {resultLabel}
           </span>
-        ) : controller.query ? resultLabel : null}
+        ) : draft && draft === controller.query ? resultLabel : null}
       </div>
 
-      {controller.query && (
+      {draft && (
         <button
           type="button"
           aria-label={t('findInChat.clear', { defaultValue: 'Clear search' })}
           className={BUTTON_CLASS}
           onClick={() => {
-            controller.setQuery('');
+            setQuery('');
             inputRef.current?.focus();
           }}
         >

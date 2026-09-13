@@ -572,7 +572,6 @@ function ChatInterface({
     isVisible,
     sessionId: selectedSession?.id ?? null,
     chatMessages,
-    hasMoreMessages,
     loadAllMessages,
     scrollContainerRef,
     messagesContentRef,

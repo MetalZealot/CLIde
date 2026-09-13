@@ -32,7 +32,6 @@ main checkout only).
 
 ## Bugs
 
-- [ ] **Find in Chat can drop keystrokes while preparing or searching a long session.** The header receives its controlled value one effect behind, while complete-history rendering and per-keystroke DOM range creation block the main thread. Give the input local draft state and defer history/search work until typing pauses. **S/M**
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
@@ -48,11 +47,13 @@ main checkout only).
 
 ## Mobile UX polish
 
+
+- [~] **Compact the header Export panel** — match the kebab row spacing and remove its fixed height cap. 53 focused tests and client build pass; phone acceptance pending. [Source](../src/components/chat/view/subcomponents/ChatExportMenu.tsx). **S**
 - [~] **Composer controls:** desktop split pickers keep Permissions and Build/Plan separate, with matching hover/open states; Shift+Tab cycles collaboration mode; Clear Input/shortcut clutter is gone. Mobile keeps one compact access icon; tapping opens the complete picker with Build/Plan inside. Effort dot taps now snap to that value. Desktop/mobile acceptance remain. **S**
 - [~] **Show this chat's browser activity above the composer** — compact preview opens its browser session; active/idle/stopped states and compact question/queue layout. [Contract and coverage](maps/chat-browser-activity.md). Ordinary Browser request accepted live; 960 tests pass. Dense question/queue phone acceptance pending. **M**
 
 - [~] **Move the top tab strip to a bottom nav** — five default roles: Chat, Shell, Files, Source Control, Plugins; Plugins opens installed destinations. Its inset prerequisite is done (`eb54fb70`). [Plan](plans/mobile-bottom-navigation.md), [ADR 0048](decisions/0048-mobile-navbar-five-roles-plugin-overflow.md). **M**
-- [ ] **Bottom nav follow-ups:** hide the bar while scrolling down in chat, and decide how it appears for a new session before a project is picked (appear vs greyed-out items). [Plan](plans/mobile-bottom-navigation.md) **S — design first**
+- [ ] **Bottom nav follow-up:** hide the bar while scrolling down in chat. [Plan](plans/mobile-bottom-navigation.md) **S — design first**
 - [ ] **Consider personalizing the accepted bottom nav.** Rearrangement and pinned-plugin slots may be useful, but their owner and displacement rules are undecided; do not add them to the default-bar build. **S — design decision first**
 - [ ] **Consider floating New Session above the sidebar footer instead of inside it.** `--app-footer-height` is 60px, accepted with the bottom nav; ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if the button misfires near the gesture strip. **S — on trial, don't act unprompted**
 - [~] **Chat actions in the header kebab (desktop and mobile):** Pin, Rename, Export…, Archive, Delete; Chat and Shell end in a tap-to-copy CLIde + provider id row, which replaced the sidebar's copy item and the floating export button. Built on `feat/mobile-bottom-navigation`; acceptance on the phone remains. [Plan](plans/mobile-bottom-navigation.md) **S**

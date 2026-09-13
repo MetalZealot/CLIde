@@ -18,6 +18,7 @@ import { asyncQuestionDraftKey, enqueueAsyncAnswer, readHandledAsyncQuestions } 
 import { writeQueuedMessage } from '../utils/chatStorage';
 
 import { useAsyncQuestions } from './useAsyncQuestions';
+import { useChatSessionState } from './useChatSessionState';
 import {
   describeDropRejections,
   resolveComposerTabAction,
@@ -133,7 +134,6 @@ test('chat find waits for complete history and closes on Escape or session chang
       isVisible: true,
       sessionId,
       chatMessages,
-      hasMoreMessages: true,
       loadAllMessages,
       scrollContainerRef,
       messagesContentRef,
@@ -165,12 +165,14 @@ test('chat find waits for complete history and closes on Escape or session chang
     });
     assert.equal(controller!.isOpen, true);
     assert.equal(controller!.isPreparing, true);
-    assert.equal(loadCalls, 1);
+    assert.equal(loadCalls, 0, 'opening find does not synchronously load history');
 
     await React.act(async () => controller!.setQuery('needle'));
     assert.equal(controller!.total, 0);
+    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
+    assert.equal(loadCalls, 1);
     await React.act(async () => resolveHistory([]));
-    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
+    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
     assert.equal(controller!.isPreparing, false);
     assert.equal(controller!.total, 2);
 
@@ -193,6 +195,70 @@ test('chat find waits for complete history and closes on Escape or session chang
     await React.act(async () => root.unmount());
     previousFocus.remove();
     host.remove();
+  }
+});
+
+test('find reveals cached history again after jump to bottom without refetching', async () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{}', { status: 200 });
+  const messages: NormalizedMessage[] = Array.from({ length: 120 }, (_, index) => ({
+    id: String(index), kind: 'text', role: 'assistant', provider: 'codex',
+    content: index === 0 ? 'older unique needle' : 'recent text',
+    timestamp: '2026-09-12T00:00:00.000Z', sessionId: 'find-cached',
+  }));
+  const slot = { hasMore: false, status: 'loaded' };
+  let fetches = 0;
+  const sessionStore = {
+    getMessages: () => messages, getSessionSlot: () => slot,
+    setActiveSession: () => undefined, isStale: () => false,
+    fetchSessionSettings: () => undefined,
+    fetchFromServer: async () => { fetches += 1; return slot; },
+  } as unknown as SessionStore;
+  const args: Parameters<typeof useChatSessionState>[0] = {
+    selectedProject: { projectId: 'project', displayName: 'project', fullPath: '/tmp/find-fixture', path: '/tmp/find-fixture' },
+    selectedSession: { id: 'find-cached', __provider: 'codex' },
+    ws: null, sendMessage: () => true, resetStreamingState: () => undefined,
+    statusCheckSentAtRef: { current: new Map() }, getReplayProgress: () => null, sessionStore,
+  };
+  let state!: ReturnType<typeof useChatSessionState>;
+  let find!: ChatFindController;
+  function Harness() {
+    state = useChatSessionState(args);
+    find = useChatFind({
+      isVisible: true, sessionId: 'find-cached', chatMessages: state.chatMessages,
+      loadAllMessages: state.loadAllMessages,
+      scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef,
+    });
+    return React.createElement('div', { ref: state.scrollContainerRef },
+      React.createElement('div', { ref: state.messagesContentRef }, state.visibleMessages.map((message) => (
+        React.createElement('div', { key: message.id, className: 'chat-message', 'data-chat-find-scope': 'conversation' },
+          React.createElement('div', { 'data-chat-find-content': true }, message.content))
+      ))));
+  }
+  const settle = async () => {
+    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
+    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
+  };
+  try {
+    await React.act(async () => root.render(React.createElement(Harness)));
+    assert.equal(state.visibleMessages.length, 100);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await React.act(async () => { find.open(); });
+      await React.act(async () => { find.setQuery('older unique needle'); });
+      await settle();
+      assert.equal(find.total, 1, 'the oldest cached message must be searchable');
+      assert.equal(state.visibleMessages.length, 120);
+      assert.equal(fetches, 0, 'complete cached history must not be downloaded again');
+      await React.act(async () => { find.close(); state.scrollToBottomAndReset(); });
+      assert.equal(state.visibleMessages.length, 100);
+    }
+  } finally {
+    await React.act(async () => root.unmount());
+    host.remove();
+    globalThis.fetch = originalFetch;
   }
 });
 

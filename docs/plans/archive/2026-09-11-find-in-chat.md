@@ -17,7 +17,7 @@
 - Search is case-insensitive and literal across user text, assistant replies, and assistant follow-up questions in the complete open session. Tool calls/results, thinking, compaction summaries, system/task notices, timestamps, metadata, and attachment contents are excluded. Complete history loads before the final count is shown; the counter shows loading in the meantime.
 - Every matching text occurrence is highlighted, with the active occurrence visually distinct. The first active match is at or after the current viewport; Next/`Enter` and Previous/`Shift+Enter` follow transcript order and wrap.
 - Back or `Escape` closes search, removes its highlights, and leaves the chat at the selected result. Changing session or workspace view closes search.
-- The counter is announced without interrupting typing; the input remains 16px on mobile, every icon button has an accessible name and visible focus, and touch targets keep the established header size.
+- The field keeps its draft locally; history preparation and matching wait for a typing pause. Find reveals the complete cached history even after jump-to-bottom has reduced the displayed rows. The counter is announced without interrupting typing; the input remains 16px on mobile, every icon button has an accessible name and visible focus, and touch targets keep the established header size.
 
 ## Done when
 

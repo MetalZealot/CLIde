@@ -78,7 +78,7 @@ function MainContent({
   }, [setActiveTab]);
   const [chatNeedsAttention, setChatNeedsAttention] = useState(false);
   const isSoftKeyboardOpen = useSoftKeyboardOpen(isMobile);
-  const showBottomNav = isMobile && Boolean(selectedProject) && !isSoftKeyboardOpen;
+  const showBottomNav = isMobile && !isSoftKeyboardOpen;
   // Sidebar precedence, so output that lands mid-run is not flagged unread; the bar omits the spinner.
   const chatActivity = resolveActivityState({
     needsAttention: chatNeedsAttention,
@@ -334,7 +334,8 @@ function MainContent({
 
       {showBottomNav && (
         <MobileBottomNav
-          activeTab={activeTab}
+          activeTab={selectedProject ? activeTab : 'chat'}
+          hasSelectedProject={Boolean(selectedProject)}
           setActiveTab={setActiveTab}
           shouldShowTasksTab={shouldShowTasksTab}
           shouldShowBrowserTab={shouldShowBrowserTab}

@@ -187,11 +187,8 @@ export default function ContextMenuOverlay({
       if (rect.height <= 0) {
         return;
       }
-      setLiveAnchor((previous) =>
-        previous.top === rect.top && previous.bottom === rect.bottom && previous.left === rect.left
-          ? previous
-          : { top: rect.top, bottom: rect.bottom, left: rect.left },
-      );
+      // Reposition after a viewport resize even when the anchor did not move.
+      setLiveAnchor({ top: rect.top, bottom: rect.bottom, left: rect.left });
     };
 
     const viewport = window.visualViewport;
