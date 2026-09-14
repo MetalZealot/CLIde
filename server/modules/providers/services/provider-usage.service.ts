@@ -1,6 +1,12 @@
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type { IProviderUsage } from '@/shared/interfaces.js';
-import type { LLMProvider, ProviderUsageStatus } from '@/shared/types.js';
+import type {
+  LLMProvider,
+  ProviderUsageResetRedemptionInput,
+  ProviderUsageResetRedemptionResult,
+  ProviderUsageStatus,
+} from '@/shared/types.js';
+import { AppError } from '@/shared/utils.js';
 
 type UsageCacheEntry = {
   status: ProviderUsageStatus | null;
@@ -37,6 +43,30 @@ export function createProviderUsageService({
       usageCache.set(provider, entry);
     }
     return entry;
+  };
+
+  const readAndCacheUsage = async (
+    usage: IProviderUsage,
+    entry: UsageCacheEntry,
+  ): Promise<ProviderUsageStatus> => {
+    entry.lastAttemptAtMs = now();
+    const result = await usage.getUsage();
+    const previous = entry.status;
+
+    if (result.error && !hasUsageData(result) && previous && hasUsageData(previous)) {
+      entry.status = {
+        ...previous,
+        stale: true,
+        error: result.error,
+      };
+    } else {
+      entry.status = result;
+      if (!result.error || hasUsageData(result)) {
+        entry.lastSuccessAtMs = now();
+      }
+    }
+
+    return entry.status ?? result;
   };
 
   return {
@@ -76,24 +106,7 @@ export function createProviderUsageService({
       }
 
       const fetchPromise = (async (): Promise<ProviderUsageStatus> => {
-        entry.lastAttemptAtMs = now();
-        const result = await usage.getUsage();
-        const previous = entry.status;
-
-        if (result.error && !hasUsageData(result) && previous && hasUsageData(previous)) {
-          entry.status = {
-            ...previous,
-            stale: true,
-            error: result.error,
-          };
-        } else {
-          entry.status = result;
-          if (!result.error || hasUsageData(result)) {
-            entry.lastSuccessAtMs = now();
-          }
-        }
-
-        return entry.status ?? result;
+        return readAndCacheUsage(usage, entry);
       })();
 
       entry.inFlight = fetchPromise;
@@ -101,6 +114,44 @@ export function createProviderUsageService({
         return await fetchPromise;
       } finally {
         entry.inFlight = null;
+      }
+    },
+
+    /**
+     * Runs an optional provider-owned reset mutation, then bypasses both usage
+     * cache timers so the response reflects the completed account operation.
+     */
+    async redeemProviderUsageReset(
+      providerName: LLMProvider,
+      input: ProviderUsageResetRedemptionInput,
+    ): Promise<ProviderUsageResetRedemptionResult> {
+      const usage = resolveUsage(providerName);
+      if (!usage?.redeemResetCredit) {
+        throw new AppError('This provider cannot redeem usage-limit resets in CLIde.', {
+          code: 'USAGE_RESET_REDEMPTION_UNSUPPORTED',
+          statusCode: 409,
+        });
+      }
+
+      const entry = getCacheEntry(providerName);
+      if (entry.inFlight) {
+        await entry.inFlight;
+      }
+
+      const outcome = await usage.redeemResetCredit(input);
+      const refreshPromise = readAndCacheUsage(usage, entry);
+      entry.inFlight = refreshPromise;
+
+      try {
+        return {
+          provider: providerName,
+          outcome,
+          usage: await refreshPromise,
+        };
+      } finally {
+        if (entry.inFlight === refreshPromise) {
+          entry.inFlight = null;
+        }
       }
     },
 

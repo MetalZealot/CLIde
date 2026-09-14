@@ -2,7 +2,7 @@
 
 *Originated 2026-07-24. Runtime selection was audited 2026-08-12; the release
 dispositions, model rows, pin, and protocol counts were re-measured 2026-09-06
-against Codex 0.153.4.*
+against Codex 0.153.4. Usage-reset redemption was re-measured 2026-09-13.*
 
 This map records current Codex behavior and CLIde destinations. The
 [upgrade ledger](codex-upgrade-ledger.md) keeps release history; generated
@@ -37,7 +37,7 @@ Discovery never promotes an installation.
 | Interactive `codex` CLI | Shell-tab escape hatch | TUI actions are not Chat protocol calls |
 | `codex exec --json` | Indirect SDK runtime | No general server-to-client request channel |
 | TypeScript SDK | Jobs, explicit Chat escape hatch, startup fallback | Narrow start/resume/run wrapper around `exec` |
-| `codex app-server` | Default Chat plus bounded models/usage reads | Rich, version-sensitive bidirectional protocol |
+| `codex app-server` | Default Chat plus bounded models/usage reads and reset mutations | Rich, version-sensitive bidirectional protocol |
 | `codex mcp-server` | Not used | Orchestrator surface, not a session frontend |
 | Codex Cloud | Not used | Separate hosted-task lifecycle |
 
@@ -97,6 +97,7 @@ transport. CLIde keeps `approvalsReviewer: 'user'` and does not expose
 | Effective per-session model | Transcript/provider truth, separate from stored request | Keep |
 | Authentication | File status and terminal login flow from selected runtime context | Keep current ownership |
 | Rate limits and account activity | Bounded selected App Server; unsupported modes report honestly | Keep |
+| Usage-limit reset redemption | Confirmed `/usage` action calls `account/rateLimitResetCredit/consume`, preserves one idempotency key across a logical retry, and refreshes usage | Keep capability-gated; link to OpenAI Usage when absent |
 | Effective config and requirements | Direct TOML editing; native read-only cascade not exposed | Defer |
 | Runtime diagnostics and selection | Active, live, pending, previous, per-facet ids; row-level Check and Use | Keep |
 
@@ -133,7 +134,7 @@ changed selections do not fall back to bundled.
 | Authenticated runtime routes | `server/modules/providers/codex-native-runtime.routes.ts` |
 | Runtime row | `src/components/settings/view/sections/agent/CodexNativeRuntimeRow.tsx` |
 | Session discovery/history | Codex synchronizer and sessions provider |
-| Models, auth, usage, MCP, skills | Their Codex provider facets |
+| Models, auth, usage, reset redemption, MCP, skills | Their Codex provider facets; bounded App Server calls live in `codex-app-server.client.ts` |
 | Shell | `server/modules/websocket/services/shell-websocket.service.ts` |
 
 ## 4. Current compatibility result and dispositions
@@ -148,6 +149,10 @@ changed selections do not fall back to bundled.
   experimental 157 → 158; server requests remain 10/11 and notifications 83.
   The addition is `plugin/reconcile`, outside CLIde's current surface. Published
   SDK declaration changes are comments only.
+- The default generated App Server schema exposes
+  `account/rateLimitResetCredit/consume` with required `idempotencyKey`, optional
+  `creditId`, and four outcomes. CLIde now consumes that stable method through
+  the selected installation; method-not-found degrades to the OpenAI Usage link.
 - The 0.153.4 App Server catalog puts `gpt-6-astra` first, marks it as the
   bundled default, and reports low through ultra reasoning. The live catalog
   already carries that contract; CLIde's server and pre-catalog client

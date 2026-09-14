@@ -1007,6 +1007,21 @@ export type ProviderUsageResetCredits = {
   details?: ProviderUsageResetCreditDetail[];
 };
 
+/** Provider-neutral input for consuming one earned usage-limit reset. */
+export type ProviderUsageResetRedemptionInput = {
+  /** One logical attempt keeps this key across transport retries. */
+  idempotencyKey: string;
+  /** Opaque provider credit id; omission lets the provider select one. */
+  creditId?: string;
+};
+
+/** Stable outcomes shared by reset-capable provider adapters and UI clients. */
+export type ProviderUsageResetRedemptionOutcome =
+  | 'reset'
+  | 'nothingToReset'
+  | 'noCredit'
+  | 'alreadyRedeemed';
+
 export type ProviderUsageActivity = {
   lifetimeTokens?: number;
   peakDailyTokens?: number;
@@ -1036,6 +1051,13 @@ export type ProviderUsageStatus = {
   fetchedAt?: string;
   stale?: boolean;
   error?: string;
+};
+
+/** Result of one provider-owned reset redemption plus its refreshed usage state. */
+export type ProviderUsageResetRedemptionResult = {
+  provider: LLMProvider;
+  outcome: ProviderUsageResetRedemptionOutcome;
+  usage: ProviderUsageStatus;
 };
 
 // ---------------------------

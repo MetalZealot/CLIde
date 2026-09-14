@@ -163,6 +163,7 @@ function AppContentInner() {
 
   usePaletteOpsRegister({
     openSettings,
+    openUsage,
     refreshProjects: async () => {
       await refreshProjectsSilently();
     },

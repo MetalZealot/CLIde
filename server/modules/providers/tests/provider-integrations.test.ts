@@ -1496,4 +1496,19 @@ describe('provider service status', () => {
     assert.equal(providerCapabilitiesService.getProviderCapabilities('cursor').serviceStatusPageUrl, null);
     assert.equal(providerCapabilitiesService.getProviderCapabilities('opencode').serviceStatusPageUrl, null);
   });
+
+  test('advertises usage-reset redemption only for Codex', () => {
+    assert.equal(
+      providerCapabilitiesService.getProviderCapabilities('codex')
+        .supportsUsageLimitResetRedemption,
+      true,
+    );
+    for (const provider of ['claude', 'cursor', 'opencode'] as const) {
+      assert.equal(
+        providerCapabilitiesService.getProviderCapabilities(provider)
+          .supportsUsageLimitResetRedemption,
+        false,
+      );
+    }
+  });
 });

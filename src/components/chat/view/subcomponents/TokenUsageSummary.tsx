@@ -9,11 +9,12 @@ import { cn } from '../../../../lib/utils';
 import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage';
 import { UsageActivitySection } from '../../../provider-usage/UsageWindowList';
 import { formatResetsIn } from '../../../provider-usage/format';
-import type {
-  ProviderUsageBalanceCredits,
-  ProviderUsageCredits,
-  ProviderUsageSpendCredits,
-  ProviderUsageWindow,
+import {
+  PROVIDER_USAGE_MANAGEMENT_URLS,
+  type ProviderUsageBalanceCredits,
+  type ProviderUsageCredits,
+  type ProviderUsageSpendCredits,
+  type ProviderUsageWindow,
 } from '../../../provider-usage/types';
 import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
 import { authenticatedFetch } from '../../../../utils/api';
@@ -53,11 +54,6 @@ type TokenUsageSummaryProps = {
 const PROVIDER_DEFAULT_CONTEXT_WINDOW: Record<string, number> = {
   claude: 200_000,
   codex: 200_000,
-};
-
-const PROVIDER_USAGE_MANAGEMENT_URLS: Partial<Record<LLMProvider, string>> = {
-  claude: 'https://claude.ai/new#settings/usage',
-  codex: 'https://chatgpt.com/#settings/Usage',
 };
 
 // The session row carries three numbers plus a status word; full digits push the
@@ -312,7 +308,7 @@ export default function TokenUsageSummary({
   const sessionKeyRef = useRef(sessionKey);
   const popoverId = useId();
   const close = useCallback(() => setIsOpen(false), []);
-  const { openSettings } = usePaletteOps();
+  const { openSettings, openUsage } = usePaletteOps();
   const openAutoCompactSettings = useCallback(() => {
     setIsOpen(false);
     openSettings(agentScreenId('claude', 'autoCompact'));
@@ -665,6 +661,30 @@ export default function TokenUsageSummary({
                     </span>
                   </div>
                 </section>
+              )}
+
+              {(providerUsage?.resetCredits?.availableCount ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    openUsage();
+                  }}
+                  className="flex min-h-9 w-full items-center justify-between gap-3 rounded-md text-left text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span>
+                    {providerUsage?.resetCredits?.availableCount === 1
+                      ? t('usagePopover.oneResetAvailable', { defaultValue: '1 usage reset available' })
+                      : t('usagePopover.resetsAvailable', {
+                        defaultValue: '{{count}} usage resets available',
+                        count: providerUsage?.resetCredits?.availableCount,
+                      })}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                    {t('usagePopover.viewUsage', { defaultValue: 'View usage' })}
+                    <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                </button>
               )}
 
               {providerUsage?.stale && (

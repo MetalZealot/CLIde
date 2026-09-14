@@ -12,6 +12,7 @@ import { Download, RotateCcw } from 'lucide-react';
 import type { BrowserSessionSummary } from '../../../../../shared/browser-use';
 import ChatBrowserPreview from '../../../browser-use/view/ChatBrowserPreview';
 import { HeaderMenuProvider, useRegisterHeaderMenu, type HeaderMenuSection } from '../../../../contexts/HeaderMenuContext';
+import { PaletteOpsProvider, usePaletteOpsRegister } from '../../../../contexts/PaletteOpsContext';
 import MainContentHeaderMenu from '../../../main-content/view/subcomponents/MainContentHeaderMenu';
 import { PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../shared/view/ui';
 import { QuestionAnswerContent } from '../../tools/components/ContentRenderers/QuestionAnswerContent';
@@ -765,6 +766,9 @@ describe('chatSubcomponents', () => {
           unlimited: false,
           balance: '$25.00',
         },
+        resetCredits: {
+          availableCount: 3,
+        },
         activity: {
           lifetimeTokens: 1_250_000,
           peakDailyTokens: 250_000,
@@ -1060,16 +1064,25 @@ describe('chatSubcomponents', () => {
     });
 
     test('Codex omits breakdown and links weekly usage to account activity', async () => {
+      let usageOpens = 0;
+      const CodexUsageSummary = () => {
+        usePaletteOpsRegister({ openUsage: () => { usageOpens += 1; } });
+        return (
+          <TokenUsageSummary
+            provider="codex"
+            usage={{ used: 42_000, total: 258_400, isAutoCompactEnabled: false }}
+            request={{ id: 0, view: 'summary' }}
+            onRequestBreakdown={() => {}}
+            onRefreshBreakdown={() => {}}
+            isRefreshingBreakdown={false}
+            canRefreshBreakdown={false}
+          />
+        );
+      };
       const host = await mount(
-        <TokenUsageSummary
-          provider="codex"
-          usage={{ used: 42_000, total: 258_400, isAutoCompactEnabled: false }}
-          request={{ id: 0, view: 'summary' }}
-          onRequestBreakdown={() => {}}
-          onRefreshBreakdown={() => {}}
-          isRefreshingBreakdown={false}
-          canRefreshBreakdown={false}
-        />,
+        <PaletteOpsProvider>
+          <CodexUsageSummary />
+        </PaletteOpsProvider>,
       );
       const { dialog } = await openPopover(host);
       const text = dialog.textContent || '';
@@ -1085,12 +1098,22 @@ describe('chatSubcomponents', () => {
       assert.doesNotMatch(text, /5-hour/);
       assert.doesNotMatch(text, /Auto(?: off)?/);
       assert.match(text, /Credits\/Tokens\$25\.00/);
+      assert.match(text, /3 usage resets availableView usage/);
       assert.equal(
         dialog.querySelector<HTMLAnchorElement>('a')?.href,
         'https://chatgpt.com/#settings/Usage',
       );
 
-      const usageButton = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
+      const resetButton = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent?.includes('3 usage resets available'));
+      assert.ok(resetButton);
+      await React.act(async () => resetButton.click());
+      assert.equal(usageOpens, 1);
+      assert.equal(document.querySelector('[role="dialog"]'), null);
+
+      const reopened = await openPopover(host);
+
+      const usageButton = [...reopened.dialog.querySelectorAll<HTMLButtonElement>('button')]
         .find((button) => button.getAttribute('aria-label') === 'View Weekly usage');
       assert.ok(usageButton);
       await React.act(async () => usageButton.click());

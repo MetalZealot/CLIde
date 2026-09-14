@@ -40,6 +40,8 @@ type ProviderCapabilities = {
    * narrower: a provider can report plan windows without a usable `resetsAt`.
    */
   supportsUsageResetAlerts: boolean;
+  /** Whether this adapter can consume a provider-issued usage reset. */
+  supportsUsageLimitResetRedemption: boolean;
   /** Public status page when CLIde can read this provider's service component. */
   serviceStatusPageUrl: string | null;
   /** Whether the provider runtime can accept model-level reasoning effort. */
@@ -81,6 +83,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
+    supportsUsageLimitResetRedemption: false,
     serviceStatusPageUrl: getProviderServiceStatusPageUrl('claude'),
     supportsEffort: true,
     supportsRewind: true,
@@ -100,6 +103,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
     supportsUsageResetAlerts: false,
+    supportsUsageLimitResetRedemption: false,
     serviceStatusPageUrl: getProviderServiceStatusPageUrl('cursor'),
     supportsEffort: false,
     supportsRewind: false,
@@ -119,6 +123,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
+    supportsUsageLimitResetRedemption: true,
     serviceStatusPageUrl: getProviderServiceStatusPageUrl('codex'),
     supportsEffort: true,
     supportsRewind: false,
@@ -141,6 +146,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: false,
+    supportsUsageLimitResetRedemption: false,
     serviceStatusPageUrl: getProviderServiceStatusPageUrl('opencode'),
     supportsEffort: true,
     supportsRewind: false,

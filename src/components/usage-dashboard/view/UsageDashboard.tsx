@@ -22,12 +22,14 @@ import {
   usageBarToneClass,
 } from '../../provider-usage/format';
 import { useProviderUsage } from '../../provider-usage/hooks/useProviderUsage';
-import type {
-  ProviderUsageCredits,
-  ProviderUsageStatus,
-  ProviderUsageWindow,
+import {
+  PROVIDER_USAGE_MANAGEMENT_URLS,
+  type ProviderUsageCredits,
+  type ProviderUsageStatus,
+  type ProviderUsageWindow,
 } from '../../provider-usage/types';
 import MobileMenuButton from '../../main-content/view/subcomponents/MobileMenuButton';
+import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 
 type UsageDashboardProps = {
   isMobile: boolean;
@@ -38,6 +40,7 @@ type ProviderUsageCardProps = {
   provider: LLMProvider;
   authStatus: ProviderAuthStatus;
   refreshSignal: number;
+  supportsResetRedemption?: boolean;
 };
 
 const PRIMARY_WINDOW_IDS = new Set(['five_hour', 'seven_day']);
@@ -127,11 +130,22 @@ function CreditMetric({ credits }: { credits: ProviderUsageCredits }) {
   );
 }
 
-function ProviderUsageCard({ provider, authStatus, refreshSignal }: ProviderUsageCardProps) {
+function ProviderUsageCard({
+  provider,
+  authStatus,
+  refreshSignal,
+  supportsResetRedemption,
+}: ProviderUsageCardProps) {
   const { t } = useTranslation(['common', 'settings']);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const initialRefreshSignal = useRef(refreshSignal);
-  const { usage, loading, error, refresh } = useProviderUsage(provider, { enabled: true });
+  const {
+    usage,
+    loading,
+    error,
+    refresh,
+    redeemResetCredit,
+  } = useProviderUsage(provider, { enabled: true });
 
   useEffect(() => {
     if (refreshSignal !== initialRefreshSignal.current) {
@@ -233,7 +247,13 @@ function ProviderUsageCard({ provider, authStatus, refreshSignal }: ProviderUsag
                 {primaryWindows.map((window) => <UsageMetric key={window.id} window={window} />)}
                 {usage.credits && <CreditMetric credits={usage.credits} />}
                 {usage.resetCredits && (
-                  <UsageResetCreditsRow resetCredits={usage.resetCredits} showDivider={false} />
+                  <UsageResetCreditsRow
+                    resetCredits={usage.resetCredits}
+                    showDivider={false}
+                    onRedeem={supportsResetRedemption ? redeemResetCredit : undefined}
+                    redemptionDisabled={usage.stale === true}
+                    managementUrl={PROVIDER_USAGE_MANAGEMENT_URLS[provider]}
+                  />
                 )}
                 {usage.activity && (
                   <div className="py-4">
@@ -279,6 +299,7 @@ function ProviderUsageCard({ provider, authStatus, refreshSignal }: ProviderUsag
 export default function UsageDashboard({ isMobile, onMenuClick }: UsageDashboardProps) {
   const { t } = useTranslation('common');
   const { providerAuthStatus, refreshProviderAuthStatuses } = useProviderAuthStatus();
+  const providerCapabilities = useProviderCapabilities();
   const [refreshSignal, setRefreshSignal] = useState(0);
 
   useEffect(() => {
@@ -343,6 +364,9 @@ export default function UsageDashboard({ isMobile, onMenuClick }: UsageDashboard
                   provider={provider}
                   authStatus={providerAuthStatus[provider]}
                   refreshSignal={refreshSignal}
+                  supportsResetRedemption={providerCapabilities === null
+                    ? undefined
+                    : providerCapabilities[provider]?.supportsUsageLimitResetRedemption === true}
                 />
               ))}
             </div>

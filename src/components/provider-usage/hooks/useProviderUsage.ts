@@ -3,12 +3,22 @@ import { useCallback, useEffect, useState } from 'react';
 import { authenticatedFetch } from '../../../utils/api';
 import type { LLMProvider } from '../../../types/app';
 import { useOptionalWebSocket } from '../../../contexts/WebSocketContext';
-import { providerUsageEndpoint } from '../types';
-import type { ProviderUsageStatus } from '../types';
+import { providerUsageEndpoint, providerUsageResetEndpoint } from '../types';
+import type {
+  ProviderUsageResetRedemptionInput,
+  ProviderUsageResetRedemptionResult,
+  ProviderUsageStatus,
+} from '../types';
 
 type ProviderUsageApiResponse = {
   success: boolean;
   data: ProviderUsageStatus;
+};
+
+type ProviderUsageResetApiResponse = {
+  success?: boolean;
+  data?: ProviderUsageResetRedemptionResult;
+  error?: { code?: string; message?: string };
 };
 
 type UsageFetchState = {
@@ -154,6 +164,38 @@ export function useProviderUsage(
     void load(true);
   }, [load]);
 
+  const redeemResetCredit = useCallback(async (
+    input: ProviderUsageResetRedemptionInput,
+  ): Promise<ProviderUsageResetRedemptionResult> => {
+    if (!provider) {
+      throw new Error('No provider selected.');
+    }
+
+    const response = await authenticatedFetch(providerUsageResetEndpoint(provider), {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json()) as ProviderUsageResetApiResponse;
+    if (!response.ok || !payload.success || !payload.data) {
+      const error = new Error(payload.error?.message ?? 'Unable to use this reset.') as Error & {
+        code?: string;
+      };
+      error.code = payload.error?.code;
+      throw error;
+    }
+
+    const nextUsage = payload.data.usage;
+    const successfulAt = nextUsage.error
+      ? Date.parse(nextUsage.fetchedAt ?? '')
+      : Date.now();
+    usageCache.set(provider, {
+      data: nextUsage,
+      lastSuccessAtMs: Number.isFinite(successfulAt) ? successfulAt : 0,
+    });
+    setState({ usage: nextUsage, loading: false, error: null });
+    return payload.data;
+  }, [provider]);
+
   // The mount fetch is the only automatic one, and this app is a long-lived PWA
   // whose composer never remounts — so without this the bars keep showing the
   // numbers from whenever the tab was opened, possibly days ago. Surfaces that
@@ -199,5 +241,5 @@ export function useProviderUsage(
   // the previous provider's cached bars while the new request is starting.
   const usage = state.usage?.provider === provider ? state.usage : null;
 
-  return { ...state, usage, refresh, refreshIfStale };
+  return { ...state, usage, refresh, refreshIfStale, redeemResetCredit };
 }

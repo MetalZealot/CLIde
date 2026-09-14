@@ -3,25 +3,33 @@ import {
   type CodexCredentialsStatus,
 } from '@/modules/providers/list/codex/codex-auth.provider.js';
 import {
+  consumeCodexUsageResetCredit,
   readCodexAccountUsage,
   type CodexAccountUsageResponse,
 } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import { JsonlRpcError } from '@/modules/providers/shared/jsonl-rpc.client.js';
 import type { IProviderUsage } from '@/shared/interfaces.js';
 import type {
   ProviderUsageActivity,
   ProviderUsageBalanceCredits,
   ProviderUsageResetCredits,
+  ProviderUsageResetRedemptionInput,
+  ProviderUsageResetRedemptionOutcome,
   ProviderUsageStatus,
   ProviderUsageWindow,
 } from '@/shared/types.js';
-import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+import { AppError, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
 type CodexUsageReader = () => Promise<CodexAccountUsageResponse>;
 type CodexCredentialsReader = () => Promise<CodexCredentialsStatus>;
+type CodexResetConsumer = (
+  input: ProviderUsageResetRedemptionInput,
+) => Promise<ProviderUsageResetRedemptionOutcome>;
 
 type CodexProviderUsageDependencies = {
   readCredentials?: CodexCredentialsReader;
   readAccountUsage?: CodexUsageReader;
+  consumeResetCredit?: CodexResetConsumer;
 };
 
 type NormalizedCodexUsage = {
@@ -242,13 +250,16 @@ export const normalizeCodexRateLimits = (value: unknown): NormalizedCodexUsage =
 export class CodexProviderUsage implements IProviderUsage {
   private readonly readCredentials: CodexCredentialsReader;
   private readonly readAccountUsage: CodexUsageReader;
+  private readonly consumeResetCredit: CodexResetConsumer;
 
   constructor({
     readCredentials = readCodexCredentialsStatus,
     readAccountUsage = readCodexAccountUsage,
+    consumeResetCredit = consumeCodexUsageResetCredit,
   }: CodexProviderUsageDependencies = {}) {
     this.readCredentials = readCredentials;
     this.readAccountUsage = readAccountUsage;
+    this.consumeResetCredit = consumeResetCredit;
   }
 
   async getUsage(): Promise<ProviderUsageStatus> {
@@ -285,6 +296,36 @@ export class CodexProviderUsage implements IProviderUsage {
         supported: true,
         error: 'Unable to read plan usage from the Codex CLI.',
       };
+    }
+  }
+
+  async redeemResetCredit(
+    input: ProviderUsageResetRedemptionInput,
+  ): Promise<ProviderUsageResetRedemptionOutcome> {
+    const credentials = await this.readCredentials();
+    if (credentials.method === 'api_key') {
+      throw new AppError('Codex plan resets are unavailable with API-key authentication.', {
+        code: 'USAGE_RESET_REQUIRES_CHATGPT_AUTH',
+        statusCode: 409,
+      });
+    }
+    if (!credentials.authenticated) {
+      throw new AppError('Codex CLI must be authenticated before using a plan reset.', {
+        code: 'USAGE_RESET_REQUIRES_CHATGPT_AUTH',
+        statusCode: 409,
+      });
+    }
+
+    try {
+      return await this.consumeResetCredit(input);
+    } catch (error) {
+      if (error instanceof JsonlRpcError && error.code === -32601) {
+        throw new AppError('The selected Codex runtime cannot redeem usage-limit resets.', {
+          code: 'USAGE_RESET_REDEMPTION_UNSUPPORTED',
+          statusCode: 409,
+        });
+      }
+      throw error;
     }
   }
 }

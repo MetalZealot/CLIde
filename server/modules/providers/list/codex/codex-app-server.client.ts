@@ -4,6 +4,10 @@ import {
   type JsonlRpcCommand,
 } from '@/modules/providers/shared/jsonl-rpc.client.js';
 import { resolveSelectedCodexRuntimeCommand } from '@/modules/providers/list/codex/codex-native-runtime.provider.js';
+import type {
+  ProviderUsageResetRedemptionInput,
+  ProviderUsageResetRedemptionOutcome,
+} from '@/shared/types.js';
 
 export type CodexAppServerCommand = JsonlRpcCommand;
 
@@ -13,6 +17,7 @@ type ReadCodexAccountUsageOptions = {
 };
 
 type ReadCodexModelListOptions = ReadCodexAccountUsageOptions;
+type ConsumeCodexUsageResetOptions = ReadCodexAccountUsageOptions;
 
 export type CodexLiveModel = {
   id: string;
@@ -39,6 +44,13 @@ export type CodexAccountUsageResponse = {
 };
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+
+const USAGE_RESET_OUTCOMES = new Set<ProviderUsageResetRedemptionOutcome>([
+  'reset',
+  'nothingToReset',
+  'noCredit',
+  'alreadyRedeemed',
+]);
 
 /**
  * Backwards-compatible name retained for the usage provider and its tests.
@@ -103,6 +115,57 @@ export const readCodexAccountUsage = async (
     };
   } finally {
     client.close('Codex account usage read completed.');
+  }
+};
+
+/** Consumes one Codex reset credit through a bounded initialized App Server. */
+export const consumeCodexUsageResetCredit = async (
+  input: ProviderUsageResetRedemptionInput,
+  {
+    command,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  }: ConsumeCodexUsageResetOptions = {},
+): Promise<ProviderUsageResetRedemptionOutcome> => {
+  const resolvedCommand = command
+    ?? (await resolveSelectedCodexRuntimeCommand(
+      'usage',
+      ['app-server', '--stdio'],
+    )).command;
+  const client = new JsonlRpcClient({
+    command: resolvedCommand,
+    requestTimeoutMs: timeoutMs,
+  });
+  client.open();
+
+  try {
+    await client.request('initialize', {
+      clientInfo: {
+        name: 'clide',
+        title: 'CLIde',
+        version: '1',
+      },
+      capabilities: {
+        experimentalApi: false,
+      },
+    });
+    client.notify('initialized', {});
+
+    const response = await client.request<{ outcome?: unknown }>(
+      'account/rateLimitResetCredit/consume',
+      {
+        idempotencyKey: input.idempotencyKey,
+        creditId: input.creditId ?? null,
+      },
+    );
+    if (
+      typeof response.outcome !== 'string'
+      || !USAGE_RESET_OUTCOMES.has(response.outcome as ProviderUsageResetRedemptionOutcome)
+    ) {
+      throw new Error('Codex returned an invalid usage-reset outcome.');
+    }
+    return response.outcome as ProviderUsageResetRedemptionOutcome;
+  } finally {
+    client.close('Codex usage-reset attempt completed.');
   }
 };
 

@@ -7,6 +7,7 @@ export type PaletteOps = {
   // (used by in-chat file links so they behave like the inline edit view).
   openFileInEditor: (path: string) => void;
   openSettings: (tab?: string) => void;
+  openUsage: () => void;
   refreshProjects: () => Promise<void> | void;
 };
 
@@ -18,6 +19,7 @@ const defaultOps: PaletteOps = {
   openFile: () => undefined,
   openFileInEditor: () => undefined,
   openSettings: () => undefined,
+  openUsage: () => undefined,
   refreshProjects: () => undefined,
 };
 
@@ -34,6 +36,7 @@ export function usePaletteOps(): PaletteOps {
       openFileInEditor: (path) =>
         (ref?.current.openFileInEditor ?? defaultOps.openFileInEditor)(path),
       openSettings: (tab) => (ref?.current.openSettings ?? defaultOps.openSettings)(tab),
+      openUsage: () => (ref?.current.openUsage ?? defaultOps.openUsage)(),
       refreshProjects: () => (ref?.current.refreshProjects ?? defaultOps.refreshProjects)(),
     }),
     [ref],
@@ -42,7 +45,7 @@ export function usePaletteOps(): PaletteOps {
 
 export function usePaletteOpsRegister(partial: Partial<PaletteOps>) {
   const ref = useContext(PaletteOpsContext);
-  const { openFile, openFileInEditor, openSettings, refreshProjects } = partial;
+  const { openFile, openFileInEditor, openSettings, openUsage, refreshProjects } = partial;
 
   useEffect(() => {
     if (!ref) return undefined;
@@ -50,12 +53,14 @@ export function usePaletteOpsRegister(partial: Partial<PaletteOps>) {
     if (openFile) ref.current.openFile = openFile;
     if (openFileInEditor) ref.current.openFileInEditor = openFileInEditor;
     if (openSettings) ref.current.openSettings = openSettings;
+    if (openUsage) ref.current.openUsage = openUsage;
     if (refreshProjects) ref.current.refreshProjects = refreshProjects;
     return () => {
       if (openFile && ref.current.openFile === openFile) ref.current.openFile = prev.openFile;
       if (openFileInEditor && ref.current.openFileInEditor === openFileInEditor) ref.current.openFileInEditor = prev.openFileInEditor;
       if (openSettings && ref.current.openSettings === openSettings) ref.current.openSettings = prev.openSettings;
+      if (openUsage && ref.current.openUsage === openUsage) ref.current.openUsage = prev.openUsage;
       if (refreshProjects && ref.current.refreshProjects === refreshProjects) ref.current.refreshProjects = prev.refreshProjects;
     };
-  }, [ref, openFile, openFileInEditor, openSettings, refreshProjects]);
+  }, [ref, openFile, openFileInEditor, openSettings, openUsage, refreshProjects]);
 }

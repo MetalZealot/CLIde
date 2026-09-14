@@ -6,7 +6,11 @@ import test, { describe } from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import type { CodexLiveModel } from '@/modules/providers/list/codex/codex-app-server.client.js';
-import { readCodexAccountUsage, readCodexModelList } from '@/modules/providers/list/codex/codex-app-server.client.js';
+import {
+  consumeCodexUsageResetCredit,
+  readCodexAccountUsage,
+  readCodexModelList,
+} from '@/modules/providers/list/codex/codex-app-server.client.js';
 import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/codex-async-questions.js';
 import { CODEX_FALLBACK_MODELS, CodexProviderModels } from '@/modules/providers/list/codex/codex-models.provider.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
@@ -19,7 +23,9 @@ import { CodexProviderUsage, normalizeCodexAccountActivity, normalizeCodexRateLi
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type { SessionModelPickStore } from '@/modules/providers/services/provider-session-model.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { JsonlRpcError } from '@/modules/providers/shared/jsonl-rpc.client.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
+import { AppError } from '@/shared/utils.js';
 
 describe('codex-sessions', () => {
   const patchHomeDir = (nextHomeDir: string) => {
@@ -1380,6 +1386,86 @@ describe('codex-usage', () => {
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }
+  });
+
+  test('Codex app-server client consumes reset credits with every native outcome', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-reset-app-server-'));
+    const fakeServerPath = path.join(tempRoot, 'fake-app-server.mjs');
+    const outcomes = ['reset', 'nothingToReset', 'noCredit', 'alreadyRedeemed'] as const;
+
+    try {
+      await writeFile(
+        fakeServerPath,
+        `import readline from 'node:readline';
+  const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+  let initialized = false;
+  for await (const line of lines) {
+    const message = JSON.parse(line);
+    if (message.method === 'initialize') {
+      process.stdout.write(JSON.stringify({ id: message.id, result: { userAgent: 'fake' } }) + '\\n');
+    } else if (message.method === 'initialized') {
+      initialized = true;
+    } else if (message.method === 'account/rateLimitResetCredit/consume') {
+      if (!initialized || message.params.creditId !== 'credit-1') process.exit(20);
+      process.stdout.write(JSON.stringify({ id: message.id, result: {
+        outcome: message.params.idempotencyKey
+      } }) + '\\n');
+    }
+  }
+  `,
+        'utf8',
+      );
+
+      for (const outcome of outcomes) {
+        assert.equal(await consumeCodexUsageResetCredit(
+          { idempotencyKey: outcome, creditId: 'credit-1' },
+          {
+            command: { command: process.execPath, args: [fakeServerPath] },
+            timeoutMs: 2_000,
+          },
+        ), outcome);
+      }
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('Codex reset redemption requires ChatGPT auth and maps an absent native method', async () => {
+    let consumeCalls = 0;
+    const apiKeyProvider = new CodexProviderUsage({
+      readCredentials: async () => ({
+        authenticated: true,
+        email: 'API Key Auth',
+        method: 'api_key',
+      }),
+      consumeResetCredit: async () => {
+        consumeCalls += 1;
+        return 'reset';
+      },
+    });
+
+    await assert.rejects(
+      apiKeyProvider.redeemResetCredit({ idempotencyKey: 'attempt-1' }),
+      (error: unknown) => error instanceof AppError
+        && error.code === 'USAGE_RESET_REQUIRES_CHATGPT_AUTH',
+    );
+    assert.equal(consumeCalls, 0);
+
+    const oldRuntimeProvider = new CodexProviderUsage({
+      readCredentials: async () => ({
+        authenticated: true,
+        email: 'codex@example.com',
+        method: 'credentials_file',
+      }),
+      consumeResetCredit: async () => {
+        throw new JsonlRpcError(-32601, 'Method not found');
+      },
+    });
+    await assert.rejects(
+      oldRuntimeProvider.redeemResetCredit({ idempotencyKey: 'attempt-2' }),
+      (error: unknown) => error instanceof AppError
+        && error.code === 'USAGE_RESET_REDEMPTION_UNSUPPORTED',
+    );
   });
 
   test('Codex app-server client reads every model/list page', async () => {

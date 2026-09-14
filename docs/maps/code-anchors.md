@@ -49,7 +49,10 @@ neither decorated with a session id nor buffered for replay. Reset scheduling
 lives in `provider-usage-reset-monitor.service.ts`, follows ADR 0039, and is
 gated by `supportsUsageResetAlerts` on the capability matrix, which the client
 reads through `useProviderCapabilities` rather than branching on provider id.
-Window names are derived in one place, `provider-usage/format.ts`.
+Earned-reset redemption is a separate optional `IProviderUsage` mutation:
+`provider-usage.service.ts` forces a post-attempt read, while `/usage` owns the
+confirmation and the composer only links there. Window names are derived in
+one place, `provider-usage/format.ts`.
 
 ## Session identity and addressing
 

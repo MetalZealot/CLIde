@@ -14,6 +14,8 @@ import type {
   ProviderSkillCreateInput,
   ProviderSkillRemoveInput,
   ProviderUsageStatus,
+  ProviderUsageResetRedemptionInput,
+  ProviderUsageResetRedemptionOutcome,
   ProviderChangeActiveModelInput,
   ProviderSessionActiveModelChange,
   ProviderRuntimeContext,
@@ -145,6 +147,10 @@ export interface IProviderUsage {
    * Caching is the usage service's responsibility, not the provider's.
    */
   getUsage(): Promise<ProviderUsageStatus>;
+  /** Consumes one provider-issued usage reset when this account surface supports it. */
+  redeemResetCredit?(
+    input: ProviderUsageResetRedemptionInput,
+  ): Promise<ProviderUsageResetRedemptionOutcome>;
 }
 
 // ---------------------------

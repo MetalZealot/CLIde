@@ -1,8 +1,8 @@
-import { ChevronDown } from 'lucide-react';
-import React, { useState } from 'react';
+import { ChevronDown, ExternalLink } from 'lucide-react';
+import React, { useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Shimmer } from '../../shared/view/ui';
+import { Button, Dialog, DialogContent, DialogTitle, Shimmer } from '../../shared/view/ui';
 import { cn } from '../../lib/utils';
 
 import {
@@ -18,6 +18,8 @@ import type {
   ProviderUsageBalanceCredits,
   ProviderUsageCredits,
   ProviderUsageResetCredits,
+  ProviderUsageResetRedemptionInput,
+  ProviderUsageResetRedemptionResult,
   ProviderUsageSpendCredits,
   ProviderUsageStatus,
   ProviderUsageWindow,
@@ -235,30 +237,213 @@ function UsageCreditsRow({ credits }: { credits: ProviderUsageCredits }) {
 export function UsageResetCreditsRow({
   resetCredits,
   showDivider = true,
+  onRedeem,
+  redemptionDisabled = false,
+  managementUrl,
 }: {
   resetCredits: ProviderUsageResetCredits;
   showDivider?: boolean;
+  onRedeem?: (
+    input: ProviderUsageResetRedemptionInput,
+  ) => Promise<ProviderUsageResetRedemptionResult>;
+  redemptionDisabled?: boolean;
+  managementUrl?: string;
 }) {
   const { t } = useTranslation('common');
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resultMessage, setResultMessage] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [redemptionUnsupported, setRedemptionUnsupported] = useState(false);
+  const attemptKeyRef = useRef<string | null>(null);
+  const descriptionId = useId();
   const availability = resetCredits.availableCount === 1
     ? t('planUsage.oneResetAvailable', { defaultValue: '1 available' })
     : t('planUsage.resetsAvailable', {
       defaultValue: '{{count}} available',
       count: resetCredits.availableCount,
     });
+  const selectedCredit = [...(resetCredits.details ?? [])]
+    .filter((credit) => credit.status === 'available')
+    .sort((left, right) => {
+      const leftExpiry = Date.parse(left.expiresAt ?? '');
+      const rightExpiry = Date.parse(right.expiresAt ?? '');
+      if (!Number.isFinite(leftExpiry) && !Number.isFinite(rightExpiry)) return 0;
+      if (!Number.isFinite(leftExpiry)) return 1;
+      if (!Number.isFinite(rightExpiry)) return -1;
+      return leftExpiry - rightExpiry;
+    })[0];
+  const expiry = selectedCredit?.expiresAt ? formatResetLocal(selectedCredit.expiresAt) : null;
+
+  const submitRedemption = async () => {
+    if (!onRedeem) return;
+    const idempotencyKey = attemptKeyRef.current
+      ?? globalThis.crypto?.randomUUID?.()
+      ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    attemptKeyRef.current = idempotencyKey;
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const result = await onRedeem({
+        idempotencyKey,
+        ...(selectedCredit?.id ? { creditId: selectedCredit.id } : {}),
+      });
+      attemptKeyRef.current = null;
+      setIsConfirming(false);
+      setResultMessage({
+        reset: t('usageDashboard.resetApplied', { defaultValue: 'Usage reset applied.' }),
+        nothingToReset: t('usageDashboard.nothingToReset', {
+          defaultValue: 'Nothing needs resetting yet. Usage has been refreshed.',
+        }),
+        noCredit: t('usageDashboard.noResetCredit', {
+          defaultValue: 'No reset is available. Usage has been refreshed.',
+        }),
+        alreadyRedeemed: t('usageDashboard.resetAlreadyRedeemed', {
+          defaultValue: 'This reset was already used. Usage has been refreshed.',
+        }),
+      }[result.outcome]);
+    } catch (error) {
+      if (
+        error
+        && typeof error === 'object'
+        && 'code' in error
+        && error.code === 'USAGE_RESET_REDEMPTION_UNSUPPORTED'
+      ) {
+        setRedemptionUnsupported(true);
+      }
+      setSubmitError(error instanceof Error
+        ? error.message
+        : t('usageDashboard.resetFailed', { defaultValue: 'Unable to use this reset.' }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <div className={cn(
-      'flex items-baseline justify-between gap-3',
-      showDivider ? 'border-t border-border/60 pt-4' : 'py-4',
-    )}>
-      <span className="text-sm font-medium text-foreground">
-        {t('planUsage.usageLimitResets', { defaultValue: 'Usage limit resets' })}
-      </span>
-      <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
-        {availability}
-      </span>
-    </div>
+    <>
+      <div className={cn(
+        'flex items-center justify-between gap-3',
+        showDivider ? 'border-t border-border/60 pt-4' : 'py-4',
+      )}>
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-foreground">
+            {t('planUsage.usageLimitResets', { defaultValue: 'Usage limit resets' })}
+          </div>
+          {resultMessage && (
+            <p className="mt-1 text-xs text-muted-foreground" aria-live="polite">
+              {resultMessage}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="font-mono text-sm font-semibold text-foreground">
+            {availability}
+          </span>
+          {resetCredits.availableCount > 0 && onRedeem && !redemptionUnsupported && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={redemptionDisabled}
+              title={redemptionDisabled
+                ? t('usageDashboard.refreshBeforeReset', {
+                  defaultValue: 'Refresh usage before using a reset.',
+                })
+                : undefined}
+              onClick={() => {
+                setResultMessage(null);
+                setSubmitError(null);
+                setIsConfirming(true);
+              }}
+            >
+              {t('usageDashboard.useReset', { defaultValue: 'Use reset' })}
+            </Button>
+          )}
+          {resetCredits.availableCount > 0
+            && (!onRedeem || redemptionUnsupported)
+            && managementUrl && (
+            <a
+              href={managementUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              {t('usageDashboard.openProviderUsage', { defaultValue: 'Open provider usage' })}
+            </a>
+          )}
+        </div>
+      </div>
+
+      <Dialog
+        open={isConfirming}
+        onOpenChange={(open) => {
+          if (!isSubmitting) setIsConfirming(open);
+        }}
+      >
+        <DialogContent
+          aria-describedby={descriptionId}
+          className="w-[calc(100vw-2rem)] max-w-sm p-6"
+        >
+          <DialogTitle className="not-sr-only text-lg font-semibold text-foreground">
+            {t('usageDashboard.confirmResetTitle', { defaultValue: 'Use one usage reset?' })}
+          </DialogTitle>
+          <p id={descriptionId} className="mt-2 text-sm text-muted-foreground">
+            {t('usageDashboard.confirmResetDescription', {
+              defaultValue: 'This refreshes eligible 5-hour and weekly limits and changes your next weekly reset date. It cannot be undone.',
+            })}
+          </p>
+          {expiry && (
+            <p className="mt-3 text-sm text-foreground">
+              {t('usageDashboard.resetExpires', {
+                defaultValue: 'This reset expires {{expiry}}.',
+                expiry,
+              })}
+            </p>
+          )}
+          {submitError && (
+            <p className="mt-3 text-sm text-destructive" role="alert">
+              {submitError}
+            </p>
+          )}
+          {redemptionUnsupported && managementUrl && (
+            <a
+              href={managementUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-3 inline-flex min-h-9 items-center gap-1 rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              {t('usageDashboard.openProviderUsage', { defaultValue: 'Open provider usage' })}
+            </a>
+          )}
+          <div className="mt-6 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSubmitting}
+              onClick={() => setIsConfirming(false)}
+            >
+              {t('buttons.cancel', { defaultValue: 'Cancel' })}
+            </Button>
+            {!redemptionUnsupported && (
+              <Button
+                type="button"
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => { void submitRedemption(); }}
+              >
+                {isSubmitting
+                  ? t('usageDashboard.usingReset', { defaultValue: 'Using reset…' })
+                  : t('usageDashboard.useReset', { defaultValue: 'Use reset' })}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

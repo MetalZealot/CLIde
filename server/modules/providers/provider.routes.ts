@@ -32,6 +32,7 @@ import type {
   McpTransport,
   ProviderChangeActiveModelInput,
   ProviderChangeSessionEffortInput,
+  ProviderUsageResetRedemptionInput,
   ProviderSkillCreateFile,
   ProviderSkillCreateInput,
   UpsertProviderMcpServerInput,
@@ -104,6 +105,38 @@ const parseOptionalBooleanQuery = (value: unknown, name: string): boolean | unde
     code: 'INVALID_QUERY_PARAMETER',
     statusCode: 400,
   });
+};
+
+const parseUsageResetRedemptionPayload = (
+  payload: unknown,
+): ProviderUsageResetRedemptionInput => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  const idempotencyKey = readOptionalQueryString(body.idempotencyKey);
+  const creditId = readOptionalQueryString(body.creditId);
+  if (!idempotencyKey || idempotencyKey.length > 200) {
+    throw new AppError('idempotencyKey is required and must be at most 200 characters.', {
+      code: 'INVALID_USAGE_RESET_IDEMPOTENCY_KEY',
+      statusCode: 400,
+    });
+  }
+  if (creditId && creditId.length > 500) {
+    throw new AppError('creditId must be at most 500 characters.', {
+      code: 'INVALID_USAGE_RESET_CREDIT_ID',
+      statusCode: 400,
+    });
+  }
+
+  return {
+    idempotencyKey,
+    ...(creditId ? { creditId } : {}),
+  };
 };
 
 const parseMcpScope = (value: unknown): McpScope | undefined => {
@@ -422,6 +455,16 @@ router.get(
     const refresh = parseOptionalBooleanQuery(req.query.refresh, 'refresh') ?? false;
     const status = await providerUsageService.getProviderUsage(provider, { bypassCache: refresh });
     res.json(createApiSuccessResponse(status));
+  }),
+);
+
+router.post(
+  '/:provider/usage/reset',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const input = parseUsageResetRedemptionPayload(req.body);
+    const result = await providerUsageService.redeemProviderUsageReset(provider, input);
+    res.json(createApiSuccessResponse(result));
   }),
 );
 

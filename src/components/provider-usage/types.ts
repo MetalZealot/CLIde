@@ -53,6 +53,17 @@ export type ProviderUsageResetCredits = {
   details?: ProviderUsageResetCreditDetail[];
 };
 
+export type ProviderUsageResetRedemptionInput = {
+  idempotencyKey: string;
+  creditId?: string;
+};
+
+export type ProviderUsageResetRedemptionOutcome =
+  | 'reset'
+  | 'nothingToReset'
+  | 'noCredit'
+  | 'alreadyRedeemed';
+
 export type ProviderUsageActivity = {
   lifetimeTokens?: number;
   peakDailyTokens?: number;
@@ -78,9 +89,24 @@ export type ProviderUsageStatus = {
   error?: string;
 };
 
+export type ProviderUsageResetRedemptionResult = {
+  provider: LLMProvider;
+  outcome: ProviderUsageResetRedemptionOutcome;
+  usage: ProviderUsageStatus;
+};
+
 export const providerUsageEndpoint = (provider: LLMProvider, refresh = false): string => (
   `/api/providers/${provider}/usage${refresh ? '?refresh=true' : ''}`
 );
+
+export const providerUsageResetEndpoint = (provider: LLMProvider): string => (
+  `/api/providers/${provider}/usage/reset`
+);
+
+export const PROVIDER_USAGE_MANAGEMENT_URLS: Partial<Record<LLMProvider, string>> = {
+  claude: 'https://claude.ai/new#settings/usage',
+  codex: 'https://chatgpt.com/#settings/Usage',
+};
 
 /**
  * Whether the reset-alert toggle should be offered for an account.

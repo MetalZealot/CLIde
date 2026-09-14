@@ -22,7 +22,6 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Subagent visibility](subagent-visibility.md) | 2/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
 | [Mobile bottom navigation](mobile-bottom-navigation.md) | 3/4 | Merged; post-merge installed-PWA acceptance of the bar, Chat status, compact menus, and Browser preview |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
-| [Codex usage-limit resets](codex-usage-limit-resets.md) | not started | Add the capability-gated provider mutation and focused server tests |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Markdown-native project board](markdown-project-board.md) | not started | First observe the existing dashboard, then test the status contract across three projects |
 | [Claude settings surface](claude-settings-surface.md) | 1/5 | Phase 2: read-only cascade screen, taking the `@alpha` `resolveSettings()` risk |

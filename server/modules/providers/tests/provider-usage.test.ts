@@ -58,6 +58,58 @@ describe('provider-usage.service', () => {
       resetsAt: new Date(1_776_000_000_000).toISOString(),
     });
   });
+
+  test('redemption forwards one logical attempt and refreshes past both cache timers', async () => {
+    let usageReads = 0;
+    const redemptionInputs: Array<{ idempotencyKey: string; creditId?: string }> = [];
+    const service = createProviderUsageService({
+      now: () => Date.parse('2026-09-13T12:00:00.000Z'),
+      resolveUsage: () => ({
+        getUsage: async () => {
+          usageReads += 1;
+          return {
+            provider: 'codex',
+            supported: true,
+            windows: [{ id: 'seven_day', utilization: usageReads === 1 ? 90 : 0, resetsAt: null }],
+            resetCredits: { availableCount: usageReads === 1 ? 3 : 2 },
+          };
+        },
+        redeemResetCredit: async (input) => {
+          redemptionInputs.push(input);
+          return 'reset';
+        },
+      }),
+    });
+
+    await service.getProviderUsage('codex');
+    const result = await service.redeemProviderUsageReset('codex', {
+      idempotencyKey: 'attempt-1',
+      creditId: 'credit-1',
+    });
+
+    assert.deepEqual(redemptionInputs, [{ idempotencyKey: 'attempt-1', creditId: 'credit-1' }]);
+    assert.equal(usageReads, 2);
+    assert.equal(result.outcome, 'reset');
+    assert.equal(result.usage.windows?.[0].utilization, 0);
+    assert.equal(result.usage.resetCredits?.availableCount, 2);
+  });
+
+  test('redemption is rejected when the provider exposes read-only usage', async () => {
+    const service = createProviderUsageService({
+      resolveUsage: () => ({
+        getUsage: async () => ({ provider: 'claude', supported: true }),
+      }),
+    });
+
+    await assert.rejects(
+      service.redeemProviderUsageReset('claude', { idempotencyKey: 'attempt-1' }),
+      (error: unknown) => (
+        error instanceof AppError
+        && error.code === 'USAGE_RESET_REDEMPTION_UNSUPPORTED'
+        && error.statusCode === 409
+      ),
+    );
+  });
 });
 
 describe('provider-usage-reset-monitor', () => {
