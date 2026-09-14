@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
 - Status: 1/6
-- Next: see the offer on the branch-test slot, then phase 1's Codex half
+- Next: [message edit model](message-edit-model.md) phase 1, then move the offer onto the notice
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -19,7 +19,8 @@ way of asking for one that is not long-pressing the send button and typing
   Nor is a provider's predicted instant binding — see phase 0. The offer reads
   one only to stop advertising itself once it has passed.
 - **The pending row is the dedupe.** `useScheduledMessages` already lists a
-  session's pending rows, so an offer hides itself once taken.
+  session's pending rows, so an offer hides itself once taken — and a row held
+  for editing must count, or the offer comes back mid-edit.
 - **`supportsUsageResetAlerts` gates the offer**, as it already does in the
   send menu. True for Claude and Codex, false for Cursor and OpenCode.
 
@@ -74,13 +75,13 @@ that occurs in none of 47 real notices, and is dead code.
       shape is unconfirmed — its synchronizer skips a `task_complete` carrying
       no agent message, so the second row is not the transcript one and needs a
       live capture before anything is changed
-- [~] 2. A limit stop in the chat offers Auto-Continue in one tap, and the
-      offer disappears once a message is waiting. Detected on the fields above,
-      never the wording, and absent when the row says no reset is coming.
-      `quotaLimits.resetsAt` also expires a stale offer, so an old conversation
-      that ended on a limit stops advertising one. `Continue` goes through
-      `buildSendOptions`, which reads the composer text only for a notification
-      label, so the session's own model and permission mode carry over — minus
+- [~] 2. A limit stop offers Auto-Continue in one tap, as a button on the limit
+      notice itself; tapping it puts the scheduled bubble from the [message edit
+      model](message-edit-model.md) directly beneath. Built so far as a card in
+      the strip above the composer, which that model removes, so the detection
+      stays and the card moves. Detected on the fields above, never the wording,
+      and absent when the row says no reset is coming; `quotaLimits.resetsAt`
+      expires a stale offer. `Continue` goes through `buildSendOptions` minus
       `rewindToMessageId`, which an offer must not inherit
 - [ ] 3. The message Auto-Continue sends is editable in Settings › Chat.
       Server-side in `appConfigDb`, not `useUiPreferences` localStorage, so
@@ -97,8 +98,8 @@ that occurs in none of 47 real notices, and is dead code.
 
 ## Done when
 
-- Hitting the limit in a chat shows an offer that, tapped, produces the same
-  waiting card and sidebar clock a long-press schedule produces
+- Hitting the limit shows an offer on the notice that, tapped, produces the same
+  scheduled bubble and sidebar clock a long-press schedule produces
 - The offer is absent on a session that already has a pending `usage-reset` row
 - The offer is absent on Cursor and OpenCode
 - A session set to Auto-Continue resumes after a reset with no client connected
