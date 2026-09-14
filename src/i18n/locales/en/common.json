@@ -72,7 +72,8 @@
     "pluginSettings": "Plugin settings",
     "selectWorktreeFirst": "Select a worktree first",
     "attention": "Permission request waiting",
-    "unread": "Unread reply"
+    "unread": "Unread reply",
+    "scheduled": "Message scheduled"
   },
   "status": {
     "loading": "Loading...",

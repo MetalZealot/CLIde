@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { AlertCircle, Check, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
+import { AlertCircle, Check, Clock, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
@@ -32,7 +32,11 @@ type MobileBottomNavProps = {
 // A fifth of a phone's width holds one short word, so long names get a bar label.
 const BAR_LABEL_KEYS: Partial<Record<AppTab, string>> = { git: 'mobileNav.git' };
 
-const CHAT_STATUS_LABEL_KEYS = { blocked: 'mobileNav.attention', unread: 'mobileNav.unread' } as const;
+const CHAT_STATUS_LABEL_KEYS = {
+  blocked: 'mobileNav.attention',
+  unread: 'mobileNav.unread',
+  scheduled: 'mobileNav.scheduled',
+} as const;
 
 const barItemClassName = (isActive: boolean) =>
   cn(
@@ -109,6 +113,14 @@ export default function MobileBottomNav({
                       aria-hidden="true"
                       className="absolute right-2.5 top-0.5 h-2 w-2 rounded-full bg-status-unread ring-2 ring-background"
                     />
+                  )}
+                  {status === 'scheduled' && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-0.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-background"
+                    >
+                      <Clock className="h-3 w-3 text-status-running" />
+                    </span>
                   )}
                 </span>
                 <span className="max-w-full truncate px-1">{t(BAR_LABEL_KEYS[tab.id] ?? tab.labelKey)}</span>
