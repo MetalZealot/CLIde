@@ -196,7 +196,8 @@ the whole session, and whether it is waiting on you.
 
 **The rule:** name which of the four a placement rests on before building it. The strip
 above the composer is the scarcest space on a phone, so it earns an item only when that
-item needs you now.
+item needs you now — or, for queued messages, when it is about to send and you are
+likely to change it first, and then as one row.
 
 **What breaks:** copying a desktop tool's layout fills that strip with cards that all
 compete while you type, and each new feature adds one more.
