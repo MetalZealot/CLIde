@@ -21,6 +21,7 @@ These apply at **both** breakpoints unless the row says otherwise.
 | Visible keyboard focus | WCAG 2.4.7 (AA) | |
 | Focus never fully hidden by sticky chrome | WCAG 2.4.11 (AA) | Sticky headers and footers are the usual cause |
 | Hover/focus content is dismissable, hoverable, persistent | WCAG 1.4.13 (AA) | Tooltips and popovers need an Escape path |
+| A status change is announced without moving focus | WCAG 4.1.3 (AA) | Removing a text banner removes its announcement too; an icon swap needs a changed accessible name |
 | Reflow at 320px and 200% zoom, no 2-D scrolling | WCAG 1.4.4, 1.4.10 (AA) | Bounds how narrow a resizable panel may go |
 | 16px minimum font on focusable inputs | iOS Safari behaviour | Anything smaller zooms the viewport |
 
@@ -78,6 +79,31 @@ Overrulable; say so when citing one.
 - **Target comfort is contextual.** Review size together with separation,
   adjacency, frequency, consequence, input capability, and real-device use.
   Preserve established visual density unless evidence supports changing it.
+
+### Placement around the composer
+
+No published standard places anything in or around a chat composer, and every
+tool differs. Four reasons sit under the conventions that last, and are the
+tests to apply before choosing:
+
+- **Reach.** A phone is held from the bottom, so a control tapped often belongs
+  low and something only glanced at can sit high. Widely cited handling
+  research, not a specification.
+- **The keyboard's cost.** With the keyboard open, the strip above the composer
+  is most of what remains of the conversation, so anything stacked there costs
+  most while typing. Desktop tools pay nothing for it, which is why copying their
+  layout to a phone backfires.
+- **Next message or whole session.** What changes the next message — model,
+  attachments, send — belongs in the composer. What describes the whole session
+  — title, provider, branch — belongs in the header.
+- **Waiting on you or not.** What needs an answer — a question, a permission
+  prompt — sits by the input. What happens anyway goes where it will end up.
+
+References the maintainer can open: upstream CloudCLI and T3Code for agent chat,
+Google Messages for scheduling on a phone. Upstream, read 2026-09-14, stacks its
+scheduled list, queued card and edit banner above the composer and schedules from
+a toolbar button — a desktop layout, so it shows which features exist, not where
+they fit on a phone.
 
 ### Mobile bottom-navigation contract
 

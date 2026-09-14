@@ -54,6 +54,36 @@ Earned-reset redemption is a separate optional `IProviderUsage` mutation:
 confirmation and the composer only links there. Window names are derived in
 one place, `provider-usage/format.ts`.
 
+## Usage-limit stops are classified by field, and a reset by usage
+
+Both providers label a limit stop in a field; the notice text is localized prose.
+Read from real transcripts and the CLI binary, 2026-09-09 to 2026-09-10.
+
+- **Claude** stamps the synthetic row `error: "rate_limit"`, `apiErrorStatus: 429`
+  and a `quotaLimits` object — `status`, an epoch `resetsAt`, `rateLimitType`
+  (`five_hour`, `seven_day`, ...), overage fields. `quotaLimits: null` on an
+  otherwise identical row is a spent balance, which never resets.
+  `readClaudeUsageLimit` (`claude-sessions.provider.ts`) turns it into the shared
+  `usageLimit: UsageLimitStop` (`resumes`, `resetsAt`, `windowId`).
+- **The SDK then rethrows the same text** as `Claude Code returned an error result:
+  …`, which the run loop's catch would draw as a second, live-only row.
+  `duplicatesStreamedNotice` (`claude-runtime.provider.js`) drops it only when a
+  notice actually streamed, so an unannounced error result still shows.
+- **Codex** names it on `task_complete` as `error.codex_error_info:
+  "usage_limit_exceeded"`, carried by `codex-sessions.provider.ts`; that object
+  holds nothing else. Reset instants arrive on `token_count.rate_limits`
+  (`primary` 300 min, `secondary` 10080 min, each `resets_at`). Its
+  `rate_limit_reached_type` was null in all 16,347 samples — schema only. Codex's
+  live duplicate row is a different pair from Claude's and is still unexplained.
+- `formatUsageLimitText` matches a `Claude AI usage limit reached|<epoch>` form
+  found in none of 47 real notices. Dead; delete it rather than build on it.
+- **An early reset cancels the timer named after it**: the provider reports a later
+  `resetsAt`, so `scheduleUsage` drops the old identity. Recovery is read from
+  utilization instead — seen spent, then below the ceiling — with the flag
+  persisted per provider in `usage_reset_state` so a restart across a reset still
+  reads as a transition. Only Auto-Continue rides it; alerts stay on predicted
+  resets.
+
 ## Session identity and addressing
 
 Runtimes are addressed by the **app** session id, never the provider-native one.

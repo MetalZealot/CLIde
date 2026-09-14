@@ -26,31 +26,10 @@ way of asking for one that is not long-pressing the send button and typing
 
 ## How a limit stop is recognised
 
-Both providers classify it in a field. Read from real transcripts,
-2026-08-11 to 2026-09-09. Nothing here reads the sentence: the wording is
-localized prose that has already changed once — upstream's
-`formatUsageLimitText` matches a `Claude AI usage limit reached|<epoch>` form
-that occurs in none of 47 real notices, and is dead code.
-
-- **Claude** stamps the row `error: "rate_limit"`, `apiErrorStatus: 429`, and a
-  `quotaLimits` object: `status`, a true epoch `resetsAt`, `rateLimitType`
-  (`five_hour`, `seven_day`, ...), and the overage fields. The row itself is an
-  assistant message with `model: "<synthetic>"` and `isApiErrorMessage: true`,
-  which `normalizeMessage` already flags `isSystemNotice` on both the live and
-  reload paths.
-- **A spent balance is `quotaLimits: null`** on an otherwise identical row —
-  same `error` and status. No quota object means no reset is coming, so that is
-  the test for "do not offer a wait", not an excluded sentence.
-- **Codex** puts the classification on `task_complete` as
-  `codex_error_info: "usage_limit_exceeded"`; that object carries nothing else.
-  Its reset instants live on `token_count.rate_limits` — `primary` (300 min)
-  and `secondary` (10080 min), each with a real `resets_at` — which the usage
-  provider already consumes, so no new plumbing carries them. Its sibling
-  `rate_limit_reached_type` is null in all 16,347 samples here: schema only.
-- **CLIde reads none of this today.** `quotaLimits` and `apiErrorStatus` are
-  read nowhere; the Codex adapter prefers `error.message` and drops
-  `codex_error_info`. Carrying them through `normalizeMessage` is phase 2's
-  real work, and phase 4's classifier wants the same fields.
+By the provider's own fields, never the notice's wording — Claude's `quotaLimits`
+and Codex's `codex_error_info`, both carried as the shared `usageLimit` since
+phase 2. Field names, the spent-balance case, the SDK's duplicate throw, and why
+early resets are read from usage: [code anchors](../maps/code-anchors.md).
 
 ## Phases
 

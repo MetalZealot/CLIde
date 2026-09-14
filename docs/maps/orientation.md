@@ -173,6 +173,34 @@ when the software keyboard opens.
 **What breaks:** hiding the whole bar shifts the composer when a worktree is picked;
 enabling dependent destinations leads to views with no working folder.
 
+## 13. A usage limit is read from what the provider marks, not what it writes
+
+A stopped turn carries the provider's own label for why — Claude stamps the row with a
+quota record and a reset time, Codex names `usage_limit_exceeded`. The sentence you see
+is localized wording that has already changed shape once.
+
+**The rule:** anything that reacts to a limit — the Auto-Continue offer, a waiting
+message — reads the label, never the sentence. And a reset is noticed when usage comes
+back, not when the predicted time arrives, because providers reset early.
+
+**What breaks:** matching the sentence stops working silently the next time it is
+reworded. Waiting for the predicted time holds a message for up to a week after an early
+reset, at exactly the moment it should have gone.
+
+## 14. Nothing has a published place around the composer
+
+Where things go in and around the composer is convention and taste; no standard says.
+Four reasons decide it instead, written out in the UI standards map: how far your thumb
+reaches, how little room the keyboard leaves, whether a thing affects the next message or
+the whole session, and whether it is waiting on you.
+
+**The rule:** name which of the four a placement rests on before building it. The strip
+above the composer is the scarcest space on a phone, so it earns an item only when that
+item needs you now.
+
+**What breaks:** copying a desktop tool's layout fills that strip with cards that all
+compete while you type, and each new feature adds one more.
+
 ---
 
 ## When to stop and ask
@@ -188,6 +216,8 @@ You do not need to understand a diff to catch these. If a proposed change would:
 - ask you to verify a branch's work on 3001 (7);
 - touch auth, schema, or migrations without a backup first (8);
 - turn a compact control into a 44px control solely because it is used by touch (10);
+- react to a usage limit by reading its sentence, or wait on a reset's predicted time (13);
+- add another card to the strip above the composer for something not waiting on you (14);
 
 — then say so. Being able to name the rule is enough; you don't have to be able to prove
 the violation. Asking is cheap, and every one of these is expensive to find later.

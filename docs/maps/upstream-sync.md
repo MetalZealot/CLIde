@@ -190,7 +190,11 @@ believed.
   client. The two implementations occupy the same paths
   (`server/modules/scheduled-messages/`, `scheduled-messages.db.ts`,
   a composer popover and hook), so the next rebase conflicts there: **keep this
-  fork's files and delete upstream's four.** Design and phases:
+  fork's files and delete upstream's four.** Placement diverges too: upstream
+  stacks its scheduled list, queued card and edit banner above the composer and
+  schedules from a toolbar button, where CLIde schedules by long-pressing send and
+  is moving unsent messages out of that strip
+  ([edit model](../plans/message-edit-model.md)). Design and phases:
   [the plan](../plans/scheduled-messages.md).
 - **Considered, not taken — fork has diverged by choice:** `#1041` and `#1157`
   recent-conversation rows, against CLIde's own sidebar with starring and its

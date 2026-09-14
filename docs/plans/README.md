@@ -14,7 +14,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Verified end to end 2026-09-09; unmerged on `feat/scheduled-messages` |
 | [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 1/6 | Message edit model phase 1, then move the offer onto the notice |
-| [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | not started | Phase 0 — settle where the single queue sits, checked against T3Code |
+| [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | not started | Phase 0 — three decisions: queue placement, queue lifetime, rewind over waiting messages |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
 | [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
 | [Context-correct skills settings](skills-settings-discovery-scope.md) | complete | none — accepted live 2026-09-09 |

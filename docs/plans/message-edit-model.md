@@ -1,9 +1,10 @@
 # One edit model for queued, scheduled, and earlier messages
 
 - Status: not started
-- Next: Phase 0 — settle where the single queue sits, checked against T3Code
+- Next: Phase 0 — Grayson's three decisions: queue placement, queue lifetime, rewind over waiting messages
 - Context: [Auto-Continue](auto-continue.md) puts its offer on the scheduled bubble
-  this plan introduces; rewind semantics are ADRs 0012 and 0013
+  this plan introduces; placement reasons in [UI standards](../maps/ui-standards.md);
+  rewind semantics are ADRs 0012 and 0013
 
 Three kinds of message can be edited in the composer: one sent while a run is busy
 (queued), one set to send later (scheduled), and an earlier message being rewound.
@@ -13,73 +14,80 @@ differs.
 
 ## Today, read from source 2026-09-14
 
-| | The original, while editing | Above the composer | Backing out |
-|---|---|---|---|
-| Queued | leaves the queue | nothing | leaves an ordinary draft |
-| Scheduled | its stored row is deleted | "Editing — still sends…" | only *Send normally*, which drops the schedule |
-| Earlier | stays, with an amber ring | "Editing earlier message…" | × restores the draft typed before |
-| Queued answer to a Codex question | — | its own card, "1 answer queued for the next turn" | remove only |
+| | The original, while editing | Above the composer | Backing out | Attachments |
+|---|---|---|---|---|
+| Queued | leaves the queue | nothing | leaves an ordinary draft | restored |
+| Scheduled | its stored row is deleted | "Editing — still sends…" | only *Send normally*, which drops the schedule | **dropped** |
+| Earlier | stays, with an amber ring | "Editing earlier message…" | × restores the draft typed before | cannot be edited at all |
+| Queued answer to a Codex question | — | its own card | remove only | — |
 
-Rewind's model is the right one. Its banner repeats what the ring already shows.
-A Codex question also stays above the composer, and rightly: like a permission
-request it asks something, it is not a message waiting to go. Answering with
-*Send now* while a run is going steers it and lands in the thread at once; *Queue*
-adds a second, separate queue beside the composer's own.
+Both queues live in the browser that made them; scheduled messages live on the
+server and appear on every device. The queues already have an order: a typed
+queued message goes first, then Codex answers one per turn, oldest first. A Codex
+question stays above the composer — like a permission prompt, it waits on you.
 
 ## The model
 
 - **A scheduled message lives in the conversation**, as a dimmed bubble at the end
-  of the thread saying when it goes — "at 3:40 PM", "when usage resets". Google
-  Messages is the reference; the agent tools have no scheduling to follow.
-- **Queued messages have one presentation**, whether typed into the composer or
-  answering a Codex question. Where it sits is settled in phase 0.
+  of the thread saying when it goes. Google Messages is the reference.
+- **Queued messages have one presentation** in the order they will send, whether
+  typed or answering a Codex question. Where it sits is phase 0's call.
 - **Tapping an unsent message** offers *Send now*, *Edit*, and *Cancel*. Earlier
-  messages keep the edit button they already have.
-- **Editing leaves the original where it is, marked** with rewind's amber ring. An
-  unsent one is held — kept, but not sendable — rather than removed, so it cannot
-  go out mid-rewrite and does not vanish from view.
-- **Its text loads into the composer**, and whatever was already typed is set aside.
-- **Cancelling puts everything back**: the set-aside draft returns, and the
-  original resumes exactly as it was — still queued, still scheduled. *Cancel edit*
-  is on the marked bubble.
-- **The send button shows what it will do**: an arrow when sending goes now, a
-  clock when it re-arms a schedule. Held down, the arrow turns into the clock, so
-  the long-press menu announces itself. Driven by `useLongPress`'s `isPressing`,
-  never `:active`.
-- **A rewind edit dims every message after the marked one**, since those leave the
-  thread on send. The dimming replaces "Sending rewinds the conversation to this
-  point".
-
-Sending stays per kind: a queued edit re-queues, a scheduled edit re-arms the same
-schedule, an earlier-message edit rewinds and continues from there.
+  messages keep the edit button they have.
+- **Editing leaves the original in place, marked** with rewind's amber ring, text
+  and attachments loaded into the composer, the existing draft set aside. While
+  marked, the bubble offers only *Cancel edit*; sending is the composer's job, so
+  "send the original or the edit?" never arises.
+- **An unsent original is held** — kept, not sendable. The hold is a lease the
+  editing client renews while the edit is open; when it lapses — app closed,
+  session switched, phone asleep — the message returns to waiting. A hold that
+  outlived its editor would never send and never say so.
+- **Releasing a held message catches up on what it missed.** A time that passed
+  already fires on release. A usage reset does not: the monitor's recovery is a
+  one-time transition, so release checks whether its reset passed and fires if so.
+- **Cancelling puts everything back** — the set-aside draft, and the original still
+  queued or scheduled. Starting a second edit cancels the first, releasing its
+  hold; cancel then restores the draft from before either.
+- **The send button shows what it will do**: an arrow when sending goes now, a clock
+  when it re-arms a schedule; held down, the arrow turns into the clock. Driven by
+  `useLongPress`'s `isPressing`, never `:active`, and its accessible name changes
+  with the icon.
+- **A rewind edit marks what it will drop** with a treatment unlike the unsent
+  dimming — dimmed already means "not sent yet", and cannot also mean "about to
+  go". Waiting unsent messages are not part of the drop.
+- **Losing the banners must not lose the announcement.** The edit state reaches a
+  screen reader without moving focus (WCAG 4.1.3).
 
 ## Phases
 
-- [ ] 0. Where the single queue sits is decided against references Grayson can
-      actually open. Upstream is read, 2026-09-14: its scheduled list, queued card
-      and sent-message edit banner all stack above the composer, and scheduling is
-      its own toolbar button — the crowding this plan removes, so it confirms which
-      features exist rather than where they go on a phone. T3Code is the other
-- [ ] 1. A scheduled message being edited is held, not deleted, and an abandoned
-      edit leaves it scheduled. A held row is skipped by the dispatcher but still
-      counted as waiting, so the Auto-Continue offer cannot reappear mid-edit
+- [ ] 0. Grayson decides three things. Where the single queue sits — upstream read
+      2026-09-14 stacks everything above the composer, so T3Code is the remaining
+      check. Whether queues stay per-browser, so a phone's queued message never
+      appears on the laptop beside a scheduled one that does, or move to the
+      server. And what a rewind does to messages already waiting: leave them to
+      send into a conversation they were not written for, or hold them for review
+- [ ] 1. A scheduled message being edited is held under a lease, keeps its
+      attachments, and catches up on release. The dispatcher skips a held row;
+      the monitor's keep-alive, the sidebar clock, and the Auto-Continue offer all
+      count it as waiting
 - [ ] 2. Scheduled messages render as bubbles at the end of the thread with their
-      tap menu, and both queues merge into the one presentation phase 0 places;
-      the scheduled, queued, and queued-answer cards are removed
-- [ ] 3. Editing any of the three marks the original and restores the set-aside
-      draft on cancel; the rewind and schedule banners are removed, and the send
-      button shows its outcome and previews the long-press
-- [ ] 4. A rewind edit dims the messages it will drop
+      tap menu, and both queues merge into the one ordered presentation phase 0
+      places; the scheduled, queued, and queued-answer cards are removed
+- [ ] 3. All three edit through the model above; the rewind and schedule banners
+      are removed, with the announcement kept
+- [ ] 4. A rewind edit marks what it will drop, in its own treatment
 
 ## Done when
 
 - Nothing above the composer reports a scheduled message or an edit
-- A queued message looks the same whether it was typed or answers a Codex question
+- A queued message looks the same whether typed or answering a Codex question,
+  and the list reads in send order
 - Cancelling any edit restores the earlier draft and leaves the original unchanged
-- A scheduled message cannot send while being edited, and is still scheduled after
-  an abandoned edit
-- A rewind edit visibly marks both the message and everything it will drop
+- Closing the app mid-edit leaves a scheduled message that still sends
+- A usage reset that lands during an edit still sends the message once it is released
+- Editing a scheduled message with an attachment keeps the attachment
 - Holding the send button shows the clock before the menu opens
+- A screen reader hears that an edit started and ended
 
 ## Not doing
 

@@ -126,6 +126,7 @@ new work.
 - [x] **Scheduled messages and Auto-Continue.** Send a message at a time you pick, or the moment provider usage resets. Reuses the existing reset monitor and the existing queue; must not inherit upstream `#1239`'s interrupt. All four phases done and browser-verified on `feat/scheduled-messages`; unmerged. [Plan](plans/scheduled-messages.md). **M/L**
 - [~] **Auto-Continue offered, remembered, and defaulted.** Every way of asking for a `usage-reset` message that is not long-pressing send and typing "Continue": a one-tap offer on the limit notice, an editable continue message, and a per-session standing mode with a firing cap. Reuses the shipped scheduler entirely. [Plan](plans/auto-continue.md). **M**
 - [ ] **One edit model for queued, scheduled, and earlier messages.** Unsent messages become bubbles in the thread, editing marks the original instead of a banner, and cancelling restores the prior draft for all three. [Plan](plans/message-edit-model.md). **M/L**
+- [ ] **Context ring to the header?** Session state glanced at more than tapped, so it fits; costs reach for its breakdown and title width. [Reasons](maps/ui-standards.md). **S — decision**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
 
