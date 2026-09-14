@@ -1,7 +1,7 @@
 # One edit model for queued, scheduled, and earlier messages
 
 - Status: not started
-- Next: Phase 1 — hold a scheduled message while it is edited instead of deleting it
+- Next: Phase 0 — see where Codex, Claude Code, and Cursor put queued and steered messages
 - Context: [Auto-Continue](auto-continue.md) puts its offer on the scheduled bubble
   this plan introduces; rewind semantics are ADRs 0012 and 0013
 
@@ -18,16 +18,24 @@ differs.
 | Queued | leaves the queue | nothing | leaves an ordinary draft |
 | Scheduled | its stored row is deleted | "Editing — still sends…" | only *Send normally*, which drops the schedule |
 | Earlier | stays, with an amber ring | "Editing earlier message…" | × restores the draft typed before |
+| Queued answer to a Codex question | — | its own card, "1 answer queued for the next turn" | remove only |
 
 Rewind's model is the right one. Its banner repeats what the ring already shows.
+A Codex question also stays above the composer, and rightly: like a permission
+request it asks something, it is not a message waiting to go. Answering with
+*Send now* while a run is going steers it and lands in the thread at once; *Queue*
+adds a second, separate queue beside the composer's own.
 
 ## The model
 
-- **Unsent messages live in the conversation.** Queued and scheduled messages are
-  dimmed bubbles at the end of the thread, each saying when it goes — "when Claude
-  finishes", "at 3:40 PM", "when usage resets". Nothing sits in the strip above
-  the composer.
-- **Tapping an unsent bubble** offers *Send now*, *Edit*, and *Cancel*. Earlier
+- **A scheduled message lives in the conversation**, as a dimmed bubble at the end
+  of the thread saying when it goes — "at 3:40 PM", "when usage resets". Google
+  Messages is the reference; the agent tools have no scheduling to follow.
+- **Queued messages have one presentation**, whether typed into the composer or
+  answering a Codex question. Where it sits follows the agent tools, settled in
+  phase 0 — recalled, not checked, they keep a compact queue just above the input,
+  which would put it there rather than in the thread.
+- **Tapping an unsent message** offers *Send now*, *Edit*, and *Cancel*. Earlier
   messages keep the edit button they already have.
 - **Editing leaves the original where it is, marked** with rewind's amber ring. An
   unsent one is held — kept, but not sendable — rather than removed, so it cannot
@@ -49,11 +57,15 @@ schedule, an earlier-message edit rewinds and continues from there.
 
 ## Phases
 
+- [ ] 0. Where Codex, Claude Code, and Cursor show a queued message and a steered
+      one is recorded from the tools themselves, and decides where CLIde's single
+      queue sits
 - [ ] 1. A scheduled message being edited is held, not deleted, and an abandoned
       edit leaves it scheduled. A held row is skipped by the dispatcher but still
       counted as waiting, so the Auto-Continue offer cannot reappear mid-edit
-- [ ] 2. Queued and scheduled messages render as bubbles at the end of the thread,
-      with their tap menu; the cards above the composer are removed
+- [ ] 2. Scheduled messages render as bubbles at the end of the thread with their
+      tap menu, and both queues merge into the one presentation phase 0 places;
+      the scheduled, queued, and queued-answer cards are removed
 - [ ] 3. Editing any of the three marks the original and restores the set-aside
       draft on cancel; the rewind and schedule banners are removed, and the send
       button shows its outcome and previews the long-press
@@ -61,7 +73,8 @@ schedule, an earlier-message edit rewinds and continues from there.
 
 ## Done when
 
-- Nothing above the composer reports a queued message, a scheduled one, or an edit
+- Nothing above the composer reports a scheduled message or an edit
+- A queued message looks the same whether it was typed or answers a Codex question
 - Cancelling any edit restores the earlier draft and leaves the original unchanged
 - A scheduled message cannot send while being edited, and is still scheduled after
   an abandoned edit
