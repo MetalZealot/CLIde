@@ -1,7 +1,7 @@
 # One edit model for queued, scheduled, and earlier messages
 
 - Status: not started
-- Next: Phase 0 — see where Codex, Claude Code, and Cursor put queued and steered messages
+- Next: Phase 0 — settle where the single queue sits, checked against T3Code
 - Context: [Auto-Continue](auto-continue.md) puts its offer on the scheduled bubble
   this plan introduces; rewind semantics are ADRs 0012 and 0013
 
@@ -32,9 +32,7 @@ adds a second, separate queue beside the composer's own.
   of the thread saying when it goes — "at 3:40 PM", "when usage resets". Google
   Messages is the reference; the agent tools have no scheduling to follow.
 - **Queued messages have one presentation**, whether typed into the composer or
-  answering a Codex question. Where it sits follows the agent tools, settled in
-  phase 0 — recalled, not checked, they keep a compact queue just above the input,
-  which would put it there rather than in the thread.
+  answering a Codex question. Where it sits is settled in phase 0.
 - **Tapping an unsent message** offers *Send now*, *Edit*, and *Cancel*. Earlier
   messages keep the edit button they already have.
 - **Editing leaves the original where it is, marked** with rewind's amber ring. An
@@ -57,9 +55,11 @@ schedule, an earlier-message edit rewinds and continues from there.
 
 ## Phases
 
-- [ ] 0. Where Codex, Claude Code, and Cursor show a queued message and a steered
-      one is recorded from the tools themselves, and decides where CLIde's single
-      queue sits
+- [ ] 0. Where the single queue sits is decided against references Grayson can
+      actually open. Upstream is read, 2026-09-14: its scheduled list, queued card
+      and sent-message edit banner all stack above the composer, and scheduling is
+      its own toolbar button — the crowding this plan removes, so it confirms which
+      features exist rather than where they go on a phone. T3Code is the other
 - [ ] 1. A scheduled message being edited is held, not deleted, and an abandoned
       edit leaves it scheduled. A held row is skipped by the dispatcher but still
       counted as waiting, so the Auto-Continue offer cannot reappear mid-edit
