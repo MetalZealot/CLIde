@@ -6,25 +6,13 @@ import {
   createScheduledMessage,
   holdScheduledMessage,
   listScheduledMessagesForSession,
+  readScheduledMessageAttachments,
   releaseScheduledMessageHold,
   renewScheduledMessageHold,
   saveScheduledMessageEdit,
 } from '@/modules/scheduled-messages/services/scheduled-message-runtime.service.js';
-import { normalizeAttachmentDescriptors } from '@/shared/image-attachments.js';
 
 const router = express.Router();
-
-/** Only the attachments leave the stored options: an edit has to put them back in the composer. */
-function storedAttachments(row: ScheduledMessageRow) {
-  try {
-    const options: unknown = JSON.parse(row.options ?? 'null');
-    return options && typeof options === 'object'
-      ? normalizeAttachmentDescriptors((options as { attachments?: unknown }).attachments)
-      : [];
-  } catch {
-    return [];
-  }
-}
 
 /** Rows go out camel-cased, matching every other session-shaped payload. */
 function serialize(row: ScheduledMessageRow) {
@@ -39,7 +27,7 @@ function serialize(row: ScheduledMessageRow) {
     failureReason: row.failure_reason,
     createdAt: row.created_at,
     firedAt: row.fired_at,
-    attachments: storedAttachments(row),
+    attachments: readScheduledMessageAttachments(row),
   };
 }
 

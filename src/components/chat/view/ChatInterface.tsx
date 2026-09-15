@@ -11,7 +11,7 @@ import type { LLMProvider } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
-import { uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
+import { isImageAttachment, uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
 import { authenticatedFetch } from '../../../utils/api';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
@@ -514,8 +514,14 @@ function ChatInterface({
   } = useScheduledMessages(
     scheduledSessionId,
     subscribe,
-    useCallback((content: string, sentAt: Date) => {
-      addMessage({ type: 'user', content, timestamp: sentAt });
+    useCallback((content: string, sentAt: Date, attachments: NonNullable<ScheduledMessage['attachments']>) => {
+      addMessage({
+        type: 'user',
+        content,
+        images: attachments.filter(isImageAttachment),
+        files: attachments.filter((attachment) => !isImageAttachment(attachment)),
+        timestamp: sentAt,
+      });
       // The turn's own frames are the only thing carrying the reply, and a
       // phone that slept through them gets no second chance from the socket.
       // One re-read of the transcript afterwards puts the answer on screen

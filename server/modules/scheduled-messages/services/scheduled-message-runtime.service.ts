@@ -5,6 +5,7 @@ import {
   type CreateScheduledMessageInput,
   type ScheduledMessageRow,
 } from '@/modules/database/index.js';
+import { normalizeAttachmentDescriptors, type ChatAttachmentDescriptor } from '@/shared/image-attachments.js';
 import type { LLMProvider } from '@/shared/types.js';
 
 import type { ScheduledMessageDispatcher } from './scheduled-message-dispatcher.service.js';
@@ -109,6 +110,22 @@ export function saveScheduledMessageEdit(
   const row = scheduledMessagesDb.getById(id);
   runtime?.dispatcher.rearm(id);
   return row;
+}
+
+/**
+ * The attachments stored with a message. Consumed by the scheduled-messages
+ * routes, so an edit can restore them, and by the websocket wiring, so the
+ * bubble drawn when the message sends matches the transcript copy it becomes.
+ */
+export function readScheduledMessageAttachments(row: ScheduledMessageRow): ChatAttachmentDescriptor[] {
+  try {
+    const options: unknown = JSON.parse(row.options ?? 'null');
+    return options && typeof options === 'object'
+      ? normalizeAttachmentDescriptors((options as { attachments?: unknown }).attachments)
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Every message ever scheduled in one session, newest first. */

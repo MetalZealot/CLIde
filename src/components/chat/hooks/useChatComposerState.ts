@@ -297,7 +297,8 @@ export const describeDropRejections = (
 const MAX_ATTACHMENT_COUNT = 10;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
-const isImageAttachment = (attachment: ChatAttachment) => {
+/** Also used for a scheduled message's bubble, which must split its attachments the same way. */
+export const isImageAttachment = (attachment: ChatAttachment) => {
   if (attachment.mimeType?.startsWith('image/')) return true;
   return /\.(gif|jpe?g|png|svg|webp)$/i.test(attachment.path || attachment.name || '');
 };

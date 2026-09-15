@@ -20,6 +20,7 @@ import {
   hasPendingUsageResetMessages,
   holdScheduledMessage,
   listScheduledMessagesForSession,
+  readScheduledMessageAttachments,
   releaseScheduledMessageHold,
   renewScheduledMessageHold,
   saveScheduledMessageEdit,
@@ -530,6 +531,8 @@ describe('scheduled-messages', () => {
         assert.deepEqual(JSON.parse(saved?.options ?? '{}').attachments, attachments);
         assert.equal(saved?.held_until, null);
         assert.equal(saved?.state, 'pending', 'saving keeps waiting on the reset');
+        // The sent bubble carries these, or it never matches its transcript copy.
+        assert.deepEqual(readScheduledMessageAttachments(saved as ScheduledMessageRow), attachments);
         assert.equal(releaseScheduledMessageHold(row.id, phone.token), false);
 
         assert.equal(cancelScheduledMessage(row.id), true);

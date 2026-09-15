@@ -3,6 +3,7 @@ import { providerRuntimeService, reconcileProviderUsageResetMonitor } from '@/mo
 import {
   createScheduledMessageDispatcher,
   createScheduledMessageSender,
+  readScheduledMessageAttachments,
   setScheduledMessageRuntime,
 } from '@/modules/scheduled-messages/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
@@ -45,6 +46,8 @@ function announceScheduledSend(row: ScheduledMessageRow): void {
     sessionId: row.session_id,
     provider: row.provider,
     content: row.content,
+    // Without them the bubble cannot match its transcript copy, and both show.
+    attachments: readScheduledMessageAttachments(row),
     timestamp: new Date().toISOString(),
   }));
 }

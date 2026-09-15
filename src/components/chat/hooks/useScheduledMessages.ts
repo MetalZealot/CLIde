@@ -49,6 +49,7 @@ type ScheduledSendEvent = {
   sessionId?: string;
   scheduledMessageId?: string;
   content?: unknown;
+  attachments?: unknown;
   timestamp?: unknown;
 };
 
@@ -60,7 +61,7 @@ export function useScheduledMessages(
    * `sentAt` is when the message actually went out, not when this client heard
    * about it — a phone that was asleep hears about it late.
    */
-  onSent?: (content: string, sentAt: Date) => void,
+  onSent?: (content: string, sentAt: Date, attachments: NonNullable<ScheduledMessage['attachments']>) => void,
   /** The open edit's message sent, was cancelled, or was opened elsewhere; the edit has ended. */
   onEditLost?: () => void,
 ) {
@@ -94,7 +95,11 @@ export function useScheduledMessages(
     return subscribe((event) => {
       if (event.kind === 'scheduled_message_sent' && event.sessionId === sessionId) {
         const sentAt = typeof event.timestamp === 'string' ? new Date(event.timestamp) : new Date();
-        onSent?.(String(event.content ?? ''), Number.isNaN(sentAt.getTime()) ? new Date() : sentAt);
+        onSent?.(
+          String(event.content ?? ''),
+          Number.isNaN(sentAt.getTime()) ? new Date() : sentAt,
+          Array.isArray(event.attachments) ? event.attachments : [],
+        );
         if (event.scheduledMessageId && event.scheduledMessageId === editingRef.current?.id) {
           editingRef.current = null;
           setEditing(null);

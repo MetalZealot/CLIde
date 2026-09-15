@@ -15,6 +15,7 @@ export {
   hasPendingUsageResetMessages,
   holdScheduledMessage,
   listScheduledMessagesForSession,
+  readScheduledMessageAttachments,
   releaseScheduledMessageHold,
   renewScheduledMessageHold,
   saveScheduledMessageEdit,
