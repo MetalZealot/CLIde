@@ -101,10 +101,10 @@ behaviour stays behind adapter interfaces.
   the main app for a change that only exists on a topic branch.
 - Do not restart the production service from an agent session unless the user
   explicitly asks and the environment permits it.
-- "I have no login credentials" is never a reason to skip live verification.  Stand the
-  right server up, hand over the URL, and say what to look for — the user clicks
-  through, not you.  **Never ask for or type their password** — automation stops at the
-  login form.
+- Test logins use Playwright's saved state or the secret names Browser's typing tools
+  list, never a scripted login.  **Never ask for or type Grayson's personal password.**
+- Verify a named browser surface in that context.  Separate Playwright or Chromium is
+  not verification of it.
 - Use a real device for touch behaviour.  CSS `:active` is not a reliable
   long-press visual state; use `useLongPress`'s `isPressing`.
 - Distinguish source inspection, automated checks, build output, running-service state,

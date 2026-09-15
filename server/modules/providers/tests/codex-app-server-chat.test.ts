@@ -215,6 +215,8 @@ test('Browser guidance reaches new, resumed, and forked Codex chats without repl
       assert.match(capture.thread.params.developerInstructions || '', /^Keep existing guidance\./);
       assert.match(capture.thread.params.developerInstructions, /cloudcli-browser/);
       assert.match(capture.thread.params.developerInstructions, /tool registry/);
+      assert.match(capture.thread.params.developerInstructions, /same cloudcli-browser session/);
+      assert.match(capture.thread.params.developerInstructions, /secret names that the browser_type description lists/);
       assert.match(capture.thread.params.config['mcp_servers.cloudcli-browser.url'], /chatSessionId=app-chat/);
       assert.equal(capture.turn.input[0].text, 'Open example.com in Browser');
       assert.equal(capture.turn.collaborationMode.settings.developer_instructions, null);

@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { parseEnv } from 'node:util';
 
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -90,6 +92,12 @@ const SECRET_ENV_KEYS = [
   'VOICE_API_KEY',
 ];
 
+// Playwright MCP's own dotenv secrets file. Passing a secret's name as typed text
+// enters its value, and the value is redacted from results, so a credential never
+// reaches the agent. Only these names are advertised; the env keys above are not.
+const SECRETS_FILE = process.env.PLAYWRIGHT_MCP_SECRETS_FILE;
+const SECRET_INPUT_TOOLS = new Set(['browser_type', 'browser_fill_form']);
+
 const DEVICE_TOOL = {
   name: 'browser_use_device',
   description: 'Switch this browser session between desktop, phone and tablet emulation. Touch, user agent and pixel density only change on a new context, so the open pages are replaced — navigate again afterwards.',
@@ -127,9 +135,21 @@ type BrowserMcpEndpointOptions = {
     getContext: () => Promise<any>,
     sessionId: string,
     outputDir: string,
+    fileSecrets: Record<string, string>,
   ) => Promise<McpServerConnection>;
   outputRoot?: string;
+  secretsFile?: string;
 };
+
+function readSecretsFile(file: string | undefined): Record<string, string> {
+  if (!file) return {};
+  try {
+    return Object.fromEntries(Object.entries(parseEnv(readFileSync(file, 'utf8')))
+      .filter((entry): entry is [string, string] => Boolean(entry[1])));
+  } catch {
+    return {};
+  }
+}
 
 function collectSecrets(): Record<string, string> {
   const secrets: Record<string, string> = {};
@@ -150,6 +170,7 @@ async function createPlaywrightMcpConnection(
   getContext: () => Promise<any>,
   sessionId: string,
   outputDir: string,
+  fileSecrets: Record<string, string>,
 ): Promise<McpServerConnection> {
   // Imported on first connection so the Playwright tree stays out of startup.
   const { createConnection } = await import('@playwright/mcp');
@@ -158,7 +179,7 @@ async function createPlaywrightMcpConnection(
     capabilities: ENABLED_CAPABILITIES as [],
     outputDir,
     outputMaxSize: OUTPUT_MAX_BYTES,
-    secrets: collectSecrets(),
+    secrets: { ...collectSecrets(), ...fileSecrets },
     timeouts: { action: ACTION_TIMEOUT_MS },
     // Both lists guard on length, so an empty allow list means "any origin"
     // rather than "none" (read from playwright-core's coreBundle).
@@ -317,6 +338,14 @@ function boundResult(result: JsonRpcMessage, toolName: string, carriedSnapshot =
   return { ...result, content: bounded };
 }
 
+function withSecretNames(tool: JsonRpcMessage, secretNames: string[]): JsonRpcMessage {
+  if (!secretNames.length || !SECRET_INPUT_TOOLS.has(String(tool?.name))) {
+    return tool;
+  }
+  const note = `To enter a configured secret, pass its name as the text or value (${secretNames.join(', ')}); the real value is typed and never shown.`;
+  return { ...tool, description: `${tool.description || ''} ${note}`.trim() };
+}
+
 function withoutFilenameArg(tool: JsonRpcMessage): JsonRpcMessage {
   const properties = tool?.inputSchema?.properties;
   if (!properties || !(AGENT_FILENAME_ARG in properties)) {
@@ -335,6 +364,7 @@ function guardTransport(
   handleDeviceTool: (args: JsonRpcMessage) => Promise<JsonRpcMessage>,
   onToolCompleted: (observation: BrowserToolObservation) => void,
   onToolStarted: () => void,
+  secretNames: string[] = [],
 ) {
   const pendingTools = new Map<string | number, string>();
 
@@ -356,7 +386,8 @@ function guardTransport(
             tools: [
               ...tools
                 .filter((tool: { name?: string }) => !DENIED_TOOLS.has(String(tool?.name)))
-                .map(withoutFilenameArg),
+                .map(withoutFilenameArg)
+                .map((tool: JsonRpcMessage) => withSecretNames(tool, secretNames)),
               DEVICE_TOOL,
             ],
           },
@@ -434,6 +465,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
     || ((request: BrowserMcpContextRequest) => browserUseService.openAgentContext(request));
   const createConnection = options.createConnection || createPlaywrightMcpConnection;
   const outputRoot = options.outputRoot || OUTPUT_ROOT;
+  const secretsFile = options.secretsFile ?? SECRETS_FILE;
   const recordAction = options.recordAction
     || ((sessionId: string, action: BrowserToolObservation) => browserUseService.recordAgentAction(sessionId, action));
   const recordActivity = options.recordActivity
@@ -476,7 +508,9 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
   void sweepOrphanedOutput();
 
   // Expiry, panel Stop and shutdown all release the lease; the transport follows it.
-  runtime.onRelease((lease) => {
+  // An agent's browser_close keeps its transport, so its next call opens a new context.
+  runtime.onRelease((lease, reason) => {
+    if (reason === 'closed') return;
     void closeSession(lease.id, { releaseContext: false });
   });
 
@@ -518,7 +552,8 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
       // Lease on first use, then read it on every call: a device switch
       // replaces the context under the same id.
       const outputDir = path.join(outputRoot, sessionId);
-      const connection = await createConnection(async () => (await leaseContext()).context, sessionId, outputDir);
+      const fileSecrets = readSecretsFile(secretsFile);
+      const connection = await createConnection(async () => (await leaseContext()).context, sessionId, outputDir, fileSecrets);
       const guarded = guardTransport(transport, outputDir, async (args) => {
         await leaseContext();
         const swapped = await runtime.swapContext(sessionId, {
@@ -535,10 +570,13 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
         activeToolCount = Math.max(0, activeToolCount - 1);
         recordActivity(sessionId, activeToolCount);
         recordAction(sessionId, observation);
+        if (observation.tool === 'browser_close' && observation.ok) {
+          void runtime.releaseContext(sessionId, 'closed');
+        }
       }, () => {
         activeToolCount += 1;
         recordActivity(sessionId, activeToolCount);
-      });
+      }, Object.keys(fileSecrets).sort());
       await connection.connect(guarded);
       transports.set(sessionId, { transport, connection, lastUsedAt: Date.now() });
     } catch (error) {

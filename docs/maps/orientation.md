@@ -162,7 +162,20 @@ priority over the thumbnail, which shrinks to a text row in the normal layout.
 another chat's work, and treating an open window as activity leaves a false spinner.
 Provider coverage and current limits: [Chat browser activity](chat-browser-activity.md).
 
-## 12. Mobile navigation stays in place before choosing a worktree
+## 12. Agents sign in to test servers without ever seeing the password
+
+The test account lives only on the branch-test servers; your own account is on 3001.
+
+**The rule:** the Browser opens test servers already signed in, from a saved sign-in
+made when the test server starts. If a login form still appears, the agent types the
+*name* of the secret and Playwright fills in the real value. Agents never read the
+credentials file or write their own login script.
+
+**What breaks:** an agent told "don't expose the password" but given no safe way to
+enter it stops at the login form, then verifies in a separate hidden browser you can't
+see in the Browser tab.
+
+## 13. Mobile navigation stays in place before choosing a worktree
 
 Shell, Files, and Git need a worktree; a new Chat can begin at the picker.
 
