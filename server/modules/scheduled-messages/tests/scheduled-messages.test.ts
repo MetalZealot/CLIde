@@ -16,6 +16,7 @@ import {
   createScheduledMessage,
   createScheduledMessageDispatcher,
   createScheduledMessageSender,
+  explainLostScheduledMessageHold,
   fireUsageResetMessages,
   hasPendingUsageResetMessages,
   holdScheduledMessage,
@@ -433,6 +434,9 @@ describe('scheduled-messages', () => {
       await harness.advanceTo('2026-07-18T11:00:00.000Z');
       assert.equal(harness.sent.length, 1, 'a lapsed hold must send what fell due');
       assert.equal(scheduledMessagesDb.getById(lapsing.id)?.state, 'sent');
+      const loss = explainLostScheduledMessageHold(lapsing.id);
+      assert.equal(loss.reason, 'sent');
+      assert.match(loss.firedAt ?? '', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/, 'a browser must read it as UTC');
 
       const released = scheduledMessagesDb.create({
         sessionId: 'session-13',
@@ -520,6 +524,7 @@ describe('scheduled-messages', () => {
 
         // Moving devices mid-edit hands the message over rather than locking it.
         assert.equal(renewScheduledMessageHold(row.id, phone.token), false);
+        assert.deepEqual(explainLostScheduledMessageHold(row.id), { reason: 'taken', firedAt: null });
         assert.equal(saveScheduledMessageEdit(row.id, phone.token, { content: 'stale' }), null);
         assert.equal(renewScheduledMessageHold(row.id, laptop.token), true);
 
@@ -537,6 +542,7 @@ describe('scheduled-messages', () => {
 
         assert.equal(cancelScheduledMessage(row.id), true);
         assert.equal(holdScheduledMessage(row.id), null);
+        assert.equal(explainLostScheduledMessageHold(row.id).reason, 'cancelled');
       } finally {
         setScheduledMessageRuntime(null);
       }

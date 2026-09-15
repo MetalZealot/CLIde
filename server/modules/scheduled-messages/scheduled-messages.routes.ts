@@ -4,6 +4,7 @@ import { scheduledMessagesDb, sessionsDb, type ScheduledMessageRow } from '@/mod
 import {
   cancelScheduledMessage,
   createScheduledMessage,
+  explainLostScheduledMessageHold,
   holdScheduledMessage,
   listScheduledMessagesForSession,
   readScheduledMessageAttachments,
@@ -30,6 +31,14 @@ function serialize(row: ScheduledMessageRow) {
     attachments: readScheduledMessageAttachments(row),
   };
 }
+
+/** A refused edit says why, so the editor can tell a sent message from a taken one. */
+const refuseLostHold = (res: express.Response, id: string) => {
+  res.status(409).json({
+    error: 'That message was sent, cancelled, or opened elsewhere.',
+    ...explainLostScheduledMessageHold(id),
+  });
+};
 
 const readToken = (body: unknown): string => {
   const token = (body as { token?: unknown } | undefined)?.token;
@@ -101,7 +110,7 @@ router.post('/:id/hold', (req, res) => {
 
 router.put('/:id/hold', (req, res) => {
   if (!renewScheduledMessageHold(req.params.id, readToken(req.body))) {
-    res.status(409).json({ error: 'That message was sent, cancelled, or opened elsewhere.' });
+    refuseLostHold(res, req.params.id);
     return;
   }
   res.json({ renewed: true });
@@ -109,7 +118,7 @@ router.put('/:id/hold', (req, res) => {
 
 router.delete('/:id/hold', (req, res) => {
   if (!releaseScheduledMessageHold(req.params.id, readToken(req.body))) {
-    res.status(409).json({ error: 'That message was sent, cancelled, or opened elsewhere.' });
+    refuseLostHold(res, req.params.id);
     return;
   }
   res.json({ released: true });
@@ -127,7 +136,7 @@ router.patch('/:id', (req, res) => {
     options: req.body?.options,
   });
   if (!row) {
-    res.status(409).json({ error: 'That message was sent, cancelled, or opened elsewhere.' });
+    refuseLostHold(res, req.params.id);
     return;
   }
   res.json({ message: serialize(row) });

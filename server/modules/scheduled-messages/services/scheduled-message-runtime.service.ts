@@ -76,6 +76,32 @@ export function holdScheduledMessage(id: string): { token: string; row: Schedule
   return row ? { token, row } : null;
 }
 
+/** Why an editor's hold is gone, so its client can say what happened instead of guessing. */
+export type ScheduledMessageHoldLoss = {
+  reason: 'sent' | 'failed' | 'cancelled' | 'taken';
+  /** ISO instant the message went out; null unless it was sent or failed. */
+  firedAt: string | null;
+};
+
+/**
+ * Explains a refused renew, release, or save. Consumed by the scheduled-messages
+ * routes' 409 responses. A row still pending was taken by a newer editor.
+ */
+export function explainLostScheduledMessageHold(id: string): ScheduledMessageHoldLoss {
+  const row = scheduledMessagesDb.getById(id);
+  if (!row || row.state === 'cancelled') {
+    return { reason: 'cancelled', firedAt: null };
+  }
+  if (row.state === 'pending') {
+    return { reason: 'taken', firedAt: null };
+  }
+  // SQLite's CURRENT_TIMESTAMP is UTC without a zone, which browsers read as local.
+  const firedAt = row.fired_at && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(row.fired_at)
+    ? `${row.fired_at.replace(' ', 'T')}Z`
+    : row.fired_at;
+  return { reason: row.state, firedAt };
+}
+
 /**
  * Keeps an open edit's hold alive. False means the message sent, was
  * cancelled, or another editor took it, so this edit can no longer be saved.

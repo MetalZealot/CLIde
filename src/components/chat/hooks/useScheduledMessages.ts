@@ -27,6 +27,21 @@ export type ScheduledMessageEdit = {
   scheduledFor: string | null;
 };
 
+/** Why an open edit ended without saving; `sentAt` is set when the message went out. */
+export type ScheduledEditLoss = {
+  reason: 'sent' | 'failed' | 'cancelled' | 'taken';
+  sentAt: Date | null;
+};
+
+const readEditLoss = async (response: Response): Promise<ScheduledEditLoss> => {
+  const body = await response.json().catch(() => null) as { reason?: string; firedAt?: string | null } | null;
+  const reason = body?.reason === 'sent' || body?.reason === 'failed' || body?.reason === 'taken'
+    ? body.reason
+    : 'cancelled';
+  const sentAt = body?.firedAt ? new Date(body.firedAt) : null;
+  return { reason, sentAt: sentAt && !Number.isNaN(sentAt.getTime()) ? sentAt : null };
+};
+
 /** A third of the server's 90s hold, so one lost renewal cannot end it. */
 const HOLD_RENEW_MS = 30_000;
 
@@ -63,7 +78,7 @@ export function useScheduledMessages(
    */
   onSent?: (content: string, sentAt: Date, attachments: NonNullable<ScheduledMessage['attachments']>) => void,
   /** The open edit's message sent, was cancelled, or was opened elsewhere; the edit has ended. */
-  onEditLost?: () => void,
+  onEditLost?: (loss: ScheduledEditLoss) => void,
 ) {
   const [pending, setPending] = useState<ScheduledMessage[]>([]);
   const [editing, setEditing] = useState<ScheduledMessageEdit | null>(null);
@@ -94,16 +109,17 @@ export function useScheduledMessages(
     if (!subscribe || !sessionId) return;
     return subscribe((event) => {
       if (event.kind === 'scheduled_message_sent' && event.sessionId === sessionId) {
-        const sentAt = typeof event.timestamp === 'string' ? new Date(event.timestamp) : new Date();
+        const parsedSentAt = typeof event.timestamp === 'string' ? new Date(event.timestamp) : new Date();
+        const sentAt = Number.isNaN(parsedSentAt.getTime()) ? new Date() : parsedSentAt;
         onSent?.(
           String(event.content ?? ''),
-          Number.isNaN(sentAt.getTime()) ? new Date() : sentAt,
+          sentAt,
           Array.isArray(event.attachments) ? event.attachments : [],
         );
         if (event.scheduledMessageId && event.scheduledMessageId === editingRef.current?.id) {
           editingRef.current = null;
           setEditing(null);
-          onEditLost?.();
+          onEditLost?.({ reason: 'sent', sentAt });
         }
         void refresh();
       }
@@ -147,11 +163,13 @@ export function useScheduledMessages(
     const renew = () => {
       // Out of view counts as gone, whether or not the browser keeps timers running.
       if (document.visibilityState === 'hidden') return;
-      void api.renewScheduledMessageHold(editing.id, editing.token).then((response) => {
+      void api.renewScheduledMessageHold(editing.id, editing.token).then(async (response) => {
         if (response.status !== 409 || editingRef.current !== editing) return;
+        const loss = await readEditLoss(response);
+        if (editingRef.current !== editing) return;
         editingRef.current = null;
         setEditing(null);
-        onEditLost?.();
+        onEditLost?.(loss);
         void refresh();
       }).catch(() => {});
     };
@@ -209,23 +227,39 @@ export function useScheduledMessages(
   }, [refresh, releaseEdit]);
 
   /**
-   * Saves the open edit; the message keeps its trigger. False means it sent,
-   * was cancelled, or was opened elsewhere first. The edit ends either way.
+   * Saves the open edit; the message keeps its trigger. A refusal ends the
+   * edit and reports why through `onEditLost`; an unreachable server leaves it
+   * open to retry, since the hold is still running.
    */
-  const saveEdit = useCallback(async (content: string, options: Record<string, unknown>): Promise<boolean> => {
+  const saveEdit = useCallback(async (
+    content: string,
+    options: Record<string, unknown>,
+  ): Promise<'saved' | 'lost' | 'unreachable'> => {
     const edit = editingRef.current;
-    if (!edit) return false;
-    editingRef.current = null;
-    setEditing(null);
+    if (!edit) return 'lost';
+    let response: Response;
     try {
-      const response = await api.saveScheduledMessageEdit(edit.id, { token: edit.token, content, options });
-      return response.ok;
+      response = await api.saveScheduledMessageEdit(edit.id, { token: edit.token, content, options });
     } catch {
-      return false;
-    } finally {
-      await refresh();
+      return 'unreachable';
     }
-  }, [refresh]);
+    if (editingRef.current === edit) {
+      editingRef.current = null;
+      setEditing(null);
+    }
+    if (response.ok) {
+      void refresh();
+      return 'saved';
+    }
+    if (response.status !== 409) {
+      editingRef.current = edit;
+      setEditing(edit);
+      return 'unreachable';
+    }
+    onEditLost?.(await readEditLoss(response));
+    void refresh();
+    return 'lost';
+  }, [onEditLost, refresh]);
 
   const cancel = useCallback(async (id: string): Promise<void> => {
     if (editingRef.current?.id === id) {

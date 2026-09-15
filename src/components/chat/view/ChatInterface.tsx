@@ -21,7 +21,9 @@ import {
   useScheduledMessages,
   type ScheduledMessage,
   type ScheduledMessageTrigger,
+  type ScheduledEditLoss,
 } from '../hooks/useScheduledMessages';
+import { formatClockTime } from '../../../utils/formatTime';
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
@@ -474,6 +476,8 @@ function ChatInterface({
   // rebind on every keystroke.
   const inputSnapshotRef = useRef(input);
   inputSnapshotRef.current = input;
+  const attachedFilesSnapshotRef = useRef(attachedFiles);
+  attachedFilesSnapshotRef.current = attachedFiles;
 
   /**
    * A send was cancelled before the provider ever saw it, so its bubble was
@@ -494,16 +498,45 @@ function ChatInterface({
   }, [selectedSession?.id, currentSessionId, setInput]);
 
   const scheduledSessionId = currentSessionId || selectedSession?.id || null;
-  // The composer keeps the text either way: it may hold changes worth keeping.
-  const reportLostScheduledEdit = useCallback(() => {
-    addMessage({
-      type: 'error',
-      content: t('input.schedule.editNotSaved', {
-        defaultValue: 'That scheduled message already sent, was cancelled, or was opened on another device, so this edit was not saved. Your text is still in the composer.',
-      }),
-      timestamp: new Date(),
-    });
-  }, [addMessage, t]);
+  // What an open edit loaded into the composer, to tell a real change from none.
+  const scheduledEditOriginalRef = useRef<{ content: string; files: File[] } | null>(null);
+
+  // An edit that ended unsaved. A message that sent unchanged is already in the
+  // chat, so the composer copy goes quietly; anything else keeps the composer
+  // and says why in a muted note, since nothing failed.
+  const handleLostScheduledEdit = useCallback((loss: ScheduledEditLoss) => {
+    const original = scheduledEditOriginalRef.current;
+    scheduledEditOriginalRef.current = null;
+    const files = attachedFilesSnapshotRef.current;
+    const unchanged = original !== null
+      && inputSnapshotRef.current.trim() === original.content.trim()
+      && files.length === original.files.length
+      && files.every((file, index) => file === original.files[index]);
+
+    if (loss.reason === 'sent' && unchanged) {
+      setInput('');
+      setAttachedFiles([]);
+      return;
+    }
+
+    const content = loss.reason === 'sent'
+      ? t('input.schedule.editLostSent', {
+        defaultValue: 'Sent at {{time}}, before your edit was saved. Your changes are still here.',
+        time: loss.sentAt ? formatClockTime(loss.sentAt) : '',
+      })
+      : loss.reason === 'failed'
+        ? t('input.schedule.editLostFailed', {
+          defaultValue: 'That scheduled message failed to send, so your edit was not saved. Your text is still here.',
+        })
+        : loss.reason === 'taken'
+          ? t('input.schedule.editLostTaken', {
+            defaultValue: 'That scheduled message was opened on another device, so this edit was not saved. Your changes are still here.',
+          })
+          : t('input.schedule.editLostCancelled', {
+            defaultValue: 'That scheduled message was cancelled, so your edit was not saved. Your changes are still here.',
+          });
+    addMessage({ type: 'assistant', isSystemNotice: true, content, timestamp: new Date() });
+  }, [addMessage, setAttachedFiles, setInput, t]);
   const {
     pending: scheduledMessages,
     schedule: scheduleMessage,
@@ -530,7 +563,7 @@ function ChatInterface({
       if (!sessionId) return;
       window.setTimeout(() => { void sessionStore.refreshFromServer(sessionId); }, SCHEDULED_SEND_RECONCILE_MS);
     }, [addMessage, scheduledSessionId, sessionStore]),
-    reportLostScheduledEdit,
+    handleLostScheduledEdit,
   );
   const providerCapabilities = useProviderCapabilities();
   const canScheduleOnUsageReset = providerCapabilities?.[provider]?.supportsUsageResetAlerts === true;
@@ -576,11 +609,19 @@ function ChatInterface({
       // An open edit saves into the message it holds, keeping its trigger.
       if (scheduledEdit && override === undefined) {
         const options = { ...buildSendOptions(content), attachments } as Record<string, unknown>;
-        if (await saveScheduledEdit(content, options)) {
+        const outcome = await saveScheduledEdit(content, options);
+        if (outcome === 'saved') {
+          scheduledEditOriginalRef.current = null;
           setInput('');
           setAttachedFiles([]);
-        } else {
-          reportLostScheduledEdit();
+        } else if (outcome === 'unreachable') {
+          addMessage({
+            type: 'error',
+            content: t('input.schedule.editSaveUnreachable', {
+              defaultValue: 'Could not reach the server to save this edit. It is still open; try again.',
+            }),
+            timestamp: new Date(),
+          });
         }
         return;
       }
@@ -602,18 +643,19 @@ function ChatInterface({
       }
     },
     [
+      addMessage,
       attachedFiles,
       buildSendOptions,
       describeAttachments,
       ensureSessionId,
       input,
-      reportLostScheduledEdit,
       saveScheduledEdit,
       scheduledEdit,
       scheduledSessionId,
       scheduleMessage,
       setAttachedFiles,
       setInput,
+      t,
     ],
   );
 
@@ -651,8 +693,10 @@ function ChatInterface({
         }
       }));
       if (!held.open()) return;
+      const restoredFiles = files.filter((file): file is File => file !== null);
+      scheduledEditOriginalRef.current = { content: held.message.content, files: restoredFiles };
       setInput(held.message.content);
-      setAttachedFiles(files.filter((file): file is File => file !== null));
+      setAttachedFiles(restoredFiles);
     },
     [holdScheduledForEdit, setAttachedFiles, setInput],
   );
