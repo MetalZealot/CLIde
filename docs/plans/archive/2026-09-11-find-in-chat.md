@@ -2,7 +2,7 @@
 
 - Status: complete
 - Next: none — accepted live 2026-09-11
-- Context: [UI standards](../../maps/ui-standards.md), [mobile bottom navigation](../mobile-bottom-navigation.md)
+- Context: [UI standards](../../maps/ui-standards.md), [mobile bottom navigation](2026-09-13-mobile-bottom-navigation.md)
 
 ## Phases
 

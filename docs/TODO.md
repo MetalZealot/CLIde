@@ -47,15 +47,10 @@ main checkout only).
 ## Mobile UX polish
 
 
-- [~] **Compact the header Export panel** — match the kebab row spacing and remove its fixed height cap. 53 focused tests and client build pass; phone acceptance pending. [Source](../src/components/chat/view/subcomponents/ChatExportMenu.tsx). **S**
 - [~] **Composer controls:** desktop split pickers keep Permissions and Build/Plan separate, with matching hover/open states; Shift+Tab cycles collaboration mode; Clear Input/shortcut clutter is gone. Mobile keeps one compact access icon; tapping opens the complete picker with Build/Plan inside. Effort dot taps now snap to that value. Desktop/mobile acceptance remain. **S**
-- [~] **Show this chat's browser activity above the composer** — compact preview opens its browser session; active/idle/stopped states and compact question/queue layout. [Contract and coverage](maps/chat-browser-activity.md). Ordinary Browser request accepted live; 960 tests pass. Dense question/queue phone acceptance pending. **M**
 
-- [~] **Move the top tab strip to a bottom nav** — five default roles: Chat, Shell, Files, Source Control, Plugins; Plugins opens installed destinations. Merged; installed-PWA acceptance remains. [Plan](plans/mobile-bottom-navigation.md), [ADR 0048](decisions/0048-mobile-navbar-five-roles-plugin-overflow.md). **M**
-- [ ] **Bottom nav follow-up:** hide the bar while scrolling down in chat. [Plan](plans/mobile-bottom-navigation.md) **S — design first**
 - [ ] **Consider personalizing the accepted bottom nav.** Rearrangement and pinned-plugin slots may be useful, but their owner and displacement rules are undecided; do not add them to the default-bar build. **S — design decision first**
 - [ ] **Consider floating New Session above the sidebar footer instead of inside it.** `--app-footer-height` is 60px, accepted with the bottom nav; ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if the button misfires near the gesture strip. **S — on trial, don't act unprompted**
-- [~] **Chat actions in the header kebab (desktop and mobile):** Pin, Rename, Export…, Archive, Delete; Chat and Shell end in a tap-to-copy CLIde + provider id row, which replaced the sidebar's copy item and the floating export button. Merged; acceptance on the phone remains. [Plan](plans/mobile-bottom-navigation.md) **S**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client**. Opening deliberately preserves unresolved attention; it clears only when this client receives `permission_cancelled` or the session is removed. Acceptable for now. **S**
 - [ ] Tool-call copy button placement on mobile: always-visible since `05b176b`, but it spans the whole right edge of the tool row, which is heavy. Compact or fold into a row action; keep hover-reveal on desktop. **S/M — design decision first**
