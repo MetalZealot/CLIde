@@ -11,6 +11,8 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [x] **Show timestamps on consecutive assistant replies. Upstreamable.** The footer hid each grouped reply's time, including replies after hidden thinking. Removed that visibility condition while retaining grouping. Confirmed the same guard in `upstream/main`'s `src/modules/chat/transcript/MessageComponent.tsx`; GitHub issue/PR searches for `timestamp` on 2026-09-14 found no matching visibility fix (PR #1196 concerns server-clock stamping).
+
 - [x] **Find typing, cached-history visibility, and header Export overflow. Fork-only.** Repairs features introduced by the bottom-navigation branch; regression tests and synthetic browser checks pass; included in the bottom-navigation integration. [Review](plans/archive/2026-09-13-mobile-bottom-navigation.md#final-review).
 
 - [x] **Bottom navigation before worktree selection. Fork-only, personal preference.** Keep the bar visible and disable worktree-dependent destinations; preserve keyboard hiding.

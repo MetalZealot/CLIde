@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Every ordinary agent reply shows its timestamp** (2026-09-14, this change). Removed the grouped-reply visibility guard; consecutive replies, including those after hidden thinking or tool messages, retain their own time across all four providers. Grouping and hidden-thinking behavior stay intact. Verified: regression failed before the fix; 58 focused client tests, client typecheck, focused lint, client build, and the main app's served bundle. Personal visual acceptance pending. Upstreamable, client-only. **S**
+
 - [x] **Browser test sign-in uses Playwright's standard storage state and secrets** (2026-09-14, this change; [map](maps/chat-browser-activity.md#sign-in-and-close)). Branch-test starts save a signed-in state every Browser context loads; typing tools list secret names Playwright fills and redacts; agent `browser_close` frees its context. Verified: 55 browser-use and Codex transport tests, typecheck, docs check, live endpoint check, a real Claude agent, and Grayson's acceptance on 3002 and from a 3001 chat. Fork-only. **S**
 
 - [x] **The sidebar account popover is replaced by direct Settings and Usage actions** (2026-09-14, this change). The account avatar opens Settings; Usage is an adjacent icon-only button in the expanded footer and sits immediately above it in the collapsed rail. Verified: focused client test, client typecheck, touched-file lint, docs check, diff check, client build, and isolated desktop/mobile browser checks. Fork-only, client-only. **XS**
