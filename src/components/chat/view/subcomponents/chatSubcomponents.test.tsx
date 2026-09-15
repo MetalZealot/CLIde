@@ -2140,6 +2140,15 @@ describe('chat browser preview', () => {
     }
   });
 
+  test('the thumbnail takes the viewport shape, falling back to a fixed wide tile', () => {
+    const phone = renderToStaticMarkup(<ChatBrowserPreview session={{ ...session, device: 'phone', viewport: { width: 390, height: 844 } }} unavailable={false} compact={false} onOpen={() => {}} />);
+    assert.match(phone, /aspect-ratio:390 \/ 844/);
+    assert.doesNotMatch(phone, /w-14/);
+    const unknown = renderToStaticMarkup(<ChatBrowserPreview session={session} unavailable={false} compact={false} onOpen={() => {}} />);
+    assert.match(unknown, /w-14/);
+    assert.doesNotMatch(unknown, /aspect-ratio/);
+  });
+
   test('compact mode removes the image but preserves the exact browser destination', async () => {
     const container = document.createElement('div');
     document.body.append(container);
