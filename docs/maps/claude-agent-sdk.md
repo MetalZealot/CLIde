@@ -33,7 +33,7 @@ remains the companion inventory for the settings cascade.
 | Runtime pairing policy | **Unpinned by design**: `CLAUDE_CLI_PATH` or bare `claude` |
 | SDK `Options` surface | 65 top-level options, unchanged at 0.3.258 (`systemPrompt` gained a `custom` variant and `snapshot`); CLIde sets 19 |
 | SDK `Query` control methods | 28 (`updateSettings` new at 0.3.258); CLIde calls 2 (`interrupt`, `getContextUsage`) |
-| SDK stream message types | 39; CLIde's live normalizer acts on assistant/user shapes plus `rate_limit_event` |
+| SDK stream message types | 39; CLIde's live normalizer acts on assistant/user shapes plus `rate_limit_event` and `status: compacting` |
 | SDK top-level exports | 17 functions, 2 classes, 7 constants; CLIde imports `query` only |
 | Hook events | 33 (`PreModelSwitch`, `PostModelSwitch` new at 0.3.258); CLIde registers 1 (`Notification`) |
 | Settings cascade | In force via `settingSources: ['project','user','local']`; no CLIde UI |
@@ -257,11 +257,11 @@ Everything else in the 32-type union falls through and is dropped:
 | Message type | What it carries | Disposition |
 |---|---|---|
 | `rate_limit_event` | `rateLimitType` (`five_hour` / `seven_day` / `seven_day_opus` / `seven_day_sonnet` / `overage`), `utilization`, `resetsAt`, overage status | Implemented for normalized windows and live `provider_usage`; overage-only fields remain unused |
-| `status` (`compacting` / `requesting`) | Why the session is silent | Integrate |
-| `api_retry` | Retry attempt during 529 storms | Integrate |
+| `status` (`compacting` / `requesting`) | Why the session is silent | `compacting` implemented as the activity label; `requesting` dropped — Integrate ([plan](../plans/turn-liveness-and-usage-warnings.md)) |
+| `api_retry` | Attempt, max retries, delay, HTTP status, error class for a retryable failure | Integrate — dropped and unlogged, so a retrying turn is indistinguishable from a thinking one |
 | `compact_boundary` | Where context was compacted | Candidate |
 | `task_notification`, `task_started`, `task_updated`, `task_progress` | Background-task lifecycle | Candidate |
-| `thinking_tokens` | Live thinking-token counter | Defer |
+| `thinking_tokens` | Running thinking-token estimate, emitted even while thinking text is redacted; not billed `output_tokens` | Integrate; whether it needs `includePartialMessages` is unverified |
 | `tool_progress`, `tool_use_summary` | Per-tool progress and summaries | Candidate |
 | `commands_changed` | Live slash-menu invalidation | Integrate with `supportedCommands()` |
 | `stream_event` partials | Token-level deltas | Blocked on `includePartialMessages` |
