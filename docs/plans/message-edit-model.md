@@ -1,7 +1,7 @@
 # One edit model for queued, scheduled, and earlier messages
 
-- Status: 1/5
-- Next: Phase 1 — hold a scheduled message under a lease while it is edited
+- Status: 2/5
+- Next: Phase 2 — scheduled messages as bubbles in the thread, queues in one row
 - Context: [Auto-Continue](auto-continue.md) puts its offer on the scheduled bubble
   this plan introduces; placement reasons in [UI standards](../maps/ui-standards.md);
   rewind semantics are ADRs 0012 and 0013
@@ -71,10 +71,12 @@ question stays above the composer — like a permission prompt, it waits on you.
       above the composer, queues stay per-browser, and a rewind leaves waiting
       messages to send. Upstream, read that day, handled neither of the last two —
       they are edge cases, not a convention being departed from
-- [ ] 1. A scheduled message being edited is held under a lease, keeps its
+- [x] 1. A scheduled message being edited is held under a lease, keeps its
       attachments, and catches up on release. The dispatcher skips a held row;
       the monitor's keep-alive, the sidebar clock, and the Auto-Continue offer all
-      count it as waiting
+      count it as waiting. The newest editor takes the hold, and every send path
+      saves into it. Hold, save, and attachments verified on the branch server
+      2026-09-15; lapse and missed-reset catch-up by tests only
 - [ ] 2. Scheduled messages render as bubbles at the end of the thread with their
       tap menu, and both queues merge into one compact row above the composer; the
       scheduled, queued, and queued-answer cards are removed

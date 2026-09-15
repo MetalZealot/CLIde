@@ -17,10 +17,14 @@ export type ScheduledMessageRow = {
   failure_reason: string | null;
   created_at: string;
   fired_at: string | null;
+  held_by: string | null;
+  /** Epoch ms; the row is held only while this is in the future. */
+  held_until: number | null;
+  reset_missed: number;
 };
 
 const COLUMNS =
-  'id, session_id, provider, content, options, trigger_kind, scheduled_for, state, failure_reason, created_at, fired_at';
+  'id, session_id, provider, content, options, trigger_kind, scheduled_for, state, failure_reason, created_at, fired_at, held_by, held_until, reset_missed';
 
 export type CreateScheduledMessageInput = {
   sessionId: string;
@@ -133,6 +137,86 @@ export const scheduledMessagesDb = {
       )
       .run(state, failureReason ?? null, id);
     return result.changes > 0;
+  },
+
+  /**
+   * Claims a pending row for sending, unless an editor holds it.
+   *
+   * The same one-statement claim as `settle`, with the lease as a second guard,
+   * so a row held for editing cannot fire however the dispatcher reached it.
+   */
+  claimForSend(id: string, nowMs: number): boolean {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        `UPDATE scheduled_messages
+         SET state = 'sent', fired_at = CURRENT_TIMESTAMP, held_until = NULL
+         WHERE id = ? AND state = 'pending' AND (held_until IS NULL OR held_until <= ?)`
+      )
+      .run(id, nowMs);
+    return result.changes > 0;
+  },
+
+  /**
+   * Holds a pending row for a new editor, taking it from any earlier one.
+   *
+   * The newest editor wins: moving between devices mid-edit must not lock the
+   * message for a lease length. The earlier editor's token stops matching, so
+   * its renew, release, and save all fail rather than overwrite this edit.
+   */
+  hold(id: string, token: string, heldUntilMs: number): boolean {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        `UPDATE scheduled_messages SET held_by = ?, held_until = ?
+         WHERE id = ? AND state = 'pending'`
+      )
+      .run(token, heldUntilMs, id);
+    return result.changes > 0;
+  },
+
+  /** Extends this editor's lease, re-taking one that lapsed if nobody else took it. */
+  renewHold(id: string, token: string, heldUntilMs: number): boolean {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        `UPDATE scheduled_messages SET held_until = ?
+         WHERE id = ? AND state = 'pending' AND held_by = ?`
+      )
+      .run(heldUntilMs, id, token);
+    return result.changes > 0;
+  },
+
+  /** Ends this editor's lease without changing the message. */
+  releaseHold(id: string, token: string): boolean {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        `UPDATE scheduled_messages SET held_until = NULL
+         WHERE id = ? AND state = 'pending' AND held_by = ?`
+      )
+      .run(id, token);
+    return result.changes > 0;
+  },
+
+  /** Saves this editor's rewrite and ends its lease in one statement. */
+  saveEdit(id: string, token: string, content: string, options: unknown): boolean {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        `UPDATE scheduled_messages SET content = ?, options = ?, held_until = NULL
+         WHERE id = ? AND state = 'pending' AND held_by = ?`
+      )
+      .run(content, options === undefined ? null : JSON.stringify(options), id, token);
+    return result.changes > 0;
+  },
+
+  /** Records that a usage reset passed while the row was held. */
+  markResetMissed(id: string): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE scheduled_messages SET reset_missed = 1 WHERE id = ? AND state = 'pending'`
+    ).run(id);
   },
 
   /**

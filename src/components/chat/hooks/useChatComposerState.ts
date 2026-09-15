@@ -87,6 +87,12 @@ interface UseChatComposerStateArgs {
   supportsFork?: boolean;
   /** From the provider capability matrix; gates /compact in the command menu. */
   supportsCompactCommand?: boolean;
+  /**
+   * Claims a send before it goes out; returning true stops it. Read through a
+   * ref because the owner is defined after this hook. Every submit path —
+   * button, Enter, voice, command — passes through it.
+   */
+  interceptSubmitRef?: { current: (() => boolean) | null };
 }
 
 interface MentionableFile {
@@ -402,6 +408,7 @@ export function useChatComposerState({
   supportsRewind = false,
   supportsFork = false,
   supportsCompactCommand = false,
+  interceptSubmitRef,
 }: UseChatComposerStateArgs) {
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
@@ -1063,6 +1070,9 @@ export function useChatComposerState({
       queuedSubmission?: QueuedDraft,
     ) => {
       event.preventDefault();
+      if (!queuedSubmission && interceptSubmitRef?.current?.()) {
+        return;
+      }
       const currentInput = queuedSubmission?.content ?? inputValueRef.current;
       const currentAttachments = queuedSubmission?.attachments ?? attachedFiles;
       const previouslyUploadedAttachments = queuedSubmission?.uploadedAttachments ?? [];
@@ -1289,6 +1299,7 @@ export function useChatComposerState({
       buildSendOptions,
       currentSessionId,
       executeCommand,
+      interceptSubmitRef,
       isLoading,
       recordSentMessage,
       onSessionProcessing,

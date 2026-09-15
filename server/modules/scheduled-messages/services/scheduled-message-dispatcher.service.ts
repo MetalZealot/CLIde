@@ -5,8 +5,12 @@ import { scheduledMessagesDb, type ScheduledMessageRow } from '@/modules/databas
  *
  * The database row is the only durable record: timers live in memory and are
  * rebuilt from `listPending()` on every start, so a restart between scheduling
- * and firing loses nothing. `settle` claims a row from 'pending' in one
+ * and firing loses nothing. `claimForSend` takes a row from 'pending' in one
  * statement, which is what makes a timer and the startup sweep safe to race.
+ *
+ * A row held for editing is still pending but never fires. Whatever it was
+ * waiting for is caught up when the hold ends, by release or by lapse: a time
+ * that passed fires then, and so does a usage reset recorded as missed.
  */
 
 /** setTimeout saturates above this, firing immediately; re-arm in hops instead. */
@@ -26,6 +30,8 @@ export type ScheduledMessageDispatcherDependencies = {
 export type ScheduledMessageDispatcher = {
   reconcile(): void;
   schedule(row: ScheduledMessageRow): void;
+  /** Re-arms a row whose hold just changed, firing it if it has fallen due. */
+  rearm(id: string): void;
   cancel(id: string): boolean;
   fireUsageReset(provider: string): Promise<void>;
   close(): void;
@@ -44,6 +50,10 @@ export function createScheduledMessageDispatcher(
     }
   };
 
+  const isHeld = (row: ScheduledMessageRow): boolean => (
+    row.held_until !== null && row.held_until > dependencies.now()
+  );
+
   /**
    * Sends one row, if this caller is the one that claims it.
    *
@@ -53,12 +63,20 @@ export function createScheduledMessageDispatcher(
    * this process already owns.
    */
   const fire = async (id: string): Promise<void> => {
-    cancelTimer(id);
     const row = scheduledMessagesDb.getById(id);
     if (!row || row.state !== 'pending') {
+      cancelTimer(id);
       return;
     }
-    if (!scheduledMessagesDb.settle(id, 'sent')) {
+    if (isHeld(row)) {
+      if (row.trigger_kind === 'usage-reset' && !row.reset_missed) {
+        scheduledMessagesDb.markResetMissed(id);
+      }
+      arm(scheduledMessagesDb.getById(id) ?? row);
+      return;
+    }
+    cancelTimer(id);
+    if (!scheduledMessagesDb.claimForSend(id, dependencies.now())) {
       return;
     }
 
@@ -75,11 +93,28 @@ export function createScheduledMessageDispatcher(
     }
   };
 
-  const arm = (row: ScheduledMessageRow) => {
-    if (row.trigger_kind !== 'time' || !row.scheduled_for) {
+  /**
+   * When a row may next fire: its instant, or for a usage reset that already
+   * passed, now — pushed back to the end of any hold. Null when it waits on a
+   * reset that has not happened, which the monitor delivers instead.
+   */
+  const nextFireAt = (row: ScheduledMessageRow): number | null => {
+    let dueAt: number;
+    if (row.trigger_kind === 'time') {
+      dueAt = Date.parse(row.scheduled_for ?? '');
+    } else if (row.reset_missed) {
+      dueAt = dependencies.now();
+    } else {
+      return null;
+    }
+    return isHeld(row) ? Math.max(dueAt, row.held_until as number) : dueAt;
+  };
+
+  function arm(row: ScheduledMessageRow): void {
+    const dueAt = nextFireAt(row);
+    if (dueAt === null) {
       return;
     }
-    const dueAt = Date.parse(row.scheduled_for);
     if (!Number.isFinite(dueAt)) {
       scheduledMessagesDb.settle(row.id, 'failed', 'scheduled_for is not a valid instant');
       return;
@@ -92,6 +127,7 @@ export function createScheduledMessageDispatcher(
       return;
     }
 
+    // Every hop re-reads the row, so a renewed hold or an edit is picked up.
     const hop = Math.min(delay, MAX_TIMER_MS);
     timers.set(
       row.id,
@@ -103,15 +139,13 @@ export function createScheduledMessageDispatcher(
         }
       }, hop),
     );
-  };
+  }
 
   return {
-    /** Rebuilds every pending time trigger. Safe to call more than once. */
+    /** Rebuilds every pending timer, including held rows' lapses. Safe to call more than once. */
     reconcile(): void {
       for (const row of scheduledMessagesDb.listPending()) {
-        if (row.trigger_kind === 'time') {
-          arm(row);
-        }
+        arm(row);
       }
     },
 
@@ -120,12 +154,21 @@ export function createScheduledMessageDispatcher(
       arm(row);
     },
 
+    rearm(id: string): void {
+      const row = scheduledMessagesDb.getById(id);
+      if (row && row.state === 'pending') {
+        arm(row);
+      } else {
+        cancelTimer(id);
+      }
+    },
+
     cancel(id: string): boolean {
       cancelTimer(id);
       return scheduledMessagesDb.settle(id, 'cancelled');
     },
 
-    /** Fires every pending row waiting on this provider's usage reset. */
+    /** Fires every pending row waiting on this provider's usage reset; a held one fires on release. */
     async fireUsageReset(provider: string): Promise<void> {
       for (const row of scheduledMessagesDb.listPendingForUsageReset(provider)) {
         await fire(row.id);

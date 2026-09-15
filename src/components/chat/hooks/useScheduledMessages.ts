@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '../../../utils/api';
 
@@ -15,7 +15,20 @@ export type ScheduledMessage = {
   failureReason: string | null;
   createdAt: string;
   firedAt: string | null;
+  /** Stored descriptors, so an edit can put the files back in the composer. */
+  attachments?: { path: string; name?: string; mimeType?: string; size?: number }[];
 };
+
+/** An edit this client has open; the server holds the message while it lasts. */
+export type ScheduledMessageEdit = {
+  id: string;
+  token: string;
+  trigger: ScheduledMessageTrigger;
+  scheduledFor: string | null;
+};
+
+/** A third of the server's 90s hold, so one lost renewal cannot end it. */
+const HOLD_RENEW_MS = 30_000;
 
 type CreateInput = {
   content: string;
@@ -89,7 +102,108 @@ export function useScheduledMessages(
     return true;
   }, [refresh, sessionId]);
 
+  const [editing, setEditing] = useState<ScheduledMessageEdit | null>(null);
+  const editingRef = useRef<ScheduledMessageEdit | null>(null);
+  editingRef.current = editing;
+
+  const releaseEdit = useCallback((edit: ScheduledMessageEdit | null) => {
+    if (!edit) return;
+    void api.releaseScheduledMessageHold(edit.id, edit.token).catch(() => {
+      // The hold lapses on its own; a failed release only delays the message.
+    });
+  }, []);
+
+  // Leaving the session or the page ends the edit. Anything that stops the
+  // renewals without reaching here — a sleeping phone, a closed tab — lets the
+  // hold lapse instead, and the message sends as if never opened.
+  useEffect(() => () => {
+    releaseEdit(editingRef.current);
+    editingRef.current = null;
+    setEditing(null);
+  }, [releaseEdit, sessionId]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const renew = () => {
+      void api.renewScheduledMessageHold(editing.id, editing.token).catch(() => {});
+    };
+    const interval = window.setInterval(renew, HOLD_RENEW_MS);
+    // Timers stall while a phone sleeps; renew the moment it is looked at again.
+    const onVisible = () => { if (document.visibilityState === 'visible') renew(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [editing]);
+
+  /**
+   * Holds a message for editing and returns its latest stored copy, or null
+   * when it already sent. Opening a second edit ends the first.
+   *
+   * The edit is not live until `open()`: the caller fetches what it needs
+   * first, then opens it in the same tick it fills the composer, so no send
+   * can land between the two. `open()` is false if another edit or a session
+   * change superseded this one meanwhile.
+   */
+  const holdForEdit = useCallback(async (
+    message: ScheduledMessage,
+  ): Promise<{ message: ScheduledMessage; open: () => boolean } | null> => {
+    releaseEdit(editingRef.current);
+    editingRef.current = null;
+    setEditing(null);
+    try {
+      const response = await api.holdScheduledMessage(message.id);
+      if (!response.ok) {
+        void refresh();
+        return null;
+      }
+      const body = await response.json() as { token: string; message: ScheduledMessage };
+      const edit: ScheduledMessageEdit = {
+        id: message.id,
+        token: body.token,
+        trigger: body.message.trigger,
+        scheduledFor: body.message.scheduledFor,
+      };
+      // Tracked before it opens, so a session change meanwhile still releases it.
+      editingRef.current = edit;
+      return {
+        message: body.message,
+        open: () => {
+          if (editingRef.current !== edit) return false;
+          setEditing(edit);
+          return true;
+        },
+      };
+    } catch {
+      return null;
+    }
+  }, [refresh, releaseEdit]);
+
+  /**
+   * Saves the open edit; the message keeps its trigger. False means it sent,
+   * was cancelled, or was opened elsewhere first. The edit ends either way.
+   */
+  const saveEdit = useCallback(async (content: string, options: Record<string, unknown>): Promise<boolean> => {
+    const edit = editingRef.current;
+    if (!edit) return false;
+    editingRef.current = null;
+    setEditing(null);
+    try {
+      const response = await api.saveScheduledMessageEdit(edit.id, { token: edit.token, content, options });
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      await refresh();
+    }
+  }, [refresh]);
+
   const cancel = useCallback(async (id: string): Promise<void> => {
+    if (editingRef.current?.id === id) {
+      editingRef.current = null;
+      setEditing(null);
+    }
     // Drop it locally first: the row is already claimed server-side either way,
     // and leaving a cancelled card on screen reads as a failure.
     setPending((current) => current.filter((message) => message.id !== id));
@@ -100,5 +214,5 @@ export function useScheduledMessages(
     }
   }, [refresh]);
 
-  return { pending, schedule, cancel, refresh };
+  return { pending, schedule, cancel, refresh, editing, holdForEdit, saveEdit };
 }

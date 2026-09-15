@@ -18,7 +18,11 @@ import {
   createScheduledMessageSender,
   fireUsageResetMessages,
   hasPendingUsageResetMessages,
+  holdScheduledMessage,
   listScheduledMessagesForSession,
+  releaseScheduledMessageHold,
+  renewScheduledMessageHold,
+  saveScheduledMessageEdit,
   setScheduledMessageRuntime,
 } from '@/modules/scheduled-messages/index.js';
 
@@ -399,6 +403,140 @@ describe('scheduled-messages', () => {
       sessionsDb.deleteSessionById('session-9');
 
       assert.equal(scheduledMessagesDb.getById(row.id), null);
+    });
+  });
+  test('a held message does not fire, and fires once its hold lapses or is released', async () => {
+    await withIsolatedDatabase(async () => {
+      seedSession('session-13');
+      const harness = createHarness();
+      const at = (time: string) => Date.parse(`2026-07-18T${time}:00.000Z`);
+
+      const lapsing = scheduledMessagesDb.create({
+        sessionId: 'session-13',
+        provider: 'claude',
+        content: 'editor walked away',
+        trigger: 'time',
+        scheduledFor: '2026-07-18T10:30:00.000Z',
+      });
+      harness.dispatcher.schedule(lapsing);
+      scheduledMessagesDb.hold(lapsing.id, 'editor-a', at('10:45'));
+
+      await harness.advanceTo('2026-07-18T10:30:00.000Z');
+      assert.equal(harness.sent.length, 0, 'a due message must wait out its hold');
+      assert.equal(scheduledMessagesDb.getById(lapsing.id)?.state, 'pending');
+
+      assert.equal(scheduledMessagesDb.renewHold(lapsing.id, 'editor-a', at('11:00')), true);
+      await harness.advanceTo('2026-07-18T10:45:00.000Z');
+      assert.equal(harness.sent.length, 0, 'a renewed hold must keep it waiting');
+
+      await harness.advanceTo('2026-07-18T11:00:00.000Z');
+      assert.equal(harness.sent.length, 1, 'a lapsed hold must send what fell due');
+      assert.equal(scheduledMessagesDb.getById(lapsing.id)?.state, 'sent');
+
+      const released = scheduledMessagesDb.create({
+        sessionId: 'session-13',
+        provider: 'claude',
+        content: 'editor backed out',
+        trigger: 'time',
+        scheduledFor: '2026-07-18T11:05:00.000Z',
+      });
+      scheduledMessagesDb.hold(released.id, 'editor-b', at('12:00'));
+      harness.dispatcher.schedule(scheduledMessagesDb.getById(released.id) as ScheduledMessageRow);
+      await harness.advanceTo('2026-07-18T11:10:00.000Z');
+      assert.equal(harness.sent.length, 1);
+
+      assert.equal(scheduledMessagesDb.releaseHold(released.id, 'editor-b'), true);
+      harness.dispatcher.rearm(released.id);
+      await Promise.resolve();
+      assert.equal(harness.sent.length, 2, 'a time that passed during the edit fires on release');
+    });
+  });
+
+  // The monitor's recovery is a one-time transition, so a held row has to
+  // remember that it missed one.
+  test('a usage reset that lands during an edit sends once the edit ends, even across a restart', async () => {
+    await withIsolatedDatabase(async () => {
+      seedSession('session-14');
+      const harness = createHarness();
+      const at = (time: string) => Date.parse(`2026-07-18T${time}:00.000Z`);
+      const create = (content: string) => scheduledMessagesDb.create({
+        sessionId: 'session-14',
+        provider: 'claude',
+        content,
+        trigger: 'usage-reset',
+      });
+
+      const missed = create('missed a reset');
+      const lapsed = create('missed a reset, then the app closed');
+      const untouched = create('no reset yet');
+      scheduledMessagesDb.hold(missed.id, 'editor-a', at('10:30'));
+      scheduledMessagesDb.hold(lapsed.id, 'editor-b', at('10:30'));
+
+      await harness.dispatcher.fireUsageReset('claude');
+      assert.deepEqual(harness.sent.map((row) => row.id), [untouched.id]);
+      assert.equal(scheduledMessagesDb.getById(missed.id)?.reset_missed, 1);
+      // Still waiting, so the monitor stays awake and the sidebar keeps its clock.
+      assert.equal(scheduledMessagesDb.listSessionIdsWithPending().includes('session-14'), true);
+
+      const noReset = create('released before any reset');
+      scheduledMessagesDb.hold(noReset.id, 'editor-c', at('10:30'));
+      scheduledMessagesDb.releaseHold(noReset.id, 'editor-c');
+      harness.dispatcher.rearm(noReset.id);
+
+      scheduledMessagesDb.releaseHold(missed.id, 'editor-a');
+      harness.dispatcher.rearm(missed.id);
+      await Promise.resolve();
+      assert.deepEqual(harness.sent.map((row) => row.id), [untouched.id, missed.id]);
+
+      // A restart before the hold lapses: the rebuilt dispatcher still owes it.
+      const restarted = createHarness();
+      restarted.dispatcher.reconcile();
+      await restarted.advanceTo('2026-07-18T10:30:00.000Z');
+      assert.deepEqual(restarted.sent.map((row) => row.id), [lapsed.id]);
+      assert.equal(scheduledMessagesDb.getById(noReset.id)?.state, 'pending');
+    });
+  });
+
+  test('an edit keeps its attachments, and only the newest editor can save it', async () => {
+    await withIsolatedDatabase(async () => {
+      seedSession('session-15');
+      const harness = createHarness();
+      const attachments = [{ path: '/assets/photo.png', name: 'photo.png', mimeType: 'image/png' }];
+
+      try {
+        setScheduledMessageRuntime({ dispatcher: harness.dispatcher, onPendingChanged: () => {} });
+        const row = createScheduledMessage({
+          sessionId: 'session-15',
+          provider: 'claude',
+          content: 'look at this',
+          options: { attachments, model: 'opus' },
+          trigger: 'usage-reset',
+        });
+
+        const phone = holdScheduledMessage(row.id);
+        const laptop = holdScheduledMessage(row.id);
+        assert.ok(phone && laptop);
+
+        // Moving devices mid-edit hands the message over rather than locking it.
+        assert.equal(renewScheduledMessageHold(row.id, phone.token), false);
+        assert.equal(saveScheduledMessageEdit(row.id, phone.token, { content: 'stale' }), null);
+        assert.equal(renewScheduledMessageHold(row.id, laptop.token), true);
+
+        const saved = saveScheduledMessageEdit(row.id, laptop.token, {
+          content: 'look at this one',
+          options: { attachments, model: 'opus' },
+        });
+        assert.equal(saved?.content, 'look at this one');
+        assert.deepEqual(JSON.parse(saved?.options ?? '{}').attachments, attachments);
+        assert.equal(saved?.held_until, null);
+        assert.equal(saved?.state, 'pending', 'saving keeps waiting on the reset');
+        assert.equal(releaseScheduledMessageHold(row.id, phone.token), false);
+
+        assert.equal(cancelScheduledMessage(row.id), true);
+        assert.equal(holdScheduledMessage(row.id), null);
+      } finally {
+        setScheduledMessageRuntime(null);
+      }
     });
   });
 });

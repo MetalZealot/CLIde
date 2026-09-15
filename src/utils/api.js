@@ -252,6 +252,25 @@ export const api = {
     authenticatedFetch(`/api/scheduled-messages/${id}`, {
       method: 'DELETE',
     }),
+  // An open edit holds the message so it cannot fire mid-rewrite; the token
+  // renews, releases, and saves that hold.
+  holdScheduledMessage: (id) =>
+    authenticatedFetch(`/api/scheduled-messages/${id}/hold`, { method: 'POST' }),
+  renewScheduledMessageHold: (id, token) =>
+    authenticatedFetch(`/api/scheduled-messages/${id}/hold`, {
+      method: 'PUT',
+      body: JSON.stringify({ token }),
+    }),
+  releaseScheduledMessageHold: (id, token) =>
+    authenticatedFetch(`/api/scheduled-messages/${id}/hold`, {
+      method: 'DELETE',
+      body: JSON.stringify({ token }),
+    }),
+  saveScheduledMessageEdit: (id, payload) =>
+    authenticatedFetch(`/api/scheduled-messages/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
 
   // Toggles the starred flag server-side; response carries the new `{ isStarred }`.
   toggleSessionStar: (sessionId) =>

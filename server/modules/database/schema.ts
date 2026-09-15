@@ -172,6 +172,13 @@ CREATE TABLE IF NOT EXISTS scheduled_messages (
     failure_reason TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     fired_at DATETIME,
+    -- Edit lease. A row is held while \`held_until\` (epoch ms) is in the future;
+    -- \`held_by\` is the editor's token and survives release, so a stale editor
+    -- cannot overwrite a newer one. Held rows stay 'pending' but never fire.
+    held_by TEXT,
+    held_until INTEGER,
+    -- Set when a usage reset arrived while the row was held; release fires it.
+    reset_missed INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
     ON DELETE CASCADE
     ON UPDATE CASCADE

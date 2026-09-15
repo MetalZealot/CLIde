@@ -476,6 +476,15 @@ const addSessionEffortColumns = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'effort_updated_at', 'DATETIME');
 };
 
+/** Adds the edit-lease columns to a `scheduled_messages` table created before them. */
+const addScheduledMessageHoldColumns = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'scheduled_messages').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'scheduled_messages', columnNames, 'held_by', 'TEXT');
+  addColumnToTableIfNotExists(db, 'scheduled_messages', columnNames, 'held_until', 'INTEGER');
+  addColumnToTableIfNotExists(db, 'scheduled_messages', columnNames, 'reset_missed', 'INTEGER NOT NULL DEFAULT 0');
+};
+
 type LegacyActiveModelChangeEntry = {
   provider?: unknown;
   sessionId?: unknown;
@@ -602,6 +611,7 @@ export const runMigrations = (db: Database) => {
       importLegacySessionModelPicks(db);
     }
     addSessionEffortColumns(db);
+    addScheduledMessageHoldColumns(db);
     ensureProjectsForSessionPaths(db);
 
     db.exec(SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL);

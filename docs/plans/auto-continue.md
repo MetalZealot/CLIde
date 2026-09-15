@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
 - Status: 1/6
-- Next: [message edit model](message-edit-model.md) phase 1, then move the offer onto the notice
+- Next: [message edit model](message-edit-model.md) phase 2, then move the offer onto the notice
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses

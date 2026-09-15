@@ -12,6 +12,7 @@ import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
+import { authenticatedFetch } from '../../../utils/api';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useChatFind } from '../hooks/useChatFind';
@@ -225,6 +226,9 @@ function ChatInterface({
     setCurrentSessionId,
   ]);
 
+  // Filled in below, once the scheduled-message edit it routes to exists.
+  const interceptSubmitRef = useRef<(() => boolean) | null>(null);
+
   const {
     input,
     setInput,
@@ -320,6 +324,7 @@ function ChatInterface({
     supportsRewind: getSupportsRewindForProvider(provider),
     supportsFork: getSupportsForkForProvider(provider),
     supportsCompactCommand: getSupportsCompactCommandForProvider(provider),
+    interceptSubmitRef,
   });
 
   const asyncQuestionSendOptions = useMemo(() => ({
@@ -488,14 +493,14 @@ function ChatInterface({
     setInput(content);
   }, [selectedSession?.id, currentSessionId, setInput]);
 
-  const [editingSchedule, setEditingSchedule] = useState<
-    { trigger: ScheduledMessageTrigger; scheduledFor: string | null } | null
-  >(null);
   const scheduledSessionId = currentSessionId || selectedSession?.id || null;
   const {
     pending: scheduledMessages,
     schedule: scheduleMessage,
     cancel: cancelScheduledMessage,
+    editing: scheduledEdit,
+    holdForEdit: holdScheduledForEdit,
+    saveEdit: saveScheduledEdit,
   } = useScheduledMessages(
     scheduledSessionId,
     subscribe,
@@ -518,6 +523,18 @@ function ChatInterface({
     canScheduleOnUsageReset,
   );
 
+  // Files an edit put back in the composer, mapped to the stored descriptor
+  // they came from, so saving reuses the upload instead of repeating it.
+  const restoredAttachmentsRef = useRef(new WeakMap<File, unknown>());
+
+  // Uploads whatever the composer holds that is not already stored, keeping order.
+  const describeAttachments = useCallback(async (files: File[]): Promise<unknown[]> => {
+    const restored = restoredAttachmentsRef.current;
+    const uploaded = await uploadAttachmentFiles(files.filter((file) => !restored.has(file)));
+    let next = 0;
+    return files.map((file) => (restored.has(file) ? restored.get(file) : uploaded[next++]));
+  }, []);
+
   // Stores whatever is in the composer and clears it, the way sending does.
   // Attachments are uploaded now rather than at firing time: the File objects
   // die with this page, so the stored row has to carry durable descriptors —
@@ -532,11 +549,29 @@ function ChatInterface({
       let attachments: unknown[] = [];
       if (attachedFiles.length > 0) {
         try {
-          attachments = await uploadAttachmentFiles(attachedFiles);
+          attachments = await describeAttachments(attachedFiles);
         } catch (error) {
           console.error('Scheduled message file upload failed:', error);
           return;
         }
+      }
+
+      // An open edit saves into the message it holds, keeping its trigger.
+      if (scheduledEdit && override === undefined) {
+        const options = { ...buildSendOptions(content), attachments } as Record<string, unknown>;
+        if (await saveScheduledEdit(content, options)) {
+          setInput('');
+          setAttachedFiles([]);
+        } else {
+          addMessage({
+            type: 'error',
+            content: t('input.schedule.editNotSaved', {
+              defaultValue: 'That scheduled message already sent, was cancelled, or was opened on another device, so this edit was not saved. Your text is still in the composer.',
+            }),
+            timestamp: new Date(),
+          });
+        }
+        return;
       }
 
       // A first message needs the session a send would have created, or the
@@ -553,22 +588,63 @@ function ChatInterface({
       if (scheduled && override === undefined) {
         setInput('');
         setAttachedFiles([]);
-        setEditingSchedule(null);
       }
     },
-    [attachedFiles, buildSendOptions, ensureSessionId, input, scheduledSessionId, scheduleMessage, setAttachedFiles, setInput],
+    [
+      addMessage,
+      attachedFiles,
+      buildSendOptions,
+      describeAttachments,
+      ensureSessionId,
+      input,
+      saveScheduledEdit,
+      scheduledEdit,
+      scheduledSessionId,
+      scheduleMessage,
+      setAttachedFiles,
+      setInput,
+      t,
+    ],
   );
 
-  // Editing drops the stored row immediately so it cannot fire mid-rewrite, but
-  // keeps its timing here: sending re-arms the same schedule rather than
-  // sending now, which is what "edit" has to mean for a scheduled message.
+  // Every way of sending saves into an open edit instead: a send that went out
+  // now would leave the held original to send again when its hold ends.
+  interceptSubmitRef.current = scheduledEdit
+    ? () => {
+      void handleScheduleMessage(scheduledEdit.trigger, scheduledEdit.scheduledFor);
+      return true;
+    }
+    : null;
+
+  // The server holds the message while it is rewritten, so it cannot fire
+  // mid-edit and still sends if this edit is abandoned. Its text and files come
+  // back from the stored copy, which may have been written on another device.
   const handleEditScheduledMessage = useCallback(
-    (message: ScheduledMessage) => {
-      setInput(message.content);
-      setEditingSchedule({ trigger: message.trigger, scheduledFor: message.scheduledFor });
-      void cancelScheduledMessage(message.id);
+    async (message: ScheduledMessage) => {
+      const held = await holdScheduledForEdit(message);
+      if (!held) return;
+      const files = await Promise.all((held.message.attachments ?? []).map(async (descriptor) => {
+        const storedName = descriptor.path.split(/[\\/]/).pop();
+        if (!storedName) return null;
+        try {
+          const response = await authenticatedFetch(`/api/assets/files/${encodeURIComponent(storedName)}`);
+          if (!response.ok) return null;
+          const blob = await response.blob();
+          const file = new File([blob], descriptor.name || storedName, {
+            type: descriptor.mimeType || blob.type,
+          });
+          restoredAttachmentsRef.current.set(file, descriptor);
+          return file;
+        } catch (error) {
+          console.error('Could not restore a scheduled attachment:', error);
+          return null;
+        }
+      }));
+      if (!held.open()) return;
+      setInput(held.message.content);
+      setAttachedFiles(files.filter((file): file is File => file !== null));
     },
-    [cancelScheduledMessage, setInput],
+    [holdScheduledForEdit, setAttachedFiles, setInput],
   );
 
   useChatRealtimeHandlers({
@@ -890,11 +966,16 @@ function ChatInterface({
             queuedDraft={queuedDraft}
             onEditQueuedDraft={editQueuedDraft}
             onDeleteQueuedDraft={deleteQueuedDraft}
-            scheduledMessages={scheduledMessages}
+            scheduledMessages={scheduledEdit
+              ? scheduledMessages.filter((message) => message.id !== scheduledEdit.id)
+              : scheduledMessages}
             onCancelScheduledMessage={(id) => { void cancelScheduledMessage(id); }}
-            onEditScheduledMessage={handleEditScheduledMessage}
-            editingSchedule={editingSchedule}
-            onCancelScheduleEdit={() => setEditingSchedule(null)}
+            onEditScheduledMessage={(message) => { void handleEditScheduledMessage(message); }}
+            editingSchedule={scheduledEdit}
+            onCancelScheduleEdit={() => {
+              // "Send normally" turns the edit into an ordinary draft, so the held original goes.
+              if (scheduledEdit) void cancelScheduledMessage(scheduledEdit.id);
+            }}
             onScheduleMessage={(trigger, scheduledFor) => {
               void handleScheduleMessage(trigger, scheduledFor);
             }}

@@ -13,7 +13,11 @@ export {
   createScheduledMessage,
   fireUsageResetMessages,
   hasPendingUsageResetMessages,
+  holdScheduledMessage,
   listScheduledMessagesForSession,
+  releaseScheduledMessageHold,
+  renewScheduledMessageHold,
+  saveScheduledMessageEdit,
   setScheduledMessageRuntime,
   type ScheduledMessageRuntime,
 } from './services/scheduled-message-runtime.service.js';
