@@ -45,9 +45,9 @@ question stays above the composer — like a permission prompt, it waits on you.
   marked, it offers only *Cancel edit*; sending is the composer's job, so
   "send the original or the edit?" never arises.
 - **An unsent original is held** — kept, not sendable. The hold is a lease the
-  editing client renews while the edit is open; when it lapses — app closed,
-  session switched, phone asleep — the message returns to waiting. A hold that
-  outlived its editor would never send and never say so.
+  editing client renews while the edit is open and in view; when it lapses — app
+  closed or out of view, session switched, phone asleep — the message returns to
+  waiting. A hold that outlived its editor would never send and never say so.
 - **Releasing a held message catches up on what it missed.** A time that passed
   already fires on release. A usage reset does not: the monitor's recovery is a
   one-time transition, so release checks whether its reset passed and fires if so.
@@ -75,8 +75,9 @@ question stays above the composer — like a permission prompt, it waits on you.
       attachments, and catches up on release. The dispatcher skips a held row;
       the monitor's keep-alive, the sidebar clock, and the Auto-Continue offer all
       count it as waiting. The newest editor takes the hold, and every send path
-      saves into it. Hold, save, and attachments verified on the branch server
-      2026-09-15; lapse and missed-reset catch-up by tests only
+      saves into it. Hold, save, attachments, and a lapsed hold sending with its
+      image verified on the branch server 2026-09-15; missed-reset catch-up by
+      tests only
 - [ ] 2. Scheduled messages render as bubbles at the end of the thread with their
       tap menu, and both queues merge into one compact row above the composer; the
       scheduled, queued, and queued-answer cards are removed

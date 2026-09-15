@@ -140,6 +140,8 @@ export function useScheduledMessages(
     // A refused renewal means the hold is gone for good — typically a phone that
     // slept past it while the message sent — so the edit on screen is stale.
     const renew = () => {
+      // Out of view counts as gone, whether or not the browser keeps timers running.
+      if (document.visibilityState === 'hidden') return;
       void api.renewScheduledMessageHold(editing.id, editing.token).then((response) => {
         if (response.status !== 409 || editingRef.current !== editing) return;
         editingRef.current = null;
