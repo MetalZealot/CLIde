@@ -44,7 +44,13 @@ type CreateInput = {
  * message in the transcript, so showing it above the composer would say the
  * same thing twice.
  */
-type ScheduledSendEvent = { kind?: string; sessionId?: string; content?: unknown; timestamp?: unknown };
+type ScheduledSendEvent = {
+  kind?: string;
+  sessionId?: string;
+  scheduledMessageId?: string;
+  content?: unknown;
+  timestamp?: unknown;
+};
 
 export function useScheduledMessages(
   sessionId: string | null,
@@ -55,8 +61,14 @@ export function useScheduledMessages(
    * about it — a phone that was asleep hears about it late.
    */
   onSent?: (content: string, sentAt: Date) => void,
+  /** The open edit's message sent, was cancelled, or was opened elsewhere; the edit has ended. */
+  onEditLost?: () => void,
 ) {
   const [pending, setPending] = useState<ScheduledMessage[]>([]);
+  const [editing, setEditing] = useState<ScheduledMessageEdit | null>(null);
+  // Written wherever `editing` is, never synced from it on render: an edit is
+  // tracked here before it opens, and a render in between must not drop it.
+  const editingRef = useRef<ScheduledMessageEdit | null>(null);
 
   const refresh = useCallback(async () => {
     if (!sessionId) {
@@ -83,10 +95,15 @@ export function useScheduledMessages(
       if (event.kind === 'scheduled_message_sent' && event.sessionId === sessionId) {
         const sentAt = typeof event.timestamp === 'string' ? new Date(event.timestamp) : new Date();
         onSent?.(String(event.content ?? ''), Number.isNaN(sentAt.getTime()) ? new Date() : sentAt);
+        if (event.scheduledMessageId && event.scheduledMessageId === editingRef.current?.id) {
+          editingRef.current = null;
+          setEditing(null);
+          onEditLost?.();
+        }
         void refresh();
       }
     });
-  }, [onSent, refresh, sessionId, subscribe]);
+  }, [onEditLost, onSent, refresh, sessionId, subscribe]);
 
   /**
    * `intoSessionId` covers the first message in a chat: the session is created
@@ -101,10 +118,6 @@ export function useScheduledMessages(
     await refresh();
     return true;
   }, [refresh, sessionId]);
-
-  const [editing, setEditing] = useState<ScheduledMessageEdit | null>(null);
-  const editingRef = useRef<ScheduledMessageEdit | null>(null);
-  editingRef.current = editing;
 
   const releaseEdit = useCallback((edit: ScheduledMessageEdit | null) => {
     if (!edit) return;
@@ -124,8 +137,16 @@ export function useScheduledMessages(
 
   useEffect(() => {
     if (!editing) return;
+    // A refused renewal means the hold is gone for good — typically a phone that
+    // slept past it while the message sent — so the edit on screen is stale.
     const renew = () => {
-      void api.renewScheduledMessageHold(editing.id, editing.token).catch(() => {});
+      void api.renewScheduledMessageHold(editing.id, editing.token).then((response) => {
+        if (response.status !== 409 || editingRef.current !== editing) return;
+        editingRef.current = null;
+        setEditing(null);
+        onEditLost?.();
+        void refresh();
+      }).catch(() => {});
     };
     const interval = window.setInterval(renew, HOLD_RENEW_MS);
     // Timers stall while a phone sleeps; renew the moment it is looked at again.
@@ -135,7 +156,7 @@ export function useScheduledMessages(
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [editing]);
+  }, [editing, onEditLost, refresh]);
 
   /**
    * Holds a message for editing and returns its latest stored copy, or null

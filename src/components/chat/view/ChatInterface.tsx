@@ -494,6 +494,16 @@ function ChatInterface({
   }, [selectedSession?.id, currentSessionId, setInput]);
 
   const scheduledSessionId = currentSessionId || selectedSession?.id || null;
+  // The composer keeps the text either way: it may hold changes worth keeping.
+  const reportLostScheduledEdit = useCallback(() => {
+    addMessage({
+      type: 'error',
+      content: t('input.schedule.editNotSaved', {
+        defaultValue: 'That scheduled message already sent, was cancelled, or was opened on another device, so this edit was not saved. Your text is still in the composer.',
+      }),
+      timestamp: new Date(),
+    });
+  }, [addMessage, t]);
   const {
     pending: scheduledMessages,
     schedule: scheduleMessage,
@@ -514,6 +524,7 @@ function ChatInterface({
       if (!sessionId) return;
       window.setTimeout(() => { void sessionStore.refreshFromServer(sessionId); }, SCHEDULED_SEND_RECONCILE_MS);
     }, [addMessage, scheduledSessionId, sessionStore]),
+    reportLostScheduledEdit,
   );
   const providerCapabilities = useProviderCapabilities();
   const canScheduleOnUsageReset = providerCapabilities?.[provider]?.supportsUsageResetAlerts === true;
@@ -563,13 +574,7 @@ function ChatInterface({
           setInput('');
           setAttachedFiles([]);
         } else {
-          addMessage({
-            type: 'error',
-            content: t('input.schedule.editNotSaved', {
-              defaultValue: 'That scheduled message already sent, was cancelled, or was opened on another device, so this edit was not saved. Your text is still in the composer.',
-            }),
-            timestamp: new Date(),
-          });
+          reportLostScheduledEdit();
         }
         return;
       }
@@ -591,19 +596,18 @@ function ChatInterface({
       }
     },
     [
-      addMessage,
       attachedFiles,
       buildSendOptions,
       describeAttachments,
       ensureSessionId,
       input,
+      reportLostScheduledEdit,
       saveScheduledEdit,
       scheduledEdit,
       scheduledSessionId,
       scheduleMessage,
       setAttachedFiles,
       setInput,
-      t,
     ],
   );
 
