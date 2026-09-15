@@ -705,6 +705,8 @@ export type FetchHistoryResult = {
   offset: number;
   limit: number | null;
   tokenUsage?: unknown;
+  /** Prompt time of the turn the page opens mid-way through; see `findTurnStartedAt`. */
+  turnStartedAt?: string | null;
 };
 
 // ---------------------------

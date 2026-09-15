@@ -10,6 +10,7 @@ import type {
   Provider,
 } from '../../types/types';
 import {
+  formatDuration,
   formatFollowUpQuestions,
   formatMemoryCitationSource,
   formatUsageLimitText,
@@ -37,6 +38,8 @@ type DiffLine = {
 type MessageComponentProps = {
   message: ChatMessage;
   prevMessage: ChatMessage | null;
+  /** Set only on the last reply of a finished turn. */
+  turnDurationMs?: number;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
@@ -61,7 +64,7 @@ type InteractiveOption = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -553,7 +556,18 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
-                <span>{formattedTime}</span>
+                <span>
+                  {formattedTime}
+                  {turnDurationMs !== undefined && (
+                    <span className="tabular-nums">
+                      {' · '}
+                      {t('turnDuration.workedFor', {
+                        duration: formatDuration(turnDurationMs),
+                        defaultValue: 'Worked for {{duration}}',
+                      })}
+                    </span>
+                  )}
+                </span>
                 {shouldShowAssistantCopyControl && (
                   <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                 )}

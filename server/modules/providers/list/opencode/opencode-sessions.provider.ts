@@ -13,6 +13,7 @@ import {
   readObjectRecord,
   readJsonRecord,
   readOptionalString,
+  findTurnStartedAt,
   sliceTailPage,
   unwrapJsonStringLiteral,
 } from '@/shared/utils.js';
@@ -344,12 +345,13 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
       const normalizedOffset = Math.max(0, offset);
       const normalizedLimit = limit === null ? null : Math.max(0, limit);
       const total = normalized.length;
-      const { page, hasMore } = sliceTailPage(normalized, normalizedLimit, normalizedOffset);
+      const { page, hasMore, start } = sliceTailPage(normalized, normalizedLimit, normalizedOffset);
 
       return {
         messages: page,
         total,
         hasMore,
+        turnStartedAt: findTurnStartedAt(normalized, start),
         offset: normalizedOffset,
         limit: normalizedLimit,
         tokenUsage,

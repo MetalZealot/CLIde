@@ -401,6 +401,9 @@
     "auto": "Context auto-compacted",
     "manual": "Context compacted"
   },
+  "turnDuration": {
+    "workedFor": "Worked for {{duration}}"
+  },
   "export": {
     "menuLabel": "Export…"
   }

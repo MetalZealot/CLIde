@@ -10,6 +10,7 @@ import {
   generateMessageId,
   readObjectRecord,
   sanitizeLeafDirectoryName,
+  findTurnStartedAt,
   sliceTailPage,
 } from '@/shared/utils.js';
 
@@ -414,12 +415,13 @@ export class CursorSessionsProvider implements IProviderSessions {
       const allNormalized = this.normalizeCursorBlobs(blobs, sessionId);
       const renderableMessages = allNormalized.filter((msg) => msg.kind !== 'tool_result');
       const total = renderableMessages.length;
-      const { page, hasMore } = sliceTailPage(renderableMessages, limit, offset);
+      const { page, hasMore, start } = sliceTailPage(renderableMessages, limit, offset);
 
       return {
         messages: page,
         total,
         hasMore,
+        turnStartedAt: findTurnStartedAt(renderableMessages, start),
         offset,
         limit,
       };

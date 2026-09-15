@@ -8,7 +8,7 @@ import {
 import { parseFilesInputTag, toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
-import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 
 const PROVIDER = 'codex';
@@ -1322,12 +1322,13 @@ export class CodexSessionsProvider implements IProviderSessions {
     }
     const normalizedOffset = Math.max(0, offset);
     const normalizedLimit = limit === null ? null : Math.max(0, limit);
-    const { page, hasMore } = sliceTailPage(normalized, normalizedLimit, normalizedOffset);
+    const { page, hasMore, start } = sliceTailPage(normalized, normalizedLimit, normalizedOffset);
 
     return {
       messages: page,
       total,
       hasMore,
+      turnStartedAt: findTurnStartedAt(normalized, start),
       offset: normalizedOffset,
       limit: normalizedLimit,
       tokenUsage,

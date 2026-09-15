@@ -89,6 +89,14 @@ describe('chatSubcomponents', () => {
           prevMessage?.type === 'assistant', 'timestamp visibility must preserve grouping');
       }
     }
+    const withDuration = document.createElement('div');
+    withDuration.innerHTML = renderToStaticMarkup(
+      <MessageComponent message={message} prevMessage={null} turnDurationMs={72_000} provider="claude"
+        createDiff={() => []} showThinking={false} />,
+    );
+    // No i18n instance here, so the default string arrives uninterpolated.
+    assert.ok(withDuration.textContent?.includes(`${expectedTime} · Worked for`),
+      `turn duration sits beside the reply timestamp: ${withDuration.textContent}`);
     assert.equal(renderToStaticMarkup(
       <MessageComponent message={{ ...message, isThinking: true }} prevMessage={null}
         provider="codex" createDiff={() => []} showThinking={false} />,

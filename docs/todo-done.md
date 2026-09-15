@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Agent replies show how long the turn took** (2026-09-14, this change). The last reply of each finished turn reads `2:14 PM · Worked for 1m 12s`, timed prompt → reply from message timestamps for all four providers; history pages return the prompt time of a turn they open mid-way, so it shows without loading older messages. Verified: 56 focused tests, typecheck, lint, and on 3002 a Claude and a Codex session within 1s of Codex's saved durations. Visual acceptance pending. Upstreamable. **S**
+
 - [x] **Every ordinary agent reply shows its timestamp** (2026-09-14, this change). Removed the grouped-reply visibility guard; consecutive replies, including those after hidden thinking or tool messages, retain their own time across all four providers. Grouping and hidden-thinking behavior stay intact. Verified: regression failed before the fix; 58 focused client tests, client typecheck, focused lint, client build, and the main app's served bundle. Personal visual acceptance pending. Upstreamable, client-only. **S**
 
 - [x] **Browser test sign-in uses Playwright's standard storage state and secrets** (2026-09-14, this change; [map](maps/chat-browser-activity.md#sign-in-and-close)). Branch-test starts save a signed-in state every Browser context loads; typing tools list secret names Playwright fills and redacts; agent `browser_close` frees its context. Verified: 55 browser-use and Codex transport tests, typecheck, docs check, live endpoint check, a real Claude agent, and Grayson's acceptance on 3002 and from a 3001 chat. Fork-only. **S**
