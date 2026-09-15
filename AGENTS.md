@@ -168,8 +168,9 @@ inside narrative that condensing removes anyway — so these rules target length
   `MetalZealot/CLIde` fork.  `upstream/main` is the clean `siteboon/claudecodeui` line;
   a separate local upstream mirror is unnecessary.  Rebasing rewrites hashes, so
   publishing `main` afterwards needs `--force-with-lease`.
-- Conventional commits are enforced by commitlint; eslint runs on staged files.  Make
-  self-contained commits only after appropriate verification.
+- Conventional commits are enforced by commitlint; eslint runs on staged files.
+  **Commit verified work in the same turn, unasked**, staging only the files you
+  changed.
 - Work on `main` by default.  Create a worktree/topic branch only for genuinely
   parallel or risky work, and only when the maintainer asks or agrees.  **Never switch
   branches in the main checkout** while a service or dev server runs from it.
