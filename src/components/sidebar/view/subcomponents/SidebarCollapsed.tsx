@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 
 import type { ActivitySummary } from '../../types/types';
 
-import SidebarAccountMenu from './SidebarAccountMenu';
+import SidebarAccountActions from './SidebarAccountActions';
 import SidebarStatusIndicator from './SidebarStatusIndicator';
 
 type SidebarCollapsedProps = {
@@ -21,8 +21,7 @@ type SidebarCollapsedProps = {
 /**
  * The rail mirrors the expanded sidebar's spine: New Session at the top where
  * the header carries it, identity at the bottom where the footer does, and any
- * update banner directly above that identity. Settings is not repeated here —
- * it lives inside the account menu, the same as when expanded.
+ * update banner directly above the Usage and Settings actions.
  */
 export default function SidebarCollapsed({
   onExpand,
@@ -91,7 +90,7 @@ export default function SidebarCollapsed({
 
       <div className="flex-1" />
 
-      {/* Update indicator, directly above the account icon it precedes when expanded */}
+      {/* Update indicator, directly above the footer actions */}
       {updateAvailable && (
         <button
           onClick={onShowVersionModal}
@@ -104,7 +103,7 @@ export default function SidebarCollapsed({
         </button>
       )}
 
-      <SidebarAccountMenu
+      <SidebarAccountActions
         isCompact
         onShowSettings={onShowSettings}
         onShowUsage={onShowUsage}
