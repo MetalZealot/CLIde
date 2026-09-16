@@ -10,7 +10,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 
 | Plan | Status | Next |
 |---|---|---|
-| [Phone chat text selection](mobile-chat-page-scroll.md) | 1/4 | Page scrolling in the installed app only; lock the page under the sidebar drawer |
+| [Phone chat text selection](mobile-chat-page-scroll.md) | 3/4 | Re-test the Samsung Internet install on the phone |
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Merged to `main` 2026-09-15; editing a waiting message is [the edit model](message-edit-model.md) |
