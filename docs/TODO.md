@@ -104,7 +104,7 @@ new work.
 - [ ] **Composer prompt stash and lossless draft handoff.** Project selection can overwrite pre-project text, while New Session can detach visible text from its saved project draft. Preserve both before adding a `+` popover for Attach, Stash, and Stashed prompts. [Plan](plans/composer-prompt-stash.md). **M — design agreement first**
 - [ ] **Background-session notifications** — in-app banner plus header roll-up dot, and stop the redundant OS notification while you're looking at the session. [Plan](plans/background-session-notifications.md). **M**
 - [ ] **Adopt upstream #1050's chat-scroll perf fixes** (complementary to `55d8c44`). Three causes still present here: `normalizedToChatMessages` mints new objects every ~100 ms flush, defeating `React.memo`; `Markdown`/`CodeBlock` are unmemoized; and the third from the issue. Render-side, distinct from the pagination item above. **M**
-- [~] **Mobile text selection and copying.** On phones the chat scrolls as the page, so selection handles stay put and edge-scroll; links copy; header, composer and timestamps stay out of copies; the chat holds still under a selection. Branch `feat/mobile-chat-page-scroll`, awaiting phone comparison. **M**
+- [~] **Mobile text selection and copying.** Phase 1 on branch `feat/mobile-chat-page-scroll`; the Samsung Internet install behaves, a browser tab and the sidebar drawer regressed. [Plan](plans/mobile-chat-page-scroll.md). **M**
 
 ---
 
