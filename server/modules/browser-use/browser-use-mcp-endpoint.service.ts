@@ -470,7 +470,14 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
     || ((sessionId: string, action: BrowserToolObservation) => browserUseService.recordAgentAction(sessionId, action));
   const recordActivity = options.recordActivity
     || ((sessionId: string, count: number) => browserUseService.setAgentActivity(sessionId, count));
-  const transports = new Map<string, { transport: any; connection: McpServerConnection; lastUsedAt: number }>();
+  // Keyed by MCP session id, which is minted per connection. `browserSessionId`
+  // is the lease and panel row, which outlives the connection.
+  const transports = new Map<string, {
+    transport: any;
+    connection: McpServerConnection;
+    browserSessionId: string;
+    lastUsedAt: number;
+  }>();
 
   // A session's directory is removed when its transport closes, so anything
   // present before the first transport exists outlived an unclean shutdown.
@@ -484,7 +491,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
   function sweepIdleTransports(): void {
     const cutoff = Date.now() - IDLE_TRANSPORT_TTL_MS;
     for (const [id, entry] of transports) {
-      if (entry.lastUsedAt < cutoff && !runtime.getLease(id)) {
+      if (entry.lastUsedAt < cutoff && !runtime.getLease(entry.browserSessionId)) {
         void closeSession(id, { releaseContext: false });
       }
     }
@@ -499,7 +506,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
     await entry.connection.close().catch(() => undefined);
     await entry.transport.close?.().catch(() => undefined);
     if (closeOptions.releaseContext) {
-      await runtime.releaseContext(id);
+      await runtime.releaseContext(entry.browserSessionId);
     }
     await fs.rm(path.join(outputRoot, id), { recursive: true, force: true }).catch(() => undefined);
     return true;
@@ -511,15 +518,25 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
   // An agent's browser_close keeps its transport, so its next call opens a new context.
   runtime.onRelease((lease, reason) => {
     if (reason === 'closed') return;
-    void closeSession(lease.id, { releaseContext: false });
+    for (const [id, entry] of transports) {
+      if (entry.browserSessionId === lease.id) {
+        void closeSession(id, { releaseContext: false });
+      }
+    }
   });
 
   async function openSession(req: any, res: any): Promise<void> {
     const sessionId = randomUUID();
+    const chatSessionId = readQuery(req.query?.chatSessionId);
+    // A provider reconnects its MCP servers for every turn, so a browser keyed
+    // to the connection is a blank page again each turn. Key it to the chat
+    // instead and the pages, cookies and history the agent left are still there.
+    const browserSessionId = chatSessionId || sessionId;
     let activeToolCount = 0;
+    let openedLease = false;
     const request: BrowserMcpContextRequest = {
-      id: sessionId,
-      chatSessionId: readQuery(req.query?.chatSessionId),
+      id: browserSessionId,
+      chatSessionId,
       device: readQuery(req.query?.device),
       orientation: readQuery(req.query?.orientation),
       profileName: readQuery(req.query?.profile),
@@ -527,14 +544,15 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
     // Concurrent first calls must open one browser, not one each.
     let opening: Promise<BrowserContextLease> | null = null;
     const leaseContext = async (): Promise<BrowserContextLease> => {
-      const existing = runtime.getLease(sessionId);
+      const existing = runtime.getLease(browserSessionId);
       if (existing) {
         return existing;
       }
       opening = opening || openContext(request);
       try {
         const lease = await opening;
-        recordActivity(sessionId, activeToolCount);
+        openedLease = true;
+        recordActivity(browserSessionId, activeToolCount);
         return lease;
       } finally {
         opening = null;
@@ -545,8 +563,10 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
     try {
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => sessionId,
+        // A chat's browser outlives the turn that opened it; only an
+        // unattached connection takes its context with it.
         onsessionclosed: (id: string) => {
-          void closeSession(id, { releaseContext: true });
+          void closeSession(id, { releaseContext: !chatSessionId });
         },
       });
       // Lease on first use, then read it on every call: a device switch
@@ -556,7 +576,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
       const connection = await createConnection(async () => (await leaseContext()).context, sessionId, outputDir, fileSecrets);
       const guarded = guardTransport(transport, outputDir, async (args) => {
         await leaseContext();
-        const swapped = await runtime.swapContext(sessionId, {
+        const swapped = await runtime.swapContext(browserSessionId, {
           device: args.device as 'desktop' | 'phone' | 'tablet' | null,
           orientation: args.orientation as 'portrait' | 'landscape' | null,
         });
@@ -568,20 +588,23 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
         }));
       }, (observation) => {
         activeToolCount = Math.max(0, activeToolCount - 1);
-        recordActivity(sessionId, activeToolCount);
-        recordAction(sessionId, observation);
+        recordActivity(browserSessionId, activeToolCount);
+        recordAction(browserSessionId, observation);
         if (observation.tool === 'browser_close' && observation.ok) {
-          void runtime.releaseContext(sessionId, 'closed');
+          void runtime.releaseContext(browserSessionId, 'closed');
         }
       }, () => {
         activeToolCount += 1;
-        recordActivity(sessionId, activeToolCount);
+        recordActivity(browserSessionId, activeToolCount);
       }, Object.keys(fileSecrets).sort());
       await connection.connect(guarded);
-      transports.set(sessionId, { transport, connection, lastUsedAt: Date.now() });
+      transports.set(sessionId, { transport, connection, browserSessionId, lastUsedAt: Date.now() });
     } catch (error) {
       await transport?.close?.().catch(() => undefined);
-      await runtime.releaseContext(sessionId);
+      // Only a lease this request opened; a reused one belongs to the chat.
+      if (openedLease) {
+        await runtime.releaseContext(browserSessionId);
+      }
       throw error;
     }
 
@@ -599,7 +622,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
           return;
         }
         entry.lastUsedAt = Date.now();
-        runtime.touch(sessionId);
+        runtime.touch(entry.browserSessionId);
         await entry.transport.handleRequest(req, res, req.body);
         return;
       }

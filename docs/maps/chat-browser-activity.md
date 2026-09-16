@@ -15,9 +15,15 @@ updates.
 ## Connection and state
 
 The runtime supplies `chatSessionId` in the local built-in MCP endpoint URL for each
-run. The endpoint fixes that association at initialization; the browser/MCP id remains
-separate from the chat id. No database migration or persistent provider-config edit
-is needed. Older, external, or unsupported connections stay in Browser without a
+run. The endpoint fixes that association at initialization and keys the browser
+context and its panel row to the chat, not to the connection: a provider reconnects
+its MCP servers every turn, so a connection-keyed context would be a blank page again
+each turn. The MCP session id stays separate and is minted per connection. A chat's
+browser therefore survives its turns and ends on idle expiry, panel Stop,
+`browser_close`, or shutdown; it counts once against the active-session limit for as
+long as it lives. A connection with no `chatSessionId` still owns its context alone
+and releases it when it closes. No database migration or persistent provider-config
+edit is needed. Older, external, or unsupported connections stay in Browser without a
 Chat preview; CLIde never infers their owner from timing or tool text.
 Shell commands such as `xdg-open` do not use the monitored browser and cannot
 produce a preview. Native Codex chats with a scoped Browser connection receive

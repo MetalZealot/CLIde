@@ -853,7 +853,7 @@ describe('browser-use-mcp endpoint', () => {
     }
   });
 
-  test('chat identity is fixed at initialize and activity is isolated per connection', async () => {
+  test('a chat owns one browser across its connections, and two chats stay apart', async () => {
     const opened: BrowserMcpContextRequest[] = [];
     const activity: Array<[string, number]> = [];
     const harness = await startEndpoint({
@@ -864,17 +864,33 @@ describe('browser-use-mcp endpoint', () => {
       const first = await initialize(harness, '?chatSessionId=app-chat-a');
       const second = await initialize(harness, '?chatSessionId=app-chat-b');
       assert.equal(opened.length, 0);
-      await callTool(harness, first.sessionId, 2, 'browser_navigate');
-      await callTool(harness, second.sessionId, 2, 'browser_navigate');
+      const firstContext = resultText(await readRpc(
+        await callTool(harness, first.sessionId, 2, 'browser_navigate')));
+      const secondContext = resultText(await readRpc(
+        await callTool(harness, second.sessionId, 2, 'browser_navigate')));
+      assert.notEqual(firstContext, secondContext);
+      // The lease and its panel row are the chat; the connection id is separate.
       assert.deepEqual(opened.map(({ id, chatSessionId }) => [id, chatSessionId]), [
-        [first.sessionId, 'app-chat-a'], [second.sessionId, 'app-chat-b'],
+        ['app-chat-a', 'app-chat-a'], ['app-chat-b', 'app-chat-b'],
       ]);
       assert.notEqual(first.sessionId, 'app-chat-a');
-      assert.deepEqual(activity.filter(([id]) => id === first.sessionId).map(([, count]) => count), [1, 1, 0]);
+      assert.deepEqual(activity.filter(([id]) => id === 'app-chat-a').map(([, count]) => count), [1, 1, 0]);
       await callTool(harness, first.sessionId, 3, 'browser_fails');
-      assert.deepEqual(activity.slice(-2), [[first.sessionId, 1], [first.sessionId, 0]]);
+      assert.deepEqual(activity.slice(-2), [['app-chat-a', 1], ['app-chat-a', 0]]);
       await callTool(harness, first.sessionId, 4, 'browser_use_device', { device: 'invalid' });
       assert.equal(activity.at(-1)?.[1], 0);
+
+      // The turn ends and the provider reconnects: same browser, same pages.
+      await fetch(harness.url, {
+        method: 'DELETE',
+        headers: { ...HEADERS, 'mcp-session-id': first.sessionId },
+      });
+      const resumed = await initialize(harness, '?chatSessionId=app-chat-a');
+      assert.notEqual(resumed.sessionId, first.sessionId);
+      const resumedContext = resultText(await readRpc(
+        await callTool(harness, resumed.sessionId, 2, 'browser_navigate')));
+      assert.equal(resumedContext, firstContext);
+      assert.equal(opened.length, 2);
     } finally {
       await harness.close();
     }

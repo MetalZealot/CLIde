@@ -154,12 +154,17 @@ accessibility work was already technically complete.
 Several chats can browse at once, and a browser can stay open while its agent is idle.
 
 **The rule:** the Chat preview opens only a browser explicitly linked to that chat.
-An open window alone does not mean the agent is using it; the preview distinguishes
-active, idle, stopped, and unavailable states. Questions and queued messages take
-priority over the thumbnail, which shrinks to a text row in the normal layout.
+That browser belongs to the chat, not to the reply that opened it, so the page an
+agent left is still there when you send the next message; it closes on Stop, when the
+agent closes it, or after it sits unused. An open window alone does not mean the agent
+is using it; the preview distinguishes active, idle, stopped, and unavailable states.
+Questions and queued messages take priority over the thumbnail, which shrinks to a
+text row in the normal layout.
 
 **What breaks:** guessing from whichever browser was used most recently can show
 another chat's work, and treating an open window as activity leaves a false spinner.
+If the browser reset between replies, an agent's first action each time would land on
+a blank page it thought it had already navigated.
 Provider coverage and current limits: [Chat browser activity](chat-browser-activity.md).
 
 ## 12. Agents sign in to test servers without ever seeing the password
