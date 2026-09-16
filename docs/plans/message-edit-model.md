@@ -2,6 +2,7 @@
 
 - Status: 2/5
 - Next: Phase 2 — scheduled messages as bubbles in the thread, queues in one row
+- Merged to `main` 2026-09-15; phases 0 and 1 are live
 - Context: [Auto-Continue](auto-continue.md) puts its offer on the scheduled bubble
   this plan introduces; placement reasons in [UI standards](../maps/ui-standards.md);
   rewind semantics are ADRs 0012 and 0013
@@ -12,12 +13,33 @@ They are one mechanic — a message in the conversation, loaded into the compose
 committed by sending — so they share one edit model. Where each sits, and what
 sending does, differ.
 
-## Today, read from source 2026-09-14
+## Where phase 1 left the code
+
+- **The server owns whether a message can send.** `scheduled_messages.state` is
+  `pending | paused | sent | cancelled | failed`; only a `pending` row is armed
+  or claimed. Pause, resume, and save-an-edit are three calls in the
+  scheduled-messages module, and the dispatcher re-arms from the row each time.
+- **Paused counts as waiting** everywhere a count is taken: the sidebar clock,
+  the reset monitor's keep-alive, and the Auto-Continue offer's dedupe.
+- **Resuming catches up.** A time that passed fires at once; a usage reset that
+  arrived while paused is recorded on the row (`reset_missed`) because the
+  monitor's recovery is a one-time transition.
+- **Every send path saves into an open edit** — button, Enter, voice, command —
+  through one intercept in the composer state hook.
+- **Do not reintroduce a lease.** An editor-renewed hold was built and removed:
+  it needed the phone to keep the page awake, and sent messages out from under
+  an open edit. Anything that expires on its own has the same defect.
+- **Verify with real sends.** Faking "page hidden" and marking a row sent in
+  SQLite both passed while the real path was broken. A scheduled send needs a
+  session whose transcript exists in that server's home, or the turn produces
+  nothing and the row still reads `sent`.
+
+## Today, per surface — scheduled row current, the rest read 2026-09-14
 
 | | The original, while editing | Above the composer | Backing out | Attachments |
 |---|---|---|---|---|
 | Queued | leaves the queue | nothing | leaves an ordinary draft | restored |
-| Scheduled | its stored row is deleted | "Editing — still sends…" | only *Send normally*, which drops the schedule | **dropped** |
+| Scheduled | pauses, stays listed | "Paused while you edit…" | *Discard edit* resumes it | restored |
 | Earlier | stays, with an amber ring | "Editing earlier message…" | × restores the draft typed before | cannot be edited at all |
 | Queued answer to a Codex question | — | its own card | remove only | — |
 

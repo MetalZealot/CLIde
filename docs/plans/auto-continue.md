@@ -41,7 +41,7 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       moment it should go. Providers do grant goodwill resets, and Codex reports
       bankable ones as `rateLimitResetCredits`, which CLIde already reads. The
       trigger has to be "usage is available again", not "the predicted instant
-      arrived". A defect in the unmerged branch, not in `main`
+      arrived"
 - [~] 1. A limit stop draws one row, identical live and after a reload, and the
       same shape on Claude and Codex. Claude's pair is diagnosed, observed live
       2026-09-09: the CLI streams the synthetic row that becomes the muted

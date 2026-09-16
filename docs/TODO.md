@@ -119,9 +119,8 @@ new work.
 - [ ] **The activity indicator's changed state isn't legible.** A provider status like "Compacting conversation" phases in the same grey as the idle Thinking/Processing cycle, so it reads as normal waiting. Part of the wider indicator/panel rework: distinct treatment for a real status. **M**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [x] **Scheduled messages and Auto-Continue.** Send a message at a time you pick, or the moment provider usage resets. Reuses the existing reset monitor and the existing queue; must not inherit upstream `#1239`'s interrupt. All four phases done and browser-verified on `feat/scheduled-messages`; unmerged. [Plan](plans/scheduled-messages.md). **M/L**
 - [~] **Auto-Continue offered, remembered, and defaulted.** Every way of asking for a `usage-reset` message that is not long-pressing send and typing "Continue": a one-tap offer on the limit notice, an editable continue message, and a per-session standing mode with a firing cap. Reuses the shipped scheduler entirely. [Plan](plans/auto-continue.md). **M**
-- [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. [Plan](plans/message-edit-model.md). **M/L**
+- [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Editing-pauses-the-message (phase 1) is merged and live. [Plan](plans/message-edit-model.md). **M/L**
 - [ ] **Context ring to the header?** Session state glanced at more than tapped, so it fits; costs reach for its breakdown and title width. [Reasons](maps/ui-standards.md). **S — decision**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
