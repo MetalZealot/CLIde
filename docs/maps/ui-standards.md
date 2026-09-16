@@ -42,6 +42,9 @@ These apply at **both** breakpoints unless the row says otherwise.
 
 ### Mobile bottom navigation
 
+- CLIde keeps the bar visible while Chat scrolls. It hides for the software
+  keyboard, not in response to scroll direction; the maintainer declined
+  scroll-to-hide after reviewing the accepted installed-PWA behavior.
 - [Apple's tab-bar guidance](https://developer.apple.com/design/human-interface-guidelines/tab-bars)
   treats the bar as navigation among top-level sections, recommends keeping it
   consistently available, including short labels, and using five or fewer

@@ -11,13 +11,15 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
-- [x] **Find typing, cached-history visibility, and header Export overflow. Fork-only.** Repairs features introduced by the bottom-navigation branch; regression tests and synthetic browser checks pass; included in the bottom-navigation integration. [Review](plans/mobile-bottom-navigation.md#final-review).
+- [x] **Show timestamps on consecutive assistant replies. Upstreamable.** The footer hid each grouped reply's time, including replies after hidden thinking. Removed that visibility condition while retaining grouping. Confirmed the same guard in `upstream/main`'s `src/modules/chat/transcript/MessageComponent.tsx`; GitHub issue/PR searches for `timestamp` on 2026-09-14 found no matching visibility fix (PR #1196 concerns server-clock stamping).
+
+- [x] **Find typing, cached-history visibility, and header Export overflow. Fork-only.** Repairs features introduced by the bottom-navigation branch; regression tests and synthetic browser checks pass; included in the bottom-navigation integration. [Review](plans/archive/2026-09-13-mobile-bottom-navigation.md#final-review).
 
 - [x] **Bottom navigation before worktree selection. Fork-only, personal preference.** Keep the bar visible and disable worktree-dependent destinations; preserve keyboard hiding.
 
-- [~] **Compact header Export panel. Fork-only, personal preference.** Matches the header kebab spacing and removes the fixed list-height cap from its form panel; phone acceptance pending.
+- [x] **Compact header Export panel. Fork-only, personal preference.** Matches the header kebab spacing and removes the fixed list-height cap from its form panel; accepted in the installed PWA.
 
-- [~] **Chat browser preview and selected-page monitoring. Fork-only.** Extends CLIde's official-Playwright MCP monitor; the current `upstream/main` has no browser-use service at that module path (checked locally). Ordinary Browser request accepted on the preview; dense phone acceptance pending. No upstream PR proposed.
+- [x] **Chat browser preview and selected-page monitoring. Fork-only.** Extends CLIde's official-Playwright MCP monitor; the current `upstream/main` has no browser-use service at that module path (checked locally). Accepted in the installed PWA. No upstream PR proposed.
 
 - [x] **Async-answer delivery recovery. Fork-only.** Lost acknowledgements release Sending on completion, reconnect, or timeout, preserve drafts, and refresh history without automatic retries. The async-answer hook is absent from local `upstream/main` (path checked 2026-09-08); this repairs the fork's own feature.
 

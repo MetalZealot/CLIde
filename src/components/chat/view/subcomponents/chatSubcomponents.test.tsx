@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { registerHooks } from 'node:module';
 import test, { after, afterEach, before, describe } from 'node:test';
 
 import i18next from 'i18next';
@@ -20,6 +21,7 @@ import { adaptUserInputAnswers } from '../../tools/components/InteractiveRendere
 import { UserInputRequestPanel } from '../../tools/components/InteractiveRenderers/UserInputRequestPanel';
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
+import type { ChatMessage } from '../../types/types';
 import {
   DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
   DEFAULT_THINKING_MESSAGE_ORDER,
@@ -50,6 +52,57 @@ import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import TokenUsageSummary from './TokenUsageSummary';
 
 describe('chatSubcomponents', () => {
+  test('shows each assistant reply timestamp regardless of its preceding message', async () => {
+    // Node needs the CommonJS theme entry; Vite resolves the ESM entry in the app.
+    const hooks = registerHooks({
+      resolve(specifier, context, nextResolve) {
+        return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
+          ? 'react-syntax-highlighter/dist/cjs/styles/prism/index.js'
+          : specifier, context);
+      },
+    });
+    const { default: MessageComponent } = await import('./MessageComponent').finally(() => hooks.deregister());
+    const message: ChatMessage = {
+      type: 'assistant', content: 'A later reply', timestamp: '2026-09-14T15:42:00.000Z',
+    };
+    const earlier = { content: 'Earlier', timestamp: '2026-09-14T14:00:00.000Z' };
+    const predecessors: Array<ChatMessage | null> = [
+      null,
+      { ...earlier, type: 'user' },
+      { ...earlier, type: 'assistant' },
+      { ...earlier, type: 'assistant', isThinking: true },
+      { ...earlier, type: 'assistant', isToolUse: true, toolName: 'Bash' },
+    ];
+    const expectedTime = new Date(message.timestamp).toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    });
+    for (const provider of ['claude', 'codex', 'cursor', 'opencode']) {
+      for (const prevMessage of predecessors) {
+        const container = document.createElement('div');
+        container.innerHTML = renderToStaticMarkup(
+          <MessageComponent message={message} prevMessage={prevMessage} provider={provider}
+            createDiff={() => []} showThinking={false} />,
+        );
+        assert.ok(container.textContent?.includes(expectedTime),
+          `${provider} reply must show its own time after ${JSON.stringify(prevMessage)}`);
+        assert.equal(container.querySelector('.chat-message')?.classList.contains('grouped'),
+          prevMessage?.type === 'assistant', 'timestamp visibility must preserve grouping');
+      }
+    }
+    const withDuration = document.createElement('div');
+    withDuration.innerHTML = renderToStaticMarkup(
+      <MessageComponent message={message} prevMessage={null} turnDurationMs={72_000} provider="claude"
+        createDiff={() => []} showThinking={false} />,
+    );
+    // No i18n instance here, so the default string arrives uninterpolated.
+    assert.ok(withDuration.textContent?.includes(`${expectedTime} · Worked for`),
+      `turn duration sits beside the reply timestamp: ${withDuration.textContent}`);
+    assert.equal(renderToStaticMarkup(
+      <MessageComponent message={{ ...message, isThinking: true }} prevMessage={null}
+        provider="codex" createDiff={() => []} showThinking={false} />,
+    ), '', 'hidden thinking must remain hidden');
+  });
+
   describe('activity messages', () => {
     let root: Root | null = null;
     let container: HTMLDivElement | null = null;
@@ -2093,6 +2146,15 @@ describe('chat browser preview', () => {
       const markup = renderToStaticMarkup(<ChatBrowserPreview session={{ ...session, ...overrides }} unavailable={unavailable} compact={false} onOpen={() => {}} />);
       assert.ok(markup.includes(label));
     }
+  });
+
+  test('the thumbnail takes the viewport shape, falling back to a fixed wide tile', () => {
+    const phone = renderToStaticMarkup(<ChatBrowserPreview session={{ ...session, device: 'phone', viewport: { width: 390, height: 844 } }} unavailable={false} compact={false} onOpen={() => {}} />);
+    assert.match(phone, /aspect-ratio:390 \/ 844/);
+    assert.doesNotMatch(phone, /w-14/);
+    const unknown = renderToStaticMarkup(<ChatBrowserPreview session={session} unavailable={false} compact={false} onOpen={() => {}} />);
+    assert.match(unknown, /w-14/);
+    assert.doesNotMatch(unknown, /aspect-ratio/);
   });
 
   test('compact mode removes the image but preserves the exact browser destination', async () => {

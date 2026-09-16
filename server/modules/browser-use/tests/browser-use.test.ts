@@ -83,6 +83,7 @@ function makeRuntime(overrides: {
   maxSessions?: number;
   sessionTtlMs?: number;
   profileRoot?: string;
+  storageStatePath?: string;
   viewportProfiles?: BrowserViewportProfiles;
   sessionPolicy?: BrowserSessionPolicy | null;
 } = {}) {
@@ -94,6 +95,7 @@ function makeRuntime(overrides: {
     maxSessions: overrides.maxSessions ?? 3,
     sessionTtlMs: overrides.sessionTtlMs ?? 60_000,
     profileRoot: overrides.profileRoot ?? '/tmp/clide-browser-runtime-test/profiles',
+    storageStatePath: overrides.storageStatePath ?? '',
     loadViewportProfiles: () => overrides.viewportProfiles ?? null,
     loadSessionPolicy: () => policy,
     now: () => clock,
@@ -107,6 +109,31 @@ function makeRuntime(overrides: {
 }
 
 describe('browser-use monitor projections', () => {
+  test('a saved sign-in seeds each temporary context and device replacement once the file exists', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'clide-storage-state-'));
+    const stateFile = path.join(dir, 'storage-state.json');
+    const { runtime, calls } = makeRuntime({ storageStatePath: stateFile });
+    try {
+      await runtime.acquireContext({ device: 'desktop' });
+      await fs.writeFile(stateFile, '{"cookies":[],"origins":[]}');
+      const first = await runtime.acquireContext({ device: 'desktop' });
+      const second = await runtime.acquireContext({ device: 'desktop' });
+      assert.notEqual(first.context, second.context);
+      await runtime.swapContext(first.id, { device: 'phone' });
+      assert.deepEqual(calls.contextOptions.map((options) => options.storageState),
+        [undefined, stateFile, stateFile, stateFile]);
+    } finally {
+      await runtime.closeAll();
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+    const clean = makeRuntime();
+    try {
+      await clean.runtime.acquireContext();
+      assert.equal(clean.calls.contextOptions[0].storageState, undefined);
+    } finally {
+      await clean.runtime.closeAll();
+    }
+  });
   test('the monitor list starts empty without leased contexts', async () => {
     assert.deepEqual(await browserUseService.listSessions(), []);
   });
@@ -391,6 +418,8 @@ describe('browser-use-mcp endpoint', () => {
     onOpenContext?: (request: BrowserMcpContextRequest) => void;
     recordActivity?: (sessionId: string, count: number) => void;
     recordAction?: (sessionId: string, action: { tool: string; ok: boolean }) => void;
+    secretsFile?: string;
+    onFileSecrets?: (secrets: Record<string, string>) => void;
   } = {}): Promise<EndpointHarness> {
     const { runtime } = makeRuntime({ maxSessions: overrides.maxSessions ?? 3 });
     let signalCancelled: (name: string) => void = () => undefined;
@@ -414,11 +443,14 @@ describe('browser-use-mcp endpoint', () => {
         });
       },
       outputRoot,
+      secretsFile: overrides.secretsFile ?? '',
       createConnection: async (
         getContext: () => Promise<{ contextId: string }>,
         _sessionId: string,
         outputDir: string,
+        fileSecrets: Record<string, string>,
       ) => {
+        overrides.onFileSecrets?.(fileSecrets);
         const server = new Server({ name: 'fake-playwright-mcp', version: '0' }, { capabilities: { tools: {} } });
         server.setRequestHandler(ListToolsRequestSchema, async () => ({
           tools: [
@@ -428,6 +460,7 @@ describe('browser-use-mcp endpoint', () => {
               description: 'snapshot',
               inputSchema: { type: 'object' as const, properties: { target: {}, filename: {} } },
             },
+            { name: 'browser_type', description: 'Type text', inputSchema: { type: 'object' as const } },
             { name: 'browser_run_code_unsafe', description: 'unsafe', inputSchema: { type: 'object' as const } },
             { name: 'browser_file_upload', description: 'upload', inputSchema: { type: 'object' as const } },
           ],
@@ -623,8 +656,9 @@ describe('browser-use-mcp endpoint', () => {
       }));
       assert.deepEqual(
         listed.result.tools.map((tool: { name: string }) => tool.name),
-        ['browser_navigate', 'browser_snapshot', 'browser_use_device'],
+        ['browser_navigate', 'browser_snapshot', 'browser_type', 'browser_use_device'],
       );
+      assert.equal(listed.result.tools.find((tool: { name: string }) => tool.name === 'browser_type').description, 'Type text');
 
       for (const [id, tool] of [[3, 'browser_run_code_unsafe'], [4, 'browser_file_upload']] as const) {
         const denied = await readRpc(await callTool(harness, sessionId, id, tool));
@@ -841,6 +875,51 @@ describe('browser-use-mcp endpoint', () => {
       assert.deepEqual(activity.slice(-2), [[first.sessionId, 1], [first.sessionId, 0]]);
       await callTool(harness, first.sessionId, 4, 'browser_use_device', { device: 'invalid' });
       assert.equal(activity.at(-1)?.[1], 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test('secrets file names are advertised on typing tools only, and the values go to Playwright MCP', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'clide-browser-secrets-'));
+    const secretsFile = path.join(dir, 'secrets.env');
+    await fs.writeFile(secretsFile, "# comment\nTEST_USER=tester\nTEST_PASSWORD='hunter22'\nEMPTY=\n");
+    const received: Array<Record<string, string>> = [];
+    const harness = await startEndpoint({ secretsFile, onFileSecrets: (secrets) => received.push(secrets) });
+    try {
+      const { sessionId } = await initialize(harness);
+      const listed = await readRpc(await fetch(harness.url, {
+        method: 'POST',
+        headers: { ...HEADERS, 'mcp-session-id': sessionId },
+        body: rpc(2, 'tools/list'),
+      }));
+      const described = Object.fromEntries(listed.result.tools.map((tool: { name: string; description: string }) => [tool.name, tool.description]));
+      assert.match(described.browser_type, /^Type text To enter a configured secret, pass its name .*\(TEST_PASSWORD, TEST_USER\)/);
+      assert.equal(described.browser_navigate, 'navigate');
+      assert.doesNotMatch(JSON.stringify(listed), /hunter22/);
+      assert.deepEqual(received, [{ TEST_USER: 'tester', TEST_PASSWORD: 'hunter22' }]);
+    } finally {
+      await harness.close();
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('browser_close frees the context but keeps the session, whose next call opens a new one', async () => {
+    const released: BrowserLeaseReleaseReason[] = [];
+    const harness = await startEndpoint();
+    harness.runtime.onRelease((_lease, reason) => released.push(reason));
+    try {
+      const { sessionId } = await initialize(harness);
+      const before = resultText(await readRpc(await callTool(harness, sessionId, 2, 'browser_navigate')));
+      await readRpc(await callTool(harness, sessionId, 3, 'browser_close'));
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.deepEqual(released, ['closed']);
+      assert.equal(harness.runtime.getLease(sessionId), null);
+      assert.deepEqual(harness.endpoint.listSessionIds(), [sessionId]);
+
+      const after = resultText(await readRpc(await callTool(harness, sessionId, 4, 'browser_navigate')));
+      assert.notEqual(after, before);
+      assert.ok(harness.runtime.getLease(sessionId));
     } finally {
       await harness.close();
     }

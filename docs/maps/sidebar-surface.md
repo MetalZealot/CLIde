@@ -63,12 +63,12 @@ right-click opens the session actions menu, and a clipped title earns a hover
 tooltip carrying the whole name.
 
 **Footer** (`SidebarFooter.tsx`) — restart-required banner · update banner ·
-account button (Account, Usage, Settings, Log out) · New Session (mobile only).
+account avatar opening Settings · icon-only Usage · New Session (mobile only).
 The version lives in Settings → About, which is reachable at both breakpoints.
 
 **Collapsed rail** (`SidebarCollapsed.tsx`) — mirrors the expanded spine: expand
 and New Session at the top, activity and restart cues below them, update
-indicator and the account avatar pinned to the bottom.
+indicator, Usage, and the Settings-opening account avatar pinned to the bottom.
 
 **Width** — desktop only, dragged from the sidebar's right edge
 (`SidebarResizeHandle.tsx`), clamped 240–480px, double-click to reset, remembered
@@ -107,8 +107,8 @@ new session.
 
 ## Tier 3 — containers
 
-Settings and Account (via the account menu), Archive (a body view entered from
-the view menu), the worktree manager modal, project delete and session delete
+Settings (via the account avatar), Archive (a body view entered from the view
+menu), the worktree manager modal, project delete and session delete
 confirmations, and the version modal.
 
 ## Breakpoint parity

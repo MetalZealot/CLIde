@@ -53,6 +53,16 @@ export const formatTokenCount = (value: number) => {
   return value.toLocaleString();
 };
 
+/** Compact elapsed time for a one-line label ("42s", "3m 5s", "1h 12m"). */
+export const formatDuration = (durationMs: number): string => {
+  const totalSeconds = Math.round(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+};
+
 export function formatMemoryCitationSource(source: string): string {
   return source.replace(/:(\d+)-(\d+)$/, ':$1–$2');
 }

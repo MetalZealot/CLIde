@@ -651,7 +651,7 @@ export class CodexAppServerChatTransport {
         browserInstructions = {
           developerInstructions: [
             effective.config.developer_instructions,
-            'CLIde has a Browser tab controlled by the cloudcli-browser MCP tools. When the user asks to open a page in Browser, discover and use those tools (browser_navigate for a URL). Search the available tool registry if they are not immediately visible. Shell URL openers such as xdg-open do not control CLIde Browser. If the tools fail, report that failure instead of claiming the page opened.',
+            'CLIde has a Browser tab controlled by the cloudcli-browser MCP tools. When the user asks to open a page in Browser, discover and use those tools (browser_navigate for a URL). Search the available tool registry if they are not immediately visible. Keep Browser verification in that same cloudcli-browser session; a separate Playwright or Chromium session is not Browser-tab verification. If a sign-in form appears, type only the secret names that the browser_type description lists, never values read from a credential file. Shell URL openers such as xdg-open do not control CLIde Browser. If the tools fail or no secret names are listed, report that instead of switching browser contexts or claiming the page opened.',
           ].filter(Boolean).join('\n\n'),
         };
       }

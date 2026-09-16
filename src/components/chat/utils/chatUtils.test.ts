@@ -10,12 +10,14 @@ import type { ChatMessage } from '../types/types';
 
 import {
   extractInternalMemoryCitation,
+  formatDuration,
   formatFollowUpQuestions,
   formatMemoryCitationSource,
   splitLeadingCommand,
 } from './chatFormatting';
 import { exportToHTML, exportToMarkdown } from './chatExport';
 import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
+import { computeTurnDurations } from './turnDuration';
 import {
   collectPendingAsyncQuestions,
   enqueueAsyncAnswer,
@@ -52,6 +54,36 @@ describe('chatFormatting', () => {
       text: '',
       citations: [{ source: 'MEMORY.md:48-69', note: 'used provider guidance' }],
     });
+  });
+
+  test('formats elapsed durations in seconds, minutes, and hours', () => {
+    assert.equal(formatDuration(42_400), '42s');
+    assert.equal(formatDuration(72_000), '1m 12s');
+    assert.equal(formatDuration(4_380_000), '1h 13m');
+  });
+
+  test('labels only the last reply of each finished turn with prompt-to-reply time', () => {
+    const at = (seconds: number) => new Date(Date.UTC(2026, 8, 14, 12, 0, seconds)).toISOString();
+    const prompt: ChatMessage = { type: 'user', content: 'Fix it', timestamp: at(0) };
+    const firstReply: ChatMessage = { type: 'assistant', content: 'Looking.', timestamp: at(5) };
+    const tool: ChatMessage = { type: 'assistant', content: '', isToolUse: true, toolName: 'Bash', timestamp: at(20) };
+    const finalReply: ChatMessage = { type: 'assistant', content: 'Done.', timestamp: at(72) };
+    const notice: ChatMessage = { type: 'assistant', content: 'Task finished', isTaskNotification: true, timestamp: at(3000) };
+    const noticeReply: ChatMessage = { type: 'assistant', content: 'Noted.', timestamp: at(3004) };
+    const secondPrompt: ChatMessage = { type: 'user', content: 'Next', timestamp: at(3100) };
+    const runningReply: ChatMessage = { type: 'assistant', content: 'Working.', timestamp: at(3110) };
+    const messages = [prompt, firstReply, tool, finalReply, notice, noticeReply, secondPrompt, runningReply];
+
+    const running = computeTurnDurations(messages, true);
+    assert.equal(running.get(finalReply), 72_000);
+    assert.equal(running.get(firstReply), undefined, 'only the last reply of a turn is labelled');
+    assert.equal(running.get(noticeReply), 4_000, 'a task notification starts its own turn');
+    assert.equal(running.get(runningReply), undefined, 'a running turn has no duration');
+    assert.equal(computeTurnDurations(messages, false).get(runningReply), 10_000);
+    assert.equal(computeTurnDurations([firstReply, finalReply], false).get(finalReply), undefined,
+      'a turn whose prompt is not loaded has no start');
+    assert.equal(computeTurnDurations([tool, finalReply], false, at(2)).get(finalReply), 70_000,
+      'the server-supplied prompt time covers a page that opens mid-turn');
   });
 
   test('formats a cited line range compactly for display', () => {

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { CompactBoundaryInfo } from '../../../../stores/useSessionStore';
-import { formatTokenCount } from '../../utils/chatFormatting';
+import { formatDuration, formatTokenCount } from '../../utils/chatFormatting';
 
 /**
  * Marks where a compaction cut the conversation.
@@ -11,13 +11,6 @@ import { formatTokenCount } from '../../utils/chatFormatting';
  * reads as a rule across the thread rather than a message, and carries the
  * numbers because "how much did that cost me" is the question it raises.
  */
-
-const formatDuration = (durationMs: number): string => {
-  const totalSeconds = Math.round(durationMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-};
 
 export default function CompactBoundaryDivider({ boundary }: { boundary?: CompactBoundaryInfo }) {
   const { t } = useTranslation('chat');

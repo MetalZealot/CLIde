@@ -7,7 +7,7 @@ import readline from 'node:readline';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, CompactBoundaryInfo, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage, UsageLimitStop } from '@/shared/types.js';
 import { parseFilesInputTag } from '@/shared/image-attachments.js';
-import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
 import {
   resolveClaudeCeilingProvenance,
@@ -1221,12 +1221,13 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     }
     const normalizedOffset = Math.max(0, offset);
     const normalizedLimit = limit === null ? null : Math.max(0, limit);
-    const { page, hasMore } = sliceTailPage(normalized, normalizedLimit, normalizedOffset);
+    const { page, hasMore, start } = sliceTailPage(normalized, normalizedLimit, normalizedOffset);
 
     return {
       messages: page,
       total,
       hasMore,
+      turnStartedAt: findTurnStartedAt(normalized, start),
       offset: normalizedOffset,
       limit: normalizedLimit,
       tokenUsage: extractHistoryTokenUsage(rawMessages),

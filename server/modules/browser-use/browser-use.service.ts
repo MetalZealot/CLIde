@@ -202,6 +202,7 @@ export function publicBrowserSession(session: BrowserUseSession): PublicBrowserU
 
 const RELEASE_MESSAGES: Record<BrowserLeaseReleaseReason, { lastAction: string; message: string }> = {
   released: { lastAction: 'stop', message: 'Browser session stopped. Create a new session to continue browsing.' },
+  closed: { lastAction: 'browser_close', message: 'The agent closed the browser. Its next browser tool call opens a new one.' },
   expired: { lastAction: 'expire', message: 'Browser session expired after inactivity.' },
   shutdown: { lastAction: 'shutdown', message: 'Browser session stopped during server shutdown.' },
   disconnected: { lastAction: 'disconnect', message: 'Browser process exited. Create a new session to continue browsing.' },
@@ -221,7 +222,7 @@ browserRuntime.setSessionPolicyLoader((): BrowserSessionPolicy => {
 // the runtime never disagree about whether a session is alive.
 browserRuntime.onRelease((lease, reason) => {
   const session = sessions.get(lease.id);
-  if (!session || session.status !== 'ready') {
+  if (!session) {
     return;
   }
   session.status = 'stopped';
@@ -569,7 +570,7 @@ export const browserUseService = {
       session.title = null;
       session.screenshotDataUrl = null;
     }
-    if (action.ok && (action.tool === 'browser_close' || (action.tool === 'browser_tabs' && action.noOpenTabs))) {
+    if (action.ok && action.tool === 'browser_tabs' && action.noOpenTabs) {
       session.status = 'stopped';
     }
     session.device = lease.device;

@@ -30,7 +30,11 @@ export default function ChatBrowserPreview({ session, unavailable, compact, onOp
         )}
       >
         {!compact && (
-          <span className={cn('flex h-9 w-14 shrink-0 items-center justify-center overflow-hidden rounded bg-muted', !active && 'opacity-70')}>
+          // Fixed height, width from the emulated viewport, so a phone shot reads as portrait.
+          <span
+            className={cn('flex h-9 min-w-4 max-w-24 shrink-0 items-center justify-center overflow-hidden rounded bg-muted', !session.viewport && 'w-14', !active && 'opacity-70')}
+            style={session.viewport ? { aspectRatio: `${session.viewport.width} / ${session.viewport.height}` } : undefined}
+          >
             {session.screenshotDataUrl
               ? <img src={session.screenshotDataUrl} alt="" className="h-full w-full object-cover object-top" />
               : <Globe className="h-4 w-4 text-muted-foreground" aria-hidden />}

@@ -162,6 +162,8 @@ export interface SessionSlot {
   total: number;
   hasMore: boolean;
   offset: number;
+  /** Prompt time of the turn the oldest loaded page opens mid-way through. */
+  turnStartedAt: string | null;
   tokenUsage: unknown;
   model: string | null;
   modelStatus: 'idle' | 'loading' | 'error';
@@ -192,6 +194,7 @@ function createEmptySlot(): SessionSlot {
     total: 0,
     hasMore: false,
     offset: 0,
+    turnStartedAt: null,
     tokenUsage: null,
     model: null,
     modelStatus: 'idle',
@@ -536,6 +539,7 @@ export function useSessionStore() {
       slot.serverMessages = messages;
       slot.total = data.total ?? messages.length;
       slot.hasMore = Boolean(data.hasMore);
+      slot.turnStartedAt = data.turnStartedAt ?? null;
       slot.offset = (opts.offset ?? 0) + messages.length;
       slot.fetchedAt = Date.now();
       slot.status = 'idle';
@@ -601,6 +605,7 @@ export function useSessionStore() {
       // Prepend older messages (they're earlier in the conversation)
       slot.serverMessages = [...olderMessages, ...slot.serverMessages];
       slot.hasMore = Boolean(data.hasMore);
+      slot.turnStartedAt = data.turnStartedAt ?? null;
       slot.offset = slot.offset + olderMessages.length;
       recomputeMergedIfNeeded(slot);
       if (olderMessages.length > 0) {
@@ -691,6 +696,7 @@ export function useSessionStore() {
       slot.serverMessages = data.messages || [];
       slot.total = data.total ?? slot.serverMessages.length;
       slot.hasMore = Boolean(data.hasMore);
+      slot.turnStartedAt = data.turnStartedAt ?? null;
       slot.offset = slot.serverMessages.length;
       slot.fetchedAt = Date.now();
       // Only drop realtime rows the server transcript now owns. A blind clear

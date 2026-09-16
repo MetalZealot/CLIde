@@ -33,7 +33,7 @@ remains the companion inventory for the settings cascade.
 | Runtime pairing policy | **Unpinned by design**: `CLAUDE_CLI_PATH` or bare `claude` |
 | SDK `Options` surface | 65 top-level options, unchanged at 0.3.258 (`systemPrompt` gained a `custom` variant and `snapshot`); CLIde sets 19 |
 | SDK `Query` control methods | 28 (`updateSettings` new at 0.3.258); CLIde calls 2 (`interrupt`, `getContextUsage`) |
-| SDK stream message types | 39; CLIde's live normalizer acts on assistant/user shapes plus `rate_limit_event` |
+| SDK stream message types | 39; CLIde's live normalizer acts on assistant/user shapes plus `rate_limit_event` and `status: compacting` |
 | SDK top-level exports | 17 functions, 2 classes, 7 constants; CLIde imports `query` only |
 | Hook events | 33 (`PreModelSwitch`, `PostModelSwitch` new at 0.3.258); CLIde registers 1 (`Notification`) |
 | Settings cascade | In force via `settingSources: ['project','user','local']`; no CLIde UI |
@@ -256,12 +256,12 @@ Everything else in the 32-type union falls through and is dropped:
 
 | Message type | What it carries | Disposition |
 |---|---|---|
-| `rate_limit_event` | `rateLimitType` (`five_hour` / `seven_day` / `seven_day_opus` / `seven_day_sonnet` / `overage`), `utilization`, `resetsAt`, overage status | Implemented for normalized windows and live `provider_usage`; overage-only fields remain unused |
-| `status` (`compacting` / `requesting`) | Why the session is silent | Integrate |
-| `api_retry` | Retry attempt during 529 storms | Integrate |
+| `rate_limit_event` | `status`, `rateLimitType` (`five_hour` / `seven_day` / `seven_day_opus` / `seven_day_sonnet` / `overage`), `utilization`, `resetsAt`, `surpassedThreshold`, `unifiedWindows`, overage status | Implemented for normalized windows and live `provider_usage`. `utilization` and `surpassedThreshold` appear only at `allowed_warning` (0.9 observed); plain `allowed` frames omit them, so the normalizer drops those. Arrives 0.5–0.65 s after `init` on every real probed turn. Overage fields unused (measured 2026-09-15) |
+| `status` (`compacting` / `requesting`) | Why the session is silent | `compacting` implemented as the activity label. `requesting` is only emitted with `includePartialMessages` (0 of 4 turns without, 1 of 1 with — measured at 2.1.270); the first `rate_limit_event` marks the same moment without it |
+| `api_retry` | Attempt, max retries, delay, HTTP status, error class for a retryable failure | Integrate. Arrives without `includePartialMessages`, one frame per attempt (measured against a local 529 stub at 2.1.270); dropped and unlogged today, so a retrying turn looks like a thinking one |
 | `compact_boundary` | Where context was compacted | Candidate |
 | `task_notification`, `task_started`, `task_updated`, `task_progress` | Background-task lifecycle | Candidate |
-| `thinking_tokens` | Live thinking-token counter | Defer |
+| `thinking_tokens` | Running thinking-token estimate while thinking text is redacted; not billed `output_tokens` | Integrate. Arrives without `includePartialMessages`: 46 frames over a 55 s Opus think, average gap 1.2 s, max 1.7 s, estimate reaching 5,350; thinking text itself is 0 characters (measured at 2.1.270) |
 | `tool_progress`, `tool_use_summary` | Per-tool progress and summaries | Candidate |
 | `commands_changed` | Live slash-menu invalidation | Integrate with `supportedCommands()` |
 | `stream_event` partials | Token-level deltas | Blocked on `includePartialMessages` |

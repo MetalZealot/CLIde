@@ -5,6 +5,7 @@ Nothing here is read by default. Completed plans are frozen; current behavior be
 | Plan | Archived | Current authority |
 |---|---|---|
 | [Codex usage-limit resets](2026-09-13-codex-usage-limit-resets.md) | 2026-09-13 | [Provider capability map](../../maps/clide-provider-capability-map.md), Codex provider source and focused tests |
+| [Mobile bottom navigation](2026-09-13-mobile-bottom-navigation.md) | 2026-09-13 | [ADR 0048](../../decisions/0048-mobile-navbar-five-roles-plugin-overflow.md), UI source and focused client tests |
 | [Find text in the open Chat](2026-09-11-find-in-chat.md) | 2026-09-11 | Find-in-Chat source and focused client tests |
 | [Playwright MCP bridge with a monitored Browser tab](2026-09-08-browser-mcp-hardening.md) | 2026-09-08 | [ADR 0053](../../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md) and source/tests |
 | [Bounded, lazy project files](2026-08-30-lazy-file-tree-loading.md) | 2026-08-30 | [ADR 0049](../../decisions/0049-file-tree-loads-folders-not-projects.md) and source/tests |

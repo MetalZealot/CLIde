@@ -307,6 +307,7 @@ export function useChatSessionState({
   const storeMessages = activeSessionId ? sessionStore.getMessages(activeSessionId) : [];
   const activeSessionSlot = activeSessionId ? sessionStore.getSessionSlot(activeSessionId) : undefined;
   const hasMoreMessages = Boolean(activeSessionSlot?.hasMore);
+  const turnStartedAt = activeSessionSlot?.turnStartedAt ?? null;
 
   // Reset viewHiddenCount when store messages change
   const prevStoreLenRef = useRef(0);
@@ -960,6 +961,7 @@ export function useChatSessionState({
     isLoadingSessionMessages,
     isLoadingMoreMessages,
     hasMoreMessages,
+    turnStartedAt,
     isUserScrolledUp,
     setIsUserScrolledUp,
     tokenBudget,

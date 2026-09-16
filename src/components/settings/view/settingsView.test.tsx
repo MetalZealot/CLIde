@@ -19,7 +19,7 @@ import {
 import { AUTH_TOKEN_STORAGE_KEY } from '../../auth/constants';
 import { AuthProvider } from '../../auth/context/AuthContext';
 import type { ProviderRuntimeVersions } from '../../provider-auth/types';
-import SidebarAccountMenu from '../../sidebar/view/subcomponents/SidebarAccountMenu';
+import SidebarAccountActions from '../../sidebar/view/subcomponents/SidebarAccountActions';
 import type { AuthStatus, NotificationPreferencesState } from '../types/types';
 
 import SettingsChoicePopover from './primitives/SettingsChoicePopover';
@@ -1043,21 +1043,31 @@ describe('AccountScreen', () => {
     return container;
   };
 
-  test('the sidebar Account popover contains navigation only', async () => {
+  test('the sidebar exposes icon-only Settings and Usage actions without an Account popover', async () => {
+    const settingsCalls: Array<string | undefined> = [];
+    let usageCalls = 0;
     const host = await render(
-      <SidebarAccountMenu onShowSettings={() => {}} onShowUsage={() => {}} t={i18next.getFixedT('en', 'sidebar')} />,
+      <SidebarAccountActions
+        onShowSettings={(screenId) => settingsCalls.push(screenId)}
+        onShowUsage={() => {
+          usageCalls += 1;
+        }}
+        t={i18next.getFixedT('en', 'sidebar')}
+      />,
     );
 
-    const trigger = host.querySelector<HTMLButtonElement>('button[aria-label="Account menu"]');
-    assert.ok(trigger);
-    await React.act(async () => trigger.click());
+    const settingsButton = host.querySelector<HTMLButtonElement>('button[aria-label="Settings"]');
+    const usageButton = host.querySelector<HTMLButtonElement>('button[aria-label="Usage"]');
+    assert.ok(settingsButton);
+    assert.ok(usageButton);
+    assert.equal(usageButton.textContent?.trim(), '');
+    assert.equal(host.querySelector('[aria-haspopup="menu"]'), null);
 
-    const menu = document.querySelector<HTMLElement>('[role="menu"][aria-label="Account menu"]');
-    assert.ok(menu);
-    assert.deepEqual(
-      [...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent),
-      ['Account', 'Usage', 'Settings'],
-    );
+    await React.act(async () => settingsButton.click());
+    await React.act(async () => usageButton.click());
+    assert.deepEqual(settingsCalls, [undefined]);
+    assert.equal(usageCalls, 1);
+    assert.equal(document.querySelector('[role="menu"]'), null);
   });
 
   test('the Account screen ends with the Log out action', async () => {

@@ -101,10 +101,10 @@ behaviour stays behind adapter interfaces.
   the main app for a change that only exists on a topic branch.
 - Do not restart the production service from an agent session unless the user
   explicitly asks and the environment permits it.
-- "I have no login credentials" is never a reason to skip live verification.  Stand the
-  right server up, hand over the URL, and say what to look for — the user clicks
-  through, not you.  **Never ask for or type their password** — automation stops at the
-  login form.
+- Test logins use Playwright's saved state or the secret names Browser's typing tools
+  list, never a scripted login.  **Never ask for or type Grayson's personal password.**
+- Verify a named browser surface in that context.  Separate Playwright or Chromium is
+  not verification of it.
 - Use a real device for touch behaviour.  CSS `:active` is not a reliable
   long-press visual state; use `useLongPress`'s `isPressing`.
 - Distinguish source inspection, automated checks, build output, running-service state,
@@ -168,8 +168,9 @@ inside narrative that condensing removes anyway — so these rules target length
   `MetalZealot/CLIde` fork.  `upstream/main` is the clean `siteboon/claudecodeui` line;
   a separate local upstream mirror is unnecessary.  Rebasing rewrites hashes, so
   publishing `main` afterwards needs `--force-with-lease`.
-- Conventional commits are enforced by commitlint; eslint runs on staged files.  Make
-  self-contained commits only after appropriate verification.
+- Conventional commits are enforced by commitlint; eslint runs on staged files.
+  **Commit verified work in the same turn, unasked**, staging only the files you
+  changed.
 - Work on `main` by default.  Create a worktree/topic branch only for genuinely
   parallel or risky work, and only when the maintainer asks or agrees.  **Never switch
   branches in the main checkout** while a service or dev server runs from it.

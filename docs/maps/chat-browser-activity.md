@@ -24,6 +24,10 @@ produce a preview. Native Codex chats with a scoped Browser connection receive
 app guidance explaining the Browser tab and tool discovery. This is appended to
 native effective developer instructions on start, resume, and fork; collaboration
 mode instructions and user messages retain their existing behavior.
+The guidance also keeps verification in the same Browser context through an
+authorized test-account login. Separate Playwright or Chromium automation does not
+count as Browser-tab verification, and an agent that cannot enter credentials without
+exposing them reports that limitation instead of silently changing contexts.
 
 | Provider | Runtime binding |
 |---|---|
@@ -46,6 +50,19 @@ Page selection uses Playwright's public current-tab and page-URL response metada
 including the tab tool's `Result` section. Unknown multi-tab selection has no image.
 Captures from a previously selected page are discarded if selection changes mid-capture.
 
+## Sign-in and close
+
+Sign-in uses Playwright's two standard mechanisms, never agent-read credentials.
+Temporary contexts start from the storage state named by `PLAYWRIGHT_MCP_STORAGE_STATE`
+when that file exists, checked per context so a file written after boot applies; named
+profiles keep their own. `scripts/browser-auth-setup.mjs` is the setup step: it signs
+in once and merges that origin, plus aliases of the same server, into the file.
+`PLAYWRIGHT_MCP_SECRETS_FILE` is Playwright MCP's dotenv secrets file: `browser_type`
+and `browser_fill_form` list its names, typing a name enters the value, and results
+redact it. An agent's `browser_close` releases its context, as standalone Playwright
+MCP does, and stops its row under the stopped-row cap; the MCP session stays, and its
+next call opens a new context.
+
 ## Verification
 
 Browser endpoint, provider configuration, chat hook, and preview component tests cover
@@ -63,3 +80,7 @@ and omitting Browser guidance without a scoped connection. All 960 tests pass;
 client/server builds, targeted lint, and docs checks pass. Grayson confirmed the
 ordinary Browser request works in the running preview after the guidance fix.
 The installed test PWA still needs human acceptance with a queue and a question open.
+A live branch-test endpoint check opened CLIde signed in at its local and tailnet
+addresses, signed back in by secret name with no password in any result, and reopened
+after `browser_close`. A real Claude agent asked to open Settings there did so without
+a login detour. Codex was not re-run.

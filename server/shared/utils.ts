@@ -405,7 +405,7 @@ export function sliceTailPage<T>(
   items: T[],
   limit: number | null,
   offset: number,
-): { page: T[]; hasMore: boolean } {
+): { page: T[]; hasMore: boolean; start: number } {
   const total = items.length;
   const normalizedOffset = Math.max(0, offset);
 
@@ -416,6 +416,7 @@ export function sliceTailPage<T>(
     return {
       page: items.slice(0, end),
       hasMore: false,
+      start: 0,
     };
   }
 
@@ -424,7 +425,27 @@ export function sliceTailPage<T>(
   return {
     page: items.slice(start, end),
     hasMore: start > 0,
+    start,
   };
+}
+
+/**
+ * Timestamp of the prompt that opened the turn in progress at `pageStart`, so a client
+ * holding only that page can still time the turn. Null when the page opens on a prompt.
+ */
+export function findTurnStartedAt(messages: NormalizedMessage[], pageStart: number): string | null {
+  for (let index = Math.min(pageStart, messages.length) - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      message.kind === 'text'
+      && message.role === 'user'
+      && !message.isCompactSummary
+      && !message.isLocalCommandStdout
+    ) {
+      return message.timestamp;
+    }
+  }
+  return null;
 }
 
 // ---------------------------

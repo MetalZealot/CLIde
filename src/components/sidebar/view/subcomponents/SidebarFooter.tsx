@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
 
-import SidebarAccountMenu from './SidebarAccountMenu';
+import SidebarAccountActions from './SidebarAccountActions';
 
 type SidebarFooterProps = {
   updateAvailable: boolean;
@@ -90,13 +90,13 @@ export default function SidebarFooter({
         New Session is mobile-only here: on desktop it stays in the header,
         which a pointer reaches as easily as anything else. On a phone the
         sidebar is a full-height drawer, so the header is the one corner a thumb
-        cannot get to and this row is the one it can. Everything that used to
-        live along this row is now inside the account menu.
+        cannot get to and this row is the one it can. Settings and Usage remain
+        direct footer actions at both breakpoints.
       */}
       <div className="nav-divider" />
 
       <div className="app-footer justify-between gap-2 px-2">
-        <SidebarAccountMenu
+        <SidebarAccountActions
           onShowSettings={onShowSettings}
           onShowUsage={onShowUsage}
           t={t}

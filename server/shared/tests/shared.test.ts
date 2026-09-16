@@ -18,7 +18,7 @@ import {
   resolveImageMediaType,
   toImageAttachments,
 } from '@/shared/image-attachments.js';
-import { sliceTailPage } from '@/shared/utils.js';
+import { findTurnStartedAt, sliceTailPage } from '@/shared/utils.js';
 
 describe('shared-helpers', () => {
   describe('claude-cli-path', () => {
@@ -81,9 +81,25 @@ describe('shared-helpers', () => {
     const ITEMS = ['a', 'b', 'c', 'd', 'e'];
 
     test('offset 0 returns the most recent page', () => {
-      const { page, hasMore } = sliceTailPage(ITEMS, 2, 0);
+      const { page, hasMore, start } = sliceTailPage(ITEMS, 2, 0);
       assert.deepEqual(page, ['d', 'e']);
       assert.equal(hasMore, true);
+      assert.equal(start, 3);
+    });
+
+    test('findTurnStartedAt returns the prompt that opened the page\'s first turn', () => {
+      const row = (kind: string, extra: Record<string, unknown> = {}) =>
+        ({ kind, timestamp: `t-${kind}`, ...extra }) as unknown as Parameters<typeof findTurnStartedAt>[0][number];
+      const messages = [
+        row('text', { role: 'user', timestamp: 'prompt' }),
+        row('text', { role: 'user', isCompactSummary: true }),
+        row('text', { role: 'user', isLocalCommandStdout: true }),
+        row('tool_use'),
+        row('text', { role: 'assistant' }),
+      ];
+      assert.equal(findTurnStartedAt(messages, 4), 'prompt', 'summaries and command output do not open a turn');
+      assert.equal(findTurnStartedAt(messages, 0), null);
+      assert.equal(findTurnStartedAt(messages, sliceTailPage(messages, null, 0).start), null);
     });
 
     test('increasing offsets walk backwards in time', () => {

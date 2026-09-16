@@ -55,7 +55,8 @@ export type BrowserContextLease = {
   lastUsedAt: number;
 };
 
-export type BrowserLeaseReleaseReason = 'released' | 'expired' | 'shutdown' | 'disconnected';
+// 'closed' is the agent's own browser_close: the context goes, its MCP session stays.
+export type BrowserLeaseReleaseReason = 'released' | 'closed' | 'expired' | 'shutdown' | 'disconnected';
 
 export type BrowserRuntimeReadiness = {
   playwrightInstalled: boolean;
@@ -79,6 +80,7 @@ type BrowserRuntimeOptions = {
   maxSessions?: number;
   sessionTtlMs?: number;
   profileRoot?: string;
+  storageStatePath?: string;
   now?: () => number;
   loadViewportProfiles?: () => BrowserViewportProfiles | null;
   loadSessionPolicy?: () => BrowserSessionPolicy | null;
@@ -292,6 +294,12 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     sessionTtlMs: options.sessionTtlMs ?? DEFAULT_SESSION_POLICY.sessionTtlMs,
   };
   const profileRoot = options.profileRoot || DEFAULT_PROFILE_ROOT;
+  const storageStatePath = options.storageStatePath ?? process.env.PLAYWRIGHT_MCP_STORAGE_STATE;
+  // Playwright's saved sign-in file seeds every temporary context. Checked per
+  // context because it is written after the server starts; profiles keep their own.
+  const savedStorageState = (): { storageState?: string } => (
+    storageStatePath && fs.existsSync(storageStatePath) ? { storageState: storageStatePath } : {}
+  );
   const now = options.now || Date.now;
   // Set by the settings service, which owns the stored profiles; read on every
   // context creation so a saved change reaches the next session without a restart.
@@ -587,7 +595,10 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
     } else {
       const browser = await getSharedBrowser(playwright);
       try {
-        context = await browser.newContext(contextOptions);
+        context = await browser.newContext({
+          ...contextOptions,
+          ...savedStorageState(),
+        });
       } catch (error) {
         await closeSharedBrowserIfIdle();
         throw error;
@@ -644,7 +655,10 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
       });
     } else {
       const browser = await getSharedBrowser(playwright);
-      context = await browser.newContext(contextOptions);
+      context = await browser.newContext({
+        ...contextOptions,
+        ...savedStorageState(),
+      });
       await previous?.close?.().catch(() => undefined);
     }
 
@@ -712,12 +726,12 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
       return [...leases.values()];
     },
 
-    async releaseContext(id: string): Promise<boolean> {
+    async releaseContext(id: string, reason: 'released' | 'closed' = 'released'): Promise<boolean> {
       const lease = leases.get(id);
       if (!lease) {
         return false;
       }
-      await dropLease(lease, 'released', { closeContext: true });
+      await dropLease(lease, reason, { closeContext: true });
       return true;
     },
 

@@ -7,6 +7,7 @@ import type { Project, ProjectSession, LLMProvider } from '../../../../types/app
 import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { groupConsecutiveTools, isToolGroupItem } from '../../utils/toolGrouping';
+import { computeTurnDurations } from '../../utils/turnDuration';
 
 import MessageComponent from './MessageComponent';
 import ToolGroupContainer from './ToolGroupContainer';
@@ -27,6 +28,8 @@ interface ChatMessagesPaneProps {
   setInput: Dispatch<SetStateAction<string>>;
   isLoadingMoreMessages: boolean;
   hasMoreMessages: boolean;
+  /** Prompt time of the turn the oldest loaded message belongs to, when that prompt is not loaded. */
+  turnStartedAt?: string | null;
   visibleMessageCount: number;
   visibleMessages: ChatMessage[];
   loadAllMessages: () => Promise<ChatMessage[] | null>;
@@ -61,6 +64,7 @@ function ChatMessagesPane({
   setInput,
   isLoadingMoreMessages,
   hasMoreMessages,
+  turnStartedAt = null,
   visibleMessageCount,
   visibleMessages,
   loadAllMessages,
@@ -83,6 +87,11 @@ function ChatMessagesPane({
   const groupedVisibleMessages = useMemo(
     () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
     [visibleMessages, showThinking],
+  );
+  // All loaded messages, so a turn whose prompt sits above the visible window still resolves.
+  const turnDurations = useMemo(
+    () => computeTurnDurations(chatMessages, isProcessing, turnStartedAt),
+    [chatMessages, isProcessing, turnStartedAt],
   );
 
   // Stable, deterministic keys for the messages rendered this pass.
@@ -218,6 +227,7 @@ function ChatMessagesPane({
                   key={getMessageKey(item)}
                   message={item}
                   prevMessage={messagePrevMessage}
+                  turnDurationMs={turnDurations.get(item)}
                   createDiff={createDiff}
                   onFileOpen={onFileOpen}
                   onShowSettings={onShowSettings}
