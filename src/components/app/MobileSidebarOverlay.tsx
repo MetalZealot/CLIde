@@ -2,6 +2,7 @@ import { ReactNode, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useSidebarSwipe } from '../../hooks/useSidebarSwipe';
+import { PageScrollLock } from '../../shared/view/ui';
 
 interface MobileSidebarOverlayProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export default function MobileSidebarOverlay({
         isOpen ? 'visible opacity-100' : 'invisible opacity-0'
       }`}
     >
+      {isOpen && <PageScrollLock />}
       <button
         ref={backdropRef}
         className="fixed inset-0 bg-black/50 transition-opacity duration-150 ease-out"

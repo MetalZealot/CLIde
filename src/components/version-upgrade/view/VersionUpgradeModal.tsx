@@ -7,6 +7,7 @@ import { ReleaseInfo } from "../../../types/sharedTypes";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import type { InstallMode } from "../../../hooks/useVersionCheck";
 import { IS_PLATFORM } from "../../../constants/config";
+import { PageScrollLock } from '../../../shared/view/ui';
 
 interface VersionUpgradeModalProps {
     isOpen: boolean;
@@ -129,6 +130,7 @@ export function VersionUpgradeModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <PageScrollLock />
             {/* Backdrop */}
             <button
                 className="fixed inset-0 bg-black/50"

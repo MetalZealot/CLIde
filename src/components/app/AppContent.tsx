@@ -54,7 +54,7 @@ function AppContentInner() {
   const navigate = useNavigate();
   const location = useLocation();
   const { sessionId } = useParams<{ sessionId?: string }>();
-  const { isMobile } = useDeviceSettings({ trackPWA: false });
+  const { isMobile, isPWA } = useDeviceSettings();
   const { ws, sendMessage, subscribe } = useWebSocket();
 
   const {
@@ -236,9 +236,11 @@ function AppContentInner() {
     return () => vv.removeEventListener('resize', update);
   }, []);
 
-  // On phones the chat scrolls as the page so text-selection handles get the
-  // browser's own edge scrolling; every other view keeps the fixed shell.
+  // In the installed phone app the chat scrolls as the page, so text-selection
+  // handles get the browser's own edge scrolling. A browser tab keeps the fixed
+  // shell: its toolbars hide and show with page scrolling and jerk the composer.
   const chatPageScroll = isMobile
+    && isPWA
     && (activeTab === 'chat' || !selectedProject)
     && !isLoadingProjects
     && location.pathname !== '/usage';

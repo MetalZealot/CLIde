@@ -712,6 +712,12 @@ html.chat-page-scroll body {
   overflow-anchor: none;
 }
 
+/* PageScrollLock: an open full-screen overlay stops the chat scrolling behind it. */
+html.chat-page-scroll.page-scroll-locked,
+html.chat-page-scroll.page-scroll-locked body {
+  overflow: hidden;
+}
+
 html.chat-page-scroll body.pwa-mode #root {
   height: auto;
   overflow: visible;

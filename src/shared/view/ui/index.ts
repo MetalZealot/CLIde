@@ -7,6 +7,7 @@ export { Confirmation, ConfirmationTitle, ConfirmationRequest, ConfirmationAccep
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, CardAction } from './Card';
 export { Collapsible, CollapsibleTrigger, CollapsibleContent } from './Collapsible';
 export { default as ContextMenuOverlay, anchorFromElement, armTapShield } from './ContextMenuOverlay';
+export { default as PageScrollLock } from './PageScrollLock';
 export type { ContextMenuAnchor } from './ContextMenuOverlay';
 export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator } from './Command';
 export { default as DarkModeToggle } from './DarkModeToggle';

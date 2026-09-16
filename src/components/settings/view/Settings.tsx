@@ -9,6 +9,7 @@ import { getScreen, parseAgentScreenId } from '../registry/registry';
 import { searchSettings } from '../registry/search';
 import { useWebPush } from '../../../hooks/useWebPush';
 import type { SettingsProps } from '../types/types';
+import { PageScrollLock } from '../../../shared/view/ui';
 
 import AboutScreen from './screens/AboutScreen';
 import AccountScreen from './screens/AccountScreen';
@@ -331,6 +332,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
 
   return (
     <div className="modal-backdrop safe-top fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 md:p-4">
+      <PageScrollLock />
       <div className="flex h-full w-full flex-col overflow-hidden border border-border bg-background shadow-2xl md:h-[90vh] md:max-w-4xl md:rounded-xl">
         <SettingsHeader
           title={headerTitle}

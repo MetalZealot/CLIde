@@ -13,6 +13,7 @@ import type { CodeEditorFile } from '../types/types';
 import { createMinimapExtension, createScrollToFirstChunkExtension, getLanguageExtensions } from '../utils/editorExtensions';
 import { getEditorStyles } from '../utils/editorStyles';
 import { createEditorToolbarPanelExtension } from '../utils/editorToolbarPanel';
+import { PageScrollLock } from '../../../shared/view/ui';
 
 import CodeEditorFooter from './subcomponents/CodeEditorFooter';
 import CodeEditorHeader from './subcomponents/CodeEditorHeader';
@@ -233,6 +234,7 @@ export default function CodeEditor({
   return (
     <>
       <style>{getEditorStyles(isDarkMode)}</style>
+      {!isSidebar && <PageScrollLock />}
       <div className={outerContainerClassName}>
         <div className={innerContainerClassName}>
           <CodeEditorHeader

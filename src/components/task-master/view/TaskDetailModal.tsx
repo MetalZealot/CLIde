@@ -18,6 +18,7 @@ import { copyTextToClipboard } from '../../../utils/clipboard';
 import { api } from '../../../utils/api';
 import { useTaskMaster } from '../context/TaskMasterContext';
 import type { TaskId, TaskMasterTask, TaskReference } from '../types';
+import { PageScrollLock } from '../../../shared/view/ui';
 
 type TaskDetailModalProps = {
   task: TaskMasterTask | null;
@@ -147,6 +148,7 @@ export default function TaskDetailModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 md:p-4">
+      <PageScrollLock />
       <div
         className={cn(
           'w-full md:max-w-4xl h-full md:h-[90vh] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 md:rounded-lg shadow-xl flex flex-col',
