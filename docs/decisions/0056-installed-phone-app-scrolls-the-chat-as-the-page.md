@@ -9,7 +9,7 @@ In the installed app on a phone, the conversation scrolls as the page itself, wi
 
 ## Rejected
 
-Script that clamped a selection to the visible edge, or scrolled while a handle was held there, lost the handles on-device. Page scrolling in a browser tab made the browser's toolbars hide and show, jerking the composer. Locking selection to one message blocked copying a slice of a conversation.
+Script that clamped a selection to the visible edge, or scrolled while a handle was held there, lost the handles on-device. Page scrolling in a browser tab made the browser's toolbars hide and show, jerking the composer. Locking selection to one message blocked copying a slice of a conversation. A chat box with the bars floating over it, as claude.ai and chatgpt.com build theirs, was probed on-device: filling the screen exactly, it still showed the full-height scrollbar and hid the browser toolbars but lost handle edge-scrolling; 1px short, its scrollbar could be hidden but handles jumped into the bars.
 
 ## Why
 

@@ -23,4 +23,4 @@ scroller gives handles the browser's own edge scrolling.
 ## Not doing
 
 - Chrome as a target. In its install the handles still slip into the composer and tab bar, and dragging into the header jumps to the top; this is unexplained, and Samsung Internet stays the browser.
-- Hiding Samsung Internet's full-height scrollbar. It ignores the setting that hides the page scrollbar, so the bar stays and overlaps the composer slightly.
+- Hiding Samsung Internet's full-height scrollbar. It ignores the setting that hides the page scrollbar, and a full-screen chat box with floating bars keeps the bar while losing smooth handles (ADR 0056), so the bar stays and overlaps the composer slightly.
