@@ -8,6 +8,7 @@ import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage } from '../types/types';
 import { createCachedDiffCalculator, type DiffCalculator } from '../utils/messageTransforms';
+import { getChatViewportRect, isPageScrollHost, scrollEventTarget } from '../utils/chatScrollHost';
 
 import { normalizedToChatMessages } from './useChatMessages';
 
@@ -31,6 +32,8 @@ interface UseChatSessionStateArgs {
   /** Transport-tracked replay progress; sent as `lastSeq` + `runId` on subscribe. */
   getReplayProgress: (sessionId: string) => ReplayProgress | null;
   sessionStore: SessionStore;
+  /** The page scrolls instead of the message pane (phones). */
+  pageScroll?: boolean;
 }
 
 interface ScrollRestoreState {
@@ -40,8 +43,8 @@ interface ScrollRestoreState {
   anchorOffset: number | null;
 }
 
-function captureScrollRestore(container: HTMLDivElement): ScrollRestoreState {
-  const containerRect = container.getBoundingClientRect();
+function captureScrollRestore(container: HTMLElement): ScrollRestoreState {
+  const containerRect = getChatViewportRect(container);
   const anchor = Array.from(container.querySelectorAll<HTMLElement>('.chat-message')).find((element) => {
     const rect = element.getBoundingClientRect();
     return rect.bottom > containerRect.top && rect.top < containerRect.bottom;
@@ -55,9 +58,9 @@ function captureScrollRestore(container: HTMLDivElement): ScrollRestoreState {
   };
 }
 
-function applyScrollRestore(container: HTMLDivElement, restore: ScrollRestoreState): void {
+function applyScrollRestore(container: HTMLElement, restore: ScrollRestoreState): void {
   if (restore.anchor?.isConnected && restore.anchorOffset !== null) {
-    const currentOffset = restore.anchor.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    const currentOffset = restore.anchor.getBoundingClientRect().top - getChatViewportRect(container).top;
     container.scrollTop += currentOffset - restore.anchorOffset;
   } else {
     container.scrollTop = restore.top + Math.max(container.scrollHeight - restore.height, 0);
@@ -67,9 +70,9 @@ function applyScrollRestore(container: HTMLDivElement, restore: ScrollRestoreSta
   restore.top = container.scrollTop;
 }
 
-function updateScrollRestoreTarget(container: HTMLDivElement, restore: ScrollRestoreState): void {
+function updateScrollRestoreTarget(container: HTMLElement, restore: ScrollRestoreState): void {
   if (restore.anchor?.isConnected) {
-    restore.anchorOffset = restore.anchor.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    restore.anchorOffset = restore.anchor.getBoundingClientRect().top - getChatViewportRect(container).top;
   }
   restore.height = container.scrollHeight;
   restore.top = container.scrollTop;
@@ -148,6 +151,7 @@ export function useChatSessionState({
   statusCheckSentAtRef,
   getReplayProgress,
   sessionStore,
+  pageScroll = false,
 }: UseChatSessionStateArgs) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(selectedSession?.id || null);
   const [isLoadingSessionMessages, setIsLoadingSessionMessages] = useState(false);
@@ -159,10 +163,18 @@ export function useChatSessionState({
   const [isLoadingAllMessages, setIsLoadingAllMessages] = useState(false);
   const [scrollRestoreTick, setScrollRestoreTick] = useState(0);
   const [viewHiddenCount, setViewHiddenCount] = useState(0);
+  const [selectionStartIndex, setSelectionStartIndex] = useState<number | null>(null);
 
   const selectedSessionId = selectedSession?.id ?? null;
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  /** The pane, or the document root when the page scrolls; set by the pane's ref. */
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
+  /** A non-empty selection inside the messages; scrolling must not move text under it. */
+  const hasChatSelectionRef = useRef(false);
+  /** First rendered message index held while selecting, so arrivals cannot trim it. */
+  const selectionStartIndexRef = useRef<number | null>(null);
+  /** Last page position while the chat was showing; the page collapses under other tabs. */
+  const lastPageScrollTopRef = useRef<number | null>(null);
   const currentSessionIdRef = useRef(currentSessionId);
   currentSessionIdRef.current = currentSessionId;
   const isUserScrolledUpRef = useRef(false);
@@ -201,6 +213,13 @@ export function useChatSessionState({
   }, []);
 
   useEffect(() => cancelSettlingScrollRestore, [cancelSettlingScrollRestore]);
+
+  // Declared before the scroll layout effects so the page is already scrollable when they run.
+  useLayoutEffect(() => {
+    if (!pageScroll) return;
+    document.documentElement.classList.add('chat-page-scroll');
+    return () => document.documentElement.classList.remove('chat-page-scroll');
+  }, [pageScroll]);
 
   const createDiff = useMemo<DiffCalculator>(() => createCachedDiffCalculator(), []);
 
@@ -372,7 +391,7 @@ export function useChatSessionState({
   }, []);
 
   const loadOlderMessages = useCallback(
-    async (container: HTMLDivElement) => {
+    async (container: HTMLElement) => {
       if (!container || isLoadingMoreRef.current || isLoadingMoreMessages) return false;
       if (!hasMoreMessages || !selectedSession?.id || !selectedProject?.projectId) return false;
 
@@ -574,14 +593,19 @@ export function useChatSessionState({
         applyScrollRestore(container, restore);
         return;
       }
-      if (!isUserScrolledUpRef.current && !searchScrollActiveRef.current && !isLoadingMoreRef.current) {
+      if (
+        !isUserScrolledUpRef.current
+        && !searchScrollActiveRef.current
+        && !isLoadingMoreRef.current
+        && !hasChatSelectionRef.current
+      ) {
         container.scrollTop = container.scrollHeight;
       }
     });
 
     observer.observe(content);
     return () => observer.disconnect();
-  }, [selectedProject?.projectId, selectedSession?.id]);
+  }, [pageScroll, selectedProject?.projectId, selectedSession?.id]);
 
   // Main session loading effect — store-based
   useEffect(() => {
@@ -865,10 +889,45 @@ export function useChatSessionState({
     sessionStore.fetchSessionSettings(selectedSession.id, provider);
   }, [selectedProject, selectedSession?.id, selectedSession?.__provider, sessionStore]);
 
+  const chatMessageCountRef = useRef(chatMessages.length);
+  chatMessageCountRef.current = chatMessages.length;
+  const visibleMessageCountRef = useRef(visibleMessageCount);
+  visibleMessageCountRef.current = visibleMessageCount;
+
   const visibleMessages = useMemo(() => {
-    if (chatMessages.length <= visibleMessageCount) return chatMessages;
-    return chatMessages.slice(-visibleMessageCount);
-  }, [chatMessages, visibleMessageCount]);
+    const windowStart = Math.max(0, chatMessages.length - visibleMessageCount);
+    const start = selectionStartIndex === null ? windowStart : Math.min(windowStart, selectionStartIndex);
+    return start === 0 ? chatMessages : chatMessages.slice(start);
+  }, [chatMessages, selectionStartIndex, visibleMessageCount]);
+
+  // Arrivals trim the oldest rendered message and scrolling follows new output;
+  // either would move or destroy text the reader is selecting, so both wait.
+  useEffect(() => {
+    const onSelectionChange = () => {
+      const selection = document.getSelection();
+      const content = messagesContentRef.current;
+      const anchor = selection?.anchorNode ?? null;
+      const selecting = Boolean(selection && !selection.isCollapsed && content && anchor && content.contains(anchor));
+      if (selecting === hasChatSelectionRef.current) return;
+      hasChatSelectionRef.current = selecting;
+
+      if (selecting) {
+        const start = Math.max(0, chatMessageCountRef.current - visibleMessageCountRef.current);
+        selectionStartIndexRef.current = start;
+        setSelectionStartIndex(start);
+        return;
+      }
+      const held = selectionStartIndexRef.current;
+      selectionStartIndexRef.current = null;
+      setSelectionStartIndex(null);
+      if (held !== null) {
+        // Keep what was on screen instead of trimming it the moment the selection clears.
+        setVisibleMessageCount((count) => Math.max(count, chatMessageCountRef.current - held));
+      }
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
+  }, []);
 
   // Scrolled up, new content lands below the viewport and the position holds on
   // its own; older messages arriving above are the scroll-restore path's job.
@@ -878,7 +937,9 @@ export function useChatSessionState({
     if (searchScrollActiveRef.current) return;
     if (isUserScrolledUp) return;
 
-    setTimeout(() => scrollToBottom(), 50);
+    setTimeout(() => {
+      if (!hasChatSelectionRef.current) scrollToBottom();
+    }, 50);
   }, [chatMessages.length, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
 
   useEffect(() => {
@@ -886,7 +947,11 @@ export function useChatSessionState({
     if (!container) return;
     let frame: number | null = null;
 
+    const target = scrollEventTarget(container);
     const onScroll = () => {
+      // A hidden chat collapses the page; that clamp is not the reader scrolling.
+      if (messagesContentRef.current?.offsetParent === null) return;
+      if (isPageScrollHost(container)) lastPageScrollTopRef.current = container.scrollTop;
       if (frame !== null) return;
       frame = requestAnimationFrame(() => {
         frame = null;
@@ -894,12 +959,32 @@ export function useChatSessionState({
       });
     };
 
-    container.addEventListener('scroll', onScroll, { passive: true });
+    target.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      container.removeEventListener('scroll', onScroll);
+      target.removeEventListener('scroll', onScroll);
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  }, [handleScroll]);
+  }, [handleScroll, pageScroll]);
+
+  // The page is the scroller only while this chat shows on a phone. Returning
+  // from another tab restores the reader's place, or rejoins the bottom when
+  // they were following; a keyboard resize keeps a follower at the bottom.
+  useLayoutEffect(() => {
+    if (!pageScroll) return;
+    const root = document.documentElement;
+
+    if (!pendingInitialScrollRef.current) {
+      const savedTop = lastPageScrollTopRef.current;
+      root.scrollTop = isUserScrolledUpRef.current && savedTop !== null ? savedTop : root.scrollHeight;
+    }
+
+    const onResize = () => {
+      if (isUserScrolledUpRef.current || hasChatSelectionRef.current || searchScrollActiveRef.current) return;
+      root.scrollTop = root.scrollHeight;
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [pageScroll]);
 
   const loadAllMessages = useCallback(async (): Promise<ChatMessage[] | null> => {
     if (!selectedSession || !selectedProject) return null;

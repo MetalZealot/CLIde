@@ -236,12 +236,19 @@ function AppContentInner() {
     return () => vv.removeEventListener('resize', update);
   }, []);
 
+  // On phones the chat scrolls as the page so text-selection handles get the
+  // browser's own edge scrolling; every other view keeps the fixed shell.
+  const chatPageScroll = isMobile
+    && (activeTab === 'chat' || !selectedProject)
+    && !isLoadingProjects
+    && location.pathname !== '/usage';
+
   return (
     <div
-      className="fixed inset-0 flex bg-background"
-      // The shell spans the true viewport, so its own bottom edge owns the
+      className={chatPageScroll ? 'relative flex min-h-dvh bg-background' : 'fixed inset-0 flex bg-background'}
+      // The fixed shell spans the true viewport, so its own bottom edge owns the
       // gesture-bar inset; the top inset belongs to .app-bar.
-      style={{
+      style={chatPageScroll ? undefined : {
         bottom: 'var(--keyboard-height, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
@@ -290,6 +297,7 @@ function AppContentInner() {
             onProjectsRefresh={refreshProjectsSilently}
             sessionActions={sessionActions}
             showUsage={location.pathname === '/usage'}
+            chatPageScroll={chatPageScroll}
           />
         </HeaderMenuProvider>
       </div>

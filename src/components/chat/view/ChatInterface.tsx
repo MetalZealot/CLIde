@@ -35,6 +35,7 @@ import ConversationBranchPickerModal from './subcomponents/ConversationBranchPic
 import AsyncQuestionPanel from './subcomponents/AsyncQuestionPanel';
 import QueuedAsyncAnswersCard from './subcomponents/QueuedAsyncAnswersCard';
 import ChatFindBar from './subcomponents/ChatFindBar';
+import ChatPageScrollbar from './subcomponents/ChatPageScrollbar';
 
 /** How long the Stop button stays armed after the first Escape/tap before it resets. */
 const STOP_ARM_TIMEOUT_MS = 4000;
@@ -78,6 +79,8 @@ function ChatInterface({
   sessionActions,
   isVisible,
   onOpenBrowser,
+  pageScroll = false,
+  hasBottomNav = false,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
@@ -202,6 +205,7 @@ function ChatInterface({
     statusCheckSentAtRef,
     getReplayProgress,
     sessionStore,
+    pageScroll,
   });
 
   // Brand-new conversation: the composer allocated a stable session id via
@@ -833,10 +837,11 @@ function ChatInterface({
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
-      <div className="flex h-full min-h-0 flex-col">
+      <div className={pageScroll ? 'flex flex-1 flex-col' : 'flex h-full min-h-0 flex-col'}>
         <ChatMessagesPane
           scrollContainerRef={scrollContainerRef}
           messagesContentRef={messagesContentRef}
+          pageScroll={pageScroll}
           isLoadingSessionMessages={isLoadingSessionMessages}
           isProcessing={isProcessing}
           chatMessages={chatMessages}
@@ -866,7 +871,18 @@ function ChatInterface({
           rewindEditTargetUuid={pendingRewind?.anchorMessageId ?? null}
         />
 
-        <div className="relative flex-shrink-0">
+        <div
+          data-chat-page-bottom
+          className={
+            pageScroll
+              ? `sticky z-20 bg-background ${
+                  hasBottomNav
+                    ? 'bottom-[calc(var(--app-footer-height)+env(safe-area-inset-bottom,0px))]'
+                    : 'bottom-0 pb-[env(safe-area-inset-bottom,0px)]'
+                }`
+              : 'relative flex-shrink-0'
+          }
+        >
           {showConnectionLostBanner && (
             <div className="pointer-events-none absolute -top-11 left-0 right-0 z-30 flex justify-center">
               <div
@@ -1068,6 +1084,7 @@ function ChatInterface({
             isTextareaExpanded={isTextareaExpanded}
           />
         </div>
+        {pageScroll && <ChatPageScrollbar contentRef={messagesContentRef} />}
       </div>
 
       <ConversationBranchPickerModal
