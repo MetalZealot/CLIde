@@ -222,6 +222,23 @@ compete while you type, and each new feature adds one more.
 
 ---
 
+## 15. Chat scrolls in its own box, so a selection can't be dragged past it
+
+The conversation scrolls inside a box between the header and the composer — the same shape
+claude.ai and chatgpt.com use in a phone browser. The browser saves its best selection
+behaviour, where a handle dragged to the edge scrolls the page, for whatever scrolls as the
+page itself. So in CLIde, as in theirs, a handle dragged into the header or composer lands
+somewhere unhelpful.
+
+**The rule:** keep the box. Links stay selectable, the header, composer and timestamps
+don't, and the chat's own scrolling never moves text while something is selected.
+
+**What breaks:** making the page scroll hides the browser toolbars, stretches the whole
+window and runs the scrollbar full height; scripting the selection loses the handles
+entirely. Both were built and tried on the phone ([ADR 0056](../decisions/0056-mobile-chat-keeps-its-own-scroll-box.md)).
+
+---
+
 ## When to stop and ask
 
 You do not need to understand a diff to catch these. If a proposed change would:
@@ -237,6 +254,7 @@ You do not need to understand a diff to catch these. If a proposed change would:
 - turn a compact control into a 44px control solely because it is used by touch (10);
 - react to a usage limit by reading its sentence, or wait on a reset's predicted time (13);
 - add another card to the strip above the composer for something not waiting on you (14);
+- make the chat page scroll, or add script that moves a text selection, to fix copying (15);
 
 — then say so. Being able to name the rule is enough; you don't have to be able to prove
 the violation. Asking is cheap, and every one of these is expensive to find later.

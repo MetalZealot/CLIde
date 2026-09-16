@@ -104,6 +104,7 @@ new work.
 - [ ] **Composer prompt stash and lossless draft handoff.** Project selection can overwrite pre-project text, while New Session can detach visible text from its saved project draft. Preserve both before adding a `+` popover for Attach, Stash, and Stashed prompts. [Plan](plans/composer-prompt-stash.md). **M — design agreement first**
 - [ ] **Background-session notifications** — in-app banner plus header roll-up dot, and stop the redundant OS notification while you're looking at the session. [Plan](plans/background-session-notifications.md). **M**
 - [ ] **Adopt upstream #1050's chat-scroll perf fixes** (complementary to `55d8c44`). Three causes still present here: `normalizedToChatMessages` mints new objects every ~100 ms flush, defeating `React.memo`; `Markdown`/`CodeBlock` are unmemoized; and the third from the issue. Render-side, distinct from the pagination item above. **M**
+- [ ] **Mobile text selection: the defects CLIde owns.** A mobile CSS rule makes links unselectable, so they drop out of copies; the header, composer and timestamps leak into copies; chat auto-scroll, pagination and the display cap move text under an active selection. Handles stopping at the chat's edge is accepted: [ADR 0056](decisions/0056-mobile-chat-keeps-its-own-scroll-box.md). **S/M**
 
 ---
 
