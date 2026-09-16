@@ -476,13 +476,17 @@ const addSessionEffortColumns = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'effort_updated_at', 'DATETIME');
 };
 
-/** Adds the edit-lease columns to a `scheduled_messages` table created before them. */
-const addScheduledMessageHoldColumns = (db: Database): void => {
+/** Adds the paused-edit column, and drops the lease columns a pre-release build added. */
+const migrateScheduledMessageEditColumns = (db: Database): void => {
   const columnNames = getTableInfo(db, 'scheduled_messages').map((column) => column.name);
 
-  addColumnToTableIfNotExists(db, 'scheduled_messages', columnNames, 'held_by', 'TEXT');
-  addColumnToTableIfNotExists(db, 'scheduled_messages', columnNames, 'held_until', 'INTEGER');
   addColumnToTableIfNotExists(db, 'scheduled_messages', columnNames, 'reset_missed', 'INTEGER NOT NULL DEFAULT 0');
+  for (const legacyColumn of ['held_by', 'held_until']) {
+    if (columnNames.includes(legacyColumn)) {
+      console.log(`Running migration: Dropping ${legacyColumn} column from scheduled_messages table`);
+      db.exec(`ALTER TABLE scheduled_messages DROP COLUMN ${legacyColumn}`);
+    }
+  }
 };
 
 type LegacyActiveModelChangeEntry = {
@@ -611,7 +615,7 @@ export const runMigrations = (db: Database) => {
       importLegacySessionModelPicks(db);
     }
     addSessionEffortColumns(db);
-    addScheduledMessageHoldColumns(db);
+    migrateScheduledMessageEditColumns(db);
     ensureProjectsForSessionPaths(db);
 
     db.exec(SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL);

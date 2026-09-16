@@ -93,6 +93,13 @@ interface UseChatComposerStateArgs {
    * button, Enter, voice, command — passes through it.
    */
   interceptSubmitRef?: { current: (() => boolean) | null };
+  /**
+   * Set while the composer holds a scheduled message being edited rather than
+   * a draft, so the stored draft is left as it was: that text lives in the
+   * scheduled message, and the draft is what the composer goes back to. A ref,
+   * because its owner is defined after this hook and effects must read it fresh.
+   */
+  editingStoredMessageRef?: { current: unknown };
 }
 
 interface MentionableFile {
@@ -410,6 +417,7 @@ export function useChatComposerState({
   supportsFork = false,
   supportsCompactCommand = false,
   interceptSubmitRef,
+  editingStoredMessageRef,
 }: UseChatComposerStateArgs) {
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
@@ -1492,7 +1500,7 @@ export function useChatComposerState({
   }, [selectedProjectId]);
 
   useEffect(() => {
-    if (!selectedProjectId) {
+    if (!selectedProjectId || editingStoredMessageRef?.current) {
       return;
     }
     if (input !== '') {
@@ -1500,7 +1508,7 @@ export function useChatComposerState({
     } else {
       safeLocalStorage.removeItem(`draft_input_${selectedProjectId}`);
     }
-  }, [input, selectedProjectId]);
+  }, [editingStoredMessageRef, input, selectedProjectId]);
 
   // Persist the queued draft under its session's key. Must be defined BEFORE
   // the swap effect below: on a session switch there is one commit where

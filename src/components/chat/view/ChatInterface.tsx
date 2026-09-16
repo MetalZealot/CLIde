@@ -12,6 +12,7 @@ import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { isImageAttachment, uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
+import { safeLocalStorage } from '../utils/chatStorage';
 import { authenticatedFetch } from '../../../utils/api';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
@@ -21,9 +22,7 @@ import {
   useScheduledMessages,
   type ScheduledMessage,
   type ScheduledMessageTrigger,
-  type ScheduledEditLoss,
 } from '../hooks/useScheduledMessages';
-import { formatClockTime } from '../../../utils/formatTime';
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
@@ -228,8 +227,9 @@ function ChatInterface({
     setCurrentSessionId,
   ]);
 
-  // Filled in below, once the scheduled-message edit it routes to exists.
+  // Filled in below, once the scheduled-message edit they refer to exists.
   const interceptSubmitRef = useRef<(() => boolean) | null>(null);
+  const scheduledEditRef = useRef<{ id: string } | null>(null);
 
   const {
     input,
@@ -327,6 +327,7 @@ function ChatInterface({
     supportsFork: getSupportsForkForProvider(provider),
     supportsCompactCommand: getSupportsCompactCommandForProvider(provider),
     interceptSubmitRef,
+    editingStoredMessageRef: scheduledEditRef,
   });
 
   const asyncQuestionSendOptions = useMemo(() => ({
@@ -476,8 +477,6 @@ function ChatInterface({
   // rebind on every keystroke.
   const inputSnapshotRef = useRef(input);
   inputSnapshotRef.current = input;
-  const attachedFilesSnapshotRef = useRef(attachedFiles);
-  attachedFilesSnapshotRef.current = attachedFiles;
 
   /**
    * A send was cancelled before the provider ever saw it, so its bubble was
@@ -498,51 +497,13 @@ function ChatInterface({
   }, [selectedSession?.id, currentSessionId, setInput]);
 
   const scheduledSessionId = currentSessionId || selectedSession?.id || null;
-  // What an open edit loaded into the composer, to tell a real change from none.
-  const scheduledEditOriginalRef = useRef<{ content: string; files: File[] } | null>(null);
-
-  // An edit that ended unsaved. A message that sent unchanged is already in the
-  // chat, so the composer copy goes quietly; anything else keeps the composer
-  // and says why in a muted note, since nothing failed.
-  const handleLostScheduledEdit = useCallback((loss: ScheduledEditLoss) => {
-    const original = scheduledEditOriginalRef.current;
-    scheduledEditOriginalRef.current = null;
-    const files = attachedFilesSnapshotRef.current;
-    const unchanged = original !== null
-      && inputSnapshotRef.current.trim() === original.content.trim()
-      && files.length === original.files.length
-      && files.every((file, index) => file === original.files[index]);
-
-    if (loss.reason === 'sent' && unchanged) {
-      setInput('');
-      setAttachedFiles([]);
-      return;
-    }
-
-    const content = loss.reason === 'sent'
-      ? t('input.schedule.editLostSent', {
-        defaultValue: 'Sent at {{time}}, before your edit was saved. Your changes are still here.',
-        time: loss.sentAt ? formatClockTime(loss.sentAt) : '',
-      })
-      : loss.reason === 'failed'
-        ? t('input.schedule.editLostFailed', {
-          defaultValue: 'That scheduled message failed to send, so your edit was not saved. Your text is still here.',
-        })
-        : loss.reason === 'taken'
-          ? t('input.schedule.editLostTaken', {
-            defaultValue: 'That scheduled message was opened on another device, so this edit was not saved. Your changes are still here.',
-          })
-          : t('input.schedule.editLostCancelled', {
-            defaultValue: 'That scheduled message was cancelled, so your edit was not saved. Your changes are still here.',
-          });
-    addMessage({ type: 'assistant', isSystemNotice: true, content, timestamp: new Date() });
-  }, [addMessage, setAttachedFiles, setInput, t]);
   const {
     pending: scheduledMessages,
     schedule: scheduleMessage,
     cancel: cancelScheduledMessage,
     editing: scheduledEdit,
-    holdForEdit: holdScheduledForEdit,
+    beginEdit: beginScheduledEdit,
+    resume: resumeScheduledMessage,
     saveEdit: saveScheduledEdit,
   } = useScheduledMessages(
     scheduledSessionId,
@@ -563,8 +524,8 @@ function ChatInterface({
       if (!sessionId) return;
       window.setTimeout(() => { void sessionStore.refreshFromServer(sessionId); }, SCHEDULED_SEND_RECONCILE_MS);
     }, [addMessage, scheduledSessionId, sessionStore]),
-    handleLostScheduledEdit,
   );
+  scheduledEditRef.current = scheduledEdit;
   const providerCapabilities = useProviderCapabilities();
   const canScheduleOnUsageReset = providerCapabilities?.[provider]?.supportsUsageResetAlerts === true;
   const autoContinueOffer = useAutoContinueOffer(
@@ -584,6 +545,16 @@ function ChatInterface({
     let next = 0;
     return files.map((file) => (restored.has(file) ? restored.get(file) : uploaded[next++]));
   }, []);
+
+  /**
+   * Returns the composer to the draft the edit set aside. Nothing was written
+   * to it while the edit was open, so the stored copy is still that draft.
+   */
+  const restoreDraftAfterEdit = useCallback(() => {
+    const projectId = selectedProject?.projectId;
+    setInput(projectId ? safeLocalStorage.getItem(`draft_input_${projectId}`) || '' : '');
+    setAttachedFiles([]);
+  }, [selectedProject?.projectId, setAttachedFiles, setInput]);
 
   // Stores whatever is in the composer and clears it, the way sending does.
   // Attachments are uploaded now rather than at firing time: the File objects
@@ -611,14 +582,22 @@ function ChatInterface({
         const options = { ...buildSendOptions(content), attachments } as Record<string, unknown>;
         const outcome = await saveScheduledEdit(content, options);
         if (outcome === 'saved') {
-          scheduledEditOriginalRef.current = null;
-          setInput('');
-          setAttachedFiles([]);
-        } else if (outcome === 'unreachable') {
+          restoreDraftAfterEdit();
+        } else if (outcome === 'gone') {
+          // Nothing failed on this device, so this is a note rather than an error.
+          addMessage({
+            type: 'assistant',
+            isSystemNotice: true,
+            content: t('input.schedule.editGone', {
+              defaultValue: 'That scheduled message was cancelled somewhere else, so this edit was not saved. Your text is still here.',
+            }),
+            timestamp: new Date(),
+          });
+        } else {
           addMessage({
             type: 'error',
             content: t('input.schedule.editSaveUnreachable', {
-              defaultValue: 'Could not reach the server to save this edit. It is still open; try again.',
+              defaultValue: 'Could not reach the server to save this edit. It is still paused; try again.',
             }),
             timestamp: new Date(),
           });
@@ -649,6 +628,7 @@ function ChatInterface({
       describeAttachments,
       ensureSessionId,
       input,
+      restoreDraftAfterEdit,
       saveScheduledEdit,
       scheduledEdit,
       scheduledSessionId,
@@ -659,8 +639,8 @@ function ChatInterface({
     ],
   );
 
-  // Every way of sending saves into an open edit instead: a send that went out
-  // now would leave the held original to send again when its hold ends.
+  // Every way of sending saves into an open edit instead, or the paused
+  // original would still be waiting after its replacement went out.
   interceptSubmitRef.current = scheduledEdit
     ? () => {
       void handleScheduleMessage(scheduledEdit.trigger, scheduledEdit.scheduledFor);
@@ -668,14 +648,14 @@ function ChatInterface({
     }
     : null;
 
-  // The server holds the message while it is rewritten, so it cannot fire
-  // mid-edit and still sends if this edit is abandoned. Its text and files come
+  // Editing pauses the message: it cannot send until this edit is saved or
+  // resumed, whatever happens to this device meanwhile. Its text and files come
   // back from the stored copy, which may have been written on another device.
   const handleEditScheduledMessage = useCallback(
     async (message: ScheduledMessage) => {
-      const held = await holdScheduledForEdit(message);
-      if (!held) return;
-      const files = await Promise.all((held.message.attachments ?? []).map(async (descriptor) => {
+      const paused = await beginScheduledEdit(message);
+      if (!paused) return;
+      const files = await Promise.all((paused.message.attachments ?? []).map(async (descriptor) => {
         const storedName = descriptor.path.split(/[\\/]/).pop();
         if (!storedName) return null;
         try {
@@ -692,14 +672,19 @@ function ChatInterface({
           return null;
         }
       }));
-      if (!held.open()) return;
-      const restoredFiles = files.filter((file): file is File => file !== null);
-      scheduledEditOriginalRef.current = { content: held.message.content, files: restoredFiles };
-      setInput(held.message.content);
-      setAttachedFiles(restoredFiles);
+      paused.open();
+      setInput(paused.message.content);
+      setAttachedFiles(files.filter((file): file is File => file !== null));
     },
-    [holdScheduledForEdit, setAttachedFiles, setInput],
+    [beginScheduledEdit, setAttachedFiles, setInput],
   );
+
+  /** Backing out of an edit: the message goes back on its schedule, unchanged. */
+  const handleCancelScheduleEdit = useCallback(() => {
+    if (!scheduledEdit) return;
+    void resumeScheduledMessage(scheduledEdit.id);
+    restoreDraftAfterEdit();
+  }, [restoreDraftAfterEdit, resumeScheduledMessage, scheduledEdit]);
 
   useChatRealtimeHandlers({
     subscribe,
@@ -1025,11 +1010,9 @@ function ChatInterface({
               : scheduledMessages}
             onCancelScheduledMessage={(id) => { void cancelScheduledMessage(id); }}
             onEditScheduledMessage={(message) => { void handleEditScheduledMessage(message); }}
+            onResumeScheduledMessage={(id) => { void resumeScheduledMessage(id); }}
             editingSchedule={scheduledEdit}
-            onCancelScheduleEdit={() => {
-              // "Send normally" turns the edit into an ordinary draft, so the held original goes.
-              if (scheduledEdit) void cancelScheduledMessage(scheduledEdit.id);
-            }}
+            onCancelScheduleEdit={handleCancelScheduleEdit}
             onScheduleMessage={(trigger, scheduledFor) => {
               void handleScheduleMessage(trigger, scheduledFor);
             }}

@@ -478,20 +478,22 @@ export function useProjectsState({
   // clears when the session opens.
   /** Sessions with a message still waiting to be sent; the server's view of it. */
   const [scheduledSessionIds, setScheduledSessionIds] = useState<ReadonlySet<string>>(() => new Set());
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await api.pendingScheduledSessions();
-        if (!response.ok) return;
-        const body = await response.json() as { sessionIds?: string[] };
-        if (!cancelled) setScheduledSessionIds(new Set(body.sessionIds ?? []));
-      } catch {
-        // The sidebar is still usable without the timer column.
-      }
-    })();
-    return () => { cancelled = true; };
+  /**
+   * Re-reads the server's set. Called on mount and on reconnect: a phone that
+   * was asleep missed the broadcasts, and would otherwise show a clock for a
+   * message that has already sent until the page was reloaded.
+   */
+  const refreshScheduledSessions = useCallback(async () => {
+    try {
+      const response = await api.pendingScheduledSessions();
+      if (!response.ok) return;
+      const body = await response.json() as { sessionIds?: string[] };
+      setScheduledSessionIds(new Set(body.sessionIds ?? []));
+    } catch {
+      // The sidebar is still usable without the timer column.
+    }
   }, []);
+  useEffect(() => { void refreshScheduledSessions(); }, [refreshScheduledSessions]);
 
   const [{ attentionSessionIds, unreadSessionIds }, dispatchSessionSignal] = useReducer(
     reduceSidebarSessionSignals,
@@ -939,6 +941,7 @@ export function useProjectsState({
       // disturb an open chat.
       if (event.kind === 'websocket_reconnected') {
         void refreshProjectsSilently();
+        void refreshScheduledSessions();
         return;
       }
 
@@ -1015,7 +1018,7 @@ export function useProjectsState({
     };
 
     return subscribe(handleEvent);
-  }, [markSessionAttention, markSessionUnread, navigate, refreshProjectsSilently, resolveSessionAttention, sessionId, subscribe]);
+  }, [markSessionAttention, markSessionUnread, navigate, refreshProjectsSilently, refreshScheduledSessions, resolveSessionAttention, sessionId, subscribe]);
 
   useEffect(() => {
     return () => {

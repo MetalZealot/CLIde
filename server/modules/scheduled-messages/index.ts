@@ -11,17 +11,13 @@ export {
 export {
   cancelScheduledMessage,
   createScheduledMessage,
-  explainLostScheduledMessageHold,
   fireUsageResetMessages,
   hasPendingUsageResetMessages,
-  holdScheduledMessage,
   listScheduledMessagesForSession,
+  pauseScheduledMessage,
   readScheduledMessageAttachments,
-  releaseScheduledMessageHold,
-  renewScheduledMessageHold,
-  saveScheduledMessageEdit,
+  resumeScheduledMessage,
   setScheduledMessageRuntime,
-  type ScheduledMessageHoldLoss,
   type ScheduledMessageRuntime,
 } from './services/scheduled-message-runtime.service.js';
 export { default as scheduledMessageRoutes } from './scheduled-messages.routes.js';

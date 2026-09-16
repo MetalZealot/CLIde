@@ -252,20 +252,12 @@ export const api = {
     authenticatedFetch(`/api/scheduled-messages/${id}`, {
       method: 'DELETE',
     }),
-  // An open edit holds the message so it cannot fire mid-rewrite; the token
-  // renews, releases, and saves that hold.
-  holdScheduledMessage: (id) =>
-    authenticatedFetch(`/api/scheduled-messages/${id}/hold`, { method: 'POST' }),
-  renewScheduledMessageHold: (id, token) =>
-    authenticatedFetch(`/api/scheduled-messages/${id}/hold`, {
-      method: 'PUT',
-      body: JSON.stringify({ token }),
-    }),
-  releaseScheduledMessageHold: (id, token) =>
-    authenticatedFetch(`/api/scheduled-messages/${id}/hold`, {
-      method: 'DELETE',
-      body: JSON.stringify({ token }),
-    }),
+  // Editing pauses the message server-side: a paused message never sends until
+  // it is saved or resumed, however long the editor is away.
+  pauseScheduledMessage: (id) =>
+    authenticatedFetch(`/api/scheduled-messages/${id}/pause`, { method: 'POST' }),
+  resumeScheduledMessage: (id) =>
+    authenticatedFetch(`/api/scheduled-messages/${id}/resume`, { method: 'POST' }),
   saveScheduledMessageEdit: (id, payload) =>
     authenticatedFetch(`/api/scheduled-messages/${id}`, {
       method: 'PATCH',

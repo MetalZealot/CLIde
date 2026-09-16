@@ -44,13 +44,14 @@ question stays above the composer — like a permission prompt, it waits on you.
   and attachments loaded into the composer, the existing draft set aside. While
   marked, it offers only *Cancel edit*; sending is the composer's job, so
   "send the original or the edit?" never arises.
-- **An unsent original is held** — kept, not sendable. The hold is a lease the
-  editing client renews while the edit is open and in view; when it lapses — app
-  closed or out of view, session switched, phone asleep — the message returns to
-  waiting. A hold that outlived its editor would never send and never say so.
-- **Releasing a held message catches up on what it missed.** A time that passed
-  already fires on release. A usage reset does not: the monitor's recovery is a
-  one-time transition, so release checks whether its reset passed and fires if so.
+- **Editing pauses the original** — it stays listed, and cannot send until the
+  edit is saved or discarded, however long the editor is away. Nothing times
+  out, so nothing depends on a phone keeping a page awake. A paused message says
+  so on its row and offers *Resume*, which is what keeps it from being forgotten.
+- **Resuming catches up on what the pause missed.** A time that passed already
+  fires on resume. A usage reset does not announce itself twice: the monitor's
+  recovery is a one-time transition, so it is recorded on the paused row and
+  fires when the message resumes.
 - **Cancelling puts everything back** — the set-aside draft, and the original still
   queued or scheduled. Starting a second edit cancels the first, releasing its
   hold; cancel then restores the draft from before either.
@@ -71,13 +72,14 @@ question stays above the composer — like a permission prompt, it waits on you.
       above the composer, queues stay per-browser, and a rewind leaves waiting
       messages to send. Upstream, read that day, handled neither of the last two —
       they are edge cases, not a convention being departed from
-- [x] 1. A scheduled message being edited is held under a lease, keeps its
-      attachments, and catches up on release. The dispatcher skips a held row;
-      the monitor's keep-alive, the sidebar clock, and the Auto-Continue offer all
-      count it as waiting. The newest editor takes the hold, and every send path
-      saves into it. Hold, save, attachments, and a lapsed hold sending with its
-      image verified on the branch server 2026-09-15; missed-reset catch-up by
-      tests only
+- [x] 1. Editing pauses a scheduled message: it cannot send until saved or
+      resumed, keeps its attachments, and catches up on a time or reset that
+      passed meanwhile. The monitor's keep-alive, the sidebar clock and the
+      Auto-Continue offer all count a paused row as waiting, and every send path
+      saves into an open edit. A lease that the editing client had to renew was
+      built first and removed: it depended on a phone keeping the page awake, and
+      sent messages out from under an open edit. Verified with real sends on the
+      branch server 2026-09-15
 - [ ] 2. Scheduled messages render as bubbles at the end of the thread with their
       tap menu, and both queues merge into one compact row above the composer; the
       scheduled, queued, and queued-answer cards are removed
@@ -92,8 +94,8 @@ question stays above the composer — like a permission prompt, it waits on you.
 - A queued message looks the same whether typed or answering a Codex question,
   and the list reads in send order
 - Cancelling any edit restores the earlier draft and leaves the original unchanged
-- Closing the app mid-edit leaves a scheduled message that still sends
-- A usage reset that lands during an edit still sends the message once it is released
+- Closing the app mid-edit leaves the message paused, not sent, until it is resumed
+- A usage reset that lands during an edit still sends the message once it resumes
 - Editing a scheduled message with an attachment keeps the attachment
 - Holding the send button shows the clock before the menu opens
 - A screen reader hears that an edit started and ended

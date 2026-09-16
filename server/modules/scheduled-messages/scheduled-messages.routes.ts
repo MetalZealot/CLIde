@@ -4,13 +4,10 @@ import { scheduledMessagesDb, sessionsDb, type ScheduledMessageRow } from '@/mod
 import {
   cancelScheduledMessage,
   createScheduledMessage,
-  explainLostScheduledMessageHold,
-  holdScheduledMessage,
   listScheduledMessagesForSession,
+  pauseScheduledMessage,
   readScheduledMessageAttachments,
-  releaseScheduledMessageHold,
-  renewScheduledMessageHold,
-  saveScheduledMessageEdit,
+  resumeScheduledMessage,
 } from '@/modules/scheduled-messages/services/scheduled-message-runtime.service.js';
 
 const router = express.Router();
@@ -31,19 +28,6 @@ function serialize(row: ScheduledMessageRow) {
     attachments: readScheduledMessageAttachments(row),
   };
 }
-
-/** A refused edit says why, so the editor can tell a sent message from a taken one. */
-const refuseLostHold = (res: express.Response, id: string) => {
-  res.status(409).json({
-    error: 'That message was sent, cancelled, or opened elsewhere.',
-    ...explainLostScheduledMessageHold(id),
-  });
-};
-
-const readToken = (body: unknown): string => {
-  const token = (body as { token?: unknown } | undefined)?.token;
-  return typeof token === 'string' ? token : '';
-};
 
 /** The sidebar's timer column: which sessions are waiting on something. */
 router.get('/pending-sessions', (_req, res) => {
@@ -98,45 +82,36 @@ router.post('/', (req, res) => {
   res.status(201).json({ message: serialize(row) });
 });
 
-/** Opens an edit: the message stays pending but cannot fire until the hold ends. */
-router.post('/:id/hold', (req, res) => {
-  const held = holdScheduledMessage(req.params.id);
-  if (!held) {
-    res.status(409).json({ error: 'That message is no longer pending.' });
+/** Opens an edit: the message stays listed but cannot send until resumed. */
+router.post('/:id/pause', (req, res) => {
+  const row = pauseScheduledMessage(req.params.id);
+  if (!row) {
+    res.status(409).json({ error: 'That message already sent or was cancelled.' });
     return;
   }
-  res.json({ token: held.token, heldUntil: held.row.held_until, message: serialize(held.row) });
+  res.json({ message: serialize(row) });
 });
 
-router.put('/:id/hold', (req, res) => {
-  if (!renewScheduledMessageHold(req.params.id, readToken(req.body))) {
-    refuseLostHold(res, req.params.id);
+/** Ends an edit without changes; the message waits again on its original trigger. */
+router.post('/:id/resume', (req, res) => {
+  const row = resumeScheduledMessage(req.params.id);
+  if (!row) {
+    res.status(409).json({ error: 'That message is not paused.' });
     return;
   }
-  res.json({ renewed: true });
+  res.json({ message: serialize(row) });
 });
 
-router.delete('/:id/hold', (req, res) => {
-  if (!releaseScheduledMessageHold(req.params.id, readToken(req.body))) {
-    refuseLostHold(res, req.params.id);
-    return;
-  }
-  res.json({ released: true });
-});
-
-/** Saves an open edit; the message keeps its trigger. */
+/** Saves an edit and puts the message back to waiting on its original trigger. */
 router.patch('/:id', (req, res) => {
   const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
   if (!content) {
     res.status(400).json({ error: 'content is required.' });
     return;
   }
-  const row = saveScheduledMessageEdit(req.params.id, readToken(req.body), {
-    content,
-    options: req.body?.options,
-  });
+  const row = resumeScheduledMessage(req.params.id, { content, options: req.body?.options });
   if (!row) {
-    refuseLostHold(res, req.params.id);
+    res.status(409).json({ error: 'That message is not paused.' });
     return;
   }
   res.json({ message: serialize(row) });

@@ -127,9 +127,11 @@ interface ChatComposerProps {
   autoContinueOffer: UsageLimitStop | null;
   onAcceptAutoContinue: () => void;
   onCancelScheduledMessage: (id: string) => void;
-  /** Pulls a scheduled message back into the composer and drops the stored row. */
+  /** Pauses a scheduled message and pulls it into the composer for editing. */
   onEditScheduledMessage: (message: ScheduledMessage) => void;
-  /** Set while a scheduled message is being rewritten; send re-arms it unchanged. */
+  /** Puts a paused message back on its schedule, unchanged. */
+  onResumeScheduledMessage: (id: string) => void;
+  /** Set while a scheduled message is being rewritten; sending saves it back. */
   editingSchedule: { trigger: ScheduledMessageTrigger; scheduledFor: string | null } | null;
   onCancelScheduleEdit: () => void;
   /** Stores the composer's current text to send later; clears the box on success. */
@@ -218,6 +220,7 @@ export default function ChatComposer({
   onAcceptAutoContinue,
   onCancelScheduledMessage,
   onEditScheduledMessage,
+  onResumeScheduledMessage,
   editingSchedule,
   onCancelScheduleEdit,
   onScheduleMessage,
@@ -399,10 +402,10 @@ export default function ChatComposer({
           <span className="flex-1 text-muted-foreground">
             {editingSchedule.trigger === 'usage-reset'
               ? t('input.schedule.editingUsageReset', {
-                defaultValue: 'Editing — still sends when usage resets',
+                defaultValue: 'Paused while you edit — saving sends it when usage resets',
               })
               : t('input.schedule.editingAt', {
-                defaultValue: 'Editing — still sends at {{time}}',
+                defaultValue: 'Paused while you edit — saving sends it at {{time}}',
                 time: editingSchedule.scheduledFor
                   ? formatClockTimeWithDay(editingSchedule.scheduledFor)
                   : '',
@@ -413,7 +416,7 @@ export default function ChatComposer({
             onClick={onCancelScheduleEdit}
             className="shrink-0 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
-            {t('input.schedule.sendNormally', { defaultValue: 'Send normally' })}
+            {t('input.schedule.discardEdit', { defaultValue: 'Discard edit' })}
           </button>
         </div>
       )}
@@ -428,6 +431,7 @@ export default function ChatComposer({
           message={message}
           onCancel={onCancelScheduledMessage}
           onEdit={onEditScheduledMessage}
+          onResume={onResumeScheduledMessage}
         />
       ))}
 

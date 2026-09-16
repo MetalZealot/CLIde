@@ -11,7 +11,7 @@ export type ScheduledMessage = {
   content: string;
   trigger: ScheduledMessageTrigger;
   scheduledFor: string | null;
-  state: 'pending' | 'sent' | 'cancelled' | 'failed';
+  state: 'pending' | 'paused' | 'sent' | 'cancelled' | 'failed';
   failureReason: string | null;
   createdAt: string;
   firedAt: string | null;
@@ -19,31 +19,15 @@ export type ScheduledMessage = {
   attachments?: { path: string; name?: string; mimeType?: string; size?: number }[];
 };
 
-/** An edit this client has open; the server holds the message while it lasts. */
+/** The message this client is editing. Paused server-side, so it cannot send meanwhile. */
 export type ScheduledMessageEdit = {
   id: string;
-  token: string;
   trigger: ScheduledMessageTrigger;
   scheduledFor: string | null;
 };
 
-/** Why an open edit ended without saving; `sentAt` is set when the message went out. */
-export type ScheduledEditLoss = {
-  reason: 'sent' | 'failed' | 'cancelled' | 'taken';
-  sentAt: Date | null;
-};
-
-const readEditLoss = async (response: Response): Promise<ScheduledEditLoss> => {
-  const body = await response.json().catch(() => null) as { reason?: string; firedAt?: string | null } | null;
-  const reason = body?.reason === 'sent' || body?.reason === 'failed' || body?.reason === 'taken'
-    ? body.reason
-    : 'cancelled';
-  const sentAt = body?.firedAt ? new Date(body.firedAt) : null;
-  return { reason, sentAt: sentAt && !Number.isNaN(sentAt.getTime()) ? sentAt : null };
-};
-
-/** A third of the server's 90s hold, so one lost renewal cannot end it. */
-const HOLD_RENEW_MS = 30_000;
+/** What a save came back as: the message was cancelled elsewhere, or the server never answered. */
+export type ScheduledEditOutcome = 'saved' | 'gone' | 'unreachable';
 
 type CreateInput = {
   content: string;
@@ -52,22 +36,21 @@ type CreateInput = {
   options?: Record<string, unknown>;
 };
 
-/**
- * The messages one session has waiting.
- *
- * Only pending rows are surfaced: a settled one has already become a real
- * message in the transcript, so showing it above the composer would say the
- * same thing twice.
- */
 type ScheduledSendEvent = {
   kind?: string;
   sessionId?: string;
-  scheduledMessageId?: string;
   content?: unknown;
   attachments?: unknown;
   timestamp?: unknown;
 };
 
+/**
+ * The messages one session has waiting, and the edit this client has open.
+ *
+ * Both unsent states are surfaced: 'pending' is waiting for its moment,
+ * 'paused' is open for editing and will not send until it is saved or
+ * resumed. Settled rows are not — they are already in the transcript.
+ */
 export function useScheduledMessages(
   sessionId: string | null,
   subscribe?: (listener: (event: ScheduledSendEvent) => void) => () => void,
@@ -77,10 +60,8 @@ export function useScheduledMessages(
    * about it — a phone that was asleep hears about it late.
    */
   onSent?: (content: string, sentAt: Date, attachments: NonNullable<ScheduledMessage['attachments']>) => void,
-  /** The open edit's message sent, was cancelled, or was opened elsewhere; the edit has ended. */
-  onEditLost?: (loss: ScheduledEditLoss) => void,
 ) {
-  const [pending, setPending] = useState<ScheduledMessage[]>([]);
+  const [unsent, setUnsent] = useState<ScheduledMessage[]>([]);
   const [editing, setEditing] = useState<ScheduledMessageEdit | null>(null);
   // Written wherever `editing` is, never synced from it on render: an edit is
   // tracked here before it opens, and a render in between must not drop it.
@@ -88,14 +69,16 @@ export function useScheduledMessages(
 
   const refresh = useCallback(async () => {
     if (!sessionId) {
-      setPending([]);
+      setUnsent([]);
       return;
     }
     try {
       const response = await api.scheduledMessages(sessionId);
       if (!response.ok) return;
       const body = await response.json() as { messages?: ScheduledMessage[] };
-      setPending((body.messages ?? []).filter((message) => message.state === 'pending'));
+      setUnsent((body.messages ?? []).filter(
+        (message) => message.state === 'pending' || message.state === 'paused',
+      ));
     } catch {
       // A composer that cannot reach the list still has to send messages.
     }
@@ -103,28 +86,22 @@ export function useScheduledMessages(
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // A message that fires stops being pending, and nothing else would tell the
+  // A message that fires stops being unsent, and nothing else would tell the
   // card above the composer to go.
   useEffect(() => {
     if (!subscribe || !sessionId) return;
     return subscribe((event) => {
       if (event.kind === 'scheduled_message_sent' && event.sessionId === sessionId) {
-        const parsedSentAt = typeof event.timestamp === 'string' ? new Date(event.timestamp) : new Date();
-        const sentAt = Number.isNaN(parsedSentAt.getTime()) ? new Date() : parsedSentAt;
+        const parsed = typeof event.timestamp === 'string' ? new Date(event.timestamp) : new Date();
         onSent?.(
           String(event.content ?? ''),
-          sentAt,
+          Number.isNaN(parsed.getTime()) ? new Date() : parsed,
           Array.isArray(event.attachments) ? event.attachments : [],
         );
-        if (event.scheduledMessageId && event.scheduledMessageId === editingRef.current?.id) {
-          editingRef.current = null;
-          setEditing(null);
-          onEditLost?.({ reason: 'sent', sentAt });
-        }
         void refresh();
       }
     });
-  }, [onEditLost, onSent, refresh, sessionId, subscribe]);
+  }, [onSent, refresh, sessionId, subscribe]);
 
   /**
    * `intoSessionId` covers the first message in a chat: the session is created
@@ -140,83 +117,38 @@ export function useScheduledMessages(
     return true;
   }, [refresh, sessionId]);
 
-  const releaseEdit = useCallback((edit: ScheduledMessageEdit | null) => {
-    if (!edit) return;
-    void api.releaseScheduledMessageHold(edit.id, edit.token).catch(() => {
-      // The hold lapses on its own; a failed release only delays the message.
-    });
-  }, []);
-
-  // Leaving the session or the page ends the edit. Anything that stops the
-  // renewals without reaching here — a sleeping phone, a closed tab — lets the
-  // hold lapse instead, and the message sends as if never opened.
+  // An open edit belongs to the session it was opened in; leaving drops it here
+  // while the message stays paused server-side, listed as paused until resumed.
   useEffect(() => () => {
-    releaseEdit(editingRef.current);
     editingRef.current = null;
     setEditing(null);
-  }, [releaseEdit, sessionId]);
-
-  useEffect(() => {
-    if (!editing) return;
-    // A refused renewal means the hold is gone for good — typically a phone that
-    // slept past it while the message sent — so the edit on screen is stale.
-    const renew = () => {
-      // Out of view counts as gone, whether or not the browser keeps timers running.
-      if (document.visibilityState === 'hidden') return;
-      void api.renewScheduledMessageHold(editing.id, editing.token).then(async (response) => {
-        if (response.status !== 409 || editingRef.current !== editing) return;
-        const loss = await readEditLoss(response);
-        if (editingRef.current !== editing) return;
-        editingRef.current = null;
-        setEditing(null);
-        onEditLost?.(loss);
-        void refresh();
-      }).catch(() => {});
-    };
-    const interval = window.setInterval(renew, HOLD_RENEW_MS);
-    // Timers stall while a phone sleeps; renew the moment it is looked at again.
-    const onVisible = () => { if (document.visibilityState === 'visible') renew(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [editing, onEditLost, refresh]);
+  }, [sessionId]);
 
   /**
-   * Holds a message for editing and returns its latest stored copy, or null
-   * when it already sent. Opening a second edit ends the first.
-   *
-   * The edit is not live until `open()`: the caller fetches what it needs
-   * first, then opens it in the same tick it fills the composer, so no send
-   * can land between the two. `open()` is false if another edit or a session
-   * change superseded this one meanwhile.
+   * Pauses a message and returns its stored copy, or null when it is already
+   * gone. The edit is not live until `open()`: the caller loads the composer
+   * first, then opens it in the same tick, so no send can land between the two.
    */
-  const holdForEdit = useCallback(async (
+  const beginEdit = useCallback(async (
     message: ScheduledMessage,
   ): Promise<{ message: ScheduledMessage; open: () => boolean } | null> => {
-    releaseEdit(editingRef.current);
-    editingRef.current = null;
-    setEditing(null);
     try {
-      const response = await api.holdScheduledMessage(message.id);
+      const response = await api.pauseScheduledMessage(message.id);
       if (!response.ok) {
         void refresh();
         return null;
       }
-      const body = await response.json() as { token: string; message: ScheduledMessage };
+      const body = await response.json() as { message: ScheduledMessage };
       const edit: ScheduledMessageEdit = {
         id: message.id,
-        token: body.token,
         trigger: body.message.trigger,
         scheduledFor: body.message.scheduledFor,
       };
-      // Tracked before it opens, so a session change meanwhile still releases it.
-      editingRef.current = edit;
+      void refresh();
       return {
         message: body.message,
         open: () => {
-          if (editingRef.current !== edit) return false;
+          editingRef.current = edit;
           setEditing(edit);
           return true;
         },
@@ -224,42 +156,48 @@ export function useScheduledMessages(
     } catch {
       return null;
     }
-  }, [refresh, releaseEdit]);
+  }, [refresh]);
+
+  /** Puts a paused message back on its schedule, with no changes. */
+  const resume = useCallback(async (id: string): Promise<void> => {
+    if (editingRef.current?.id === id) {
+      editingRef.current = null;
+      setEditing(null);
+    }
+    try {
+      await api.resumeScheduledMessage(id);
+    } finally {
+      await refresh();
+    }
+  }, [refresh]);
 
   /**
-   * Saves the open edit; the message keeps its trigger. A refusal ends the
-   * edit and reports why through `onEditLost`; an unreachable server leaves it
-   * open to retry, since the hold is still running.
+   * Saves the open edit and puts the message back on its schedule. 'gone'
+   * means it was cancelled elsewhere; 'unreachable' leaves the edit open,
+   * since the message is still paused and safe to retry.
    */
   const saveEdit = useCallback(async (
     content: string,
     options: Record<string, unknown>,
-  ): Promise<'saved' | 'lost' | 'unreachable'> => {
+  ): Promise<ScheduledEditOutcome> => {
     const edit = editingRef.current;
-    if (!edit) return 'lost';
+    if (!edit) return 'gone';
     let response: Response;
     try {
-      response = await api.saveScheduledMessageEdit(edit.id, { token: edit.token, content, options });
+      response = await api.saveScheduledMessageEdit(edit.id, { content, options });
     } catch {
+      return 'unreachable';
+    }
+    if (!response.ok && response.status !== 409) {
       return 'unreachable';
     }
     if (editingRef.current === edit) {
       editingRef.current = null;
       setEditing(null);
     }
-    if (response.ok) {
-      void refresh();
-      return 'saved';
-    }
-    if (response.status !== 409) {
-      editingRef.current = edit;
-      setEditing(edit);
-      return 'unreachable';
-    }
-    onEditLost?.(await readEditLoss(response));
     void refresh();
-    return 'lost';
-  }, [onEditLost, refresh]);
+    return response.ok ? 'saved' : 'gone';
+  }, [refresh]);
 
   const cancel = useCallback(async (id: string): Promise<void> => {
     if (editingRef.current?.id === id) {
@@ -268,7 +206,7 @@ export function useScheduledMessages(
     }
     // Drop it locally first: the row is already claimed server-side either way,
     // and leaving a cancelled card on screen reads as a failure.
-    setPending((current) => current.filter((message) => message.id !== id));
+    setUnsent((current) => current.filter((message) => message.id !== id));
     try {
       await api.cancelScheduledMessage(id);
     } finally {
@@ -276,5 +214,5 @@ export function useScheduledMessages(
     }
   }, [refresh]);
 
-  return { pending, schedule, cancel, refresh, editing, holdForEdit, saveEdit };
+  return { pending: unsent, schedule, cancel, refresh, editing, beginEdit, resume, saveEdit };
 }
