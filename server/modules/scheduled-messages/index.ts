@@ -21,4 +21,10 @@ export {
   setScheduledMessageRuntime,
   type ScheduledMessageRuntime,
 } from './services/scheduled-message-runtime.service.js';
+export {
+  DEFAULT_AUTO_CONTINUE_MESSAGE,
+  MAX_AUTO_CONTINUE_MESSAGE_LENGTH,
+  readAutoContinueMessage,
+  writeAutoContinueMessage,
+} from './services/auto-continue-message.service.js';
 export { default as scheduledMessageRoutes } from './scheduled-messages.routes.js';

@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useProviderSkills } from '../../skills/hooks/useProviderSkills';
 import type { SkillsTarget } from '../../skills/types';
 
+import { useAutoContinueMessage } from './useAutoContinueMessage';
 import { useSettingsNavigation } from './useSettingsNavigation';
 
 type Navigation = ReturnType<typeof useSettingsNavigation>;
@@ -278,5 +279,74 @@ describe('useProviderSkills target isolation', () => {
       await refreshPromise;
     });
     assert.deepEqual(currentHookValue().skills.map((skill) => skill.name), ['refreshed-workspace-skill']);
+  });
+});
+
+describe('useAutoContinueMessage saving', () => {
+  type HookValue = ReturnType<typeof useAutoContinueMessage>;
+
+  let container: HTMLDivElement;
+  let root: Root;
+  let hookValue: HookValue | null;
+  let requests: Array<{ url: string; method: string; body: unknown }>;
+  let stored: string;
+  let originalFetch: typeof globalThis.fetch;
+
+  const currentHookValue = () => {
+    assert.ok(hookValue);
+    return hookValue;
+  };
+
+  const Harness = () => {
+    hookValue = useAutoContinueMessage();
+    return null;
+  };
+
+  beforeEach(async () => {
+    hookValue = null;
+    requests = [];
+    stored = 'Continue';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      const body = init?.body ? JSON.parse(String(init.body)) as { message?: string } : null;
+      requests.push({ url: String(input), method, body });
+      // The server keeps the default when the field is cleared.
+      if (method === 'PUT') stored = body?.message?.trim() || 'Continue';
+      return Promise.resolve(new Response(JSON.stringify({ message: stored }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    }) as typeof globalThis.fetch;
+    await React.act(async () => root.render(<Harness />));
+  });
+
+  afterEach(async () => {
+    await React.act(async () => root.unmount());
+    container.remove();
+    globalThis.fetch = originalFetch;
+  });
+
+  test('blur writes only a changed message, and a cleared one shows the default that will send', async () => {
+    assert.equal(currentHookValue().message, 'Continue');
+    const writes = () => requests.filter((request) => request.method === 'PUT');
+
+    // Unchanged on blur: nothing to save.
+    await React.act(async () => currentHookValue().handleBlur());
+    assert.equal(writes().length, 0);
+
+    await React.act(async () => currentHookValue().setMessage('Pick up where you stopped'));
+    await React.act(async () => currentHookValue().handleBlur());
+    assert.equal(writes().length, 1);
+    assert.equal(writes()[0]?.body && (writes()[0]!.body as { message: string }).message, 'Pick up where you stopped');
+    assert.equal(currentHookValue().saveStatus, 'success');
+
+    await React.act(async () => currentHookValue().setMessage('   '));
+    await React.act(async () => currentHookValue().handleBlur());
+    assert.equal(writes().length, 2);
+    assert.equal(currentHookValue().message, 'Continue', 'the field shows what a send would now use');
   });
 });

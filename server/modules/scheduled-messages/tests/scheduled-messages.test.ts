@@ -12,6 +12,7 @@ import {
   type ScheduledMessageRow,
 } from '@/modules/database/index.js';
 import {
+  DEFAULT_AUTO_CONTINUE_MESSAGE,
   cancelScheduledMessage,
   createScheduledMessage,
   createScheduledMessageDispatcher,
@@ -20,10 +21,12 @@ import {
   hasPendingUsageResetMessages,
   pauseScheduledMessage,
   listScheduledMessagesForSession,
+  readAutoContinueMessage,
   readScheduledMessageAttachments,
   resumeScheduledMessage,
   sendScheduledMessageNow,
   setScheduledMessageRuntime,
+  writeAutoContinueMessage,
 } from '@/modules/scheduled-messages/index.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
@@ -623,6 +626,20 @@ describe('scheduled-messages', () => {
       } finally {
         setScheduledMessageRuntime(null);
       }
+    });
+  });
+
+  test('the Auto-Continue message defaults, persists, and falls back when cleared', async () => {
+    await withIsolatedDatabase(() => {
+      assert.equal(readAutoContinueMessage(), DEFAULT_AUTO_CONTINUE_MESSAGE);
+
+      assert.equal(writeAutoContinueMessage('  Carry on where you left off  '), 'Carry on where you left off');
+      assert.equal(readAutoContinueMessage(), 'Carry on where you left off');
+
+      // Emptying the field in Settings restores the default rather than
+      // scheduling a turn with nothing in it.
+      assert.equal(writeAutoContinueMessage('   '), DEFAULT_AUTO_CONTINUE_MESSAGE);
+      assert.equal(readAutoContinueMessage(), DEFAULT_AUTO_CONTINUE_MESSAGE);
     });
   });
 });

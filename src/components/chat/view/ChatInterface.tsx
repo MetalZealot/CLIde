@@ -26,6 +26,7 @@ import {
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
+import { fetchAutoContinueMessage } from '../../../utils/autoContinueMessage';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
@@ -45,7 +46,6 @@ const STOP_ARM_TIMEOUT_MS = 4000;
  * enough that a normal turn has already drawn itself from the live stream.
  */
 /** Phase 3 makes this editable; until then the offer sends one fixed word. */
-const AUTO_CONTINUE_MESSAGE = 'Continue';
 
 const SCHEDULED_SEND_RECONCILE_MS = 60_000;
 
@@ -647,7 +647,11 @@ function ChatInterface({
   // The offer lives on the limit notice, so accepting it drops the scheduled
   // bubble immediately beneath the row that was tapped.
   const handleAcceptAutoContinue = useCallback(() => {
-    void handleScheduleMessage('usage-reset', null, AUTO_CONTINUE_MESSAGE);
+    // Read at tap time, so a message edited in Settings on another device is
+    // the one that goes.
+    void fetchAutoContinueMessage().then(
+      (message) => handleScheduleMessage('usage-reset', null, message),
+    );
   }, [handleScheduleMessage]);
 
   // Every way of sending saves into an open edit instead, or the paused

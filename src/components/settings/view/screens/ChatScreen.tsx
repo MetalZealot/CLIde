@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { useUiPreferences } from '../../../../hooks/useUiPreferences';
+import { useAutoContinueMessage } from '../../hooks/useAutoContinueMessage';
 import { DEFAULT_THINKING_MESSAGES, useThinkingMessages } from '../../../../hooks/useThinkingMessages';
 import { isTouchPrimaryDevice } from '../../../../utils/pointer';
 import { getScreen } from '../../registry/registry';
@@ -10,6 +11,7 @@ import {
   SettingsNavRow,
   SettingsRow,
   SettingsScreen,
+  SettingsTextField,
   SettingsToggle,
 } from '../primitives';
 
@@ -27,6 +29,7 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
   const { t } = useTranslation('settings');
   const { preferences, setPreference } = useUiPreferences();
   const { customMessages, cycleMode } = useThinkingMessages();
+  const autoContinue = useAutoContinueMessage();
   const isTouchPrimary = isTouchPrimaryDevice();
   const activityMessagesScreen = getScreen('chat.activityMessages');
   const voiceBackendScreen = getScreen('chat.voice');
@@ -84,6 +87,29 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
               ariaLabel={t('quickSettings.sendByCtrlEnter')}
             />
           </SettingsRow>
+        )}
+      </SettingsGroup>
+
+      <SettingsGroup
+        title={t('chat.autoContinue.title')}
+        description={t('chat.autoContinue.description')}
+      >
+        <SettingsRow stacked label={t('chat.autoContinue.label')} description={t('chat.autoContinue.help')}>
+          <SettingsTextField
+            value={autoContinue.message}
+            onChange={autoContinue.setMessage}
+            onBlur={autoContinue.handleBlur}
+            disabled={autoContinue.isLoading}
+            placeholder={autoContinue.defaultMessage}
+            ariaLabel={t('chat.autoContinue.label')}
+          />
+        </SettingsRow>
+        {autoContinue.saveStatus && (
+          <div className="px-4 pb-4">
+            <span className={`text-xs ${autoContinue.saveStatus === 'success' ? 'text-primary' : 'text-destructive'}`}>
+              {autoContinue.saveStatus === 'success' ? t('chat.autoContinue.saved') : t('saveStatus.error')}
+            </span>
+          </div>
         )}
       </SettingsGroup>
 

@@ -240,6 +240,13 @@
       "cancel": "Cancel",
       "resetConfirm": "Reset activity messages",
       "empty": "Default activity messages are active until you add one."
+    },
+    "autoContinue": {
+      "title": "Auto-Continue",
+      "description": "Sent when you accept the offer on a usage-limit notice, once the limit resets.",
+      "label": "Message",
+      "help": "Leave empty to send “Continue”.",
+      "saved": "Saved"
     }
   },
   "quickSettings": {

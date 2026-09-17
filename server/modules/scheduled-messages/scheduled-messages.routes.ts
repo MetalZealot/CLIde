@@ -2,6 +2,12 @@ import express from 'express';
 
 import { scheduledMessagesDb, sessionsDb, type ScheduledMessageRow } from '@/modules/database/index.js';
 import {
+  DEFAULT_AUTO_CONTINUE_MESSAGE,
+  MAX_AUTO_CONTINUE_MESSAGE_LENGTH,
+  readAutoContinueMessage,
+  writeAutoContinueMessage,
+} from '@/modules/scheduled-messages/services/auto-continue-message.service.js';
+import {
   cancelScheduledMessage,
   createScheduledMessage,
   listScheduledMessagesForSession,
@@ -29,6 +35,20 @@ function serialize(row: ScheduledMessageRow) {
     attachments: readScheduledMessageAttachments(row),
   };
 }
+
+/** What an Auto-Continue send says; editable in Settings, defaulted here. */
+router.get('/auto-continue-message', (_req, res) => {
+  res.json({ message: readAutoContinueMessage(), defaultMessage: DEFAULT_AUTO_CONTINUE_MESSAGE });
+});
+
+router.put('/auto-continue-message', (req, res) => {
+  const message = typeof req.body?.message === 'string' ? req.body.message : '';
+  if (message.length > MAX_AUTO_CONTINUE_MESSAGE_LENGTH) {
+    res.status(400).json({ error: `message must be ${MAX_AUTO_CONTINUE_MESSAGE_LENGTH} characters or fewer.` });
+    return;
+  }
+  res.json({ message: writeAutoContinueMessage(message), defaultMessage: DEFAULT_AUTO_CONTINUE_MESSAGE });
+});
 
 /** The sidebar's timer column: which sessions are waiting on something. */
 router.get('/pending-sessions', (_req, res) => {

@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
-- Status: 2/6
-- Next: phase 3 — the continue message becomes editable in Settings, server-side
+- Status: 3/6
+- Next: phase 4 — a per-session standing Auto-Continue mode, with a firing cap
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -63,9 +63,13 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       session's transcript: offer drawn, tapped, real pending row, bubble, sidebar
       clock, and *Send now* produced a real turn. **A live limit stop remains
       unverified** — it cannot be triggered on demand
-- [ ] 3. The message Auto-Continue sends is editable in Settings › Chat.
-      Server-side in `appConfigDb`, not `useUiPreferences` localStorage, so
-      phase 4 can read it with no browser open
+- [x] 3. The message Auto-Continue sends is editable in Settings › Chat, stored
+      in `appConfigDb` so phase 4 can read it with no browser open. Saved on
+      blur; clearing the field stores nothing and the default comes back, so a
+      send is never empty. The offer reads it at tap time rather than caching
+      it, so an edit on another device is the one that goes. Verified on the
+      branch server 2026-09-17: edited, persisted across a reopen, tapped the
+      offer and the bubble carried the edited text, cleared it back to default
 - [ ] 4. A session can be set to Auto-Continue every time it hits the limit,
       from the composer's long-press menu. This is the standing mode the
       scheduled-messages plan deliberately did not build, and it needs three
