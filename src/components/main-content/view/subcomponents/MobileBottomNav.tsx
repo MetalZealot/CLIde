@@ -1,10 +1,11 @@
-import type { Dispatch, SetStateAction } from 'react';
-import { AlertCircle, Check, Clock, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { AlertCircle, Check, ChevronUp, Clock, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { AppTab } from '../../../../types/app';
+import { useLongPress } from '../../../../hooks/useLongPress';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 import PluginIcon from '../../../plugins/view/PluginIcon';
 import type { ActivityState } from '../../../sidebar/types/types';
@@ -38,6 +39,16 @@ const CHAT_STATUS_LABEL_KEYS = {
   scheduled: 'mobileNav.scheduled',
 } as const;
 
+const SLOT_TAB_STORAGE_KEY = 'mobile-nav-slot-tab';
+
+const readStoredSlotTab = (): string | null => {
+  try {
+    return localStorage.getItem(SLOT_TAB_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
 const barItemClassName = (isActive: boolean) =>
   cn(
     'flex h-full w-full touch-manipulation flex-col items-center justify-center gap-1 text-[11px] font-medium leading-none transition-colors disabled:opacity-40',
@@ -63,15 +74,32 @@ export default function MobileBottomNav({
     firstItemRef,
     isOpen: isMenuOpen,
     toggle: toggleMenu,
+    open: openMenu,
     close: closeMenu,
   } = useMenuButton();
+  const { handlers: slotLongPress } = useLongPress(openMenu, { disabled: !hasSelectedProject });
 
   const overflowTabs: TabDefinition[] = [
     ...(shouldShowBrowserTab ? [BROWSER_TAB] : []),
     ...(shouldShowTasksTab ? [TASKS_TAB] : []),
     ...getPluginTabs(plugins),
   ];
-  const isOverflowActive = !BASE_TABS.some((tab) => tab.id === activeTab);
+  const [storedSlotTab, setStoredSlotTab] = useState(readStoredSlotTab);
+  const activeOverflowTab = overflowTabs.find((tab) => tab.id === activeTab);
+  // An open overflow destination always owns the slot; otherwise the last pick, else the first entry.
+  const slotTab = activeOverflowTab ?? overflowTabs.find((tab) => tab.id === storedSlotTab) ?? overflowTabs[0];
+  const isSlotActive = slotTab !== undefined && slotTab.id === activeTab;
+
+  const activeOverflowTabId = activeOverflowTab?.id;
+  useEffect(() => {
+    if (!activeOverflowTabId || activeOverflowTabId === storedSlotTab) return;
+    setStoredSlotTab(activeOverflowTabId);
+    try {
+      localStorage.setItem(SLOT_TAB_STORAGE_KEY, activeOverflowTabId);
+    } catch {
+      // Storage unavailable; the pick lasts for this page load only.
+    }
+  }, [activeOverflowTabId, storedSlotTab]);
 
   const selectOverflowTab = (tab: AppTab) => {
     setActiveTab(tab);
@@ -130,19 +158,59 @@ export default function MobileBottomNav({
           );
         })}
         <li className="min-w-0 flex-1">
-          <button
-            ref={moreButtonRef}
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={isMenuOpen}
-            onClick={toggleMenu}
-            className={barItemClassName(isOverflowActive || isMenuOpen)}
-          >
-            <span className={indicatorClassName(isOverflowActive)}>
-              <Ellipsis className="h-5 w-5" strokeWidth={isOverflowActive ? 2.2 : 1.8} aria-hidden="true" />
-            </span>
-            <span className="max-w-full truncate px-1">{t('mobileNav.more')}</span>
-          </button>
+          {slotTab ? (
+            <button
+              ref={moreButtonRef}
+              type="button"
+              disabled={!hasSelectedProject}
+              title={!hasSelectedProject ? t('mobileNav.selectWorktreeFirst') : undefined}
+              aria-current={isSlotActive ? 'page' : undefined}
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
+              aria-description={t('mobileNav.swapHint')}
+              // Tapping the open destination again is the visible route to the list; long-press is a shortcut.
+              onClick={(event) => (isSlotActive ? toggleMenu(event) : setActiveTab(slotTab.id))}
+              {...slotLongPress}
+              className={barItemClassName(isSlotActive || isMenuOpen)}
+            >
+              <span className={indicatorClassName(isSlotActive)}>
+                {slotTab.kind === 'builtin' ? (
+                  <slotTab.icon className="h-5 w-5" strokeWidth={isSlotActive ? 2.2 : 1.8} aria-hidden="true" />
+                ) : (
+                  <PluginIcon
+                    pluginName={slotTab.pluginName}
+                    iconFile={slotTab.iconFile}
+                    className="flex h-5 w-5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
+                  />
+                )}
+              </span>
+              <span className="flex max-w-full items-center gap-0.5 px-1">
+                <span className="truncate">{slotTab.kind === 'builtin' ? t(slotTab.labelKey) : slotTab.label}</span>
+                <ChevronUp
+                  className={cn(
+                    'h-2.5 w-2.5 flex-shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none',
+                    isMenuOpen && 'rotate-180',
+                  )}
+                  strokeWidth={3}
+                  aria-hidden="true"
+                />
+              </span>
+            </button>
+          ) : (
+            <button
+              ref={moreButtonRef}
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={isMenuOpen}
+              onClick={toggleMenu}
+              className={barItemClassName(isMenuOpen)}
+            >
+              <span className={indicatorClassName(false)}>
+                <Ellipsis className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
+              </span>
+              <span className="max-w-full truncate px-1">{t('mobileNav.more')}</span>
+            </button>
+          )}
         </li>
       </ul>
 

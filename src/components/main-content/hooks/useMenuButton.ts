@@ -21,6 +21,11 @@ export function useMenuButton() {
     setIsOpen((open) => !open);
   }, []);
 
+  const open = useCallback(() => {
+    openedByKeyboardRef.current = false;
+    setIsOpen(true);
+  }, []);
+
   useEffect(() => {
     if (!isOpen || !openedByKeyboardRef.current) {
       return undefined;
@@ -29,5 +34,5 @@ export function useMenuButton() {
     return () => window.cancelAnimationFrame(frame);
   }, [isOpen]);
 
-  return { buttonRef, firstItemRef, isOpen, toggle, close };
+  return { buttonRef, firstItemRef, isOpen, toggle, open, close };
 }
