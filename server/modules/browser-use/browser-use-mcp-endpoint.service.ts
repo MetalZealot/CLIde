@@ -587,6 +587,7 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
           note: 'Open pages were replaced. Navigate again.',
         }));
       }, (observation) => {
+        runtime.touch(browserSessionId);
         activeToolCount = Math.max(0, activeToolCount - 1);
         recordActivity(browserSessionId, activeToolCount);
         recordAction(browserSessionId, observation);
@@ -594,6 +595,9 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
           void runtime.releaseContext(browserSessionId, 'closed');
         }
       }, () => {
+        // Only tool calls count as use: a provider's per-turn reconnect and
+        // tools/list must not keep an unused browser alive.
+        runtime.touch(browserSessionId);
         activeToolCount += 1;
         recordActivity(browserSessionId, activeToolCount);
       }, Object.keys(fileSecrets).sort());
@@ -622,7 +626,6 @@ export function createBrowserMcpEndpoint(options: BrowserMcpEndpointOptions = {}
           return;
         }
         entry.lastUsedAt = Date.now();
-        runtime.touch(entry.browserSessionId);
         await entry.transport.handleRequest(req, res, req.body);
         return;
       }

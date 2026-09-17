@@ -12,7 +12,6 @@ import { createBrowserMcpEndpoint } from '@/modules/browser-use/browser-use-mcp-
 import {
   browserUseService,
   normalizeOriginList,
-  pruneStoppedSessions,
   publicBrowserSession,
   type BrowserUseSession,
 } from '@/modules/browser-use/browser-use.service.js';
@@ -181,25 +180,6 @@ describe('browser-use monitor projections', () => {
       ok: true,
     }));
   });
-
-  test('stopped rows are capped at the newest few, and ready rows are never pruned', () => {
-    const entries = new Map<string, BrowserUseSession>();
-    for (let index = 0; index < 6; index += 1) {
-      entries.set(`stopped-${index}`, {
-        ...makeMonitorSession(),
-        id: `stopped-${index}`,
-        status: 'stopped',
-        updatedAt: `2026-07-29T12:0${index}:00.000Z`,
-      });
-    }
-    entries.set('live', { ...makeMonitorSession(), id: 'live', status: 'ready' });
-
-    pruneStoppedSessions(entries, 3);
-
-    assert.deepEqual([...entries.keys()].sort(), [
-      'live', 'stopped-3', 'stopped-4', 'stopped-5',
-    ]);
-  });
 });
 
 describe('browser-use-runtime.service', () => {
@@ -220,6 +200,25 @@ describe('browser-use-runtime.service', () => {
     assert.equal(calls.contextCloses, 2);
     assert.equal(calls.browserCloses, 1);
     assert.equal(runtime.listLeases().length, 0);
+  });
+
+  test('lowering the session ceiling closes the least recently used extras', async () => {
+    const { runtime, advance, setPolicy } = makeRuntime({ maxSessions: 3 });
+    const oldest = await runtime.acquireContext();
+    advance(10);
+    const middle = await runtime.acquireContext();
+    advance(10);
+    const newest = await runtime.acquireContext();
+    advance(10);
+    runtime.touch(oldest.id);
+
+    setPolicy({ defaultDevice: 'desktop', maxSessions: 1, sessionTtlMs: 60_000 });
+    await runtime.applySessionPolicy();
+
+    assert.deepEqual(runtime.listLeases().map((lease) => lease.id), [oldest.id]);
+    assert.equal(runtime.getLease(middle.id), null);
+    assert.equal(runtime.getLease(newest.id), null);
+    await runtime.closeAll();
   });
 
   test('device presets emulate touch, pixel density and orientation', async () => {
@@ -402,6 +401,7 @@ describe('browser-use-mcp endpoint', () => {
   type EndpointHarness = {
     url: string;
     runtime: ReturnType<typeof makeRuntime>['runtime'];
+    advance: (ms: number) => void;
     endpoint: ReturnType<typeof createBrowserMcpEndpoint>;
     cancelled: Promise<string>;
     outputRoot: string;
@@ -421,7 +421,7 @@ describe('browser-use-mcp endpoint', () => {
     secretsFile?: string;
     onFileSecrets?: (secrets: Record<string, string>) => void;
   } = {}): Promise<EndpointHarness> {
-    const { runtime } = makeRuntime({ maxSessions: overrides.maxSessions ?? 3 });
+    const { runtime, advance } = makeRuntime({ maxSessions: overrides.maxSessions ?? 3 });
     let signalCancelled: (name: string) => void = () => undefined;
     const cancelled = new Promise<string>((resolve) => {
       signalCancelled = resolve;
@@ -526,6 +526,7 @@ describe('browser-use-mcp endpoint', () => {
     return {
       url: `http://127.0.0.1:${port}/mcp`,
       runtime,
+      advance,
       endpoint,
       cancelled,
       outputRoot,
@@ -917,6 +918,27 @@ describe('browser-use-mcp endpoint', () => {
     } finally {
       await harness.close();
       await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('only tool calls keep a browser alive; protocol traffic does not', async () => {
+    const harness = await startEndpoint();
+    try {
+      const { sessionId } = await initialize(harness);
+      await readRpc(await callTool(harness, sessionId, 2, 'browser_navigate'));
+      const usedAt = harness.runtime.getLease(sessionId)?.lastUsedAt;
+      harness.advance(5_000);
+      await readRpc(await fetch(harness.url, {
+        method: 'POST',
+        headers: { ...HEADERS, 'mcp-session-id': sessionId },
+        body: rpc(3, 'tools/list'),
+      }));
+      assert.equal(harness.runtime.getLease(sessionId)?.lastUsedAt, usedAt);
+
+      await readRpc(await callTool(harness, sessionId, 4, 'browser_navigate'));
+      assert.equal(harness.runtime.getLease(sessionId)?.lastUsedAt, usedAt! + 5_000);
+    } finally {
+      await harness.close();
     }
   });
 

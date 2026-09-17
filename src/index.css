@@ -712,9 +712,10 @@ html.chat-page-scroll body {
   overflow-anchor: none;
 }
 
-/* PageScrollLock: an open full-screen overlay stops the chat scrolling behind it. */
-html.chat-page-scroll.page-scroll-locked,
-html.chat-page-scroll.page-scroll-locked body {
+/* PageScrollLock: an open full-screen overlay stops the chat scrolling behind it.
+   Root only: a clipped body becomes the bars' sticky scroller and drops them to
+   their in-flow spots, off-screen. */
+html.chat-page-scroll.page-scroll-locked {
   overflow: hidden;
 }
 
