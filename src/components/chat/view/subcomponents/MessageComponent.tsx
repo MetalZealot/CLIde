@@ -28,7 +28,7 @@ import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
-import { formatClockTime } from '../../../../utils/formatTime';
+import { formatMessageTimestamp } from '../../../../utils/formatTime';
 
 type DiffLine = {
   type: string;
@@ -116,7 +116,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
     !message.isCompactSummary;
 
 
-  const formattedTime = useMemo(() => formatClockTime(message.timestamp), [message.timestamp]);
+  const formattedTime = useMemo(() => formatMessageTimestamp(message.timestamp), [message.timestamp]);
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
   const isFindableConversationMessage = isChatFindConversationMessage(message);
   const usesMobileReadingInset =

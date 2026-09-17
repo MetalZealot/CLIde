@@ -41,6 +41,24 @@ export function formatDateTime(value: TimeInput): string {
   return `${day}, ${formatClockTime(date)}`;
 }
 
+/**
+ * A past message: "9:05 PM" today, "Yesterday, 9:05 PM", "Tue, 9:05 PM" within
+ * the week, then the full date. Days are calendar days, not 24-hour spans.
+ */
+export function formatMessageTimestamp(value: TimeInput, now: Date = new Date()): string {
+  const date = toDate(value);
+  if (!date) return '';
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  // Rounded so a DST shift's 23- or 25-hour day still counts as one.
+  const daysAgo = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+  if (daysAgo === 0) return formatClockTime(date);
+  if (daysAgo === 1) return `Yesterday, ${formatClockTime(date)}`;
+  if (daysAgo > 1 && daysAgo < 7) {
+    return `${date.toLocaleDateString(CLOCK_LOCALE, { weekday: 'short' })}, ${formatClockTime(date)}`;
+  }
+  return formatDateTime(date);
+}
+
 /** Today needs no date; anything further out is ambiguous without one. */
 export function formatClockTimeWithDay(value: TimeInput): string {
   const date = toDate(value);

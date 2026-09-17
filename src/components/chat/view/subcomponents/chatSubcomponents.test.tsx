@@ -22,6 +22,7 @@ import { UserInputRequestPanel } from '../../tools/components/InteractiveRendere
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
+import { formatMessageTimestamp } from '../../../../utils/formatTime';
 import {
   DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
   DEFAULT_THINKING_MESSAGE_ORDER,
@@ -74,9 +75,7 @@ describe('chatSubcomponents', () => {
       { ...earlier, type: 'assistant', isThinking: true },
       { ...earlier, type: 'assistant', isToolUse: true, toolName: 'Bash' },
     ];
-    const expectedTime = new Date(message.timestamp).toLocaleTimeString('en-US', {
-      hour: 'numeric', minute: '2-digit', hour12: true,
-    });
+    const expectedTime = formatMessageTimestamp(message.timestamp);
     for (const provider of ['claude', 'codex', 'cursor', 'opencode']) {
       for (const prevMessage of predecessors) {
         const container = document.createElement('div');
@@ -104,6 +103,18 @@ describe('chatSubcomponents', () => {
       <MessageComponent message={{ ...message, isThinking: true }} prevMessage={null}
         provider="codex" createDiff={() => []} showThinking={false} />,
     ), '', 'hidden thinking must remain hidden');
+  });
+
+  test('message timestamps add a day label only once the calendar day has changed', () => {
+    const now = new Date(2026, 8, 17, 8, 0);
+    const at = (month: number, day: number, hour: number, year = 2026) => new Date(year, month, day, hour, 5);
+    assert.equal(formatMessageTimestamp(at(8, 17, 7), now), '7:05 AM');
+    assert.equal(formatMessageTimestamp(at(8, 16, 23), now), 'Yesterday, 11:05 PM', 'calendar day, not 24 hours');
+    assert.equal(formatMessageTimestamp(at(8, 15, 9), now), 'Tue, 9:05 AM');
+    assert.equal(formatMessageTimestamp(at(8, 11, 9), now), 'Fri, 9:05 AM');
+    assert.equal(formatMessageTimestamp(at(8, 10, 9), now), 'Sep 10, 9:05 AM', 'a week back needs the date');
+    assert.equal(formatMessageTimestamp(at(11, 31, 21, 2025), now), 'Dec 31, 2025, 9:05 PM');
+    assert.equal(formatMessageTimestamp('not a date', now), '');
   });
 
   describe('activity messages', () => {
