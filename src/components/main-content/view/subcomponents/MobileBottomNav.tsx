@@ -183,10 +183,17 @@ export default function MobileBottomNav({
                     className="flex h-5 w-5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
                   />
                 )}
-                <ChevronUp className="absolute right-0.5 top-0 h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
               </span>
-              <span className="max-w-full truncate px-1">
-                {slotTab.kind === 'builtin' ? t(slotTab.labelKey) : slotTab.label}
+              <span className="flex max-w-full items-center gap-0.5 px-1">
+                <span className="truncate">{slotTab.kind === 'builtin' ? t(slotTab.labelKey) : slotTab.label}</span>
+                <ChevronUp
+                  className={cn(
+                    'h-2.5 w-2.5 flex-shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none',
+                    isMenuOpen && 'rotate-180',
+                  )}
+                  strokeWidth={3}
+                  aria-hidden="true"
+                />
               </span>
             </button>
           ) : (
