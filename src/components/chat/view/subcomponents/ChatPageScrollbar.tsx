@@ -66,7 +66,7 @@ export default function ChatPageScrollbar({ contentRef }: { contentRef: RefObjec
       ref={thumbRef}
       aria-hidden="true"
       data-visible="false"
-      className="pointer-events-none fixed right-0.5 top-0 select-none z-40 w-1 rounded-full bg-foreground/40 opacity-0 transition-opacity duration-300 data-[visible=true]:opacity-100 data-[visible=true]:duration-0"
+      className="pointer-events-none fixed right-0.5 top-0 z-40 w-1 select-none rounded-full bg-foreground/40 opacity-0 transition-opacity duration-300 data-[visible=true]:opacity-100 data-[visible=true]:duration-0"
     />
   );
 }

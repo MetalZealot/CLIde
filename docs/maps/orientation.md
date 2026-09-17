@@ -234,7 +234,9 @@ chat lets touches through while text is selected.
 
 **What breaks:** a new full-screen screen without the lock lets your drags scroll the chat
 underneath it, which is what the sidebar did. A new bar over the chat that still catches
-touches makes selection handles slide under it or jump to the top again. Putting the phone chat back in a box brings
+touches makes selection handles slide under it or jump to the top again, and anything
+floating over the chat that can be selected, even an empty one like the scrollbar, pulls
+the selection into the composer. Putting the phone chat back in a box brings
 back handles that jump to the top of the conversation
 ([ADR 0056](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md)).
 
