@@ -1,7 +1,7 @@
 # Phone chat text selection that behaves like a native page
 
 - Status: complete
-- Next: Merge `feat/mobile-chat-page-scroll` into main when Grayson says so.
+- Next: none — merged to `main` 2026-09-16 (`5441309e`).
 - Context: [ADR 0056](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md); orientation section 15.
 
 On a phone the conversation used to scroll inside its own box, and Android's selection
