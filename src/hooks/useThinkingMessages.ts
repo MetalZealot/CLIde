@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { SyncedPreferences } from '../../shared/synced-preferences';
+
 export const THINKING_MESSAGES_STORAGE_KEY = 'thinkingMessages';
 export const THINKING_MESSAGE_CYCLE_STORAGE_KEY = 'thinkingMessageCycle';
 export const THINKING_MESSAGE_ORDER_STORAGE_KEY = 'thinkingMessageOrder';
@@ -48,6 +50,9 @@ export const shuffleThinkingMessageIndices = (
 };
 
 const SYNC_EVENT = 'thinking-messages:sync';
+// Marks an update that arrived from the server, so the hook instance that would
+// otherwise treat its own echo as a local edit can ignore it.
+const REMOTE_SOURCE_ID = 'thinking-messages-remote';
 
 type SyncEventDetail =
   | { sourceId: string; kind: 'messages'; value: string[] | null }
@@ -118,6 +123,105 @@ const readInitialMessageOrder = (): ThinkingMessageOrder => {
   } catch {
     return DEFAULT_THINKING_MESSAGE_ORDER;
   }
+};
+
+/**
+ * The synced preferences this browser has actually stored, omitting any key the
+ * user has never set — an untouched browser must not push defaults over the
+ * values another device saved.
+ */
+export const readStoredThinkingPreferences = (): SyncedPreferences => {
+  if (typeof window === 'undefined') return {};
+
+  const preferences: SyncedPreferences = {};
+  try {
+    if (localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY) !== null) {
+      preferences[THINKING_MESSAGES_STORAGE_KEY] = readInitialMessages() ?? [];
+    }
+    if (localStorage.getItem(THINKING_MESSAGE_CYCLE_STORAGE_KEY) !== null) {
+      preferences[THINKING_MESSAGE_CYCLE_STORAGE_KEY] = readInitialCycleMode();
+    }
+    if (localStorage.getItem(THINKING_MESSAGE_ORDER_STORAGE_KEY) !== null) {
+      preferences[THINKING_MESSAGE_ORDER_STORAGE_KEY] = readInitialMessageOrder();
+    }
+  } catch {
+    // Private mode has nothing stored to report.
+  }
+  return preferences;
+};
+
+/** Writes server-provided preferences to storage and to every live hook instance. */
+export const applyRemoteThinkingPreferences = (preferences: SyncedPreferences): void => {
+  if (typeof window === 'undefined') return;
+
+  const write = (key: string, value: string | null) => {
+    try {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    } catch {
+      // The dispatched event still updates mounted hooks.
+    }
+  };
+  const announce = (detail: SyncEventDetail) => {
+    window.dispatchEvent(new CustomEvent<SyncEventDetail>(SYNC_EVENT, { detail }));
+  };
+
+  if (THINKING_MESSAGES_STORAGE_KEY in preferences) {
+    const messages = parseThinkingMessages(preferences[THINKING_MESSAGES_STORAGE_KEY]);
+    write(THINKING_MESSAGES_STORAGE_KEY, messages === null ? null : JSON.stringify(messages));
+    announce({ sourceId: REMOTE_SOURCE_ID, kind: 'messages', value: messages });
+  }
+
+  if (THINKING_MESSAGE_CYCLE_STORAGE_KEY in preferences) {
+    const cycle = parseThinkingMessageCycleMode(preferences[THINKING_MESSAGE_CYCLE_STORAGE_KEY])
+      ?? DEFAULT_THINKING_MESSAGE_CYCLE_MODE;
+    write(
+      THINKING_MESSAGE_CYCLE_STORAGE_KEY,
+      cycle === DEFAULT_THINKING_MESSAGE_CYCLE_MODE ? null : cycle,
+    );
+    announce({ sourceId: REMOTE_SOURCE_ID, kind: 'cycle', value: cycle });
+  }
+
+  if (THINKING_MESSAGE_ORDER_STORAGE_KEY in preferences) {
+    const order = parseThinkingMessageOrder(preferences[THINKING_MESSAGE_ORDER_STORAGE_KEY])
+      ?? DEFAULT_THINKING_MESSAGE_ORDER;
+    write(
+      THINKING_MESSAGE_ORDER_STORAGE_KEY,
+      order === DEFAULT_THINKING_MESSAGE_ORDER ? null : order,
+    );
+    announce({ sourceId: REMOTE_SOURCE_ID, kind: 'order', value: order });
+  }
+};
+
+/**
+ * Reports local preference changes as server-shaped entries. A value back at its
+ * default is reported as null, which deletes it server-side, so resetting on one
+ * device does not leave a stored value for the next one to inherit.
+ */
+export const subscribeToThinkingPreferenceChanges = (
+  listener: (changes: SyncedPreferences) => void,
+): (() => void) => {
+  const handleSyncEvent = (event: Event) => {
+    const detail = (event as CustomEvent<SyncEventDetail>).detail;
+    if (!detail || detail.sourceId === REMOTE_SOURCE_ID) return;
+
+    if (detail.kind === 'messages') {
+      listener({ [THINKING_MESSAGES_STORAGE_KEY]: detail.value });
+    } else if (detail.kind === 'cycle') {
+      listener({
+        [THINKING_MESSAGE_CYCLE_STORAGE_KEY]:
+          detail.value === DEFAULT_THINKING_MESSAGE_CYCLE_MODE ? null : detail.value,
+      });
+    } else {
+      listener({
+        [THINKING_MESSAGE_ORDER_STORAGE_KEY]:
+          detail.value === DEFAULT_THINKING_MESSAGE_ORDER ? null : detail.value,
+      });
+    }
+  };
+
+  window.addEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+  return () => window.removeEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
 };
 
 export function useThinkingMessages() {

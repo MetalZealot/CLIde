@@ -3,6 +3,7 @@ import {
   credentialsDb,
   notificationPreferencesDb,
   pushSubscriptionsDb,
+  userPreferencesDb,
 } from '@/modules/database/index.js';
 import {
   createNotificationEvent,
@@ -39,6 +40,10 @@ const settingsService = createSettingsService({
     }),
     notifyUser: (userId, event) => notifyUserIfEnabled({ userId, event }),
     preferencesUpdated: reconcileProviderUsageResetMonitor,
+  },
+  preferences: {
+    getPreferences: (userId) => userPreferencesDb.getPreferences(userId),
+    setPreferences: (userId, entries) => userPreferencesDb.setPreferences(userId, entries),
   },
   pushSubscriptions: {
     save: (userId, endpoint, p256dh, auth) =>

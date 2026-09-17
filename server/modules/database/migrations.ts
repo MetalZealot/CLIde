@@ -13,6 +13,7 @@ import {
   SESSION_PROVIDER_ALIASES_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
+  USER_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
 } from '@/modules/database/schema.js';
 
@@ -609,6 +610,7 @@ export const runMigrations = (db: Database) => {
 
     db.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
     db.exec(USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL);
+    db.exec(USER_PREFERENCES_TABLE_SCHEMA_SQL);
     db.exec(VAPID_KEYS_TABLE_SCHEMA_SQL);
     db.exec(PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id)');

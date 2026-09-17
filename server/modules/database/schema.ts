@@ -205,6 +205,17 @@ CREATE TABLE IF NOT EXISTS scan_state (
 );
 `;
 
+export const USER_PREFERENCES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
 export const APP_CONFIG_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS app_config (
     key TEXT PRIMARY KEY,
@@ -234,6 +245,8 @@ CREATE INDEX IF NOT EXISTS idx_user_credentials_active ON user_credentials(is_ac
 
 ${USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_user_notification_preferences_user_id ON user_notification_preferences(user_id);
+
+${USER_PREFERENCES_TABLE_SCHEMA_SQL}
 
 ${VAPID_KEYS_TABLE_SCHEMA_SQL}
 

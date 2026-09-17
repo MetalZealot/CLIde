@@ -42,6 +42,10 @@ export function createSettingsRouter(
   router.put('/notification-preferences', respond((req) => service.updateNotificationPreferences(
     userId(req), req.body ?? {},
   )));
+  router.get('/preferences', respond((req) => service.getSyncedPreferences(userId(req))));
+  router.put('/preferences', respond((req) => service.updateSyncedPreferences(
+    userId(req), req.body?.preferences ?? {},
+  )));
   router.get('/push/vapid-public-key', respond(() => service.getVapidPublicKey()));
   router.post('/push/subscribe', respond((req) => service.subscribeToPush(userId(req), req.body ?? {})));
   router.post('/push/unsubscribe', respond((req) => service.unsubscribeFromPush(

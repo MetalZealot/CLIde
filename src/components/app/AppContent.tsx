@@ -12,6 +12,7 @@ import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { useAsyncAnswerQueueAutoSend } from '../../hooks/useAsyncAnswerQueueAutoSend';
+import { useSyncedPreferences } from '../../hooks/useSyncedPreferences';
 import { api } from '../../utils/api';
 
 import MobileSidebarOverlay from './MobileSidebarOverlay';
@@ -56,6 +57,8 @@ function AppContentInner() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { isMobile, isPWA } = useDeviceSettings();
   const { ws, sendMessage, subscribe } = useWebSocket();
+
+  useSyncedPreferences();
 
   const {
     processingSessions,

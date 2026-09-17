@@ -1,5 +1,10 @@
 import { AppError } from '@/shared/utils.js';
 
+import {
+  isSyncedPreferenceKey,
+  MAX_SYNCED_PREFERENCE_BYTES,
+} from '../../../shared/synced-preferences.js';
+
 type ApiKeyRow = Record<string, unknown> & { api_key: string };
 type NotificationPreferences = Record<string, unknown> & {
   channels?: Record<string, unknown> & { webPush?: boolean };
@@ -31,6 +36,10 @@ type SettingsDependencies = {
     notifyUser(userId: number, event: unknown): void | Promise<void>;
     preferencesUpdated?(userId: number): void;
   };
+  preferences: {
+    getPreferences(userId: number): Record<string, unknown>;
+    setPreferences(userId: number, entries: Record<string, unknown>): void;
+  };
   pushSubscriptions: {
     save(userId: number, endpoint: string, p256dh: string, auth: string): void;
     remove(endpoint: string): void;
@@ -44,6 +53,40 @@ function requiredString(value: unknown, fieldName: string, code: string): string
     throw new AppError(`${fieldName} is required`, { code, statusCode: 400 });
   }
   return normalizedValue;
+}
+
+/**
+ * Keeps an unknown client from turning the preference table into free storage:
+ * only allowlisted keys are stored, and each value must serialize under the cap.
+ */
+function syncablePreferenceEntries(input: unknown): Record<string, unknown> {
+  const source = input && typeof input === 'object' ? input as Record<string, unknown> : {};
+  const entries: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (!isSyncedPreferenceKey(key)) continue;
+    if (value === null) {
+      entries[key] = null;
+      continue;
+    }
+
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(value);
+    } catch {
+      continue;
+    }
+    if (typeof serialized !== 'string') continue;
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_SYNCED_PREFERENCE_BYTES) {
+      throw new AppError(`Preference ${key} is too large`, {
+        code: 'PREFERENCE_TOO_LARGE',
+        statusCode: 413,
+      });
+    }
+    entries[key] = value;
+  }
+
+  return entries;
 }
 
 function assertFound(found: boolean, resourceName: string, code: string): void {
@@ -149,6 +192,14 @@ export function createSettingsService(dependencies: SettingsDependencies) {
         success: true,
         preferences: updated,
       };
+    },
+    getSyncedPreferences(userId: number) {
+      return { success: true, preferences: dependencies.preferences.getPreferences(userId) };
+    },
+    updateSyncedPreferences(userId: number, input: unknown) {
+      const entries = syncablePreferenceEntries(input);
+      dependencies.preferences.setPreferences(userId, entries);
+      return { success: true, preferences: dependencies.preferences.getPreferences(userId) };
     },
     getVapidPublicKey() {
       return { publicKey: dependencies.getVapidPublicKey() };

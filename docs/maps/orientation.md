@@ -240,6 +240,22 @@ the selection into the composer. Putting the phone chat back in a box brings
 back handles that jump to the top of the conversation
 ([ADR 0056](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md)).
 
+## 16. A preference either follows you across devices or belongs to one browser
+
+Most preferences live in the browser's own storage, so they exist per browser and per
+device: switching from the Samsung app to Chrome starts with none of them. A short
+allowlist (`shared/synced-preferences.ts`) is mirrored per user in the database instead,
+so those follow you: the server's copy wins when a browser loads, and after that the most
+recent edit wins.
+
+**The rule:** decide which list a new preference belongs on. It syncs if it describes what
+you want CLIde to be like; it stays local if it describes this device — window sizes, the
+open tab, which model this phone last used.
+
+**What breaks:** a preference you spent time on silently resets on a new browser, which is
+how the custom Activity messages were lost. Syncing a per-device one is the opposite
+failure and just as annoying: your phone's layout follows you onto the desktop.
+
 ---
 
 ## When to stop and ask
@@ -258,6 +274,7 @@ You do not need to understand a diff to catch these. If a proposed change would:
 - react to a usage limit by reading its sentence, or wait on a reset's predicted time (13);
 - add another card to the strip above the composer for something not waiting on you (14);
 - open something full-screen over the chat without locking the page, or put the phone chat back in a scrolling box (15);
+- add a preference to the synced allowlist that really describes one device (16);
 
 — then say so. Being able to name the rule is enough; you don't have to be able to prove
 the violation. Asking is cheap, and every one of these is expensive to find later.

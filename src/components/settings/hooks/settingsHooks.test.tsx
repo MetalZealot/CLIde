@@ -4,6 +4,11 @@ import test, { afterEach, beforeEach, describe } from 'node:test';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import {
+  THINKING_MESSAGES_STORAGE_KEY,
+  useThinkingMessages,
+} from '../../../hooks/useThinkingMessages';
+import { useSyncedPreferences } from '../../../hooks/useSyncedPreferences';
 import { useProviderSkills } from '../../skills/hooks/useProviderSkills';
 import type { SkillsTarget } from '../../skills/types';
 
@@ -348,5 +353,120 @@ describe('useAutoContinueMessage saving', () => {
     await React.act(async () => currentHookValue().handleBlur());
     assert.equal(writes().length, 2);
     assert.equal(currentHookValue().message, 'Continue', 'the field shows what a send would now use');
+  });
+});
+
+describe('useSyncedPreferences mirroring', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let thinking: ReturnType<typeof useThinkingMessages> | null;
+  let requests: Array<{ url: string; method: string; body: any }>;
+  let serverPreferences: Record<string, unknown>;
+  let originalFetch: typeof globalThis.fetch;
+
+  const currentThinking = () => {
+    assert.ok(thinking);
+    return thinking;
+  };
+
+  const writes = () => requests.filter((request) => request.method === 'PUT');
+
+  const Harness = () => {
+    useSyncedPreferences();
+    thinking = useThinkingMessages();
+    return null;
+  };
+
+  const render = async () => {
+    root = createRoot(container);
+    await React.act(async () => root.render(<Harness />));
+  };
+
+  // The hook batches writes, so a test must outlast the debounce window.
+  const settleWrites = async () => {
+    await React.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    });
+  };
+
+  beforeEach(() => {
+    thinking = null;
+    requests = [];
+    serverPreferences = {};
+    localStorage.clear();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      const body = init?.body ? JSON.parse(String(init.body)) : null;
+      requests.push({ url: String(input), method, body });
+      if (method === 'PUT') {
+        for (const [key, value] of Object.entries(body?.preferences ?? {})) {
+          if (value === null) delete serverPreferences[key];
+          else serverPreferences[key] = value;
+        }
+      }
+      return Promise.resolve(new Response(JSON.stringify({ preferences: serverPreferences }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    }) as typeof globalThis.fetch;
+  });
+
+  afterEach(async () => {
+    await React.act(async () => root.unmount());
+    container.remove();
+    globalThis.fetch = originalFetch;
+    localStorage.clear();
+  });
+
+  test('a browser with no stored list adopts the saved one without writing it back', async () => {
+    serverPreferences = { thinkingMessages: ['Pondering'], thinkingMessageCycle: '2' };
+    await render();
+
+    assert.deepEqual(currentThinking().customMessages, ['Pondering']);
+    assert.equal(currentThinking().cycleMode, '2');
+    assert.equal(
+      localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY),
+      JSON.stringify(['Pondering']),
+      'the adopted list survives the next load offline',
+    );
+
+    await settleWrites();
+    assert.deepEqual(writes(), [], 'adopting the server copy is not an edit');
+  });
+
+  test('an edit reaches the server, and a reset deletes the stored value', async () => {
+    await render();
+    await React.act(async () => currentThinking().setCustomMessages(['Cogitating']));
+    await settleWrites();
+
+    assert.equal(writes().length, 1);
+    assert.deepEqual(writes()[0]?.body.preferences, { thinkingMessages: ['Cogitating'] });
+    assert.deepEqual(serverPreferences, { thinkingMessages: ['Cogitating'] });
+
+    await React.act(async () => currentThinking().resetThinkingMessages());
+    await settleWrites();
+    assert.deepEqual(writes()[1]?.body.preferences.thinkingMessages, null);
+    assert.deepEqual(serverPreferences, {}, 'the next device inherits nothing');
+  });
+
+  test('values this browser already had seed an empty server', async () => {
+    localStorage.setItem(THINKING_MESSAGES_STORAGE_KEY, JSON.stringify(['Ruminating']));
+    await render();
+    await settleWrites();
+
+    assert.equal(writes().length, 1);
+    assert.deepEqual(writes()[0]?.body.preferences, { thinkingMessages: ['Ruminating'] });
+  });
+
+  test('an unreachable server leaves this browser on its own values', async () => {
+    localStorage.setItem(THINKING_MESSAGES_STORAGE_KEY, JSON.stringify(['Ruminating']));
+    globalThis.fetch = (() => Promise.reject(new Error('offline'))) as typeof globalThis.fetch;
+    await render();
+    await settleWrites();
+
+    assert.deepEqual(currentThinking().customMessages, ['Ruminating']);
   });
 });
