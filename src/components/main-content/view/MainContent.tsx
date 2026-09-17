@@ -67,6 +67,7 @@ function MainContent({
   onProjectsRefresh,
   sessionActions,
   showUsage,
+  chatPageScroll = false,
 }: MainContentProps) {
   const { t } = useTranslation();
   const { preferences } = useUiPreferences();
@@ -204,7 +205,8 @@ function MainContent({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className={chatPageScroll ? 'flex min-h-dvh flex-col' : 'flex h-full flex-col'}>
+      <div data-chat-page-top className={chatPageScroll ? 'sticky top-0 z-30' : 'contents'}>
       {selectedProject ? (
         <MainContentHeader
           activeTab={activeTab}
@@ -218,14 +220,24 @@ function MainContent({
           onMenuClick={onMenuClick}
         />
       ) : isMobile ? (
-        <div className="app-bar border-b border-border/50 bg-background/80 px-3 sm:px-4">
+        <div className="app-bar select-none border-b border-border/50 bg-background/80 px-3 sm:px-4">
           <MobileMenuButton onMenuClick={onMenuClick} compact />
         </div>
       ) : null}
+      </div>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className={`flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
-          <div className={`h-full ${activeTab === 'chat' || !selectedProject ? 'block' : 'hidden'}`}>
+      {/* Page scrolling needs every ancestor of the sticky composer unclipped. */}
+      <div className={chatPageScroll ? 'flex flex-1' : 'flex min-h-0 flex-1 overflow-hidden'}>
+        <div
+          className={`flex min-w-[200px] flex-col ${chatPageScroll ? '' : 'min-h-0 overflow-hidden'} ${editorExpanded ? 'hidden' : ''} flex-1`}
+        >
+          <div
+            className={
+              chatPageScroll
+                ? 'flex flex-1 flex-col'
+                : `h-full ${activeTab === 'chat' || !selectedProject ? 'block' : 'hidden'}`
+            }
+          >
             <ErrorBoundary showDetails>
               <ChatInterface
                 projects={projects}
@@ -256,6 +268,8 @@ function MainContent({
                 sessionActions={sessionActions}
                 onOpenBrowser={shouldShowBrowserTab ? openBrowserSession : undefined}
                 isVisible={activeTab === 'chat'}
+                pageScroll={chatPageScroll}
+                hasBottomNav={showBottomNav}
               />
             </ErrorBoundary>
           </div>
@@ -333,6 +347,7 @@ function MainContent({
       </div>
 
       {showBottomNav && (
+        <div data-chat-page-nav className={chatPageScroll ? 'sticky bottom-0 z-30 bg-background pb-[env(safe-area-inset-bottom,0px)]' : 'contents'}>
         <MobileBottomNav
           activeTab={selectedProject ? activeTab : 'chat'}
           hasSelectedProject={Boolean(selectedProject)}
@@ -342,6 +357,7 @@ function MainContent({
           chatStatus={chatStatus}
           onShowSettings={onShowSettings}
         />
+        </div>
       )}
 
       {fileOpenNotice && (

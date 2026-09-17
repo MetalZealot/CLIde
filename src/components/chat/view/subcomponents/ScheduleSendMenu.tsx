@@ -5,6 +5,7 @@ import { CalendarClockIcon, RotateCcwIcon } from 'lucide-react';
 
 import { formatClockTimeWithDay } from '../../../../utils/formatTime';
 import type { ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
+import { PageScrollLock } from '../../../../shared/view/ui';
 
 interface ScheduleSendMenuProps {
   /** False on Cursor and OpenCode, which have no usage reset to wait on. */
@@ -73,6 +74,7 @@ export default function ScheduleSendMenu({
     // anchored menu, and an ancestor of the composer was swallowing the
     // scrim's own dismiss.
     <div className="fixed inset-0 z-[60] flex flex-col justify-end">
+      <PageScrollLock />
       <button
         type="button"
         aria-label={t('common.dismiss', { defaultValue: 'Dismiss' })}

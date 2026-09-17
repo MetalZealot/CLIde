@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 
 import type { ChatMessage } from '../types/types';
+import { getChatViewportRect } from '../utils/chatScrollHost';
 
 const SEARCH_IDLE_MS = 200;
 
@@ -36,7 +37,7 @@ type UseChatFindArgs = {
   sessionId: string | null;
   chatMessages: ChatMessage[];
   loadAllMessages: () => Promise<ChatMessage[] | null>;
-  scrollContainerRef: RefObject<HTMLDivElement>;
+  scrollContainerRef: RefObject<HTMLElement>;
   messagesContentRef: RefObject<HTMLDivElement>;
 };
 
@@ -167,7 +168,7 @@ const initialIndexFromViewport = (
   if (occurrences.length === 0 || !scrollContainer) {
     return occurrences.length > 0 ? 0 : -1;
   }
-  const viewportTop = scrollContainer.getBoundingClientRect().top;
+  const viewportTop = getChatViewportRect(scrollContainer).top;
   const index = occurrences.findIndex((occurrence) => getOccurrenceRect(occurrence).bottom >= viewportTop);
   return index >= 0 ? index : 0;
 };
@@ -181,7 +182,7 @@ const scrollToOccurrence = (
   }
 
   const matchRect = getOccurrenceRect(occurrence);
-  const containerRect = scrollContainer.getBoundingClientRect();
+  const containerRect = getChatViewportRect(scrollContainer);
   if (matchRect.top >= containerRect.top && matchRect.bottom <= containerRect.bottom) {
     return;
   }
@@ -189,7 +190,7 @@ const scrollToOccurrence = (
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   if (typeof scrollContainer.scrollTo === 'function' && (matchRect.width > 0 || matchRect.height > 0)) {
     scrollContainer.scrollTo({
-      top: scrollContainer.scrollTop + matchRect.top - containerRect.top - (scrollContainer.clientHeight / 2),
+      top: scrollContainer.scrollTop + matchRect.top - containerRect.top - ((containerRect.bottom - containerRect.top) / 2),
       behavior: reduceMotion ? 'auto' : 'smooth',
     });
     return;

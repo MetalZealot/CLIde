@@ -75,6 +75,8 @@ export type MainContentProps = {
   sessionActions: SessionActions;
   /** Replaces project content with the routed account-level usage dashboard. */
   showUsage: boolean;
+  /** Phones scroll the chat as the page, with the header and tab bar sticky. */
+  chatPageScroll?: boolean;
 };
 
 export type MainContentHeaderProps = {

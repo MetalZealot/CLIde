@@ -54,7 +54,7 @@ function AppContentInner() {
   const navigate = useNavigate();
   const location = useLocation();
   const { sessionId } = useParams<{ sessionId?: string }>();
-  const { isMobile } = useDeviceSettings({ trackPWA: false });
+  const { isMobile, isPWA } = useDeviceSettings();
   const { ws, sendMessage, subscribe } = useWebSocket();
 
   const {
@@ -236,12 +236,21 @@ function AppContentInner() {
     return () => vv.removeEventListener('resize', update);
   }, []);
 
+  // In the installed phone app the chat scrolls as the page, so text-selection
+  // handles get the browser's own edge scrolling. A browser tab keeps the fixed
+  // shell: its toolbars hide and show with page scrolling and jerk the composer.
+  const chatPageScroll = isMobile
+    && isPWA
+    && (activeTab === 'chat' || !selectedProject)
+    && !isLoadingProjects
+    && location.pathname !== '/usage';
+
   return (
     <div
-      className="fixed inset-0 flex bg-background"
-      // The shell spans the true viewport, so its own bottom edge owns the
+      className={chatPageScroll ? 'relative flex min-h-dvh bg-background' : 'fixed inset-0 flex bg-background'}
+      // The fixed shell spans the true viewport, so its own bottom edge owns the
       // gesture-bar inset; the top inset belongs to .app-bar.
-      style={{
+      style={chatPageScroll ? undefined : {
         bottom: 'var(--keyboard-height, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
@@ -290,6 +299,7 @@ function AppContentInner() {
             onProjectsRefresh={refreshProjectsSilently}
             sessionActions={sessionActions}
             showUsage={location.pathname === '/usage'}
+            chatPageScroll={chatPageScroll}
           />
         </HeaderMenuProvider>
       </div>

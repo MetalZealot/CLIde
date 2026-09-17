@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button, RowActionsTrigger, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
+import { Button, PageScrollLock, RowActionsTrigger, anchorFromElement, type ContextMenuAnchor } from '../../../../shared/view/ui';
 import { useLongPress, type LongPressCoords } from '../../../../hooks/useLongPress';
 import { cn } from '../../../../lib/utils';
 import { api } from '../../../../utils/api';
@@ -728,6 +728,7 @@ export default function WorktreeManagerModal({
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center md:p-4"
       onClick={onClose}
     >
+      <PageScrollLock />
       <div
         className={cn(
           'flex max-h-full w-full flex-col overflow-hidden border-border bg-card shadow-2xl',

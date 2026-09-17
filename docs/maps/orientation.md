@@ -222,6 +222,26 @@ compete while you type, and each new feature adds one more.
 
 ---
 
+## 15. On a phone the chat scrolls as the page, so overlays must lock it
+
+In the installed app on your phone, the conversation scrolls as the whole page, because
+that is the only way Android lets text-selection handles scroll along with your finger.
+Browser tabs and desktop still scroll the chat inside a box.
+
+**The rule:** anything that opens full-screen over the chat locks the page while it is
+open, nothing moves the chat while you have text selected, and every bar floating over the
+chat lets touches through while text is selected.
+
+**What breaks:** a new full-screen screen without the lock lets your drags scroll the chat
+underneath it, which is what the sidebar did. A new bar over the chat that still catches
+touches makes selection handles slide under it or jump to the top again, and anything
+floating over the chat that can be selected, even an empty one like the scrollbar, pulls
+the selection into the composer. Putting the phone chat back in a box brings
+back handles that jump to the top of the conversation
+([ADR 0056](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md)).
+
+---
+
 ## When to stop and ask
 
 You do not need to understand a diff to catch these. If a proposed change would:
@@ -237,6 +257,7 @@ You do not need to understand a diff to catch these. If a proposed change would:
 - turn a compact control into a 44px control solely because it is used by touch (10);
 - react to a usage limit by reading its sentence, or wait on a reset's predicted time (13);
 - add another card to the strip above the composer for something not waiting on you (14);
+- open something full-screen over the chat without locking the page, or put the phone chat back in a scrolling box (15);
 
 — then say so. Being able to name the rule is enough; you don't have to be able to prove
 the violation. Asking is cheap, and every one of these is expensive to find later.

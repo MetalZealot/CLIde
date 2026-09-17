@@ -352,7 +352,7 @@ export default function ChatComposer({
         : t('input.send');
 
   return (
-    <div className="chat-composer-shell relative flex-shrink-0 px-4 pb-4 pt-0 md:px-6 md:pb-6">
+    <div className="chat-composer-shell relative flex-shrink-0 select-none px-4 pb-4 pt-0 md:px-6 md:pb-6">
       {(activity || reserveActivitySpace) && (
         // Hidden, never unmounted, while the permission banner holds the slot: the
         // message cycle and its no-repeat bag are per-turn state a remount restarts.

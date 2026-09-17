@@ -205,4 +205,8 @@ export interface ChatInterfaceProps {
   onOpenBrowser?: (browserSessionId: string) => void;
   /** Whether Chat is the visible view; it stays mounted while hidden. */
   isVisible: boolean;
+  /** The page scrolls the conversation instead of the message pane (phones). */
+  pageScroll?: boolean;
+  /** The mobile tab bar sits below the composer, so a sticky composer clears it. */
+  hasBottomNav?: boolean;
 }

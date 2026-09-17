@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 import { authenticatedFetch } from '../../../../utils/api';
 import type { ChatImage } from '../../types/types';
+import { PageScrollLock } from '../../../../shared/view/ui';
 
 type ChatMessageImagesProps = {
   images: ChatImage[];
@@ -121,6 +122,7 @@ export function ImageLightbox({ src, alt, onClose, onPrevious, onNext }: ImageLi
       aria-modal="true"
       aria-label={alt}
     >
+      <PageScrollLock />
       <button
         type="button"
         onClick={(event) => {

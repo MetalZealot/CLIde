@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '../../../../lib/utils';
 import Shell from '../../../shell/view/Shell';
 import type { TaskMasterProject } from '../../types';
+import { PageScrollLock } from '../../../../shared/view/ui';
 
 type TaskMasterSetupModalProps = {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export default function TaskMasterSetupModal({ isOpen, project, onClose, onAfter
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16">
+      <PageScrollLock />
       <div className="flex h-[600px] w-full max-w-4xl flex-col rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
         <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
           <div className="flex items-center gap-3">

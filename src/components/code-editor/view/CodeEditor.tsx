@@ -13,6 +13,7 @@ import type { CodeEditorFile } from '../types/types';
 import { createMinimapExtension, createScrollToFirstChunkExtension, getLanguageExtensions } from '../utils/editorExtensions';
 import { getEditorStyles } from '../utils/editorStyles';
 import { createEditorToolbarPanelExtension } from '../utils/editorToolbarPanel';
+import { PageScrollLock } from '../../../shared/view/ui';
 
 import CodeEditorFooter from './subcomponents/CodeEditorFooter';
 import CodeEditorHeader from './subcomponents/CodeEditorHeader';
@@ -170,13 +171,18 @@ export default function CodeEditor({
     dependency: content,
   });
 
+  const pageScrollLock = isSidebar ? null : <PageScrollLock />;
+
   if (loading) {
     return (
-      <CodeEditorLoadingState
-        isDarkMode={isDarkMode}
-        isSidebar={isSidebar}
-        loadingText={t('loading', { fileName: file.name })}
-      />
+      <>
+        {pageScrollLock}
+        <CodeEditorLoadingState
+          isDarkMode={isDarkMode}
+          isSidebar={isSidebar}
+          loadingText={t('loading', { fileName: file.name })}
+        />
+      </>
     );
   }
 
@@ -184,39 +190,45 @@ export default function CodeEditor({
   // instead of showing the generic "cannot be displayed" placeholder.
   if (previewKind) {
     return (
-      <CodeEditorMediaPreview
-        file={file}
-        kind={previewKind}
-        projectId={fileProjectId}
-        isSidebar={isSidebar}
-        isFullscreen={isFullscreen}
-        onClose={onClose}
-        onToggleFullscreen={() => setIsFullscreen((previous) => !previous)}
-        labels={{
-          loading: t('filePreview.loading', 'Loading preview...'),
-          error: t('filePreview.error', 'Unable to display this file.'),
-          openInNewTab: t('filePreview.openInNewTab', 'Open in new tab'),
-          download: t('actions.download', 'Download file'),
-          fullscreen: t('actions.fullscreen', 'Fullscreen'),
-          exitFullscreen: t('actions.exitFullscreen', 'Exit fullscreen'),
-          close: t('actions.close', 'Close'),
-        }}
-      />
+      <>
+        {pageScrollLock}
+        <CodeEditorMediaPreview
+          file={file}
+          kind={previewKind}
+          projectId={fileProjectId}
+          isSidebar={isSidebar}
+          isFullscreen={isFullscreen}
+          onClose={onClose}
+          onToggleFullscreen={() => setIsFullscreen((previous) => !previous)}
+          labels={{
+            loading: t('filePreview.loading', 'Loading preview...'),
+            error: t('filePreview.error', 'Unable to display this file.'),
+            openInNewTab: t('filePreview.openInNewTab', 'Open in new tab'),
+            download: t('actions.download', 'Download file'),
+            fullscreen: t('actions.fullscreen', 'Fullscreen'),
+            exitFullscreen: t('actions.exitFullscreen', 'Exit fullscreen'),
+            close: t('actions.close', 'Close'),
+          }}
+        />
+      </>
     );
   }
 
   // Binary file display
   if (isBinary) {
     return (
-      <CodeEditorBinaryFile
-        file={file}
-        isSidebar={isSidebar}
-        isFullscreen={isFullscreen}
-        onClose={onClose}
-        onToggleFullscreen={() => setIsFullscreen((previous) => !previous)}
-        title={t('binaryFile.title', 'Binary File')}
-        message={t('binaryFile.message', 'The file "{{fileName}}" cannot be displayed in the text editor because it is a binary file.', { fileName: file.name })}
-      />
+      <>
+        {pageScrollLock}
+        <CodeEditorBinaryFile
+          file={file}
+          isSidebar={isSidebar}
+          isFullscreen={isFullscreen}
+          onClose={onClose}
+          onToggleFullscreen={() => setIsFullscreen((previous) => !previous)}
+          title={t('binaryFile.title', 'Binary File')}
+          message={t('binaryFile.message', 'The file "{{fileName}}" cannot be displayed in the text editor because it is a binary file.', { fileName: file.name })}
+        />
+      </>
     );
   }
 
@@ -233,6 +245,7 @@ export default function CodeEditor({
   return (
     <>
       <style>{getEditorStyles(isDarkMode)}</style>
+      {pageScrollLock}
       <div className={outerContainerClassName}>
         <div className={innerContainerClassName}>
           <CodeEditorHeader

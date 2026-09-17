@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { AlertTriangle, EyeOff, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Button } from '../../../../shared/view/ui';
+import { Button, PageScrollLock } from '../../../../shared/view/ui';
 import Settings from '../../../settings/view/Settings';
 import VersionUpgradeModal from '../../../version-upgrade/view';
 import type { Project } from '../../../../types/app';
@@ -111,6 +111,7 @@ export default function SidebarModals({
       {deleteConfirmation &&
         ReactDOM.createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <PageScrollLock />
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">
@@ -209,6 +210,7 @@ export default function SidebarModals({
       {batchDeleteCount !== null &&
         ReactDOM.createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <PageScrollLock />
             <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
               <div className="p-6">
                 <div className="flex items-start gap-4">

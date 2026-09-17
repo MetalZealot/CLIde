@@ -93,3 +93,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0053 — Browser tools are official Playwright MCP over an authenticated HTTP endpoint](0053-browser-tools-are-official-playwright-mcp-over-http.md)
 - [0054 — Async question answers steer now or queue separately](0054-async-question-answer-delivery.md)
 - [0055 — Target size is contextual, with a WCAG floor](0055-target-size-is-contextual-with-a-wcag-floor.md)
+- [0056 — In the installed phone app, the chat scrolls as the page](0056-installed-phone-app-scrolls-the-chat-as-the-page.md)

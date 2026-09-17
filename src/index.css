@@ -701,6 +701,48 @@
 
 }
 
+/* Phones scroll the chat as the page (AppContent chatPageScroll): the document
+   is the scroller, the bars are sticky, and the browser's own selection-handle
+   edge scrolling applies. Scroll restore is manual, so anchoring stays off. */
+html.chat-page-scroll,
+html.chat-page-scroll body {
+  height: auto;
+  overflow: visible;
+  overscroll-behavior-y: none;
+  overflow-anchor: none;
+}
+
+/* PageScrollLock: an open full-screen overlay stops the chat scrolling behind it. */
+html.chat-page-scroll.page-scroll-locked,
+html.chat-page-scroll.page-scroll-locked body {
+  overflow: hidden;
+}
+
+/* With chat text selected the bars let touches through, so a handle dragged over
+   them lands on the chat beneath and edge-scrolls instead of jumping. Important
+   because the touch rules force pointer-events on every button. */
+html.chat-page-scroll.chat-text-selected :is([data-chat-page-top], [data-chat-page-bottom], [data-chat-page-nav]),
+html.chat-page-scroll.chat-text-selected :is([data-chat-page-top], [data-chat-page-bottom], [data-chat-page-nav]) * {
+  pointer-events: none !important;
+}
+
+html.chat-page-scroll body.pwa-mode #root {
+  height: auto;
+  overflow: visible;
+}
+
+/* ChatPageScrollbar draws a thumb beside the chat instead. Samsung Internet
+   ignores this and keeps its own full-height bar, so no thumb is drawn there. */
+html.chat-page-scroll:not(.samsung-browser),
+html.chat-page-scroll:not(.samsung-browser) body {
+  scrollbar-width: none;
+}
+
+html.chat-page-scroll:not(.samsung-browser)::-webkit-scrollbar,
+html.chat-page-scroll:not(.samsung-browser) body::-webkit-scrollbar {
+  display: none;
+}
+
 /* Mobile touch optimization and safe areas.
    Kept OUTSIDE @layer components: Tailwind re-emits layer rules for every
    scanned candidate (e.g. the string `!user` in JS source matches
@@ -734,6 +776,12 @@
       user-select: none;
       -webkit-user-select: none;
       touch-action: manipulation;
+    }
+
+    /* Message links stay selectable so a copied passage keeps their text. */
+    .chat-messages-pane a {
+      -webkit-user-select: text;
+      user-select: text;
     }
 
     /* Long-pressable sidebar rows + the popover menu must not pop the iOS

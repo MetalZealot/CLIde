@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { memo, useCallback, useMemo } from 'react';
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
 import type { ChatMessage } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
@@ -13,8 +13,10 @@ import MessageComponent from './MessageComponent';
 import ToolGroupContainer from './ToolGroupContainer';
 
 interface ChatMessagesPaneProps {
-  scrollContainerRef: RefObject<HTMLDivElement>;
+  scrollContainerRef: MutableRefObject<HTMLElement | null>;
   messagesContentRef: RefObject<HTMLDivElement>;
+  /** The page scrolls instead of this pane (phones). */
+  pageScroll?: boolean;
   isLoadingSessionMessages: boolean;
   /** True while the viewed session has an active provider run in flight. */
   isProcessing?: boolean;
@@ -52,6 +54,7 @@ interface ChatMessagesPaneProps {
 function ChatMessagesPane({
   scrollContainerRef,
   messagesContentRef,
+  pageScroll = false,
   isLoadingSessionMessages,
   isProcessing = false,
   chatMessages,
@@ -128,16 +131,28 @@ function ChatMessagesPane({
     [messageKeyMap],
   );
 
+  const attachScrollHost = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollContainerRef.current = node && pageScroll ? document.documentElement : node;
+    },
+    [pageScroll, scrollContainerRef],
+  );
+  const fillsPane = chatMessages.length === 0 && Boolean(selectedSession || currentSessionId);
+
   return (
     <div
-      ref={scrollContainerRef}
-      className="chat-messages-pane relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-3 pt-3 sm:pb-4 sm:pt-4"
+      ref={attachScrollHost}
+      className={`chat-messages-pane relative pb-3 pt-3 sm:pb-4 sm:pt-4 ${
+        pageScroll
+          ? 'flex flex-1 flex-col overflow-x-clip'
+          : 'min-h-0 flex-1 overflow-y-auto overflow-x-hidden'
+      }`}
       style={{ overflowAnchor: 'none' }}
     >
       <div
         ref={messagesContentRef}
         className={`mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4 ${
-          chatMessages.length === 0 && (selectedSession || currentSessionId) ? 'h-full' : ''
+          fillsPane ? (pageScroll ? 'flex-1' : 'h-full') : ''
         }`}
       >
       {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
@@ -171,7 +186,7 @@ function ChatMessagesPane({
       ) : (
         <>
           {(hasMoreMessages || chatMessages.length > visibleMessageCount) && (
-            <div className="flex items-center justify-center gap-2 border-b border-gray-200 py-2 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <div className="flex select-none items-center justify-center gap-2 border-b border-gray-200 py-2 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
               {(isLoadingMoreMessages || isLoadingAllMessages) && (
                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 dark:border-gray-600 dark:border-t-blue-400" />
               )}

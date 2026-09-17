@@ -178,7 +178,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
                   </div>
                 </div>
                 {/* Copy + timestamp sit below the bubble, claude.ai-style */}
-                <div className="-mt-1 flex items-center justify-end gap-1 px-1 text-xs text-gray-400 dark:text-gray-500">
+                <div className="-mt-1 flex select-none items-center justify-end gap-1 px-1 text-xs text-gray-400 dark:text-gray-500">
                   {shouldShowUserEditControl && (
                     <button
                       type="button"
@@ -198,7 +198,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
               </>
             ) : (
               /* Attachment-only turn: no text bubble, but the timestamp still shows */
-              <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
+              <div className="flex select-none items-center justify-end gap-1 text-xs text-muted-foreground">
                 <span>{formattedTime}</span>
               </div>
             )}
@@ -232,7 +232,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
         /* Claude/Error/Tool messages on the left */
         <div className="w-full">
           {!isGrouped && (
-            <div className="mb-2 flex items-center space-x-3">
+            <div className="mb-2 flex select-none items-center space-x-3">
               {message.type === 'error' ? (
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-600 text-sm text-white">
                   !
@@ -547,7 +547,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
             )}
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+              <div className="mt-1 flex w-full select-none items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
                 <span>
                   {formattedTime}
                   {turnDurationMs !== undefined && (
