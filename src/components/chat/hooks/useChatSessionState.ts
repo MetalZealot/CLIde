@@ -534,6 +534,11 @@ export function useChatSessionState({
     cancelSettlingScrollRestore();
     isUserScrolledUpRef.current = false;
     setIsUserScrolledUp(false);
+    // A selection in the previous session must not hold or widen this one's window.
+    hasChatSelectionRef.current = false;
+    selectionStartIndexRef.current = null;
+    setSelectionStartIndex(null);
+    document.documentElement.classList.remove('chat-text-selected');
   }, [cancelSettlingScrollRestore, selectedProject?.projectId, selectedSession?.id]);
 
   // Establish the initial bottom position synchronously after the first page

@@ -3,6 +3,7 @@ import { FolderPlus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { Project } from '../../types/app';
+import { PageScrollLock } from '../../shared/view/ui';
 
 import ErrorBanner from './components/ErrorBanner';
 import StepConfiguration from './components/StepConfiguration';
@@ -134,6 +135,7 @@ export default function ProjectCreationWizard({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 top-0 z-[60] flex items-center justify-center bg-black/50 p-0 sm:p-4">
+      <PageScrollLock />
       <div className="h-full w-full overflow-y-auto rounded-none border-0 border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:h-auto sm:max-w-2xl sm:rounded-lg sm:border">
         <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-700">
           <div className="flex items-center gap-3">

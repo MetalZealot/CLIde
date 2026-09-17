@@ -2,7 +2,7 @@ import ReactDOM from 'react-dom';
 import { AlertTriangle, EyeOff, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '../../../../shared/view/ui';
+import { Button, PageScrollLock } from '../../../../shared/view/ui';
 
 type SessionDeleteDialogProps = {
   sessionTitle: string;
@@ -18,6 +18,7 @@ export default function SessionDeleteDialog({ sessionTitle, isArchived, onConfir
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <PageScrollLock />
       <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
         <div className="p-6">
           <div className="flex items-start gap-4">

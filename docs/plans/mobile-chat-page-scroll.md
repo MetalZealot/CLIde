@@ -23,4 +23,5 @@ scroller gives handles the browser's own edge scrolling.
 
 ## Not doing
 
+- iPhone. Whether the sticky composer stays above the iOS keyboard is untested; no iPhone is available.
 - Samsung Internet as the target. Chrome is the tested browser (ADR 0056); Samsung keeps a full-height scrollbar that overlaps the composer slightly.

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 
 import { cn } from '../../../lib/utils';
 
+import PageScrollLock from './PageScrollLock';
+
 interface DialogContextValue {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -173,6 +175,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 
     return createPortal(
       <div className={cn('fixed inset-0 z-50', wrapperClassName)}>
+        <PageScrollLock />
         {/* Overlay */}
         <div
           className="fixed inset-0 animate-dialog-overlay-show bg-black/50"

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 
 import { cn } from '../../../lib/utils';
 
+import PageScrollLock from './PageScrollLock';
+
 const VIEWPORT_PADDING = 10;
 const ANCHOR_GAP = 8;
 // A tap leaves a click behind a few ms after touchend; swallow it so it cannot
@@ -290,6 +292,7 @@ export default function ContextMenuOverlay({
       viewport-relative, so this layer must carry no inset of its own.
     */
     <div className="fixed inset-0 z-[9999]" style={{ overscrollBehavior: 'contain' }}>
+      <PageScrollLock />
       {/*
         Transparent full-screen catcher (no scrim — matches the app-wide
         no-backdrop-filter preference). It dismisses on press rather than click,
