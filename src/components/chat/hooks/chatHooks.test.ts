@@ -1014,15 +1014,19 @@ test('browser polling cannot carry another chat into the preview and stops while
   }
 });
 
-test('Auto-Continue is offered on a limit stop that lifts on its own', () => {
+test('Auto-Continue is offered on the limit notice itself, not an earlier one', () => {
   const now = Date.parse('2026-09-09T23:00:00.000Z');
   const stop = { resumes: true, resetsAt: '2026-09-10T04:20:00.000Z', windowId: 'five_hour' };
+  const older = { type: 'assistant', content: 'earlier limit', isSystemNotice: true, usageLimit: stop };
+  const notice = { type: 'assistant', content: "You've hit your session limit", isSystemNotice: true, usageLimit: stop };
   const messages = [
-    { type: 'user', content: 'go' },
-    { type: 'assistant', content: "You've hit your session limit", isSystemNotice: true, usageLimit: stop },
+    older,
+    { type: 'assistant', content: 'work' },
+    notice,
   ] as unknown as ChatMessage[];
 
-  assert.deepEqual(resolveAutoContinueOffer(messages, [], true, now), stop);
+  // The button is drawn by identity, so the offer has to name the live row.
+  assert.equal(resolveAutoContinueOffer(messages, [], true, now), notice);
 });
 
 test('Auto-Continue is withheld when nothing will reset, or already has', () => {

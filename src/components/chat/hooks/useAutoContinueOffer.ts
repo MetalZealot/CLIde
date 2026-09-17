@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 
-import type { UsageLimitStop } from '../../../stores/useSessionStore';
 import type { ChatMessage } from '../types/types';
 
 import type { ScheduledMessage } from './useScheduledMessages';
@@ -13,9 +12,9 @@ import type { ScheduledMessage } from './useScheduledMessages';
 const LOOKBACK = 12;
 
 /**
- * Whether to offer Auto-Continue: the turn ended on a usage limit that lifts on
- * its own, nothing is already waiting on that reset, and the user has not moved
- * on since.
+ * The limit notice that should carry the Auto-Continue button, or null: the
+ * turn ended on a usage limit that lifts on its own, nothing is already waiting
+ * on that reset, and the user has not moved on since.
  *
  * The stop is recognised by the provider's own classification, carried on the
  * message as `usageLimit` — never by the notice's wording, which is localized
@@ -26,7 +25,7 @@ export function resolveAutoContinueOffer(
   pending: ScheduledMessage[],
   canScheduleOnUsageReset: boolean,
   nowMs: number = Date.now(),
-): UsageLimitStop | null {
+): ChatMessage | null {
   if (!canScheduleOnUsageReset) return null;
   if (pending.some((message) => message.trigger === 'usage-reset')) return null;
 
@@ -41,7 +40,7 @@ export function resolveAutoContinueOffer(
     // The provider's predicted instant is a hint, but a passed one means the
     // conversation is simply old and the offer has nothing left to buy.
     if (stop.resetsAt && Date.parse(stop.resetsAt) <= nowMs) return null;
-    return stop;
+    return message;
   }
 
   return null;
@@ -51,7 +50,7 @@ export function useAutoContinueOffer(
   messages: ChatMessage[],
   pending: ScheduledMessage[],
   canScheduleOnUsageReset: boolean,
-): UsageLimitStop | null {
+): ChatMessage | null {
   return useMemo(
     () => resolveAutoContinueOffer(messages, pending, canScheduleOnUsageReset),
     [canScheduleOnUsageReset, messages, pending],

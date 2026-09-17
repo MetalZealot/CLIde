@@ -644,6 +644,12 @@ function ChatInterface({
     ],
   );
 
+  // The offer lives on the limit notice, so accepting it drops the scheduled
+  // bubble immediately beneath the row that was tapped.
+  const handleAcceptAutoContinue = useCallback(() => {
+    void handleScheduleMessage('usage-reset', null, AUTO_CONTINUE_MESSAGE);
+  }, [handleScheduleMessage]);
+
   // Every way of sending saves into an open edit instead, or the paused
   // original would still be waiting after its replacement went out.
   interceptSubmitRef.current = scheduledEdit
@@ -900,6 +906,8 @@ function ChatInterface({
           onEditMessage={beginRewindEdit}
           canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing}
           rewindEditTargetUuid={pendingRewind?.anchorMessageId ?? null}
+          autoContinueOfferMessage={autoContinueOffer}
+          onAcceptAutoContinue={handleAcceptAutoContinue}
           scheduledMessages={visibleScheduledMessages}
           {...scheduledBubbleHandlers}
         />
@@ -1055,10 +1063,6 @@ function ChatInterface({
               void handleScheduleMessage(trigger, scheduledFor);
             }}
             canScheduleOnUsageReset={canScheduleOnUsageReset}
-            autoContinueOffer={autoContinueOffer}
-            onAcceptAutoContinue={() => {
-              void handleScheduleMessage('usage-reset', null, AUTO_CONTINUE_MESSAGE);
-            }}
             pendingRewind={pendingRewind}
             onCancelRewindEdit={cancelRewindEdit}
             attachedFiles={attachedFiles}

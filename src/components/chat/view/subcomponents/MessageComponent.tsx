@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PencilIcon } from 'lucide-react';
+import { PencilIcon, PlayIcon } from 'lucide-react';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type {
@@ -55,6 +55,9 @@ type MessageComponentProps = {
   canEditMessage?: boolean;
   /** This message is the one currently loaded in the rewind-edit composer. */
   isRewindEditTarget?: boolean;
+  /** This limit notice is the live one: it carries the Auto-Continue button. */
+  showAutoContinueOffer?: boolean;
+  onAcceptAutoContinue?: () => void;
 };
 
 type InteractiveOption = {
@@ -65,7 +68,7 @@ type InteractiveOption = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, showAutoContinueOffer = false, onAcceptAutoContinue }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -225,7 +228,21 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
         <div className="w-full">
           <div className="flex items-start gap-2 py-0.5">
             <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
-            <span className="whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">{formattedMessageContent}</span>
+            <div className="min-w-0 flex-1">
+              <span className="whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">{formattedMessageContent}</span>
+              {showAutoContinueOffer && onAcceptAutoContinue && (
+                <div className="mt-1.5 select-none">
+                  <button
+                    type="button"
+                    onClick={onAcceptAutoContinue}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-accent"
+                  >
+                    <PlayIcon className="h-3 w-3 shrink-0 text-primary" aria-hidden />
+                    {t('input.autoContinue.offer', { defaultValue: 'Continue when usage resets' })}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : (

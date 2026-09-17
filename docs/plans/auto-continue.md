@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
-- Status: 1/6
-- Next: [message edit model](message-edit-model.md) phase 2, then move the offer onto the notice
+- Status: 2/6
+- Next: phase 3 — the continue message becomes editable in Settings, server-side
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -54,14 +54,15 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       shape is unconfirmed — its synchronizer skips a `task_complete` carrying
       no agent message, so the second row is not the transcript one and needs a
       live capture before anything is changed
-- [~] 2. A limit stop offers Auto-Continue in one tap, as a button on the limit
-      notice itself; tapping it puts the scheduled bubble from the [message edit
-      model](message-edit-model.md) directly beneath. Built so far as a card in
-      the strip above the composer, which that model removes, so the detection
-      stays and the card moves. Detected on the fields above, never the wording,
-      and absent when the row says no reset is coming; `quotaLimits.resetsAt`
-      expires a stale offer. `Continue` goes through `buildSendOptions` minus
-      `rewindToMessageId`, which an offer must not inherit
+- [x] 2. A limit stop offers Auto-Continue in one tap, as a button beneath the
+      limit notice itself; tapping it puts the scheduled bubble from the [message
+      edit model](message-edit-model.md) directly beneath that. The card above the
+      composer is gone, and the offer names the live notice by identity so an
+      older limit further up the thread never grows a button. Verified on the
+      branch server 2026-09-17 by appending a *recorded* limit row to a real
+      session's transcript: offer drawn, tapped, real pending row, bubble, sidebar
+      clock, and *Send now* produced a real turn. **A live limit stop remains
+      unverified** — it cannot be triggered on demand
 - [ ] 3. The message Auto-Continue sends is editable in Settings › Chat.
       Server-side in `appConfigDb`, not `useUiPreferences` localStorage, so
       phase 4 can read it with no browser open

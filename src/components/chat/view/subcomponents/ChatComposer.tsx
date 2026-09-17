@@ -13,7 +13,6 @@ import type {
 import { XIcon, ArrowUpIcon } from 'lucide-react';
 
 import { useLongPress } from '../../../../hooks/useLongPress';
-import type { UsageLimitStop } from '../../../../stores/useSessionStore';
 import { formatClockTimeWithDay } from '../../../../utils/formatTime';
 import type { ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
 import type { QueuedAsyncAnswer } from '../../utils/asyncQuestionState';
@@ -48,7 +47,6 @@ import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessagesRow from './QueuedMessagesRow';
-import AutoContinueOfferCard from './AutoContinueOfferCard';
 import ScheduleSendMenu from './ScheduleSendMenu';
 import RewindEditCard from './RewindEditCard';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
@@ -126,8 +124,6 @@ interface ChatComposerProps {
   /** Codex answers waiting for later turns; they share the queued draft's row. */
   queuedAnswers: QueuedAsyncAnswer[];
   onRemoveQueuedAnswer: (answerId: string) => void;
-  autoContinueOffer: UsageLimitStop | null;
-  onAcceptAutoContinue: () => void;
   /** Set while a scheduled message is being rewritten; sending saves it back. */
   editingSchedule: { trigger: ScheduledMessageTrigger; scheduledFor: string | null } | null;
   onCancelScheduleEdit: () => void;
@@ -214,8 +210,6 @@ export default function ChatComposer({
   onDeleteQueuedDraft,
   queuedAnswers,
   onRemoveQueuedAnswer,
-  autoContinueOffer,
-  onAcceptAutoContinue,
   editingSchedule,
   onCancelScheduleEdit,
   onScheduleMessage,
@@ -416,10 +410,6 @@ export default function ChatComposer({
             {t('input.schedule.discardEdit', { defaultValue: 'Discard edit' })}
           </button>
         </div>
-      )}
-
-      {autoContinueOffer && (
-        <AutoContinueOfferCard stop={autoContinueOffer} onAccept={onAcceptAutoContinue} />
       )}
 
       {pendingRewind && (

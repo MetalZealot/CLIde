@@ -14,8 +14,8 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Merged to `main` 2026-09-15; editing a waiting message is [the edit model](message-edit-model.md) |
-| [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 1/6 | Message edit model phase 2, then move the offer onto the notice |
-| [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 2/5 | Phase 2 — scheduled messages as bubbles in the thread, queues in one row |
+| [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 2/6 | Phase 3 — the continue message becomes editable in Settings |
+| [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
 | [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
 | [Context-correct skills settings](skills-settings-discovery-scope.md) | complete | none — accepted live 2026-09-09 |

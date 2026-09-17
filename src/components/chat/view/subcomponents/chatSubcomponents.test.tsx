@@ -105,6 +105,40 @@ describe('chatSubcomponents', () => {
     ), '', 'hidden thinking must remain hidden');
   });
 
+  test('the Auto-Continue offer is a button on the limit notice, drawn only for the live one', async () => {
+    const hooks = registerHooks({
+      resolve(specifier, context, nextResolve) {
+        return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
+          ? 'react-syntax-highlighter/dist/cjs/styles/prism/index.js'
+          : specifier, context);
+      },
+    });
+    const { default: MessageComponent } = await import('./MessageComponent').finally(() => hooks.deregister());
+    const notice: ChatMessage = {
+      type: 'assistant', content: 'Claude usage limit reached.', isSystemNotice: true,
+      timestamp: '2026-09-17T15:42:00.000Z',
+    };
+    const render = (props: Record<string, unknown>) => {
+      const container = document.createElement('div');
+      container.innerHTML = renderToStaticMarkup(
+        <MessageComponent message={notice} prevMessage={null} provider="claude"
+          createDiff={() => []} showThinking={false} {...props} />,
+      );
+      return container;
+    };
+
+    const offered = render({ showAutoContinueOffer: true, onAcceptAutoContinue: () => {} });
+    const button = offered.querySelector('button');
+    assert.ok(button, `the offer is a button on the notice row: ${offered.innerHTML}`);
+    assert.equal(button?.textContent, 'Continue when usage resets');
+    assert.ok(offered.textContent?.includes('Claude usage limit reached.'),
+      'the notice keeps its own text above the button');
+
+    // Every other notice, live or reloaded, stays a plain muted row.
+    assert.equal(render({ onAcceptAutoContinue: () => {} }).querySelector('button'), null);
+    assert.equal(render({ showAutoContinueOffer: true }).querySelector('button'), null);
+  });
+
   test('message timestamps add a day label only once the calendar day has changed', () => {
     const now = new Date(2026, 8, 17, 8, 0);
     const at = (month: number, day: number, hour: number, year = 2026) => new Date(year, month, day, hour, 5);
