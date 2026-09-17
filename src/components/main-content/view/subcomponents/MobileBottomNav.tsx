@@ -1,5 +1,5 @@
-import type { Dispatch, SetStateAction } from 'react';
-import { AlertCircle, Check, Clock, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { AlertCircle, Check, Clock, EllipsisVertical, Settings as SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
@@ -38,6 +38,16 @@ const CHAT_STATUS_LABEL_KEYS = {
   scheduled: 'mobileNav.scheduled',
 } as const;
 
+const SLOT_TAB_STORAGE_KEY = 'mobile-nav-slot-tab';
+
+const readStoredSlotTab = (): string | null => {
+  try {
+    return localStorage.getItem(SLOT_TAB_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
 const barItemClassName = (isActive: boolean) =>
   cn(
     'flex h-full w-full touch-manipulation flex-col items-center justify-center gap-1 text-[11px] font-medium leading-none transition-colors disabled:opacity-40',
@@ -71,7 +81,22 @@ export default function MobileBottomNav({
     ...(shouldShowTasksTab ? [TASKS_TAB] : []),
     ...getPluginTabs(plugins),
   ];
-  const isOverflowActive = !BASE_TABS.some((tab) => tab.id === activeTab);
+  const [storedSlotTab, setStoredSlotTab] = useState(readStoredSlotTab);
+  const activeOverflowTab = overflowTabs.find((tab) => tab.id === activeTab);
+  // An open overflow destination always owns the slot; otherwise the last pick, else the first entry.
+  const slotTab = activeOverflowTab ?? overflowTabs.find((tab) => tab.id === storedSlotTab) ?? overflowTabs[0];
+  const isSlotActive = slotTab !== undefined && slotTab.id === activeTab;
+
+  const activeOverflowTabId = activeOverflowTab?.id;
+  useEffect(() => {
+    if (!activeOverflowTabId || activeOverflowTabId === storedSlotTab) return;
+    setStoredSlotTab(activeOverflowTabId);
+    try {
+      localStorage.setItem(SLOT_TAB_STORAGE_KEY, activeOverflowTabId);
+    } catch {
+      // Storage unavailable; the pick lasts for this page load only.
+    }
+  }, [activeOverflowTabId, storedSlotTab]);
 
   const selectOverflowTab = (tab: AppTab) => {
     setActiveTab(tab);
@@ -129,19 +154,44 @@ export default function MobileBottomNav({
             </li>
           );
         })}
-        <li className="min-w-0 flex-1">
+        {slotTab && (
+          <li className="min-w-0 flex-1">
+            <button
+              type="button"
+              disabled={!hasSelectedProject}
+              title={!hasSelectedProject ? t('mobileNav.selectWorktreeFirst') : undefined}
+              aria-current={isSlotActive ? 'page' : undefined}
+              onClick={() => setActiveTab(slotTab.id)}
+              className={barItemClassName(isSlotActive)}
+            >
+              <span className={indicatorClassName(isSlotActive)}>
+                {slotTab.kind === 'builtin' ? (
+                  <slotTab.icon className="h-5 w-5" strokeWidth={isSlotActive ? 2.2 : 1.8} aria-hidden="true" />
+                ) : (
+                  <PluginIcon
+                    pluginName={slotTab.pluginName}
+                    iconFile={slotTab.iconFile}
+                    className="flex h-5 w-5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
+                  />
+                )}
+              </span>
+              <span className="max-w-full truncate px-1">
+                {slotTab.kind === 'builtin' ? t(slotTab.labelKey) : slotTab.label}
+              </span>
+            </button>
+          </li>
+        )}
+        <li className="w-11 flex-none">
           <button
             ref={moreButtonRef}
             type="button"
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
+            aria-label={t('mobileNav.more')}
             onClick={toggleMenu}
-            className={barItemClassName(isOverflowActive || isMenuOpen)}
+            className={barItemClassName(isMenuOpen)}
           >
-            <span className={indicatorClassName(isOverflowActive)}>
-              <Ellipsis className="h-5 w-5" strokeWidth={isOverflowActive ? 2.2 : 1.8} aria-hidden="true" />
-            </span>
-            <span className="max-w-full truncate px-1">{t('mobileNav.more')}</span>
+            <EllipsisVertical className="h-5 w-5" strokeWidth={isMenuOpen ? 2.2 : 1.8} aria-hidden="true" />
           </button>
         </li>
       </ul>
