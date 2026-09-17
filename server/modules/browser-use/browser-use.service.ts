@@ -22,7 +22,6 @@ import {
   RECOMMENDED_MAX_VIEWPORT_EDGE,
   type BrowserContextLease,
   type BrowserDevicePreset,
-  type BrowserLeaseReleaseReason,
   type BrowserOrientation,
   type BrowserRuntimeReadiness,
   type BrowserSessionPolicy,
@@ -96,7 +95,6 @@ function normalizeDevicePreset(value: unknown, fallback: BrowserDevicePreset): B
 }
 
 const sessions = new Map<string, BrowserUseSession>();
-const MAX_STOPPED_SESSIONS = 5;
 
 const DEFAULT_SETTINGS: BrowserUseSettings = {
   enabled: false,
@@ -200,14 +198,6 @@ export function publicBrowserSession(session: BrowserUseSession): PublicBrowserU
   return publicFields;
 }
 
-const RELEASE_MESSAGES: Record<BrowserLeaseReleaseReason, { lastAction: string; message: string }> = {
-  released: { lastAction: 'stop', message: 'Browser session stopped. Create a new session to continue browsing.' },
-  closed: { lastAction: 'browser_close', message: 'The agent closed the browser. Its next browser tool call opens a new one.' },
-  expired: { lastAction: 'expire', message: 'Browser session expired after inactivity.' },
-  shutdown: { lastAction: 'shutdown', message: 'Browser session stopped during server shutdown.' },
-  disconnected: { lastAction: 'disconnect', message: 'Browser process exited. Create a new session to continue browsing.' },
-};
-
 browserRuntime.setViewportProfileLoader(() => readSettings().viewports);
 browserRuntime.setSessionPolicyLoader((): BrowserSessionPolicy => {
   const settings = readSettings();
@@ -218,36 +208,17 @@ browserRuntime.setSessionPolicyLoader((): BrowserSessionPolicy => {
   };
 });
 
-// Every lease release, whatever triggered it, lands here so the panel row and
-// the runtime never disagree about whether a session is alive.
-browserRuntime.onRelease((lease, reason) => {
-  const session = sessions.get(lease.id);
-  if (!session) {
-    return;
-  }
-  session.status = 'stopped';
-  session.activeToolCount = 0;
+// Every lease release, whatever triggered it, removes the panel row, so the rows
+// on screen are exactly the browsers still running and the session limits hold.
+browserRuntime.onRelease((lease) => {
+  sessions.delete(lease.id);
   monitoredPages.delete(lease.id);
-  session.updatedAt = new Date().toISOString();
-  session.lastAction = RELEASE_MESSAGES[reason].lastAction;
-  session.message = RELEASE_MESSAGES[reason].message;
-  pruneStoppedSessions(sessions);
-});
-
-// A stopped row is history, and only an explicit delete removed one, so a long
-// session accumulated a row per agent connection. Newest first, so the row that
-// just stopped always survives.
-export function pruneStoppedSessions(
-  entries: Map<string, BrowserUseSession>,
-  max = MAX_STOPPED_SESSIONS,
-): void {
-  const stopped = [...entries.values()]
-    .filter((entry) => entry.status === 'stopped')
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  for (const entry of stopped.slice(max)) {
-    entries.delete(entry.id);
+  const timer = captureTimers.get(lease.id);
+  if (timer) {
+    clearTimeout(timer);
+    captureTimers.delete(lease.id);
   }
-}
+});
 
 // Every leased context gets a panel row; the lease id is the row's id.
 function createSessionRecord(lease: BrowserContextLease, chatSessionId: string | null = null): BrowserUseSession {
@@ -372,7 +343,7 @@ export const browserUseService = {
 
     const next = writeSettings(nextSettings);
     // A shorter timeout or a lower ceiling must reach sessions already open.
-    if (next.sessionTtlMinutes !== current.sessionTtlMinutes) {
+    if (next.sessionTtlMinutes !== current.sessionTtlMinutes || next.maxSessions !== current.maxSessions) {
       await browserRuntime.applySessionPolicy();
     }
     // Only the enable flag owns provider registration; a viewport save must not

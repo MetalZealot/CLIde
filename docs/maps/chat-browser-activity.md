@@ -6,8 +6,10 @@ screenshots never enter normal agent tool results. Pending questions, permission
 queued messages/answers, and rewind edits collapse the preview to a text row. The browser/async-question area scrolls within
 half the usable viewport on short screens, keeping the composer below it reachable.
 
-The preview opens the matching Browser session, including stopped sessions; a missing
-session cannot silently select another. Among several connections for one chat, an
+The preview opens the matching Browser session; a missing session cannot silently
+select another. A session's row is removed the moment its browser closes (idle timeout,
+Stop, agent close, lowered session limit), so the rows shown are the browsers running,
+and only tool calls — not a provider's per-turn reconnect — reset the idle timeout. Among several connections for one chat, an
 active connection wins, then the most recently updated one. This is a latest capture,
 not a video stream. Polling is every two seconds, so short actions can finish between
 updates.

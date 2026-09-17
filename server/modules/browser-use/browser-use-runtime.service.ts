@@ -704,11 +704,15 @@ export function createBrowserRuntime(options: BrowserRuntimeOptions = {}) {
       updateExpiryTimer();
     },
 
-    // Called when the stored policy changes, so a shortened timeout reaches
-    // sessions that are already open.
+    // Called when the stored policy changes, so a shortened timeout or a lower
+    // ceiling reaches sessions that are already open. Least recently used go first.
     async applySessionPolicy(): Promise<void> {
       updateExpiryTimer();
       await expireIdle();
+      const excess = [...leases.values()]
+        .sort((a, b) => a.lastUsedAt - b.lastUsedAt)
+        .slice(0, Math.max(0, leases.size - policy().maxSessions));
+      await Promise.all(excess.map((lease) => dropLease(lease, 'expired', { closeContext: true })));
     },
 
     getLease(id: string): BrowserContextLease | null {
