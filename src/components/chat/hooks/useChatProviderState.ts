@@ -13,7 +13,7 @@ import type {
 import {
   DEFAULT_EFFORT_VALUE,
   FALLBACK_PROVIDER_EFFORT_VALUES,
-  toProviderEffortOptions,
+  resolveEffortValuesForModel,
 } from '../constants/providerEffort';
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 import { getNextRoutinePermissionMode } from '../utils/chatPermissions';
@@ -357,18 +357,19 @@ export function useChatProviderState({
       return [];
     }
 
-    // `supportsEffort` is the real gate; a catalog entry's `effort.values` only
-    // refines the list. Some models (Claude's `haiku`) are in the catalog but
-    // declare no effort values — fall back to the provider's, as when the model
-    // is absent entirely, so the Effort picker stays visible.
-    const option = getModelOption(targetProvider, model);
-    const optionValues = option?.effort?.values;
-    if (optionValues && optionValues.length > 0) {
-      return optionValues;
-    }
-
-    return toProviderEffortOptions(FALLBACK_PROVIDER_EFFORT_VALUES[targetProvider] ?? []);
+    // `supportsEffort` is the provider-level gate; the model's own catalog entry
+    // decides from there, and an entry with no effort values offers none.
+    return resolveEffortValuesForModel(
+      getModelOption(targetProvider, model),
+      FALLBACK_PROVIDER_EFFORT_VALUES[targetProvider] ?? [],
+    );
   }, [getModelOption, getSupportsEffortForProvider]);
+
+  const modelOffersEffort = useCallback((
+    targetProvider: LLMProvider,
+    model: string,
+  ): boolean => getEffortOptionsForModel(targetProvider, model).length > 0,
+  [getEffortOptionsForModel]);
 
   const getAllowedEffortValues = useCallback((
     targetProvider: LLMProvider,
@@ -450,6 +451,11 @@ export function useChatProviderState({
     let hasUpdates = false;
 
     for (const targetProvider of PROVIDERS) {
+      // A model with no effort control leaves the stored pick alone, so it is
+      // still there when a model that has one is selected again.
+      if (!modelOffersEffort(targetProvider, providerModels[targetProvider])) {
+        continue;
+      }
       const currentEffort = providerEfforts[targetProvider] ?? DEFAULT_EFFORT_VALUE;
       const nextEffort = reconcileStoredEffort(targetProvider, providerModels[targetProvider], currentEffort);
       if (nextEffort === currentEffort) {
@@ -464,7 +470,7 @@ export function useChatProviderState({
     if (hasUpdates) {
       setProviderEfforts((previous) => ({ ...previous, ...nextEfforts }));
     }
-  }, [providerEfforts, providerModels, reconcileStoredEffort]);
+  }, [modelOffersEffort, providerEfforts, providerModels, reconcileStoredEffort]);
 
   useEffect(() => {
     const validModes = getPermissionModesForProvider(provider);
@@ -758,6 +764,7 @@ export function useChatProviderState({
     selectProviderEffort,
     setStoredProviderEffort,
     reconcileStoredEffort,
+    modelOffersEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
     getSupportsForkForProvider,

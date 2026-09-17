@@ -16,6 +16,7 @@ import { formatPlaybackTime, VoicePlayer, voiceId } from '../../../lib/voicePlay
 import { api } from '../../../utils/api';
 import { asyncQuestionDraftKey, enqueueAsyncAnswer, readHandledAsyncQuestions } from '../utils/asyncQuestionState';
 import { writeQueuedMessage } from '../utils/chatStorage';
+import { resolveEffortValuesForModel } from '../constants/providerEffort';
 
 import { useAsyncQuestions } from './useAsyncQuestions';
 import { useChatSessionState } from './useChatSessionState';
@@ -622,6 +623,14 @@ test('an effort the new model still offers survives the change', () => {
 
 test('an explicit default stays the standing choice across a model change', () => {
   assert.equal(reconcileEffortForAllowedValues('default', ['low', 'high']), 'default');
+});
+
+test('a catalog model with no effort values offers none, hiding the picker', () => {
+  assert.deepEqual(resolveEffortValuesForModel({ value: 'haiku', label: 'Haiku 4.5' }, ['low', 'high']), []);
+});
+
+test('a model absent from the catalog falls back to the provider values', () => {
+  assert.deepEqual(resolveEffortValuesForModel(null, ['low', 'high']), [{ value: 'low' }, { value: 'high' }]);
 });
 
 test('a model offering no effort at all resolves to default rather than a guess', () => {

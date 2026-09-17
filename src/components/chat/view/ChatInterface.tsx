@@ -146,6 +146,7 @@ function ChatInterface({
     providerModelsLoading,
     selectProviderModel,
     selectProviderEffort,
+    modelOffersEffort,
     reconcileStoredEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
@@ -457,9 +458,10 @@ function ChatInterface({
 
     // The new model may not offer the effort this session was on. Write the
     // fallback rather than only displaying it, so the stored pick, the composer
-    // and the next turn agree on one value.
+    // and the next turn agree on one value. A model with no effort control is
+    // the exception: it keeps the session's pick for whatever is selected next.
     const storedEffort = sessionId ? sessionStore.getSessionSlot(sessionId)?.effort ?? null : null;
-    if (storedEffort) {
+    if (storedEffort && modelOffersEffort(provider, model)) {
       const reconciled = reconcileStoredEffort(provider, model, storedEffort);
       if (reconciled !== storedEffort) {
         await applySessionEffort(reconciled, sessionId);
@@ -470,6 +472,7 @@ function ChatInterface({
     applySessionEffort,
     currentSessionId,
     handleSelectProviderModel,
+    modelOffersEffort,
     provider,
     reconcileStoredEffort,
     selectedSession?.id,
