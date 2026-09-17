@@ -1,7 +1,7 @@
 # One edit model for queued, scheduled, and earlier messages
 
-- Status: 2/5
-- Next: phone check of phase 2 on `feat/message-bubbles`, merge, then phase 3
+- Status: 3/5
+- Next: phase 3 — the banners go, and all three edits mark the original instead
 - Merged to `main` 2026-09-15; phases 0 and 1 are live
 - Context: [Auto-Continue](auto-continue.md) puts its offer on the scheduled bubble
   this plan introduces; placement reasons in [UI standards](../maps/ui-standards.md);
@@ -101,11 +101,11 @@ question stays above the composer — like a permission prompt, it waits on you.
       Auto-Continue offer all count a paused row as waiting, and every send path
       saves into an open edit. Verified with real sends on the branch server
       2026-09-15
-- [~] 2. Scheduled messages render as bubbles at the end of the thread with their
+- [x] 2. Scheduled messages render as bubbles at the end of the thread with their
       tap menu, and both queues merge into one compact row above the composer; the
       scheduled, queued, and queued-answer cards are removed. *Send now* is
       refused, not failed, while a reply runs. Verified
-      with real sends on the branch server 2026-09-16; phone check pending
+      with real sends on the branch server; accepted on the phone 2026-09-17
 - [ ] 3. All three edit through the model above; the rewind and schedule banners
       are removed, with the announcement kept
 - [ ] 4. A rewind edit marks what it will drop, in its own treatment
