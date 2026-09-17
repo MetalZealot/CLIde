@@ -10,7 +10,7 @@ interface RewindEditCardProps {
 /**
  * Composer banner shown while a prior user message is being edited: sending
  * will rewind the conversation to that point and continue from the edited
- * text. Mirrors QueuedMessageCard's chrome so the two "armed composer"
+ * text. Mirrors the queued row's chrome so the two "armed composer"
  * states read as one family.
  */
 export default function RewindEditCard({ snippet, onCancel }: RewindEditCardProps) {

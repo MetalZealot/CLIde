@@ -15,7 +15,8 @@ import { XIcon, ArrowUpIcon } from 'lucide-react';
 import { useLongPress } from '../../../../hooks/useLongPress';
 import type { UsageLimitStop } from '../../../../stores/useSessionStore';
 import { formatClockTimeWithDay } from '../../../../utils/formatTime';
-import type { ScheduledMessage, ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
+import type { ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
+import type { QueuedAsyncAnswer } from '../../utils/asyncQuestionState';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useSttAvailable } from '../../hooks/useVoiceAvailable';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
@@ -46,9 +47,8 @@ import type { AttachmentRejection } from '../../hooks/useChatComposerState';
 import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
-import QueuedMessageCard from './QueuedMessageCard';
+import QueuedMessagesRow from './QueuedMessagesRow';
 import AutoContinueOfferCard from './AutoContinueOfferCard';
-import ScheduledMessageCard from './ScheduledMessageCard';
 import ScheduleSendMenu from './ScheduleSendMenu';
 import RewindEditCard from './RewindEditCard';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
@@ -123,14 +123,11 @@ interface ChatComposerProps {
   queuedDraft: QueuedDraft | null;
   onEditQueuedDraft: () => void;
   onDeleteQueuedDraft: () => void;
-  scheduledMessages: ScheduledMessage[];
+  /** Codex answers waiting for later turns; they share the queued draft's row. */
+  queuedAnswers: QueuedAsyncAnswer[];
+  onRemoveQueuedAnswer: (answerId: string) => void;
   autoContinueOffer: UsageLimitStop | null;
   onAcceptAutoContinue: () => void;
-  onCancelScheduledMessage: (id: string) => void;
-  /** Pauses a scheduled message and pulls it into the composer for editing. */
-  onEditScheduledMessage: (message: ScheduledMessage) => void;
-  /** Puts a paused message back on its schedule, unchanged. */
-  onResumeScheduledMessage: (id: string) => void;
   /** Set while a scheduled message is being rewritten; sending saves it back. */
   editingSchedule: { trigger: ScheduledMessageTrigger; scheduledFor: string | null } | null;
   onCancelScheduleEdit: () => void;
@@ -215,12 +212,10 @@ export default function ChatComposer({
   queuedDraft,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
-  scheduledMessages,
+  queuedAnswers,
+  onRemoveQueuedAnswer,
   autoContinueOffer,
   onAcceptAutoContinue,
-  onCancelScheduledMessage,
-  onEditScheduledMessage,
-  onResumeScheduledMessage,
   editingSchedule,
   onCancelScheduleEdit,
   onScheduleMessage,
@@ -377,14 +372,16 @@ export default function ChatComposer({
         </div>
       )}
 
-      {queuedDraft && (
-        <QueuedMessageCard
-          content={queuedDraft.content}
-          attachmentCount={queuedDraft.attachments.length}
-          onEdit={onEditQueuedDraft}
-          onDelete={onDeleteQueuedDraft}
-        />
-      )}
+      <QueuedMessagesRow
+        draft={queuedDraft && {
+          content: queuedDraft.content,
+          attachmentCount: queuedDraft.attachments.length,
+        }}
+        answers={queuedAnswers}
+        onEditDraft={onEditQueuedDraft}
+        onDeleteDraft={onDeleteQueuedDraft}
+        onRemoveAnswer={onRemoveQueuedAnswer}
+      />
 
       {isScheduleMenuOpen && (
         <ScheduleSendMenu
@@ -424,16 +421,6 @@ export default function ChatComposer({
       {autoContinueOffer && (
         <AutoContinueOfferCard stop={autoContinueOffer} onAccept={onAcceptAutoContinue} />
       )}
-
-      {scheduledMessages.map((message) => (
-        <ScheduledMessageCard
-          key={message.id}
-          message={message}
-          onCancel={onCancelScheduledMessage}
-          onEdit={onEditScheduledMessage}
-          onResume={onResumeScheduledMessage}
-        />
-      ))}
 
       {pendingRewind && (
         <RewindEditCard snippet={pendingRewind.snippet} onCancel={onCancelRewindEdit} />

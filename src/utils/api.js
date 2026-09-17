@@ -258,6 +258,8 @@ export const api = {
     authenticatedFetch(`/api/scheduled-messages/${id}/pause`, { method: 'POST' }),
   resumeScheduledMessage: (id) =>
     authenticatedFetch(`/api/scheduled-messages/${id}/resume`, { method: 'POST' }),
+  sendScheduledMessageNow: (id) =>
+    authenticatedFetch(`/api/scheduled-messages/${id}/send-now`, { method: 'POST' }),
   saveScheduledMessageEdit: (id, payload) =>
     authenticatedFetch(`/api/scheduled-messages/${id}`, {
       method: 'PATCH',

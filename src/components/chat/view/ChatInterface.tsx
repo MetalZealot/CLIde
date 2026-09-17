@@ -33,7 +33,6 @@ import NewSessionLauncher from './subcomponents/NewSessionLauncher';
 import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
 import AsyncQuestionPanel from './subcomponents/AsyncQuestionPanel';
-import QueuedAsyncAnswersCard from './subcomponents/QueuedAsyncAnswersCard';
 import ChatFindBar from './subcomponents/ChatFindBar';
 import ChatPageScrollbar from './subcomponents/ChatPageScrollbar';
 
@@ -505,6 +504,7 @@ function ChatInterface({
   const {
     pending: scheduledMessages,
     schedule: scheduleMessage,
+    sendNow: sendScheduledMessageNow,
     cancel: cancelScheduledMessage,
     editing: scheduledEdit,
     beginEdit: beginScheduledEdit,
@@ -682,6 +682,37 @@ function ChatInterface({
       setAttachedFiles(files.filter((file): file is File => file !== null));
     },
     [beginScheduledEdit, setAttachedFiles, setInput],
+  );
+
+  const handleSendScheduledNow = useCallback(async (id: string) => {
+    const outcome = await sendScheduledMessageNow(id);
+    if (outcome === 'busy' || outcome === 'unreachable') {
+      addMessage({
+        type: 'error',
+        content: outcome === 'busy'
+          ? t('input.schedule.sendNowRefusedBusy', {
+            defaultValue: 'A reply started before that message could go, so it is still scheduled.',
+          })
+          : t('input.schedule.sendNowUnreachable', {
+            defaultValue: 'Could not reach the server to send that message. It is still scheduled.',
+          }),
+        timestamp: new Date(),
+      });
+    }
+  }, [addMessage, sendScheduledMessageNow, t]);
+
+  // Stable, because the message pane is memoised.
+  const scheduledBubbleHandlers = useMemo(() => ({
+    onSendScheduledNow: (id: string) => { void handleSendScheduledNow(id); },
+    onEditScheduledMessage: (message: ScheduledMessage) => { void handleEditScheduledMessage(message); },
+    onCancelScheduledMessage: (id: string) => { void cancelScheduledMessage(id); },
+    onResumeScheduledMessage: (id: string) => { void resumeScheduledMessage(id); },
+  }), [cancelScheduledMessage, handleEditScheduledMessage, handleSendScheduledNow, resumeScheduledMessage]);
+  const visibleScheduledMessages = useMemo(
+    () => (scheduledEdit
+      ? scheduledMessages.filter((message) => message.id !== scheduledEdit.id)
+      : scheduledMessages),
+    [scheduledEdit, scheduledMessages],
   );
 
   /** Backing out of an edit: the message goes back on its schedule, unchanged. */
@@ -869,6 +900,8 @@ function ChatInterface({
           onEditMessage={beginRewindEdit}
           canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing}
           rewindEditTargetUuid={pendingRewind?.anchorMessageId ?? null}
+          scheduledMessages={visibleScheduledMessages}
+          {...scheduledBubbleHandlers}
         />
 
         <div
@@ -957,15 +990,6 @@ function ChatInterface({
               />
             )}
 
-            {asyncQuestions.queued.length > 0 && (
-              <div className="px-4 md:px-6">
-                <QueuedAsyncAnswersCard
-                  answers={asyncQuestions.queued}
-                  onRemove={asyncQuestions.removeQueued}
-                />
-              </div>
-            )}
-
             {asyncQuestions.pendingQuestion && (currentSessionId || selectedSession?.id) && (
               <div className="px-4 md:px-6">
                 <AsyncQuestionPanel
@@ -1023,12 +1047,8 @@ function ChatInterface({
             queuedDraft={queuedDraft}
             onEditQueuedDraft={editQueuedDraft}
             onDeleteQueuedDraft={deleteQueuedDraft}
-            scheduledMessages={scheduledEdit
-              ? scheduledMessages.filter((message) => message.id !== scheduledEdit.id)
-              : scheduledMessages}
-            onCancelScheduledMessage={(id) => { void cancelScheduledMessage(id); }}
-            onEditScheduledMessage={(message) => { void handleEditScheduledMessage(message); }}
-            onResumeScheduledMessage={(id) => { void resumeScheduledMessage(id); }}
+            queuedAnswers={asyncQuestions.queued}
+            onRemoveQueuedAnswer={asyncQuestions.removeQueued}
             editingSchedule={scheduledEdit}
             onCancelScheduleEdit={handleCancelScheduleEdit}
             onScheduleMessage={(trigger, scheduledFor) => {

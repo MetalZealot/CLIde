@@ -47,7 +47,8 @@ import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
 import FollowUpQuestions from './FollowUpQuestions';
 import AsyncQuestionPanel from './AsyncQuestionPanel';
-import QueuedAsyncAnswersCard from './QueuedAsyncAnswersCard';
+import QueuedMessagesRow from './QueuedMessagesRow';
+import ScheduledMessageBubbles from './ScheduledMessageBubbles';
 import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
 import TokenUsageSummary from './TokenUsageSummary';
 
@@ -405,29 +406,125 @@ describe('chatSubcomponents', () => {
       assert.match(markup, /2 remaining/);
     });
 
-    test('keeps queued answers visible and removable', async () => {
+    test('queues typed messages and answers in one row, in send order, listing each when opened', async () => {
       const questionI18n = i18next.createInstance();
       await questionI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
-      const markup = renderToStaticMarkup(
-        <I18nextProvider i18n={questionI18n} defaultNS="chat">
-          <QueuedAsyncAnswersCard
-            answers={[{
-              id: 'answer-1',
-              questionId: 'question-1:0',
-              question: 'Which environment?',
-              answer: 'Staging',
-              content: '> Which environment?\n\nStaging',
-              provider: 'codex',
-              queuedAt: '2026-09-07T12:00:00.000Z',
-            }]}
-            onRemove={() => {}}
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const removed: string[] = [];
+
+      try {
+        await React.act(async () => {
+          root.render(
+            <I18nextProvider i18n={questionI18n} defaultNS="chat">
+              <QueuedMessagesRow
+                draft={{ content: 'Fix the test too', attachmentCount: 0 }}
+                answers={[{
+                  id: 'answer-1',
+                  questionId: 'question-1:0',
+                  question: 'Which environment?',
+                  answer: 'Staging',
+                  content: '> Which environment?\n\nStaging',
+                  provider: 'codex',
+                  queuedAt: '2026-09-07T12:00:00.000Z',
+                }]}
+                onEditDraft={() => {}}
+                onDeleteDraft={() => {}}
+                onRemoveAnswer={(id) => removed.push(id)}
+              />
+            </I18nextProvider>,
+          );
+        });
+
+        const row = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+        assert.ok(row);
+        assert.match(row.textContent ?? '', /QueuedFix the test too\+1 more/);
+        assert.equal(container.querySelectorAll('li').length, 0, 'one row until it is opened');
+
+        await React.act(async () => row.click());
+        const items = [...container.querySelectorAll('li')];
+        assert.deepEqual(items.map((item) => item.querySelector('p')?.textContent), [
+          'Fix the test too',
+          'Which environment? — Staging',
+        ]);
+        assert.ok(items[0].querySelector('[aria-label="Edit queued message"]'));
+        const remove = items[1].querySelector<HTMLButtonElement>('[aria-label="Remove queued answer to Which environment?"]');
+        assert.ok(remove);
+        assert.equal(items[1].querySelector('[aria-label="Edit queued message"]'), null);
+        await React.act(async () => remove.click());
+        assert.deepEqual(removed, ['answer-1']);
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+      }
+    });
+
+    test('draws scheduled messages as bubbles whose menu holds Send now until a reply finishes', async () => {
+      const scheduleI18n = i18next.createInstance();
+      await scheduleI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
+      const base = {
+        sessionId: 'session-1', provider: 'claude', failureReason: null, firedAt: null, scheduledFor: null,
+      };
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const sentNow: string[] = [];
+      const render = (canSendNow: boolean) => root.render(
+        <I18nextProvider i18n={scheduleI18n} defaultNS="chat">
+          <ScheduledMessageBubbles
+            messages={[
+              { ...base, id: 'later', content: 'Being edited', trigger: 'time', state: 'paused', createdAt: '2026-09-16T10:05:00Z' },
+              {
+                ...base, id: 'first', content: 'Continue', trigger: 'usage-reset', state: 'pending', createdAt: '2026-09-16T10:00:00Z',
+                attachments: [{ path: '/assets/a.png' }],
+              },
+            ]}
+            canSendNow={canSendNow}
+            onSendNow={(id) => sentNow.push(id)}
+            onEdit={() => {}}
+            onCancel={() => {}}
+            onResume={() => {}}
           />
         </I18nextProvider>,
       );
 
-      assert.match(markup, /1 answer queued for the next turn/);
-      assert.match(markup, /Which environment\?/);
-      assert.match(markup, /aria-label="Remove queued answer to Which environment\?"/);
+      try {
+        await React.act(async () => render(false));
+        const bubbles = [...container.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="dialog"]')];
+        assert.deepEqual(bubbles.map((bubble) => bubble.textContent), [
+          'ContinueSending when usage resets· 1 file',
+          'Being editedPaused — not sending until you resume it',
+        ], 'oldest first, each saying when it goes');
+
+        await React.act(async () => bubbles[0].click());
+        const dialog = document.body.querySelector('[role="dialog"]');
+        assert.ok(dialog);
+        const actionLabels = () => [...dialog.querySelectorAll('button')].map((button) => button.textContent);
+        assert.deepEqual(actionLabels(), [
+          'Send nowAvailable once the current reply finishes',
+          'Edit',
+          'Cancel message',
+        ]);
+        assert.equal(dialog.querySelector('button')?.disabled, true);
+
+        await React.act(async () => render(true));
+        const sendNow = dialog.querySelector<HTMLButtonElement>('button');
+        assert.equal(sendNow?.disabled, false);
+        await React.act(async () => sendNow?.click());
+        assert.deepEqual(sentNow, ['first']);
+        assert.equal(document.body.querySelector('[role="dialog"]'), null, 'choosing an action closes the menu');
+
+        await React.act(async () => bubbles[1].click());
+        assert.deepEqual(
+          [...document.body.querySelectorAll('[role="dialog"] button')].map((button) => button.textContent),
+          ['Resume', 'Edit', 'Cancel message'],
+          'a paused message offers Resume instead of Send now',
+        );
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+      }
     });
   });
 

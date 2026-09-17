@@ -36,8 +36,8 @@ const BROADCAST_CONNECTION: RealtimeClientConnection = {
  * Tells open clients that a stored message just became a real one.
  *
  * Without it the reply arrives with nothing above it: the composer never drew
- * this turn, because the client did not send it. The card waiting above the
- * composer clears off the same frame.
+ * this turn, because the client did not send it. The scheduled bubble clears
+ * off the same frame.
  */
 function announceScheduledSend(row: ScheduledMessageRow): void {
   BROADCAST_CONNECTION.send(JSON.stringify({
@@ -134,6 +134,7 @@ export function initializeScheduledMessages(): void {
       if (user) reconcileProviderUsageResetMonitor(user.id);
       broadcastPendingSessions();
     },
+    isSessionBusy: (sessionId) => chatRunRegistry.isProcessing(sessionId),
   });
 
   // Rebuilds the timers for anything scheduled before this process started.

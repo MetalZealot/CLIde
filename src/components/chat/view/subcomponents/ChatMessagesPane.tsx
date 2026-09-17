@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { memo, useCallback, useMemo } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
+import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 import type { ChatMessage } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
@@ -10,6 +11,7 @@ import { groupConsecutiveTools, isToolGroupItem } from '../../utils/toolGrouping
 import { computeTurnDurations } from '../../utils/turnDuration';
 
 import MessageComponent from './MessageComponent';
+import ScheduledMessageBubbles from './ScheduledMessageBubbles';
 import ToolGroupContainer from './ToolGroupContainer';
 
 interface ChatMessagesPaneProps {
@@ -49,6 +51,12 @@ interface ChatMessagesPaneProps {
   canEditMessage?: boolean;
   /** Base transcript uuid of the message loaded in the rewind-edit composer. */
   rewindEditTargetUuid?: string | null;
+  /** Waiting to send, drawn after the last message; excludes one this client has open for editing. */
+  scheduledMessages: ScheduledMessage[];
+  onSendScheduledNow: (id: string) => void;
+  onEditScheduledMessage: (message: ScheduledMessage) => void;
+  onCancelScheduledMessage: (id: string) => void;
+  onResumeScheduledMessage: (id: string) => void;
 }
 
 function ChatMessagesPane({
@@ -82,6 +90,11 @@ function ChatMessagesPane({
   onEditMessage,
   canEditMessage = false,
   rewindEditTargetUuid = null,
+  scheduledMessages,
+  onSendScheduledNow,
+  onEditScheduledMessage,
+  onCancelScheduledMessage,
+  onResumeScheduledMessage,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const nextTaskPrompt = t('tasks.nextTaskPrompt', {
@@ -137,7 +150,9 @@ function ChatMessagesPane({
     },
     [pageScroll, scrollContainerRef],
   );
-  const fillsPane = chatMessages.length === 0 && Boolean(selectedSession || currentSessionId);
+  const fillsPane = chatMessages.length === 0
+    && scheduledMessages.length === 0
+    && Boolean(selectedSession || currentSessionId);
 
   return (
     <div
@@ -163,7 +178,7 @@ function ChatMessagesPane({
           </div>
         </div>
       ) : chatMessages.length === 0 ? (
-        !selectedSession && !currentSessionId ? null : (
+        (!selectedSession && !currentSessionId) || scheduledMessages.length > 0 ? null : (
           <div className="flex h-full items-center justify-center">
             <div className="max-w-[34.25rem] px-6 text-center">
               <p className="mb-1.5 text-lg font-semibold text-foreground">
@@ -263,6 +278,16 @@ function ChatMessagesPane({
             });
           })()}
         </>
+      )}
+      {!isLoadingSessionMessages && (
+        <ScheduledMessageBubbles
+          messages={scheduledMessages}
+          canSendNow={!isProcessing}
+          onSendNow={onSendScheduledNow}
+          onEdit={onEditScheduledMessage}
+          onCancel={onCancelScheduledMessage}
+          onResume={onResumeScheduledMessage}
+        />
       )}
       </div>
     </div>

@@ -29,6 +29,9 @@ export type ScheduledMessageEdit = {
 /** What a save came back as: the message was cancelled elsewhere, or the server never answered. */
 export type ScheduledEditOutcome = 'saved' | 'gone' | 'unreachable';
 
+/** What Send now came back as: sent, refused while a reply runs, already settled, or no answer. */
+export type ScheduledSendNowOutcome = 'sent' | 'busy' | 'gone' | 'unreachable';
+
 type CreateInput = {
   content: string;
   trigger: ScheduledMessageTrigger;
@@ -86,12 +89,14 @@ export function useScheduledMessages(
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // A message that fires stops being unsent, and nothing else would tell the
-  // card above the composer to go.
+  // A message that fires, or changes on another device, would otherwise leave
+  // a stale bubble. The change frame names no message, so any change re-reads.
   useEffect(() => {
     if (!subscribe || !sessionId) return;
     return subscribe((event) => {
-      if (event.kind === 'scheduled_message_sent' && event.sessionId === sessionId) {
+      if (event.kind === 'scheduled_messages_changed') {
+        void refresh();
+      } else if (event.kind === 'scheduled_message_sent' && event.sessionId === sessionId) {
         const parsed = typeof event.timestamp === 'string' ? new Date(event.timestamp) : new Date();
         onSent?.(
           String(event.content ?? ''),
@@ -199,13 +204,28 @@ export function useScheduledMessages(
     return response.ok ? 'saved' : 'gone';
   }, [refresh]);
 
+  /** Sends a waiting message ahead of its trigger; the sent event draws its bubble. */
+  const sendNow = useCallback(async (id: string): Promise<ScheduledSendNowOutcome> => {
+    let response: Response;
+    try {
+      response = await api.sendScheduledMessageNow(id);
+    } catch {
+      return 'unreachable';
+    }
+    void refresh();
+    if (response.ok) return 'sent';
+    if (response.status !== 409) return 'unreachable';
+    const body = await response.json().catch(() => null) as { reason?: string } | null;
+    return body?.reason === 'busy' ? 'busy' : 'gone';
+  }, [refresh]);
+
   const cancel = useCallback(async (id: string): Promise<void> => {
     if (editingRef.current?.id === id) {
       editingRef.current = null;
       setEditing(null);
     }
     // Drop it locally first: the row is already claimed server-side either way,
-    // and leaving a cancelled card on screen reads as a failure.
+    // and leaving a cancelled bubble on screen reads as a failure.
     setUnsent((current) => current.filter((message) => message.id !== id));
     try {
       await api.cancelScheduledMessage(id);
@@ -214,5 +234,5 @@ export function useScheduledMessages(
     }
   }, [refresh]);
 
-  return { pending: unsent, schedule, cancel, refresh, editing, beginEdit, resume, saveEdit };
+  return { pending: unsent, schedule, sendNow, cancel, refresh, editing, beginEdit, resume, saveEdit };
 }

@@ -1,7 +1,7 @@
 # One edit model for queued, scheduled, and earlier messages
 
 - Status: 2/5
-- Next: Phase 2 — scheduled messages as bubbles in the thread, queues in one row
+- Next: phone check of phase 2 on `feat/message-bubbles`, merge, then phase 3
 - Merged to `main` 2026-09-15; phases 0 and 1 are live
 - Context: [Auto-Continue](auto-continue.md) puts its offer on the scheduled bubble
   this plan introduces; placement reasons in [UI standards](../maps/ui-standards.md);
@@ -41,7 +41,7 @@ sending does, differ.
 | Queued | leaves the queue | nothing | leaves an ordinary draft | restored |
 | Scheduled | pauses, stays listed | "Paused while you edit…" | *Discard edit* resumes it | restored |
 | Earlier | stays, with an amber ring | "Editing earlier message…" | × restores the draft typed before | cannot be edited at all |
-| Queued answer to a Codex question | — | its own card | remove only | — |
+| Queued answer to a Codex question | — | shares the queued row | remove only | — |
 
 Both queues live in the browser that made them; scheduled messages live on the
 server and appear on every device. The queues already have an order: a typed
@@ -98,13 +98,13 @@ question stays above the composer — like a permission prompt, it waits on you.
       resumed, keeps its attachments, and catches up on a time or reset that
       passed meanwhile. The monitor's keep-alive, the sidebar clock and the
       Auto-Continue offer all count a paused row as waiting, and every send path
-      saves into an open edit. A lease that the editing client had to renew was
-      built first and removed: it depended on a phone keeping the page awake, and
-      sent messages out from under an open edit. Verified with real sends on the
-      branch server 2026-09-15
-- [ ] 2. Scheduled messages render as bubbles at the end of the thread with their
+      saves into an open edit. Verified with real sends on the branch server
+      2026-09-15
+- [~] 2. Scheduled messages render as bubbles at the end of the thread with their
       tap menu, and both queues merge into one compact row above the composer; the
-      scheduled, queued, and queued-answer cards are removed
+      scheduled, queued, and queued-answer cards are removed. *Send now* is
+      scheduled-only, and refused rather than failed while a reply runs. Verified
+      with real sends on the branch server 2026-09-16; phone check pending
 - [ ] 3. All three edit through the model above; the rewind and schedule banners
       are removed, with the announcement kept
 - [ ] 4. A rewind edit marks what it will drop, in its own treatment

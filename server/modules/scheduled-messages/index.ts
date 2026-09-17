@@ -17,6 +17,7 @@ export {
   pauseScheduledMessage,
   readScheduledMessageAttachments,
   resumeScheduledMessage,
+  sendScheduledMessageNow,
   setScheduledMessageRuntime,
   type ScheduledMessageRuntime,
 } from './services/scheduled-message-runtime.service.js';

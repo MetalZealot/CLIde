@@ -32,6 +32,8 @@ export type ScheduledMessageDispatcher = {
   /** Arms a pending row, firing it now if it has fallen due; drops the timer of any other. */
   schedule(row: ScheduledMessageRow): void;
   cancel(id: string): boolean;
+  /** Sends a pending row now, ahead of its trigger. False when it is not pending. */
+  sendNow(id: string): boolean;
   fireUsageReset(provider: string): Promise<void>;
   close(): void;
 };
@@ -127,6 +129,13 @@ export function createScheduledMessageDispatcher(
     cancel(id: string): boolean {
       cancelTimer(id);
       return scheduledMessagesDb.cancel(id);
+    },
+
+    // The claim inside `fire` runs before its first await, so no timer can take the row between.
+    sendNow(id: string): boolean {
+      if (scheduledMessagesDb.getById(id)?.state !== 'pending') return false;
+      void fire(id);
+      return true;
     },
 
     /**

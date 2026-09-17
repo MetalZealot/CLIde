@@ -8,6 +8,7 @@ import {
   pauseScheduledMessage,
   readScheduledMessageAttachments,
   resumeScheduledMessage,
+  sendScheduledMessageNow,
 } from '@/modules/scheduled-messages/services/scheduled-message-runtime.service.js';
 
 const router = express.Router();
@@ -80,6 +81,20 @@ router.post('/', (req, res) => {
   });
 
   res.status(201).json({ message: serialize(row) });
+});
+
+/** Sends a waiting message now, unless a turn is running in its session. */
+router.post('/:id/send-now', (req, res) => {
+  const outcome = sendScheduledMessageNow(req.params.id);
+  if (outcome === 'sent') {
+    res.json({ sent: true });
+  } else if (outcome === 'busy') {
+    res.status(409).json({ error: 'A reply is still running in that session.', reason: 'busy' });
+  } else if (outcome === 'unavailable') {
+    res.status(503).json({ error: 'Scheduled messages cannot be sent right now.' });
+  } else {
+    res.status(409).json({ error: 'That message is no longer waiting.', reason: 'not-pending' });
+  }
 });
 
 /** Opens an edit: the message stays listed but cannot send until resumed. */

@@ -101,13 +101,14 @@ export const scheduledMessagesDb = {
       .all(provider) as ScheduledMessageRow[];
   },
 
+  /** Newest first; `created_at` has one-second resolution, so insertion order breaks ties. */
   listBySession(sessionId: string): ScheduledMessageRow[] {
     const db = getConnection();
     return db
       .prepare(
         `SELECT ${COLUMNS} FROM scheduled_messages
          WHERE session_id = ?
-         ORDER BY created_at DESC`
+         ORDER BY created_at DESC, rowid DESC`
       )
       .all(sessionId) as ScheduledMessageRow[];
   },

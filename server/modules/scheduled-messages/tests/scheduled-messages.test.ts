@@ -22,6 +22,7 @@ import {
   listScheduledMessagesForSession,
   readScheduledMessageAttachments,
   resumeScheduledMessage,
+  sendScheduledMessageNow,
   setScheduledMessageRuntime,
 } from '@/modules/scheduled-messages/index.js';
 
@@ -288,6 +289,7 @@ describe('scheduled-messages', () => {
         setScheduledMessageRuntime({
           dispatcher: harness.dispatcher,
           onPendingChanged: () => { pendingChangedCount += 1; },
+          isSessionBusy: () => false,
         });
         assert.equal(hasPendingUsageResetMessages('claude'), true);
         assert.equal(hasPendingUsageResetMessages('codex'), false);
@@ -315,6 +317,7 @@ describe('scheduled-messages', () => {
         setScheduledMessageRuntime({
           dispatcher: harness.dispatcher,
           onPendingChanged: () => { pendingChangedCount += 1; },
+          isSessionBusy: () => false,
         });
 
         const row = createScheduledMessage({
@@ -342,6 +345,11 @@ describe('scheduled-messages', () => {
         await harness.advanceTo('2026-07-18T10:15:00.000Z');
         assert.equal(harness.sent.length, 1);
         assert.equal(scheduledMessagesDb.getById(armed.id)?.state, 'sent');
+        assert.deepEqual(
+          listScheduledMessagesForSession('session-11').map((entry) => entry.id),
+          [armed.id, row.id],
+          'newest first, even when both were written within one second',
+        );
 
         assert.equal(cancelScheduledMessage(row.id), true);
         assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'cancelled');
@@ -525,7 +533,11 @@ describe('scheduled-messages', () => {
       const attachments = [{ path: '/assets/photo.png', name: 'photo.png', mimeType: 'image/png' }];
 
       try {
-        setScheduledMessageRuntime({ dispatcher: harness.dispatcher, onPendingChanged: () => {} });
+        setScheduledMessageRuntime({
+          dispatcher: harness.dispatcher,
+          onPendingChanged: () => {},
+          isSessionBusy: () => false,
+        });
         const row = createScheduledMessage({
           sessionId: 'session-16',
           provider: 'claude',
@@ -553,6 +565,61 @@ describe('scheduled-messages', () => {
 
         assert.equal(cancelScheduledMessage(row.id), true);
         assert.equal(pauseScheduledMessage(row.id), null);
+      } finally {
+        setScheduledMessageRuntime(null);
+      }
+    });
+  });
+
+  test('send now goes ahead of the trigger once, and waits instead while a reply runs', async () => {
+    await withIsolatedDatabase(async () => {
+      seedSession('session-17');
+      const harness = createHarness();
+      let busy = true;
+      let pendingChangedCount = 0;
+
+      try {
+        assert.equal(sendScheduledMessageNow('missing'), 'unavailable');
+        setScheduledMessageRuntime({
+          dispatcher: harness.dispatcher,
+          onPendingChanged: () => { pendingChangedCount += 1; },
+          isSessionBusy: (sessionId) => busy && sessionId === 'session-17',
+        });
+        const row = createScheduledMessage({
+          sessionId: 'session-17',
+          provider: 'claude',
+          content: 'go early',
+          trigger: 'time',
+          scheduledFor: '2026-07-18T12:00:00.000Z',
+        });
+
+        // Refused before the claim, so the message is still waiting, not failed.
+        assert.equal(sendScheduledMessageNow(row.id), 'busy');
+        assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'pending');
+        assert.equal(harness.sent.length, 0);
+
+        busy = false;
+        assert.equal(sendScheduledMessageNow(row.id), 'sent');
+        await Promise.resolve();
+        assert.deepEqual(harness.sent.map((entry) => entry.id), [row.id]);
+        assert.equal(scheduledMessagesDb.getById(row.id)?.state, 'sent');
+        assert.equal(pendingChangedCount, 2);
+        assert.equal(sendScheduledMessageNow(row.id), 'not-pending');
+
+        // Its own timer went with the early send.
+        await harness.advanceTo('2026-07-18T13:00:00.000Z');
+        assert.equal(harness.sent.length, 1);
+
+        // A paused message is resumed or edited, never sent from under the edit.
+        const paused = createScheduledMessage({
+          sessionId: 'session-17',
+          provider: 'claude',
+          content: 'being edited',
+          trigger: 'usage-reset',
+        });
+        pauseScheduledMessage(paused.id);
+        assert.equal(sendScheduledMessageNow(paused.id), 'not-pending');
+        assert.equal(scheduledMessagesDb.getById(paused.id)?.state, 'paused');
       } finally {
         setScheduledMessageRuntime(null);
       }

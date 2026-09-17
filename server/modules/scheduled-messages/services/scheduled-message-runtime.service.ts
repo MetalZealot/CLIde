@@ -24,6 +24,8 @@ export type ScheduledMessageRuntime = {
    * never started.
    */
   onPendingChanged(): void;
+  /** Whether a turn is running in the session, which a send now would be refused by. */
+  isSessionBusy(sessionId: string): boolean;
 };
 
 let runtime: ScheduledMessageRuntime | null = null;
@@ -53,6 +55,21 @@ export function cancelScheduledMessage(id: string): boolean {
     : scheduledMessagesDb.cancel(id);
   if (cancelled) runtime?.onPendingChanged();
   return cancelled;
+}
+
+/**
+ * Sends a waiting message now instead of at its trigger. Consumed by the
+ * scheduled-messages routes. A busy session is refused before the row is
+ * claimed, so the message keeps waiting rather than being recorded as failed.
+ */
+export function sendScheduledMessageNow(id: string): 'sent' | 'not-pending' | 'busy' | 'unavailable' {
+  if (!runtime) return 'unavailable';
+  const row = scheduledMessagesDb.getById(id);
+  if (!row || row.state !== 'pending') return 'not-pending';
+  if (runtime.isSessionBusy(row.session_id)) return 'busy';
+  if (!runtime.dispatcher.sendNow(id)) return 'not-pending';
+  runtime.onPendingChanged();
+  return 'sent';
 }
 
 /**

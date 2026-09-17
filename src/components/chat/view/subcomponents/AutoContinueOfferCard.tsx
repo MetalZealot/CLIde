@@ -9,10 +9,7 @@ interface AutoContinueOfferCardProps {
   onAccept: () => void;
 }
 
-/**
- * Sits in the same strip as the waiting card it becomes, so accepting reads as
- * the card changing state rather than a new thing appearing.
- */
+/** Accepting draws the scheduled bubble at the end of the thread that a long-press schedule would. */
 export default function AutoContinueOfferCard({ stop, onAccept }: AutoContinueOfferCardProps) {
   const { t } = useTranslation('chat');
 
