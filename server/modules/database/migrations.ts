@@ -476,6 +476,20 @@ const addSessionEffortColumns = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'effort_updated_at', 'DATETIME');
 };
 
+/**
+ * Adds the per-session standing Auto-Continue mode and its firing counter.
+ *
+ * The counter is what stops a continue that hits the limit again from
+ * re-arming forever; it counts consecutive firings with no message from the
+ * user, so anything typed into the session clears it.
+ */
+const addSessionAutoContinueColumns = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'auto_continue', 'INTEGER NOT NULL DEFAULT 0');
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'auto_continue_streak', 'INTEGER NOT NULL DEFAULT 0');
+};
+
 /** Adds the paused-edit column, and drops the lease columns a pre-release build added. */
 const migrateScheduledMessageEditColumns = (db: Database): void => {
   const columnNames = getTableInfo(db, 'scheduled_messages').map((column) => column.name);
@@ -615,6 +629,7 @@ export const runMigrations = (db: Database) => {
       importLegacySessionModelPicks(db);
     }
     addSessionEffortColumns(db);
+    addSessionAutoContinueColumns(db);
     migrateScheduledMessageEditColumns(db);
     ensureProjectsForSessionPaths(db);
 

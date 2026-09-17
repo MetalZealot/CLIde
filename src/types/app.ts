@@ -47,6 +47,8 @@ export interface ProjectSession {
   providerSessionId?: string | null;
   // Starred conversations float to the top of their project and show a small star.
   isStarred?: boolean;
+  // Standing mode: this session sends its continue message after a usage limit.
+  autoContinue?: boolean;
   __provider?: LLMProvider;
   // Tags the session with the owning project's DB `projectId` so UI handlers
   // (session switching, sidebar focus, etc.) can match against selectedProject.

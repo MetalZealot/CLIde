@@ -589,3 +589,76 @@ test('a broadcast run keeps its fan-out connection when a client subscribes', as
     assert.equal(subscriber.frames.length, 0);
   });
 });
+
+test('a usage-limit stop is reported once, at the end of the run that hit it', async () => {
+  await withIsolatedDatabase(() => {
+    const reported: string[] = [];
+    chatRunRegistry.onUsageLimitStop((sessionId) => reported.push(sessionId));
+
+    try {
+      sessionsDb.createAppSession('app-limit-1', 'claude', '/workspace/demo');
+      const connection = new FakeConnection();
+      const run = chatRunRegistry.startRun({
+        appSessionId: 'app-limit-1',
+        provider: 'claude',
+        providerSessionId: null,
+        connection,
+        userId: 'user-1',
+      });
+      assert.ok(run);
+
+      // The provider's own classification, not the notice's wording.
+      run.writer.send({
+        kind: 'text',
+        provider: 'claude',
+        sessionId: 'provider-id-1',
+        content: "You've hit your session limit",
+        isSystemNotice: true,
+        usageLimit: { resumes: true, resetsAt: '2026-09-18T04:00:00.000Z' },
+      });
+      assert.deepEqual(reported, [], 'nothing is armed while the run is still going');
+
+      run.writer.send({ kind: 'complete', provider: 'claude', sessionId: 'provider-id-1', exitCode: 0 });
+      assert.deepEqual(reported, ['app-limit-1']);
+
+      // A spent balance never lifts, so a continue would wait forever.
+      sessionsDb.createAppSession('app-limit-2', 'claude', '/workspace/demo');
+      const spentConnection = new FakeConnection();
+      const spentRun = chatRunRegistry.startRun({
+        appSessionId: 'app-limit-2',
+        provider: 'claude',
+        providerSessionId: null,
+        connection: spentConnection,
+        userId: 'user-1',
+      });
+      assert.ok(spentRun);
+      spentRun.writer.send({
+        kind: 'text',
+        provider: 'claude',
+        sessionId: 'provider-id-2',
+        content: 'out of credits',
+        isSystemNotice: true,
+        usageLimit: { resumes: false },
+      });
+      spentRun.writer.send({ kind: 'complete', provider: 'claude', sessionId: 'provider-id-2', exitCode: 0 });
+      assert.deepEqual(reported, ['app-limit-1'], 'a balance that never resets arms nothing');
+
+      // An ordinary run reports nothing at all.
+      sessionsDb.createAppSession('app-limit-3', 'claude', '/workspace/demo');
+      const plainConnection = new FakeConnection();
+      const plainRun = chatRunRegistry.startRun({
+        appSessionId: 'app-limit-3',
+        provider: 'claude',
+        providerSessionId: null,
+        connection: plainConnection,
+        userId: 'user-1',
+      });
+      assert.ok(plainRun);
+      plainRun.writer.send({ kind: 'text', provider: 'claude', sessionId: 'provider-id-3', content: 'done' });
+      plainRun.writer.send({ kind: 'complete', provider: 'claude', sessionId: 'provider-id-3', exitCode: 0 });
+      assert.deepEqual(reported, ['app-limit-1']);
+    } finally {
+      chatRunRegistry.onUsageLimitStop(null);
+    }
+  });
+});

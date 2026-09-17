@@ -22,6 +22,11 @@ export {
   type ScheduledMessageRuntime,
 } from './services/scheduled-message-runtime.service.js';
 export {
+  AUTO_CONTINUE_MAX_CONSECUTIVE,
+  armAutoContinueAfterLimitStop,
+  type AutoContinueOutcome,
+} from './services/auto-continue.service.js';
+export {
   DEFAULT_AUTO_CONTINUE_MESSAGE,
   MAX_AUTO_CONTINUE_MESSAGE_LENGTH,
   readAutoContinueMessage,

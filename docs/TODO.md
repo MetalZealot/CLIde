@@ -118,7 +118,7 @@ new work.
 - [ ] **The activity indicator's changed state isn't legible.** A provider status like "Compacting conversation" phases in the same grey as the idle Thinking/Processing cycle, so it reads as normal waiting. Part of the wider indicator/panel rework: distinct treatment for a real status. **M**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [~] **Auto-Continue offered, remembered, and defaulted.** Every way of asking for a `usage-reset` message that is not long-pressing send and typing "Continue": the one-tap offer on the limit notice and its editable message in Settings are live; the per-session standing mode with a firing cap is left. Reuses the shipped scheduler entirely. [Plan](plans/auto-continue.md). **M**
+- [~] **Auto-Continue offered, remembered, and defaulted.** Every way of asking for a `usage-reset` message that is not long-pressing send: the offer on the limit notice, its editable message in Settings, and the per-session standing mode are live; the default for new sessions is left. [Plan](plans/auto-continue.md). **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live; 3–4 move the banners onto the messages. [Plan](plans/message-edit-model.md). **M/L**
 - [ ] **Context ring to the header?** Session state glanced at more than tapped, so it fits; costs reach for its breakdown and title width. [Reasons](maps/ui-standards.md). **S — decision**
 

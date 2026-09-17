@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 
+import i18n from '../../../i18n/config.js';
 import type { ServerEvent } from '../../../contexts/WebSocketContext';
 import { showCompletionTitleIndicator } from '../../../utils/pageTitleNotification';
 import { playChatCompletionSound, playNotificationSound } from '../../../utils/notificationSound';
@@ -220,6 +221,28 @@ export function useChatRealtimeHandlers({
         case 'session_upserted':
         case 'loading_progress':
           return;
+
+        // The standing mode gave up on this session. Nothing wrote it to the
+        // transcript, so it shows for whoever is watching and the menu carries
+        // the state afterwards.
+        case 'auto_continue_capped': {
+          if (sid) {
+            sessionStore.appendRealtime(sid, {
+              id: `auto_continue_capped_${Date.now()}`,
+              sessionId: sid,
+              timestamp: new Date().toISOString(),
+              provider,
+              kind: 'text',
+              role: 'assistant',
+              isSystemNotice: true,
+              content: i18n.t('chat:autoContinue.capped', {
+                defaultValue: 'Auto-Continue ran {{times}} times without you, so it is off for this session.',
+                times: Number(msg.limit) || 0,
+              }),
+            } as NormalizedMessage);
+          }
+          return;
+        }
 
         // Scheduled-message control frames: consumed by useScheduledMessages
         // and the sidebar. They are not transcript rows and carry no message

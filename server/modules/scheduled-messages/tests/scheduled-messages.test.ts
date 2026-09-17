@@ -12,7 +12,9 @@ import {
   type ScheduledMessageRow,
 } from '@/modules/database/index.js';
 import {
+  AUTO_CONTINUE_MAX_CONSECUTIVE,
   DEFAULT_AUTO_CONTINUE_MESSAGE,
+  armAutoContinueAfterLimitStop,
   cancelScheduledMessage,
   createScheduledMessage,
   createScheduledMessageDispatcher,
@@ -626,6 +628,51 @@ describe('scheduled-messages', () => {
       } finally {
         setScheduledMessageRuntime(null);
       }
+    });
+  });
+
+  test('a session set to Auto-Continue arms one continue per limit stop, up to the cap', async () => {
+    await withIsolatedDatabase(() => {
+      seedSession('session-auto');
+      writeAutoContinueMessage('Keep going');
+      // Cancelled rows stay listed, so "waiting" is the only count that matters.
+      const waiting = () => listScheduledMessagesForSession('session-auto')
+        .filter((row) => row.state === 'pending' || row.state === 'paused');
+
+      // Off by default: a limit stop on an ordinary session arms nothing.
+      assert.equal(armAutoContinueAfterLimitStop('session-auto'), 'off');
+      assert.equal(waiting().length, 0);
+
+      sessionsDb.setSessionAutoContinue('session-auto', true);
+      assert.equal(armAutoContinueAfterLimitStop('session-auto'), 'armed');
+      const [armed] = waiting();
+      assert.equal(armed?.content, 'Keep going', 'the stored message is what goes');
+      assert.equal(armed?.trigger_kind, 'usage-reset');
+
+      // A second stop while the first is still waiting must not stack rows.
+      assert.equal(armAutoContinueAfterLimitStop('session-auto'), 'already-waiting');
+      assert.equal(waiting().length, 1);
+
+      // Each firing counts once the row is out of the way.
+      for (let fired = 1; fired < AUTO_CONTINUE_MAX_CONSECUTIVE; fired += 1) {
+        cancelScheduledMessage(waiting()[0]!.id);
+        assert.equal(armAutoContinueAfterLimitStop('session-auto'), 'armed');
+      }
+
+      // The cap: it stops and turns itself off rather than re-arming forever.
+      cancelScheduledMessage(waiting()[0]!.id);
+      assert.equal(armAutoContinueAfterLimitStop('session-auto'), 'capped');
+      assert.equal(sessionsDb.getSessionAutoContinue('session-auto')?.enabled, false);
+      assert.equal(waiting().length, 0, 'the cap arms nothing');
+
+      // Turning it back on starts the count over, and anything the user sends
+      // clears it too — that reset is what `chat.send` calls.
+      sessionsDb.setSessionAutoContinue('session-auto', true);
+      assert.equal(sessionsDb.getSessionAutoContinue('session-auto')?.streak, 0);
+      assert.equal(armAutoContinueAfterLimitStop('session-auto'), 'armed');
+      assert.equal(sessionsDb.getSessionAutoContinue('session-auto')?.streak, 1);
+      sessionsDb.resetAutoContinueStreak('session-auto');
+      assert.equal(sessionsDb.getSessionAutoContinue('session-auto')?.streak, 0);
     });
   });
 

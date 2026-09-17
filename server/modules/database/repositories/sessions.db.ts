@@ -11,12 +11,15 @@ type SessionRow = {
   custom_name: string | null;
   isArchived: number;
   isStarred: number;
+  auto_continue: number;
+  auto_continue_streak: number;
   created_at: string;
   updated_at: string;
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isArchived, isStarred, created_at, updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isArchived, isStarred, '
+  + 'auto_continue, auto_continue_streak, created_at, updated_at';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -603,6 +606,51 @@ export const sessionsDb = {
        SET isStarred = ?
        WHERE session_id = ?`
     ).run(isStarred ? 1 : 0, sessionId);
+  },
+
+  /**
+   * The session's standing Auto-Continue mode, and how many times it has fired
+   * since the user last said anything.
+   */
+  getSessionAutoContinue(sessionId: string): { enabled: boolean; streak: number } | null {
+    const db = getConnection();
+    const row = db.prepare(
+      'SELECT auto_continue, auto_continue_streak FROM sessions WHERE session_id = ?'
+    ).get(sessionId) as { auto_continue: number; auto_continue_streak: number } | undefined;
+
+    if (!row) return null;
+    return { enabled: row.auto_continue === 1, streak: row.auto_continue_streak ?? 0 };
+  },
+
+  /** Turning the mode on or off always clears the count the cap is measured on. */
+  setSessionAutoContinue(sessionId: string, enabled: boolean): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET auto_continue = ?, auto_continue_streak = 0
+       WHERE session_id = ?`
+    ).run(enabled ? 1 : 0, sessionId);
+  },
+
+  /** Counts one firing and returns the new total, for the cap to test. */
+  countAutoContinueFiring(sessionId: string): number {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET auto_continue_streak = auto_continue_streak + 1
+       WHERE session_id = ?`
+    ).run(sessionId);
+    return sessionsDb.getSessionAutoContinue(sessionId)?.streak ?? 0;
+  },
+
+  /** Anything the user sends means they are present; the cap starts over. */
+  resetAutoContinueStreak(sessionId: string): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET auto_continue_streak = 0
+       WHERE session_id = ? AND auto_continue_streak != 0`
+    ).run(sessionId);
   },
 
   deleteSessionById(sessionId: string): boolean {

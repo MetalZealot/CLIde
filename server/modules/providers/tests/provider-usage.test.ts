@@ -516,6 +516,8 @@ describe('provider-token-usage.service', () => {
       custom_name: null,
       isArchived: 0,
       isStarred: 0,
+      auto_continue: 0,
+      auto_continue_streak: 0,
       created_at: '2026-01-01T00:00:00.000Z',
       updated_at: '2026-01-01T00:00:00.000Z',
       ...overrides,

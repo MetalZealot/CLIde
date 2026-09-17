@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Download, Pencil, Pin, Search, Trash2 } from 'lucide-react';
+import { Archive, Download, Pencil, Pin, Repeat, Search, Trash2 } from 'lucide-react';
 
 import { useRegisterHeaderMenu, type HeaderMenuItem, type HeaderMenuSection } from '../../../contexts/HeaderMenuContext';
-import type { Project, ProjectSession, SessionActions } from '../../../types/app';
+import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
+import { api } from '../../../utils/api';
+import type { LLMProvider, Project, ProjectSession, SessionActions } from '../../../types/app';
 import type { ChatMessage } from '../types/types';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../utils/chatExport';
 import { ChatExportOptions } from '../view/subcomponents/ChatExportMenu';
@@ -48,6 +50,11 @@ export function useChatHeaderMenu({
   // Pinning patches the project list, not the selected-session copy, and an
   // older session may not be in the list at all.
   const [starOverride, setStarOverride] = useState<{ sessionId: string; isStarred: boolean } | null>(null);
+  // Same reason as the star override: the standing mode is stored on the
+  // session row, and the list copy only catches up on its next fetch.
+  const [autoContinueOverride, setAutoContinueOverride] =
+    useState<{ sessionId: string; autoContinue: boolean } | null>(null);
+  const providerCapabilities = useProviderCapabilities();
 
   const listedSession = useMemo(() => {
     if (!selectedSession) {
@@ -86,6 +93,14 @@ export function useChatHeaderMenu({
         : Boolean(selectedSession.isStarred);
     const providerSessionId = session.providerSessionId ?? selectedSession.providerSessionId;
     const provider = session.__provider ?? session.provider ?? selectedSession.__provider;
+    // An override outranks the list copy here, unlike the star: nothing
+    // refetches the list when the mode changes.
+    const autoContinue = autoContinueOverride?.sessionId === sessionId
+      ? autoContinueOverride.autoContinue
+      : Boolean(session.autoContinue ?? selectedSession.autoContinue);
+    const canScheduleOnUsageReset = provider
+      ? providerCapabilities?.[provider as LLMProvider]?.supportsUsageResetAlerts === true
+      : false;
     const name = session.summary || session.name || '';
 
     const items: HeaderMenuItem[] = [
@@ -106,6 +121,31 @@ export function useChatHeaderMenu({
         icon: Pencil,
         onSelect: () => setRenameTarget({ sessionId, name }),
       },
+      // Only where a usage limit lifts on its own: on the others there is no
+      // reset for a continue to wait on.
+      ...(canScheduleOnUsageReset
+        ? [{
+            key: 'auto-continue',
+            label: autoContinue
+              ? tChat('autoContinue.stopAlways', { defaultValue: 'Stop continuing automatically' })
+              : tChat('autoContinue.always', { defaultValue: 'Always continue after a limit' }),
+            icon: Repeat,
+            onSelect: () => {
+              const next = !autoContinue;
+              setAutoContinueOverride({ sessionId, autoContinue: next });
+              void api.toggleSessionAutoContinue(sessionId)
+                .then((response: Response) => (response.ok ? response.json() : null))
+                .then((payload: { data?: { autoContinue?: boolean } } | null) => {
+                  const settled = payload?.data?.autoContinue;
+                  setAutoContinueOverride({
+                    sessionId,
+                    autoContinue: typeof settled === 'boolean' ? settled : !next,
+                  });
+                })
+                .catch(() => setAutoContinueOverride({ sessionId, autoContinue: !next }));
+            },
+          }]
+        : []),
       ...(chatMessages.length > 0
         ? [{
             key: 'find',
@@ -163,6 +203,8 @@ export function useChatHeaderMenu({
     selectedSession,
     listedSession,
     starOverride,
+    autoContinueOverride,
+    providerCapabilities,
     sessionActions,
     chatMessages,
     assistantLabel,

@@ -63,7 +63,18 @@ type ChatRun = {
    * subscribing client must not take it away from the rest.
    */
   broadcast: boolean;
+  /**
+   * Set when the provider classified this run as stopping on a usage limit
+   * that lifts on its own — read from its own fields, never a notice's
+   * wording. Consumed once, when the terminal `complete` passes.
+   */
+  usageLimitStop: boolean;
 };
+
+/** Notified at the end of a run the provider ended on a usage limit. */
+type UsageLimitStopListener = (appSessionId: string) => void;
+
+let usageLimitStopListener: UsageLimitStopListener | null = null;
 
 /**
  * How long a completed run stays available for replay. Covers the window
@@ -174,12 +185,22 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     seq: run.lastSeq,
   };
 
+  // A limit that will lift is the one a continue can wait on; a spent balance
+  // never resets, so nothing should be armed for it.
+  if (message.usageLimit?.resumes) {
+    run.usageLimitStop = true;
+  }
+
   if (message.kind === 'complete') {
     // The provider may report its own id here; the frontend only ever knows
     // the app id, so the "actual" id is by definition the app id as well.
     outbound.actualSessionId = run.appSessionId;
     run.status = 'completed';
     run.completedAt = Date.now();
+    if (run.usageLimitStop) {
+      run.usageLimitStop = false;
+      usageLimitStopListener?.(run.appSessionId);
+    }
     evictRunLater(run.appSessionId);
   }
 
@@ -264,6 +285,15 @@ function recordProviderSessionId(
  */
 export const chatRunRegistry = {
   /**
+   * Registers what happens when a run ends on a usage limit. The gateway can
+   * classify the stop but must not decide what to do about it; startup wires
+   * the scheduled-messages side in.
+   */
+  onUsageLimitStop(listener: UsageLimitStopListener | null): void {
+    usageLimitStopListener = listener;
+  },
+
+  /**
    * Starts tracking a run and returns it, or `null` when a run is already in
    * progress for the session (callers must reject the duplicate send).
    */
@@ -293,6 +323,7 @@ export const chatRunRegistry = {
       startedAt: Date.now(),
       completedAt: null,
       abortInFlight: false,
+      usageLimitStop: false,
       abortController: new AbortController(),
       broadcast: input.broadcast === true,
     };

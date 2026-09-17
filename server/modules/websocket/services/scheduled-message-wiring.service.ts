@@ -1,6 +1,8 @@
 import { scheduledMessagesDb, userDb, type ScheduledMessageRow } from '@/modules/database/index.js';
 import { providerRuntimeService, reconcileProviderUsageResetMonitor } from '@/modules/providers/index.js';
 import {
+  AUTO_CONTINUE_MAX_CONSECUTIVE,
+  armAutoContinueAfterLimitStop,
   createScheduledMessageDispatcher,
   createScheduledMessageSender,
   readScheduledMessageAttachments,
@@ -61,6 +63,22 @@ function broadcastPendingSessions(): void {
   BROADCAST_CONNECTION.send(JSON.stringify({
     kind: 'scheduled_messages_changed',
     sessionIds: scheduledMessagesDb.listSessionIdsWithPending(),
+    timestamp: new Date().toISOString(),
+  }));
+}
+
+/**
+ * Tells open clients the standing mode gave up on a session.
+ *
+ * Nothing writes this to the transcript, so it is a live frame only: a client
+ * that was closed at the time finds the mode off in the session's menu, and
+ * the limit notice still carries its one-tap offer.
+ */
+function announceAutoContinueCapped(sessionId: string): void {
+  BROADCAST_CONNECTION.send(JSON.stringify({
+    kind: 'auto_continue_capped',
+    sessionId,
+    limit: AUTO_CONTINUE_MAX_CONSECUTIVE,
     timestamp: new Date().toISOString(),
   }));
 }
@@ -137,12 +155,21 @@ export function initializeScheduledMessages(): void {
     isSessionBusy: (sessionId) => chatRunRegistry.isProcessing(sessionId),
   });
 
+  // A session set to continue itself arms the next one here: the gateway
+  // classifies the stop, this layer decides what to do about it.
+  chatRunRegistry.onUsageLimitStop((sessionId) => {
+    const outcome = armAutoContinueAfterLimitStop(sessionId);
+    if (outcome === 'armed') broadcastPendingSessions();
+    if (outcome === 'capped') announceAutoContinueCapped(sessionId);
+  });
+
   // Rebuilds the timers for anything scheduled before this process started.
   dispatcher.reconcile();
 }
 
 /** Stops pending timers during shutdown; the rows outlive the process. */
 export function closeScheduledMessages(): void {
+  chatRunRegistry.onUsageLimitStop(null);
   activeDispatcher?.close();
   activeDispatcher = null;
   setScheduledMessageRuntime(null);

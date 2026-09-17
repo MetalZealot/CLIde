@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
-- Status: 3/6
-- Next: phase 4 — a per-session standing Auto-Continue mode, with a firing cap
+- Status: 4/6
+- Next: phase 5 — the default new sessions take for the standing mode
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -70,14 +70,20 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       it, so an edit on another device is the one that goes. Verified on the
       branch server 2026-09-17: edited, persisted across a reopen, tapped the
       offer and the bubble carried the edited text, cleared it back to default
-- [ ] 4. A session can be set to Auto-Continue every time it hits the limit,
-      from the composer's long-press menu. This is the standing mode the
-      scheduled-messages plan deliberately did not build, and it needs three
-      things that plan avoided: persisted per-session state (an `auto_continue`
-      column on `sessions`, shaped like `model`/`effort`), a server-side
-      classification of "this run stopped on limits" at the runtime's run-end
-      path, and a cap on consecutive firings so a continue that hits the limit
-      again cannot re-arm forever
+- [x] 4. A session can be set to Auto-Continue every time it hits the limit,
+      from the **chat header kebab** — decided with Grayson 2026-09-17: the
+      send button's long-press menu acts on the message being composed, and a
+      standing mode is a property of the session, like Pin or Rename. Three
+      pieces: `auto_continue` and `auto_continue_streak` columns on `sessions`;
+      the gateway classifying a run that ended on a resumable limit
+      (`chat-run-registry`, on the provider's own `usageLimit` field, reported
+      at the terminal `complete`); and a cap of three consecutive firings, after
+      which the mode turns itself off. Anything the user sends clears the count.
+      The cap notice is a live frame only — nothing writes it to a transcript —
+      so a closed client finds the mode off in the menu instead. Verified on the
+      branch server 2026-09-17: the entry toggles, persists across a reload, and
+      shows on Claude and Codex. **The arming itself is unit-tested only**: a
+      real limit stop cannot be triggered
 - [ ] 5. Settings carries the default that new sessions take for phase 4
 
 ## Done when
@@ -93,5 +99,5 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
 
 - Recurring or repeating schedules, still. Phase 4 is per-limit-stop, capped
 - A second reset monitor, a second timer, or a second send path
-- Waiting for the bottom navbar. Phase 4 hangs off the composer's existing
-  long-press menu; the chat-header kebab can adopt it later for free
+- Waiting for the bottom navbar. Phase 4 lives in the chat header kebab, beside
+  the other per-session actions

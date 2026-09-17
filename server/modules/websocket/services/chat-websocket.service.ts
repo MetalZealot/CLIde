@@ -333,6 +333,11 @@ async function handleChatSend(
     return;
   }
 
+  // Anything the user sends means they are back, so the standing mode's cap
+  // starts over. A scheduled continue sends through its own path and
+  // deliberately does not clear it.
+  sessionsDb.resetAutoContinueStreak(sessionId);
+
   const run = chatRunRegistry.startRun({
     appSessionId: sessionId,
     provider,

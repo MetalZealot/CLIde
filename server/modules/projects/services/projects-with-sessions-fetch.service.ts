@@ -19,6 +19,8 @@ type SessionSummary = {
   messageCount: number;
   lastActivity: string;
   isStarred: boolean;
+  /** Standing mode: this session continues itself after a usage limit. */
+  autoContinue: boolean;
 };
 
 type SessionRepositoryRow = {
@@ -29,6 +31,7 @@ type SessionRepositoryRow = {
   updated_at?: string | null;
   created_at?: string | null;
   isStarred?: number | null;
+  auto_continue?: number | null;
 };
 
 export type ProjectListItem = {
@@ -153,6 +156,7 @@ export function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummar
     messageCount: 0,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
     isStarred: Boolean(row.isStarred),
+    autoContinue: Boolean(row.auto_continue),
   };
 }
 
