@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **The mobile bar's fifth item is a swappable slot** (2026-09-16, branch `feat/mobile-nav-swappable-slot`). It shows the last Browser/Tasks/plugin destination picked; tapping it again while open, or long-pressing it, opens the list, and a caret beside the label flips while the list is open. Rearranging the four fixed items stays undecided. Verified: typecheck, lint, Browser at phone width on 3002, and Grayson's acceptance on his phone. Fork-only, client-only. ADR 0057. **S**
+
 - [x] **Mobile text selection and copying** (2026-09-16, merge `5441309e`). In the installed phone app the chat scrolls as the page; links copy; bars and timestamps stay out of copies; bars let touches through while text is selected, so handles edge-scroll instead of jumping; overlays lock the page. Verified on the phone in the Chrome install; iPhone untested. Fork-only. [Plan](plans/mobile-chat-page-scroll.md), ADR 0056. **M**
 
 - [x] **Agent replies show how long the turn took** (2026-09-14, this change). The last reply of each finished turn reads `2:14 PM · Worked for 1m 12s`, timed prompt → reply from message timestamps for all four providers; history pages return the prompt time of a turn they open mid-way, so it shows without loading older messages. Verified: 56 focused tests, typecheck, lint, and on 3002 a Claude and a Codex session within 1s of Codex's saved durations. Visual acceptance pending. Upstreamable. **S**
