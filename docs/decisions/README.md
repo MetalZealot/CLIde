@@ -94,4 +94,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0054 — Async question answers steer now or queue separately](0054-async-question-answer-delivery.md)
 - [0055 — Target size is contextual, with a WCAG floor](0055-target-size-is-contextual-with-a-wcag-floor.md)
 - [0056 — In the installed phone app, the chat scrolls as the page](0056-installed-phone-app-scrolls-the-chat-as-the-page.md)
-- [0057 — Mobile bottom navigation ends in a swappable slot and a kebab](0057-mobile-navbar-swappable-slot-and-kebab.md)
+- [0057 — The mobile bar's fifth item is a swappable slot](0057-mobile-navbar-swappable-fifth-slot.md)

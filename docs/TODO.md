@@ -49,7 +49,7 @@ main checkout only).
 
 - [~] **Composer controls:** desktop split pickers keep Permissions and Build/Plan separate, with matching hover/open states; Shift+Tab cycles collaboration mode; Clear Input/shortcut clutter is gone. Mobile keeps one compact access icon; tapping opens the complete picker with Build/Plan inside. Effort dot taps now snap to that value. Desktop/mobile acceptance remain. **S**
 
-- [~] **Swappable last nav slot + kebab overflow** on `feat/mobile-nav-swappable-slot`, ADR 0057; awaiting phone acceptance on 3002. Rearranging the four fixed items stays undecided. **S**
+- [~] **Swappable fifth nav slot (tap again / long-press to switch)** on `feat/mobile-nav-swappable-slot`, ADR 0057; awaiting phone acceptance on 3002. Rearranging the four fixed items stays undecided. **S**
 - [ ] **Consider floating New Session above the sidebar footer instead of inside it.** `--app-footer-height` is 60px, accepted with the bottom nav; ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if the button misfires near the gesture strip. **S — on trial, don't act unprompted**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client**. Opening deliberately preserves unresolved attention; it clears only when this client receives `permission_cancelled` or the session is removed. Acceptable for now. **S**
