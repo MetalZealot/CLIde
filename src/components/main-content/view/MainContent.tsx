@@ -347,7 +347,7 @@ function MainContent({
       </div>
 
       {showBottomNav && (
-        <div className={chatPageScroll ? 'sticky bottom-0 z-30 bg-background pb-[env(safe-area-inset-bottom,0px)]' : 'contents'}>
+        <div data-chat-page-nav className={chatPageScroll ? 'sticky bottom-0 z-30 bg-background pb-[env(safe-area-inset-bottom,0px)]' : 'contents'}>
         <MobileBottomNav
           activeTab={selectedProject ? activeTab : 'chat'}
           hasSelectedProject={Boolean(selectedProject)}

@@ -718,6 +718,14 @@ html.chat-page-scroll.page-scroll-locked body {
   overflow: hidden;
 }
 
+/* With chat text selected the bars let touches through, so a handle dragged over
+   them lands on the chat beneath and edge-scrolls instead of jumping. Important
+   because the touch rules force pointer-events on every button. */
+html.chat-page-scroll.chat-text-selected :is([data-chat-page-top], [data-chat-page-bottom], [data-chat-page-nav]),
+html.chat-page-scroll.chat-text-selected :is([data-chat-page-top], [data-chat-page-bottom], [data-chat-page-nav]) * {
+  pointer-events: none !important;
+}
+
 html.chat-page-scroll body.pwa-mode #root {
   height: auto;
   overflow: visible;

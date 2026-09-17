@@ -910,6 +910,7 @@ export function useChatSessionState({
       const selecting = Boolean(selection && !selection.isCollapsed && content && anchor && content.contains(anchor));
       if (selecting === hasChatSelectionRef.current) return;
       hasChatSelectionRef.current = selecting;
+      document.documentElement.classList.toggle('chat-text-selected', selecting);
 
       if (selecting) {
         const start = Math.max(0, chatMessageCountRef.current - visibleMessageCountRef.current);
@@ -926,7 +927,10 @@ export function useChatSessionState({
       }
     };
     document.addEventListener('selectionchange', onSelectionChange);
-    return () => document.removeEventListener('selectionchange', onSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', onSelectionChange);
+      document.documentElement.classList.remove('chat-text-selected');
+    };
   }, []);
 
   // Scrolled up, new content lands below the viewport and the position holds on

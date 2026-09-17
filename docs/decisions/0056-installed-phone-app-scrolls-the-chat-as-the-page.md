@@ -5,7 +5,7 @@
 
 ## Decision
 
-In the installed app on a phone, the conversation scrolls as the page itself, with the header, composer and tab bar sticky; desktop and browser tabs keep the scrolling box. Android lets text-selection handles edge-scroll only the page they sit in, so inside a box they jumped to the top of the history or into the bars (tested on-device, 2026-09-15 and 2026-09-16). Every full-screen overlay that can open over the chat renders `PageScrollLock`, and the chat never scrolls or trims messages while a selection is active.
+In the installed app on a phone, the conversation scrolls as the page itself, with the header, composer and tab bar sticky; desktop and browser tabs keep the scrolling box. Android lets text-selection handles edge-scroll only the page they sit in, so inside a box they jumped to the top of the history or into the bars (tested on-device, 2026-09-15 and 2026-09-16). While chat text is selected the header, composer and tab bar let touches through: in Chrome a handle dragged over them slid under the composer or jumped to the first message, and with the bars see-through it landed on the chat beneath and edge-scrolled (probed in Chrome, 2026-09-16). Every full-screen overlay that can open over the chat renders `PageScrollLock`, and the chat never scrolls or trims messages while a selection is active.
 
 ## Rejected
 
@@ -13,4 +13,4 @@ Script that clamped a selection to the visible edge, or scrolled while a handle 
 
 ## Why
 
-Samsung Internet keeps its full-height page scrollbar, which a page cannot hide, so it slightly overlaps the composer; that is the accepted cost. Chrome hides it and CLIde draws a thumb beside the chat instead, but Chrome's handles still slipped into the bars, so Samsung Internet is the tested browser.
+Chrome is the tested browser: it is the reference Chromium, and it hides the page scrollbar, so CLIde draws a thumb beside the chat instead. Samsung Internet gave smooth handles without see-through bars but keeps a full-height page scrollbar a page cannot hide, and its changes to Chromium are undocumented. The cost of see-through bars is that while text is selected, the first tap on a bar only clears the selection.

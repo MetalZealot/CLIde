@@ -229,10 +229,12 @@ that is the only way Android lets text-selection handles scroll along with your 
 Browser tabs and desktop still scroll the chat inside a box.
 
 **The rule:** anything that opens full-screen over the chat locks the page while it is
-open, and nothing moves the chat while you have text selected.
+open, nothing moves the chat while you have text selected, and every bar floating over the
+chat lets touches through while text is selected.
 
 **What breaks:** a new full-screen screen without the lock lets your drags scroll the chat
-underneath it, which is what the sidebar did. Putting the phone chat back in a box brings
+underneath it, which is what the sidebar did. A new bar over the chat that still catches
+touches makes selection handles slide under it or jump to the top again. Putting the phone chat back in a box brings
 back handles that jump to the top of the conversation
 ([ADR 0056](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md)).
 
