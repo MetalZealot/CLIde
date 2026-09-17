@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronUpIcon, PencilIcon, XIcon } from 'lucide-react';
+import { PencilIcon, XIcon } from 'lucide-react';
 
 import type { QueuedAsyncAnswer } from '../../utils/asyncQuestionState';
 
@@ -18,7 +18,9 @@ type QueuedItem =
   | { kind: 'draft'; key: string; summary: string }
   | { kind: 'answer'; key: string; summary: string; question: string };
 
-/** Everything queued, in send order, as one row; tapping it lists each one. */
+const iconButton = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+/** Everything queued, in send order, as one row: the next message with its actions, the rest behind "+N more". */
 export default function QueuedMessagesRow({
   draft,
   answers,
@@ -49,11 +51,12 @@ export default function QueuedMessagesRow({
       question: answer.question,
     })),
   ];
-  const hasItems = items.length > 0;
+  const [next, ...rest] = items;
+  const hasRest = rest.length > 0;
 
   useEffect(() => {
-    if (!hasItems) setIsExpanded(false);
-  }, [hasItems]);
+    if (!hasRest) setIsExpanded(false);
+  }, [hasRest]);
 
   useEffect(() => {
     if (!isExpanded) return;
@@ -73,82 +76,83 @@ export default function QueuedMessagesRow({
     };
   }, [isExpanded]);
 
-  if (!hasItems) return null;
+  if (!next) return null;
 
-  const [next] = items;
-  const moreCount = items.length - 1;
-  const iconButton = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const actionsFor = (item: QueuedItem) => (item.kind === 'draft' ? (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setIsExpanded(false);
+          onEditDraft();
+        }}
+        aria-label={t('input.queue.edit', { defaultValue: 'Edit queued message' })}
+        title={t('input.queue.edit', { defaultValue: 'Edit queued message' })}
+        className={`${iconButton} hover:bg-accent hover:text-foreground`}
+      >
+        <PencilIcon className="h-4 w-4" aria-hidden />
+      </button>
+      <button
+        type="button"
+        onClick={onDeleteDraft}
+        aria-label={t('input.queue.delete', { defaultValue: 'Delete queued message' })}
+        title={t('input.queue.delete', { defaultValue: 'Delete queued message' })}
+        className={`${iconButton} hover:bg-destructive/10 hover:text-destructive`}
+      >
+        <XIcon className="h-4 w-4" aria-hidden />
+      </button>
+    </>
+  ) : (
+    <button
+      type="button"
+      onClick={() => onRemoveAnswer(item.key)}
+      aria-label={t('followUpQuestions.removeQueued', {
+        defaultValue: 'Remove queued answer to {{question}}',
+        question: item.question,
+      })}
+      title={t('followUpQuestions.removeQueued', {
+        defaultValue: 'Remove queued answer to {{question}}',
+        question: item.question,
+      })}
+      className={`${iconButton} hover:bg-destructive/10 hover:text-destructive`}
+    >
+      <XIcon className="h-4 w-4" aria-hidden />
+    </button>
+  ));
 
   return (
     // Reversed so the list sits above the row but follows it in tab order.
     <div ref={rootRef} className="settings-content-enter mx-auto mb-2 flex max-w-[54.25rem] flex-col-reverse">
-      <button
-        type="button"
-        aria-expanded={isExpanded}
-        aria-controls={listId}
-        onClick={() => setIsExpanded((value) => !value)}
-        className="flex w-full items-center gap-2 rounded-xl border border-dashed border-primary/25 bg-primary/[0.04] px-3 py-2 text-left transition-colors hover:bg-primary/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+      <div className="flex w-full items-center gap-2 rounded-xl border border-dashed border-primary/25 bg-primary/[0.04] py-1 pl-3 pr-1">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" aria-hidden />
         <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-primary/70">
           {t('input.queue.label', { defaultValue: 'Queued' })}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm text-foreground/90">{next.summary}</span>
-        {moreCount > 0 && (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {t('input.queue.more', { count: moreCount, defaultValue: '+{{count}} more' })}
-          </span>
+        {hasRest && (
+          <button
+            type="button"
+            aria-expanded={isExpanded}
+            aria-controls={listId}
+            onClick={() => setIsExpanded((value) => !value)}
+            className="shrink-0 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t('input.queue.more', { count: rest.length, defaultValue: '+{{count}} more' })}
+          </button>
         )}
-        <ChevronUpIcon
-          className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-          aria-hidden
-        />
-      </button>
+        <div className="flex shrink-0 items-center">{actionsFor(next)}</div>
+      </div>
 
-      {isExpanded && (
+      {isExpanded && hasRest && (
         <ul
           id={listId}
-          aria-label={t('input.queue.listLabel', { defaultValue: 'Queued messages, in send order' })}
+          aria-label={t('input.queue.listLabel', { defaultValue: 'Also queued, in send order' })}
           className="mb-1 overflow-hidden rounded-xl border border-border bg-popover shadow-sm"
         >
-          {items.map((item) => (
-            <li key={item.key} className="flex items-center gap-1 border-b border-border/60 py-0.5 pl-3 pr-1 last:border-b-0">
+          {rest.map((item) => (
+            <li key={item.key} className="flex items-center gap-1 border-b border-border/60 py-1 pl-3 pr-1 last:border-b-0">
               <p className="min-w-0 flex-1 truncate text-sm text-foreground">{item.summary}</p>
-              {item.kind === 'draft' ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsExpanded(false);
-                      onEditDraft();
-                    }}
-                    aria-label={t('input.queue.edit', { defaultValue: 'Edit queued message' })}
-                    className={`${iconButton} hover:bg-accent hover:text-foreground`}
-                  >
-                    <PencilIcon className="h-4 w-4" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onDeleteDraft}
-                    aria-label={t('input.queue.delete', { defaultValue: 'Delete queued message' })}
-                    className={`${iconButton} hover:bg-destructive/10 hover:text-destructive`}
-                  >
-                    <XIcon className="h-4 w-4" aria-hidden />
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onRemoveAnswer(item.key)}
-                  aria-label={t('followUpQuestions.removeQueued', {
-                    defaultValue: 'Remove queued answer to {{question}}',
-                    question: item.question,
-                  })}
-                  className={`${iconButton} hover:bg-destructive/10 hover:text-destructive`}
-                >
-                  <XIcon className="h-4 w-4" aria-hidden />
-                </button>
-              )}
+              {actionsFor(item)}
             </li>
           ))}
         </ul>

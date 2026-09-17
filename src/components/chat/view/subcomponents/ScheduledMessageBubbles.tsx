@@ -1,12 +1,9 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ClockIcon, PauseIcon, PencilIcon, PlayIcon, SendIcon, XIcon } from 'lucide-react';
 
 import { formatClockTimeWithDay } from '../../../../utils/formatTime';
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
-
-import UnsentMessageSheet, { type UnsentMessageAction } from './UnsentMessageSheet';
 
 interface ScheduledMessageBubblesProps {
   messages: ScheduledMessage[];
@@ -30,7 +27,9 @@ function describeWhen(message: ScheduledMessage, t: TFunction<'chat'>): string {
     });
 }
 
-/** Unsent messages at the end of the thread, oldest first; a tap opens what can be done with one. */
+const actionButton = 'rounded p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40';
+
+/** Unsent messages at the end of the thread, oldest first, with their actions beneath like a sent message's. */
 export default function ScheduledMessageBubbles({
   messages,
   canSendNow,
@@ -40,89 +39,84 @@ export default function ScheduledMessageBubbles({
   onResume,
 }: ScheduledMessageBubblesProps) {
   const { t } = useTranslation('chat');
-  const [openId, setOpenId] = useState<string | null>(null);
-  // Looked up each render, so a message that sends or is cancelled elsewhere closes its sheet.
-  const open = messages.find((message) => message.id === openId) ?? null;
 
   if (messages.length === 0) return null;
-
-  const actionsFor = (message: ScheduledMessage): UnsentMessageAction[] => [
-    message.state === 'paused'
-      ? {
-        key: 'resume',
-        label: t('input.schedule.resumeAction', { defaultValue: 'Resume' }),
-        icon: PlayIcon,
-        onSelect: () => onResume(message.id),
-      }
-      : {
-        key: 'send-now',
-        label: t('input.schedule.sendNow', { defaultValue: 'Send now' }),
-        icon: SendIcon,
-        onSelect: () => onSendNow(message.id),
-        disabled: !canSendNow,
-        hint: canSendNow
-          ? undefined
-          : t('input.schedule.sendNowBusy', { defaultValue: 'Available once the current reply finishes' }),
-      },
-    {
-      key: 'edit',
-      label: t('input.schedule.editAction', { defaultValue: 'Edit' }),
-      icon: PencilIcon,
-      onSelect: () => onEdit(message),
-    },
-    {
-      key: 'cancel',
-      label: t('input.schedule.cancelAction', { defaultValue: 'Cancel message' }),
-      icon: XIcon,
-      onSelect: () => onCancel(message.id),
-      isDanger: true,
-    },
-  ];
 
   return (
     <>
       {[...messages].reverse().map((message) => {
-        const when = describeWhen(message, t);
+        const isPaused = message.state === 'paused';
         const attachmentCount = message.attachments?.length ?? 0;
-        const StatusIcon = message.state === 'paused' ? PauseIcon : ClockIcon;
+        const StatusIcon = isPaused ? PauseIcon : ClockIcon;
+        const sendNowLabel = canSendNow
+          ? t('input.schedule.sendNow', { defaultValue: 'Send now' })
+          : t('input.schedule.sendNowBusy', { defaultValue: 'Send now is available once the current reply finishes' });
         return (
           <div key={message.id} className="chat-message flex justify-end px-1 sm:px-0">
-            <button
-              type="button"
-              aria-haspopup="dialog"
-              onClick={() => setOpenId(message.id)}
-              className="group flex max-w-[85%] flex-col items-end gap-1 rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-md lg:max-w-lg xl:max-w-xl"
-            >
-              <span className="block max-w-full rounded-2xl border border-dashed border-blue-600/50 bg-blue-600/[0.08] px-3 py-2 text-foreground transition-colors group-hover:bg-blue-600/[0.14] dark:border-blue-400/50 dark:bg-blue-400/10 sm:px-4">
-                <span dir="auto" className="chat-reading line-clamp-6 block whitespace-pre-wrap break-words">
+            <div className="flex max-w-[85%] flex-col items-end gap-1 md:max-w-md lg:max-w-lg xl:max-w-xl">
+              <div className="max-w-full rounded-2xl border border-dashed border-blue-600/50 bg-blue-600/[0.08] px-3 py-2 text-foreground dark:border-blue-400/50 dark:bg-blue-400/10 sm:px-4">
+                <p dir="auto" className="chat-reading line-clamp-6 whitespace-pre-wrap break-words">
                   {message.content}
-                </span>
-              </span>
-              <span className="flex select-none items-center justify-end gap-1 px-1 text-xs text-muted-foreground">
-                <StatusIcon className="h-3 w-3 shrink-0" aria-hidden />
-                <span>{when}</span>
-                {attachmentCount > 0 && (
-                  <span>
-                    · {t('input.schedule.attachmentCount', {
-                      count: attachmentCount,
-                      defaultValue: attachmentCount === 1 ? '{{count}} file' : '{{count}} files',
-                    })}
-                  </span>
+                </p>
+              </div>
+              <div className="-mt-0.5 flex select-none flex-wrap items-center justify-end gap-x-0.5 px-1 text-xs text-muted-foreground">
+                <button
+                  type="button"
+                  onClick={() => onEdit(message)}
+                  aria-label={t('input.schedule.edit', { defaultValue: 'Edit scheduled message' })}
+                  title={t('input.schedule.edit', { defaultValue: 'Edit scheduled message' })}
+                  className={`${actionButton} hover:text-foreground`}
+                >
+                  <PencilIcon className="h-3.5 w-3.5" aria-hidden />
+                </button>
+                {isPaused ? (
+                  <button
+                    type="button"
+                    onClick={() => onResume(message.id)}
+                    aria-label={t('input.schedule.resume', { defaultValue: 'Resume scheduled message' })}
+                    title={t('input.schedule.resume', { defaultValue: 'Resume scheduled message' })}
+                    className={`${actionButton} hover:text-foreground`}
+                  >
+                    <PlayIcon className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSendNow(message.id)}
+                    disabled={!canSendNow}
+                    aria-label={sendNowLabel}
+                    title={sendNowLabel}
+                    className={`${actionButton} hover:text-foreground`}
+                  >
+                    <SendIcon className="h-3.5 w-3.5" aria-hidden />
+                  </button>
                 )}
-              </span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => onCancel(message.id)}
+                  aria-label={t('input.schedule.cancel', { defaultValue: 'Cancel scheduled message' })}
+                  title={t('input.schedule.cancel', { defaultValue: 'Cancel scheduled message' })}
+                  className={`${actionButton} hover:text-destructive`}
+                >
+                  <XIcon className="h-3.5 w-3.5" aria-hidden />
+                </button>
+                <span className="ml-1 flex items-center gap-1">
+                  <StatusIcon className="h-3 w-3 shrink-0" aria-hidden />
+                  <span>{describeWhen(message, t)}</span>
+                  {attachmentCount > 0 && (
+                    <span>
+                      · {t('input.schedule.attachmentCount', {
+                        count: attachmentCount,
+                        defaultValue: attachmentCount === 1 ? '{{count}} file' : '{{count}} files',
+                      })}
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
           </div>
         );
       })}
-
-      {open && (
-        <UnsentMessageSheet
-          content={open.content}
-          status={describeWhen(open, t)}
-          actions={actionsFor(open)}
-          onDismiss={() => setOpenId(null)}
-        />
-      )}
     </>
   );
 }

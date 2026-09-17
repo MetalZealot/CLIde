@@ -406,61 +406,69 @@ describe('chatSubcomponents', () => {
       assert.match(markup, /2 remaining/);
     });
 
-    test('queues typed messages and answers in one row, in send order, listing each when opened', async () => {
+    test('queues typed messages and answers in one row, with the next one editable in place', async () => {
       const questionI18n = i18next.createInstance();
       await questionI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
-      const removed: string[] = [];
+      const calls: string[] = [];
+      const answer = (id: string, question: string) => ({
+        id,
+        questionId: `${id}:q`,
+        question,
+        answer: 'Staging',
+        content: `> ${question}\n\nStaging`,
+        provider: 'codex' as const,
+        queuedAt: '2026-09-07T12:00:00.000Z',
+      });
+      const render = (draft: { content: string; attachmentCount: number } | null) => root.render(
+        <I18nextProvider i18n={questionI18n} defaultNS="chat">
+          <QueuedMessagesRow
+            draft={draft}
+            answers={[answer('answer-1', 'Which environment?'), answer('answer-2', 'Which region?')]}
+            onEditDraft={() => calls.push('edit')}
+            onDeleteDraft={() => calls.push('delete')}
+            onRemoveAnswer={(id) => calls.push(`remove ${id}`)}
+          />
+        </I18nextProvider>,
+      );
 
       try {
-        await React.act(async () => {
-          root.render(
-            <I18nextProvider i18n={questionI18n} defaultNS="chat">
-              <QueuedMessagesRow
-                draft={{ content: 'Fix the test too', attachmentCount: 0 }}
-                answers={[{
-                  id: 'answer-1',
-                  questionId: 'question-1:0',
-                  question: 'Which environment?',
-                  answer: 'Staging',
-                  content: '> Which environment?\n\nStaging',
-                  provider: 'codex',
-                  queuedAt: '2026-09-07T12:00:00.000Z',
-                }]}
-                onEditDraft={() => {}}
-                onDeleteDraft={() => {}}
-                onRemoveAnswer={(id) => removed.push(id)}
-              />
-            </I18nextProvider>,
-          );
-        });
+        await React.act(async () => render({ content: 'Fix the test too', attachmentCount: 0 }));
+        const edit = container.querySelector<HTMLButtonElement>('[aria-label="Edit queued message"]');
+        assert.ok(edit, 'the next message is editable without opening anything');
+        assert.match(container.textContent ?? '', /QueuedFix the test too\+2 more/);
+        assert.equal(container.querySelectorAll('li').length, 0, 'one row until the rest are opened');
+        await React.act(async () => edit.click());
+        assert.deepEqual(calls, ['edit']);
 
-        const row = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
-        assert.ok(row);
-        assert.match(row.textContent ?? '', /QueuedFix the test too\+1 more/);
-        assert.equal(container.querySelectorAll('li').length, 0, 'one row until it is opened');
-
-        await React.act(async () => row.click());
+        const more = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+        assert.ok(more);
+        await React.act(async () => more.click());
         const items = [...container.querySelectorAll('li')];
         assert.deepEqual(items.map((item) => item.querySelector('p')?.textContent), [
-          'Fix the test too',
           'Which environment? — Staging',
-        ]);
-        assert.ok(items[0].querySelector('[aria-label="Edit queued message"]'));
-        const remove = items[1].querySelector<HTMLButtonElement>('[aria-label="Remove queued answer to Which environment?"]');
+          'Which region? — Staging',
+        ], 'the rest, in send order');
+        assert.equal(items[0].querySelector('[aria-label="Edit queued message"]'), null);
+        const remove = items[1].querySelector<HTMLButtonElement>('[aria-label="Remove queued answer to Which region?"]');
         assert.ok(remove);
-        assert.equal(items[1].querySelector('[aria-label="Edit queued message"]'), null);
         await React.act(async () => remove.click());
-        assert.deepEqual(removed, ['answer-1']);
+        assert.deepEqual(calls, ['edit', 'remove answer-2']);
+
+        // With no typed message, the oldest answer takes the row and keeps only Remove.
+        await React.act(async () => render(null));
+        assert.match(container.textContent ?? '', /QueuedWhich environment\? — Staging\+1 more/);
+        assert.ok(container.querySelector('[aria-label="Remove queued answer to Which environment?"]'));
+        assert.equal(container.querySelector('[aria-label="Edit queued message"]'), null);
       } finally {
         await React.act(async () => root.unmount());
         container.remove();
       }
     });
 
-    test('draws scheduled messages as bubbles whose menu holds Send now until a reply finishes', async () => {
+    test('draws scheduled messages as bubbles with their actions beneath, Send now held until a reply finishes', async () => {
       const scheduleI18n = i18next.createInstance();
       await scheduleI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
       const base = {
@@ -469,7 +477,7 @@ describe('chatSubcomponents', () => {
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
-      const sentNow: string[] = [];
+      const calls: string[] = [];
       const render = (canSendNow: boolean) => root.render(
         <I18nextProvider i18n={scheduleI18n} defaultNS="chat">
           <ScheduledMessageBubbles
@@ -481,46 +489,40 @@ describe('chatSubcomponents', () => {
               },
             ]}
             canSendNow={canSendNow}
-            onSendNow={(id) => sentNow.push(id)}
-            onEdit={() => {}}
-            onCancel={() => {}}
-            onResume={() => {}}
+            onSendNow={(id) => calls.push(`send ${id}`)}
+            onEdit={(message) => calls.push(`edit ${message.id}`)}
+            onCancel={(id) => calls.push(`cancel ${id}`)}
+            onResume={(id) => calls.push(`resume ${id}`)}
           />
         </I18nextProvider>,
       );
+      const bubbles = () => [...container.querySelectorAll<HTMLElement>('.chat-message')];
+      const actions = (bubble: HTMLElement) => [...bubble.querySelectorAll('button')]
+        .map((button) => `${button.getAttribute('aria-label')}${button.disabled ? ' (disabled)' : ''}`);
 
       try {
         await React.act(async () => render(false));
-        const bubbles = [...container.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="dialog"]')];
-        assert.deepEqual(bubbles.map((bubble) => bubble.textContent), [
+        assert.deepEqual(bubbles().map((bubble) => bubble.textContent), [
           'ContinueSending when usage resets· 1 file',
           'Being editedPaused — not sending until you resume it',
         ], 'oldest first, each saying when it goes');
-
-        await React.act(async () => bubbles[0].click());
-        const dialog = document.body.querySelector('[role="dialog"]');
-        assert.ok(dialog);
-        const actionLabels = () => [...dialog.querySelectorAll('button')].map((button) => button.textContent);
-        assert.deepEqual(actionLabels(), [
-          'Send nowAvailable once the current reply finishes',
-          'Edit',
-          'Cancel message',
+        assert.deepEqual(actions(bubbles()[0]), [
+          'Edit scheduled message',
+          'Send now is available once the current reply finishes (disabled)',
+          'Cancel scheduled message',
         ]);
-        assert.equal(dialog.querySelector('button')?.disabled, true);
+        assert.deepEqual(actions(bubbles()[1]), [
+          'Edit scheduled message',
+          'Resume scheduled message',
+          'Cancel scheduled message',
+        ], 'a paused message offers Resume instead of Send now');
 
         await React.act(async () => render(true));
-        const sendNow = dialog.querySelector<HTMLButtonElement>('button');
-        assert.equal(sendNow?.disabled, false);
-        await React.act(async () => sendNow?.click());
-        assert.deepEqual(sentNow, ['first']);
-        assert.equal(document.body.querySelector('[role="dialog"]'), null, 'choosing an action closes the menu');
-
-        await React.act(async () => bubbles[1].click());
-        assert.deepEqual(
-          [...document.body.querySelectorAll('[role="dialog"] button')].map((button) => button.textContent),
-          ['Resume', 'Edit', 'Cancel message'],
-          'a paused message offers Resume instead of Send now',
-        );
+        for (const button of bubbles()[0].querySelectorAll('button')) {
+          await React.act(async () => button.click());
+        }
+        await React.act(async () => bubbles()[1].querySelectorAll('button')[1].click());
+        assert.deepEqual(calls, ['edit first', 'send first', 'cancel first', 'resume later']);
       } finally {
         await React.act(async () => root.unmount());
         container.remove();

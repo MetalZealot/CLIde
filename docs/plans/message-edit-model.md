@@ -60,8 +60,9 @@ question stays above the composer — like a permission prompt, it waits on you.
   that strip, and it is a single row, never stacked cards.
 - **Queues stay in the browser that made them**, as upstream's do: a queued message
   sends only while that browser is open. Scheduled messages stay on the server.
-- **Tapping an unsent message** offers *Send now*, *Edit*, and *Cancel*. Earlier
-  messages keep the edit button they have.
+- **A scheduled message's actions sit beneath it**, as a sent one's do: *Edit*,
+  *Send now* (*Resume* when paused), *Cancel*; a tap menu hid them. The
+  queued row carries the next one's *Edit* and *Remove*; "+N more" lists the rest.
 - **Editing leaves the original in place, marked** with rewind's amber ring, text
   and attachments loaded into the composer, the existing draft set aside. While
   marked, it offers only *Cancel edit*; sending is the composer's job, so
@@ -103,7 +104,7 @@ question stays above the composer — like a permission prompt, it waits on you.
 - [~] 2. Scheduled messages render as bubbles at the end of the thread with their
       tap menu, and both queues merge into one compact row above the composer; the
       scheduled, queued, and queued-answer cards are removed. *Send now* is
-      scheduled-only, and refused rather than failed while a reply runs. Verified
+      refused, not failed, while a reply runs. Verified
       with real sends on the branch server 2026-09-16; phone check pending
 - [ ] 3. All three edit through the model above; the rewind and schedule banners
       are removed, with the announcement kept
