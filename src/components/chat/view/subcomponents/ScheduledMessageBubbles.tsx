@@ -59,48 +59,50 @@ export default function ScheduledMessageBubbles({
                   {message.content}
                 </p>
               </div>
-              <div className="-mt-0.5 flex select-none flex-wrap items-center justify-end gap-x-0.5 px-1 text-xs text-muted-foreground">
-                <button
-                  type="button"
-                  onClick={() => onEdit(message)}
-                  aria-label={t('input.schedule.edit', { defaultValue: 'Edit scheduled message' })}
-                  title={t('input.schedule.edit', { defaultValue: 'Edit scheduled message' })}
-                  className={`${actionButton} hover:text-foreground`}
-                >
-                  <PencilIcon className="h-3.5 w-3.5" aria-hidden />
-                </button>
-                {isPaused ? (
+              <div className="-mt-0.5 flex select-none flex-col items-end px-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-x-0.5">
                   <button
                     type="button"
-                    onClick={() => onResume(message.id)}
-                    aria-label={t('input.schedule.resume', { defaultValue: 'Resume scheduled message' })}
-                    title={t('input.schedule.resume', { defaultValue: 'Resume scheduled message' })}
+                    onClick={() => onEdit(message)}
+                    aria-label={t('input.schedule.edit', { defaultValue: 'Edit scheduled message' })}
+                    title={t('input.schedule.edit', { defaultValue: 'Edit scheduled message' })}
                     className={`${actionButton} hover:text-foreground`}
                   >
-                    <PlayIcon className="h-3.5 w-3.5" aria-hidden />
+                    <PencilIcon className="h-3.5 w-3.5" aria-hidden />
                   </button>
-                ) : (
+                  {isPaused ? (
+                    <button
+                      type="button"
+                      onClick={() => onResume(message.id)}
+                      aria-label={t('input.schedule.resume', { defaultValue: 'Resume scheduled message' })}
+                      title={t('input.schedule.resume', { defaultValue: 'Resume scheduled message' })}
+                      className={`${actionButton} hover:text-foreground`}
+                    >
+                      <PlayIcon className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onSendNow(message.id)}
+                      disabled={!canSendNow}
+                      aria-label={sendNowLabel}
+                      title={sendNowLabel}
+                      className={`${actionButton} hover:text-foreground`}
+                    >
+                      <SendIcon className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => onSendNow(message.id)}
-                    disabled={!canSendNow}
-                    aria-label={sendNowLabel}
-                    title={sendNowLabel}
-                    className={`${actionButton} hover:text-foreground`}
+                    onClick={() => onCancel(message.id)}
+                    aria-label={t('input.schedule.cancel', { defaultValue: 'Cancel scheduled message' })}
+                    title={t('input.schedule.cancel', { defaultValue: 'Cancel scheduled message' })}
+                    className={`${actionButton} hover:text-destructive`}
                   >
-                    <SendIcon className="h-3.5 w-3.5" aria-hidden />
+                    <XIcon className="h-3.5 w-3.5" aria-hidden />
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onCancel(message.id)}
-                  aria-label={t('input.schedule.cancel', { defaultValue: 'Cancel scheduled message' })}
-                  title={t('input.schedule.cancel', { defaultValue: 'Cancel scheduled message' })}
-                  className={`${actionButton} hover:text-destructive`}
-                >
-                  <XIcon className="h-3.5 w-3.5" aria-hidden />
-                </button>
-                <span className="ml-1 flex items-center gap-1">
+                </div>
+                <span className="flex items-center gap-1 pr-1.5">
                   <StatusIcon className="h-3 w-3 shrink-0" aria-hidden />
                   <span>{describeWhen(message, t)}</span>
                   {attachmentCount > 0 && (

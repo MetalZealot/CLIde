@@ -547,24 +547,23 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
             )}
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 flex w-full select-none items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
-                <span>
-                  {formattedTime}
-                  {turnDurationMs !== undefined && (
-                    <span className="tabular-nums">
-                      {' · '}
-                      {t('turnDuration.workedFor', {
-                        duration: formatDuration(turnDurationMs),
-                        defaultValue: 'Worked for {{duration}}',
-                      })}
-                    </span>
+              <div className="mt-1 select-none text-[11px] text-gray-400 dark:text-gray-500">
+                <div className="flex w-full items-center gap-2">
+                  <span>{formattedTime}</span>
+                  {shouldShowAssistantCopyControl && (
+                    <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                   )}
-                </span>
-                {shouldShowAssistantCopyControl && (
-                  <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
-                )}
-                {shouldShowAssistantCopyControl && (
-                  <MessageSpeakControl content={assistantCopyContent} />
+                  {shouldShowAssistantCopyControl && (
+                    <MessageSpeakControl content={assistantCopyContent} />
+                  )}
+                </div>
+                {turnDurationMs !== undefined && (
+                  <div className="tabular-nums">
+                    {t('turnDuration.workedFor', {
+                      duration: formatDuration(turnDurationMs),
+                      defaultValue: 'Worked for {{duration}}',
+                    })}
+                  </div>
                 )}
               </div>
             )}

@@ -96,8 +96,10 @@ describe('chatSubcomponents', () => {
         createDiff={() => []} showThinking={false} />,
     );
     // No i18n instance here, so the default string arrives uninterpolated.
-    assert.ok(withDuration.textContent?.includes(`${expectedTime} · Worked for`),
-      `turn duration sits beside the reply timestamp: ${withDuration.textContent}`);
+    const timeLine = [...withDuration.querySelectorAll('div')].find((node) => node.textContent === expectedTime
+      || node.firstElementChild?.textContent === expectedTime);
+    assert.ok(timeLine?.nextElementSibling?.textContent?.startsWith('Worked for'),
+      `turn duration sits on its own line under the reply timestamp: ${withDuration.innerHTML}`);
     assert.equal(renderToStaticMarkup(
       <MessageComponent message={{ ...message, isThinking: true }} prevMessage={null}
         provider="codex" createDiff={() => []} showThinking={false} />,
