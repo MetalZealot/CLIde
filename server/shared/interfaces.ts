@@ -21,6 +21,8 @@ import type {
   ProviderRuntimeContext,
   ProviderRuntimePermissionGateway,
   ProviderRuntimeWriter,
+  SideQuestionAnswer,
+  SideQuestionRequest,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
 
@@ -42,6 +44,15 @@ export interface IProviderRuntime {
   abort(sessionId: string): boolean | Promise<boolean>;
   /** Appends ordinary user input to an already-running provider turn. */
   steer?(sessionId: string, content: string): boolean | Promise<boolean>;
+  /**
+   * Answers one question beside the session without disturbing it: no transcript
+   * row, no queued turn, and no interruption of a run already in flight.
+   */
+  askSideQuestion?(
+    sessionId: string,
+    request: SideQuestionRequest,
+    context: ProviderRuntimeContext,
+  ): Promise<SideQuestionAnswer>;
   permissions?: ProviderRuntimePermissionGateway;
 }
 

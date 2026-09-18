@@ -1208,6 +1208,96 @@ async function abortClaudeSDKSession(sessionId) {
   }
 }
 
+const SIDE_QUESTION_UNAVAILABLE = 'Side questions are unavailable on this Claude version.';
+
+/**
+ * Answers one question beside a session: no transcript row, no queued turn, and
+ * a run already in flight keeps going.
+ *
+ * A live run already owns a query, so the question rides it and reuses its
+ * prompt cache. Idle sessions get a query resumed on the transcript whose prompt
+ * stream never yields, so the SDK loads the conversation and runs no turn.
+ *
+ * @param {string} sessionId - App session id
+ * @param {{ question: string, cwd?: string|null, signal?: AbortSignal }} request
+ * @param {Object} context - Provider runtime context
+ * @returns {Promise<{ answer: string, fallbackNotice?: string|null, synthetic?: boolean }>}
+ */
+async function askClaudeSideQuestion(sessionId, request, context) {
+  const question = typeof request?.question === 'string' ? request.question.trim() : '';
+  if (!question) {
+    throw new Error('A side question needs a question.');
+  }
+
+  const live = getSession(sessionId);
+  if (live?.instance) {
+    return runSideQuestion(live.instance, question, request?.signal);
+  }
+
+  const providerSessionId = context.resolveProviderSessionId(sessionId);
+  if (!providerSessionId) {
+    throw new Error('This session has nothing to ask about yet.');
+  }
+
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  request?.signal?.addEventListener('abort', onAbort, { once: true });
+
+  // A prompt stream that never yields: the SDK loads the resumed transcript and
+  // waits, so the side question is the only thing that reaches the model.
+  const idlePrompt = (async function* () {
+    await new Promise((resolve) => {
+      controller.signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+  })();
+
+  const queryInstance = query({
+    prompt: idlePrompt,
+    options: {
+      env: { ...process.env },
+      pathToClaudeCodeExecutable: resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH),
+      ...(request?.cwd ? { cwd: request.cwd } : {}),
+      resume: providerSessionId,
+      allowedTools: [],
+      abortController: controller,
+    },
+  });
+
+  try {
+    return await runSideQuestion(queryInstance, question, request?.signal);
+  } finally {
+    request?.signal?.removeEventListener('abort', onAbort);
+    controller.abort();
+  }
+}
+
+/**
+ * Asks one question of a query instance and shapes the SDK's answer.
+ *
+ * `askSideQuestion` is absent from the SDK's published types, so an upgrade can
+ * remove it without a type error; report that rather than failing the chat.
+ */
+async function runSideQuestion(queryInstance, question, signal) {
+  if (typeof queryInstance.askSideQuestion !== 'function') {
+    throw new Error(SIDE_QUESTION_UNAVAILABLE);
+  }
+
+  const result = await queryInstance.askSideQuestion(question, signal ? { signal } : undefined);
+  const answer = typeof result?.response === 'string' ? result.response.trim() : '';
+  if (!answer) {
+    throw new Error('Claude returned no answer to that side question.');
+  }
+
+  const fallback = result?.refusalFallback;
+  return {
+    answer,
+    synthetic: result?.synthetic === true,
+    fallbackNotice: fallback?.fallbackModel
+      ? `Answered by ${fallback.fallbackModel} instead of ${fallback.originalModel}.`
+      : null,
+  };
+}
+
 /**
  * Checks if an SDK session is currently active
  * @param {string} sessionId - Session identifier
@@ -1274,6 +1364,7 @@ async function refreshClaudeContextUsage(providerSessionId) {
 export const claudeRuntime = {
   run: queryClaudeSDK,
   abort: abortClaudeSDKSession,
+  askSideQuestion: askClaudeSideQuestion,
   permissions: {
     resolve: resolveToolApproval,
     listPending: getPendingApprovalsForSession,
@@ -1284,6 +1375,8 @@ export const claudeRuntime = {
 export {
   queryClaudeSDK,
   abortClaudeSDKSession,
+  askClaudeSideQuestion,
+  runSideQuestion,
   isClaudeSDKSessionActive,
   getActiveClaudeSDKSessions,
   resolveToolApproval,

@@ -690,6 +690,21 @@ export type ProviderRuntimeContext = {
   isProviderInstalled(): Promise<boolean>;
 };
 
+/** One-shot question answered beside a session, never written to its transcript. */
+export type SideQuestionRequest = {
+  question: string;
+  cwd?: string | null;
+  signal?: AbortSignal;
+};
+
+export type SideQuestionAnswer = {
+  answer: string;
+  /** The provider answered on a fallback model and named it. */
+  fallbackNotice?: string | null;
+  /** Provider returned a placeholder row rather than a real answer. */
+  synthetic?: boolean;
+};
+
 export type ProviderRunFunction = (
   command: string,
   options: AnyRecord,

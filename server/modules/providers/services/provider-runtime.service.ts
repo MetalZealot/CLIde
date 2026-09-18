@@ -10,6 +10,8 @@ import type {
   ProviderRunFunction,
   ProviderRuntimeContext,
   ProviderRuntimeWriter,
+  SideQuestionAnswer,
+  SideQuestionRequest,
 } from '@/shared/types.js';
 
 type ProviderRuntimeServiceDependencies = {
@@ -96,6 +98,26 @@ export function createProviderRuntimeService(
     async steer(providerName: LLMProvider, sessionId: string, content: string): Promise<boolean> {
       const runtime = dependencies.resolveProvider(providerName).runtime;
       return runtime.steer ? Boolean(await runtime.steer(sessionId, content)) : false;
+    },
+
+    /**
+     * Asks one question beside a session. `null` means this provider has no
+     * side-question mechanism, which the capability matrix already reports.
+     */
+    async askSideQuestion(
+      providerName: LLMProvider,
+      sessionId: string,
+      request: SideQuestionRequest,
+    ): Promise<SideQuestionAnswer | null> {
+      const provider = dependencies.resolveProvider(providerName);
+      if (!provider.runtime.askSideQuestion) {
+        return null;
+      }
+      return provider.runtime.askSideQuestion(
+        sessionId,
+        request,
+        createRuntimeContext(provider),
+      );
     },
 
     /**

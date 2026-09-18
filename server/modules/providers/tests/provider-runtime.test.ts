@@ -132,6 +132,27 @@ describe('provider-runtime.service', () => {
     assert.equal(await service.steer('cursor', 'session-1', 'detail'), false);
   });
 
+  test('a side question reaches the runtime with the app session id and its context', async () => {
+    const runtime = createRuntime({
+      async askSideQuestion(sessionId, request, context) {
+        assert.equal(sessionId, 'session-1');
+        assert.equal(context.resolveProviderSessionId(sessionId), 'native-session-1');
+        return { answer: `asked: ${request.question}` };
+      },
+    });
+    const service = createService([createProvider('claude', runtime)]);
+
+    assert.deepEqual(
+      await service.askSideQuestion('claude', 'session-1', { question: 'which file?' }),
+      { answer: 'asked: which file?' },
+    );
+  });
+
+  test('a provider with no side-question mechanism answers null rather than throwing', async () => {
+    const service = createService([createProvider('cursor', createRuntime())]);
+    assert.equal(await service.askSideQuestion('cursor', 'session-1', { question: 'why?' }), null);
+  });
+
   test('routes interactive responses through provider-owned runtime capabilities', async () => {
     const decisions: unknown[][] = [];
     const claudeRuntime = createRuntime({
@@ -510,6 +531,38 @@ describe('claude-runtime error results', () => {
     const line = (await loadTurnLog())('error-result', 's1', { detail: `${'x'.repeat(200)}\nsecond line` });
     assert.equal(line.includes('\n'), false);
     assert.equal(line.length, 160 + '[turn] error-result session=s1 detail='.length);
+  });
+
+  const loadAskSideQuestion = async () => (
+    (await import('@/modules/providers/list/claude/claude-runtime.provider.js')).runSideQuestion
+  );
+
+  test('a side question keeps the answer and names a fallback model', async () => {
+    const ask = await loadAskSideQuestion();
+    const answer = await ask({
+      async askSideQuestion(question: string) {
+        assert.equal(question, 'what is the plan?');
+        return {
+          response: '  three phases  ',
+          synthetic: false,
+          refusalFallback: { originalModel: 'opus', fallbackModel: 'sonnet' },
+        };
+      },
+    }, 'what is the plan?');
+
+    assert.deepEqual(answer, {
+      answer: 'three phases',
+      synthetic: false,
+      fallbackNotice: 'Answered by sonnet instead of opus.',
+    });
+  });
+
+  test('an SDK without the side-question call degrades instead of failing the chat', async () => {
+    const ask = await loadAskSideQuestion();
+    await assert.rejects(
+      () => ask({}, 'what is the plan?'),
+      /Side questions are unavailable/,
+    );
   });
 
   test('a genuine failure is never mistaken for the notice wrapper', async () => {
