@@ -137,8 +137,33 @@ export default function ActivityIndicator({ activity, onAbort, isStopArmed = fal
   const messageIndex = messageOrder === 'random' && cycleMode !== 'never'
     ? randomMessageIndex
     : listedMessageIndex;
+  // A reported stage outranks the cycling words: those are decoration, and a
+  // turn that is retrying or silent must not read as one that is working.
+  const stage = renderedActivity?.stage ?? null;
+  const stageLabel = !stage
+    ? null
+    : stage.name === 'starting'
+      ? t('claudeStatus.stage.starting', { defaultValue: 'Starting' })
+      : stage.name === 'sent'
+        ? t('claudeStatus.stage.sent', { defaultValue: 'Sent' })
+        : stage.name === 'thinking'
+          ? (typeof stage.tokens === 'number' && stage.tokens > 0
+            ? t('claudeStatus.stage.thinkingTokens', {
+              count: stage.tokens,
+              tokens: stage.tokens.toLocaleString(),
+              defaultValue: 'Thinking · {{tokens}} tokens',
+            })
+            : t('claudeStatus.stage.thinking', { defaultValue: 'Thinking' }))
+          : stage.name === 'retrying'
+            ? t('claudeStatus.stage.retrying', {
+              reason: stage.reason || t('claudeStatus.stage.retryReasonFallback', { defaultValue: 'API error' }),
+              attempt: stage.attempt ?? 1,
+              maxAttempts: stage.maxAttempts ?? 1,
+              defaultValue: 'Retrying · {{reason}} · {{attempt}} of {{maxAttempts}}',
+            })
+            : t('claudeStatus.stage.compacting', { defaultValue: 'Compacting' });
   const label = renderedActivity
-    ? (renderedActivity.statusText || actionWords[messageIndex] || actionWords[0]).replace(/\.+$/, '')
+    ? (stageLabel || renderedActivity.statusText || actionWords[messageIndex] || actionWords[0]).replace(/\.+$/, '')
     : '';
 
   const stopLabel = isStopArmed

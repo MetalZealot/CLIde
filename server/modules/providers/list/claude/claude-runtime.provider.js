@@ -896,6 +896,22 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       effort: sdkOptions.effort,
       resume: providerSessionId ? 'yes' : 'no',
     });
+    // The label shows whatever stage the runtime last reported; an empty frame
+    // hands it back to its own cycling words.
+    let stageSent = false;
+    const sendStage = (stage) => {
+      stageSent = stage !== null;
+      ws.send(createNormalizedMessage({
+        kind: 'status',
+        text: '',
+        stage,
+        sessionId: capturedSessionId || sessionId || null,
+        provider: 'claude',
+      }));
+    };
+    if (capturedSessionId || sessionId) {
+      sendStage({ name: 'starting' });
+    }
     let lastContextUsageAt = 0;
     for await (const message of queryInstance) {
       frames += 1;
@@ -961,12 +977,19 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
           http: message.error_status ?? 'none',
           error: typeof message.error === 'string' ? message.error : message.error?.type,
         });
+        sendStage({
+          name: 'retrying',
+          attempt: message.attempt,
+          maxAttempts: message.max_retries,
+          reason: typeof message.error === 'string' ? message.error : message.error?.type,
+        });
       }
 
       // The estimate climbs roughly once a second while the model thinks; only
       // the last value is logged, at the end of the turn.
       if (message?.type === 'system' && message.subtype === 'thinking_tokens') {
         thinkingEstimate = message.estimated_tokens || thinkingEstimate;
+        sendStage({ name: 'thinking', tokens: thinkingEstimate });
       }
 
       // A limit or API notice arrives as a `success` result whose text is the
@@ -987,9 +1010,11 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
       if (message?.type === 'system' && message.subtype === 'status') {
         const isCompacting = message.status === 'compacting';
+        stageSent = isCompacting;
         ws.send(createNormalizedMessage({
           kind: 'status',
           text: isCompacting ? 'Compacting conversation' : '',
+          stage: isCompacting ? { name: 'compacting' } : null,
           sessionId: capturedSessionId || sessionId || null,
           provider: 'claude',
         }));
@@ -1013,6 +1038,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         if (!sentLogged) {
           sentLogged = true;
           logTurn('sent', capturedSessionId || sessionId, { ms: sinceStart(), window: info.rateLimitType, status: info.status });
+          sendStage({ name: 'sent' });
         }
         if (info.status && info.status !== 'allowed') {
           logTurn('usage', capturedSessionId || sessionId, {
@@ -1033,6 +1059,12 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
       if (message?.isApiErrorMessage === true || message?.message?.model === SYNTHETIC_MODEL) {
         noticeStreamed = true;
+      }
+
+      // Text, a tool call or a tool result means the stage is over: those rows
+      // are the activity now, and a stale "Thinking" would sit above them.
+      if (stageSent && (message?.type === 'assistant' || message?.type === 'user')) {
+        sendStage(null);
       }
 
       // Use adapter to normalize SDK events into NormalizedMessage[]

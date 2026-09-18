@@ -54,6 +54,39 @@ export type FollowUpQuestion = {
   options: string[];
 };
 
+/** What a runtime reports it is doing; mirrors the server's `TurnStage`. */
+export type TurnStage = {
+  name: 'starting' | 'sent' | 'thinking' | 'retrying' | 'compacting';
+  tokens?: number;
+  attempt?: number;
+  maxAttempts?: number;
+  reason?: string;
+};
+
+const TURN_STAGE_NAMES = new Set(['starting', 'sent', 'thinking', 'retrying', 'compacting']);
+
+const readStageNumber = (value: unknown): number | undefined => (
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined
+);
+
+/** Narrows a wire value to a stage; anything unrecognised leaves the label alone. */
+export function readTurnStage(value: unknown): TurnStage | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.name !== 'string' || !TURN_STAGE_NAMES.has(candidate.name)) {
+    return null;
+  }
+  return {
+    name: candidate.name as TurnStage['name'],
+    tokens: readStageNumber(candidate.tokens),
+    attempt: readStageNumber(candidate.attempt),
+    maxAttempts: readStageNumber(candidate.maxAttempts),
+    reason: typeof candidate.reason === 'string' ? candidate.reason : undefined,
+  };
+}
+
 export interface NormalizedMessage {
   id: string;
   sessionId: string;
@@ -110,6 +143,7 @@ export interface NormalizedMessage {
   isError?: boolean;
   text?: string;
   tokens?: number;
+  stage?: TurnStage | null;
   canInterrupt?: boolean;
   tokenBudget?: unknown;
   requestId?: string;

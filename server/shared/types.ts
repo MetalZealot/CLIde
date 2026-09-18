@@ -518,6 +518,20 @@ export type FollowUpQuestion = {
 };
 
 /**
+ * What a runtime is doing right now, for the activity label. Provider-neutral:
+ * a runtime that reports none of these sends no stage and the label keeps its
+ * own cycling words.
+ */
+export type TurnStage = {
+  name: 'starting' | 'sent' | 'thinking' | 'retrying' | 'compacting';
+  /** Running estimate while the model thinks; approximate, not billed tokens. */
+  tokens?: number;
+  attempt?: number;
+  maxAttempts?: number;
+  reason?: string;
+};
+
+/**
  * Provider-neutral message envelope used in REST responses and realtime channels.
  *
  * Every provider-specific message must be converted into this shape before being
@@ -603,6 +617,7 @@ export type NormalizedMessage = {
   isError?: boolean;
   text?: string;
   tokens?: number;
+  stage?: TurnStage | null;
   canInterrupt?: boolean;
   requestId?: string;
   input?: unknown;

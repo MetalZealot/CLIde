@@ -8,6 +8,7 @@ import { playChatCompletionSound, playNotificationSound } from '../../../utils/n
 import type { MarkSessionIdle, MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import type { PendingPermissionRequest } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
+import { readTurnStage } from '../../../stores/useSessionStore';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
 
 const isActionablePermissionRequest = (request: { toolName?: unknown } | null | undefined): boolean => {
@@ -437,6 +438,7 @@ export function useChatRealtimeHandlers({
             // returns to its own cycling label.
             onSessionProcessing?.(sid, {
               statusText: msg.text || null,
+              stage: readTurnStage(msg.stage),
               canInterrupt: msg.canInterrupt !== false,
             });
           }

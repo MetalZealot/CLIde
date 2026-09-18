@@ -1,8 +1,12 @@
 import { useCallback, useState } from 'react';
 
+import type { TurnStage } from '../stores/useSessionStore';
+
 export interface SessionActivity {
   /** Provider-supplied status line; null renders the default activity label. */
   statusText: string | null;
+  /** What the runtime says it is doing; null leaves the label to its own words. */
+  stage?: TurnStage | null;
   canInterrupt: boolean;
   /**
    * When this request was first marked as processing (client clock). Drives
@@ -16,13 +20,14 @@ export type SessionActivityMap = ReadonlyMap<string, SessionActivity>;
 export type SessionActivitySnapshot = {
   sessionId: string;
   statusText?: string | null;
+  stage?: TurnStage | null;
   canInterrupt?: boolean;
   startedAt?: number;
 };
 
 export type MarkSessionProcessing = (
   sessionId?: string | null,
-  activity?: { statusText?: string | null; canInterrupt?: boolean },
+  activity?: { statusText?: string | null; stage?: TurnStage | null; canInterrupt?: boolean },
 ) => void;
 
 export type MarkSessionIdle = (
@@ -35,6 +40,16 @@ export type SyncProcessingSessions = (
 ) => void;
 
 const LOCAL_ACTIVITY_GRACE_MS = 10_000;
+
+const turnStagesMatch = (left?: TurnStage | null, right?: TurnStage | null): boolean => (
+  left === right
+  || (!!left && !!right
+    && left.name === right.name
+    && left.tokens === right.tokens
+    && left.attempt === right.attempt
+    && left.maxAttempts === right.maxAttempts
+    && left.reason === right.reason)
+);
 
 const sessionActivityMapsMatch = (
   left: ReadonlyMap<string, SessionActivity>,
@@ -49,6 +64,7 @@ const sessionActivityMapsMatch = (
     if (
       !rightActivity
       || leftActivity.statusText !== rightActivity.statusText
+      || !turnStagesMatch(leftActivity.stage, rightActivity.stage)
       || leftActivity.canInterrupt !== rightActivity.canInterrupt
       || leftActivity.startedAt !== rightActivity.startedAt
     ) {
@@ -82,6 +98,7 @@ export function useSessionProtection() {
       const next: SessionActivity = {
         statusText:
           activity?.statusText !== undefined ? activity.statusText : existing?.statusText ?? null,
+        stage: activity?.stage !== undefined ? activity.stage : existing?.stage ?? null,
         canInterrupt: activity?.canInterrupt ?? existing?.canInterrupt ?? true,
         startedAt: existing?.startedAt ?? Date.now(),
       };
@@ -89,6 +106,7 @@ export function useSessionProtection() {
       if (
         existing
         && existing.statusText === next.statusText
+        && turnStagesMatch(existing.stage, next.stage)
         && existing.canInterrupt === next.canInterrupt
       ) {
         return prev;
@@ -155,6 +173,7 @@ export function useSessionProtection() {
         updated.set(sessionId, {
           statusText:
             snapshot.statusText !== undefined ? snapshot.statusText : existing?.statusText ?? null,
+          stage: snapshot.stage !== undefined ? snapshot.stage : existing?.stage ?? null,
           canInterrupt: snapshot.canInterrupt ?? existing?.canInterrupt ?? true,
           startedAt:
             existing?.startedAt

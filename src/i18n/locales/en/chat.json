@@ -377,6 +377,15 @@
     "controls": {
       "stopGeneration": "Stop Generation",
       "pressEscToStop": "Press Esc anytime to stop"
+    },
+    "stage": {
+      "starting": "Starting",
+      "sent": "Sent",
+      "thinking": "Thinking",
+      "thinkingTokens": "Thinking · {{tokens}} tokens",
+      "retrying": "Retrying · {{reason}} · {{attempt}} of {{maxAttempts}}",
+      "retryReasonFallback": "API error",
+      "compacting": "Compacting"
     }
   },
   "tasks": {

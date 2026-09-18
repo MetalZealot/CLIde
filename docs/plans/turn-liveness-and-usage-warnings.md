@@ -1,7 +1,7 @@
 # A running turn shows what the provider is actually doing
 
-- Status: 2/6
-- Next: Phase 2 — a provider-neutral stage replaces the rotating activity words
+- Status: 3/6
+- Next: Phase 3 — name the silence when no runtime frame has arrived for a threshold
 - Context: [Claude SDK map §4](../maps/claude-agent-sdk.md) (the stream messages CLIde drops),
   [Codex map](../maps/codex-cli-sdk-app-server.md), [tool activity stream](../maps/tool-activity-stream.md),
   ADR 0013 (abort). Client-side recording is the separate
@@ -41,13 +41,12 @@ What was established that shapes the phases (Phase 0 figures in the
       each with the app session id and elapsed ms; metadata only. Aborted runs no
       longer print a stack. A limit notice arrives as a `success` result whose
       text is the error, so `is_error` decides, not the subtype.
-- [ ] **2. The activity label states the real stage.** A provider-neutral
-      `status` stage replaces the rotating words wherever a runtime reports one:
-      starting → sent (first `rate_limit_event`) → thinking · N tokens → retrying · reason ·
-      attempt n of m, next in Xs → compacting. Rotating words stay only as the
-      fallback. Codex (App Server error and retry notifications), Cursor (its
-      runtime's retry handling) and OpenCode each map an equivalent or explicitly
-      no-op; no Claude-only field enters shared code.
+- [x] **2. The activity label states the real stage.** A `TurnStage` on the
+      shared `status` frame outranks the rotating words: starting → sent →
+      thinking · N tokens → retrying · reason · n of m → compacting, cleared when
+      text or a tool arrives. Codex, Cursor and OpenCode send no stage and keep
+      the cycling words: Codex's App Server reports no API retry or think
+      estimate, and Cursor's only retry is a workspace-trust re-run.
 - [ ] **3. Silence is named.** When no runtime frame has arrived for a threshold
       after the turn was sent, the label says how long Claude has been silent
       instead of shimmering. Thinking frames never gapped more than 1.7 s in

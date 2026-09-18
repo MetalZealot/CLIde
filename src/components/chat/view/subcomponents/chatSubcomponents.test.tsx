@@ -299,6 +299,7 @@ describe('chatSubcomponents', () => {
       assert.match(activityLabel.className, /min-w-0/);
       assert.match(activityLabel.querySelector('span')?.className ?? '', /truncate/);
 
+
       await React.act(async () => reset?.click());
       assert.equal(
         container.querySelector('output')?.textContent,
@@ -307,6 +308,33 @@ describe('chatSubcomponents', () => {
       assert.equal(localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY), null);
       assert.equal(localStorage.getItem(THINKING_MESSAGE_CYCLE_STORAGE_KEY), null);
       assert.equal(localStorage.getItem(THINKING_MESSAGE_ORDER_STORAGE_KEY), null);
+
+      // A reported stage outranks both the custom words and the status text.
+      await React.act(async () => root?.render(
+        <ActivityIndicator
+          activity={{
+            statusText: 'Compacting conversation',
+            stage: { name: 'thinking', tokens: 5350 },
+            canInterrupt: true,
+            startedAt: initialStartedAt,
+          }}
+        />,
+      ));
+      assert.match(container.textContent ?? '', /Thinking · 5,350 tokens/);
+      assert.doesNotMatch(container.textContent ?? '', /Compacting conversation/);
+
+      await React.act(async () => root?.render(
+        <ActivityIndicator
+          activity={{
+            statusText: null,
+            stage: { name: 'retrying', attempt: 3, maxAttempts: 10, reason: 'overloaded' },
+            canInterrupt: true,
+            startedAt: initialStartedAt,
+          }}
+        />,
+      ));
+      assert.match(container.textContent ?? '', /Retrying · overloaded · 3 of 10/);
+
     });
 
     test('a permission prompt hides the indicator without unmounting its cycle', () => {
