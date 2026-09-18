@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { authenticatedFetch } from '../../../utils/api';
 import { setNotificationSoundEnabled } from '../../../utils/notificationSound';
+import { saveProviderToolSettings } from '../../../utils/providerToolSettings';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 import {
   DEFAULT_CODE_EDITOR_SETTINGS,
@@ -249,24 +250,24 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
   const saveSettings = useCallback(async () => {
     try {
       const now = new Date().toISOString();
-      localStorage.setItem('claude-settings', JSON.stringify({
-        allowedTools: claudePermissions.allowedTools,
-        disallowedTools: claudePermissions.disallowedTools,
-        skipPermissions: claudePermissions.skipPermissions,
-        lastUpdated: now,
-      }));
-
-      localStorage.setItem('cursor-tools-settings', JSON.stringify({
-        allowedCommands: cursorPermissions.allowedCommands,
-        disallowedCommands: cursorPermissions.disallowedCommands,
-        skipPermissions: cursorPermissions.skipPermissions,
-        lastUpdated: now,
-      }));
-
-      localStorage.setItem('codex-settings', JSON.stringify({
-        permissionMode: codexPermissionMode,
-        lastUpdated: now,
-      }));
+      saveProviderToolSettings({
+        'claude-settings': {
+          allowedTools: claudePermissions.allowedTools,
+          disallowedTools: claudePermissions.disallowedTools,
+          skipPermissions: claudePermissions.skipPermissions,
+          lastUpdated: now,
+        },
+        'cursor-tools-settings': {
+          allowedCommands: cursorPermissions.allowedCommands,
+          disallowedCommands: cursorPermissions.disallowedCommands,
+          skipPermissions: cursorPermissions.skipPermissions,
+          lastUpdated: now,
+        },
+        'codex-settings': {
+          permissionMode: codexPermissionMode,
+          lastUpdated: now,
+        },
+      });
 
       const notificationResponse = await authenticatedFetch('/api/settings/notification-preferences', {
         method: 'PUT',

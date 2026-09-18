@@ -246,7 +246,9 @@ Most preferences live in the browser's own storage, so they exist per browser an
 device: switching from the Samsung app to Chrome starts with none of them. A short
 allowlist (`shared/synced-preferences.ts`) is mirrored per user in the database instead,
 so those follow you: the server's copy wins when a browser loads, and after that the most
-recent edit wins.
+recent edit wins. Synced today: the Activity messages, theme and font, and each
+provider's tool permissions. Deliberately not synced, from the same appearance settings:
+chat reading size and line spacing.
 
 **The rule:** decide which list a new preference belongs on. It syncs if it describes what
 you want CLIde to be like; it stays local if it describes this device — window sizes, the
@@ -254,7 +256,9 @@ open tab, which model this phone last used.
 
 **What breaks:** a preference you spent time on silently resets on a new browser, which is
 how the custom Activity messages were lost. Syncing a per-device one is the opposite
-failure and just as annoying: your phone's layout follows you onto the desktop.
+failure and just as annoying: your phone's text size follows you onto the desktop. Tool
+permissions are the case where the split is more than annoying — a device that never
+received them asks about work the other one was told to allow.
 
 ---
 

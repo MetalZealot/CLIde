@@ -29,9 +29,12 @@ type AppearancePreferencesContextValue = AppearancePreferences & {
   toggleDarkMode: () => void;
 };
 
+import type { SyncedPreferences } from '../../shared/synced-preferences';
+
 export const APPEARANCE_STORAGE_KEY = 'appearancePreferences';
 const LEGACY_THEME_STORAGE_KEY = 'theme';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
+const SYNC_EVENT = 'appearance-preferences:sync';
 
 export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   version: 3,
@@ -106,6 +109,79 @@ const readInitialPreferences = (): AppearancePreferences => {
   }
 };
 
+type SyncEventDetail = {
+  fromServer: boolean;
+  value: Partial<AppearancePreferences>;
+};
+
+/**
+ * Theme and font follow the user between devices; reading size and line spacing
+ * do not, because they are set for the screen in front of you.
+ */
+const syncedFields = (
+  preferences: Partial<AppearancePreferences>,
+): Partial<AppearancePreferences> => {
+  const synced: Partial<AppearancePreferences> = {};
+  if (isThemePreference(preferences.theme)) synced.theme = preferences.theme;
+  if (isFontFamilyPreference(preferences.fontFamily)) synced.fontFamily = preferences.fontFamily;
+  return synced;
+};
+
+const announce = (detail: SyncEventDetail): void => {
+  window.dispatchEvent(new CustomEvent<SyncEventDetail>(SYNC_EVENT, { detail }));
+};
+
+/** The synced appearance fields this browser has stored, or nothing if it has none. */
+export const readSyncedAppearancePreferences = (): SyncedPreferences => {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const raw = localStorage.getItem(APPEARANCE_STORAGE_KEY);
+    if (raw === null) return {};
+    return { [APPEARANCE_STORAGE_KEY]: syncedFields(parseAppearancePreferences(JSON.parse(raw))) };
+  } catch {
+    return {};
+  }
+};
+
+/** Merges server-provided appearance fields into this browser's stored preferences. */
+export const applyRemoteAppearancePreferences = (preferences: SyncedPreferences): void => {
+  if (typeof window === 'undefined') return;
+  if (!(APPEARANCE_STORAGE_KEY in preferences)) return;
+
+  const incoming = preferences[APPEARANCE_STORAGE_KEY];
+  const value = syncedFields(
+    incoming && typeof incoming === 'object' && !Array.isArray(incoming)
+      ? incoming as Partial<AppearancePreferences>
+      : {},
+  );
+  if (Object.keys(value).length === 0) return;
+
+  try {
+    localStorage.setItem(
+      APPEARANCE_STORAGE_KEY,
+      JSON.stringify({ ...readInitialPreferences(), ...value }),
+    );
+  } catch {
+    // The dispatched event still updates the live provider.
+  }
+  announce({ fromServer: true, value });
+};
+
+/** Reports locally changed appearance fields in the shape the server stores. */
+export const subscribeToAppearanceChanges = (
+  listener: (changes: SyncedPreferences) => void,
+): (() => void) => {
+  const handleSyncEvent = (event: Event) => {
+    const detail = (event as CustomEvent<SyncEventDetail>).detail;
+    if (!detail || detail.fromServer) return;
+    listener({ [APPEARANCE_STORAGE_KEY]: detail.value });
+  };
+
+  window.addEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+  return () => window.removeEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+};
+
 const prefersDark = () => Boolean(
   typeof window !== 'undefined'
   && window.matchMedia
@@ -139,6 +215,8 @@ export function AppearancePreferencesProvider({ children }: { children: React.Re
     } catch {
       // Private mode or full storage still permits an in-memory preference.
     }
+
+    announce({ fromServer: false, value: syncedFields(preferences) });
   }, [preferences]);
 
   useEffect(() => {
@@ -161,8 +239,18 @@ export function AppearancePreferencesProvider({ children }: { children: React.Re
       }
     };
 
+    const handleSyncEvent = (event: Event) => {
+      const detail = (event as CustomEvent<SyncEventDetail>).detail;
+      if (!detail?.fromServer) return;
+      setPreferences((current) => ({ ...current, ...detail.value }));
+    };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+    };
   }, []);
 
   const setTheme = useCallback((theme: ThemePreference) => {

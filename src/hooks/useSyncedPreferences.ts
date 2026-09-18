@@ -1,13 +1,52 @@
 import { useEffect, useRef } from 'react';
 
 import type { SyncedPreferences } from '../../shared/synced-preferences';
+import {
+  applyRemoteAppearancePreferences,
+  readSyncedAppearancePreferences,
+  subscribeToAppearanceChanges,
+} from '../contexts/AppearancePreferencesContext';
 import { api } from '../utils/api';
+import {
+  applyRemoteProviderToolSettings,
+  readProviderToolSettings,
+  subscribeToProviderToolSettings,
+} from '../utils/providerToolSettings';
 
 import {
   applyRemoteThinkingPreferences,
   readStoredThinkingPreferences,
   subscribeToThinkingPreferenceChanges,
 } from './useThinkingMessages';
+
+/**
+ * Each synced preference family owns reading its stored values, applying the
+ * server's, and reporting local edits. Adding a family is an entry here plus an
+ * allowlisted key.
+ */
+type PreferenceSource = {
+  read: () => SyncedPreferences;
+  apply: (preferences: SyncedPreferences) => void;
+  subscribe: (listener: (changes: SyncedPreferences) => void) => () => void;
+};
+
+const SOURCES: PreferenceSource[] = [
+  {
+    read: readStoredThinkingPreferences,
+    apply: applyRemoteThinkingPreferences,
+    subscribe: subscribeToThinkingPreferenceChanges,
+  },
+  {
+    read: readSyncedAppearancePreferences,
+    apply: applyRemoteAppearancePreferences,
+    subscribe: subscribeToAppearanceChanges,
+  },
+  {
+    read: readProviderToolSettings,
+    apply: applyRemoteProviderToolSettings,
+    subscribe: subscribeToProviderToolSettings,
+  },
+];
 
 // Long enough that typing a message list or tapping through cycle options
 // settles into one request, short enough to survive closing the tab after.
@@ -78,11 +117,11 @@ export function useSyncedPreferences(): void {
       void flush();
     };
 
-    const unsubscribe = subscribeToThinkingPreferenceChanges(queue);
+    const unsubscribes = SOURCES.map((source) => source.subscribe(queue));
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     void (async () => {
-      const stored = readStoredThinkingPreferences();
+      const stored = Object.assign({}, ...SOURCES.map((source) => source.read())) as SyncedPreferences;
       try {
         const response = await api.get('/settings/preferences');
         if (response.ok) {
@@ -90,7 +129,7 @@ export function useSyncedPreferences(): void {
           if (cancelled) return;
           serverState.current = body?.preferences ?? {};
           if (Object.keys(serverState.current).length > 0) {
-            applyRemoteThinkingPreferences(serverState.current);
+            for (const source of SOURCES) source.apply(serverState.current);
           }
         }
       } catch {
@@ -109,7 +148,7 @@ export function useSyncedPreferences(): void {
 
     return () => {
       cancelled = true;
-      unsubscribe();
+      for (const unsubscribe of unsubscribes) unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (writeTimer) clearTimeout(writeTimer);
     };

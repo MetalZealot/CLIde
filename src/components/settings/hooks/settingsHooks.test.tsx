@@ -9,6 +9,7 @@ import {
   useThinkingMessages,
 } from '../../../hooks/useThinkingMessages';
 import { useSyncedPreferences } from '../../../hooks/useSyncedPreferences';
+import { saveProviderToolSettings } from '../../../utils/providerToolSettings';
 import { useProviderSkills } from '../../skills/hooks/useProviderSkills';
 import type { SkillsTarget } from '../../skills/types';
 
@@ -459,6 +460,30 @@ describe('useSyncedPreferences mirroring', () => {
 
     assert.equal(writes().length, 1);
     assert.deepEqual(writes()[0]?.body.preferences, { thinkingMessages: ['Ruminating'] });
+  });
+
+  test('tool permissions saved here reach the server, and one saved elsewhere lands here', async () => {
+    await render();
+    await React.act(async () => saveProviderToolSettings({
+      'claude-settings': { allowedTools: ['Bash(npm run test)'], skipPermissions: false },
+    }));
+    await settleWrites();
+
+    assert.deepEqual(writes()[0]?.body.preferences, {
+      'claude-settings': { allowedTools: ['Bash(npm run test)'], skipPermissions: false },
+    });
+
+    await React.act(async () => root.unmount());
+    localStorage.clear();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    await render();
+
+    assert.deepEqual(
+      JSON.parse(localStorage.getItem('claude-settings') ?? 'null'),
+      { allowedTools: ['Bash(npm run test)'], skipPermissions: false },
+      'the new browser asks before running what the old one asked about',
+    );
   });
 
   test('an unreachable server leaves this browser on its own values', async () => {

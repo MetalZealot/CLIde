@@ -6,8 +6,11 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import {
   APPEARANCE_STORAGE_KEY,
+  applyRemoteAppearancePreferences,
   AppearancePreferencesProvider,
   parseAppearancePreferences,
+  readSyncedAppearancePreferences,
+  subscribeToAppearanceChanges,
   useAppearancePreferences,
   useTheme,
 } from './AppearancePreferencesContext';
@@ -172,4 +175,46 @@ test('a storage event applies valid preferences from another tab', async () => {
   assert.equal(document.documentElement.dataset.chatReadingSize, 'small');
   assert.equal(document.documentElement.dataset.chatLineSpacing, 'condensed');
   assert.equal(document.documentElement.dataset.fontFamily, 'system');
+});
+
+test('a synced appearance change carries theme and font but not the sizing', async () => {
+  const host = await mount();
+  const changes: unknown[] = [];
+  const unsubscribe = subscribeToAppearanceChanges((change) => changes.push(change));
+  const [largeButton, , systemFontButton] = host.querySelectorAll<HTMLButtonElement>('button');
+
+  await React.act(async () => systemFontButton?.click());
+  assert.deepEqual(changes.at(-1), {
+    [APPEARANCE_STORAGE_KEY]: { theme: 'system', fontFamily: 'system' },
+  });
+
+  await React.act(async () => largeButton?.click());
+  assert.deepEqual(
+    changes.at(-1),
+    { [APPEARANCE_STORAGE_KEY]: { theme: 'system', fontFamily: 'system' } },
+    'reading size is set for the screen in front of you, so it never leaves it',
+  );
+  assert.deepEqual(readSyncedAppearancePreferences(), {
+    [APPEARANCE_STORAGE_KEY]: { theme: 'system', fontFamily: 'system' },
+  });
+
+  unsubscribe();
+});
+
+test("another device's theme applies without disturbing this screen's sizing", async () => {
+  const host = await mount();
+  const [largeButton] = host.querySelectorAll<HTMLButtonElement>('button');
+  await React.act(async () => largeButton?.click());
+
+  await React.act(async () => applyRemoteAppearancePreferences({
+    [APPEARANCE_STORAGE_KEY]: { theme: 'dark', fontFamily: 'system', chatReadingSize: 'smallest' },
+  }));
+
+  assert.equal(host.querySelector('[data-theme]')?.textContent, 'dark');
+  assert.equal(host.querySelector('[data-font-family]')?.textContent, 'system');
+  assert.equal(
+    host.querySelector('[data-reading-size]')?.textContent,
+    'large',
+    'a synced blob cannot smuggle a per-device field',
+  );
 });

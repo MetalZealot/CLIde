@@ -10,13 +10,19 @@ export const SYNCED_PREFERENCE_KEYS = [
   'thinkingMessages',
   'thinkingMessageCycle',
   'thinkingMessageOrder',
+  // Theme and font only; reading size and line spacing stay per device, where
+  // screen size is the reason they were set.
+  'appearancePreferences',
+  'claude-settings',
+  'cursor-tools-settings',
+  'codex-settings',
 ] as const;
 
 export type SyncedPreferenceKey = (typeof SYNCED_PREFERENCE_KEYS)[number];
 
 export type SyncedPreferences = Partial<Record<SyncedPreferenceKey, unknown>>;
 
-/** Per-value ceiling; the largest synced value today is 24 messages of 80 chars. */
+/** Per-value ceiling, sized for the largest value: a provider's tool allowlists. */
 export const MAX_SYNCED_PREFERENCE_BYTES = 8192;
 
 export const isSyncedPreferenceKey = (value: unknown): value is SyncedPreferenceKey =>
