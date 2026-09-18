@@ -1,7 +1,7 @@
 # /btw — a side question that leaves no trace
 
-- Status: 1/5
-- Next: phase 1 — route, capability flag, and the command in the menu
+- Status: 3/5
+- Next: phase 3 — Codex, behind the same route
 - Context: Claude Code ships `/btw` and Codex ships `/side`. CLIde copies the
   intent, not either mechanism
 
@@ -50,15 +50,15 @@ The app owns the promise; the adapter picks the mechanism.
       "side questions are unavailable", never crash a chat. Verified end to end
       against a real idle session: answered from the resumed conversation and the
       transcript kept exactly its original two rows.
-- [ ] 1. **Route and capability.** `supportsSideQuestion` in the capability
+- [x] 1. **Route and capability.** `supportsSideQuestion` in the capability
       matrix — Claude true, the rest false — and one authenticated POST route
       returning the answer, with an abort on client disconnect. `/btw` (alias
       `/side`) appears in the command menu only where the flag is true.
-- [ ] 2. **The panel.** A bottom sheet over the chat, main stream untouched underneath.
-      Shows the question, a thinking state, then the answer as markdown. Earlier
-      side questions in that session stay listed while the panel lives and are
-      gone when it closes. Answer never enters the message list. Verified in the
-      Browser tab on a branch-test slot, on a session with a run in flight.
+- [x] 2. **The sheet.** A bottom sheet over the chat, main stream untouched
+      underneath. Shows the question, a thinking state, then the answer as
+      markdown, and takes another question from its own input. Entries live in
+      the hook alone, so closing discards them and cancels anything in flight.
+      Unit-tested; still unverified in a browser with a run in flight.
 - [ ] 3. **Codex.** Same route, adapter-side: ephemeral fork with the boundary
       instructions and a read-only sandbox, one turn, collect the assistant text
       for that thread id, discard the fork. Flag flips true for Codex. Same

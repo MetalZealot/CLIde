@@ -59,6 +59,11 @@ type ProviderCapabilities = {
    * provider understands it — not that CLIde handles it.
    */
   supportsCompactCommand: boolean;
+  /**
+   * Whether the runtime can answer one question beside a session without
+   * writing to its transcript or disturbing a run already in flight.
+   */
+  supportsSideQuestion: boolean;
   /** Runtime diagnostics for integrations with multiple execution surfaces. */
   chatTransport?: CodexChatTransportDiagnostics;
 };
@@ -89,6 +94,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsRewind: true,
     supportsFork: false,
     supportsCompactCommand: true,
+    supportsSideQuestion: true,
   },
   cursor: {
     provider: 'cursor',
@@ -109,6 +115,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsRewind: false,
     supportsFork: false,
     supportsCompactCommand: false,
+    supportsSideQuestion: false,
   },
   codex: {
     provider: 'codex',
@@ -129,6 +136,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsRewind: false,
     supportsFork: false,
     supportsCompactCommand: false,
+    supportsSideQuestion: false,
   },
   opencode: {
     provider: 'opencode',
@@ -152,6 +160,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsRewind: false,
     supportsFork: false,
     supportsCompactCommand: false,
+    supportsSideQuestion: false,
   },
 };
 

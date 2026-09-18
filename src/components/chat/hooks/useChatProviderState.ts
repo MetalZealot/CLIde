@@ -316,6 +316,12 @@ export function useChatProviderState({
     return providerCapabilities?.[targetProvider]?.supportsCompactCommand === true;
   }, [providerCapabilities]);
 
+  const getSupportsSideQuestionForProvider = useCallback((targetProvider: LLMProvider): boolean => {
+    // Same rule as rewind: the command stays out of the menu until the backend
+    // confirms this runtime can answer one.
+    return providerCapabilities?.[targetProvider]?.supportsSideQuestion === true;
+  }, [providerCapabilities]);
+
   const pickStoredOrCurrent = (
     storageKey: string,
     current: string,
@@ -769,5 +775,6 @@ export function useChatProviderState({
     getSupportsRewindForProvider,
     getSupportsForkForProvider,
     getSupportsCompactCommandForProvider,
+    getSupportsSideQuestionForProvider,
   };
 }

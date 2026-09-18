@@ -16,6 +16,7 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import { providerRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
 import { providerServiceStatusService } from '@/modules/providers/services/provider-service-status.service.js';
 import {
   getProviderSessionEffort,
@@ -526,6 +527,43 @@ router.post(
     const payload = parseChangeSessionEffortPayload(req.body);
     const result = await writeProviderSessionEffortPick(provider, { ...payload, sessionId });
     res.json(createApiSuccessResponse(result));
+  }),
+);
+
+// A side question is answered and returned, never stored: no transcript row, no
+// session row, and nothing for another client to catch up on. The client
+// aborting the request is the whole cancel path.
+router.post(
+  '/:provider/sessions/:sessionId/side-question',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const question = typeof body.question === 'string' ? body.question.trim() : '';
+    if (!question) {
+      throw new AppError('question is required.', {
+        code: 'QUESTION_REQUIRED',
+        statusCode: 400,
+      });
+    }
+
+    const controller = new AbortController();
+    req.on('close', () => controller.abort());
+
+    const answer = await providerRuntimeService.askSideQuestion(provider, sessionId, {
+      question,
+      cwd: typeof body.cwd === 'string' ? body.cwd : null,
+      signal: controller.signal,
+    });
+
+    if (!answer) {
+      throw new AppError('This provider cannot answer side questions.', {
+        code: 'SIDE_QUESTION_UNSUPPORTED',
+        statusCode: 400,
+      });
+    }
+
+    res.json(createApiSuccessResponse(answer));
   }),
 );
 

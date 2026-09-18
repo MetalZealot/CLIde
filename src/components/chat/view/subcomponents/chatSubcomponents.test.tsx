@@ -2302,6 +2302,56 @@ describe('QuestionAnswerContent', () => {
 });
 
 
+describe('side question sheet', () => {
+  // The sheet renders answers as markdown, so it needs the same CJS remap the
+  // message renderer does above, and a real DOM because the dialog portals.
+  const loadSheet = async () => {
+    const hooks = registerHooks({
+      resolve(specifier, context, nextResolve) {
+        return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
+          ? 'react-syntax-highlighter/dist/cjs/styles/prism/index.js'
+          : specifier, context);
+      },
+    });
+    return (await import('./SideQuestionSheet').finally(() => hooks.deregister())).default;
+  };
+
+  const renderSheet = async (entries: Parameters<Awaited<ReturnType<typeof loadSheet>>>[0]['entries']) => {
+    const SideQuestionSheet = await loadSheet();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await React.act(async () => root.render(
+      <SideQuestionSheet open entries={entries} onAsk={() => {}} onClose={() => {}} />,
+    ));
+    const text = document.body.textContent ?? '';
+    await React.act(async () => root.unmount());
+    container.remove();
+    return text;
+  };
+
+  test('a pending question shows as asking and an answered one shows its answer', async () => {
+    const text = await renderSheet([
+      { id: 'a', question: 'which file is it editing?', status: 'pending' },
+      { id: 'b', question: 'why that order?', status: 'answered', answer: 'Phases run bottom-up.' },
+    ]);
+
+    assert.match(text, /which file is it editing\?/);
+    assert.match(text, /Asking/);
+    assert.match(text, /Phases run bottom-up\./);
+    // The promise the sheet makes to the reader, not decoration.
+    assert.match(text, /nothing here is saved/);
+  });
+
+  test('a failed question names the failure instead of an empty answer', async () => {
+    const text = await renderSheet([
+      { id: 'a', question: 'what now?', status: 'failed', error: 'Side questions are unavailable.' },
+    ]);
+
+    assert.match(text, /Side questions are unavailable\./);
+  });
+});
+
 describe('chat browser preview', () => {
   const session: BrowserSessionSummary = {
     id: 'browser-b', chatSessionId: 'app-chat-a', status: 'ready', activeToolCount: 1,

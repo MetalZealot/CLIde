@@ -30,6 +30,7 @@ export type ProviderCapabilities = {
   supportsRewind?: boolean;
   supportsFork?: boolean;
   supportsCompactCommand?: boolean;
+  supportsSideQuestion?: boolean;
 };
 
 export type ProviderCapabilityMap = Partial<Record<LLMProvider, ProviderCapabilities>>;

@@ -35,6 +35,7 @@ import { escapeRegExp } from '../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../utils/messageKeys';
 import type { SessionStore } from '../../../stores/useSessionStore';
 
+import { useSideQuestion } from './useSideQuestion';
 import { MESSAGES_PER_PAGE } from './useChatSessionState';
 import { useFileMentions } from './useFileMentions';
 import { useInputHistory } from './useInputHistory';
@@ -87,6 +88,7 @@ interface UseChatComposerStateArgs {
   supportsFork?: boolean;
   /** From the provider capability matrix; gates /compact in the command menu. */
   supportsCompactCommand?: boolean;
+  supportsSideQuestion?: boolean;
   /**
    * Claims a send before it goes out; returning true stops it. Read through a
    * ref because the owner is defined after this hook. Every submit path —
@@ -416,6 +418,7 @@ export function useChatComposerState({
   supportsRewind = false,
   supportsFork = false,
   supportsCompactCommand = false,
+  supportsSideQuestion = false,
   interceptSubmitRef,
   editingStoredMessageRef,
 }: UseChatComposerStateArgs) {
@@ -487,6 +490,14 @@ export function useChatComposerState({
   // The /fork command reuses the same transcript-backed message list but
   // creates a separate child session through the selected completed turn.
   const [showForkPicker, setShowForkPicker] = useState(false);
+  // /btw hands its text straight to the side-question sheet; no turn is queued
+  // and the conversation is untouched.
+  const {
+    open: sideQuestionOpen,
+    entries: sideQuestionEntries,
+    ask: askSideQuestionRaw,
+    close: closeSideQuestion,
+  } = useSideQuestion();
 
   const [queuedDraft, setQueuedDraft] = useState<QueuedDraft | null>(() => {
     if (typeof window === 'undefined' || !sessionKey) {
@@ -681,6 +692,21 @@ export function useChatComposerState({
         return;
       }
 
+      if (command.name === '/btw') {
+        const effectiveInput = rawInput ?? input;
+        const asked = effectiveInput.replace(/^\/btw\s*/i, '').trim();
+        void askSideQuestionRaw(asked, {
+          provider,
+          sessionId: currentSessionId || selectedSession?.id || null,
+          cwd: selectedProject.fullPath || selectedProject.path,
+        });
+        if (!options?.preserveInput) {
+          setInput('');
+          inputValueRef.current = '';
+        }
+        return;
+      }
+
       if (command.name === '/fork') {
         const sourceSessionId = selectedSession?.id || currentSessionId;
         if (!sourceSessionId) {
@@ -762,6 +788,7 @@ export function useChatComposerState({
       }
     },
     [
+      askSideQuestionRaw,
       currentProviderModel,
       currentSessionId,
       handleBuiltInCommand,
@@ -839,6 +866,7 @@ export function useChatComposerState({
     supportsRewind,
     supportsFork,
     supportsCompactCommand,
+    supportsSideQuestion,
   });
 
   const {
@@ -1825,6 +1853,14 @@ export function useChatComposerState({
     closeRewindPicker: () => setShowRewindPicker(false),
     showForkPicker,
     closeForkPicker: () => setShowForkPicker(false),
+    sideQuestionOpen,
+    sideQuestionEntries,
+    askSideQuestion: (question: string) => askSideQuestionRaw(question, {
+      provider,
+      sessionId: currentSessionId || selectedSession?.id || null,
+      cwd: selectedProject?.fullPath || selectedProject?.path,
+    }),
+    closeSideQuestion,
     forkFromMessage,
     handleVoiceTranscript,
     handleInputChange,

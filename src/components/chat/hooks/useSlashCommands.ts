@@ -45,6 +45,19 @@ const FORK_COMMAND = {
   type: 'built-in',
 } as const;
 
+/**
+ * Asks one question beside the conversation. The answer opens in a sheet and is
+ * discarded with it: nothing reaches the transcript and no turn is queued.
+ */
+const SIDE_QUESTION_COMMAND = {
+  name: '/btw',
+  description: 'Ask a quick side question without interrupting the current work',
+  argumentHint: '<your question>',
+  namespace: 'builtin',
+  metadata: { type: 'builtin' },
+  type: 'built-in',
+} as const;
+
 export interface SlashCommand {
   name: string;
   description?: string;
@@ -76,6 +89,8 @@ interface UseSlashCommandsOptions {
   supportsFork?: boolean;
   /** Capability-gated: adds the runtime-executed /compact command to the menu. */
   supportsCompactCommand?: boolean;
+  /** Capability-gated: adds the client-side /btw command to the menu. */
+  supportsSideQuestion?: boolean;
 }
 
 type ProviderSkill = {
@@ -207,6 +222,7 @@ export function useSlashCommands({
   supportsRewind = false,
   supportsFork = false,
   supportsCompactCommand = false,
+  supportsSideQuestion = false,
 }: UseSlashCommandsOptions) {
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
@@ -279,6 +295,7 @@ export function useSlashCommands({
           ...(supportsRewind ? [{ ...REWIND_COMMAND } as SlashCommand] : []),
           ...(supportsFork ? [{ ...FORK_COMMAND } as SlashCommand] : []),
           ...(supportsCompactCommand ? [{ ...COMPACT_COMMAND } as SlashCommand] : []),
+          ...(supportsSideQuestion ? [{ ...SIDE_QUESTION_COMMAND } as SlashCommand] : []),
           ...((data.builtIn || []) as SlashCommand[]).map((command) => ({
             ...command,
             type: 'built-in',
@@ -312,7 +329,7 @@ export function useSlashCommands({
     return () => {
       cancelled = true;
     };
-  }, [selectedProject, provider, supportsCompactCommand, supportsFork, supportsRewind]);
+  }, [selectedProject, provider, supportsCompactCommand, supportsFork, supportsRewind, supportsSideQuestion]);
 
   useEffect(() => {
     if (!showCommandMenu) {

@@ -33,6 +33,7 @@ import ChatComposer from './subcomponents/ChatComposer';
 import NewSessionLauncher from './subcomponents/NewSessionLauncher';
 import CommandResultModal from './subcomponents/CommandResultModal';
 import ConversationBranchPickerModal from './subcomponents/ConversationBranchPickerModal';
+import SideQuestionSheet from './subcomponents/SideQuestionSheet';
 import AsyncQuestionPanel from './subcomponents/AsyncQuestionPanel';
 import ChatFindBar from './subcomponents/ChatFindBar';
 import ChatPageScrollbar from './subcomponents/ChatPageScrollbar';
@@ -152,6 +153,7 @@ function ChatInterface({
     getSupportsRewindForProvider,
     getSupportsForkForProvider,
     getSupportsCompactCommandForProvider,
+    getSupportsSideQuestionForProvider,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
@@ -277,6 +279,10 @@ function ChatInterface({
     closeRewindPicker,
     showForkPicker,
     closeForkPicker,
+    sideQuestionOpen,
+    sideQuestionEntries,
+    askSideQuestion,
+    closeSideQuestion,
     forkFromMessage,
     handleVoiceTranscript,
     handleInputChange,
@@ -331,6 +337,7 @@ function ChatInterface({
     supportsRewind: getSupportsRewindForProvider(provider),
     supportsFork: getSupportsForkForProvider(provider),
     supportsCompactCommand: getSupportsCompactCommandForProvider(provider),
+    supportsSideQuestion: getSupportsSideQuestionForProvider(provider),
     interceptSubmitRef,
     editingStoredMessageRef: scheduledEditRef,
   });
@@ -1132,6 +1139,13 @@ function ChatInterface({
         chatMessages={chatMessages}
         mode="fork"
         onPickMessage={forkFromMessage}
+      />
+
+      <SideQuestionSheet
+        open={sideQuestionOpen}
+        entries={sideQuestionEntries}
+        onAsk={askSideQuestion}
+        onClose={closeSideQuestion}
       />
 
       <CommandResultModal
