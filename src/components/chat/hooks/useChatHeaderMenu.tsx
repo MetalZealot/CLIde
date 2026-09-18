@@ -127,8 +127,8 @@ export function useChatHeaderMenu({
         ? [{
             key: 'auto-continue',
             label: autoContinue
-              ? tChat('autoContinue.stopAlways', { defaultValue: 'Stop continuing automatically' })
-              : tChat('autoContinue.always', { defaultValue: 'Always continue after a limit' }),
+              ? tChat('autoContinue.stopAlways', { defaultValue: 'Stop continuing' })
+              : tChat('autoContinue.always', { defaultValue: 'Always continue' }),
             icon: Repeat,
             onSelect: () => {
               const next = !autoContinue;
