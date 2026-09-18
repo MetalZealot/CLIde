@@ -71,6 +71,28 @@ const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode'])
 
 /** Model the CLI stamps on rows it fabricated rather than the model producing. */
 const SYNTHETIC_MODEL = '<synthetic>';
+
+/**
+ * One greppable line per turn event. A silent turn is a retry storm, a slow
+ * model or a dead request, and nothing else distinguishes them after the fact,
+ * so every line carries the app session id and elapsed milliseconds. Metadata
+ * only: never prompt, reply, thinking or tool content.
+ */
+function formatTurnLog(event, sessionId, fields = {}) {
+  const parts = [`[turn] ${event}`, `session=${sessionId || 'new'}`];
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    parts.push(`${key}=${typeof value === 'string' ? value.replace(/\s+/g, ' ').slice(0, 160) : value}`);
+  }
+  return parts.join(' ');
+}
+
+function logTurn(event, sessionId, fields) {
+  console.log(formatTurnLog(event, sessionId, fields));
+}
+
 /** How the SDK rethrows a turn that ended on an error result. */
 const SDK_ERROR_RESULT_PREFIX = 'Claude Code returned an error result:';
 
@@ -687,6 +709,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     }
   }
 
+  const turnStartedAt = Date.now();
+  const sinceStart = () => Date.now() - turnStartedAt;
+  let frames = 0;
+  let retries = 0;
+  let thinkingEstimate = 0;
+  let sentLogged = false;
+
   const emitNotification = (event) => {
     notifyUserIfEnabled({
       userId: ws?.userId || null,
@@ -862,9 +891,20 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     await loadClaudeContextCeiling(capturedSessionId);
 
     // Process streaming messages
-    console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
+    logTurn('start', capturedSessionId, {
+      model: sdkOptions.model || 'default',
+      effort: sdkOptions.effort,
+      resume: providerSessionId ? 'yes' : 'no',
+    });
     let lastContextUsageAt = 0;
     for await (const message of queryInstance) {
+      frames += 1;
+      if (frames === 1) {
+        logTurn('first-frame', capturedSessionId || message.session_id, {
+          ms: sinceStart(),
+          frame: message?.subtype ? `${message.type}/${message.subtype}` : message?.type,
+        });
+      }
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
 
@@ -912,6 +952,39 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // announced: the CLI reports it as a status message, `compacting` while
       // it runs and another value once the turn resumes. An empty status text
       // hands the label back to the indicator's own cycling words.
+      if (message?.type === 'system' && message.subtype === 'api_retry') {
+        retries += 1;
+        logTurn('api-retry', capturedSessionId || sessionId, {
+          ms: sinceStart(),
+          attempt: `${message.attempt}/${message.max_retries}`,
+          delay_ms: message.retry_delay_ms,
+          http: message.error_status ?? 'none',
+          error: typeof message.error === 'string' ? message.error : message.error?.type,
+        });
+      }
+
+      // The estimate climbs roughly once a second while the model thinks; only
+      // the last value is logged, at the end of the turn.
+      if (message?.type === 'system' && message.subtype === 'thinking_tokens') {
+        thinkingEstimate = message.estimated_tokens || thinkingEstimate;
+      }
+
+      // A limit or API notice arrives as a `success` result whose text is the
+      // error, so the subtype alone never says whether the turn worked.
+      if (message?.type === 'result') {
+        const failed = message.is_error === true || message.subtype !== 'success';
+        logTurn(failed ? 'error-result' : 'result', capturedSessionId || sessionId, {
+          ms: sinceStart(),
+          subtype: message.subtype,
+          api_ms: message.duration_api_ms,
+          in: message.usage?.input_tokens,
+          cache_write: message.usage?.cache_creation_input_tokens,
+          cache_read: message.usage?.cache_read_input_tokens,
+          out: message.usage?.output_tokens,
+          detail: failed && typeof message.result === 'string' ? message.result : undefined,
+        });
+      }
+
       if (message?.type === 'system' && message.subtype === 'status') {
         const isCompacting = message.status === 'compacting';
         ws.send(createNormalizedMessage({
@@ -934,6 +1007,23 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // event (no message id, no session id) so no chat surface files it
       // under the conversation that happened to trigger it.
       if (message?.type === 'rate_limit_event') {
+        // The first one marks the API answering, which is the only "it left the
+        // building" signal without `includePartialMessages`.
+        const info = message.rate_limit_info || {};
+        if (!sentLogged) {
+          sentLogged = true;
+          logTurn('sent', capturedSessionId || sessionId, { ms: sinceStart(), window: info.rateLimitType, status: info.status });
+        }
+        if (info.status && info.status !== 'allowed') {
+          logTurn('usage', capturedSessionId || sessionId, {
+            window: info.rateLimitType,
+            status: info.status,
+            utilization: info.utilization,
+            threshold: info.surpassedThreshold,
+            overage: info.isUsingOverage === true ? 'yes' : undefined,
+            resets: typeof info.resetsAt === 'number' ? new Date(info.resetsAt * 1000).toISOString() : undefined,
+          });
+        }
         const window = normalizeClaudeRateLimitEvent(message.rate_limit_info);
         if (window) {
           const usage = providerUsageService.mergeProviderUsageWindows('claude', [window]);
@@ -978,6 +1068,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Send the terminal completion event — skipped for aborted runs, whose
     // terminal `complete` (aborted: true) was already sent by abort-session.
     const wasAborted = wasRunAborted();
+    logTurn('end', capturedSessionId || sessionId, {
+      ms: sinceStart(),
+      frames,
+      retries,
+      thinking_estimate: thinkingEstimate || undefined,
+      aborted: wasAborted ? 'yes' : undefined,
+    });
     if (!wasAborted) {
       ws.send(createCompleteMessage({ provider: 'claude', sessionId: capturedSessionId || sessionId || null, exitCode: 0 }));
     }
@@ -991,7 +1088,21 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Complete
 
   } catch (error) {
-    console.error('SDK query error:', error);
+    const aborted = wasRunAborted();
+    logTurn('failed', capturedSessionId || sessionId, {
+      ms: sinceStart(),
+      frames,
+      retries,
+      thinking_estimate: thinkingEstimate || undefined,
+      aborted: aborted ? 'yes' : undefined,
+      class: error?.errorClass,
+      detail: typeof error?.message === 'string' ? error.message : undefined,
+    });
+    // An aborted run throws by design and its stack says nothing; a real failure
+    // keeps its stack.
+    if (!aborted) {
+      console.error('SDK query error:', error);
+    }
 
     // Clean up session on error
     if (sessionKey()) {
@@ -1147,5 +1258,6 @@ export {
   getPendingApprovalsForSession,
   reconnectSessionWriter,
   refreshClaudeContextUsage,
-  duplicatesStreamedNotice
+  duplicatesStreamedNotice,
+  formatTurnLog
 };

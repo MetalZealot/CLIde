@@ -23,7 +23,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
-| [Turn liveness and usage warnings](turn-liveness-and-usage-warnings.md) | 1/6 | Phase 1: log retries, errors and turn timing to the server log |
+| [Turn liveness and usage warnings](turn-liveness-and-usage-warnings.md) | 2/6 | Phase 2: real activity stages in place of the rotating words |
 | [Subagent visibility](subagent-visibility.md) | 2/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |

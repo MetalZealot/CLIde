@@ -487,6 +487,31 @@ describe('claude-runtime error results', () => {
     assert.equal((await loadPredicate())(false, wrapped), false);
   });
 
+  const loadTurnLog = async () => (
+    (await import('@/modules/providers/list/claude/claude-runtime.provider.js')).formatTurnLog
+  );
+
+  test('a turn log line names the event and app session id', async () => {
+    const line = (await loadTurnLog())('api-retry', 'app-session-1', {
+      ms: 1200,
+      attempt: '2/10',
+      http: 529,
+      error: 'overloaded',
+    });
+    assert.equal(line, '[turn] api-retry session=app-session-1 ms=1200 attempt=2/10 http=529 error=overloaded');
+  });
+
+  test('a turn log line drops empty fields and keeps a new session readable', async () => {
+    assert.equal((await loadTurnLog())('end', null, { frames: 12, retries: 0, aborted: undefined }),
+      '[turn] end session=new frames=12 retries=0');
+  });
+
+  test('a turn log line flattens and truncates provider text so one event stays one line', async () => {
+    const line = (await loadTurnLog())('error-result', 's1', { detail: `${'x'.repeat(200)}\nsecond line` });
+    assert.equal(line.includes('\n'), false);
+    assert.equal(line.length, 160 + '[turn] error-result session=s1 detail='.length);
+  });
+
   test('a genuine failure is never mistaken for the notice wrapper', async () => {
     const duplicates = await loadPredicate();
     assert.equal(duplicates(true, new Error('spawn ENOENT')), false);

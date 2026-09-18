@@ -1,7 +1,7 @@
 # A running turn shows what the provider is actually doing
 
-- Status: 1/6
-- Next: Phase 1 — log `api_retry`, error results, and turn start / first frame / end to the server log
+- Status: 2/6
+- Next: Phase 2 — a provider-neutral stage replaces the rotating activity words
 - Context: [Claude SDK map §4](../maps/claude-agent-sdk.md) (the stream messages CLIde drops),
   [Codex map](../maps/codex-cli-sdk-app-server.md), [tool activity stream](../maps/tool-activity-stream.md),
   ADR 0013 (abort). Client-side recording is the separate
@@ -36,11 +36,11 @@ What was established that shapes the phases (Phase 0 figures in the
 - [x] **0. Probe what reaches the runtime loop.** Every frame logged for real Opus
       turns with and without `includePartialMessages`, a 55 s think, and a local
       529 stub; results in the Claude SDK map.
-- [ ] **1. Runtime events reach the server log.** One line per `api_retry`
-      (attempt, max, delay, HTTP status, error class), per error result, and per
-      turn start / first frame / end, keyed by `session_id`.
-      Metadata only — never prompt, reply, or tool content. After this, the log
-      alone says whether a silent turn was retrying, erroring, or generating.
+- [x] **1. Runtime events reach the server log.** `[turn] <event>` lines for
+      start, first frame, sent, api-retry, usage warning, result and end/failed,
+      each with the app session id and elapsed ms; metadata only. Aborted runs no
+      longer print a stack. A limit notice arrives as a `success` result whose
+      text is the error, so `is_error` decides, not the subtype.
 - [ ] **2. The activity label states the real stage.** A provider-neutral
       `status` stage replaces the rotating words wherever a runtime reports one:
       starting → sent (first `rate_limit_event`) → thinking · N tokens → retrying · reason ·
