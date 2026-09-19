@@ -148,11 +148,13 @@ English for those strings, so this is not a Spanish gap — adding a tenth local
 would inherit the same holes. Extract to keys first; translating is the cheap
 half.
 
-**Transcript performance** (`#1206`). Unchanged from the ledger above: server-
-side history caching, lazy row mounting, streaming markdown and scan coalescing
-are real, and every measurement behind them is upstream's architecture. Phase 4
-of the harvest plan profiles CLIde's own transcript before any of it is
-believed.
+**Transcript performance** (`#1206`). CLIde's own readers and client hooks were
+profiled at `668f4049` on 2026-09-19; the [performance map](chat-history-performance.md)
+records measurements and their limits. Adapt history caching, stable message
+objects and lazy contents through the [dedicated plan](../plans/chat-history-performance.md).
+Cache dependencies, phone selection and indexed Find need CLIde-specific work;
+the upstream restructure remains excluded. Implementation and device acceptance
+are pending.
 
 ## Ledger
 

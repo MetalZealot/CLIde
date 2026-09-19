@@ -35,7 +35,7 @@ main checkout only).
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
-- [~] **Chat scroll-up pagination loads, but the scroll doesn't feel right.** Merged `12ede24`; loading older messages works and is accepted. The remaining complaint is feel, not function, and has not been written down yet — Grayson to describe what's wrong before anyone changes code. **?**
+- [~] **Chat history loading, scrolling and Find remain slow.** Diagnosis complete; implementation pending. One staged effort covers history caching, stable paging, rendering, lightweight detail and direct search/navigation, with regression gates. [Plan](plans/chat-history-performance.md), [evidence](maps/chat-history-performance.md). **L**
 - [ ] **A failed commit is completely silent.** Leading suspect is a `commit-msg` hook rejection leaving the index staged. Mechanism and the surrounding status-contract gaps: [the Git truth map](maps/repository-checkout-identity.md); it is Phase 0 item 1 of [the Source Control plan](plans/source-control-truthfulness.md) and blocks everything else there. [upstreamable] **S**
 - [ ] Sidebar session names sometimes don't match those shown under `claude /resume`. **?**
 - [ ] Shell view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**
@@ -102,7 +102,6 @@ new work.
 - [~] **Rewind via the transcript.** Phase A (conversation-only) shipped and live-verified 2026-07-22 (`daea812`…`845ed24`), ADR 0007. `enableFileCheckpointing` is on so checkpoints accumulate for Phase B — file-state rewind — which is the remaining half. **L**
 - [ ] **Composer prompt stash and lossless draft handoff.** Project selection can overwrite pre-project text, while New Session can detach visible text from its saved project draft. Preserve both before adding a `+` popover for Attach, Stash, and Stashed prompts. [Plan](plans/composer-prompt-stash.md). **M — design agreement first**
 - [ ] **Background-session notifications** — in-app banner plus header roll-up dot, and stop the redundant OS notification while you're looking at the session. [Plan](plans/background-session-notifications.md). **M**
-- [ ] **Adopt upstream #1050's chat-scroll perf fixes** (complementary to `55d8c44`). Three causes still present here: `normalizedToChatMessages` mints new objects every ~100 ms flush, defeating `React.memo`; `Markdown`/`CodeBlock` are unmemoized; and the third from the issue. Render-side, distinct from the pagination item above. **M**
 
 ---
 
@@ -113,7 +112,7 @@ new work.
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
 - [~] **Subagents are invisible while they run and unreadable after.** Background tasks and forked skills write no `Task` row, the history path globs the pre-2.1.233 flat `agent-*.jsonl` location so it finds none, the watcher ignores `subagents/**`, and the client drops the `parentToolUseId` stamp. Never re-index them as sessions. [Plan](plans/subagent-visibility.md). **M/L**
 - [ ] `!` shell mode in the conversation window. **M**
-- [ ] Conversation "map" sidebar: a minimap of where user/assistant messages sit, tap to scroll. Depends on the scroll residuals above. **L**
+- [ ] Conversation "map" sidebar: a minimap of user/assistant messages, tap to scroll. Depends on the direct-navigation foundation and stable rendering in the [history performance plan](plans/chat-history-performance.md); its visual design remains separate. **L**
 - [ ] Codex equivalent of the Claude command-surface audit — which of its commands and config keys CLIde is missing. **L**
 - [ ] **The activity indicator's changed state isn't legible.** A provider status like "Compacting conversation" phases in the same grey as the idle Thinking/Processing cycle, so it reads as normal waiting. Part of the wider indicator/panel rework: distinct treatment for a real status. **M**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**

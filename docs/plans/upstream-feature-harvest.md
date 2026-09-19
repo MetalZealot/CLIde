@@ -32,8 +32,8 @@ plug in or explicitly no-op, per `AGENTS.md`.
       the adapter answer, and what it must not inherit from `#1206`
 - [ ] 3. Build in the ranked order phase 1 produces, one branch per feature,
       each with its own TODO item and its own verification
-- [ ] 4. The transcript-performance question answered separately — profile
-      CLIde's own transcript first, then decide
+- [~] 4. Transcript performance follows the [dedicated plan](chat-history-performance.md):
+      CLIde profiling is recorded; implementation and device acceptance remain
 
 ## The gaps
 
@@ -50,7 +50,7 @@ Verdicts, evidence and the provider answer for each of the nine live in the
 | Recent-conversations feed (`#1041`, `#1157`) | refuse — three recency surfaces already |
 | DB-backed drafts and preferences (`#1206`) | defer — project-scoped or session-scoped is the real question |
 | Spanish locale (`#1090`) | defer — 225 strings sit in no locale file; extract first |
-| Transcript performance (`#1206`) | defer — phase 4, profile first |
+| Transcript performance (`#1206`) | staged adaptation — [performance plan](chat-history-performance.md) owns delivery |
 
 Build order is Grayson's to set; the ranking above is size, not priority.
 

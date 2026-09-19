@@ -43,9 +43,10 @@ things on the two providers and Codex's reasoning summaries are empty.
   existing `ToolRenderer` inline on desktop, and the full-screen code-editor
   overlay on mobile, which already handles safe areas and highlighting. Back
   from it returns to the operation list, not to the chat.
-- [ ] 6. **Pagination counts activities.** `visibleMessages` slices 20 raw
-  messages, which is three or four activities; the page becomes a count of
-  rendered rows so "load more" advances a visible amount.
+- [ ] 6. **Loading advances a useful number of activities.** Integrate with the
+  [history performance plan](chat-history-performance.md), which owns stable page
+  boundaries and record/visible-row counts. Grouping must preserve message anchors
+  and request enough bounded pages to advance visibly without a second paging model.
 
 ## Done when
 
