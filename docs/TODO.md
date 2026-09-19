@@ -120,7 +120,7 @@ new work.
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
 - [~] **Auto-Continue offered, remembered, and defaulted.** Every way of asking for a `usage-reset` message that is not long-pressing send: the offer on the limit notice, its editable message in Settings, and the per-session standing mode are live; the default for new sessions is left. [Plan](plans/auto-continue.md). **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live; 3–4 move the banners onto the messages. [Plan](plans/message-edit-model.md). **M/L**
-- [~] **`/btw` side questions.** One question, one answer, discarded — no transcript row, no sidebar entry, main run untouched. Claude uses the SDK's one-shot ask, Codex an ephemeral fork; hidden on Cursor and OpenCode. [Plan](plans/side-questions.md). **M**
+- [~] **`/btw` side questions.** Asked beside the conversation — no transcript row, main run untouched — with a per-session history that survives closing the sheet, like Claude Code's. Claude live; history, Codex, and fork-to-session left. [Plan](plans/side-questions.md). **M**
 - [ ] **Context ring to the header?** Session state glanced at more than tapped, so it fits; costs reach for its breakdown and title width. [Reasons](maps/ui-standards.md). **S — decision**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
