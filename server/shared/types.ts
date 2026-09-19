@@ -618,6 +618,8 @@ export type NormalizedMessage = {
   text?: string;
   tokens?: number;
   stage?: TurnStage | null;
+  /** Output tokens the running turn has produced so far; thinking is an estimate. */
+  outputTokens?: number;
   canInterrupt?: boolean;
   requestId?: string;
   input?: unknown;

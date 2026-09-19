@@ -43,8 +43,10 @@ What was established that shapes the phases (Phase 0 figures in the
       text is the error, so `is_error` decides, not the subtype.
 - [x] **2. The activity label states the real stage.** A `TurnStage` on the
       shared `status` frame outranks the rotating words: starting → sent →
-      thinking · N tokens → retrying · reason · n of m → compacting, cleared when
-      text or a tool arrives. Codex, Cursor and OpenCode send no stage and keep
+      thinking → retrying · reason · n of m → compacting, cleared when text or a
+      tool arrives. The turn's output tokens (finished steps' usage plus the live
+      think estimate) ride a separate `turn_tokens` frame, pinned right of the
+      label so they survive stage changes. Codex, Cursor and OpenCode send no stage and keep
       the cycling words: Codex's App Server reports no API retry or think
       estimate, and Cursor's only retry is a workspace-trust re-run.
 - [ ] **3. Silence is named.** When no runtime frame has arrived for a threshold

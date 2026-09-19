@@ -21,8 +21,8 @@ type ActivityIndicatorProps = {
 const EXIT_ANIMATION_MS = 220;
 
 /**
- * Response-in-progress indicator: a shimmering activity label, elapsed time, and a
- * Stop button. Sits in the message pane's layout gap (above the composer, below the
+ * Response-in-progress indicator: a shimmering activity label on the left; the
+ * turn's output tokens, elapsed time and a Stop button pinned right. Sits in the message pane's layout gap (above the composer, below the
  * last message), so it consumes real vertical space rather than overlaying. The Stop
  * button lives here (not in the composer) so it stays reachable even while the user
  * is typing a follow-up — the composer's own button switches to queue mode then. The
@@ -147,13 +147,7 @@ export default function ActivityIndicator({ activity, onAbort, isStopArmed = fal
       : stage.name === 'sent'
         ? t('claudeStatus.stage.sent', { defaultValue: 'Sent' })
         : stage.name === 'thinking'
-          ? (typeof stage.tokens === 'number' && stage.tokens > 0
-            ? t('claudeStatus.stage.thinkingTokens', {
-              count: stage.tokens,
-              tokens: stage.tokens.toLocaleString(),
-              defaultValue: 'Thinking · {{tokens}} tokens',
-            })
-            : t('claudeStatus.stage.thinking', { defaultValue: 'Thinking' }))
+          ? t('claudeStatus.stage.thinking', { defaultValue: 'Thinking' })
           : stage.name === 'retrying'
             ? t('claudeStatus.stage.retrying', {
               reason: stage.reason || t('claudeStatus.stage.retryReasonFallback', { defaultValue: 'API error' }),
@@ -170,6 +164,15 @@ export default function ActivityIndicator({ activity, onAbort, isStopArmed = fal
     ? t('claudeStatus.stopConfirm', { defaultValue: 'Press again to stop' })
     : t('claudeStatus.stop', { defaultValue: 'Stop' });
 
+  const outputTokens = renderedActivity?.outputTokens ?? 0;
+  const outputTokensLabel = outputTokens > 0
+    ? t('claudeStatus.outputTokens', {
+      count: outputTokens,
+      tokens: outputTokens.toLocaleString(),
+      defaultValue: '{{tokens}} tokens',
+    })
+    : '';
+
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   const elapsedLabel = minutes < 1
@@ -184,10 +187,13 @@ export default function ActivityIndicator({ activity, onAbort, isStopArmed = fal
     >
       <div className="flex items-center gap-2 px-3 py-1 text-xs">
         <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
-        <span className="min-w-0 overflow-hidden" title={renderedActivity ? label : undefined}>
+        <span className="min-w-0 flex-1 overflow-hidden" title={renderedActivity ? label : undefined}>
           <Shimmer className="block truncate font-medium">{renderedActivity ? `${label}…` : ''}</Shimmer>
         </span>
-        <span className="tabular-nums text-muted-foreground/60">{renderedActivity ? elapsedLabel : ''}</span>
+        <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground/60">
+          {outputTokensLabel && `${outputTokensLabel} · `}
+          {renderedActivity ? elapsedLabel : ''}
+        </span>
         {onAbort && (
           <button
             type="button"
@@ -195,7 +201,7 @@ export default function ActivityIndicator({ activity, onAbort, isStopArmed = fal
             disabled={!renderedActivity?.canInterrupt}
             aria-label={stopLabel}
             title={stopLabel}
-            className={`-my-1 ml-auto flex h-7 shrink-0 items-center gap-1.5 rounded-md border font-medium shadow-sm transition-colors ${
+            className={`-my-1 flex h-7 shrink-0 items-center gap-1.5 rounded-md border font-medium shadow-sm transition-colors ${
               isStopArmed
                 ? 'border-foreground bg-foreground pl-2.5 pr-2 text-background'
                 : 'border-border bg-background px-2 text-muted-foreground hover:bg-accent hover:text-foreground'

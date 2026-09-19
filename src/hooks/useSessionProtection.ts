@@ -7,6 +7,8 @@ export interface SessionActivity {
   statusText: string | null;
   /** What the runtime says it is doing; null leaves the label to its own words. */
   stage?: TurnStage | null;
+  /** Output tokens the turn has produced so far, when the runtime reports them. */
+  outputTokens?: number;
   canInterrupt: boolean;
   /**
    * When this request was first marked as processing (client clock). Drives
@@ -27,7 +29,12 @@ export type SessionActivitySnapshot = {
 
 export type MarkSessionProcessing = (
   sessionId?: string | null,
-  activity?: { statusText?: string | null; stage?: TurnStage | null; canInterrupt?: boolean },
+  activity?: {
+    statusText?: string | null;
+    stage?: TurnStage | null;
+    outputTokens?: number;
+    canInterrupt?: boolean;
+  },
 ) => void;
 
 export type MarkSessionIdle = (
@@ -65,6 +72,7 @@ const sessionActivityMapsMatch = (
       !rightActivity
       || leftActivity.statusText !== rightActivity.statusText
       || !turnStagesMatch(leftActivity.stage, rightActivity.stage)
+      || leftActivity.outputTokens !== rightActivity.outputTokens
       || leftActivity.canInterrupt !== rightActivity.canInterrupt
       || leftActivity.startedAt !== rightActivity.startedAt
     ) {
@@ -99,6 +107,7 @@ export function useSessionProtection() {
         statusText:
           activity?.statusText !== undefined ? activity.statusText : existing?.statusText ?? null,
         stage: activity?.stage !== undefined ? activity.stage : existing?.stage ?? null,
+        outputTokens: activity?.outputTokens ?? existing?.outputTokens,
         canInterrupt: activity?.canInterrupt ?? existing?.canInterrupt ?? true,
         startedAt: existing?.startedAt ?? Date.now(),
       };
@@ -107,6 +116,7 @@ export function useSessionProtection() {
         existing
         && existing.statusText === next.statusText
         && turnStagesMatch(existing.stage, next.stage)
+        && existing.outputTokens === next.outputTokens
         && existing.canInterrupt === next.canInterrupt
       ) {
         return prev;
@@ -174,6 +184,7 @@ export function useSessionProtection() {
           statusText:
             snapshot.statusText !== undefined ? snapshot.statusText : existing?.statusText ?? null,
           stage: snapshot.stage !== undefined ? snapshot.stage : existing?.stage ?? null,
+          outputTokens: existing?.outputTokens,
           canInterrupt: snapshot.canInterrupt ?? existing?.canInterrupt ?? true,
           startedAt:
             existing?.startedAt

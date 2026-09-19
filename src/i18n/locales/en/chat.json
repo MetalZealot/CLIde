@@ -372,6 +372,8 @@
       "label": "{{time}} elapsed",
       "startingNow": "Starting now"
     },
+    "outputTokens_one": "{{tokens}} token",
+    "outputTokens_other": "{{tokens}} tokens",
     "stop": "Stop",
     "stopConfirm": "Press again to stop",
     "controls": {
@@ -382,7 +384,6 @@
       "starting": "Starting",
       "sent": "Sent",
       "thinking": "Thinking",
-      "thinkingTokens": "Thinking · {{tokens}} tokens",
       "retrying": "Retrying · {{reason}} · {{attempt}} of {{maxAttempts}}",
       "retryReasonFallback": "API error",
       "compacting": "Compacting"

@@ -432,6 +432,10 @@ export function useChatRealtimeHandlers({
             if (sid === activeViewSessionId) {
               setTokenBudget(msg.tokenBudget as Record<string, unknown>);
             }
+          } else if (msg.text === 'turn_tokens') {
+            if (sid && typeof msg.outputTokens === 'number') {
+              onSessionProcessing?.(sid, { outputTokens: msg.outputTokens });
+            }
           } else if (typeof msg.text === 'string' && sid) {
             // An empty text is a deliberate clear: the run is still going, but
             // whatever the provider was announcing is over, so the indicator

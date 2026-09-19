@@ -715,6 +715,14 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let retries = 0;
   let thinkingEstimate = 0;
   let sentLogged = false;
+  // Output tokens for the turn: finished steps from their own usage, plus the
+  // live thinking estimate of the step still running. Rows of one step share a
+  // message id and its final usage, so each id counts once.
+  const stepOutputTokens = new Map();
+  let finishedOutputTokens = 0;
+  let thinkingBase = 0;
+  let liveThinkingTokens = 0;
+  let sentOutputTokens = 0;
 
   const emitNotification = (event) => {
     notifyUserIfEnabled({
@@ -990,6 +998,32 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       if (message?.type === 'system' && message.subtype === 'thinking_tokens') {
         thinkingEstimate = message.estimated_tokens || thinkingEstimate;
         sendStage({ name: 'thinking', tokens: thinkingEstimate });
+        // A lower estimate means the CLI restarted the count for a new step.
+        if (thinkingEstimate < thinkingBase) {
+          thinkingBase = 0;
+        }
+        liveThinkingTokens = thinkingEstimate - thinkingBase;
+      }
+
+      const stepId = message?.type === 'assistant' ? message.message?.id : null;
+      const stepOutput = message?.message?.usage?.output_tokens;
+      if (stepId && typeof stepOutput === 'number' && stepOutput > 0) {
+        finishedOutputTokens += Math.max(0, stepOutput - (stepOutputTokens.get(stepId) ?? 0));
+        stepOutputTokens.set(stepId, Math.max(stepOutput, stepOutputTokens.get(stepId) ?? 0));
+        thinkingBase = thinkingEstimate;
+        liveThinkingTokens = 0;
+      }
+
+      const turnOutputTokens = finishedOutputTokens + liveThinkingTokens;
+      if (turnOutputTokens !== sentOutputTokens) {
+        sentOutputTokens = turnOutputTokens;
+        ws.send(createNormalizedMessage({
+          kind: 'status',
+          text: 'turn_tokens',
+          outputTokens: turnOutputTokens,
+          sessionId: capturedSessionId || sessionId || null,
+          provider: 'claude',
+        }));
       }
 
       // A limit or API notice arrives as a `success` result whose text is the

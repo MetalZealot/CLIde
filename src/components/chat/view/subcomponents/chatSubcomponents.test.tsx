@@ -315,12 +315,19 @@ describe('chatSubcomponents', () => {
           activity={{
             statusText: 'Compacting conversation',
             stage: { name: 'thinking', tokens: 5350 },
+            outputTokens: 5350,
             canInterrupt: true,
             startedAt: initialStartedAt,
           }}
         />,
       ));
-      assert.match(container.textContent ?? '', /Thinking · 5,350 tokens/);
+      assert.match(container.textContent ?? '', /Thinking…/);
+      // The count sits in the fixed right-hand slot, not in the label.
+      const countSlot = [...container.querySelectorAll('span')].find((span) => /5,350 tokens · /.test(span.textContent ?? ''));
+      assert.match(countSlot?.className ?? '', /shrink-0/);
+      const thinkingLabel = container.querySelector('[title="Thinking"]');
+      assert.ok(thinkingLabel);
+      assert.doesNotMatch(thinkingLabel.textContent ?? '', /tokens/);
       assert.doesNotMatch(container.textContent ?? '', /Compacting conversation/);
 
       await React.act(async () => root?.render(
@@ -334,6 +341,8 @@ describe('chatSubcomponents', () => {
         />,
       ));
       assert.match(container.textContent ?? '', /Retrying · overloaded · 3 of 10/);
+      // No reported count leaves just the elapsed time.
+      assert.doesNotMatch(container.textContent ?? '', /tokens/);
 
     });
 
