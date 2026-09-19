@@ -27,6 +27,8 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
   forbids forking while the parent turn runs. A fork re-reads the thread, so a
   Codex side question is not free the way Claude's is.
 - **Cursor and OpenCode** have neither, and get no command.
+- A side question sees the conversation up to the turn in flight, but not that
+  turn's own user message — measured mid-run against a two-turn session.
 
 ## Contract every provider keeps
 
@@ -58,7 +60,9 @@ The app owns the promise; the adapter picks the mechanism.
       underneath. Shows the question, a thinking state, then the answer as
       markdown, and takes another question from its own input. Entries live in
       the hook alone, so closing discards them and cancels anything in flight.
-      Unit-tested; still unverified in a browser with a run in flight.
+      Unit-tested. The route cancels on the *response* closing, never the
+      request, whose `close` fires as soon as the body is read and aborted every
+      question on arrival.
 - [ ] 3. **Codex.** Same route, adapter-side: ephemeral fork with the boundary
       instructions and a read-only sandbox, one turn, collect the assistant text
       for that thread id, discard the fork. Flag flips true for Codex. Same

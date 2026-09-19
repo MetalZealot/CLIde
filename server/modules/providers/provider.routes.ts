@@ -547,14 +547,32 @@ router.post(
       });
     }
 
+    // Cancel on the *response* closing, not the request: `req`'s close fires as
+    // soon as the body is read, which would abort every question on arrival.
     const controller = new AbortController();
-    req.on('close', () => controller.abort());
-
-    const answer = await providerRuntimeService.askSideQuestion(provider, sessionId, {
-      question,
-      cwd: typeof body.cwd === 'string' ? body.cwd : null,
-      signal: controller.signal,
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        controller.abort();
+      }
     });
+
+    let answer;
+    try {
+      answer = await providerRuntimeService.askSideQuestion(provider, sessionId, {
+        question,
+        cwd: typeof body.cwd === 'string' ? body.cwd : null,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      // The asker closed the sheet: there is no client left to answer.
+      if (controller.signal.aborted) {
+        return;
+      }
+      throw new AppError(
+        error instanceof Error ? error.message : 'That side question could not be answered.',
+        { code: 'SIDE_QUESTION_FAILED', statusCode: 502 },
+      );
+    }
 
     if (!answer) {
       throw new AppError('This provider cannot answer side questions.', {
