@@ -14,6 +14,8 @@ import { sessionsService } from '@/modules/providers/services/sessions.service.j
 import { appendFilesInputTag, appendImagesInputTag } from '@/shared/image-attachments.js';
 import { AppError, normalizeProjectPath, readLastJsonlTimestamp } from '@/shared/utils.js';
 
+import { historyBudgets } from '../../../../scripts/chat-history/budgets.js';
+
 describe('provider-sessions', () => {
   describe('claude-sessions', () => {
     const SESSION_ID = 'session-1';
@@ -992,5 +994,69 @@ describe('claude-subagent-history', () => {
     } finally {
       await rm(tempRoot, { recursive: true, force: true });
     }
+  });
+});
+
+// Phase-1 targets execute as TODOs until their implementation phase removes the flag.
+// CLIDE_HISTORY_PERF_STRICT=1 makes the same assertions fail the dedicated gate.
+describe('history performance targets', () => {
+  const pending = (phase: number) => ({ todo: process.env.CLIDE_HISTORY_PERF_STRICT === '1' ? false : `history plan phase ${phase}` });
+
+  test('warm history pages do not reread the transcript', pending(2), async () => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    try {
+      const id = await fixture.add('claude', 200);
+      await fixture.read(id);
+      fixture.resetReads();
+      const page = await fixture.read(id, 20, 20);
+      assert.equal(page.messages.length, 20);
+      assert.equal(fixture.reads().bytesRead, historyBudgets.warmReadBytes, 'unchanged warm page must reuse parsed history');
+    } finally { await fixture.close(); }
+  });
+
+  test('an append between history pages does not overlap the loaded page', pending(4), async () => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    try {
+      const id = await fixture.add('claude', 100);
+      const newest = await fixture.read(id);
+      await fixture.append(id);
+      const older = await fixture.read(id, 20, 20);
+      const ids = new Set(newest.messages.map((message) => message.id));
+      assert.equal(older.messages.filter((message) => ids.has(message.id)).length, historyBudgets.duplicateMessages);
+    } finally { await fixture.close(); }
+  });
+
+  test('synthetic readers retain full history, branch filtering and dependent-file updates', async () => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    try {
+      for (const provider of ['claude', 'codex'] as const) {
+        const id = await fixture.add(provider, 200);
+        const all = await fixture.read(id, null);
+        assert.equal(all.messages.length, 200, `${provider} fixture must exercise the real reader`);
+        assert.ok(all.messages.every((message) => message.sessionId === id));
+        const pages = [];
+        for (let offset = 0; offset < 200; offset += 20) pages.unshift(...(await fixture.read(id, 20, offset)).messages);
+        assert.deepEqual(pages.map((m) => m.id), all.messages.map((m) => m.id));
+      }
+      const id = await fixture.add('claude', 100);
+      await fixture.branch(id, 79);
+      const branch = await fixture.read(id, null);
+      assert.equal(branch.messages.length, 81);
+      assert.ok(!branch.messages.some((message) => message.content?.includes('Synthetic message 95.')));
+      await fixture.subagent(id, 'child before');
+      const first = await fixture.read(id, null);
+      assert.ok(JSON.stringify(first).includes('child before'));
+      await fixture.subagent(id, 'child after');
+      const second = await fixture.read(id, null);
+      assert.ok(JSON.stringify(second).includes('child after'));
+      assert.ok(!JSON.stringify(second).includes('child before'));
+      const mixed = await fixture.read(await fixture.add('claude', 40, 'mixed'), null);
+      assert.ok(mixed.messages.some((message) => message.kind === 'tool_use' && message.toolResult));
+      assert.ok(mixed.messages.some((message) => Array.isArray(message.images) && message.images.length > 0));
+      assert.ok(!mixed.messages.some((message) => message.content?.includes('Synthetic message 6.')));
+    } finally { await fixture.close(); }
   });
 });

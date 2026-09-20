@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: not started
-- Next: Phase 1 — reproduce probes and set acceptance budgets
+- Status: 1/9
+- Next: Phase 2 — reuse unchanged server history safely
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -12,19 +12,13 @@ Find/direct jumps without loading intervening tool output.
 
 ## Phases
 
-- [ ] **1. Establish repeatable evidence and limits.**
+- [x] **1. Establish repeatable evidence and limits.**
 
-Create synthetic histories at increasing sizes: plain text, rich Markdown,
-images, large tool results, subagents, hidden rows and branch changes. Use isolated
-data and existing test files. Recreate the map's failures; measure the history
-reader, network, client state and browser separately.
-
-Measure uncached/cached loading, bytes read/transferred, conversion/render counts,
-rendered contents, memory and frame stalls. Record typical and slow-end timings
-and browser/device. Set numeric loading, transfer, memory and frame limits before
-tuning. JSDOM's simulated browser cannot establish scrolling smoothness.
-
-**Exit:** commands reproduce each failure; baselines and limits are recorded.
+Synthetic provider fixtures, four executable regression targets, isolated server
+and production-built Browser harnesses are maintained in the repository. The
+[baseline, commands and numeric budgets](../maps/chat-history-performance.md#repeatable-phase-1-baseline)
+separate reader, transport, conversion and rendering costs. Real-device acceptance
+and precise browser heap measurement remain explicit later-phase requirements.
 
 - [ ] **2. Reuse unchanged server history safely.**
 

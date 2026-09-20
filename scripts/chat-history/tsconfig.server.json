@@ -1,0 +1,5 @@
+{
+  "extends": "../../server/tsconfig.json",
+  "include": ["./measure.ts", "./browser-server.ts", "./source-state.ts"],
+  "compilerOptions": { "noEmit": true, "incremental": false }
+}

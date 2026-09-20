@@ -6,6 +6,7 @@ import test from 'node:test';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { historyBudgets } from '../../../../scripts/chat-history/budgets.js';
 import { useChatBrowser } from '../../browser-use/useChatBrowser';
 import { useAsyncAnswerQueueAutoSend } from '../../../hooks/useAsyncAnswerQueueAutoSend';
 import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSend';
@@ -1067,4 +1068,65 @@ test('Auto-Continue steps aside for a message already waiting, and for a user wh
     resolveAutoContinueOffer([...stopped, { type: 'user', content: 'carry on' }] as unknown as ChatMessage[], [], true, now),
     null,
   );
+});
+
+// Opt-in strict mode keeps future performance targets red without breaking normal correctness checks.
+test('history performance target: appending one row preserves unchanged display objects', {
+  todo: process.env.CLIDE_HISTORY_PERF_STRICT === '1' ? false : 'history plan phase 3',
+}, async () => {
+  const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
+  const messages = clientHistory(1000);
+  const first = normalizedToChatMessages(messages);
+  const next = normalizedToChatMessages([...messages, { ...messages[0], id: 'new-row' }]);
+  assert.equal(first.filter((message, index) => message !== next[index]).length, historyBudgets.unchangedRowsRecreated);
+});
+
+test('history performance target: Find keeps the rendered window bounded', {
+  todo: process.env.CLIDE_HISTORY_PERF_STRICT === '1' ? false : 'history plan phases 6–7',
+}, async () => {
+  const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
+  const messages = clientHistory(200);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{}', { status: 200 });
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  const slot = { hasMore: false, status: 'idle' };
+  let requests = 0;
+  const store = {
+    getMessages: () => messages, getSessionSlot: () => slot, setActiveSession: () => undefined,
+    isStale: () => false, fetchSessionSettings: () => undefined,
+    fetchFromServer: async () => { requests++; return slot; },
+  } as unknown as SessionStore;
+  const args: Parameters<typeof useChatSessionState>[0] = {
+    selectedProject: { projectId: 'p', displayName: 'fixture', fullPath: '/tmp', path: '/tmp' },
+    selectedSession: { id: 'fixture-client', __provider: 'claude' },
+    ws: null, sendMessage: () => true, resetStreamingState: () => undefined,
+    statusCheckSentAtRef: { current: new Map() }, getReplayProgress: () => null, sessionStore: store,
+  };
+  let state!: ReturnType<typeof useChatSessionState>;
+  let find!: ChatFindController;
+  function Harness() {
+    state = useChatSessionState(args);
+    find = useChatFind({ isVisible: true, sessionId: 'fixture-client', chatMessages: state.chatMessages,
+      loadAllMessages: state.loadAllMessages, scrollContainerRef: state.scrollContainerRef,
+      messagesContentRef: state.messagesContentRef });
+    return React.createElement('div', { ref: state.scrollContainerRef },
+      React.createElement('div', { ref: state.messagesContentRef }, state.visibleMessages.map((message) =>
+        React.createElement('div', { key: message.id, className: 'chat-message', 'data-chat-find-scope': 'conversation' },
+          React.createElement('div', { 'data-chat-find-content': true }, message.content)))));
+  }
+  try {
+    await React.act(async () => root.render(React.createElement(Harness)));
+    assert.equal(state.visibleMessages.length, 100);
+    await React.act(async () => { find.open(); find.setQuery('Oldest unique needle'); });
+    for (let i = 0; i < 3; i++) await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
+    assert.equal(find.total, 1, 'target must remain reachable');
+    assert.equal(requests, 0, 'complete cache must not be fetched again');
+    assert.ok(state.visibleMessages.length <= historyBudgets.findMountedRows, `Find rendered ${state.visibleMessages.length} rows`);
+  } finally {
+    await React.act(async () => root.unmount());
+    host.remove();
+    globalThis.fetch = originalFetch;
+  }
 });

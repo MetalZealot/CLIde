@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Chat-history performance phase 1: repeatable evidence and limits** (2026-09-19, this change). Added isolated synthetic histories, four executable pending regression targets, server/Browser measurement commands, recorded baselines and numeric budgets. Fork-only tooling; runtime optimization starts in phase 2. Verification and measurement limits: [map](maps/chat-history-performance.md#repeatable-phase-1-baseline). **M**
+
 - [x] **The mobile bar's fifth item is a swappable slot** (2026-09-16, branch `feat/mobile-nav-swappable-slot`). It shows the last Browser/Tasks/plugin destination picked; tapping it again while open, or long-pressing it, opens the list, and a caret beside the label flips while the list is open. Rearranging the four fixed items stays undecided. Verified: typecheck, lint, Browser at phone width on 3002, and Grayson's acceptance on his phone. Fork-only, client-only. ADR 0057. **S**
 
 - [x] **Mobile text selection and copying** (2026-09-16, merge `5441309e`). In the installed phone app the chat scrolls as the page; links copy; bars and timestamps stay out of copies; bars let touches through while text is selected, so handles edge-scroll instead of jumping; overlays lock the page. Verified on the phone in the Chrome install; iPhone untested. Fork-only. [Plan](plans/mobile-chat-page-scroll.md), ADR 0056. **M**

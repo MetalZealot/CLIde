@@ -69,7 +69,9 @@
     "check:upstream": "node scripts/check-upstream.mjs",
     "check:tests": "node scripts/check-tests.mjs",
     "docs:dashboard": "node scripts/build-project-dashboard.mjs",
-    "test:docs:dashboard": "node --test scripts/build-project-dashboard.test.mjs"
+    "test:docs:dashboard": "node --test scripts/build-project-dashboard.test.mjs",
+    "bench:chat-history": "node scripts/bench-chat-history.mjs",
+    "bench:chat-history:browser": "tsx --tsconfig server/tsconfig.json scripts/chat-history/browser-server.ts"
   },
   "build": {
     "appId": "ai.cloudcli.desktop",
