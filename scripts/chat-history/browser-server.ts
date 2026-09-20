@@ -18,10 +18,10 @@ try {
       let needle: string | undefined, counter: string | undefined;
       if (id.endsWith('/MessageComponent.tsx')) { needle = '}: MessageComponentProps) => {'; counter = 'rows'; }
       if (id.endsWith('/Markdown.tsx')) { needle = '}: MarkdownProps) {'; counter = 'markdown'; }
-      if (id.endsWith('/useChatMessages.ts')) { needle = 'export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMessage[] {'; counter = 'conversions'; }
+      if (id.endsWith('/useChatMessages.ts')) { needle = 'const outputStart = converted.length;'; counter = 'conversions'; }
       if (!needle || !counter) return;
       if (!code.includes(needle)) throw new Error(`Counter seam changed: ${id}`);
-      return code.replace(needle, `${needle}\n(globalThis.__historyCounters ??= { rows: 0, markdown: 0, conversions: 0 }).${counter} += ${counter === 'conversions' ? 'messages.length' : '1'};`);
+      return code.replace(needle, `${needle}\n(globalThis.__historyCounters ??= { rows: 0, markdown: 0, conversions: 0 }).${counter} += 1;`);
     } }, react()],
     resolve: { alias: { '@': path.resolve('src') } },
     build: { outDir: buildDir, emptyOutDir: true, rollupOptions: { input: path.resolve('scripts/chat-history/browser.html') } },
@@ -38,7 +38,7 @@ try {
     if (reports.length >= 30 || !allowed.has(req.body?.fixture?.id)) { res.sendStatus(400); return; }
     reports.push(req.body);
     if (output) await writeFile(output, JSON.stringify({ schema: 1, fixtureVersion: HISTORY_FIXTURE_VERSION, source,
-      notes: ['Production fixture build, not the full deployed app', 'Counters add instrumentation overhead',
+      notes: ['Production fixture build, not the full deployed app', 'Counters add instrumentation overhead; conversions count cache misses, not input rows',
         'Browser device emulation does not establish real-phone acceptance', 'Chromium heap estimates are coarse; not a memory gate'], reports }, null, 2) + '\n');
     res.json({ saved: reports.length });
   });

@@ -201,6 +201,44 @@ SQLite stores need database-aware revisions before reuse is safe. Heavy page
 sizes still fail phase 5, and the three later client/pagination targets remain
 pending by design.
 
+## Phase 3 unchanged-message rendering
+
+Store refreshes reconcile equivalent JSON records by id and complete content within
+the session slot. Display projections use weak keys tied to immutable source
+records and their separately arriving tool results. Replace a record when any
+nested field changes; mutating it in place would leave a stale projection.
+Unchanged tool groups retain their objects; group containers and Markdown use
+React's ordinary prop comparison, preserving state/context updates and changed
+callbacks. No custom comparator ignores live inputs. Late results, child tools,
+streaming text, grouping membership and server removals have regression coverage.
+
+[Browser report](../../scripts/chat-history/baselines/2026-09-20-browser-phase3.json):
+three samples each at 200 and 1,000 mixed records, same desktop Browser preset and
+fixture as phase 1. Concurrent copy/settings edits remain outside this change;
+the report fingerprints the measured source. The final dissolved-group cache
+cleanup was checked separately by regression test. The production fixture bundle passed
+with no Browser console errors; this is not deployed-app or physical-phone acceptance.
+
+| Operation, median / observed p95 ms | 200 records | 1,000 records |
+|---|---:|---:|
+| Append after Find, phase 1 | 2,115 / 2,150 | 10,363 / 11,018 |
+| Append after Find, phase 3 | 53 / 60 | 255 / 284 |
+| Refresh equivalent server history | 39 / 44 | 250 / 312 |
+| Update an existing streaming row | 32 / 33 | 136 / 159 |
+
+Every append converts one record, renders two affected rows (new content and the
+previous reply's turn metadata), and renders Markdown once. Refresh performs zero
+conversions/row/Markdown renders. A streaming update converts and renders one row.
+The Browser harness now fails these work-count checks after saving its report:
+append/update at most one conversion, three rows and one Markdown render; unchanged
+refresh zero of each. Conversion instrumentation now counts cache misses; phase 1
+counted input records, so those counter definitions differ. Row counters are comparable.
+
+Find still takes 23.7–26.1 seconds at 1,000 records and leaves 900 rows mounted.
+Append frame p95 still reaches 200 ms despite bounded React work. These are still
+failures against the overall experience budgets; phases 6–7 own full-history Find
+and mounted-content limits. No claim of fully smooth long-session scrolling yet.
+
 ### Targets and enforcement
 
 These are engineering targets for this workload, not external standards or
@@ -220,12 +258,12 @@ numbers; change a target only with an explained measurement-based decision.
 | Frame interval p95 / longest task | 32 / 200 ms |
 | Server retained growth / browser heap growth | 64 / 128 MiB |
 
-The three remaining known failures execute as TODO assertions in the existing provider and
-chat-hook tests. They do not fail ordinary correctness runs. The dedicated
-`--regressions-only` command removes TODO status and must currently exit 1 with
-four failures. `--check` additionally fails on warm rereads and oversized pages.
-Remove each TODO when its implementation phase lands so future regressions fail
-ordinary CI. Timing and memory targets are advisory until phase 9 establishes a
+The warm-read and unchanged-display-object targets now pass as ordinary tests.
+The remaining append/pagination and Find-window targets execute as TODO assertions;
+`--regressions-only` removes TODO status and must currently exit 1 with two failures.
+`--check` additionally checks warm rereads and oversized pages. Remove each TODO
+when its implementation phase lands so future regressions fail ordinary CI.
+Timing and memory targets are advisory until phase 9 establishes a
 controlled runner, precise memory capture and accepted tolerances; no green
 correctness run means scrolling has passed. With five server or three browser
 samples, nearest-rank p95 is the slowest observed sample, not a population estimate.
@@ -247,9 +285,9 @@ npm run test:client:one -- src/components/chat/hooks/chatHooks.test.ts
 | Claude | [reader](../../server/modules/providers/list/claude/claude-sessions.provider.ts), `fetchHistory`/`getSessionMessages`: reads main and subagent files, filters the active branch, normalizes and attaches results, then slices |
 | Codex | [reader](../../server/modules/providers/list/codex/codex-sessions.provider.ts), `fetchHistory`: reads the [transcript chain](../../server/modules/providers/list/codex/codex-transcript-chain.ts), normalizes and joins tool results, then slices |
 | Other providers | Cursor loads and normalizes its blobs; OpenCode reads session message/part rows before slicing. Source inspection only; no live performance sample |
-| Client history | [store](../../src/stores/useSessionStore.ts), `fetchMore`/`refreshFromServer`: prepends offset pages; stale-response tickets protect against a newer applied request but do not freeze the transcript's tail |
-| Display conversion | [normalizedToChatMessages](../../src/components/chat/hooks/useChatMessages.ts): creates new display objects for unchanged source records, defeating memoized row comparisons |
-| Rendering | [pane](../../src/components/chat/view/subcomponents/ChatMessagesPane.tsx) renders the growing visible slice; [Markdown](../../src/components/chat/view/subcomponents/Markdown.tsx) is not memoized |
+| Client history | [store](../../src/stores/useSessionStore.ts), `fetchMore`/`refreshFromServer`: reuses unchanged JSON records across refreshes and prepends offset pages; stale-response tickets protect against a newer applied request but do not freeze the transcript's tail |
+| Display conversion | [normalizedToChatMessages](../../src/components/chat/hooks/useChatMessages.ts): weakly caches projections by immutable source record and attached result identity; changed records/results rebuild their projection |
+| Rendering | [pane](../../src/components/chat/view/subcomponents/ChatMessagesPane.tsx) renders the growing visible slice; [Markdown](../../src/components/chat/view/subcomponents/Markdown.tsx) is memoized; unchanged tool groups also retain identity |
 | Scroll and Find | [session hook](../../src/components/chat/hooks/useChatSessionState.ts) requests 20 records, preserves prepend anchors, and sets an unlimited visible count for full-history paths; [Find](../../src/components/chat/hooks/useChatFind.ts) loads all history and searches rendered text |
 
 Claude and Codex pages include tool-result records even when those records attach

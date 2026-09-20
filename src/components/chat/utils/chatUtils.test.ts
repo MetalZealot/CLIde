@@ -8,6 +8,7 @@ import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
 import type { ChatMessage } from '../types/types';
 
+import { groupConsecutiveTools, isToolGroupItem } from './toolGrouping';
 import {
   extractInternalMemoryCitation,
   formatDuration,
@@ -416,4 +417,23 @@ describe('newSessionLauncher', () => {
     assert.equal(adoptedPath, discovered.fullPath);
     assert.equal(selected, registered);
   });
+});
+
+
+test('tool grouping reuses unchanged groups and updates changed members or membership', () => {
+  const first: ChatMessage = { id: 'tool-a', timestamp: '2026-09-19T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash' };
+  const second: ChatMessage = { ...first, id: 'tool-b' };
+  const text: ChatMessage = { id: 'plain', timestamp: '2026-09-19T00:00:01Z', type: 'assistant', content: 'Reply' };
+  const initial = groupConsecutiveTools([first, second]);
+  const appended = groupConsecutiveTools([first, second, text]);
+  assert.equal(appended[0], initial[0]);
+  assert.equal(groupConsecutiveTools([first])[0], first);
+  assert.notEqual(groupConsecutiveTools([first, second])[0], initial[0], 'a dissolved group must release its removed members');
+  const updated = groupConsecutiveTools([first, { ...second, toolResult: { content: 'finished', isError: false } }, text]);
+  assert.notEqual(updated[0], initial[0]);
+  assert.ok(isToolGroupItem(updated[0]));
+  assert.equal(updated[0].messages[1].toolResult?.content, 'finished');
+  const hidden: ChatMessage = { ...text, id: 'thought', isThinking: true };
+  assert.ok(isToolGroupItem(groupConsecutiveTools([first, hidden, second], false)[0]));
+  assert.equal(groupConsecutiveTools([first, hidden, second], true)[0], first);
 });

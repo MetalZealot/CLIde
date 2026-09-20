@@ -109,3 +109,25 @@ export function removeOptimisticUserEchoes(
     return false;
   });
 }
+
+
+function sameJsonValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every((key) =>
+    Object.prototype.hasOwnProperty.call(right, key)
+    && sameJsonValue((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]));
+}
+
+/** Preserve server-record identity across equivalent JSON responses in one session slot. */
+export function reuseUnchangedServerMessages(previous: NormalizedMessage[], incoming: NormalizedMessage[]): NormalizedMessage[] {
+  const byId = new Map(previous.filter((message) => message.id).map((message) => [message.id, message]));
+  const reconciled = incoming.map((message) => {
+    const old = byId.get(message.id);
+    return old && sameJsonValue(old, message) ? old : message;
+  });
+  return reconciled.length === previous.length && reconciled.every((message, index) => message === previous[index])
+    ? previous : reconciled;
+}

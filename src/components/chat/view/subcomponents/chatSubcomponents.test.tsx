@@ -95,8 +95,8 @@ describe('chatSubcomponents', () => {
         createDiff={() => []} showThinking={false} />,
     );
     // No i18n instance here, so the default string arrives uninterpolated.
-    const timeLine = [...withDuration.querySelectorAll('div')].find((node) => node.textContent === expectedTime
-      || node.firstElementChild?.textContent === expectedTime);
+    const timeLine = [...withDuration.querySelectorAll('div')].find((node) =>
+      node.firstElementChild?.tagName === 'SPAN' && node.firstElementChild.textContent === expectedTime);
     assert.ok(timeLine?.nextElementSibling?.textContent?.startsWith('Worked for'),
       `turn duration sits on its own line under the reply timestamp: ${withDuration.innerHTML}`);
     assert.equal(renderToStaticMarkup(
@@ -2407,4 +2407,33 @@ describe('chat browser preview', () => {
       container.remove();
     }
   });
+});
+
+
+test('unchanged message rows skip render work while changed content still updates', async () => {
+  const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
+    return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
+      ? 'react-syntax-highlighter/dist/cjs/styles/prism/index.js' : specifier, context);
+  } });
+  const { default: MessageComponent } = await import('./MessageComponent').finally(() => hooks.deregister());
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  let reads = 0;
+  const message: ChatMessage = { id: 'render-stable', type: 'assistant', timestamp: '2026-09-19T00:00:00Z',
+    get content() { reads++; return 'Original reply'; } };
+  const appended: ChatMessage = { id: 'render-new', type: 'assistant', timestamp: '2026-09-19T00:00:01Z', content: 'New reply' };
+  const createDiff = () => [];
+  const render = (rows: ChatMessage[]) => rows.map((row, index) => <MessageComponent key={row.id}
+    message={row} prevMessage={rows[index - 1] ?? null} createDiff={createDiff} provider="claude" />);
+  try {
+    await React.act(async () => root.render(render([message])));
+    const initialReads = reads;
+    assert.ok(initialReads > 0);
+    await React.act(async () => root.render(render([message, appended])));
+    assert.equal(reads, initialReads, 'unchanged row body must not run for an append');
+    await React.act(async () => root.render(render([{ ...message, content: 'Updated reply' }, appended])));
+    assert.ok(host.textContent?.includes('Updated reply'));
+    assert.ok(!host.textContent?.includes('Original reply'));
+  } finally { await React.act(async () => root.unmount()); host.remove(); }
 });

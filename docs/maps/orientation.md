@@ -54,6 +54,10 @@ History pages may reuse a parsed transcript only while every contributing source
 has the same revision. Claude subagent files and Codex parent rollouts are part of that
 source; an uncertain, partial, missing, or failed read is never retained as complete.
 
+Unchanged messages should not be rebuilt when a new message arrives. An updated
+reply or tool result must still appear immediately; skipping work must never
+freeze what the conversation shows.
+
 **What breaks:** a value scraped from an old transcript gets passed as a live model
 argument, and a session silently resumes on a different model than it started on.
 

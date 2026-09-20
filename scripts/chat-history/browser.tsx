@@ -121,10 +121,27 @@ const measure = async (operation: () => Promise<void>) => {
         kind: 'text', role: 'assistant', content: 'A new live message.', timestamp: '2025-01-01T00:00:00Z' });
       await painted();
     });
+    const refreshing = await measure(async () => {
+      await store.refreshFromServer(fixture.id);
+      await painted();
+    });
+    store.updateStreaming(fixture.id, 'Streaming first chunk.', 'claude');
+    await painted();
+    const streamingUpdate = await measure(async () => {
+      store.updateStreaming(fixture.id, 'Streaming first chunk. Second chunk arrived.', 'claude');
+      await painted();
+      if (!document.body.textContent?.includes('Second chunk arrived.')) throw new Error('Streaming text did not update');
+    });
+    const phase3Targets = {
+      append: streaming.conversions <= 1 && streaming.rows <= 3 && streaming.markdown <= 1,
+      refresh: refreshing.conversions === 0 && refreshing.rows === 0 && refreshing.markdown === 0,
+      streamUpdate: streamingUpdate.conversions <= 1 && streamingUpdate.rows <= 3 && streamingUpdate.markdown <= 1,
+    };
     const result = { fixture, userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight],
-      productionBundle: true, rowCountersInstrumented: true, initial, older, searching, afterFind, streaming };
+      productionBundle: true, rowCountersInstrumented: true, initial, older, searching, afterFind, streaming, refreshing, streamingUpdate, phase3Targets };
     const saved = await fetch('/results', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(result) });
     if (!saved.ok) throw new Error('Could not save benchmark result');
+    if (Object.values(phase3Targets).some((passed) => !passed)) throw new Error('Phase 3 work-count target failed; see saved report');
     return result;
   },
 };

@@ -11,6 +11,8 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [x] **Phase-3 unchanged-message rendering. Fork adaptation.** Upstream snapshot `5e73a49b` already includes projection reuse and memoized Markdown. CLIde adds complete refreshed-record comparison and stable tool groups around its existing store/pane contracts; no separate upstream PR proposed. [Evidence](maps/chat-history-performance.md#phase-3-unchanged-message-rendering).
+
 - [x] **Phase-2 cache review corrections. Fork-only.** Fix dependency-discovery races, swallowed directory-read errors and unbounded identity bookkeeping introduced in CLIde's phase-2 implementation; regression coverage includes overlapping identity changes.
 
 - [x] **Chat-history measurement harness is fork-only; cache hardening is upstreamable.** Synthetic fixtures, explicit pending targets and Browser/server baselines exercise CLIde's contracts. Phase 2 adapts upstream snapshot `5e73a49b`'s main-file cache but adds stable before/after revisions, dependent Claude subagent and Codex parent files, strict failure/partial-write exclusion, identity-safe concurrency and normalized-memory bounds. Those protections apply to upstream's cache independently of CLIde's later rendering plan.

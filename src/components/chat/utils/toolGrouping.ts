@@ -26,6 +26,8 @@ function rendersNothing(message: ChatMessage, showThinking: boolean): boolean {
   return Boolean(message.isThinking && !showThinking);
 }
 
+const groupCache = new WeakMap<ChatMessage, ToolGroupItem>();
+
 export function groupConsecutiveTools(
   messages: ChatMessage[],
   showThinking: boolean = true,
@@ -64,13 +66,14 @@ export function groupConsecutiveTools(
     }
 
     if (run.length >= TOOL_GROUP_THRESHOLD) {
-      items.push({
-        _isGroup: true,
-        toolName: message.toolName,
-        messages: run,
-        timestamp: message.timestamp,
-      });
+      const cached = groupCache.get(message);
+      const group = cached && cached.messages.length === run.length
+        && cached.messages.every((member, position) => member === run[position])
+        ? cached : { _isGroup: true as const, toolName: message.toolName, messages: run, timestamp: message.timestamp };
+      groupCache.set(message, group);
+      items.push(group);
     } else {
+      groupCache.delete(message);
       items.push(...run);
     }
 

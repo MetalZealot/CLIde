@@ -1071,9 +1071,7 @@ test('Auto-Continue steps aside for a message already waiting, and for a user wh
 });
 
 // Opt-in strict mode keeps future performance targets red without breaking normal correctness checks.
-test('history performance target: appending one row preserves unchanged display objects', {
-  todo: process.env.CLIDE_HISTORY_PERF_STRICT === '1' ? false : 'history plan phase 3',
-}, async () => {
+test('history performance target: appending one row preserves unchanged display objects', async () => {
   const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
   const messages = clientHistory(1000);
   const first = normalizedToChatMessages(messages);
@@ -1129,4 +1127,32 @@ test('history performance target: Find keeps the rendered window bounded', {
     host.remove();
     globalThis.fetch = originalFetch;
   }
+});
+
+
+test('display reuse follows tool-result, subagent and streaming changes without touching other rows', async () => {
+  const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
+  const plain = clientHistory(1)[0];
+  const tool: NormalizedMessage = { ...plain, id: 'tool', kind: 'tool_use', toolId: 'call', toolName: 'Bash', toolInput: { command: 'echo x' } };
+  const result: NormalizedMessage = { ...plain, id: 'result', kind: 'tool_result', toolId: 'call', content: 'before' };
+  const first = normalizedToChatMessages([plain, tool]);
+  const attached = normalizedToChatMessages([plain, tool, result]);
+  assert.equal(first[0], attached[0]);
+  assert.notEqual(first[1], attached[1]);
+  assert.equal(attached[1].toolResult?.content, 'before');
+  const changed = normalizedToChatMessages([plain, tool, { ...result, content: 'after', isError: true }]);
+  assert.equal(changed[0], first[0]);
+  assert.equal(changed[1].toolResult?.content, 'after');
+  assert.equal(changed[1].toolResult?.isError, true);
+  assert.equal(normalizedToChatMessages([plain, tool])[1].toolResult, null);
+  const agent: NormalizedMessage = { ...tool, id: 'agent', toolName: 'Agent', subagentTools: [{ toolId: 'child', toolName: 'Bash', timestamp: plain.timestamp }] };
+  const before = normalizedToChatMessages([plain, agent]);
+  const after = normalizedToChatMessages([plain, { ...agent, subagentTools: [...agent.subagentTools!, { toolId: 'child2', toolName: 'Read', timestamp: plain.timestamp }] }]);
+  assert.equal(before[0], after[0]);
+  assert.equal(after[1].subagentState?.childTools.length, 2);
+  const streaming: NormalizedMessage = { ...plain, id: 'stream', kind: 'stream_delta', role: 'assistant', content: 'first' };
+  const streamed = normalizedToChatMessages([plain, streaming]);
+  const delta = normalizedToChatMessages([plain, { ...streaming, content: 'first second' }]);
+  assert.equal(streamed[0], delta[0]);
+  assert.equal(delta[1].content, 'first second');
 });

@@ -251,6 +251,27 @@ describe('useSessionStore.pagination', () => {
     assert.equal(armed, false, 'nothing was prepended, so there is no scroll to preserve');
   });
 
+  test('refresh and full fetch reuse unchanged records but apply nested changes and removals', async () => {
+    await loadFirstPage();
+    const original = store.getMessages(SESSION_ID);
+    let operation: { pending: Promise<unknown> } = await begin(() => store.refreshFromServer(SESSION_ID));
+    respond({ messages: JSON.parse(JSON.stringify(original)), hasMore: true });
+    await finish(operation.pending);
+    assert.equal(store.getMessages(SESSION_ID), original);
+    operation = await begin(() => store.fetchFromServer(SESSION_ID));
+    respond({ messages: [JSON.parse(JSON.stringify(original[0])), { ...original[1], images: [{ data: 'data:image/png;base64,changed' }] }] });
+    await finish(operation.pending);
+    const changed = store.getMessages(SESSION_ID);
+    assert.equal(changed[0], original[0]);
+    assert.notEqual(changed[1], original[1]);
+    assert.equal(changed[1].images?.[0].data, 'data:image/png;base64,changed');
+    operation = await begin(() => store.refreshFromServer(SESSION_ID));
+    respond({ messages: [JSON.parse(JSON.stringify(original[0]))] });
+    await finish(operation.pending);
+    assert.equal(store.getMessages(SESSION_ID).length, 1);
+    assert.equal(store.getMessages(SESSION_ID)[0], original[0]);
+  });
+
   test('a watcher refresh retains the loaded window instead of pulling all history', async () => {
     await loadFirstPage();
 

@@ -12,7 +12,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { authenticatedFetch } from '../utils/api';
 import type { LLMProvider } from '../types/app';
 
-import { removeOptimisticUserEchoes } from './sessionMessageReconciliation';
+import { removeOptimisticUserEchoes, reuseUnchangedServerMessages } from './sessionMessageReconciliation';
 
 /** A turn the provider ended because usage ran out — see server types. */
 export type UsageLimitStop = {
@@ -570,7 +570,7 @@ export function useSessionStore() {
       }
       slot._appliedFetchSeq = fetchTicket;
 
-      slot.serverMessages = messages;
+      slot.serverMessages = reuseUnchangedServerMessages(slot.serverMessages, messages);
       slot.total = data.total ?? messages.length;
       slot.hasMore = Boolean(data.hasMore);
       slot.turnStartedAt = data.turnStartedAt ?? null;
@@ -727,7 +727,7 @@ export function useSessionStore() {
       }
       slot._appliedFetchSeq = fetchTicket;
 
-      slot.serverMessages = data.messages || [];
+      slot.serverMessages = reuseUnchangedServerMessages(slot.serverMessages, data.messages || []);
       slot.total = data.total ?? slot.serverMessages.length;
       slot.hasMore = Boolean(data.hasMore);
       slot.turnStartedAt = data.turnStartedAt ?? null;

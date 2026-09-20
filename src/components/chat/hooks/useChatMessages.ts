@@ -71,6 +71,12 @@ function parseTaskNotification(content: string): ParsedTaskNotification | null {
   };
 }
 
+// Store records are immutable; weak keys release projections when history is evicted.
+const displayCache = new WeakMap<NormalizedMessage, {
+  result: NormalizedMessage | undefined;
+  messages: ChatMessage[];
+}>();
+
 /**
  * Convert NormalizedMessage[] from the session store into ChatMessage[]
  * that the existing UI components expect.
@@ -96,6 +102,14 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
   }
 
   for (const msg of messages) {
+    const result = msg.kind === 'tool_use' && !msg.toolResult && msg.toolId
+      ? toolResultMap.get(msg.toolId) : undefined;
+    const cached = displayCache.get(msg);
+    if (cached && cached.result === result) {
+      converted.push(...cached.messages);
+      continue;
+    }
+    const outputStart = converted.length;
     const sharedMetadata = {
       // Transcript-backed id (Claude: jsonl uuid + part suffix). Doubles as a
       // stable React key via getIntrinsicMessageKey and as the rewind anchor.
@@ -137,6 +151,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             if (taskNotif.result) {
               const { text: result, citations: memoryCitations } = formatAssistantText(taskNotif.result);
               if (!result.trim() && memoryCitations.length === 0) {
+                displayCache.set(msg, { result: undefined, messages: converted.slice(outputStart) });
                 continue;
               }
               converted.push({
@@ -333,6 +348,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       default:
         break;
     }
+    displayCache.set(msg, { result, messages: converted.slice(outputStart) });
   }
 
   return converted;

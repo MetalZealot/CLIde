@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 2/9
-- Next: Phase 3 — stop rendering unchanged messages again
+- Status: 3/9
+- Next: Phase 4 — keep page boundaries stable while history changes
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -37,17 +37,13 @@ participate; Cursor/OpenCode remain uncached. Review fixes cover discovery races
 directory-read failures and identity cleanup. Warm reads avoid reparsing; measured
 memory and correctness coverage are in the [map](../maps/chat-history-performance.md#phase-2-server-cache).
 
-- [ ] **3. Stop rendering unchanged messages again — L.**
+- [x] **3. Stop rendering unchanged messages again — L.**
 
-Reuse display conversion for unchanged source records plus later tool results
-and subagent dependencies. Reconcile unchanged records on server refresh so fresh
-JSON does not invalidate everything. Stabilize keys, callbacks and grouping inputs;
-reuse Markdown/code rendering where inputs match. Measure component work, not
-only object equality; retain responsive streaming. Split into conversion/store
-identity, row/Markdown render stability, then Browser/streaming verification.
-
-**Exit:** unchanged rows stay intact; changed results update. Markdown, citations,
-copy, diffs, editing and expansion work.
+Shipped identity-preserving conversion and server refreshes, stable tool groups,
+and memoized Markdown. Tests cover changed tools, subagents, streaming and removals;
+Browser checks enforce bounded append/update work and zero unchanged-refresh work.
+At 1,000 records, median append time fell from 10.36 s to 255 ms. Full-history Find
+and remaining layout stalls stay in phases 6–7. [Evidence](../maps/chat-history-performance.md#phase-3-unchanged-message-rendering).
 
 - [ ] **4. Keep page boundaries stable while history changes — XL.**
 
