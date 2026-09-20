@@ -4,11 +4,25 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 
-import type { IProviderSessions } from '@/shared/interfaces.js';
-import type { AnyRecord, CompactBoundaryInfo, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage, UsageLimitStop } from '@/shared/types.js';
-import { parseFilesInputTag } from '@/shared/image-attachments.js';
-import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
+import {
+  captureHistorySourceRevision,
+  isHistorySourceRevisionCurrent,
+} from '@/modules/providers/services/history-source-revision.service.js';
+import { parseFilesInputTag } from '@/shared/image-attachments.js';
+import type { IProviderSessions } from '@/shared/interfaces.js';
+import type {
+  AnyRecord,
+  CompactBoundaryInfo,
+  FetchHistoryOptions,
+  FetchHistoryResult,
+  HistorySourceRevision,
+  HistorySourceTarget,
+  NormalizedMessage,
+  UsageLimitStop,
+} from '@/shared/types.js';
+import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+
 import {
   resolveClaudeCeilingProvenance,
   resolveClaudeDerivedCeiling,
@@ -144,7 +158,7 @@ interface AgentTranscript {
   lastTimestamp: string | null;
 }
 
-async function parseAgentTranscript(filePath: string): Promise<AgentTranscript> {
+async function parseAgentTranscript(filePath: string, requireCompleteRead = false): Promise<AgentTranscript> {
   const tools: AnyRecord[] = [];
   let prompt = '';
   let firstTimestamp: string | null = null;
@@ -219,11 +233,17 @@ async function parseAgentTranscript(filePath: string): Promise<AgentTranscript> 
             };
           }
         }
-      } catch {
+      } catch (error) {
+        if (requireCompleteRead) {
+          throw error;
+        }
         // Skip malformed lines that can happen during concurrent writes.
       }
     }
   } catch (error) {
+    if (requireCompleteRead) {
+      throw error;
+    }
     const message = error instanceof Error ? error.message : String(error);
     console.warn(`Error parsing agent file ${filePath}:`, message);
   }
@@ -232,12 +252,19 @@ async function parseAgentTranscript(filePath: string): Promise<AgentTranscript> 
 }
 
 /** Claude records the agent's type beside its transcript, and nothing else. */
-async function readAgentType(subagentDir: string, agentId: string): Promise<string | null> {
+async function readAgentType(
+  subagentDir: string,
+  agentId: string,
+  requireCompleteRead = false,
+): Promise<string | null> {
   try {
     const raw = await fsp.readFile(path.join(subagentDir, `agent-${agentId}.meta.json`), 'utf8');
     const parsed = JSON.parse(raw) as { agentType?: unknown };
     return typeof parsed.agentType === 'string' ? parsed.agentType : null;
-  } catch {
+  } catch (error) {
+    if (requireCompleteRead && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
     return null;
   }
 }
@@ -285,6 +312,7 @@ async function buildUnclaimedAgentRows(
   claimedAgentIds: Set<string>,
   subagentDir: string,
   agentFiles: string[],
+  requireCompleteRead = false,
 ): Promise<AnyRecord[]> {
   const unclaimedIds = agentFiles
     .filter((file) => file.startsWith('agent-') && file.endsWith('.jsonl'))
@@ -325,8 +353,8 @@ async function buildUnclaimedAgentRows(
 
   const transcripts = await Promise.all(unclaimedIds.map(async (agentId) => ({
     agentId,
-    agentType: await readAgentType(subagentDir, agentId),
-    ...await parseAgentTranscript(path.join(subagentDir, `agent-${agentId}.jsonl`)),
+    agentType: await readAgentType(subagentDir, agentId, requireCompleteRead),
+    ...await parseAgentTranscript(path.join(subagentDir, `agent-${agentId}.jsonl`), requireCompleteRead),
   })));
   transcripts.sort((a, b) => (a.firstTimestamp ?? '').localeCompare(b.firstTimestamp ?? ''));
 
@@ -387,6 +415,7 @@ async function getSessionMessages(
   providerSessionId: string,
   limit: number | null,
   offset: number,
+  requireCompleteRead = false,
 ): Promise<ClaudeHistoryMessagesResult> {
   try {
     // The DB row is keyed by the app-facing session id, while the JSONL rows
@@ -423,7 +452,10 @@ async function getSessionMessages(
         if (entry.sessionId === providerSessionId) {
           messages.push(entry);
         }
-      } catch {
+      } catch (error) {
+        if (requireCompleteRead) {
+          throw error;
+        }
         // Skip malformed JSONL lines that can happen during concurrent writes.
       }
     }
@@ -446,11 +478,14 @@ async function getSessionMessages(
     for (const agentId of agentIds) {
       const agentFileName = `agent-${agentId}.jsonl`;
       if (!agentFiles.includes(agentFileName)) {
+        if (requireCompleteRead) {
+          throw new Error(`Referenced Claude agent transcript is missing: ${agentFileName}`);
+        }
         continue;
       }
 
       const agentFilePath = path.join(subagentDir, agentFileName);
-      const { tools } = await parseAgentTranscript(agentFilePath);
+      const { tools } = await parseAgentTranscript(agentFilePath, requireCompleteRead);
       agentToolsCache.set(agentId, tools);
     }
 
@@ -466,7 +501,13 @@ async function getSessionMessages(
       }
     }
 
-    activeMessages.push(...await buildUnclaimedAgentRows(activeMessages, agentIds, subagentDir, agentFiles));
+    activeMessages.push(...await buildUnclaimedAgentRows(
+      activeMessages,
+      agentIds,
+      subagentDir,
+      agentFiles,
+      requireCompleteRead,
+    ));
 
     const sortedMessages = activeMessages.sort(
       (a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime(),
@@ -490,6 +531,9 @@ async function getSessionMessages(
       limit,
     };
   } catch (error) {
+    if (requireCompleteRead) {
+      throw error;
+    }
     console.error(`Error reading messages for session ${sessionId}:`, error);
     return limit === null ? [] : { messages: [], total: 0, hasMore: false };
   }
@@ -745,6 +789,55 @@ export function collectCompactReferencesByRowId(rawMessages: AnyRecord[]): Map<s
 }
 
 export class ClaudeSessionsProvider implements IProviderSessions {
+  /** Sessions service uses this to validate the main transcript and every agent dependency. */
+  async getHistorySourceRevision(
+    sessionId: string,
+    options: FetchHistoryOptions,
+    previous?: HistorySourceRevision,
+  ): Promise<HistorySourceRevision | null> {
+    const providerSessionId = options.providerSessionId ?? sessionId;
+    const sessionRow = sessionsDb.getSessionById(sessionId);
+    const transcriptPath = sessionRow?.jsonl_path
+      || resolveClaudeTranscriptPath(options.projectPath ?? sessionRow?.project_path, providerSessionId);
+    if (!transcriptPath) {
+      return null;
+    }
+
+    const subagentDir = path.join(transcriptPath.replace(/\.jsonl$/, ''), 'subagents');
+    const scope = `${transcriptPath}\0${subagentDir}`;
+    if (previous?.scope === scope && await isHistorySourceRevisionCurrent(previous)) {
+      return previous;
+    }
+
+    const targets: HistorySourceTarget[] = [
+      { path: transcriptPath, kind: 'file', requireTrailingNewline: true },
+      { path: subagentDir, kind: 'directory', optional: true },
+    ];
+    try {
+      const entries = await fsp.readdir(subagentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) {
+          continue;
+        }
+        if (entry.name.startsWith('agent-') && entry.name.endsWith('.jsonl')) {
+          targets.push({
+            path: path.join(subagentDir, entry.name),
+            kind: 'file',
+            requireTrailingNewline: true,
+          });
+        } else if (entry.name.startsWith('agent-') && entry.name.endsWith('.meta.json')) {
+          targets.push({ path: path.join(subagentDir, entry.name), kind: 'file' });
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        return null;
+      }
+    }
+
+    return captureHistorySourceRevision(scope, targets);
+  }
+
   /**
    * Normalizes one Claude JSONL entry or live SDK stream event into the shared
    * message shape consumed by REST and WebSocket clients.
@@ -1151,8 +1244,17 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     try {
       // Load full history first so `total` reflects frontend-normalized messages,
       // not raw JSONL records.
-      result = await getSessionMessages(sessionId, providerSessionId, null, 0);
+      result = await getSessionMessages(
+        sessionId,
+        providerSessionId,
+        null,
+        0,
+        Boolean(options.requireCompleteRead),
+      );
     } catch (error) {
+      if (options.requireCompleteRead) {
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[ClaudeProvider] Failed to load session ${sessionId}:`, message);
       return { messages: [], total: 0, hasMore: false, offset: 0, limit: null };

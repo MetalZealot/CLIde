@@ -10,7 +10,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 
 | Plan | Status | Next |
 |---|---|---|
-| [Chat history performance](chat-history-performance.md) | 1/9 | Phase 2: reuse unchanged server history safely |
+| [Chat history performance](chat-history-performance.md) | 2/9 | Phase 3: stop rendering unchanged messages again |
 | [Phone chat text selection](mobile-chat-page-scroll.md) | complete | Merged to `main` 2026-09-16; iPhone keyboard behaviour untested |
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |

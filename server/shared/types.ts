@@ -730,6 +730,8 @@ export type FetchHistoryOptions = {
   limit?: number | null;
   offset?: number;
   providerSessionId?: string;
+  /** Cache fills set this so filesystem failures reject instead of becoming cacheable empty history. */
+  requireCompleteRead?: boolean;
 };
 
 /**
@@ -746,6 +748,43 @@ export type FetchHistoryResult = {
   tokenUsage?: unknown;
   /** Prompt time of the turn the page opens mid-way through; see `findTurnStartedAt`. */
   turnStartedAt?: string | null;
+};
+
+/**
+ * One filesystem dependency used to prove that a normalized history snapshot
+ * still represents the same provider data. Missing entries are deliberate
+ * watches for optional paths such as Claude's not-yet-created subagent folder.
+ */
+export type HistorySourceStamp = {
+  path: string;
+  kind: 'file' | 'directory' | 'missing';
+  fingerprint: string;
+  size: number;
+  requireTrailingNewline: boolean;
+};
+
+/**
+ * Opaque filesystem revision used only by the providers history cache.
+ * `scope` binds the revision to the provider's current primary source, while
+ * `sources` lets the provider revalidate known dependencies without rereading
+ * transcript contents.
+ */
+export type HistorySourceRevision = {
+  scope: string;
+  revision: string;
+  sourceBytes: number;
+  sources: HistorySourceStamp[];
+};
+
+/**
+ * A provider-owned source target captured into a history revision. Optional
+ * targets remain in the revision when missing so later creation invalidates it.
+ */
+export type HistorySourceTarget = {
+  path: string;
+  kind: 'file' | 'directory';
+  optional?: boolean;
+  requireTrailingNewline?: boolean;
 };
 
 // ---------------------------

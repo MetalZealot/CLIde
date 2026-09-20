@@ -27,13 +27,19 @@ type CodexRolloutMeta = {
   forkedFromOrdinalExclusive: number | null;
 };
 
+/** Cache-facing lineage resolution, including whether every declared parent was found. */
+export type CodexTranscriptChainResolution = {
+  segments: CodexTranscriptSegment[];
+  complete: boolean;
+};
+
 const CHAIN_DEPTH_LIMIT = 32;
 
 function codexSessionsRoot(): string {
   return path.join(os.homedir(), '.codex', 'sessions');
 }
 
-async function readFirstJsonlRow(filePath: string): Promise<AnyRecord | null> {
+async function readFirstJsonlRow(filePath: string): Promise<{ row: AnyRecord | null; readable: boolean }> {
   const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
   const reader = readline.createInterface({ input: stream, crlfDelay: Infinity });
   try {
@@ -42,21 +48,24 @@ async function readFirstJsonlRow(filePath: string): Promise<AnyRecord | null> {
       if (!trimmed) {
         continue;
       }
-      return JSON.parse(trimmed) as AnyRecord;
+      return { row: JSON.parse(trimmed) as AnyRecord, readable: true };
     }
-    return null;
+    return { row: null, readable: false };
   } catch {
-    return null;
+    return { row: null, readable: false };
   } finally {
     reader.close();
     stream.destroy();
   }
 }
 
-async function readRolloutMeta(filePath: string): Promise<CodexRolloutMeta | null> {
-  const row = await readFirstJsonlRow(filePath);
+async function readRolloutMeta(filePath: string): Promise<{ meta: CodexRolloutMeta | null; readable: boolean }> {
+  const { row, readable } = await readFirstJsonlRow(filePath);
+  if (!readable) {
+    return { meta: null, readable: false };
+  }
   if (!row || row.type !== 'session_meta') {
-    return null;
+    return { meta: null, readable: true };
   }
   const payload = row.payload as AnyRecord | undefined;
   const forkedFromId = typeof payload?.forked_from_id === 'string' ? payload.forked_from_id : null;
@@ -67,7 +76,7 @@ async function readRolloutMeta(filePath: string): Promise<CodexRolloutMeta | nul
   // the rollout predates `forked_from_ordinal_exclusive`.
   const metaOrdinal = typeof row.ordinal === 'number' ? row.ordinal : null;
 
-  return { forkedFromId, forkedFromOrdinalExclusive: explicit ?? metaOrdinal };
+  return { meta: { forkedFromId, forkedFromOrdinalExclusive: explicit ?? metaOrdinal }, readable: true };
 }
 
 async function findInDirectory(directory: string, suffix: string): Promise<string | null> {
@@ -111,25 +120,28 @@ async function findRolloutPath(
  * Resolves a rollout into its full lineage, oldest ancestor first. A rollout
  * with no parent, or whose parent has been deleted, yields itself alone.
  */
-export async function buildCodexTranscriptChain(leafPath: string): Promise<CodexTranscriptSegment[]> {
+export async function resolveCodexTranscriptChain(leafPath: string): Promise<CodexTranscriptChainResolution> {
   const segments: CodexTranscriptSegment[] = [{ path: leafPath, ordinalLimit: null }];
   const visited = new Set<string>([path.resolve(leafPath)]);
   let currentPath = leafPath;
 
   for (let depth = 0; depth < CHAIN_DEPTH_LIMIT; depth += 1) {
-    const meta = await readRolloutMeta(currentPath);
+    const { meta, readable } = await readRolloutMeta(currentPath);
+    if (!readable) {
+      return { segments, complete: false };
+    }
     if (!meta?.forkedFromId) {
-      break;
+      return { segments, complete: true };
     }
 
     const parentPath = await findRolloutPath(meta.forkedFromId, path.dirname(currentPath));
     if (!parentPath) {
-      break;
+      return { segments, complete: false };
     }
 
     const resolved = path.resolve(parentPath);
     if (visited.has(resolved)) {
-      break;
+      return { segments, complete: false };
     }
     visited.add(resolved);
 
@@ -137,12 +149,18 @@ export async function buildCodexTranscriptChain(leafPath: string): Promise<Codex
     currentPath = parentPath;
   }
 
-  return segments;
+  return { segments, complete: false };
+}
+
+/** Resolves a rollout chain for the history reader without cache metadata. */
+export async function buildCodexTranscriptChain(leafPath: string): Promise<CodexTranscriptSegment[]> {
+  return (await resolveCodexTranscriptChain(leafPath)).segments;
 }
 
 /** Streams every surviving row of a lineage in conversation order. */
 export async function* streamCodexTranscriptRows(
   segments: CodexTranscriptSegment[],
+  requireCompleteRows = false,
 ): AsyncGenerator<AnyRecord> {
   for (const segment of segments) {
     const stream = fs.createReadStream(segment.path);
@@ -157,7 +175,10 @@ export async function* streamCodexTranscriptRows(
         let row: AnyRecord;
         try {
           row = JSON.parse(trimmed) as AnyRecord;
-        } catch {
+        } catch (error) {
+          if (requireCompleteRows) {
+            throw error;
+          }
           continue;
         }
 

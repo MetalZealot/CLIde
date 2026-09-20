@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
@@ -10,8 +10,13 @@ import { ClaudeSessionSynchronizer } from '@/modules/providers/list/claude/claud
 import { ClaudeSessionsProvider } from '@/modules/providers/list/claude/claude-sessions.provider.js';
 import { CodexSessionsProvider, extractCodexUserImages } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import { CursorSessionsProvider } from '@/modules/providers/list/cursor/cursor-sessions.provider.js';
+import {
+  createSessionHistoryCache,
+  sessionHistoryCache,
+} from '@/modules/providers/services/session-history-cache.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { appendFilesInputTag, appendImagesInputTag } from '@/shared/image-attachments.js';
+import type { FetchHistoryResult, HistorySourceRevision, NormalizedMessage } from '@/shared/types.js';
 import { AppError, normalizeProjectPath, readLastJsonlTimestamp } from '@/shared/utils.js';
 
 import { historyBudgets } from '../../../../scripts/chat-history/budgets.js';
@@ -966,7 +971,7 @@ describe('claude-subagent-history', () => {
     }
   });
 
-  test('a session that has never forked an agent loads without a subagents directory', async () => {
+  test('a referenced missing agent stays on the uncached tolerant path', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'claude-subagent-none-'));
     const transcriptPath = path.join(tempRoot, `${PROVIDER_SESSION_ID}.jsonl`);
     await writeFile(transcriptPath, parentTranscript(), 'utf8');
@@ -983,15 +988,18 @@ describe('claude-subagent-history', () => {
           transcriptPath,
         );
 
-        const history = await new ClaudeSessionsProvider().fetchHistory(PROVIDER_SESSION_ID);
+        sessionHistoryCache.clear();
+        const history = await sessionsService.fetchHistory(PROVIDER_SESSION_ID);
         const task = history.messages.find(
           (message) => message.kind === 'tool_use' && message.toolName === 'Task',
         );
 
         assert.ok(task, 'history should still load');
         assert.equal(task.subagentTools, undefined);
+        assert.equal(sessionHistoryCache.stats().entries, 0);
       });
     } finally {
+      sessionHistoryCache.clear();
       await rm(tempRoot, { recursive: true, force: true });
     }
   });
@@ -1002,17 +1010,128 @@ describe('claude-subagent-history', () => {
 describe('history performance targets', () => {
   const pending = (phase: number) => ({ todo: process.env.CLIDE_HISTORY_PERF_STRICT === '1' ? false : `history plan phase ${phase}` });
 
-  test('warm history pages do not reread the transcript', pending(2), async () => {
+  test('warm history pages do not reread the transcript and match direct reads', async () => {
     const { createHistoryFixture } = await import('./chat-history.fixture.js');
     const fixture = await createHistoryFixture();
     try {
-      const id = await fixture.add('claude', 200);
-      await fixture.read(id);
-      fixture.resetReads();
-      const page = await fixture.read(id, 20, 20);
-      assert.equal(page.messages.length, 20);
-      assert.equal(fixture.reads().bytesRead, historyBudgets.warmReadBytes, 'unchanged warm page must reuse parsed history');
+      for (const provider of ['claude', 'codex'] as const) {
+        const id = await fixture.add(provider, 200);
+        await fixture.read(id);
+        fixture.resetReads();
+        const page = await fixture.read(id, 20, 20);
+        assert.equal(page.messages.length, 20);
+        assert.equal(
+          fixture.reads().bytesRead,
+          historyBudgets.warmReadBytes,
+          `${provider} unchanged warm page must reuse parsed history`,
+        );
+        assert.deepEqual(page, await fixture.readDirect(id, 20, 20));
+      }
     } finally { await fixture.close(); }
+  });
+
+  test('concurrent requests share one exact-revision load', async () => {
+    const cache = createSessionHistoryCache();
+    const source: HistorySourceRevision = {
+      scope: 'fixture',
+      revision: 'revision-1',
+      sourceBytes: 10,
+      sources: [],
+    };
+    let loads = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const loadFull = async (): Promise<FetchHistoryResult> => {
+      loads += 1;
+      await gate;
+      return {
+        messages: [{
+          id: 'shared',
+          sessionId: 'app-shared',
+          timestamp: '2026-09-19T00:00:00.000Z',
+          provider: 'claude',
+          kind: 'text',
+          role: 'user',
+          content: 'shared',
+        } as NormalizedMessage],
+        total: 1,
+        hasMore: false,
+        offset: 0,
+        limit: null,
+      };
+    };
+    const args = {
+      sessionId: 'app-shared',
+      identity: 'claude:native-shared',
+      getRevision: async () => source,
+      loadFull,
+    };
+    const first = cache.getFullHistory(args);
+    const second = cache.getFullHistory(args);
+    release();
+    const [left, right] = await Promise.all([first, second]);
+    assert.equal(loads, 1);
+    assert.equal(left, right);
+  });
+
+  test('identity changes, failed loads and memory bounds cannot retain invalid history', async () => {
+    const source: HistorySourceRevision = {
+      scope: 'fixture', revision: 'revision-1', sourceBytes: 10, sources: [],
+    };
+    const history = (marker: string): FetchHistoryResult => ({
+      messages: [{
+        id: marker,
+        sessionId: 'app-cache',
+        timestamp: '2026-09-19T00:00:00.000Z',
+        provider: 'claude',
+        kind: 'text',
+        role: 'user',
+        content: marker,
+      } as NormalizedMessage],
+      total: 1,
+      hasMore: false,
+      offset: 0,
+      limit: null,
+    });
+    const cache = createSessionHistoryCache({ maxEntries: 1 });
+    let loads = 0;
+    const read = (sessionId: string, identity: string, marker: string) => cache.getFullHistory({
+      sessionId,
+      identity,
+      getRevision: async () => source,
+      loadFull: async () => { loads += 1; return history(marker); },
+    });
+    await read('app-cache', 'claude:native-a', 'a');
+    assert.equal((await read('app-cache', 'codex:native-b', 'b'))?.messages[0]?.id, 'b');
+    await read('another-app', 'claude:native-c', 'c');
+    assert.equal(cache.stats().entries, 1);
+    assert.equal((await read('app-cache', 'codex:native-b', 'b-again'))?.messages[0]?.id, 'b-again');
+
+    let attempts = 0;
+    await assert.rejects(cache.getFullHistory({
+      sessionId: 'failed-app',
+      identity: 'claude:failed',
+      getRevision: async () => source,
+      loadFull: async () => { attempts += 1; throw new Error('read failed'); },
+    }), /read failed/);
+    const recovered = await cache.getFullHistory({
+      sessionId: 'failed-app',
+      identity: 'claude:failed',
+      getRevision: async () => source,
+      loadFull: async () => { attempts += 1; return history('recovered'); },
+    });
+    assert.equal(recovered?.messages[0]?.id, 'recovered');
+    assert.equal(attempts, 2);
+
+    const noRetention = createSessionHistoryCache({ maxRetainedBytes: 1 });
+    await noRetention.getFullHistory({
+      sessionId: 'oversized',
+      identity: 'claude:oversized',
+      getRevision: async () => source,
+      loadFull: async () => history('too large to retain'),
+    });
+    assert.deepEqual(noRetention.stats(), { entries: 0, retainedBytes: 0, pendingLoads: 0 });
+    assert.ok(loads >= 4);
   });
 
   test('an append between history pages does not overlap the loaded page', pending(4), async () => {
@@ -1042,6 +1161,7 @@ describe('history performance targets', () => {
         assert.deepEqual(pages.map((m) => m.id), all.messages.map((m) => m.id));
       }
       const id = await fixture.add('claude', 100);
+      await fixture.read(id, null);
       await fixture.branch(id, 79);
       const branch = await fixture.read(id, null);
       assert.equal(branch.messages.length, 81);
@@ -1053,10 +1173,69 @@ describe('history performance targets', () => {
       const second = await fixture.read(id, null);
       assert.ok(JSON.stringify(second).includes('child after'));
       assert.ok(!JSON.stringify(second).includes('child before'));
+      const fork = await fixture.addCodexFork();
+      const parentBefore = await fixture.read(fork.appId, null);
+      assert.ok(JSON.stringify(parentBefore).includes('Synthetic message 1.'));
+      await appendFile(fork.parentFile, JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-09-19T00:00:00.000Z',
+        payload: {
+          type: 'message',
+          id: 'parent-refresh',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Parent dependency refreshed.' }],
+        },
+        ordinal: fork.parentCount + 1,
+      }) + '\n');
+      const parentAfter = await fixture.read(fork.appId, null);
+      assert.ok(JSON.stringify(parentAfter).includes('Parent dependency refreshed.'));
       const mixed = await fixture.read(await fixture.add('claude', 40, 'mixed'), null);
       assert.ok(mixed.messages.some((message) => message.kind === 'tool_use' && message.toolResult));
       assert.ok(mixed.messages.some((message) => Array.isArray(message.images) && message.images.length > 0));
       assert.ok(!mixed.messages.some((message) => message.content?.includes('Synthetic message 6.')));
+    } finally { await fixture.close(); }
+  });
+
+  test('replacement, truncation, partial writes and missing files never leave a stale valid entry', async () => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    try {
+      const id = await fixture.add('claude', 40);
+      const transcriptPath = fixture.file(id);
+      assert.ok(transcriptPath);
+      await fixture.read(id, null);
+
+      const original = await readFile(transcriptPath, 'utf8');
+      const originalStat = await stat(transcriptPath);
+      const replacement = original.replace('Synthetic message 1.', 'Alternate message 1.');
+      assert.equal(Buffer.byteLength(replacement), Buffer.byteLength(original));
+      await writeFile(transcriptPath, replacement);
+      await utimes(transcriptPath, originalStat.atime, originalStat.mtime);
+      const replaced = await fixture.read(id, null);
+      assert.ok(JSON.stringify(replaced).includes('Alternate message 1.'));
+
+      await writeFile(transcriptPath, replacement.split('\n').slice(0, 20).join('\n') + '\n');
+      const truncated = await fixture.read(id, null);
+      assert.equal(truncated.messages.length, 20);
+
+      await appendFile(transcriptPath, '{"partial":');
+      fixture.resetReads();
+      await fixture.read(id, null);
+      assert.ok(fixture.reads().bytesRead > 0);
+      fixture.resetReads();
+      await fixture.read(id, null);
+      assert.ok(fixture.reads().bytesRead > 0, 'a partial tail must not become a cache hit');
+      await appendFile(transcriptPath, '\n');
+      fixture.resetReads();
+      await fixture.read(id, null);
+      assert.ok(fixture.reads().bytesRead > 0, 'a malformed complete row must not become a cache hit');
+
+      await rm(transcriptPath);
+      const missing = await fixture.read(id, null);
+      assert.equal(missing.messages.length, 0);
+      await writeFile(transcriptPath, original);
+      const restored = await fixture.read(id, null);
+      assert.equal(restored.messages.length, 40);
     } finally { await fixture.close(); }
   });
 });

@@ -4,12 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import { providerRegistry } from '@/modules/providers/provider.registry.js';
+import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
 
 import { sessionsService } from '../services/sessions.service.js';
 import { transcriptRow, type HistoryProfile, type HistoryProvider } from '../../../../scripts/chat-history/fixtures.js';
 
 /** Provider tests and the benchmark use only this task-owned database and files. */
 export async function createHistoryFixture() {
+  sessionHistoryCache.clear();
   const directory = await mkdtemp(path.join(os.tmpdir(), 'clide-history-fixture-'));
   const previousDatabase = process.env.DATABASE_PATH;
   closeConnection();
@@ -31,6 +34,7 @@ export async function createHistoryFixture() {
   }) as typeof fs.createReadStream;
   const records = new Map<string, { file: string; provider: HistoryProvider; nativeId: string; count: number; profile: HistoryProfile }>();
   const close = async () => {
+    sessionHistoryCache.clear();
     fs.createReadStream = originalStream;
     closeConnection();
     if (previousDatabase === undefined) delete process.env.DATABASE_PATH;
@@ -56,6 +60,49 @@ export async function createHistoryFixture() {
       records.set(appId, { file, provider, nativeId, count, profile });
       return appId;
     },
+    async addCodexFork(parentCount = 4, childCount = 2) {
+      const suffix = records.size;
+      const parentNativeId = `native-codex-parent-${suffix}`;
+      const nativeId = `native-codex-child-${suffix}`;
+      const appId = `app-${nativeId}`;
+      const parentFile = path.join(directory, `rollout-${parentNativeId}.jsonl`);
+      const file = path.join(directory, `rollout-${nativeId}.jsonl`);
+      const parentRows = [
+        { type: 'session_meta', ordinal: 0, payload: { id: parentNativeId } },
+        ...Array.from({ length: parentCount }, (_, index) => ({
+          ...transcriptRow('codex', parentNativeId, index),
+          ordinal: index + 1,
+        })),
+      ];
+      const childRows = [
+        {
+          type: 'session_meta',
+          ordinal: 1_000,
+          payload: {
+            id: nativeId,
+            forked_from_id: parentNativeId,
+            forked_from_ordinal_exclusive: 1_000,
+          },
+        },
+        ...Array.from({ length: childCount }, (_, index) => ({
+          ...transcriptRow('codex', nativeId, 100 + index),
+          ordinal: 1_001 + index,
+        })),
+      ];
+      await writeFile(parentFile, parentRows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      await writeFile(file, childRows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      sessionsDb.createAppSession(appId, 'codex', directory);
+      sessionsDb.assignProviderSessionId(appId, nativeId);
+      sessionsDb.createSession(nativeId, 'codex', directory, 'Synthetic fork', undefined, undefined, file);
+      records.set(appId, {
+        file,
+        provider: 'codex',
+        nativeId,
+        count: 100 + childCount,
+        profile: 'plain',
+      });
+      return { appId, parentFile, parentNativeId, parentCount };
+    },
     async append(id: string) {
       const r = records.get(id)!;
       const context = r.provider === 'codex' && r.count % 2 === 0
@@ -79,6 +126,18 @@ export async function createHistoryFixture() {
       ].map((row) => JSON.stringify(row)).join('\n') + '\n');
     },
     read: (id: string, limit: number | null = 20, offset = 0) => sessionsService.fetchHistory(id, { limit, offset }),
+    readDirect: (id: string, limit: number | null = 20, offset = 0) => {
+      const row = sessionsDb.getSessionById(id);
+      if (!row?.provider_session_id) throw new Error(`Missing fixture session ${id}`);
+      return providerRegistry.resolveProvider(row.provider).sessions.fetchHistory(id, {
+        limit,
+        offset,
+        projectPath: row.project_path ?? '',
+        providerSessionId: row.provider_session_id,
+      });
+    },
+    file: (id: string) => records.get(id)?.file ?? null,
+    cacheStats: () => sessionHistoryCache.stats(),
     resetReads: () => { bytesRead = 0; streamReads = 0; },
     reads: () => ({ bytesRead, streamReads }),
     close,

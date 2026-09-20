@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 1/9
-- Next: Phase 2 — reuse unchanged server history safely
+- Status: 2/9
+- Next: Phase 3 — stop rendering unchanged messages again
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -20,7 +20,7 @@ and production-built Browser harnesses are maintained in the repository. The
 separate reader, transport, conversion and rendering costs. Real-device acceptance
 and precise browser heap measurement remain explicit later-phase requirements.
 
-- [ ] **2. Reuse unchanged server history safely.**
+- [x] **2. Reuse unchanged server history safely.**
 
 Adapt upstream caching at the sessions/provider boundary. Key by app session,
 provider identity and source revision (one consistent version of history).
@@ -32,6 +32,10 @@ Handle writes during reads, partial lines, replacement, truncation, rewind,
 missing files, provider-id reassignment, failures and eviction. Never cache a
 failed read as valid empty history. Measure retained memory; transcript byte size
 is not heap usage. Preserve token/turn-start metadata.
+
+Shipped with stable before/after revisions, exact-version concurrency and a
+32 MiB bounded LRU. Claude subagents and Codex ancestry participate; database
+providers remain uncached. [Evidence](../maps/chat-history-performance.md#phase-2-server-cache).
 
 **Exit:** warm reads do no reparse; concurrent reads share work; dependent changes
 invalidate. Cached/uncached results agree and eviction loses no history.

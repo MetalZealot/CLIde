@@ -11,7 +11,7 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
-- [x] **Chat-history performance measurement harness. Fork-only tooling.** Synthetic fixtures, explicit pending targets and Browser/server baselines exercise CLIde's current contracts; no runtime fix is included. Upstream cache/rendering work already exists in inspected snapshot `5e73a49b`; adaptation and eligibility of later fixes stay in the [performance plan](plans/chat-history-performance.md).
+- [x] **Chat-history measurement harness is fork-only; cache hardening is upstreamable.** Synthetic fixtures, explicit pending targets and Browser/server baselines exercise CLIde's contracts. Phase 2 adapts upstream snapshot `5e73a49b`'s main-file cache but adds stable before/after revisions, dependent Claude subagent and Codex parent files, strict failure/partial-write exclusion, identity-safe concurrency and normalized-memory bounds. Those protections apply to upstream's cache independently of CLIde's later rendering plan.
 
 - [x] **Show timestamps on consecutive assistant replies. Upstreamable.** The footer hid each grouped reply's time, including replies after hidden thinking. Removed that visibility condition while retaining grouping. Confirmed the same guard in `upstream/main`'s `src/modules/chat/transcript/MessageComponent.tsx`; GitHub issue/PR searches for `timestamp` on 2026-09-14 found no matching visibility fix (PR #1196 concerns server-clock stamping).
 

@@ -3,11 +3,22 @@ import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/cod
 import { isCodexAppServerChatEnabled } from '@/modules/providers/list/codex/codex-chat-transport-state.js';
 import {
   buildCodexTranscriptChain,
+  resolveCodexTranscriptChain,
   streamCodexTranscriptRows,
 } from '@/modules/providers/list/codex/codex-transcript-chain.js';
+import {
+  captureHistorySourceRevision,
+  isHistorySourceRevisionCurrent,
+} from '@/modules/providers/services/history-source-revision.service.js';
 import { parseFilesInputTag, toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
-import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
+import type {
+  AnyRecord,
+  FetchHistoryOptions,
+  FetchHistoryResult,
+  HistorySourceRevision,
+  NormalizedMessage,
+} from '@/shared/types.js';
 import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 
@@ -410,6 +421,7 @@ async function getCodexSessionMessages(
   sessionId: string,
   limit: number | null = null,
   offset = 0,
+  requireCompleteRead = false,
 ): Promise<CodexHistoryResult> {
   try {
     const sessionFilePath = sessionsDb.getSessionById(sessionId)?.jsonl_path;
@@ -444,7 +456,7 @@ async function getCodexSessionMessages(
     // on the row holds only what came after the fork.
     const segments = await buildCodexTranscriptChain(sessionFilePath);
 
-    for await (const entry of streamCodexTranscriptRows(segments)) {
+    for await (const entry of streamCodexTranscriptRows(segments, requireCompleteRead)) {
       try {
         if (
           (entry.type === 'turn_context' || entry.type === 'event_msg')
@@ -958,12 +970,44 @@ async function getCodexSessionMessages(
 
     return { messages, tokenUsage };
   } catch (error) {
+    if (requireCompleteRead) {
+      throw error;
+    }
     console.error(`Error reading Codex session messages for ${sessionId}:`, error);
     return { messages: [], total: 0, hasMore: false };
   }
 }
 
 export class CodexSessionsProvider implements IProviderSessions {
+  /** Sessions service uses this to validate the leaf rollout and every parent. */
+  async getHistorySourceRevision(
+    sessionId: string,
+    _options: FetchHistoryOptions,
+    previous?: HistorySourceRevision,
+  ): Promise<HistorySourceRevision | null> {
+    const transcriptPath = sessionsDb.getSessionById(sessionId)?.jsonl_path;
+    if (!transcriptPath) {
+      return null;
+    }
+
+    if (previous?.scope === transcriptPath && await isHistorySourceRevisionCurrent(previous)) {
+      return previous;
+    }
+
+    const resolution = await resolveCodexTranscriptChain(transcriptPath);
+    if (!resolution.complete) {
+      return null;
+    }
+    return captureHistorySourceRevision(
+      transcriptPath,
+      resolution.segments.map((segment) => ({
+        path: segment.path,
+        kind: 'file' as const,
+        requireTrailingNewline: true,
+      })),
+    );
+  }
+
   async forkSession(
     providerSessionId: string,
     options: {
@@ -1287,8 +1331,16 @@ export class CodexSessionsProvider implements IProviderSessions {
     try {
       // Load full history first so `total` reflects frontend-normalized messages,
       // not raw JSONL records.
-      result = await getCodexSessionMessages(sessionId, null, 0);
+      result = await getCodexSessionMessages(
+        sessionId,
+        null,
+        0,
+        Boolean(options.requireCompleteRead),
+      );
     } catch (error) {
+      if (options.requireCompleteRead) {
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[CodexProvider] Failed to load session ${sessionId}:`, message);
       return { messages: [], total: 0, hasMore: false, offset: 0, limit: null };

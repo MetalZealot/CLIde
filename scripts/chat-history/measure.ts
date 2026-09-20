@@ -36,6 +36,7 @@ try {
     for (const size of HISTORY_SIZES) {
       const cold: number[] = [], warm: number[] = [], http: number[] = [], httpCold: number[] = [];
       const readBytes: number[] = [], bodyBytes: number[] = [], heap: number[] = [];
+      const retainedCacheBytes: number[] = [];
       for (let sample = 0; sample < samples; sample++) {
         const id = await fixture.add(provider, size);
         global.gc?.();
@@ -64,12 +65,14 @@ try {
         http.push(performance.now() - start);
         global.gc?.();
         heap.push(process.memoryUsage().heapUsed - before);
+        retainedCacheBytes.push(fixture.cacheStats().retainedBytes);
       }
       const fails = readBytes.some((n) => n > historyBudgets.warmReadBytes);
       if (fails) structuralFailures++;
       const row = { provider, fixtureMessages: size, samples, coldReaderMs: summarize(cold), warmReaderMs: summarize(warm),
         coldHttpMs: summarize(httpCold), warmHttpMs: summarize(http), warmReadBytes: summarize(readBytes), pageBytes: summarize(bodyBytes),
-        retainedHeapDeltaBytes: summarize(heap), warmReadTarget: fails ? 'FAIL' : 'PASS' };
+        retainedHeapDeltaBytes: summarize(heap), retainedCacheBytes: summarize(retainedCacheBytes),
+        warmReadTarget: fails ? 'FAIL' : 'PASS' };
       results.push(row);
       console.log(JSON.stringify(row));
     }
@@ -86,7 +89,9 @@ try {
   const report = { schema: 1, source, fixtureVersion: HISTORY_FIXTURE_VERSION, node: process.version, platform: process.platform,
     architecture: process.arch, timestamp: new Date().toISOString(), samples,
     notes: ['cold means first app read, not cleared OS disk cache', 'HTTP is loopback fixture transport, excludes production auth/TLS',
-      'heap delta is post-GC retained heap, not peak or total service memory', 'timing budgets are targets, not normal CI gates'],
+      'heap delta is post-GC retained heap, not peak or total service memory',
+      'cache bytes are v8-serialized normalized histories, not transcript bytes or exact heap size',
+      'timing budgets are targets, not normal CI gates'],
     budgets: historyBudgets, results, structuralFailures };
   if (arg('output')) await writeFile(arg('output')!, JSON.stringify(report, null, 2) + '\n');
   console.log(`History benchmark: ${structuralFailures} structural target failures`);

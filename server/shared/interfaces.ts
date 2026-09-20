@@ -2,6 +2,7 @@ import type {
   AnyRecord,
   FetchHistoryOptions,
   FetchHistoryResult,
+  HistorySourceRevision,
   LLMProvider,
   McpScope,
   NormalizedMessage,
@@ -221,6 +222,17 @@ export interface IProviderMcp {
 export interface IProviderSessions {
   normalizeMessage(raw: unknown, sessionId: string | null): NormalizedMessage[];
   fetchHistory(sessionId: string, options?: FetchHistoryOptions): Promise<FetchHistoryResult>;
+  /**
+   * Returns a stable revision for every file that contributes to one history
+   * read. The sessions service uses it to retain only complete, unchanged
+   * Claude/Codex results; providers without a reliable revision omit it and
+   * remain uncached.
+   */
+  getHistorySourceRevision?(
+    sessionId: string,
+    options: FetchHistoryOptions,
+    previous?: HistorySourceRevision,
+  ): Promise<HistorySourceRevision | null>;
   /**
    * Creates a provider-native sibling conversation without starting a turn.
    *

@@ -5,13 +5,14 @@ import path from 'node:path';
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
+import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
 import type {
   FetchHistoryOptions,
   FetchHistoryResult,
   LLMProvider,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
+import { AppError, findTurnStartedAt, sliceTailPage } from '@/shared/utils.js';
 
 type CreateAppSessionResult = {
   sessionId: string;
@@ -294,12 +295,67 @@ export const sessionsService = {
     }
 
     const provider = session.provider as LLMProvider;
-    const result = await providerRegistry.resolveProvider(provider).sessions.fetchHistory(sessionId, {
-      limit: options.limit ?? null,
-      offset: options.offset ?? 0,
+    const providerSessions = providerRegistry.resolveProvider(provider).sessions;
+    const requestedLimit = options.limit ?? null;
+    const requestedOffset = Math.max(0, options.offset ?? 0);
+    const historyOptions: FetchHistoryOptions = {
+      limit: requestedLimit,
+      offset: requestedOffset,
       projectPath: session.project_path ?? '',
       providerSessionId: session.provider_session_id,
-    });
+    };
+
+    let result: FetchHistoryResult;
+    if (providerSessions.getHistorySourceRevision) {
+      const identity = JSON.stringify([
+        provider,
+        session.provider_session_id,
+        session.project_path ?? '',
+      ]);
+      let fullHistory: FetchHistoryResult | null = null;
+      try {
+        fullHistory = await sessionHistoryCache.getFullHistory({
+          sessionId,
+          identity,
+          getRevision: (previous) => providerSessions.getHistorySourceRevision!(
+            sessionId,
+            historyOptions,
+            previous,
+          ),
+          loadFull: () => providerSessions.fetchHistory(sessionId, {
+            ...historyOptions,
+            limit: null,
+            offset: 0,
+            requireCompleteRead: true,
+          }),
+        });
+      } catch {
+        // Preserve the provider's tolerant direct-read behavior, but never
+        // retain a result produced while any source could not be read fully.
+      }
+
+      if (fullHistory) {
+        const { page, hasMore, start } = sliceTailPage(
+          fullHistory.messages,
+          requestedLimit,
+          requestedOffset,
+        );
+        result = {
+          ...fullHistory,
+          messages: page,
+          hasMore,
+          offset: requestedOffset,
+          limit: requestedLimit,
+          turnStartedAt: findTurnStartedAt(fullHistory.messages, start),
+        };
+      } else {
+        result = await providerSessions.fetchHistory(sessionId, historyOptions);
+      }
+    } else {
+      // Cursor and OpenCode need database-aware revisions before parsed history
+      // can be reused safely; direct reads are the explicit correctness fallback.
+      result = await providerSessions.fetchHistory(sessionId, historyOptions);
+    }
 
     return {
       ...result,

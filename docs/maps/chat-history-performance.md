@@ -1,7 +1,8 @@
 # Chat history loading and rendering
 
-Initial diagnosis: `668f4049`, investigated 2026-09-19. Phase 1 now has maintained
-synthetic baselines below. Performance fixes and acceptance remain open in the [performance plan](../plans/chat-history-performance.md).
+Initial diagnosis: `668f4049`, investigated 2026-09-19. Phases 1–2 now provide
+maintained evidence and safe server reuse below. Rendering, paging, search and
+acceptance remain open in the [performance plan](../plans/chat-history-performance.md).
 
 ## What the reader experiences
 
@@ -148,6 +149,53 @@ smoothness. Precise browser heap capture and physical-phone acceptance are still
 unmeasured. Increasing page size alone would not resolve the measured rendering
 stalls; collapsing tool cards alone would not eliminate transcript rereads.
 
+## Phase 2 server cache
+
+[Server report](../../scripts/chat-history/baselines/2026-09-20-server-phase2.json):
+five samples per workload on the same Node/Linux ARM64 host. Values are median /
+observed p95 milliseconds. Source was dirty only because the measured phase-2
+change and unrelated preserved client work were uncommitted; the report carries
+the exact server/source fingerprint.
+
+| Provider / plain messages | Cold reader | Warm reader | Warm HTTP | Warm bytes read |
+|---|---:|---:|---:|---:|
+| Claude / 200 | 20.43 / 67.31 | 1.47 / 2.31 | 8.16 / 15.33 | 0 |
+| Claude / 2,000 | 76.23 / 80.42 | 1.33 / 1.42 | 5.11 / 6.04 | 0 |
+| Claude / 10,000 | 315.68 / 351.31 | 1.27 / 1.33 | 4.78 / 5.15 | 0 |
+| Codex / 200 | 25.79 / 35.62 | 0.97 / 1.07 | 4.46 / 4.88 | 0 |
+| Codex / 2,000 | 94.94 / 95.53 | 1.05 / 1.53 | 4.62 / 5.58 | 0 |
+| Codex / 10,000 | 372.79 / 402.31 | 1.05 / 1.06 | 5.10 / 22.67 | 0 |
+
+At 10,000 messages, warm-reader p95 fell from 274 to 1.33 ms for Claude
+and 328 to 1.06 ms for Codex. All warm reads avoided transcript stream bytes.
+The largest observed post-GC retained heap delta was 10.08 MiB; the largest
+cache estimate was 30.89 MiB against a 32 MiB bound. That estimate is V8's
+serialized normalized history, not transcript size or exact heap occupancy.
+
+The cache keys an app session to provider/native identity and a source revision.
+File identity includes device, inode, mode, size, nanosecond mtime and ctime.
+Claude also watches the optional subagent directory plus every agent JSONL/meta
+file; Codex validates every resolved parent rollout. A load is retained only
+when the same complete revision exists before and after parsing. Partial tails,
+malformed rows, missing/unreadable dependencies and read failures fall back to
+the tolerant uncached provider path. Concurrent misses share only an exact
+revision; changed identity or source cannot replace newer work. LRU retention is
+limited to eight entries and 32 MiB of normalized serialized values, and one
+oversized history is served without retention.
+
+Cold-reader p95 stayed below the advisory 500 ms target in this run. Cold-path
+work remains phase 8, and timing thresholds remain advisory until phase 9's
+controlled runner.
+
+Regression coverage compares cached pages to direct provider reads, including
+tool results, token usage and turn-start metadata; it also covers concurrent
+loads, append/rewind/replacement/truncation, partial and malformed tails,
+missing files, failed loads, Claude subagent changes, Codex parent changes,
+identity changes and eviction. Cursor and OpenCode remain on direct reads: their
+SQLite stores need database-aware revisions before reuse is safe. Heavy page
+sizes still fail phase 5, and the three later client/pagination targets remain
+pending by design.
+
 ### Targets and enforcement
 
 These are engineering targets for this workload, not external standards or
@@ -167,7 +215,7 @@ numbers; change a target only with an explained measurement-based decision.
 | Frame interval p95 / longest task | 32 / 200 ms |
 | Server retained growth / browser heap growth | 64 / 128 MiB |
 
-The four known failures execute as TODO assertions in the existing provider and
+The three remaining known failures execute as TODO assertions in the existing provider and
 chat-hook tests. They do not fail ordinary correctness runs. The dedicated
 `--regressions-only` command removes TODO status and must currently exit 1 with
 four failures. `--check` additionally fails on warm rereads and oversized pages.
@@ -190,7 +238,7 @@ npm run test:client:one -- src/components/chat/hooks/chatHooks.test.ts
 
 | Boundary | Current owner and behaviour |
 |---|---|
-| History request | [sessions service](../../server/modules/providers/services/sessions.service.ts), `fetchHistory`: resolves the app session and delegates directly; no server history cache |
+| History request | [sessions service](../../server/modules/providers/services/sessions.service.ts), `fetchHistory`: resolves app/provider identity, reuses one stable full Claude/Codex history through the bounded revision cache, then slices; Cursor/OpenCode delegate directly |
 | Claude | [reader](../../server/modules/providers/list/claude/claude-sessions.provider.ts), `fetchHistory`/`getSessionMessages`: reads main and subagent files, filters the active branch, normalizes and attaches results, then slices |
 | Codex | [reader](../../server/modules/providers/list/codex/codex-sessions.provider.ts), `fetchHistory`: reads the [transcript chain](../../server/modules/providers/list/codex/codex-transcript-chain.ts), normalizes and joins tool results, then slices |
 | Other providers | Cursor loads and normalizes its blobs; OpenCode reads session message/part rows before slicing. Source inspection only; no live performance sample |
@@ -219,9 +267,10 @@ session-history cache, identity-preserving message conversion, memoized Markdown
 and lazy row contents. The cache sits above the provider readers; inspecting only
 the readers misses that improvement.
 
-Its cache validates the main transcript path, modification time, and size. That
-is insufficient for CLIde's dependent subagent files and Codex ancestry. Its
-file-byte cache budget is not a measured heap limit. Its lazy rows assume a
+Its cache validates the main transcript path, modification time, and size. CLIde
+adapted that boundary in phase 2 but validates dependent subagent files, Codex
+ancestry, replacement/truncation and stable before/after snapshots, while
+bounding normalized retained data instead of transcript bytes. Its lazy rows assume a
 scroll container and need adaptation for page scrolling, selection, Find,
 expansion state, and variable heights. Adapt behaviours and tests; do not import
 the unrelated frontend restructure. The [sync map](upstream-sync.md) owns the
