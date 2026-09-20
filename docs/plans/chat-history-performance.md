@@ -10,9 +10,18 @@
 Long conversations should open promptly, preserve the reader's place, and support
 Find/direct jumps without loading intervening tool output.
 
+## Effort sizes
+
+Estimates include implementation, tests and verification.
+They do not predict model tokens, cost or how much fits in a usage window.
+**M:** bounded work with focused checks. **L:** several connected changes with
+substantial edge-case testing; split into reviewable batches. **XL:** changes
+across layers/providers or complex interaction behaviour; multiple L-sized batches.
+Completed phases provide reference sizes.
+
 ## Phases
 
-- [x] **1. Establish repeatable evidence and limits.**
+- [x] **1. Establish repeatable evidence and limits — M.**
 
 Synthetic provider fixtures, four executable regression targets, isolated server
 and production-built Browser harnesses are maintained in the repository. The
@@ -20,38 +29,27 @@ and production-built Browser harnesses are maintained in the repository. The
 separate reader, transport, conversion and rendering costs. Real-device acceptance
 and precise browser heap measurement remain explicit later-phase requirements.
 
-- [x] **2. Reuse unchanged server history safely.**
+- [x] **2. Reuse unchanged server history safely — L.**
 
-Adapt upstream caching at the sessions/provider boundary. Key by app session,
-provider identity and source revision (one consistent version of history).
-Include main files, subagent additions/changes and Codex parent-chain dependencies.
-Cursor/OpenCode need database-aware revisions or an explicit uncached fallback.
-Combine concurrent reads only within a revision.
+Shipped a 32 MiB serialized-history cache with bounded entries, shared concurrent
+loads and before/after source checks. Claude subagents and Codex ancestry
+participate; Cursor/OpenCode remain uncached. Review fixes cover discovery races,
+directory-read failures and identity cleanup. Warm reads avoid reparsing; measured
+memory and correctness coverage are in the [map](../maps/chat-history-performance.md#phase-2-server-cache).
 
-Handle writes during reads, partial lines, replacement, truncation, rewind,
-missing files, provider-id reassignment, failures and eviction. Never cache a
-failed read as valid empty history. Measure retained memory; transcript byte size
-is not heap usage. Preserve token/turn-start metadata.
-
-Shipped with stable before/after revisions, exact-version concurrency and a
-32 MiB bounded LRU. Claude subagents and Codex ancestry participate; database
-providers remain uncached. [Evidence](../maps/chat-history-performance.md#phase-2-server-cache).
-
-**Exit:** warm reads do no reparse; concurrent reads share work; dependent changes
-invalidate. Cached/uncached results agree and eviction loses no history.
-
-- [ ] **3. Stop rendering unchanged messages again.**
+- [ ] **3. Stop rendering unchanged messages again — L.**
 
 Reuse display conversion for unchanged source records plus later tool results
 and subagent dependencies. Reconcile unchanged records on server refresh so fresh
 JSON does not invalidate everything. Stabilize keys, callbacks and grouping inputs;
 reuse Markdown/code rendering where inputs match. Measure component work, not
-only object equality; retain responsive streaming.
+only object equality; retain responsive streaming. Split into conversion/store
+identity, row/Markdown render stability, then Browser/streaming verification.
 
 **Exit:** unchanged rows stay intact; changed results update. Markdown, citations,
 copy, diffs, editing and expansion work.
 
-- [ ] **4. Keep page boundaries stable while history changes.**
+- [ ] **4. Keep page boundaries stable while history changes — XL.**
 
 Define one provider-neutral contract: stable message ids, ordering, record versus
 visible-row counts, completion and a cursor (a bookmark before a message). Bind
@@ -66,7 +64,7 @@ deduplication and cancellation; test append/refresh/rewind/reconnect races.
 **Exit:** walking pages equals the reference active history; identical timestamps,
 hidden-only segments and unequal app/provider ids are covered.
 
-- [ ] **5. Bound transferred work, not just record counts.**
+- [ ] **5. Bound transferred work, not just record counts — XL.**
 
 Separate display text/tool summaries from raw output, subagent detail and embedded
 image bodies. Use authenticated, session-scoped detail/attachment references and
@@ -81,7 +79,7 @@ new visible behaviour before building. Activity clustering has its own plan.
 **Exit:** unopened heavy bodies do not inflate pages beyond budget; requested
 details/exports remain complete and access-controlled.
 
-- [ ] **6. Separate Find and prompt navigation from rendered history.**
+- [ ] **6. Separate Find and prompt navigation from rendered history — XL.**
 
 Build a lightweight text/turn lookup, tied to the history revision, for Find and
 future prompt navigation. Preserve authored-text scope, literal case-insensitive
@@ -97,7 +95,7 @@ previous/next authored-turn and list APIs; new controls are separate.
 **Exit:** old matches need no page walk, attachment reads or full render; cached
 history needs no full redownload. Streaming preserves correctness.
 
-- [ ] **7. Bound expensive rendered contents.**
+- [ ] **7. Bound expensive rendered contents — XL.**
 
 After phase 6, render near-viewport contents with measured-height placeholders
 elsewhere. Agree loading/selection behaviour first. Support desktop scroll boxes
@@ -113,8 +111,9 @@ reduced motion and bottom-follow only when intended.
 **Exit:** rich contents stay bounded except interaction pins; history remains
 reachable. Real phone handles and Browser layout pass.
 
-- [ ] **8. Close cold-load and active-session gaps.**
+- [ ] **8. Close cold-load and active-session gaps — M–XL.**
 
+M for profiling; up to XL if incremental parsing/indexing is needed.
 Profile after phases 2–7. If cold/live paths exceed budget, add incremental parsing
 and index updates, rebuilding for branch replacement/incompatible formats. Any
 persistent index must be reconstructible from provider history. Yield/isolate work
@@ -124,7 +123,7 @@ measured need with required authorization. Record evidence if none is needed.
 **Exit:** first open, appends, dependent histories and concurrent sessions meet
 budgets without unbounded caches or stale results.
 
-- [ ] **9. Enforce regressions and accept the experience.**
+- [ ] **9. Enforce regressions and accept the experience — L.**
 
 Test operation counts and correctness in the relevant normal tests. Run
 browser scaling benchmarks on a controlled runner with explicit thresholds and
