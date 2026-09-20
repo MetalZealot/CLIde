@@ -42,7 +42,7 @@ export function createSessionHistoryCache(options: SessionHistoryCacheOptions = 
   const maxStableLoadAttempts = options.maxStableLoadAttempts ?? MAX_STABLE_LOAD_ATTEMPTS;
   const entries = new Map<string, CacheEntry>();
   const pendingLoads = new Map<string, Promise<CacheLoadResult>>();
-  const currentIdentities = new Map<string, string>();
+  const activeRequests = new Map<string, { identity: string; users: number }>();
 
   function removeEntry(sessionId: string): void {
     entries.delete(sessionId);
@@ -74,73 +74,87 @@ export function createSessionHistoryCache(options: SessionHistoryCacheOptions = 
       getRevision,
       loadFull,
     }: GetFullHistoryArgs): Promise<FetchHistoryResult | null> {
-      currentIdentities.set(sessionId, identity);
-      const existing = entries.get(sessionId);
-      if (existing && existing.identity !== identity) {
-        removeEntry(sessionId);
+      // Identity generations live only while requests can still publish a result.
+      let request = activeRequests.get(sessionId);
+      if (!request || request.identity !== identity) {
+        request = { identity, users: 0 };
+        activeRequests.set(sessionId, request);
       }
-
-      for (let attempt = 0; attempt < maxStableLoadAttempts; attempt += 1) {
-        const candidate = entries.get(sessionId);
-        const previous = candidate?.identity === identity ? candidate.source : undefined;
-        const source = await getRevision(previous);
-        if (!source) {
+      request.users += 1;
+      try {
+        const existing = entries.get(sessionId);
+        if (existing && existing.identity !== identity) {
           removeEntry(sessionId);
-          return null;
         }
 
-        if (candidate && candidate.identity === identity && candidate.source.revision === source.revision) {
-          entries.delete(sessionId);
-          entries.set(sessionId, candidate);
-          return candidate.full;
-        }
-
-        removeEntry(sessionId);
-        const pendingKey = `${sessionId}\0${identity}\0${source.revision}`;
-        let pending = pendingLoads.get(pendingKey);
-        if (!pending) {
-          pending = (async (): Promise<CacheLoadResult> => {
-            const full = await loadFull();
-            const after = await getRevision(source);
-            if (!after || after.revision !== source.revision) {
-              return { stable: false };
-            }
-
-            const cost = serialize(full).byteLength;
-            if (
-              cost <= maxRetainedBytes
-              && maxEntries > 0
-              && currentIdentities.get(sessionId) === identity
-            ) {
-              entries.delete(sessionId);
-              entries.set(sessionId, { identity, source: after, retainedBytes: cost, full });
-              evictOverBudget();
-            }
-            return { stable: true, full };
-          })();
-          pendingLoads.set(pendingKey, pending);
-        }
-
-        try {
-          const result = await pending;
-          if (result.stable) {
-            return result.full;
+        for (let attempt = 0; attempt < maxStableLoadAttempts; attempt += 1) {
+          const candidate = entries.get(sessionId);
+          const previous = candidate?.identity === identity ? candidate.source : undefined;
+          const source = await getRevision(previous);
+          if (activeRequests.get(sessionId) !== request) return null;
+          if (!source) {
+            removeEntry(sessionId);
+            return null;
           }
-        } finally {
-          if (pendingLoads.get(pendingKey) === pending) {
-            pendingLoads.delete(pendingKey);
+
+          if (candidate && candidate.identity === identity && candidate.source.revision === source.revision) {
+            entries.delete(sessionId);
+            entries.set(sessionId, candidate);
+            return candidate.full;
           }
+
+          removeEntry(sessionId);
+          const pendingKey = `${sessionId}\0${identity}\0${source.revision}`;
+          let pending = pendingLoads.get(pendingKey);
+          if (!pending) {
+            pending = (async (): Promise<CacheLoadResult> => {
+              const full = await loadFull();
+              const after = await getRevision(source);
+              if (!after || after.revision !== source.revision) {
+                return { stable: false };
+              }
+
+              const cost = serialize(full).byteLength;
+              if (
+                cost <= maxRetainedBytes
+                && maxEntries > 0
+                && activeRequests.get(sessionId) === request
+              ) {
+                entries.delete(sessionId);
+                entries.set(sessionId, { identity, source: after, retainedBytes: cost, full });
+                evictOverBudget();
+              }
+              return { stable: true, full };
+            })();
+            pendingLoads.set(pendingKey, pending);
+          }
+
+          try {
+            const result = await pending;
+            if (result.stable) {
+              return result.full;
+            }
+          } finally {
+            if (pendingLoads.get(pendingKey) === pending) {
+              pendingLoads.delete(pendingKey);
+            }
+          }
+        }
+
+        if (activeRequests.get(sessionId) === request) removeEntry(sessionId);
+        return null;
+      } finally {
+        request.users -= 1;
+        if (request.users === 0 && activeRequests.get(sessionId) === request) {
+          activeRequests.delete(sessionId);
         }
       }
-
-      removeEntry(sessionId);
-      return null;
     },
 
     clear(): void {
       entries.clear();
       pendingLoads.clear();
-      currentIdentities.clear();
+      activeRequests.clear();
     },
 
     stats(): { entries: number; retainedBytes: number; pendingLoads: number } {

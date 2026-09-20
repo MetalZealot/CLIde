@@ -35,7 +35,7 @@ main checkout only).
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
-- [~] **Chat history loading, scrolling and Find remain slow.** Phases 1–2 complete: repeatable evidence plus safe unchanged-history reuse for Claude/Codex. Next: preserve unchanged rendered messages; paging and search follow. [Plan](plans/chat-history-performance.md), [evidence](maps/chat-history-performance.md). **L**
+- [~] **Chat history loading, scrolling and Find remain slow.** Phases 1–2 complete, including cache review fixes: repeatable evidence and Claude/Codex history reuse. Next: preserve unchanged rendered messages; paging and search follow. [Plan](plans/chat-history-performance.md), [evidence](maps/chat-history-performance.md). **L**
 - [ ] **A failed commit is completely silent.** Leading suspect is a `commit-msg` hook rejection leaving the index staged. Mechanism and the surrounding status-contract gaps: [the Git truth map](maps/repository-checkout-identity.md); it is Phase 0 item 1 of [the Source Control plan](plans/source-control-truthfulness.md) and blocks everything else there. [upstreamable] **S**
 - [ ] Sidebar session names sometimes don't match those shown under `claude /resume`. **?**
 - [ ] Shell view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**

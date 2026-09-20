@@ -175,13 +175,16 @@ serialized normalized history, not transcript size or exact heap occupancy.
 The cache keys an app session to provider/native identity and a source revision.
 File identity includes device, inode, mode, size, nanosecond mtime and ctime.
 Claude also watches the optional subagent directory plus every agent JSONL/meta
-file; Codex validates every resolved parent rollout. A load is retained only
+file; directory discovery is bracketed by revision checks so newly created agents
+cannot escape the dependency list. Strict loads propagate directory-read errors
+other than an absent optional directory. Codex validates every resolved parent rollout. A load is retained only
 when the same complete revision exists before and after parsing. Partial tails,
 malformed rows, missing/unreadable dependencies and read failures fall back to
 the tolerant uncached provider path. Concurrent misses share only an exact
 revision; changed identity or source cannot replace newer work. LRU retention is
 limited to eight entries and 32 MiB of normalized serialized values, and one
-oversized history is served without retention.
+oversized history is served without retention. Identity generations are retained
+only while requests are active; superseded requests cannot repopulate the cache.
 
 Cold-reader p95 stayed below the advisory 500 ms target in this run. Cold-path
 work remains phase 8, and timing thresholds remain advisory until phase 9's
@@ -189,7 +192,9 @@ controlled runner.
 
 Regression coverage compares cached pages to direct provider reads, including
 tool results, token usage and turn-start metadata; it also covers concurrent
-loads, append/rewind/replacement/truncation, partial and malformed tails,
+loads, subagent creation during discovery, transient directory-read failures,
+identity bookkeeping cleanup and overlapping identity changes,
+append/rewind/replacement/truncation, partial and malformed tails,
 missing files, failed loads, Claude subagent changes, Codex parent changes,
 identity changes and eviction. Cursor and OpenCode remain on direct reads: their
 SQLite stores need database-aware revisions before reuse is safe. Heavy page

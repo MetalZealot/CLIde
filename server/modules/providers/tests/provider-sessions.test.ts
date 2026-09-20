@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { appendFile, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import fsp, { appendFile, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
@@ -1237,5 +1237,102 @@ describe('history performance targets', () => {
       const restored = await fixture.read(id, null);
       assert.equal(restored.messages.length, 40);
     } finally { await fixture.close(); }
+  });
+});
+
+
+describe('history cache review regressions', () => {
+  test('subagent creation during discovery remains tracked after subsequent edits', async (t) => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    const original = fsp.readdir;
+    try {
+      const id = await fixture.add('claude', 40);
+      const dir = path.join(fixture.file(id)!.replace(/\.jsonl$/, ''), 'subagents');
+      await mkdir(dir, { recursive: true });
+      let injected = false;
+      t.mock.method(fsp, 'readdir', async (...args: Parameters<typeof original>) => {
+        const listed = await Reflect.apply(original, fsp, args);
+        if (!injected && String(args[0]) === dir && typeof args[1] === 'object' && args[1]?.withFileTypes) {
+          injected = true;
+          await fixture.subagent(id, 'child-before');
+        }
+        return listed;
+      });
+      await fixture.read(id, null);
+      t.mock.restoreAll();
+      await fixture.subagent(id, 'child-after');
+      assert.equal(injected, true);
+      assert.deepEqual(await fixture.read(id, null), await fixture.readDirect(id, null));
+    } finally { t.mock.restoreAll(); await fixture.close(); }
+  });
+
+  test('transient subagent directory errors do not cache incomplete history', async (t) => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    const original = fsp.readdir;
+    try {
+      const id = await fixture.add('claude', 40);
+      await fixture.subagent(id, 'must-not-disappear');
+      const dir = path.join(fixture.file(id)!.replace(/\.jsonl$/, ''), 'subagents');
+      let failed = false;
+      t.mock.method(fsp, 'readdir', async (...args: Parameters<typeof original>) => {
+        if (!failed && String(args[0]) === dir && !args[1]) {
+          failed = true;
+          throw Object.assign(new Error('synthetic directory read failure'), { code: 'EIO' });
+        }
+        return Reflect.apply(original, fsp, args);
+      });
+      await fixture.read(id, null);
+      t.mock.restoreAll();
+      assert.equal(failed, true);
+      assert.deepEqual(await fixture.read(id, null), await fixture.readDirect(id, null));
+    } finally { t.mock.restoreAll(); await fixture.close(); }
+  });
+
+  test('an older identity cannot repopulate the cache after the newer request finishes', async () => {
+    const cache = createSessionHistoryCache();
+    const source: HistorySourceRevision = { scope: 'review', revision: '1', sourceBytes: 0, sources: [] };
+    const full: FetchHistoryResult = { messages: [], total: 0, hasMore: false, offset: 0, limit: null };
+    let release!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const entered = new Promise<void>((resolve) => { started = resolve; });
+    const older = cache.getFullHistory({
+      sessionId: 'review-overlap', identity: 'old', getRevision: async () => source,
+      loadFull: async () => { started(); await gate; return full; },
+    });
+    await entered;
+    let newerLoads = 0;
+    const newerArgs = {
+      sessionId: 'review-overlap', identity: 'new', getRevision: async () => source,
+      loadFull: async () => { newerLoads++; return full; },
+    };
+    try {
+      await cache.getFullHistory(newerArgs);
+      release();
+      await older;
+      await cache.getFullHistory(newerArgs);
+      assert.equal(newerLoads, 1, 'the completed newer cache entry must survive the older request');
+    } finally { release(); await older; cache.clear(); }
+  });
+
+  test('identity bookkeeping is released after uncacheable requests', async (t) => {
+    const cache = createSessionHistoryCache({ maxEntries: 1 });
+    const original = Map.prototype.set;
+    const tracked = new Set<Map<unknown, unknown>>();
+    t.mock.method(Map.prototype, 'set', function(this: Map<unknown, unknown>, key: unknown, value: unknown) {
+      if (value === 'review-identity' || (value as { identity?: string })?.identity === 'review-identity') tracked.add(this);
+      return original.call(this, key, value);
+    });
+    try {
+      for (let i = 0; i < 100; i++) await cache.getFullHistory({
+        sessionId: `review-${i}`, identity: 'review-identity',
+        getRevision: async () => null,
+        loadFull: async () => { throw new Error('must not load'); },
+      });
+      assert.ok(tracked.size > 0);
+      assert.equal([...tracked].reduce((sum, map) => sum + map.size, 0), 0);
+    } finally { t.mock.restoreAll(); cache.clear(); }
   });
 });

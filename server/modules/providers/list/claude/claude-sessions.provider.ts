@@ -431,7 +431,10 @@ async function getSessionMessages(
     // Forked agents write to a `subagents/` directory named after the parent
     // transcript, which does not exist until one has run.
     const subagentDir = path.join(jsonLPath.replace(/\.jsonl$/, ''), 'subagents');
-    const agentFiles = await fsp.readdir(subagentDir).catch(() => [] as string[]);
+    const agentFiles = await fsp.readdir(subagentDir).catch((error: NodeJS.ErrnoException) => {
+      if (requireCompleteRead && error.code !== 'ENOENT') throw error;
+      return [] as string[];
+    });
 
     const messages: AnyRecord[] = [];
     const agentToolsCache = new Map<string, AnyRecord[]>();
@@ -813,6 +816,9 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       { path: transcriptPath, kind: 'file', requireTrailingNewline: true },
       { path: subagentDir, kind: 'directory', optional: true },
     ];
+    // Bracket discovery so a new child cannot be paired with an older file list.
+    const beforeDiscovery = await captureHistorySourceRevision(scope, targets);
+    if (!beforeDiscovery) return null;
     try {
       const entries = await fsp.readdir(subagentDir, { withFileTypes: true });
       for (const entry of entries) {
@@ -835,7 +841,9 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       }
     }
 
-    return captureHistorySourceRevision(scope, targets);
+    const discovered = await captureHistorySourceRevision(scope, targets);
+    if (!discovered || !await isHistorySourceRevisionCurrent(beforeDiscovery)) return null;
+    return discovered;
   }
 
   /**
