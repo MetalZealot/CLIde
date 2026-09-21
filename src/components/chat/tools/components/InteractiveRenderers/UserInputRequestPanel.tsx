@@ -5,11 +5,11 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import type { Question } from '../../../types/types';
 import type { PermissionPanelProps } from '../../configs/permissionPanelRegistry';
 
+import QuestionPanelFrame from './QuestionPanelFrame';
 import { adaptUserInputAnswers } from './user-input-request.adapter';
 
 type NormalizedQuestion = Question & {
@@ -77,7 +77,6 @@ export const UserInputRequestPanel: React.FC<PermissionPanelProps> = ({
 }) => {
   const questions = useMemo(() => normalizeQuestions(request), [request]);
   const [currentStep, setCurrentStep] = useState(0);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [selections, setSelections] = useState<Map<string, Set<string>>>(() => new Map());
   const [freeText, setFreeText] = useState<Map<string, string>>(() => new Map());
   const [otherActive, setOtherActive] = useState<Set<string>>(() => new Set());
@@ -234,48 +233,53 @@ export const UserInputRequestPanel: React.FC<PermissionPanelProps> = ({
       onKeyDown={handleKeyDown}
       className="w-full outline-none"
     >
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-background shadow-lg">
-        <button
-          type="button"
-          aria-expanded={!isCollapsed}
-          aria-label={isCollapsed ? undefined : 'Collapse question'}
-          onClick={() => setIsCollapsed((collapsed) => !collapsed)}
-          onKeyDown={(event) => event.stopPropagation()}
-          className={isCollapsed
-            ? 'flex min-h-11 w-full touch-manipulation items-center justify-between gap-3 px-4 text-left text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:hidden'
-            : 'absolute right-0 top-0 z-10 flex h-11 w-11 touch-manipulation items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:hidden'}
-        >
-          {isCollapsed ? (
-            <>
-              <span className="truncate text-xs font-medium text-foreground">
-                {providerName} question waiting
+      <QuestionPanelFrame
+        waitingLabel={`${providerName} question waiting`}
+        heading={<>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {providerName} needs your input
+          </span>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            {remainingMs !== null && (
+              <span aria-live="polite">
+                {remainingMs > 0 ? `Skips in ${Math.ceil(remainingMs / 1000)}s` : 'Resolving…'}
               </span>
-              <span className="flex shrink-0 items-center gap-1 text-xs">
-                Show question
-                <ChevronDown className="h-4 w-4" aria-hidden="true" />
-              </span>
-            </>
-          ) : (
-            <ChevronUp className="h-5 w-5" aria-hidden="true" />
-          )}
-        </button>
-
-        <div className={`${isCollapsed ? 'hidden sm:block' : ''} border-b border-border px-4 py-3`}>
-          <div className="flex items-center justify-between gap-2 pr-8 sm:pr-0">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {providerName} needs your input
-            </span>
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              {remainingMs !== null && (
-                <span aria-live="polite">
-                  {remainingMs > 0 ? `Skips in ${Math.ceil(remainingMs / 1000)}s` : 'Resolving…'}
-                </span>
-              )}
-              {questions.length > 1 && (
-                <span>{currentStep + 1}/{questions.length}</span>
-              )}
-            </div>
+            )}
+            {questions.length > 1 && (
+              <span>{currentStep + 1}/{questions.length}</span>
+            )}
           </div>
+        </>}
+        actions={<>
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            {questions.length === 1 ? 'Skip' : 'Skip all'} <span className="text-[9px]">Esc</span>
+          </button>
+          <div className="flex gap-2">
+            {currentStep > 0 && (
+              <button
+                type="button"
+                onClick={() => setCurrentStep((step) => step - 1)}
+                className="rounded-md px-3 py-1.5 text-[11px] font-medium text-foreground hover:bg-muted"
+              >
+                Back
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={isLast ? handleSubmit : () => setCurrentStep((step) => step + 1)}
+              disabled={isLast && !canSubmit}
+              className="rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isLast ? 'Submit' : 'Next'}
+            </button>
+          </div>
+        </>}
+      >
+        <div className="border-b border-border px-4 py-3">
           <div className="mt-1 flex items-center gap-2">
             {q.header && (
               <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
@@ -290,7 +294,7 @@ export const UserInputRequestPanel: React.FC<PermissionPanelProps> = ({
         </div>
 
         <div
-          className={`${isCollapsed ? 'hidden sm:block' : ''} max-h-56 space-y-1 overflow-y-auto px-4 py-3`}
+          className="space-y-1 px-4 py-3"
           role={q.multiSelect ? 'group' : 'radiogroup'}
           aria-label={q.question}
         >
@@ -368,36 +372,7 @@ export const UserInputRequestPanel: React.FC<PermissionPanelProps> = ({
             />
           )}
         </div>
-
-        <div className={`${isCollapsed ? 'hidden sm:flex' : 'flex'} items-center justify-between border-t border-border bg-muted/30 px-4 py-2`}>
-          <button
-            type="button"
-            onClick={handleSkip}
-            className="text-[11px] text-muted-foreground hover:text-foreground"
-          >
-            {questions.length === 1 ? 'Skip' : 'Skip all'} <span className="text-[9px]">Esc</span>
-          </button>
-          <div className="flex gap-2">
-            {currentStep > 0 && (
-              <button
-                type="button"
-                onClick={() => setCurrentStep((step) => step - 1)}
-                className="rounded-md px-3 py-1.5 text-[11px] font-medium text-foreground hover:bg-muted"
-              >
-                Back
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={isLast ? handleSubmit : () => setCurrentStep((step) => step + 1)}
-              disabled={isLast && !canSubmit}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {isLast ? 'Submit' : 'Next'}
-            </button>
-          </div>
-        </div>
-      </div>
+      </QuestionPanelFrame>
     </div>
   );
 };

@@ -11,6 +11,8 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [x] **Collapsible asynchronous questions. Fork UI.** Async and blocking questions share a bounded, collapsible frame; async Send now / Queue delivery stays separate. [Rule](maps/orientation.md#14-nothing-has-a-published-place-around-the-composer). No upstream PR proposed.
+
 - [x] **Phase-4 stable history bookmarks. Fork contract.** CLIde pages and refreshes against session-scoped snapshot bookmarks. Inspected upstream `5e73a49b` uses serialized offset requests with a bounded overlap/reconciliation retry; this is a different contract, not a claim that upstream lacks mitigation. No PR proposed. [Details](maps/chat-history-performance.md#phase-4-stable-history-bookmarks).
 - [x] **Phase-3 unchanged-message rendering. Fork adaptation.** Upstream snapshot `5e73a49b` already includes projection reuse and memoized Markdown. CLIde adds complete refreshed-record comparison and stable tool groups around its existing store/pane contracts; no separate upstream PR proposed. [Evidence](maps/chat-history-performance.md#phase-3-unchanged-message-rendering).
 

@@ -11,6 +11,8 @@ main checkout only).
 
 ## Operations
 
+- [~] **Share the collapsible Question frame with asynchronous questions.** Bound long content, preserve answers, and retain Send now / Queue. [Rule](maps/orientation.md). **S**
+
 - [~] **Builds identify the source and dependency state that produced them.** Dependency installs and client/server builds emit ignored whole-artifact release markers for host tooling; live deployment proof remains. **S**
 
 ## Provider maintenance

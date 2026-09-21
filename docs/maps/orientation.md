@@ -224,6 +224,9 @@ the whole session, and whether it is waiting on you.
 above the composer is the scarcest space on a phone, so it earns an item only when that
 item needs you now — or, for queued messages, when it is about to send and you are
 likely to change it first, and then as one row.
+Questions share a collapsible frame: on a phone, collapse keeps the answer intact and
+frees the conversation for scrolling. Expanded questions take at most half the
+available screen height; their content scrolls inside while the controls stay visible.
 
 **What breaks:** copying a desktop tool's layout fills that strip with cards that all
 compete while you type, and each new feature adds one more.

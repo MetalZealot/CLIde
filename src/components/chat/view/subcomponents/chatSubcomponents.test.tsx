@@ -19,6 +19,7 @@ import { PROMPT_INPUT_TEXT_LAYOUT, PromptInputTextarea } from '../../../../share
 import { QuestionAnswerContent } from '../../tools/components/ContentRenderers/QuestionAnswerContent';
 import { adaptUserInputAnswers } from '../../tools/components/InteractiveRenderers/user-input-request.adapter';
 import { UserInputRequestPanel } from '../../tools/components/InteractiveRenderers/UserInputRequestPanel';
+import { asyncQuestionDraftKey } from '../../utils/asyncQuestionState';
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
@@ -529,6 +530,66 @@ describe('chatSubcomponents', () => {
       assert.match(markup, />Queue</);
       assert.match(markup, />Send now</);
       assert.match(markup, /2 remaining/);
+    });
+
+    test('async questions collapse without submitting and preserve the answer and delivery actions', async () => {
+      const questionI18n = i18next.createInstance();
+      await questionI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const calls: Array<[string, string]> = [];
+      const render = (isSending = false, error: string | null = null) => root.render(
+        <I18nextProvider i18n={questionI18n} defaultNS="chat">
+          <AsyncQuestionPanel sessionId="collapse-test" question={{
+            id: 'collapse-question', messageId: 'collapse-message',
+            question: 'A long question. '.repeat(80), options: ['Staging', 'Production'],
+          }} pendingCount={2} isProcessing isSending={isSending} error={error}
+          onSubmit={(answer, delivery) => { calls.push([answer, delivery]); return true; }} />
+        </I18nextProvider>,
+      );
+      try {
+        await React.act(async () => render());
+        const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Collapse question"]');
+        assert.ok(toggle, 'async questions need the shared collapse control');
+        const production = container.querySelector<HTMLInputElement>('input[value="Production"]')!;
+        await React.act(async () => production.click());
+        await React.act(async () => toggle.click());
+        assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+        assert.match(toggle.textContent ?? '', /Question waiting/);
+        assert.deepEqual(calls, []);
+        await React.act(async () => toggle.click());
+        assert.equal(production.checked, true);
+        const action = (label: string) => Array.from(container.querySelectorAll('button'))
+          .find((button) => button.textContent?.trim() === label)!;
+        await React.act(async () => action('Queue').click());
+        await React.act(async () => action('Send now').click());
+        assert.deepEqual(calls, [['Production', 'queue'], ['Production', 'send']]);
+        await React.act(async () => render(true));
+        assert.equal(action('Queue').disabled, true);
+        assert.equal(action('Sending…').disabled, true);
+        await React.act(async () => toggle.click());
+        await React.act(async () => render(false, 'Could not confirm answer delivery.'));
+        assert.match(container.textContent ?? '', /Could not confirm answer delivery/);
+        assert.match(toggle.textContent ?? '', /Answer needs attention/);
+        await React.act(async () => toggle.click());
+        assert.equal(production.checked, true);
+        const other = container.querySelector<HTMLInputElement>('input[type="text"]')!;
+        await React.act(async () => {
+          other.focus();
+          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(other, 'A custom answer');
+          other.dispatchEvent(new window.Event('input', { bubbles: true }));
+        });
+        await React.act(async () => toggle.click());
+        await React.act(async () => toggle.click());
+        assert.equal(other.value, 'A custom answer');
+        await React.act(async () => action('Send now').click());
+        assert.deepEqual(calls.at(-1), ['A custom answer', 'send']);
+      } finally {
+        await React.act(async () => root.unmount());
+        window.localStorage.removeItem(asyncQuestionDraftKey('collapse-test', 'collapse-question'));
+        container.remove();
+      }
     });
 
     test('queues typed messages and answers in one row, with the next one editable in place', async () => {
