@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
-- Status: 5/6
-- Next: phase 1's Codex half, which needs a live Codex limit stop
+- Status: 6/6
+- Next: none — a live limit stop on either provider after these fixes is the remaining check
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -42,18 +42,15 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       bankable ones as `rateLimitResetCredits`, which CLIde already reads. The
       trigger has to be "usage is available again", not "the predicted instant
       arrived"
-- [~] 1. A limit stop draws one row, identical live and after a reload, and the
-      same shape on Claude and Codex. Claude's pair is diagnosed, observed live
-      2026-09-09: the CLI streams the synthetic row that becomes the muted
-      notice, then the SDK *throws* ``Claude Code returned an error result:
-      `` + that same text, which the runtime's catch re-emits as a red
-      `kind: 'error'` row. Only the notice is a transcript row, so a reload
-      drops the red one. Claude's half is done: the catch drops the wrapper,
-      but only when the notice row actually went out, so an error result
-      nothing announced is never silenced. Codex still shows a pair and its
-      shape is unconfirmed — its synchronizer skips a `task_complete` carrying
-      no agent message, so the second row is not the transcript one and needs a
-      live capture before anything is changed
+- [x] 1. A limit stop draws one row, identical live and after a reload.
+      Claude: the SDK rethrows the streamed notice as a red error; the catch
+      drops the wrapper only when the notice actually went out. Codex, captured
+      live 2026-09-21: the transport's red row plus the transcript row, and the
+      live one carried no `usageLimit` — so the offer never drew and phase 4
+      never armed on Codex. The live row is now classified and gives way to the
+      transcript's copy on refresh; the offer draws on an error row too. Codex's
+      row stays a red error where Claude's is a muted notice. Unit-tested; a
+      live Codex stop has not been re-run since the fix
 - [x] 2. A limit stop offers Auto-Continue in one tap, as a button beneath the
       limit notice itself; tapping it puts the scheduled bubble from the [message
       edit model](message-edit-model.md) directly beneath that. The card above the

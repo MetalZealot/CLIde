@@ -134,6 +134,20 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
     !message.isThinking &&
     !message.isCompactSummary;
 
+  // Claude's limit stop is a muted notice, Codex's an error row; both carry the offer.
+  const autoContinueOffer = showAutoContinueOffer && onAcceptAutoContinue ? (
+    <div className="mt-1.5 select-none">
+      <button
+        type="button"
+        onClick={onAcceptAutoContinue}
+        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-accent"
+      >
+        <PlayIcon className="h-3 w-3 shrink-0 text-primary" aria-hidden />
+        {t('input.autoContinue.offer', { defaultValue: 'Continue when usage resets' })}
+      </button>
+    </div>
+  ) : null;
+
   if (shouldHideThinkingMessage) {
     return null;
   }
@@ -236,18 +250,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
             <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
             <div className="min-w-0 flex-1">
               <span className="whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">{formattedMessageContent}</span>
-              {showAutoContinueOffer && onAcceptAutoContinue && (
-                <div className="mt-1.5 select-none">
-                  <button
-                    type="button"
-                    onClick={onAcceptAutoContinue}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-accent"
-                  >
-                    <PlayIcon className="h-3 w-3 shrink-0 text-primary" aria-hidden />
-                    {t('input.autoContinue.offer', { defaultValue: 'Continue when usage resets' })}
-                  </button>
-                </div>
-              )}
+              {autoContinueOffer}
             </div>
           </div>
         </div>
@@ -568,6 +571,8 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
                 ))}
               </div>
             )}
+
+            {message.type === 'error' && autoContinueOffer}
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 select-none text-[11px] text-gray-400 dark:text-gray-500">

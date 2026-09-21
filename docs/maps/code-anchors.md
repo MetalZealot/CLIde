@@ -73,8 +73,13 @@ Read from real transcripts and the CLI binary, 2026-09-09 to 2026-09-10.
   "usage_limit_exceeded"`, carried by `codex-sessions.provider.ts`; that object
   holds nothing else. Reset instants arrive on `token_count.rate_limits`
   (`primary` 300 min, `secondary` 10080 min, each `resets_at`). Its
-  `rate_limit_reached_type` was null in all 16,347 samples — schema only. Codex's
-  live duplicate row is a different pair from Claude's and is still unexplained.
+  `rate_limit_reached_type` was null in all 16,347 samples — schema only.
+- **Codex's live row** comes from the transport's `emitError`, and must carry
+  `usageLimit` itself: the run registry arms a standing Auto-Continue only from a
+  live frame. The app-server's `TurnError` names it `codexErrorInfo:
+  "usageLimitExceeded"` (camelCase; schema of codex-cli 0.154.0). The transcript
+  row's id is random per fetch, so `pruneRealtimeSupersededByServer` drops the
+  live row by matching an `error` with the same text in the same turn.
 - `formatUsageLimitText` matches a `Claude AI usage limit reached|<epoch>` form
   found in none of 47 real notices. Dead; delete it rather than build on it.
 - **An early reset cancels the timer named after it**: the provider reports a later

@@ -139,6 +139,16 @@ describe('chatSubcomponents', () => {
     // Every other notice, live or reloaded, stays a plain muted row.
     assert.equal(render({ onAcceptAutoContinue: () => {} }).querySelector('button'), null);
     assert.equal(render({ showAutoContinueOffer: true }).querySelector('button'), null);
+
+    // Codex records its limit stop as an error row, which carries the same offer.
+    const codexStop = document.createElement('div');
+    codexStop.innerHTML = renderToStaticMarkup(
+      <MessageComponent
+        message={{ type: 'error', content: "You've hit your usage limit.", timestamp: notice.timestamp }}
+        prevMessage={null} provider="codex" createDiff={() => []} showThinking={false}
+        showAutoContinueOffer onAcceptAutoContinue={() => {}} />,
+    );
+    assert.equal(codexStop.querySelector('button')?.textContent, 'Continue when usage resets');
   });
 
   test('message timestamps add a day label only once the calendar day has changed', () => {

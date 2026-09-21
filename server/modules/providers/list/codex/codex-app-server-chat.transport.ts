@@ -33,6 +33,7 @@ import type {
   CodexToolRequestUserInputParams,
   CodexToolRequestUserInputResponse,
   CodexTurn,
+  CodexTurnError,
   CodexTurnStartResponse,
   CodexTurnSteerParams,
   CodexTurnSteerResponse,
@@ -1399,7 +1400,7 @@ export class CodexAppServerChatTransport {
 
     const failed = turn?.status === 'failed';
     if (failed && turn.error?.message && !active.errorEmitted) {
-      this.emitError(active, turn.error.message);
+      this.emitError(active, turn.error);
     }
 
     // The websocket gateway emits the abort completion itself immediately
@@ -1445,11 +1446,17 @@ export class CodexAppServerChatTransport {
         : typeof objectMessage === 'string' && objectMessage.trim()
           ? objectMessage
           : JSON.stringify(error);
+    // The live row must carry the same classification the transcript row does,
+    // or the run registry never sees the limit stop and nothing can arm on it.
+    const errorInfo = error && typeof error === 'object'
+      ? (error as Partial<CodexTurnError>).codexErrorInfo
+      : undefined;
     active.writer.send(createNormalizedMessage({
       kind: 'error',
       content: content || 'Codex App Server error',
       sessionId: active.threadId,
       provider: PROVIDER,
+      usageLimit: errorInfo === 'usageLimitExceeded' ? { resumes: true } : undefined,
     }));
   }
 

@@ -104,10 +104,14 @@ export type CodexTurnStartParams = {
 export type CodexTurn = {
   id: string;
   status: 'completed' | 'interrupted' | 'failed' | 'inProgress';
-  error: {
-    message: string;
-    additionalDetails?: string | null;
-  } | null;
+  error: CodexTurnError | null;
+};
+
+/** `codexErrorInfo` is a camelCase string or a one-key object (app-server schema 0.154.0). */
+export type CodexTurnError = {
+  message: string;
+  codexErrorInfo?: string | Record<string, unknown> | null;
+  additionalDetails?: string | null;
 };
 
 export type CodexTurnStartResponse = {

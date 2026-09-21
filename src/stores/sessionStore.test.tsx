@@ -445,6 +445,52 @@ describe('useSessionStore.pagination', () => {
     );
     assert.equal(contents.filter((c) => c === 'five').length, 1, 'no duplicate across the boundary');
   });
+
+  test('a live error row gives way to the same failure once the transcript records it', async () => {
+    await loadFirstPage();
+    const LIMIT = "You've hit your usage limit.";
+    const error = (id: string, seconds: number, content: string): NormalizedMessage => ({
+      ...message(id, content),
+      id,
+      timestamp: new Date(seconds * 1000).toISOString(),
+      role: undefined,
+      kind: 'error',
+    });
+
+    await begin(() => {
+      store.appendRealtime(SESSION_ID, error('live_limit', 4.5, LIMIT));
+      store.appendRealtime(SESSION_ID, error('live_other', 4.6, 'Connection dropped'));
+    });
+    const { pending: refreshing } = await begin(() => store.refreshFromServer(SESSION_ID));
+    await settle();
+    respond({
+      messages: [message('3', 'three'), message('4', 'four'), error('server_limit', 4.7, LIMIT)],
+      total: 5,
+      hasMore: true,
+    });
+    await finish(refreshing);
+
+    assert.deepEqual(
+      store.getMessages(SESSION_ID).filter((m) => m.kind === 'error').map((m) => m.id),
+      ['live_other', 'server_limit'],
+      'one row per failure; an error the transcript never recorded stays',
+    );
+
+    // The same text in a later turn is a new failure, not an echo of the old one.
+    await begin(() => {
+      store.appendRealtime(SESSION_ID, { ...message('6', 'six'), id: 'local_6' });
+      store.appendRealtime(SESSION_ID, error('live_again', 6.5, LIMIT));
+    });
+    const { pending: again } = await begin(() => store.refreshFromServer(SESSION_ID));
+    await settle();
+    respond({
+      messages: [message('3', 'three'), message('4', 'four'), error('server_limit', 4.7, LIMIT)],
+      total: 5,
+      hasMore: true,
+    });
+    await finish(again);
+    assert.ok(store.getMessages(SESSION_ID).some((m) => m.id === 'live_again'));
+  });
 });
 
 describe('sessionMessageReconciliation', () => {

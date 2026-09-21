@@ -1003,6 +1003,7 @@ for await (const line of lines) {
     const errors = writer.messages.filter((message) => message.kind === 'error');
     assert.equal(errors.length, 1);
     assert.equal(errors[0].content, limit);
+    assert.deepEqual(errors[0].usageLimit, { resumes: true }, 'the live row is classified, so a standing Auto-Continue can arm');
     assert.equal(writer.messages.filter((message) => message.kind === 'complete').length, 1);
   } finally {
     await fake.cleanup();

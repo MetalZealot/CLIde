@@ -331,13 +331,14 @@ function findServerTurnRangeByOrdinal(
   return { start, end };
 }
 
-function isAssistantTextEchoedInSameTurnOnServer(
+function isEchoedInSameTurnOnServer(
   message: NormalizedMessage,
   serverMessages: NormalizedMessage[],
   realtimeMessages: NormalizedMessage[],
+  isCounterpart: (serverMessage: NormalizedMessage) => boolean,
 ): boolean {
-  const assistantText = (message.content || '').trim();
-  if (!assistantText) {
+  const text = (message.content || '').trim();
+  if (!text) {
     return false;
   }
 
@@ -350,10 +351,21 @@ function isAssistantTextEchoedInSameTurnOnServer(
   return serverMessages
     .slice(turnRange.start + 1, turnRange.end)
     .some((serverMessage) =>
-      serverMessage.kind === 'text'
-      && serverMessage.role === 'assistant'
-      && (serverMessage.content || '').trim() === assistantText,
+      isCounterpart(serverMessage) && (serverMessage.content || '').trim() === text,
     );
+}
+
+const isServerAssistantText = (message: NormalizedMessage) =>
+  message.kind === 'text' && message.role === 'assistant';
+
+const isServerError = (message: NormalizedMessage) => message.kind === 'error';
+
+function isAssistantTextEchoedInSameTurnOnServer(
+  message: NormalizedMessage,
+  serverMessages: NormalizedMessage[],
+  realtimeMessages: NormalizedMessage[],
+): boolean {
+  return isEchoedInSameTurnOnServer(message, serverMessages, realtimeMessages, isServerAssistantText);
 }
 
 /**
@@ -431,6 +443,11 @@ function pruneRealtimeSupersededByServer(
 
     if (message.kind === 'text' && message.role === 'user') {
       return true;
+    }
+
+    // A failed turn's live error row, once the transcript records the same failure.
+    if (message.kind === 'error') {
+      return !isEchoedInSameTurnOnServer(message, serverMessages, realtimeMessages, isServerError);
     }
 
     if (message.kind === 'tool_use' && message.toolId) {
