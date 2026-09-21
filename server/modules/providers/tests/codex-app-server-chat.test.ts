@@ -23,6 +23,7 @@ import { providerModelsService } from '@/modules/providers/services/provider-mod
 import type {
   PendingInteractiveRequest,
   ProviderNativeRuntimeInstallation,
+  TurnStage,
 } from '@/shared/types.js';
 
 type Writer = {
@@ -1008,6 +1009,64 @@ for await (const line of lines) {
   } finally {
     await fake.cleanup();
   }
+});
+
+test('App Server shows a failure it will retry as a stage, and the final failure as the row', async () => {
+  const run = async (outcome: 'recovers' | 'fails') => {
+    const fake = await createFakeServer(`
+import readline from 'node:readline';
+const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
+const retry = { message: 'stream disconnected before completion', codexErrorInfo: null, additionalDetails: null };
+for await (const line of lines) {
+  const message = JSON.parse(line);
+  if (message.method === 'initialize') send({ id: message.id, result: {} });
+  else if (message.method === 'thread/start') send({ id: message.id, result: {
+    thread: { id: 'thread-1', sessionId: 'thread-1', path: null, cwd: '/tmp' },
+    model: 'gpt-test', cwd: '/tmp', reasoningEffort: null
+  } });
+  else if (message.method === 'turn/start') {
+    send({ id: message.id, result: { turn: { id: 'turn-1', status: 'inProgress', error: null } } });
+    send({ method: 'error', params: { threadId: 'thread-1', turnId: 'turn-1', willRetry: true, error: retry } });
+    send({ method: 'error', params: { threadId: 'thread-1', turnId: 'turn-1', willRetry: true, error: retry } });
+    if (${JSON.stringify(outcome)} === 'recovers') {
+      send({ method: 'item/completed', params: { threadId: 'thread-1', turnId: 'turn-1',
+        item: { type: 'agentMessage', id: 'answer', text: 'done' } } });
+      send({ method: 'turn/completed', params: { threadId: 'thread-1', turn: { id: 'turn-1', status: 'completed', error: null } } });
+    } else {
+      send({ method: 'turn/completed', params: { threadId: 'thread-1',
+        turn: { id: 'turn-1', status: 'failed', error: { message: 'exceeded retry limit' } } } });
+    }
+  }
+}`);
+    const transport = new CodexAppServerChatTransport({ command: fake.command });
+    transports.push(transport);
+    providerModelsService.resolveResumeModel = async () => 'gpt-test';
+    const writer = createWriter();
+    try {
+      await transport.query('flaky network', { cwd: fake.root }, writer);
+      return writer.messages;
+    } finally {
+      await fake.cleanup();
+    }
+  };
+
+  const recovered = await run('recovers');
+  const stageOf = (message: { stage?: unknown }) => message.stage as TurnStage | null | undefined;
+  assert.deepEqual(
+    recovered.filter((message) => message.kind === 'status').map((message) => stageOf(message)?.attempt ?? null),
+    [1, 2, null],
+    'each retry counts, and progress clears the label',
+  );
+  assert.equal(stageOf(recovered.find((message) => message.kind === 'status') ?? {})?.reason, 'stream disconnected before completion');
+  assert.equal(recovered.filter((message) => message.kind === 'error').length, 0, 'a retry that worked leaves no error row');
+
+  const failed = await run('fails');
+  assert.deepEqual(
+    failed.filter((message) => message.kind === 'error').map((message) => message.content),
+    ['exceeded retry limit'],
+    'the error that ended the turn is the one shown',
+  );
 });
 
 test('App Server rejects malformed and unsupported server requests without hanging the turn', async () => {

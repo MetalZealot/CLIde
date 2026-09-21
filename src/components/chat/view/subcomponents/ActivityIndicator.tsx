@@ -140,12 +140,19 @@ export default function ActivityIndicator({ activity }: ActivityIndicatorProps) 
         : stage.name === 'thinking'
           ? t('claudeStatus.stage.thinking', { defaultValue: 'Thinking' })
           : stage.name === 'retrying'
-            ? t('claudeStatus.stage.retrying', {
-              reason: stage.reason || t('claudeStatus.stage.retryReasonFallback', { defaultValue: 'API error' }),
-              attempt: stage.attempt ?? 1,
-              maxAttempts: stage.maxAttempts ?? 1,
-              defaultValue: 'Retrying · {{reason}} · {{attempt}} of {{maxAttempts}}',
-            })
+            // Codex reports no retry budget and a long reason, so the count leads and has no "of N".
+            ? (stage.maxAttempts
+              ? t('claudeStatus.stage.retrying', {
+                reason: stage.reason || t('claudeStatus.stage.retryReasonFallback', { defaultValue: 'API error' }),
+                attempt: stage.attempt ?? 1,
+                maxAttempts: stage.maxAttempts,
+                defaultValue: 'Retrying · {{reason}} · {{attempt}} of {{maxAttempts}}',
+              })
+              : t('claudeStatus.stage.retryingOpenEnded', {
+                reason: stage.reason || t('claudeStatus.stage.retryReasonFallback', { defaultValue: 'API error' }),
+                attempt: stage.attempt ?? 1,
+                defaultValue: 'Retrying · attempt {{attempt}} · {{reason}}',
+              }))
             : t('claudeStatus.stage.compacting', { defaultValue: 'Compacting' });
   const label = renderedActivity
     ? (stageLabel || renderedActivity.statusText || actionWords[messageIndex] || actionWords[0]).replace(/\.+$/, '')

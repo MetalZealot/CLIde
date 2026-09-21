@@ -61,6 +61,7 @@ import type {
   InteractiveRequestResponse,
   NormalizedMessage,
   ProviderNativeRuntimeInstallation,
+  TurnStage,
 } from '@/shared/types.js';
 import {
   createCompleteMessage,
@@ -154,6 +155,8 @@ type ActiveTurn = {
   // App Server reports one failure as an `error` notification and again on
   // `turn/completed`; the chat shows it once.
   errorEmitted: boolean;
+  /** Retries reported since the turn last made progress; 0 when not retrying. */
+  retryAttempt: number;
   fileChanges: Map<string, unknown>;
   userId: string | number | null;
   sessionName: string | null;
@@ -720,6 +723,7 @@ export class CodexAppServerChatTransport {
         terminal: false,
         aborted: false,
         errorEmitted: false,
+        retryAttempt: 0,
         fileChanges: new Map(),
         userId: writer.userId ?? null,
         sessionName: readNonEmptyString(options.sessionSummary),
@@ -1037,6 +1041,12 @@ export class CodexAppServerChatTransport {
 
     const active = this.activeTurns.get(threadId);
 
+    // Any item after a retry means it worked; the indicator drops the retry label.
+    if (active && active.retryAttempt > 0 && method.startsWith('item/')) {
+      active.retryAttempt = 0;
+      this.sendStage(active, null);
+    }
+
     switch (method as CodexNotification['method']) {
       case 'item/started': {
         const item = readObjectRecord(params.item);
@@ -1093,9 +1103,22 @@ export class CodexAppServerChatTransport {
         return;
       }
       case 'error': {
-        if (active && !active.terminal) {
-          this.emitError(active, params.error || params.message || 'Codex App Server error');
+        if (!active || active.terminal) {
+          return;
         }
+        // A failure Codex will retry is progress, not the turn's outcome: it
+        // shows in the indicator, and the final error still gets its row.
+        if (params.willRetry === true) {
+          active.retryAttempt += 1;
+          const retryError = readObjectRecord(params.error);
+          this.sendStage(active, {
+            name: 'retrying',
+            attempt: active.retryAttempt,
+            reason: readNonEmptyString(retryError?.message) || undefined,
+          });
+          return;
+        }
+        this.emitError(active, params.error || params.message || 'Codex App Server error');
         return;
       }
       default:
@@ -1432,6 +1455,16 @@ export class CodexAppServerChatTransport {
       }
     }
     active.resolveDone();
+  }
+
+  private sendStage(active: ActiveTurn, stage: TurnStage | null): void {
+    active.writer.send(createNormalizedMessage({
+      kind: 'status',
+      text: '',
+      stage,
+      sessionId: active.threadId,
+      provider: PROVIDER,
+    }));
   }
 
   private emitError(active: ActiveTurn, error: unknown): void {

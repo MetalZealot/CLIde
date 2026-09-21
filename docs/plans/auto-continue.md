@@ -48,9 +48,9 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       live 2026-09-21: the transport's red row plus the transcript row, and the
       live one carried no `usageLimit` — so the offer never drew and phase 4
       never armed on Codex. The live row is now classified and gives way to the
-      transcript's copy on refresh; the offer draws on an error row too. Codex's
-      row stays a red error where Claude's is a muted notice. Unit-tested; a
-      live Codex stop has not been re-run since the fix
+      transcript's copy on refresh, and draws as the same muted notice as
+      Claude's, offer included. Unit-tested; a live Codex stop has not been
+      re-run since the fix
 - [x] 2. A limit stop offers Auto-Continue in one tap, as a button beneath the
       limit notice itself; tapping it puts the scheduled bubble from the [message
       edit model](message-edit-model.md) directly beneath that. The card above the

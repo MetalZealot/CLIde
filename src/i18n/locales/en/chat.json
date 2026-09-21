@@ -382,6 +382,7 @@
       "sent": "Sent",
       "thinking": "Thinking",
       "retrying": "Retrying · {{reason}} · {{attempt}} of {{maxAttempts}}",
+      "retryingOpenEnded": "Retrying · attempt {{attempt}} · {{reason}}",
       "retryReasonFallback": "API error",
       "compacting": "Compacting"
     }

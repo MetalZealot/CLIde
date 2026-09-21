@@ -80,6 +80,13 @@ Read from real transcripts and the CLI binary, 2026-09-09 to 2026-09-10.
   "usageLimitExceeded"` (camelCase; schema of codex-cli 0.154.0). The transcript
   row's id is random per fetch, so `pruneRealtimeSupersededByServer` drops the
   live row by matching an `error` with the same text in the same turn.
+- **A Codex failure it will retry** (`error` notification, `willRetry: true`) is
+  a `retrying` stage in the activity indicator, never a row; only the failure
+  that ends the turn draws one. Codex sends no retry budget, so the label reads
+  "attempt N" without "of N".
+- **Any error row carrying `usageLimit` draws as the muted notice**, the same
+  as Claude's, so the limit stop looks alike on every provider that classifies
+  one. Cursor and OpenCode classify none yet; each needs a captured stop.
 - `formatUsageLimitText` matches a `Claude AI usage limit reached|<epoch>` form
   found in none of 47 real notices. Dead; delete it rather than build on it.
 - **An early reset cancels the timer named after it**: the provider reports a later
