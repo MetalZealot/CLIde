@@ -10,6 +10,12 @@
 Claude and Codex only. Cursor and OpenCode ride the same seam afterwards
 without redesign — see "Not doing".
 
+**Names.** An **activity** is one burst of tool calls; its collapsed row is an
+**activity row**, which follows the standard *disclosure* pattern (a header that
+shows or hides content). On mobile it opens a **bottom sheet**: a panel rising
+from the screen's bottom edge, sized by dragging its **grabber** between fixed
+heights called **detents**.
+
 A burst of tool calls collapses to one row carrying counts, duration, and a
 failure indicator; expanding gives one compact line per operation; expanding
 that gives today's full tool card. The summary is derived from the operations,
@@ -34,11 +40,16 @@ things on the two providers and Codex's reasoning summaries are empty.
   (`6 files · 3 commands · 2 edits`), duration, and an error or denial
   indicator that survives collapse; the current operation while running, using
   Claude's per-command description where it exists and the command itself where
-  it does not. Same row on mobile and desktop, denser on mobile.
+  it does not. Same row on mobile and desktop, denser on mobile. A closed
+  activity mounts only its row: operations are built on open and kept until it
+  closes, so long sessions draw a fraction of today's rows (history plan, phase 7).
 - [ ] 4. **Expanding gives compact operation rows, not nested cards.** One
   line per operation — verb, target, status. Inline on desktop, a bottom sheet
   on mobile; raw output opens the level below rather than rendering in place
-  ([ADR 0046](../decisions/0046-tool-detail-leaves-the-chat-column.md)).
+  ([ADR 0046](../decisions/0046-tool-detail-leaves-the-chat-column.md)). The
+  sheet, like the Claude and ChatGPT phone apps: drag the grabber between a
+  half-height and a full-height detent, swipe down to dismiss. No shared sheet
+  with dragging exists yet; agree its end state on the phone before building.
 - [ ] 5. **Raw detail owns the viewport on mobile.** An operation row opens the
   existing `ToolRenderer` inline on desktop, and the full-screen code-editor
   overlay on mobile, which already handles safe areas and highlighting. Back
@@ -56,6 +67,9 @@ things on the two providers and Codex's reasoning summaries are empty.
   sideways without wrapping; closing it lands back on the operation list.
 - A failed or denied command inside an otherwise successful burst is visible
   without expanding anything.
+- A closed activity adds one row to the page, and opening it shows its
+  operations with no loading state.
+- On a phone, the sheet resizes by its grabber and dismisses with a swipe down.
 - The same burst on Claude and on Codex renders the same row shape, differing
   only where Claude has a description and Codex does not.
 - A Codex command that takes 30 seconds is visible while it runs.
