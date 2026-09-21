@@ -51,7 +51,7 @@ import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessagesRow from './QueuedMessagesRow';
 import ScheduleSendMenu from './ScheduleSendMenu';
 import RewindEditCard from './RewindEditCard';
-import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
+import ComposerAddMenu from './ComposerAddMenu';
 import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
 
@@ -599,9 +599,11 @@ export default function ChatComposer({
 
         <PromptInputFooter>
           <PromptInputTools className="min-w-0 flex-1 overflow-hidden">
-            <NativeImageAttachmentPicker
+            <ComposerAddMenu
               getInputProps={getInputProps}
-              label={t('input.attachFiles')}
+              attachLabel={t('input.attachFiles')}
+              canSchedule={canScheduleCurrentInput}
+              onSchedule={() => setIsScheduleMenuOpen(true)}
             />
 
             <ComposerModelMenu

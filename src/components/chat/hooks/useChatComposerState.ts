@@ -982,7 +982,7 @@ export function useChatComposerState({
   );
 
   // No `open` here on purpose: the picker is opened by a real tap on the native
-  // input in NativeImageAttachmentPicker. Android standalone PWAs drop the
+  // input in ComposerAddMenu. Android standalone PWAs drop the
   // result of a JS-driven `open()`.
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     maxSize: MAX_ATTACHMENT_SIZE,

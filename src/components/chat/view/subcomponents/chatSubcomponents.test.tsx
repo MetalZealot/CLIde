@@ -51,7 +51,7 @@ import FollowUpQuestions from './FollowUpQuestions';
 import AsyncQuestionPanel from './AsyncQuestionPanel';
 import QueuedMessagesRow from './QueuedMessagesRow';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
-import NativeImageAttachmentPicker from './NativeImageAttachmentPicker';
+import ComposerAddMenu from './ComposerAddMenu';
 import TokenUsageSummary from './TokenUsageSummary';
 
 describe('chatSubcomponents', () => {
@@ -2020,34 +2020,62 @@ describe('chatSubcomponents', () => {
     });
   });
 
-  describe('NativeImageAttachmentPicker', () => {
-    test('renders the real file input over the visible attachment control', () => {
+  describe('ComposerAddMenu', () => {
+    test('keeps the real file input under the tap and schedules only typed text', async () => {
       let requestedProps: Record<string, unknown> | undefined;
-      const html = renderToStaticMarkup(
-        React.createElement(NativeImageAttachmentPicker, {
-          label: 'Attach images',
+      let scheduled = 0;
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const render = (canSchedule: boolean) => root.render(
+        React.createElement(ComposerAddMenu, {
+          attachLabel: 'Attach files',
+          canSchedule,
+          onSchedule: () => { scheduled += 1; },
           getInputProps: (props: unknown) => {
             requestedProps = props as Record<string, unknown>;
-            return { ...requestedProps, accept: 'image/*', multiple: true, type: 'file' };
+            return { ...requestedProps, multiple: true, type: 'file' };
           },
         }),
       );
 
-      assert.equal(requestedProps?.['aria-label'], 'Attach images');
-      assert.equal(requestedProps?.tabIndex, 0);
-      assert.deepEqual(requestedProps?.style, {
-        position: 'absolute',
-        inset: 0,
-        width: '100%',
-        height: '100%',
-        opacity: 0,
-        cursor: 'pointer',
-      });
-      assert.match(html, /<input[^>]+type="file"/);
-      assert.match(html, /<input[^>]+aria-label="Attach images"/);
-      assert.doesNotMatch(html, /<button/);
-      assert.match(html, /lucide-plus/);
-      assert.doesNotMatch(html, /lucide-paperclip/);
+      try {
+        await React.act(async () => render(false));
+        assert.equal(requestedProps?.['aria-label'], 'Attach files');
+        assert.equal(requestedProps?.tabIndex, 0);
+        assert.deepEqual(requestedProps?.style, {
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          opacity: 0,
+          cursor: 'pointer',
+        });
+        // Mounted while closed, so a picker it opened can still deliver its result.
+        const input = document.body.querySelector<HTMLInputElement>('input[type="file"][aria-label="Attach files"]');
+        assert.ok(input);
+        const surface = document.body.querySelector('[role="menu"]');
+        assert.match(surface?.className ?? '', /\bhidden\b/);
+
+        const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
+        assert.ok(trigger);
+        assert.match(trigger.innerHTML, /lucide-plus/);
+        await React.act(async () => trigger.click());
+        assert.doesNotMatch(surface?.className ?? '', /\bhidden\b/);
+
+        const scheduleItem = () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+          .find((item) => /Schedule message/.test(item.textContent ?? ''));
+        assert.equal(scheduleItem()?.disabled, true);
+        assert.match(scheduleItem()?.textContent ?? '', /Type a message first/);
+
+        await React.act(async () => render(true));
+        await React.act(async () => scheduleItem()?.click());
+        assert.equal(scheduled, 1);
+        assert.match(surface?.className ?? '', /\bhidden\b/);
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+      }
     });
   });
 
