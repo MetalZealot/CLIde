@@ -695,8 +695,8 @@ export default function ChatComposer({
               {showStop ? (
                 // Armed, the pill grows left over its neighbours instead of reflowing the row.
                 <span
-                  className={`absolute -inset-y-px -right-px z-10 flex items-center rounded-lg border pr-[9px] text-sm font-medium transition-colors ${
-                    isStopArmed ? 'border-foreground bg-foreground pl-3 text-background' : 'border-transparent pl-[9px]'
+                  className={`absolute -inset-y-px -right-px z-10 flex items-center rounded-lg border pr-2 text-sm font-medium transition-colors ${
+                    isStopArmed ? 'border-foreground bg-foreground pl-3 text-background' : 'border-transparent pl-2'
                   }`}
                 >
                   <span
