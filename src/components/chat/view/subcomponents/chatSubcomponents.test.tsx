@@ -22,7 +22,7 @@ import { UserInputRequestPanel } from '../../tools/components/InteractiveRendere
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
-import { formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
+import { formatClockTime, formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
 import {
   DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
   DEFAULT_THINKING_MESSAGE_ORDER,
@@ -162,10 +162,13 @@ describe('chatSubcomponents', () => {
       assert.equal(formatMessageTimestamp(at(11, 31, 21, 2025), now), 'Dec 31, 2025, 21:05');
       // Midnight is 00:05 on a 24-hour clock, never 24:05.
       assert.equal(formatMessageTimestamp(at(8, 17, 0), now), '00:05');
+      // A preview of the cycle you are about to pick ignores the stored one.
+      assert.equal(formatClockTime(at(8, 17, 17), { format: '12h' }), '5:05 PM');
     } finally {
       setClockFormat('12h');
     }
     assert.equal(formatMessageTimestamp(at(8, 17, 7), now), '7:05 AM');
+    assert.equal(formatClockTime(at(8, 17, 17), { format: '24h' }), '17:05');
   });
 
   describe('activity messages', () => {

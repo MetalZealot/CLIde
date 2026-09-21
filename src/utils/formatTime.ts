@@ -44,8 +44,8 @@ export function useClockFormat(): ClockFormat {
 }
 
 /** `hour12` and `hourCycle` conflict, so a caller picks one or the other. */
-export const clockCycleOptions = (): Intl.DateTimeFormatOptions =>
-  (clockFormat === '24h' ? { hourCycle: 'h23' } : { hour12: true });
+export const clockCycleOptions = (format: ClockFormat = clockFormat): Intl.DateTimeFormatOptions =>
+  (format === '24h' ? { hourCycle: 'h23' } : { hour12: true });
 
 type TimeInput = Date | number | string;
 
@@ -54,15 +54,21 @@ function toDate(value: TimeInput): Date | null {
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
-/** "9:05 PM" or "21:05", with seconds when the caller needs them. */
-export function formatClockTime(value: TimeInput, options: { withSeconds?: boolean } = {}): string {
+/**
+ * "9:05 PM" or "21:05", with seconds when the caller needs them. `format`
+ * overrides the stored setting, for a preview of a cycle not yet applied.
+ */
+export function formatClockTime(
+  value: TimeInput,
+  options: { withSeconds?: boolean; format?: ClockFormat } = {},
+): string {
   const date = toDate(value);
   if (!date) return '';
   return date.toLocaleTimeString(CLOCK_LOCALE, {
     hour: 'numeric',
     minute: '2-digit',
     ...(options.withSeconds ? { second: '2-digit' as const } : {}),
-    ...clockCycleOptions(),
+    ...clockCycleOptions(options.format),
   });
 }
 

@@ -208,7 +208,7 @@ export default function AppearanceScreen({
             ]}
           />
           <p className="mt-2 text-sm tabular-nums text-muted-foreground">
-            {formatClockTime(clockPreviewTime)}
+            {formatClockTime(clockPreviewTime, { format: clockFormat })}
           </p>
         </SettingsRow>
       </SettingsGroup>

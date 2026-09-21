@@ -299,6 +299,7 @@ export function AppearancePreferencesProvider({ children }: { children: React.Re
 
   const setClockFormat = useCallback((clockFormat: ClockFormat) => {
     if (!isClockFormat(clockFormat)) return;
+    applyClockFormat(clockFormat);
     setPreferences((current) => current.clockFormat === clockFormat
       ? current
       : { ...current, clockFormat });
