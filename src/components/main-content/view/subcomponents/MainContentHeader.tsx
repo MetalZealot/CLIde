@@ -11,7 +11,7 @@ import MainContentHeaderMenu from './MainContentHeaderMenu';
 /** Where the visible view may portal a control, left of the header menu. */
 export function HeaderAccessorySlot() {
   const setAccessorySlot = useSetHeaderAccessorySlot();
-  return <div ref={setAccessorySlot ?? undefined} className="flex items-center empty:hidden [&:last-child]:-mr-2" />;
+  return <div ref={setAccessorySlot ?? undefined} className="flex items-center empty:hidden" />;
 }
 
 export default function MainContentHeader({
@@ -84,8 +84,7 @@ export default function MainContentHeader({
               )}
             </div>
           )}
-          {/* Whichever control is last pulls into the bar's padding by the same amount. */}
-          <div className="flex flex-shrink-0 items-center [&>*:last-child]:-mr-2">
+          <div className="flex flex-shrink-0 items-center">
             <HeaderAccessorySlot />
             <MainContentHeaderMenu />
           </div>
