@@ -1079,6 +1079,39 @@ test('history performance target: appending one row preserves unchanged display 
   assert.equal(first.filter((message, index) => message !== next[index]).length, historyBudgets.unchangedRowsRecreated);
 });
 
+test('a cancelled full-history load cannot mark a partial window complete for Find', async () => {
+  const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
+  const messages = clientHistory(200);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{}', { status: 200 });
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  const slot = { hasMore: true, status: 'idle' };
+  const store = {
+    getMessages: () => messages, getSessionSlot: () => slot, setActiveSession: () => undefined,
+    isStale: () => false, fetchSessionSettings: () => undefined,
+    fetchFromServer: async () => slot,
+  } as unknown as SessionStore;
+  const args: Parameters<typeof useChatSessionState>[0] = {
+    selectedProject: { projectId: 'p', displayName: 'fixture', fullPath: '/tmp', path: '/tmp' },
+    selectedSession: { id: 'fixture-client', __provider: 'claude' },
+    ws: null, sendMessage: () => true, resetStreamingState: () => undefined,
+    statusCheckSentAtRef: { current: new Map() }, getReplayProgress: () => null, sessionStore: store,
+  };
+  let state!: ReturnType<typeof useChatSessionState>;
+  function Harness() { state = useChatSessionState(args); return null; }
+  try {
+    await React.act(async () => root.render(React.createElement(Harness)));
+    await React.act(async () => assert.equal(await state.loadAllMessages(), null));
+    assert.equal(state.visibleMessages.length, 100);
+  } finally {
+    await React.act(async () => root.unmount());
+    host.remove();
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('history performance target: Find keeps the rendered window bounded', {
   todo: process.env.CLIDE_HISTORY_PERF_STRICT === '1' ? false : 'history plan phases 6–7',
 }, async () => {

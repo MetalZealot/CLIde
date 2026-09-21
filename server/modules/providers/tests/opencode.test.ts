@@ -15,6 +15,7 @@ import {
 } from '@/modules/providers/list/opencode/opencode-models.provider.js';
 import { OpenCodeSessionSynchronizer } from '@/modules/providers/list/opencode/opencode-session-synchronizer.provider.js';
 import { OpenCodeSessionsProvider } from '@/modules/providers/list/opencode/opencode-sessions.provider.js';
+import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { appendImagesInputTag } from '@/shared/image-attachments.js';
 
 describe('opencode-models', () => {
@@ -519,6 +520,37 @@ describe('opencode-sessions', () => {
     }, null);
 
     assert.deepEqual(userEcho, []);
+  });
+
+
+  test('OpenCode service bookmarks survive SQLite appends and equal timestamps', { concurrency: false }, async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-bookmarks-'));
+    const restoreHome = patchHomeDir(tempRoot);
+    try {
+      await createOpenCodeDatabase(tempRoot, tempRoot);
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createAppSession('opencode-app', 'opencode', tempRoot);
+        sessionsDb.assignProviderSessionId('opencode-app', 'open-session-1');
+        const file = path.join(tempRoot, '.local/share/opencode/opencode.db');
+        const db = new Database(file);
+        try {
+          db.exec('UPDATE part SET time_created = 1000; UPDATE message SET time_created = 1000');
+          const reference = await sessionsService.fetchHistory('opencode-app');
+          let page = await sessionsService.fetchHistory('opencode-app', { limit: 2 });
+          let walked = page.messages;
+          db.prepare('INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)')
+            .run('zz-appended', 'open-session-1', 2000, 2000, JSON.stringify({ role: 'assistant' }));
+          db.prepare('INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?, ?)')
+            .run('zz-part', 'zz-appended', 'open-session-1', 2000, 2000, JSON.stringify({ type: 'text', text: 'append' }));
+          while (page.nextCursor) {
+            page = await sessionsService.fetchHistory('opencode-app', { limit: 2, before: page.nextCursor });
+            walked = [...page.messages, ...walked];
+          }
+          assert.deepEqual(walked, reference.messages);
+          assert.ok(walked.every(m => m.sessionId === 'opencode-app'));
+        } finally { db.close(); }
+      });
+    } finally { restoreHome(); await rm(tempRoot, { recursive: true, force: true }); }
   });
 
   test('OpenCode sessions provider reads sqlite history and token usage', { concurrency: false }, async () => {

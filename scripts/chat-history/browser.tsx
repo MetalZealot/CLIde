@@ -101,12 +101,22 @@ const measure = async (operation: () => Promise<void>) => {
       root.render(<AppearancePreferencesProvider><Harness /></AppearancePreferencesProvider>);
       await until(() => !!state && state.currentSessionId === fixture.id && !state.isLoadingSessionMessages && state.chatMessages.length > 0);
     });
+    const initialIds = store.getSlot(fixture.id).serverMessages.map(message => message.id);
+    const initialCursor = store.getSlot(fixture.id).nextCursor;
     const older = await measure(async () => {
       const old = state.chatMessages.length;
       state.scrollContainerRef.current!.scrollTop = 0;
       state.scrollContainerRef.current!.dispatchEvent(new Event('scroll'));
       await until(() => state.chatMessages.length > old && !state.isLoadingMoreMessages);
     });
+    const loaded = store.getSlot(fixture.id);
+    const loadedIds = loaded.serverMessages.map(message => message.id);
+    const phase4Targets = {
+      bookmarkAdvanced: Boolean(initialCursor && loaded.nextCursor && initialCursor !== loaded.nextCursor),
+      noDuplicates: new Set(loadedIds).size === loadedIds.length,
+      tailPreserved: JSON.stringify(loadedIds.slice(-initialIds.length)) === JSON.stringify(initialIds),
+      usedBookmark: performance.getEntriesByType('resource').some(entry => entry.name.includes('before=')),
+    };
     const searching = await measure(async () => {
       find.open();
       await pause(0);
@@ -138,10 +148,11 @@ const measure = async (operation: () => Promise<void>) => {
       streamUpdate: streamingUpdate.conversions <= 1 && streamingUpdate.rows <= 3 && streamingUpdate.markdown <= 1,
     };
     const result = { fixture, userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight],
-      productionBundle: true, rowCountersInstrumented: true, initial, older, searching, afterFind, streaming, refreshing, streamingUpdate, phase3Targets };
+      productionBundle: true, rowCountersInstrumented: true, initial, older, searching, afterFind, streaming, refreshing, streamingUpdate, phase3Targets, phase4Targets };
     const saved = await fetch('/results', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(result) });
     if (!saved.ok) throw new Error('Could not save benchmark result');
     if (Object.values(phase3Targets).some((passed) => !passed)) throw new Error('Phase 3 work-count target failed; see saved report');
+    if (Object.values(phase4Targets).some(passed => !passed)) throw new Error('Phase 4 paging target failed; see saved report');
     return result;
   },
 };

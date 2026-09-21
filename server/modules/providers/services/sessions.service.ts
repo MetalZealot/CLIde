@@ -12,7 +12,9 @@ import type {
   LLMProvider,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { AppError, findTurnStartedAt, sliceTailPage } from '@/shared/utils.js';
+import { AppError } from '@/shared/utils.js';
+
+import { paginateHistory } from './history-pagination.service.js';
 
 type CreateAppSessionResult = {
   sessionId: string;
@@ -272,7 +274,7 @@ export const sessionsService = {
    */
   async fetchHistory(
     sessionId: string,
-    options: Pick<FetchHistoryOptions, 'limit' | 'offset'> = {},
+    options: Pick<FetchHistoryOptions, 'limit' | 'offset' | 'before' | 'from'> = {},
   ): Promise<FetchHistoryResult> {
     const session = sessionsDb.getSessionById(sessionId);
     if (!session) {
@@ -282,36 +284,26 @@ export const sessionsService = {
       });
     }
 
+    const identity = JSON.stringify([sessionId, session.provider, session.provider_session_id, session.project_path ?? '', session.jsonl_path]);
     // App-created sessions that never produced a provider transcript yet
     // (e.g. first message still streaming) simply have no history.
     if (!session.provider_session_id) {
-      return {
-        messages: [],
-        total: 0,
-        hasMore: false,
-        offset: options.offset ?? 0,
-        limit: options.limit ?? null,
-      };
+      return paginateHistory({ messages: [], total: 0, hasMore: false, offset: 0, limit: null }, identity, options);
     }
 
     const provider = session.provider as LLMProvider;
     const providerSessions = providerRegistry.resolveProvider(provider).sessions;
-    const requestedLimit = options.limit ?? null;
-    const requestedOffset = Math.max(0, options.offset ?? 0);
     const historyOptions: FetchHistoryOptions = {
-      limit: requestedLimit,
-      offset: requestedOffset,
+      limit: null,
+      offset: 0,
       projectPath: session.project_path ?? '',
+      historyStartTime: session.created_at ?? undefined,
+      requireCompleteRead: options.before !== undefined || options.from !== undefined,
       providerSessionId: session.provider_session_id,
     };
 
     let result: FetchHistoryResult;
     if (providerSessions.getHistorySourceRevision) {
-      const identity = JSON.stringify([
-        provider,
-        session.provider_session_id,
-        session.project_path ?? '',
-      ]);
       let fullHistory: FetchHistoryResult | null = null;
       try {
         fullHistory = await sessionHistoryCache.getFullHistory({
@@ -330,36 +322,25 @@ export const sessionsService = {
           }),
         });
       } catch {
-        // Preserve the provider's tolerant direct-read behavior, but never
-        // retain a result produced while any source could not be read fully.
+        // Uncacheable sources use direct reads; bookmark reads still require completeness.
       }
 
-      if (fullHistory) {
-        const { page, hasMore, start } = sliceTailPage(
-          fullHistory.messages,
-          requestedLimit,
-          requestedOffset,
-        );
-        result = {
-          ...fullHistory,
-          messages: page,
-          hasMore,
-          offset: requestedOffset,
-          limit: requestedLimit,
-          turnStartedAt: findTurnStartedAt(fullHistory.messages, start),
-        };
-      } else {
-        result = await providerSessions.fetchHistory(sessionId, historyOptions);
-      }
+      result = fullHistory ?? await providerSessions.fetchHistory(sessionId, historyOptions);
     } else {
       // Cursor and OpenCode need database-aware revisions before parsed history
       // can be reused safely; direct reads are the explicit correctness fallback.
       result = await providerSessions.fetchHistory(sessionId, historyOptions);
     }
 
+    const current = sessionsDb.getSessionById(sessionId);
+    if (!current || current.provider !== session.provider || current.provider_session_id !== session.provider_session_id
+      || current.project_path !== session.project_path || current.jsonl_path !== session.jsonl_path) {
+      throw new AppError('History identity changed during loading.', { code: 'HISTORY_CURSOR_INVALIDATED', statusCode: 409 });
+    }
+    const page = paginateHistory(result, identity, options);
     return {
-      ...result,
-      messages: result.messages.map((message) => ({
+      ...page,
+      messages: page.messages.map((message) => ({
         ...message,
         sessionId,
       })),

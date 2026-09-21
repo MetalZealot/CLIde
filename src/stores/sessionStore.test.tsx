@@ -45,14 +45,16 @@ describe('useSessionStore.pagination', () => {
     content,
   });
 
-  type Page = { messages: NormalizedMessage[]; total?: number; hasMore?: boolean };
+  type Page = { messages: NormalizedMessage[]; total?: number; hasMore?: boolean; nextCursor?: string | null; status?: number; error?: { code: string } };
 
   const pageResponse = (page: Page) =>
     ({
-      ok: true,
-      status: 200,
+      ok: !page.status,
+      status: page.status ?? 200,
       headers: { get: () => null },
       json: async () => ({
+        error: page.error,
+        nextCursor: page.nextCursor,
         messages: page.messages,
         total: page.total ?? page.messages.length,
         hasMore: page.hasMore ?? false,
@@ -60,6 +62,7 @@ describe('useSessionStore.pagination', () => {
     }) as unknown as Response;
 
   let requestedUrls: string[];
+  let requestedSignals: AbortSignal[];
   let respond: (page: Page) => void;
   let originalFetch: typeof globalThis.fetch;
   let container: HTMLElement;
@@ -74,12 +77,14 @@ describe('useSessionStore.pagination', () => {
   const installFetchQueue = () => {
     const pending: Array<(response: Response) => void> = [];
     requestedUrls = [];
+    requestedSignals = [];
 
     originalFetch = globalThis.fetch;
     Object.defineProperty(globalThis, 'fetch', {
-      value: (url: string) =>
+      value: (url: string, options: RequestInit) =>
         new Promise<Response>((resolve) => {
           requestedUrls.push(url);
+          requestedSignals.push(options.signal!);
           pending.push(resolve);
         }),
       configurable: true,
@@ -270,6 +275,86 @@ describe('useSessionStore.pagination', () => {
     await finish(operation.pending);
     assert.equal(store.getMessages(SESSION_ID).length, 1);
     assert.equal(store.getMessages(SESSION_ID)[0], original[0]);
+  });
+
+
+  test('bookmarks drive paging and refresh; overlapping requests are cancelled and deduplicated', async () => {
+    await loadFirstPage();
+    store.getSlot(SESSION_ID).nextCursor = 'bookmark-2';
+    const { pending: more } = await begin(() => store.fetchMore(SESSION_ID, { limit: 2 }));
+    assert.match(requestedUrls.at(-1)!, /before=bookmark-2/);
+    const requestCount = requestedUrls.length;
+    await begin(() => store.fetchMore(SESSION_ID, { limit: 2 }));
+    assert.equal(requestedUrls.length, requestCount, 'only one older-page request');
+    respond({ messages: [message('2', 'two'), message('3', 'three')], nextCursor: 'bookmark-1', hasMore: true });
+    await finish(more);
+    assert.deepEqual(store.getSlot(SESSION_ID).serverMessages.map(m => m.id), ['2', '3', '4']);
+    const { pending: refresh } = await begin(() => store.refreshFromServer(SESSION_ID));
+    assert.match(requestedUrls.at(-1)!, /from=bookmark-1/);
+    respond({ messages: [message('2', 'two'), message('3', 'three'), message('4', 'four'), message('5', 'five')],
+      nextCursor: 'bookmark-1-new', hasMore: true });
+    await finish(refresh);
+    assert.equal(store.getSlot(SESSION_ID).offset, 4, 'append preserves oldest loaded row');
+    const { pending: stale } = await begin(() => store.fetchMore(SESSION_ID));
+    const signal = requestedSignals.at(-1)!;
+    const { pending: latest } = await begin(() => store.refreshFromServer(SESSION_ID));
+    assert.equal(signal.aborted, true);
+    respond({ messages: [message('1', 'obsolete')], nextCursor: null });
+    respond({ messages: [message('5', 'replacement')], nextCursor: null });
+    await finish([stale, latest]);
+    assert.deepEqual(store.getSlot(SESSION_ID).serverMessages.map(m => m.content), ['replacement']);
+  });
+
+  test('invalidated older pages reload the loaded window and arm restoration before notification', async () => {
+    await loadFirstPage();
+    store.getSlot(SESSION_ID).nextCursor = 'rewound';
+    let anchored = false;
+    const { pending } = await begin(() => store.fetchMore(SESSION_ID, { limit: 2, onBeforeNotify: slot => {
+      assert.deepEqual(slot.serverMessages.map(m => m.id), ['1', '2']);
+      anchored = true;
+    } }));
+    respond({ messages: [], status: 409, error: { code: 'HISTORY_CURSOR_INVALIDATED' } });
+    await settle();
+    assert.match(requestedUrls.at(-1)!, /limit=2&offset=0/);
+    respond({ messages: [message('1', 'one'), message('2', 'two')], nextCursor: null });
+    await finish(pending);
+    assert.equal(anchored, true);
+    assert.equal(store.getSlot(SESSION_ID).hasMore, false);
+    assert.equal(store.getSlot(SESSION_ID).nextCursor, null);
+  });
+
+  test('a reconnect to replaced history retries once without the old bookmark', async () => {
+    await loadFirstPage();
+    store.getSlot(SESSION_ID).nextCursor = 'old-branch';
+    const { pending } = await begin(() => store.refreshFromServer(SESSION_ID));
+    respond({ messages: [], status: 409, error: { code: 'HISTORY_CURSOR_INVALIDATED' } });
+    await settle();
+    assert.doesNotMatch(requestedUrls.at(-1)!, /from=/);
+    respond({ messages: [message('1', 'new branch')], nextCursor: null });
+    await finish(pending);
+    assert.equal(store.getSlot(SESSION_ID).serverMessages[0].content, 'new branch');
+  });
+
+  test('switching session cancels an outstanding page even when fetch ignores abort', async () => {
+    await loadFirstPage();
+    const { pending } = await begin(() => store.fetchMore(SESSION_ID));
+    const signal = requestedSignals.at(-1)!;
+    store.setActiveSession('another-session');
+    assert.equal(signal.aborted, true);
+    respond({ messages: [message('1', 'stale')], nextCursor: null });
+    await finish(pending);
+    assert.deepEqual(store.getSlot(SESSION_ID).serverMessages.map(m => m.id), ['3', '4']);
+  });
+
+  test('optimistic rewind cancels a page that could restore abandoned messages', async () => {
+    await loadFirstPage();
+    const { pending } = await begin(() => store.fetchMore(SESSION_ID));
+    const signal = requestedSignals.at(-1)!;
+    await begin(() => store.truncateFromMessageId(SESSION_ID, '4'));
+    assert.equal(signal.aborted, true);
+    respond({ messages: [message('1', 'old branch')], hasMore: false });
+    await finish(pending);
+    assert.deepEqual(store.getSlot(SESSION_ID).serverMessages.map(m => m.id), ['3']);
   });
 
   test('a watcher refresh retains the loaded window instead of pulling all history', async () => {

@@ -2,6 +2,8 @@ import { serialize } from 'node:v8';
 
 import type { FetchHistoryResult, HistorySourceRevision } from '@/shared/types.js';
 
+import { HISTORY_FINGERPRINT_BUDGET_BYTES } from './history-pagination.service.js';
+
 type CacheEntry = {
   identity: string;
   source: HistorySourceRevision;
@@ -32,7 +34,7 @@ const MAX_STABLE_LOAD_ATTEMPTS = 3;
 
 /**
  * Creates the parsed-history cache used by the sessions service and focused
- * provider tests. Entries are LRU bounded by normalized serialized size, not
+ * provider tests. Entries are LRU bounded by normalized serialized size plus fingerprints, not
  * transcript bytes, and concurrent work is shared only for an exact source
  * revision.
  */
@@ -114,7 +116,7 @@ export function createSessionHistoryCache(options: SessionHistoryCacheOptions = 
                 return { stable: false };
               }
 
-              const cost = serialize(full).byteLength;
+              const cost = serialize(full).byteLength + HISTORY_FINGERPRINT_BUDGET_BYTES;
               if (
                 cost <= maxRetainedBytes
                 && maxEntries > 0

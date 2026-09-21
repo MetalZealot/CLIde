@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fsp, { appendFile, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
+
+import Database from 'better-sqlite3';
 
 import { closeConnection, initializeDatabase, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { encodeClaudeProjectDir } from '@/modules/providers/list/claude/claude-rewind.util.js';
@@ -14,12 +17,15 @@ import {
   createSessionHistoryCache,
   sessionHistoryCache,
 } from '@/modules/providers/services/session-history-cache.service.js';
+import { paginateHistory } from '@/modules/providers/services/history-pagination.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { appendFilesInputTag, appendImagesInputTag } from '@/shared/image-attachments.js';
 import type { FetchHistoryResult, HistorySourceRevision, NormalizedMessage } from '@/shared/types.js';
 import { AppError, normalizeProjectPath, readLastJsonlTimestamp } from '@/shared/utils.js';
 
 import { historyBudgets } from '../../../../scripts/chat-history/budgets.js';
+
+const legacyPage = ({ nextCursor: _cursor, revision: _revision, recordTotal: _records, ...page }: FetchHistoryResult) => page;
 
 describe('provider-sessions', () => {
   describe('claude-sessions', () => {
@@ -1008,7 +1014,152 @@ describe('claude-subagent-history', () => {
 // Phase-1 targets execute as TODOs until their implementation phase removes the flag.
 // CLIDE_HISTORY_PERF_STRICT=1 makes the same assertions fail the dedicated gate.
 describe('history performance targets', () => {
-  const pending = (phase: number) => ({ todo: process.env.CLIDE_HISTORY_PERF_STRICT === '1' ? false : `history plan phase ${phase}` });
+
+
+
+
+  test('bookmarks walk every record, retain turn context, and reject changed snapshots', () => {
+    const messages = Array.from({ length: 9 }, (_, i) => ({
+      id: `record-${i}`, sessionId: 'app', provider: 'claude' as const,
+      timestamp: '2026-01-01T00:00:00Z', kind: i === 0 ? 'text' as const : 'tool_result' as const,
+      role: 'user' as const, content: String(i),
+    }));
+    const full = { messages, total: 1, hasMore: false, offset: 0, limit: null };
+    let page = paginateHistory(full, 'app:provider:branch', { limit: 2 });
+    assert.equal(page.recordTotal, 9);
+    assert.equal(page.total, 1, 'display count must not control pagination');
+    assert.equal(page.turnStartedAt, messages[0].timestamp);
+    const bookmark = page.nextCursor!;
+    let walked = page.messages;
+    while (page.nextCursor) {
+      page = paginateHistory(full, 'app:provider:branch', { limit: 2, before: page.nextCursor });
+      walked = [...page.messages, ...walked];
+    }
+    assert.deepEqual(walked, messages);
+    const appended = { ...full, messages: [...messages, { ...messages[0], id: 'append' }] };
+    const refreshed = paginateHistory(appended, 'app:provider:branch', { limit: 2, from: bookmark });
+    assert.deepEqual(refreshed.messages.map(m => m.id), ['record-7', 'record-8', 'append']);
+    for (const replacement of [
+      { ...full, messages: messages.slice(0, 8) },
+      { ...full, messages: messages.map((m, i) => i === 4 ? { ...m, content: 'replaced' } : m) },
+      { ...full, messages: [...messages].reverse() },
+    ]) assert.throws(() => paginateHistory(replacement, 'app:provider:branch', { before: bookmark }),
+      (error: AppError) => error.code === 'HISTORY_CURSOR_INVALIDATED');
+    assert.throws(() => paginateHistory(full, 'different-app:provider:branch', { before: bookmark }),
+      (error: AppError) => error.code === 'HISTORY_CURSOR_INVALIDATED');
+    for (const before of ['', '!', 'a'.repeat(1025), Buffer.from('{}').toString('base64url')]) {
+      assert.throws(() => paginateHistory(full, 'app:provider:branch', { before }),
+        (error: AppError) => error.code === 'INVALID_HISTORY_CURSOR');
+    }
+    assert.throws(() => paginateHistory(full, 'app:provider:branch', { before: bookmark, offset: 1 }));
+    assert.throws(() => paginateHistory(full, 'app:provider:branch', { before: bookmark, from: bookmark }));
+    assert.equal(paginateHistory(full, 'app:provider:branch', { limit: 0 }).hasMore, false);
+  });
+
+  test('provider bookmarks survive rereads and appends but invalidate branch and content replacements', async () => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    try {
+      for (const provider of ['claude', 'codex'] as const) {
+        for (const profile of ['plain', 'mixed'] as const) {
+          const id = await fixture.add(provider, 60, profile);
+          const reference = await fixture.read(id, null);
+          let page = await fixture.read(id, 7);
+          let walked = page.messages;
+          await fixture.append(id);
+          while (page.nextCursor) {
+            sessionHistoryCache.clear();
+            page = await fixture.read(id, 7, 0, { before: page.nextCursor });
+            walked = [...page.messages, ...walked];
+          }
+          assert.deepEqual(walked, reference.messages, `${provider}/${profile}: exact walk after append and cache eviction`);
+          assert.ok(walked.every(m => m.sessionId === id));
+          const latest = await fixture.read(id, 7);
+          const file = fixture.file(id)!;
+          await writeFile(file, '');
+          await assert.rejects(fixture.read(id, 7, 0, { before: latest.nextCursor! }),
+            (error: AppError) => error.code === 'HISTORY_CURSOR_INVALIDATED');
+        }
+      }
+      const id = await fixture.add('claude', 60);
+      const page = await fixture.read(id, 7);
+      await fixture.branch(id, 4);
+      await assert.rejects(fixture.read(id, 7, 0, { before: page.nextCursor! }),
+        (error: AppError) => error.code === 'HISTORY_CURSOR_INVALIDATED');
+    } finally { await fixture.close(); }
+  });
+
+
+  test('Cursor service bookmarks use stable SQLite ordering with unequal app/provider ids', async () => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    const originalHome = os.homedir;
+    os.homedir = () => fixture.directory;
+    let db: Database.Database | undefined;
+    try {
+      const nativeId = 'cursor-native';
+      const id = 'cursor-app';
+      const cwdId = createHash('md5').update(fixture.directory).digest('hex');
+      const directory = path.join(fixture.directory, '.cursor/chats', cwdId, nativeId);
+      await mkdir(directory, { recursive: true });
+      db = new Database(path.join(directory, 'store.db'));
+      db.exec('CREATE TABLE blobs (id TEXT, data BLOB)');
+      const insert = db.prepare('INSERT INTO blobs VALUES (?, ?)');
+      const add = (i: number) => insert.run(`blob-${i}`, Buffer.from(JSON.stringify({ role: i % 2 ? 'assistant' : 'user', content: `message ${i}` })));
+      for (let i = 0; i < 8; i++) add(i);
+      sessionsDb.createAppSession(id, 'cursor', fixture.directory);
+      sessionsDb.assignProviderSessionId(id, nativeId);
+      const reference = await sessionsService.fetchHistory(id);
+      let page = await sessionsService.fetchHistory(id, { limit: 3 });
+      let walked = page.messages;
+      add(8);
+      while (page.nextCursor) {
+        page = await sessionsService.fetchHistory(id, { limit: 3, before: page.nextCursor });
+        walked = [...page.messages, ...walked];
+      }
+      assert.deepEqual(walked, reference.messages);
+      assert.equal(walked.length, 8);
+      assert.ok(walked.every(m => m.sessionId === id));
+    } finally { db?.close(); os.homedir = originalHome; await fixture.close(); }
+  });
+
+  test('history HTTP route validates query shapes and transports bookmark invalidation', async () => {
+    const { default: express } = await import('express');
+    const { default: routes } = await import('../provider.routes.js');
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    const app = express();
+    app.use(routes);
+    app.use((error: AppError, _req: import('express').Request, res: import('express').Response, _next: import('express').NextFunction) => {
+      res.status(error.statusCode ?? 500).json({ error: { code: error.code } });
+    });
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    try {
+      const id = await fixture.add('claude', 10);
+      const address = server.address() as import('node:net').AddressInfo;
+      const url = `http://127.0.0.1:${address.port}/sessions/${id}/messages`;
+      for (const query of ['limit=1x', 'limit=1.5', 'offset=-1', 'offset=9007199254740992', 'before=', 'before=a&before=b', 'limit=']) {
+        assert.equal((await fetch(`${url}?${query}`)).status, 400, query);
+      }
+      const first = await (await fetch(`${url}?limit=3`)).json() as { data: FetchHistoryResult };
+      assert.equal(first.data.messages.length, 3);
+      assert.ok(first.data.nextCursor);
+      const cursor = encodeURIComponent(first.data.nextCursor!);
+      await fixture.append(id);
+      const older = await (await fetch(`${url}?limit=3&before=${cursor}`)).json() as { data: FetchHistoryResult };
+      assert.equal(older.data.messages.length, 3);
+      assert.equal(older.data.messages.at(-1)?.id, 'row-6');
+      await fixture.branch(id, 2);
+      const replaced = await fetch(`${url}?limit=3&before=${cursor}`);
+      assert.equal(replaced.status, 409);
+      assert.equal((await replaced.json() as { error: { code: string } }).error.code, 'HISTORY_CURSOR_INVALIDATED');
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+      await fixture.close();
+    }
+  });
 
   test('warm history pages do not reread the transcript and match direct reads', async () => {
     const { createHistoryFixture } = await import('./chat-history.fixture.js');
@@ -1025,7 +1176,7 @@ describe('history performance targets', () => {
           historyBudgets.warmReadBytes,
           `${provider} unchanged warm page must reuse parsed history`,
         );
-        assert.deepEqual(page, await fixture.readDirect(id, 20, 20));
+        assert.deepEqual(legacyPage(page), await fixture.readDirect(id, 20, 20));
       }
     } finally { await fixture.close(); }
   });
@@ -1134,14 +1285,14 @@ describe('history performance targets', () => {
     assert.ok(loads >= 4);
   });
 
-  test('an append between history pages does not overlap the loaded page', pending(4), async () => {
+  test('an append between history pages does not overlap the loaded page', async () => {
     const { createHistoryFixture } = await import('./chat-history.fixture.js');
     const fixture = await createHistoryFixture();
     try {
       const id = await fixture.add('claude', 100);
       const newest = await fixture.read(id);
       await fixture.append(id);
-      const older = await fixture.read(id, 20, 20);
+      const older = await fixture.read(id, 20, 0, { before: newest.nextCursor! });
       const ids = new Set(newest.messages.map((message) => message.id));
       assert.equal(older.messages.filter((message) => ids.has(message.id)).length, historyBudgets.duplicateMessages);
     } finally { await fixture.close(); }
@@ -1263,7 +1414,7 @@ describe('history cache review regressions', () => {
       t.mock.restoreAll();
       await fixture.subagent(id, 'child-after');
       assert.equal(injected, true);
-      assert.deepEqual(await fixture.read(id, null), await fixture.readDirect(id, null));
+      assert.deepEqual(legacyPage(await fixture.read(id, null)), await fixture.readDirect(id, null));
     } finally { t.mock.restoreAll(); await fixture.close(); }
   });
 
@@ -1286,7 +1437,7 @@ describe('history cache review regressions', () => {
       await fixture.read(id, null);
       t.mock.restoreAll();
       assert.equal(failed, true);
-      assert.deepEqual(await fixture.read(id, null), await fixture.readDirect(id, null));
+      assert.deepEqual(legacyPage(await fixture.read(id, null)), await fixture.readDirect(id, null));
     } finally { t.mock.restoreAll(); await fixture.close(); }
   });
 

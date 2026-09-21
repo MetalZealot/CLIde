@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 3/9
-- Next: Phase 4 — keep page boundaries stable while history changes
+- Status: 4/9
+- Next: Phase 5 — bound payloads and load heavy details on demand
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -45,20 +45,16 @@ Browser checks enforce bounded append/update work and zero unchanged-refresh wor
 At 1,000 records, median append time fell from 10.36 s to 255 ms. Full-history Find
 and remaining layout stalls stay in phases 6–7. [Evidence](../maps/chat-history-performance.md#phase-3-unchanged-message-rendering).
 
-- [ ] **4. Keep page boundaries stable while history changes — XL.**
+- [x] **4. Keep page boundaries stable while history changes — XL.**
 
-Define one provider-neutral contract: stable message ids, ordering, record versus
-visible-row counts, completion and a cursor (a bookmark before a message). Bind
-bookmarks to a history revision/branch. Appends can preserve older boundaries;
-rewind/replacement must explicitly invalidate and re-anchor them. Return the next
-bookmark and turn context rather than deriving position from client array length.
-Keep tool/result joins correct across boundaries.
-
-Migrate all providers and the store compatibly. Keep stale-response guards,
-deduplication and cancellation; test append/refresh/rewind/reconnect races.
-
-**Exit:** walking pages equals the reference active history; identical timestamps,
-hidden-only segments and unequal app/provider ids are covered.
+Shipped session-scoped bookmarks across all four providers, explicit record counts,
+append-safe older pages and refreshes from the oldest loaded boundary. Rewind or
+replacement invalidates bookmarks and reloads the window. Requests are cancelled
+and guarded against stale publication; tools join before paging. Tests cover
+SQLite/JSONL histories, hidden records, equal timestamps, identity changes,
+reconnects and cancelled Find loads. Six synthetic Browser runs preserve the loaded
+tail without duplicate ids and retain phase-3 rendering limits.
+[Contract and verification](../maps/chat-history-performance.md#phase-4-stable-history-bookmarks).
 
 - [ ] **5. Bound transferred work, not just record counts — XL.**
 

@@ -7,7 +7,6 @@ import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 import {
   createNormalizedMessage,
-  generateMessageId,
   readObjectRecord,
   sanitizeLeafDirectoryName,
   findTurnStartedAt,
@@ -412,7 +411,7 @@ export class CursorSessionsProvider implements IProviderSessions {
 
     try {
       const blobs = await this.loadCursorBlobs(providerSessionId, projectPath);
-      const allNormalized = this.normalizeCursorBlobs(blobs, sessionId);
+      const allNormalized = this.normalizeCursorBlobs(blobs, sessionId, options.historyStartTime);
       const renderableMessages = allNormalized.filter((msg) => msg.kind !== 'tool_result');
       const total = renderableMessages.length;
       const { page, hasMore, start } = sliceTailPage(renderableMessages, limit, offset);
@@ -426,6 +425,7 @@ export class CursorSessionsProvider implements IProviderSessions {
         limit,
       };
     } catch (error) {
+      if (options.requireCompleteRead) throw error;
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[CursorProvider] Failed to load session ${sessionId}:`, message);
       return { messages: [], total: 0, hasMore: false, offset: 0, limit: null };
@@ -439,16 +439,18 @@ export class CursorSessionsProvider implements IProviderSessions {
    * Public so tests can drive history normalization with synthetic blobs
    * without needing a real Cursor store.db.
    */
-  normalizeCursorBlobs(blobs: CursorMessageBlob[], sessionId: string | null): NormalizedMessage[] {
+  normalizeCursorBlobs(blobs: CursorMessageBlob[], sessionId: string | null, historyStartTime?: string): NormalizedMessage[] {
     const messages: NormalizedMessage[] = [];
     const toolUseMap = new Map<string, NormalizedMessage>();
-    const baseTime = Date.now();
+    // Cursor blobs expose sequence, not wall-clock time; keep synthetic ordering stable.
+    const parsedStart = Date.parse(historyStartTime ?? '');
+    const baseTime = Number.isFinite(parsedStart) ? parsedStart : 0;
 
     for (let i = 0; i < blobs.length; i++) {
       const blob = blobs[i];
       const content = blob.content;
       const ts = new Date(baseTime + (blob.sequence ?? i) * 100).toISOString();
-      const baseId = blob.id || generateMessageId('cursor');
+      const baseId = blob.id || `cursor-row-${blob.rowid}`;
 
       try {
         if (!content?.role || !content?.content) {

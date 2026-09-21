@@ -7,7 +7,7 @@
  * No localStorage for messages. Backend JSONL is the source of truth.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../utils/api';
 import type { LLMProvider } from '../types/app';
@@ -173,16 +173,8 @@ export interface SessionSlot {
   /** @internal Cache-invalidation refs for computeMerged */
   _lastServerRef: NormalizedMessage[];
   _lastRealtimeRef: NormalizedMessage[];
-  /**
-   * @internal Monotonic ticket per server fetch (fetch/refresh/fetchMore) and
-   * the ticket of the last response applied. Concurrent fetches for the same
-   * session can resolve out of order — e.g. the `complete` refresh racing the
-   * watcher-triggered refresh right as a queued message is flushed — and a
-   * stale response applied last would wind `serverMessages` back to a
-   * transcript that no longer matches what the user already saw.
-   */
+  /** @internal Latest-started history request owns publication, even if abort is ignored. */
   _fetchSeq: number;
-  _appliedFetchSeq: number;
   /**
    * @internal Monotonic ticket per user pick of model/effort. An `active-model`
    * or `effort` GET already in flight when a pick lands would otherwise resolve
@@ -196,6 +188,10 @@ export interface SessionSlot {
   total: number;
   hasMore: boolean;
   offset: number;
+  nextCursor: string | null | undefined;
+  /** @internal Latest request owns publication, including failures and cancellation. */
+  _historyRequest?: AbortController;
+  _olderRequest?: AbortController;
   /** Prompt time of the turn the oldest loaded page opens mid-way through. */
   turnStartedAt: string | null;
   tokenUsage: unknown;
@@ -228,6 +224,7 @@ function createEmptySlot(): SessionSlot {
     total: 0,
     hasMore: false,
     offset: 0,
+    nextCursor: undefined,
     turnStartedAt: null,
     tokenUsage: null,
     model: null,
@@ -238,7 +235,6 @@ function createEmptySlot(): SessionSlot {
     effortStatus: 'idle',
     effortFetchedAt: 0,
     _fetchSeq: 0,
-    _appliedFetchSeq: 0,
     _modelPickSeq: 0,
     _effortPickSeq: 0,
   };
@@ -500,6 +496,10 @@ const MAX_REALTIME_MESSAGES = 500;
 export function useSessionStore() {
   const storeRef = useRef(new Map<string, SessionSlot>());
   const activeSessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const slots = storeRef.current;
+    return () => { for (const slot of slots.values()) slot._historyRequest?.abort(); };
+  }, []);
   // Bump to force re-render — only when the active session's data changes.
   // Session ids are stable for the whole conversation lifetime (the backend
   // allocates them before the first send), so slots are keyed directly with
@@ -512,6 +512,15 @@ export function useSessionStore() {
   }, []);
 
   const setActiveSession = useCallback((sessionId: string | null) => {
+    if (activeSessionIdRef.current !== sessionId) {
+      const previous = activeSessionIdRef.current ? storeRef.current.get(activeSessionIdRef.current) : undefined;
+      if (previous) {
+        previous._historyRequest?.abort();
+        previous._fetchSeq += 1;
+        previous._olderRequest = undefined;
+        if (previous.status === 'loading') previous.status = 'idle';
+      }
+    }
     activeSessionIdRef.current = sessionId;
   }, []);
 
@@ -538,9 +547,13 @@ export function useSessionStore() {
     opts: {
       limit?: number | null;
       offset?: number;
+      onBeforeNotify?: (slot: SessionSlot) => void;
     } = {},
   ) => {
     const slot = getSlot(sessionId);
+    slot._historyRequest?.abort();
+    const controller = new AbortController();
+    slot._historyRequest = controller;
     const fetchTicket = ++slot._fetchSeq;
     slot.status = 'loading';
     notify(sessionId);
@@ -554,7 +567,7 @@ export function useSessionStore() {
 
       const qs = params.toString();
       const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`;
-      const response = await authenticatedFetch(url);
+      const response = await authenticatedFetch(url, { signal: controller.signal });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -564,15 +577,15 @@ export function useSessionStore() {
       const data = body?.data ?? body;
       const messages: NormalizedMessage[] = data.messages || [];
 
-      // A later-started fetch already applied: this response is stale.
-      if (fetchTicket <= slot._appliedFetchSeq) {
+      // A later-started request owns this window.
+      if (controller.signal.aborted || fetchTicket !== slot._fetchSeq) {
         return slot;
       }
-      slot._appliedFetchSeq = fetchTicket;
 
       slot.serverMessages = reuseUnchangedServerMessages(slot.serverMessages, messages);
       slot.total = data.total ?? messages.length;
       slot.hasMore = Boolean(data.hasMore);
+      slot.nextCursor = data.nextCursor;
       slot.turnStartedAt = data.turnStartedAt ?? null;
       slot.offset = (opts.offset ?? 0) + messages.length;
       slot.fetchedAt = Date.now();
@@ -582,12 +595,14 @@ export function useSessionStore() {
         slot.tokenUsage = data.tokenUsage;
       }
 
+      opts.onBeforeNotify?.(slot);
       notify(sessionId);
       return slot;
     } catch (error) {
+      if (controller.signal.aborted) return slot;
       console.error(`[SessionStore] fetch failed for ${sessionId}:`, error);
       // Don't clobber a newer fetch's result with a stale failure.
-      if (fetchTicket > slot._appliedFetchSeq) {
+      if (!controller.signal.aborted && fetchTicket === slot._fetchSeq) {
         slot.status = 'error';
         notify(sessionId);
       }
@@ -611,19 +626,33 @@ export function useSessionStore() {
     } = {},
   ) => {
     const slot = getSlot(sessionId);
-    if (!slot.hasMore) return slot;
+    if (!slot.hasMore || (slot._olderRequest && !slot._olderRequest.signal.aborted)) return slot;
 
+    slot._historyRequest?.abort();
+    const controller = new AbortController();
+    slot._historyRequest = controller;
+    slot._olderRequest = controller;
     const fetchTicket = ++slot._fetchSeq;
     const params = new URLSearchParams();
     const limit = opts.limit ?? 20;
     params.append('limit', String(limit));
-    params.append('offset', String(slot.offset));
+    if (slot.nextCursor) params.append('before', slot.nextCursor);
+    else params.append('offset', String(slot.offset));
 
     const qs = params.toString();
     const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`;
 
     try {
-      const response = await authenticatedFetch(url);
+      const response = await authenticatedFetch(url, { signal: controller.signal });
+      if (response.status === 409) {
+        const error = await response.json();
+        if (error?.error?.code === 'HISTORY_CURSOR_INVALIDATED'
+          && !controller.signal.aborted && fetchTicket === slot._fetchSeq) {
+          return await fetchFromServer(sessionId, {
+            limit: Math.max(limit, slot.serverMessages.length), onBeforeNotify: opts.onBeforeNotify,
+          });
+        }
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const body = await response.json();
       const data = body?.data ?? body;
@@ -631,27 +660,34 @@ export function useSessionStore() {
 
       // A full fetch/refresh replaced serverMessages while this page was in
       // flight — prepending onto the new array would duplicate or misorder.
-      if (fetchTicket <= slot._appliedFetchSeq) {
+      if (controller.signal.aborted || fetchTicket !== slot._fetchSeq) {
         return slot;
       }
-      slot._appliedFetchSeq = fetchTicket;
 
       // Prepend older messages (they're earlier in the conversation)
-      slot.serverMessages = [...olderMessages, ...slot.serverMessages];
+      const existingIds = new Set(slot.serverMessages.map(message => message.id));
+      const added = olderMessages.filter(message => !existingIds.has(message.id) && Boolean(existingIds.add(message.id)));
+      slot.serverMessages = [...added, ...slot.serverMessages];
       slot.hasMore = Boolean(data.hasMore);
+      slot.nextCursor = data.nextCursor;
       slot.turnStartedAt = data.turnStartedAt ?? null;
-      slot.offset = slot.offset + olderMessages.length;
+      slot.offset = slot.nextCursor === undefined ? slot.offset + olderMessages.length : slot.serverMessages.length;
+      slot.total = data.total ?? slot.total;
+      if (slot.status === 'loading') slot.status = 'idle';
       recomputeMergedIfNeeded(slot);
-      if (olderMessages.length > 0) {
+      if (added.length > 0) {
         opts.onBeforeNotify?.(slot);
       }
       notify(sessionId);
       return slot;
     } catch (error) {
+      if (controller.signal.aborted) return slot;
       console.error(`[SessionStore] fetchMore failed for ${sessionId}:`, error);
       return slot;
+    } finally {
+      if (slot._olderRequest === controller) slot._olderRequest = undefined;
     }
-  }, [getSlot, notify]);
+  }, [getSlot, notify, fetchFromServer]);
 
   /**
    * Append a realtime (WebSocket) message to the correct session slot.
@@ -699,6 +735,9 @@ export function useSessionStore() {
     sessionId: string,
   ) => {
     const slot = getSlot(sessionId);
+    slot._historyRequest?.abort();
+    const controller = new AbortController();
+    slot._historyRequest = controller;
     const fetchTicket = ++slot._fetchSeq;
     try {
       // Preserve the loaded tail window. A reconnect or watcher refresh used to
@@ -709,30 +748,43 @@ export function useSessionStore() {
       const params = new URLSearchParams();
       if (refreshLimit !== null) {
         params.set('limit', String(refreshLimit));
-        params.set('offset', '0');
+        if (slot.nextCursor) params.set('from', slot.nextCursor);
+        else params.set('offset', '0');
       }
       const query = params.toString();
       const url = `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages${query ? `?${query}` : ''}`;
-      const response = await authenticatedFetch(url);
+      let response = await authenticatedFetch(url, { signal: controller.signal });
+      if (response.status === 409) {
+        const error = await response.json();
+        if (error?.error?.code === 'HISTORY_CURSOR_INVALIDATED'
+          && !controller.signal.aborted && fetchTicket === slot._fetchSeq) {
+          params.delete('from');
+          response = await authenticatedFetch(
+            `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages?${params}`,
+            { signal: controller.signal },
+          );
+        }
+      }
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const body = await response.json();
       const data = body?.data ?? body;
 
-      // A later-started fetch already applied: applying this stale transcript
+      // A later-started fetch owns the window: applying this stale transcript
       // would erase rows the user has already seen (and re-prune realtime
       // rows against an outdated snapshot).
-      if (fetchTicket <= slot._appliedFetchSeq) {
+      if (controller.signal.aborted || fetchTicket !== slot._fetchSeq) {
         return;
       }
-      slot._appliedFetchSeq = fetchTicket;
 
       slot.serverMessages = reuseUnchangedServerMessages(slot.serverMessages, data.messages || []);
       slot.total = data.total ?? slot.serverMessages.length;
       slot.hasMore = Boolean(data.hasMore);
+      slot.nextCursor = data.nextCursor;
       slot.turnStartedAt = data.turnStartedAt ?? null;
       slot.offset = slot.serverMessages.length;
       slot.fetchedAt = Date.now();
+      if (slot.status === 'loading') slot.status = 'idle';
       // Only drop realtime rows the server transcript now owns. A blind clear
       // here caused the chat pane to flash "Continue your conversation" after
       // `complete` while JSONL / provider_session_id indexing was still behind.
@@ -743,6 +795,7 @@ export function useSessionStore() {
       recomputeMergedIfNeeded(slot);
       notify(sessionId);
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error(`[SessionStore] refresh failed for ${sessionId}:`, error);
     }
   }, [getSlot, notify]);
@@ -981,6 +1034,8 @@ export function useSessionStore() {
     const slot = storeRef.current.get(sessionId);
     if (!slot) return;
 
+    slot._historyRequest?.abort();
+    slot._fetchSeq += 1;
     const prefix = baseMessageUuid.toLowerCase();
     const cutFromMatch = (list: NormalizedMessage[]): NormalizedMessage[] => {
       const idx = list.findIndex(m => typeof m.id === 'string' && m.id.toLowerCase().startsWith(prefix));

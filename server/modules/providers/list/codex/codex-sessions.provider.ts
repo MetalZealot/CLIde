@@ -653,7 +653,7 @@ async function getCodexSessionMessages(
           if (agentMessage && agentMessage.messageType === 'FINAL_ANSWER' && agentMessage.result) {
             let subagent = subagentsByPath.get(agentMessage.author);
             if (!subagent) {
-              const fallbackCallId = entry.payload.id || generateMessageId('codex-subagent');
+              const fallbackCallId = entry.payload.id || `codex-subagent-${agentMessage.author}`;
               const taskName = agentMessage.author.split('/').filter(Boolean).pop() || 'agent';
               const taskMessage: AnyRecord = {
                 uuid: fallbackCallId,
@@ -1350,8 +1350,12 @@ export class CodexSessionsProvider implements IProviderSessions {
     const tokenUsage = Array.isArray(result) ? undefined : result.tokenUsage;
 
     const normalized: NormalizedMessage[] = [];
-    for (const raw of rawMessages) {
-      normalized.push(...this.normalizeHistoryEntry(raw, sessionId));
+    for (const [index, raw] of rawMessages.entries()) {
+      normalized.push(...this.normalizeHistoryEntry({
+        ...raw,
+        uuid: raw.uuid || `history-codex-${options.providerSessionId ?? sessionId}-${index}`,
+        timestamp: raw.timestamp || '1970-01-01T00:00:00.000Z',
+      }, sessionId));
     }
 
     const toolResultMap = new Map<string, NormalizedMessage>();

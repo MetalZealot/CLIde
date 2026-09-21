@@ -1,0 +1,995 @@
+{
+  "schema": 1,
+  "fixtureVersion": 1,
+  "source": {
+    "commit": "940a6a7af57325644a32b674fbc3c9528a100e53",
+    "sourceSha256": "613de364d2b6b09943fea5c7d9868734f50441a3228158a87b3908b23df353e9",
+    "dirty": true
+  },
+  "notes": [
+    "Production fixture build, not the full deployed app",
+    "Counters add instrumentation overhead; conversions count cache misses, not input rows",
+    "Browser device emulation does not establish real-phone acceptance",
+    "Chromium heap estimates are coarse; not a memory gate"
+  ],
+  "reports": [
+    {
+      "fixture": {
+        "id": "app-native-claude-200-mixed-0",
+        "count": 200
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+      "viewport": [
+        1280,
+        720
+      ],
+      "productionBundle": true,
+      "rowCountersInstrumented": true,
+      "initial": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 19,
+        "messages": 19,
+        "visible": 19,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 19,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 1216.3999999994412,
+        "frameP95Ms": 933.3,
+        "maxLongTaskMs": 914,
+        "frameSamples": 14,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44916,
+        "historyRequestMs": [
+          111.79999999981374
+        ]
+      },
+      "older": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 38,
+        "messages": 38,
+        "visible": 38,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 20,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 621.2000000001863,
+        "frameP95Ms": 516.6999999999998,
+        "maxLongTaskMs": 511,
+        "frameSamples": 11,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44890,
+        "historyRequestMs": [
+          10.600000000558794
+        ]
+      },
+      "searching": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 180,
+        "messages": 180,
+        "visible": 180,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 143,
+        "markdown": 142,
+        "conversions": 150,
+        "elapsedMs": 3876.199999999255,
+        "frameP95Ms": 283.3000000000002,
+        "maxLongTaskMs": 2993,
+        "frameSamples": 36,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 440631,
+        "historyRequestMs": [
+          19.5
+        ]
+      },
+      "afterFind": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 180,
+        "messages": 180,
+        "visible": 180,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 143,
+        "markdown": 142,
+        "conversions": 150
+      },
+      "streaming": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 181,
+        "messages": 181,
+        "visible": 181,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 2,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 59.700000000186265,
+        "frameP95Ms": 16.700000000000728,
+        "maxLongTaskMs": 0,
+        "frameSamples": 8,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "refreshing": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 181,
+        "messages": 181,
+        "visible": 181,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 0,
+        "markdown": 0,
+        "conversions": 0,
+        "elapsedMs": 54.90000000037253,
+        "frameP95Ms": 16.700000000000728,
+        "maxLongTaskMs": 0,
+        "frameSamples": 9,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 440631,
+        "historyRequestMs": [
+          15.100000000558794
+        ]
+      },
+      "streamingUpdate": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 182,
+        "messages": 182,
+        "visible": 182,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 1,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 32.10000000055879,
+        "frameP95Ms": 16.699999999999818,
+        "maxLongTaskMs": 0,
+        "frameSamples": 7,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "phase3Targets": {
+        "append": true,
+        "refresh": true,
+        "streamUpdate": true
+      },
+      "phase4Targets": {
+        "bookmarkAdvanced": true,
+        "noDuplicates": true,
+        "tailPreserved": true,
+        "usedBookmark": true
+      }
+    },
+    {
+      "fixture": {
+        "id": "app-native-claude-200-mixed-0",
+        "count": 200
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+      "viewport": [
+        1280,
+        720
+      ],
+      "productionBundle": true,
+      "rowCountersInstrumented": true,
+      "initial": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 19,
+        "messages": 19,
+        "visible": 19,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 19,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 631,
+        "frameP95Ms": 533.3000000000002,
+        "maxLongTaskMs": 523,
+        "frameSamples": 10,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44916,
+        "historyRequestMs": [
+          48.799999999813735
+        ]
+      },
+      "older": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 38,
+        "messages": 38,
+        "visible": 38,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 20,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 590,
+        "frameP95Ms": 516.6999999999998,
+        "maxLongTaskMs": 492,
+        "frameSamples": 10,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44890,
+        "historyRequestMs": [
+          23.09999999962747
+        ]
+      },
+      "searching": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 180,
+        "messages": 180,
+        "visible": 180,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 143,
+        "markdown": 142,
+        "conversions": 150,
+        "elapsedMs": 3740.800000000745,
+        "frameP95Ms": 266.6999999999998,
+        "maxLongTaskMs": 2877,
+        "frameSamples": 36,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 440631,
+        "historyRequestMs": [
+          20.09999999962747
+        ]
+      },
+      "afterFind": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 180,
+        "messages": 180,
+        "visible": 180,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 143,
+        "markdown": 142,
+        "conversions": 150
+      },
+      "streaming": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 181,
+        "messages": 181,
+        "visible": 181,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 2,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 33.700000000186265,
+        "frameP95Ms": 16.699999999999818,
+        "maxLongTaskMs": 0,
+        "frameSamples": 7,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "refreshing": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 181,
+        "messages": 181,
+        "visible": 181,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 0,
+        "markdown": 0,
+        "conversions": 0,
+        "elapsedMs": 56.5,
+        "frameP95Ms": 16.699999999999818,
+        "maxLongTaskMs": 0,
+        "frameSamples": 9,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 440631,
+        "historyRequestMs": [
+          17.699999999254942
+        ]
+      },
+      "streamingUpdate": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 182,
+        "messages": 182,
+        "visible": 182,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 1,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 29,
+        "frameP95Ms": 16.799999999999272,
+        "maxLongTaskMs": 0,
+        "frameSamples": 7,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "phase3Targets": {
+        "append": true,
+        "refresh": true,
+        "streamUpdate": true
+      },
+      "phase4Targets": {
+        "bookmarkAdvanced": true,
+        "noDuplicates": true,
+        "tailPreserved": true,
+        "usedBookmark": true
+      }
+    },
+    {
+      "fixture": {
+        "id": "app-native-claude-200-mixed-0",
+        "count": 200
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+      "viewport": [
+        1280,
+        720
+      ],
+      "productionBundle": true,
+      "rowCountersInstrumented": true,
+      "initial": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 19,
+        "messages": 19,
+        "visible": 19,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 19,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 638.5,
+        "frameP95Ms": 550,
+        "maxLongTaskMs": 541,
+        "frameSamples": 11,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44916,
+        "historyRequestMs": [
+          27.799999999813735
+        ]
+      },
+      "older": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 38,
+        "messages": 38,
+        "visible": 38,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 20,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 553.9000000003725,
+        "frameP95Ms": 483.2999999999997,
+        "maxLongTaskMs": 469,
+        "frameSamples": 10,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44890,
+        "historyRequestMs": [
+          9.700000000186265
+        ]
+      },
+      "searching": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 180,
+        "messages": 180,
+        "visible": 180,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 143,
+        "markdown": 142,
+        "conversions": 150,
+        "elapsedMs": 3653.0999999996275,
+        "frameP95Ms": 266.60000000000036,
+        "maxLongTaskMs": 2795,
+        "frameSamples": 36,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 440631,
+        "historyRequestMs": [
+          16.600000000558794
+        ]
+      },
+      "afterFind": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 180,
+        "messages": 180,
+        "visible": 180,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 143,
+        "markdown": 142,
+        "conversions": 150
+      },
+      "streaming": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 181,
+        "messages": 181,
+        "visible": 181,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 2,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 49.200000000186265,
+        "frameP95Ms": 16.800000000000182,
+        "maxLongTaskMs": 0,
+        "frameSamples": 8,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "refreshing": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 181,
+        "messages": 181,
+        "visible": 181,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 0,
+        "markdown": 0,
+        "conversions": 0,
+        "elapsedMs": 48.30000000074506,
+        "frameP95Ms": 16.699999999999818,
+        "maxLongTaskMs": 0,
+        "frameSamples": 8,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 440631,
+        "historyRequestMs": [
+          15.700000000186265
+        ]
+      },
+      "streamingUpdate": {
+        "sessionId": "app-native-claude-200-mixed-0",
+        "mountedRows": 182,
+        "messages": 182,
+        "visible": 182,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 1,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 33.200000000186265,
+        "frameP95Ms": 16.700000000000728,
+        "maxLongTaskMs": 0,
+        "frameSamples": 7,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "phase3Targets": {
+        "append": true,
+        "refresh": true,
+        "streamUpdate": true
+      },
+      "phase4Targets": {
+        "bookmarkAdvanced": true,
+        "noDuplicates": true,
+        "tailPreserved": true,
+        "usedBookmark": true
+      }
+    },
+    {
+      "fixture": {
+        "id": "app-native-claude-1000-mixed-1",
+        "count": 1000
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+      "viewport": [
+        1280,
+        720
+      ],
+      "productionBundle": true,
+      "rowCountersInstrumented": true,
+      "initial": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 19,
+        "messages": 19,
+        "visible": 19,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 19,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 796.4000000003725,
+        "frameP95Ms": 33.40000000000009,
+        "maxLongTaskMs": 516,
+        "frameSamples": 21,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44936,
+        "historyRequestMs": [
+          216.40000000037253
+        ]
+      },
+      "older": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 38,
+        "messages": 38,
+        "visible": 38,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 20,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 504.69999999925494,
+        "frameP95Ms": 450,
+        "maxLongTaskMs": 436,
+        "frameSamples": 9,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44910,
+        "historyRequestMs": [
+          8.799999999813735
+        ]
+      },
+      "searching": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 900,
+        "messages": 900,
+        "visible": 900,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 863,
+        "markdown": 862,
+        "conversions": 910,
+        "elapsedMs": 23955.599999999627,
+        "frameP95Ms": 6633.0999999999985,
+        "maxLongTaskMs": 16223,
+        "frameSamples": 25,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 2204701,
+        "historyRequestMs": [
+          51.89999999944121
+        ]
+      },
+      "afterFind": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 900,
+        "messages": 900,
+        "visible": 900,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 863,
+        "markdown": 862,
+        "conversions": 910
+      },
+      "streaming": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 901,
+        "messages": 901,
+        "visible": 901,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 2,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 253.3999999994412,
+        "frameP95Ms": 150,
+        "maxLongTaskMs": 114,
+        "frameSamples": 3,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "refreshing": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 901,
+        "messages": 901,
+        "visible": 901,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 0,
+        "markdown": 0,
+        "conversions": 0,
+        "elapsedMs": 232.1000000005588,
+        "frameP95Ms": 50,
+        "maxLongTaskMs": 64,
+        "frameSamples": 11,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 2204701,
+        "historyRequestMs": [
+          119.90000000037253
+        ]
+      },
+      "streamingUpdate": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 902,
+        "messages": 902,
+        "visible": 902,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 1,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 130.20000000018626,
+        "frameP95Ms": 100,
+        "maxLongTaskMs": 67,
+        "frameSamples": 6,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "phase3Targets": {
+        "append": true,
+        "refresh": true,
+        "streamUpdate": true
+      },
+      "phase4Targets": {
+        "bookmarkAdvanced": true,
+        "noDuplicates": true,
+        "tailPreserved": true,
+        "usedBookmark": true
+      }
+    },
+    {
+      "fixture": {
+        "id": "app-native-claude-1000-mixed-1",
+        "count": 1000
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+      "viewport": [
+        1280,
+        720
+      ],
+      "productionBundle": true,
+      "rowCountersInstrumented": true,
+      "initial": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 19,
+        "messages": 19,
+        "visible": 19,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 19,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 719.3999999994412,
+        "frameP95Ms": 616.5999999999999,
+        "maxLongTaskMs": 607,
+        "frameSamples": 10,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44936,
+        "historyRequestMs": [
+          27.200000000186265
+        ]
+      },
+      "older": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 38,
+        "messages": 38,
+        "visible": 38,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 20,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 557,
+        "frameP95Ms": 483.3000000000002,
+        "maxLongTaskMs": 472,
+        "frameSamples": 9,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44910,
+        "historyRequestMs": [
+          9.099999999627471
+        ]
+      },
+      "searching": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 900,
+        "messages": 900,
+        "visible": 900,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 863,
+        "markdown": 862,
+        "conversions": 910,
+        "elapsedMs": 24761.5,
+        "frameP95Ms": 6683.0999999999985,
+        "maxLongTaskMs": 16985,
+        "frameSamples": 23,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 2204701,
+        "historyRequestMs": [
+          51.5
+        ]
+      },
+      "afterFind": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 900,
+        "messages": 900,
+        "visible": 900,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 863,
+        "markdown": 862,
+        "conversions": 910
+      },
+      "streaming": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 901,
+        "messages": 901,
+        "visible": 901,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 2,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 255.69999999925494,
+        "frameP95Ms": 199.89999999999782,
+        "maxLongTaskMs": 191,
+        "frameSamples": 2,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "refreshing": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 901,
+        "messages": 901,
+        "visible": 901,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 0,
+        "markdown": 0,
+        "conversions": 0,
+        "elapsedMs": 307.59999999962747,
+        "frameP95Ms": 116.70000000000073,
+        "maxLongTaskMs": 74,
+        "frameSamples": 12,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 2204701,
+        "historyRequestMs": [
+          186.20000000018626
+        ]
+      },
+      "streamingUpdate": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 902,
+        "messages": 902,
+        "visible": 902,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 1,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 99.8999999994412,
+        "frameP95Ms": 83.40000000000146,
+        "maxLongTaskMs": 65,
+        "frameSamples": 8,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "phase3Targets": {
+        "append": true,
+        "refresh": true,
+        "streamUpdate": true
+      },
+      "phase4Targets": {
+        "bookmarkAdvanced": true,
+        "noDuplicates": true,
+        "tailPreserved": true,
+        "usedBookmark": true
+      }
+    },
+    {
+      "fixture": {
+        "id": "app-native-claude-1000-mixed-1",
+        "count": 1000
+      },
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+      "viewport": [
+        1280,
+        720
+      ],
+      "productionBundle": true,
+      "rowCountersInstrumented": true,
+      "initial": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 19,
+        "messages": 19,
+        "visible": 19,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 19,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 701.7000000001863,
+        "frameP95Ms": 599.9000000000001,
+        "maxLongTaskMs": 602,
+        "frameSamples": 12,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44936,
+        "historyRequestMs": [
+          29.799999999813735
+        ]
+      },
+      "older": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 38,
+        "messages": 38,
+        "visible": 38,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 20,
+        "markdown": 19,
+        "conversions": 20,
+        "elapsedMs": 586.2000000001863,
+        "frameP95Ms": 516.5999999999999,
+        "maxLongTaskMs": 506,
+        "frameSamples": 10,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 44910,
+        "historyRequestMs": [
+          8.800000000745058
+        ]
+      },
+      "searching": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 900,
+        "messages": 900,
+        "visible": 900,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 863,
+        "markdown": 862,
+        "conversions": 910,
+        "elapsedMs": 23097,
+        "frameP95Ms": 6416.399999999998,
+        "maxLongTaskMs": 15632,
+        "frameSamples": 28,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 2204701,
+        "historyRequestMs": [
+          53.40000000037253
+        ]
+      },
+      "afterFind": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 900,
+        "messages": 900,
+        "visible": 900,
+        "matches": 1,
+        "heapEstimateBytes": 12700000,
+        "rows": 863,
+        "markdown": 862,
+        "conversions": 910
+      },
+      "streaming": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 901,
+        "messages": 901,
+        "visible": 901,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 2,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 83.19999999925494,
+        "frameP95Ms": 50,
+        "maxLongTaskMs": 57,
+        "frameSamples": 3,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "refreshing": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 901,
+        "messages": 901,
+        "visible": 901,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 0,
+        "markdown": 0,
+        "conversions": 0,
+        "elapsedMs": 251.29999999981374,
+        "frameP95Ms": 66.60000000000218,
+        "maxLongTaskMs": 0,
+        "frameSamples": 10,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 1,
+        "historyBodyBytes": 2204701,
+        "historyRequestMs": [
+          102.19999999925494
+        ]
+      },
+      "streamingUpdate": {
+        "sessionId": "app-native-claude-1000-mixed-1",
+        "mountedRows": 902,
+        "messages": 902,
+        "visible": 902,
+        "matches": 0,
+        "heapEstimateBytes": 12700000,
+        "rows": 1,
+        "markdown": 1,
+        "conversions": 1,
+        "elapsedMs": 138.5,
+        "frameP95Ms": 99.90000000000146,
+        "maxLongTaskMs": 65,
+        "frameSamples": 5,
+        "longTaskSupported": true,
+        "heapEstimateDeltaBytes": 0,
+        "historyRequests": 0,
+        "historyBodyBytes": 0,
+        "historyRequestMs": []
+      },
+      "phase3Targets": {
+        "append": true,
+        "refresh": true,
+        "streamUpdate": true
+      },
+      "phase4Targets": {
+        "bookmarkAdvanced": true,
+        "noDuplicates": true,
+        "tailPreserved": true,
+        "usedBookmark": true
+      }
+    }
+  ]
+}

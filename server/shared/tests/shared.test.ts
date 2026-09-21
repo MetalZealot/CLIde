@@ -3,6 +3,7 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
+
 import { resolveClaudeCodeExecutablePath, type ResolveClaudeCodeExecutablePathDependencies } from '@/shared/claude-cli-path.js';
 import {
   appendFilesInputTag,
@@ -99,6 +100,7 @@ describe('shared-helpers', () => {
       ];
       assert.equal(findTurnStartedAt(messages, 4), 'prompt', 'summaries and command output do not open a turn');
       assert.equal(findTurnStartedAt(messages, 0), null);
+      assert.equal(findTurnStartedAt([...messages, row('text', { role: 'user' })], 5), null, 'a prompt at the boundary starts its own turn');
       assert.equal(findTurnStartedAt(messages, sliceTailPage(messages, null, 0).start), null);
     });
 

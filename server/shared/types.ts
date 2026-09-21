@@ -745,7 +745,13 @@ export type ProviderRunFunction = (
  * app-allocated id that the provider has never seen.
  */
 export type FetchHistoryOptions = {
+  /** Opaque exclusive older boundary; cannot be combined with from or a nonzero offset. */
+  before?: string;
+  /** Refresh from the loaded oldest boundary through the current tail. */
+  from?: string;
   projectPath?: string;
+  /** Stable session creation time for providers without per-message wall-clock timestamps. */
+  historyStartTime?: string;
   limit?: number | null;
   offset?: number;
   providerSessionId?: string;
@@ -759,6 +765,11 @@ export type FetchHistoryOptions = {
  * Use this as the contract for APIs that return paginated conversation history.
  */
 export type FetchHistoryResult = {
+  /** Service metadata: raw normalized records, not rendered rows or legacy total. */
+  recordTotal?: number;
+  revision?: string;
+  /** Null means the oldest boundary is reached; undefined is a legacy reader. */
+  nextCursor?: string | null;
   messages: NormalizedMessage[];
   total: number;
   hasMore: boolean;

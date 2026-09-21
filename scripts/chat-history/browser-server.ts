@@ -53,8 +53,11 @@ try {
       if ((limit !== null && (!Number.isInteger(limit) || limit < 0)) || !Number.isInteger(offset) || offset < 0) {
         res.sendStatus(400); return;
       }
-      res.json({ success: true, data: await fixture!.read(req.params.id, limit, offset) });
-    } catch { res.sendStatus(500); }
+      res.json({ success: true, data: await fixture!.read(req.params.id, limit, offset, { before: req.query.before as string | undefined, from: req.query.from as string | undefined }) });
+    } catch (error) {
+      const failure = error as { statusCode?: number; code?: string };
+      res.status(failure.statusCode ?? 500).json({ error: { code: failure.code } });
+    }
   });
   app.get('/api/providers/sessions/:id/token-usage', (req, res) => {
     if (!allowed.has(req.params.id)) { res.sendStatus(404); return; }

@@ -1287,8 +1287,12 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     }
 
     const normalizedWithEchoes: NormalizedMessage[] = [];
-    for (const raw of rawMessages) {
-      normalizedWithEchoes.push(...this.normalizeMessage(raw, sessionId));
+    for (const [index, raw] of rawMessages.entries()) {
+      normalizedWithEchoes.push(...this.normalizeMessage({
+        ...raw,
+        uuid: raw.uuid || `history-claude-${options.providerSessionId ?? sessionId}-${index}`,
+        timestamp: raw.timestamp || '1970-01-01T00:00:00.000Z',
+      }, sessionId));
     }
     const normalized = dropDuplicateLocalCommandEchoes(normalizedWithEchoes);
 

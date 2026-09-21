@@ -1,0 +1,281 @@
+{
+  "schema": 1,
+  "source": {
+    "commit": "940a6a7af57325644a32b674fbc3c9528a100e53",
+    "sourceSha256": "613de364d2b6b09943fea5c7d9868734f50441a3228158a87b3908b23df353e9",
+    "dirty": true
+  },
+  "fixtureVersion": 1,
+  "node": "v24.16.0",
+  "platform": "linux",
+  "architecture": "arm64",
+  "timestamp": "2026-09-21T05:56:36.478Z",
+  "samples": 3,
+  "notes": [
+    "cold means first app read, not cleared OS disk cache",
+    "HTTP is loopback fixture transport, excludes production auth/TLS",
+    "heap delta is post-GC retained heap, not peak or total service memory",
+    "cache bytes reserve serialized histories plus bookmark fingerprints, not exact heap size",
+    "timing budgets are targets, not normal CI gates"
+  ],
+  "budgets": {
+    "warmReadBytes": 0,
+    "duplicateMessages": 0,
+    "unchangedRowsRecreated": 0,
+    "findMountedRows": 100,
+    "pageBytes": 262144,
+    "coldReaderP95Ms": 500,
+    "warmReaderP95Ms": 50,
+    "coldHttpP95Ms": 750,
+    "warmHttpP95Ms": 150,
+    "browserOpenP95Ms": 1000,
+    "browserFindP95Ms": 500,
+    "frameP95Ms": 32,
+    "maxLongTaskMs": 200,
+    "serverHeapGrowthBytes": 67108864,
+    "browserHeapGrowthBytes": 134217728
+  },
+  "results": [
+    {
+      "provider": "claude",
+      "fixtureMessages": 200,
+      "samples": 3,
+      "coldReaderMs": {
+        "median": 37.72,
+        "p95": 72.42
+      },
+      "warmReaderMs": {
+        "median": 2.55,
+        "p95": 3.82
+      },
+      "coldHttpMs": {
+        "median": 29.77,
+        "p95": 95.7
+      },
+      "warmHttpMs": {
+        "median": 10.93,
+        "p95": 16.51
+      },
+      "warmReadBytes": {
+        "median": 0,
+        "p95": 0
+      },
+      "pageBytes": {
+        "median": 13092,
+        "p95": 13092
+      },
+      "retainedHeapDeltaBytes": {
+        "median": 471872,
+        "p95": 1180256
+      },
+      "retainedCacheBytes": {
+        "median": 520872,
+        "p95": 781308
+      },
+      "warmReadTarget": "PASS"
+    },
+    {
+      "provider": "claude",
+      "fixtureMessages": 2000,
+      "samples": 3,
+      "coldReaderMs": {
+        "median": 101.91,
+        "p95": 102.4
+      },
+      "warmReaderMs": {
+        "median": 2.14,
+        "p95": 2.46
+      },
+      "coldHttpMs": {
+        "median": 113.4,
+        "p95": 116.87
+      },
+      "warmHttpMs": {
+        "median": 7.41,
+        "p95": 9.13
+      },
+      "warmReadBytes": {
+        "median": 0,
+        "p95": 0
+      },
+      "pageBytes": {
+        "median": 13156,
+        "p95": 13176
+      },
+      "retainedHeapDeltaBytes": {
+        "median": 2778592,
+        "p95": 2790936
+      },
+      "retainedCacheBytes": {
+        "median": 5676544,
+        "p95": 7997944
+      },
+      "warmReadTarget": "PASS"
+    },
+    {
+      "provider": "claude",
+      "fixtureMessages": 10000,
+      "samples": 3,
+      "coldReaderMs": {
+        "median": 415.16,
+        "p95": 449.87
+      },
+      "warmReaderMs": {
+        "median": 1.92,
+        "p95": 17.3
+      },
+      "coldHttpMs": {
+        "median": 422.4,
+        "p95": 434.7
+      },
+      "warmHttpMs": {
+        "median": 5.35,
+        "p95": 6.88
+      },
+      "warmReadBytes": {
+        "median": 0,
+        "p95": 0
+      },
+      "pageBytes": {
+        "median": 13200,
+        "p95": 13200
+      },
+      "retainedHeapDeltaBytes": {
+        "median": 10127304,
+        "p95": 12632040
+      },
+      "retainedCacheBytes": {
+        "median": 31019348,
+        "p95": 32324595
+      },
+      "warmReadTarget": "PASS"
+    },
+    {
+      "provider": "claude",
+      "profile": "heavy",
+      "pageBytes": 723880,
+      "pageTarget": "FAIL"
+    },
+    {
+      "provider": "codex",
+      "fixtureMessages": 200,
+      "samples": 3,
+      "coldReaderMs": {
+        "median": 28,
+        "p95": 37.87
+      },
+      "warmReaderMs": {
+        "median": 1.47,
+        "p95": 1.71
+      },
+      "coldHttpMs": {
+        "median": 23.34,
+        "p95": 24.13
+      },
+      "warmHttpMs": {
+        "median": 5.1,
+        "p95": 5.2
+      },
+      "warmReadBytes": {
+        "median": 0,
+        "p95": 0
+      },
+      "pageBytes": {
+        "median": 13170,
+        "p95": 13170
+      },
+      "retainedHeapDeltaBytes": {
+        "median": -5935072,
+        "p95": 403104
+      },
+      "retainedCacheBytes": {
+        "median": 26791059,
+        "p95": 32994542
+      },
+      "warmReadTarget": "PASS"
+    },
+    {
+      "provider": "codex",
+      "fixtureMessages": 2000,
+      "samples": 3,
+      "coldReaderMs": {
+        "median": 116.53,
+        "p95": 118.41
+      },
+      "warmReaderMs": {
+        "median": 1.53,
+        "p95": 3.2
+      },
+      "coldHttpMs": {
+        "median": 107.72,
+        "p95": 111.44
+      },
+      "warmHttpMs": {
+        "median": 4.95,
+        "p95": 4.95
+      },
+      "warmReadBytes": {
+        "median": 0,
+        "p95": 0
+      },
+      "pageBytes": {
+        "median": 13234,
+        "p95": 13234
+      },
+      "retainedHeapDeltaBytes": {
+        "median": 2353176,
+        "p95": 2413328
+      },
+      "retainedCacheBytes": {
+        "median": 5698544,
+        "p95": 8024944
+      },
+      "warmReadTarget": "PASS"
+    },
+    {
+      "provider": "codex",
+      "fixtureMessages": 10000,
+      "samples": 3,
+      "coldReaderMs": {
+        "median": 468.71,
+        "p95": 483.53
+      },
+      "warmReaderMs": {
+        "median": 1.68,
+        "p95": 1.76
+      },
+      "coldHttpMs": {
+        "median": 456.38,
+        "p95": 460.8
+      },
+      "warmHttpMs": {
+        "median": 5.19,
+        "p95": 5.22
+      },
+      "warmReadBytes": {
+        "median": 0,
+        "p95": 0
+      },
+      "pageBytes": {
+        "median": 13258,
+        "p95": 13258
+      },
+      "retainedHeapDeltaBytes": {
+        "median": 10373248,
+        "p95": 12883600
+      },
+      "retainedCacheBytes": {
+        "median": 31095348,
+        "p95": 32399595
+      },
+      "warmReadTarget": "PASS"
+    },
+    {
+      "provider": "codex",
+      "profile": "heavy",
+      "pageBytes": 727707,
+      "pageTarget": "FAIL"
+    }
+  ],
+  "structuralFailures": 2
+}

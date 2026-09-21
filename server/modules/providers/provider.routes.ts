@@ -873,13 +873,18 @@ router.get(
   '/sessions/:sessionId/messages',
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
+    for (const key of ['limit', 'offset', 'before', 'from']) {
+      if (req.query[key] !== undefined && (typeof req.query[key] !== 'string' || !String(req.query[key]).trim())) {
+        throw new AppError(`Invalid ${key}.`, { code: 'INVALID_QUERY_PARAMETER', statusCode: 400 });
+      }
+    }
     const limitRaw = readOptionalQueryString(req.query.limit);
     const offsetRaw = readOptionalQueryString(req.query.offset);
 
     let limit: number | null = null;
     if (limitRaw !== undefined) {
-      const parsedLimit = Number.parseInt(limitRaw, 10);
-      if (Number.isNaN(parsedLimit) || parsedLimit < 0) {
+      const parsedLimit = Number(limitRaw);
+      if ((!/^\d+$/.test(limitRaw) || !Number.isSafeInteger(parsedLimit)) || parsedLimit < 0) {
         throw new AppError('limit must be a non-negative integer.', {
           code: 'INVALID_QUERY_PARAMETER',
           statusCode: 400,
@@ -890,8 +895,8 @@ router.get(
 
     let offset = 0;
     if (offsetRaw !== undefined) {
-      const parsedOffset = Number.parseInt(offsetRaw, 10);
-      if (Number.isNaN(parsedOffset) || parsedOffset < 0) {
+      const parsedOffset = Number(offsetRaw);
+      if ((!/^\d+$/.test(offsetRaw) || !Number.isSafeInteger(parsedOffset)) || parsedOffset < 0) {
         throw new AppError('offset must be a non-negative integer.', {
           code: 'INVALID_QUERY_PARAMETER',
           statusCode: 400,
@@ -903,6 +908,8 @@ router.get(
     const result = await sessionsService.fetchHistory(sessionId, {
       limit,
       offset,
+      before: readOptionalQueryString(req.query.before),
+      from: readOptionalQueryString(req.query.from),
     });
     res.json(createApiSuccessResponse(result));
   }),

@@ -1,16 +1,15 @@
 # Chat history loading and rendering
 
-Initial diagnosis: `668f4049`, investigated 2026-09-19. Phases 1–2 now provide
-maintained evidence and safe server reuse below. Rendering, paging, search and
-acceptance remain open in the [performance plan](../plans/chat-history-performance.md).
+Initial diagnosis: `668f4049`, investigated 2026-09-19. Phases 1–4 provide
+server reuse, unchanged-message rendering and stable paging below. Payload size,
+search, mounted contents and acceptance remain open in the [performance plan](../plans/chat-history-performance.md).
 
 ## What the reader experiences
 
 Opening a long conversation, walking backward, and finding an old sentence share
 the same expensive history path. A small response does not imply a small read:
-the server processes the full transcript before choosing a page. The client then
-converts the accumulated history again, and the rendered window grows as older
-pages arrive. Collapsing tool cards can reduce screen space without reducing the
+the server processes the full transcript before choosing a page. Unchanged client records now reuse their display objects, but the rendered
+window still grows as older pages arrive. Collapsing tool cards can reduce screen space without reducing the
 work to read, transfer, or convert their contents.
 
 ## Measured baseline
@@ -90,8 +89,8 @@ full app shell, composer, WebSocket transport and production authentication.
 Server fixtures cover 200/2,000/10,000 plain messages for Claude and Codex plus
 heavy tool output. Correctness checks cover unequal app/provider ids, complete
 pagination, branch filtering, hidden rows, images, tool joins and subagent-file
-changes. Codex ancestry invalidation still needs phase-2 cases. Cursor/OpenCode
-have no measured fixture baseline yet; preserve explicit fallback behaviour.
+changes. Codex ancestry invalidation has phase-2 coverage. Cursor/OpenCode now
+have synthetic SQLite paging checks, but no measured performance baseline.
 
 Cold means the first application read, not an emptied operating-system disk
 cache. HTTP wraps the real sessions service over loopback and excludes auth/TLS.
@@ -258,9 +257,9 @@ numbers; change a target only with an explained measurement-based decision.
 | Frame interval p95 / longest task | 32 / 200 ms |
 | Server retained growth / browser heap growth | 64 / 128 MiB |
 
-The warm-read and unchanged-display-object targets now pass as ordinary tests.
-The remaining append/pagination and Find-window targets execute as TODO assertions;
-`--regressions-only` removes TODO status and must currently exit 1 with two failures.
+Warm reads, unchanged display objects and append-safe pagination pass ordinary
+tests. Only the Find-window target remains a TODO assertion;
+`--regressions-only` removes TODO status and must currently exit 1 with one failure.
 `--check` additionally checks warm rereads and oversized pages. Remove each TODO
 when its implementation phase lands so future regressions fail ordinary CI.
 Timing and memory targets are advisory until phase 9 establishes a
@@ -277,23 +276,79 @@ npm run test:server:one -- server/modules/providers/tests/provider-sessions.test
 npm run test:client:one -- src/components/chat/hooks/chatHooks.test.ts
 ```
 
+## Phase 4: stable history bookmarks
+
+The [pagination service](../../server/modules/providers/services/history-pagination.service.ts)
+issues versioned, session-scoped bookmarks containing an exclusive record boundary
+and the loaded snapshot's count/fingerprint. `before` walks older records;
+`from` refreshes from the oldest loaded boundary through the current tail. Provider
+ordering, including equal-timestamp order, is preserved after complete tool joins.
+A prefix-preserving append keeps existing bookmarks valid. Changing any existing
+record, its order, or app/provider/path identity returns HTTP 409
+`HISTORY_CURSOR_INVALIDATED`; malformed bookmarks return 400. Content changes,
+including completed tool output, conservatively invalidate the snapshot.
+
+The client retries invalidation once with its loaded window size, replaces stale
+rows, and arms the existing scroll restoration before publishing a page reset.
+Surviving message anchors can be restored; a removed anchor uses the existing
+scroll fallback. Refresh appends retain the oldest loaded record. A newer request,
+session switch, unmount or optimistic rewind cancels obsolete work; request tickets
+also guard transports that ignore abort. Find cannot mark a cancelled partial
+load complete. Failed reads retain the existing window.
+Legacy servers without bookmark metadata retain offset compatibility.
+
+Bookmarks are stateless and survive cache eviction/server restart. Fingerprints
+are weakly owned by the normalized array, capped at eight requested boundaries
+per snapshot, with 2 KiB reserved in the existing 32 MiB cache budget. Warm requests reuse them. Cold or changed histories
+still require full normalization and hashing; payload and incremental-read work
+remain later phases. Cursor uses stable session creation time plus sequence for
+its synthetic timestamps; missing persisted ids/timestamps have deterministic
+fallbacks. These timestamps do not establish real per-message wall-clock times.
+
+Verification covers all four providers, app/native ids deliberately unequal,
+appends and cache eviction, equal timestamps, hidden-only pages, tool joins,
+rewind/replacement, malformed HTTP queries, reconnect/reset, deduplication and
+cancelled responses. Browser checks additionally require bookmark advancement,
+no duplicate ids and retention of the loaded tail while scrolling upward.
+
+The [server report](../../scripts/chat-history/baselines/2026-09-20-server-phase4.json)
+uses three samples per size. At 10,000 records, warm-reader median / observed p95
+was 1.92 / 17.30 ms for Claude and 1.68 / 1.76 ms for Codex, with zero transcript
+bytes reread. Cold p95 was 450 / 484 ms respectively. Heavy pages still exceed
+the unchanged 256 KiB budget (phase 5).
+
+The [Browser report](../../scripts/chat-history/baselines/2026-09-20-browser-phase4.json)
+has three desktop runs each at 200 and 1,000 records, using the same source hash
+as the server report. All paging and phase-3 rendering checks pass; older-page
+median / observed p95 was 590 / 621 ms and 557 / 586 ms respectively. No console
+errors in the final run. Find at 1,000 records remains 23.1–24.8 seconds; bounded
+search/rendering and physical-phone acceptance remain open.
+
+Verification on the updated checkout: 684 server tests and 402 client tests pass,
+with the existing Find-window TODO. After the final cancellation guard, the
+focused hook/store run passes 89 tests plus that TODO. Typechecking and isolated
+server/client production builds pass. Focused lint has no errors and two existing
+hook warnings. Builds/fixtures use temporary directories; production was not
+rebuilt or restarted.
+
 ## Owners and contracts today
 
 | Boundary | Current owner and behaviour |
 |---|---|
-| History request | [sessions service](../../server/modules/providers/services/sessions.service.ts), `fetchHistory`: resolves app/provider identity, reuses one stable full Claude/Codex history through the bounded revision cache, then slices; Cursor/OpenCode delegate directly |
+| History request | [sessions service](../../server/modules/providers/services/sessions.service.ts), `fetchHistory`: resolves app/provider identity, reuses one stable full Claude/Codex history through the bounded revision cache, then applies the same bookmark contract to all providers; Cursor/OpenCode reread directly |
 | Claude | [reader](../../server/modules/providers/list/claude/claude-sessions.provider.ts), `fetchHistory`/`getSessionMessages`: reads main and subagent files, filters the active branch, normalizes and attaches results, then slices |
 | Codex | [reader](../../server/modules/providers/list/codex/codex-sessions.provider.ts), `fetchHistory`: reads the [transcript chain](../../server/modules/providers/list/codex/codex-transcript-chain.ts), normalizes and joins tool results, then slices |
-| Other providers | Cursor loads and normalizes its blobs; OpenCode reads session message/part rows before slicing. Source inspection only; no live performance sample |
-| Client history | [store](../../src/stores/useSessionStore.ts), `fetchMore`/`refreshFromServer`: reuses unchanged JSON records across refreshes and prepends offset pages; stale-response tickets protect against a newer applied request but do not freeze the transcript's tail |
+| Other providers | Cursor loads and normalizes its blobs; OpenCode reads session message/part rows before slicing. Synthetic SQLite paging tests; no live performance sample |
+| Client history | [store](../../src/stores/useSessionStore.ts), `fetchMore`/`refreshFromServer`: reuses unchanged records, prepends bookmark pages and refreshes from the oldest loaded boundary; latest-started requests own publication, with cancellation and deduplication |
 | Display conversion | [normalizedToChatMessages](../../src/components/chat/hooks/useChatMessages.ts): weakly caches projections by immutable source record and attached result identity; changed records/results rebuild their projection |
 | Rendering | [pane](../../src/components/chat/view/subcomponents/ChatMessagesPane.tsx) renders the growing visible slice; [Markdown](../../src/components/chat/view/subcomponents/Markdown.tsx) is memoized; unchanged tool groups also retain identity |
 | Scroll and Find | [session hook](../../src/components/chat/hooks/useChatSessionState.ts) requests 20 records, preserves prepend anchors, and sets an unlimited visible count for full-history paths; [Find](../../src/components/chat/hooks/useChatFind.ts) loads all history and searches rendered text |
 
-Claude and Codex pages include tool-result records even when those records attach
-to another row. Their displayed `total` excludes tool results but the paging
-offset counts returned records. A future contract must explicitly distinguish
-records, displayed rows, and authored turns.
+Claude and Codex pages include tool-result records even when they attach to
+another row. `recordTotal` counts normalized records; legacy `total` retains each
+reader's display-oriented count. Neither is a rendered-row or authored-turn count.
+Only `nextCursor`/`hasMore` controls modern paging; offsets remain compatible with
+older clients. Display grouping and hidden records cannot determine a bookmark.
 
 The scroll listener already uses animation-frame throttling and a passive event
 listener. This part of upstream issue #1050 is not an outstanding CLIde fix.

@@ -434,6 +434,10 @@ export function sliceTailPage<T>(
  * holding only that page can still time the turn. Null when the page opens on a prompt.
  */
 export function findTurnStartedAt(messages: NormalizedMessage[], pageStart: number): string | null {
+  const first = messages[pageStart];
+  if (first?.kind === 'text' && first.role === 'user' && !first.isCompactSummary && !first.isLocalCommandStdout) {
+    return null;
+  }
   for (let index = Math.min(pageStart, messages.length) - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (

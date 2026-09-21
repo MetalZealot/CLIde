@@ -19,7 +19,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const id = url.pathname.slice(1);
     if (req.method !== 'GET' || !ids.has(id)) { res.writeHead(404).end(); return; }
-    const result = await fixture.read(id, 20, Number(url.searchParams.get('offset') ?? 0));
+    const result = await fixture.read(id, 20, Number(url.searchParams.get('offset') ?? 0), { before: url.searchParams.get('before') ?? undefined });
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ success: true, data: result }));
   } catch { res.writeHead(500).end('Fixture read failed'); }
@@ -47,7 +47,7 @@ try {
         if (first.messages.length !== 20) throw new Error(`${provider}: invalid fixture result`);
         fixture.resetReads();
         start = performance.now();
-        const second = await fixture.read(id, 20, 20);
+        const second = await fixture.read(id, 20, 0, { before: first.nextCursor! });
         warm.push(performance.now() - start);
         readBytes.push(fixture.reads().bytesRead);
         bodyBytes.push(Buffer.byteLength(JSON.stringify(second)));
@@ -56,10 +56,10 @@ try {
         start = performance.now();
         let response = await fetch(`http://localhost:${address.port}/${httpId}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        await response.json();
+        const firstHttpPage = await response.json() as { data: { nextCursor: string } };
         httpCold.push(performance.now() - start);
         start = performance.now();
-        response = await fetch(`http://localhost:${address.port}/${httpId}?offset=20`);
+        response = await fetch(`http://localhost:${address.port}/${httpId}?before=${encodeURIComponent(firstHttpPage.data.nextCursor)}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         await response.json();
         http.push(performance.now() - start);
@@ -90,7 +90,7 @@ try {
     architecture: process.arch, timestamp: new Date().toISOString(), samples,
     notes: ['cold means first app read, not cleared OS disk cache', 'HTTP is loopback fixture transport, excludes production auth/TLS',
       'heap delta is post-GC retained heap, not peak or total service memory',
-      'cache bytes are v8-serialized normalized histories, not transcript bytes or exact heap size',
+      'cache bytes reserve serialized histories plus bookmark fingerprints, not exact heap size',
       'timing budgets are targets, not normal CI gates'],
     budgets: historyBudgets, results, structuralFailures };
   if (arg('output')) await writeFile(arg('output')!, JSON.stringify(report, null, 2) + '\n');

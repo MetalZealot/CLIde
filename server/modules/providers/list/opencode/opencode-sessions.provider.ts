@@ -315,6 +315,7 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
     const providerSessionId = options.providerSessionId ?? sessionId;
     const db = openOpenCodeDatabase();
     if (!db) {
+      if (options.requireCompleteRead) throw new Error('OpenCode history database is unavailable.');
       return { messages: [], total: 0, hasMore: false, offset: 0, limit: null };
     }
 
@@ -357,6 +358,7 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
         tokenUsage,
       };
     } catch (error) {
+      if (options.requireCompleteRead) throw error;
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[OpenCodeProvider] Failed to load session ${sessionId}:`, message);
       return { messages: [], total: 0, hasMore: false, offset: 0, limit: null };
@@ -370,7 +372,7 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
     const emittedMessageErrors = new Set<string>();
 
     for (const row of rows) {
-      const timestamp = normalizeProviderTimestamp(row.part_time_created ?? row.message_time_created);
+      const timestamp = normalizeProviderTimestamp((row.part_time_created ?? row.message_time_created) || '1970-01-01T00:00:00.000Z');
       const baseId = `${row.message_id}_${row.part_id ?? normalized.length}`;
       const messageInfo = readJsonRecord(row.message_data);
       const messageRole = readOptionalString(messageInfo?.role);

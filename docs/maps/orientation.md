@@ -270,6 +270,19 @@ received them asks about work the other one was told to allow.
 
 ---
 
+## 17. Loading older messages follows a bookmark
+
+New replies can arrive while you read older messages. A count from the newest reply
+moves whenever that happens; a bookmark tied to the conversation keeps your place.
+
+**The rule:** older pages follow the server's bookmark. A refresh keeps the oldest
+loaded message when history only grows. A rewind or replacement starts a fresh
+window, and a cancelled request cannot put abandoned messages back.
+
+**What breaks:** messages repeat, disappear between pages, or jump back into view
+after a rewind. Hidden tool records still count toward paging even though they do
+not each become a visible bubble.
+
 ## When to stop and ask
 
 You do not need to understand a diff to catch these. If a proposed change would:

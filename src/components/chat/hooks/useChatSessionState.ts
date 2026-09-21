@@ -411,7 +411,6 @@ export function useChatSessionState({
             const madeProgress =
               updatedSlot.offset > previousOffset
               || updatedSlot.serverMessages.length > previousServerMessageCount;
-            if (!madeProgress) return;
 
             // The store notification and these local updates are automatically
             // batched by React 18. Older DOM rows, the larger visible window,
@@ -421,7 +420,7 @@ export function useChatSessionState({
             pendingScrollRestoreRef.current = scrollRestore;
             capturedScrollRestoreRef.current = null;
             setScrollRestoreTick((tick) => tick + 1);
-            setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+            if (madeProgress) setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
             if (!updatedSlot.hasMore) {
               setAllMessagesLoaded(true);
             }
@@ -732,6 +731,7 @@ export function useChatSessionState({
       target.sessionId !== selectedSessionId
       || target.version <= handledExternalUpdateRef.current
       || isLoadingSessionMessages
+      || isLoadingAllMessages
       || isProcessing
     ) return;
 
@@ -755,6 +755,7 @@ export function useChatSessionState({
   }, [
     externalMessageUpdate,
     isLoadingSessionMessages,
+    isLoadingAllMessages,
     isNearBottom,
     isProcessing,
     scrollToBottom,
@@ -1014,7 +1015,7 @@ export function useChatSessionState({
 
       if (currentSessionIdRef.current !== requestSessionId) return null;
 
-      if (slot && slot.status !== 'error') {
+      if (slot && slot.status !== 'error' && !slot.hasMore) {
         if (scrollRestore) {
           pendingScrollRestoreRef.current = scrollRestore;
           capturedScrollRestoreRef.current = null;
