@@ -1,7 +1,7 @@
 # /btw — side questions beside a running conversation
 
-- Status: 4/7
-- Next: phase 4 — the sheet reads the server's history
+- Status: 5/7
+- Next: see phase 4 live on a clean build, then phase 5 — Codex
 - Context: Claude Code ships `/btw` and Codex ships `/side`. CLIde matches
   Claude Code's behaviour; the mechanism is per provider
 
@@ -66,11 +66,10 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
       request. A GET returns the history, a DELETE clears it and cancels anything
       in flight. Unit-tested, plus a test that fails if an SDK bump drops the
       undocumented call or its `history` field.
-- [ ] 4. **The sheet reads the server.** Opening loads the history; while an
+- [x] 4. **The sheet reads the server.** Opening loads the history; while an
       entry is pending the sheet refreshes until it lands. `/btw` with no text
       opens the sheet on the history. Each answer has a copy button; the header
-      has Clear. The "nothing here is saved" line becomes "Not added to the
-      conversation".
+      has Clear. Unit-tested; not yet seen live.
 - [ ] 5. **Codex.** Same route and store, adapter-side: ephemeral fork with the
       boundary instructions and a read-only sandbox, earlier exchanges prepended
       to the question, one turn, collect the assistant text for that thread id,

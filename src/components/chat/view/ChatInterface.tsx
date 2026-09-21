@@ -283,6 +283,7 @@ function ChatInterface({
     sideQuestionEntries,
     askSideQuestion,
     closeSideQuestion,
+    clearSideQuestions,
     forkFromMessage,
     handleVoiceTranscript,
     handleInputChange,
@@ -1144,8 +1145,9 @@ function ChatInterface({
       <SideQuestionSheet
         open={sideQuestionOpen}
         entries={sideQuestionEntries}
-        onAsk={askSideQuestion}
+        onAsk={(question) => void askSideQuestion(question)}
         onClose={closeSideQuestion}
+        onClear={() => void clearSideQuestions()}
       />
 
       <CommandResultModal

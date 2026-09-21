@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { MessageCircleQuestionIcon, SendHorizontalIcon } from 'lucide-react';
+import { CheckIcon, CopyIcon, MessageCircleQuestionIcon, SendHorizontalIcon } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
 import type { SideQuestionEntry } from '../../hooks/useSideQuestion';
+import { copyTextToClipboard } from '../../../../utils/clipboard';
 
 import { Markdown } from './Markdown';
 
@@ -11,13 +12,34 @@ type SideQuestionSheetProps = {
   entries: SideQuestionEntry[];
   onAsk: (question: string) => void;
   onClose: () => void;
+  onClear: () => void;
 };
+
+function CopyAnswerButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        if (await copyTextToClipboard(text)) {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1500);
+        }
+      }}
+      aria-label={copied ? 'Copied' : 'Copy answer'}
+      className="mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      {copied ? <CheckIcon className="h-3.5 w-3.5" /> : <CopyIcon className="h-3.5 w-3.5" />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+}
 
 /**
  * Bottom sheet for `/btw`. The conversation stays visible behind it and keeps
- * running; nothing shown here is stored, so closing the sheet is the discard.
+ * running. Closing only hides the history; Clear is the discard.
  */
-export default function SideQuestionSheet({ open, entries, onAsk, onClose }: SideQuestionSheetProps) {
+export default function SideQuestionSheet({ open, entries, onAsk, onClose, onClear }: SideQuestionSheetProps) {
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -45,14 +67,23 @@ export default function SideQuestionSheet({ open, entries, onAsk, onClose }: Sid
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted text-foreground">
             <MessageCircleQuestionIcon className="h-4 w-4" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Side question
+              Side questions
             </p>
             <p className="mt-0.5 truncate text-sm text-muted-foreground">
-              Answered beside the conversation — nothing here is saved
+              Not added to the conversation
             </p>
           </div>
+          {entries.length > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="shrink-0 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
@@ -76,6 +107,7 @@ export default function SideQuestionSheet({ open, entries, onAsk, onClose }: Sid
                     {entry.fallbackNotice && (
                       <p className="mt-1 text-xs text-muted-foreground">{entry.fallbackNotice}</p>
                     )}
+                    <CopyAnswerButton text={entry.answer || ''} />
                   </>
                 )}
               </div>

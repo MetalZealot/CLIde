@@ -495,9 +495,15 @@ export function useChatComposerState({
   const {
     open: sideQuestionOpen,
     entries: sideQuestionEntries,
-    ask: askSideQuestionRaw,
+    ask: askSideQuestion,
+    openSheet: openSideQuestions,
     close: closeSideQuestion,
-  } = useSideQuestion();
+    clear: clearSideQuestions,
+  } = useSideQuestion({
+    provider,
+    sessionId: currentSessionId || selectedSession?.id || null,
+    cwd: selectedProject?.fullPath || selectedProject?.path,
+  });
 
   const [queuedDraft, setQueuedDraft] = useState<QueuedDraft | null>(() => {
     if (typeof window === 'undefined' || !sessionKey) {
@@ -695,11 +701,12 @@ export function useChatComposerState({
       if (command.name === '/btw') {
         const effectiveInput = rawInput ?? input;
         const asked = effectiveInput.replace(/^\/btw\s*/i, '').trim();
-        void askSideQuestionRaw(asked, {
-          provider,
-          sessionId: currentSessionId || selectedSession?.id || null,
-          cwd: selectedProject.fullPath || selectedProject.path,
-        });
+        // Bare /btw reopens the history rather than asking an empty question.
+        if (asked) {
+          void askSideQuestion(asked);
+        } else {
+          openSideQuestions();
+        }
         if (!options?.preserveInput) {
           setInput('');
           inputValueRef.current = '';
@@ -788,7 +795,8 @@ export function useChatComposerState({
       }
     },
     [
-      askSideQuestionRaw,
+      askSideQuestion,
+      openSideQuestions,
       currentProviderModel,
       currentSessionId,
       handleBuiltInCommand,
@@ -1855,12 +1863,9 @@ export function useChatComposerState({
     closeForkPicker: () => setShowForkPicker(false),
     sideQuestionOpen,
     sideQuestionEntries,
-    askSideQuestion: (question: string) => askSideQuestionRaw(question, {
-      provider,
-      sessionId: currentSessionId || selectedSession?.id || null,
-      cwd: selectedProject?.fullPath || selectedProject?.path,
-    }),
+    askSideQuestion,
     closeSideQuestion,
+    clearSideQuestions,
     forkFromMessage,
     handleVoiceTranscript,
     handleInputChange,

@@ -2372,7 +2372,7 @@ describe('side question sheet', () => {
     document.body.appendChild(container);
     const root = createRoot(container);
     await React.act(async () => root.render(
-      <SideQuestionSheet open entries={entries} onAsk={() => {}} onClose={() => {}} />,
+      <SideQuestionSheet open entries={entries} onAsk={() => {}} onClose={() => {}} onClear={() => {}} />,
     ));
     const text = document.body.textContent ?? '';
     await React.act(async () => root.unmount());
@@ -2382,23 +2382,37 @@ describe('side question sheet', () => {
 
   test('a pending question shows as asking and an answered one shows its answer', async () => {
     const text = await renderSheet([
-      { id: 'a', question: 'which file is it editing?', status: 'pending' },
-      { id: 'b', question: 'why that order?', status: 'answered', answer: 'Phases run bottom-up.' },
+      { id: 'a', question: 'which file is it editing?', status: 'pending', askedAt: '' },
+      { id: 'b', question: 'why that order?', status: 'answered', answer: 'Phases run bottom-up.', askedAt: '' },
     ]);
 
     assert.match(text, /which file is it editing\?/);
     assert.match(text, /Asking/);
     assert.match(text, /Phases run bottom-up\./);
     // The promise the sheet makes to the reader, not decoration.
-    assert.match(text, /nothing here is saved/);
+    assert.match(text, /Not added to the conversation/);
+    assert.match(text, /Clear/, 'history can be discarded');
+    assert.match(text, /Copy/, 'an answer can be copied');
   });
 
   test('a failed question names the failure instead of an empty answer', async () => {
     const text = await renderSheet([
-      { id: 'a', question: 'what now?', status: 'failed', error: 'Side questions are unavailable.' },
+      { id: 'a', question: 'what now?', status: 'failed', error: 'Side questions are unavailable.', askedAt: '' },
     ]);
 
     assert.match(text, /Side questions are unavailable\./);
+  });
+
+  test('a question this tab sent shows once, whether or not the server has it yet', async () => {
+    const { mergeSideQuestionEntries } = await import('../../hooks/useSideQuestion');
+    const sent = { id: 'local-1', question: 'why?', status: 'pending' as const, askedAt: '' };
+    const onServer = { id: 'q1', question: 'why?', status: 'pending' as const, askedAt: '' };
+
+    assert.deepEqual(mergeSideQuestionEntries([], [sent]).map((entry) => entry.id), ['local-1']);
+    assert.deepEqual(mergeSideQuestionEntries([onServer], [sent]).map((entry) => entry.id), ['q1']);
+    const failed = { ...sent, status: 'failed' as const, error: 'offline' };
+    assert.deepEqual(mergeSideQuestionEntries([onServer], [failed]).map((entry) => entry.id), ['q1', 'local-1'],
+      'a send that failed locally is never hidden');
   });
 });
 

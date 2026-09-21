@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
 import type { LLMProvider } from '../../../types/app';
@@ -10,85 +10,157 @@ export type SideQuestionEntry = {
   answer?: string;
   fallbackNotice?: string | null;
   error?: string;
+  askedAt: string;
 };
 
-type AskOptions = {
+type SideQuestionTarget = {
   provider: LLMProvider;
   sessionId: string | null;
   cwd?: string | null;
 };
 
+const PENDING_REFRESH_MS = 2000;
+
+const readEntries = (payload: unknown): SideQuestionEntry[] | null => {
+  const entries = (payload as { data?: { entries?: unknown } } | null)?.data?.entries;
+  return Array.isArray(entries) ? entries as SideQuestionEntry[] : null;
+};
+
+/** A question sent from this tab shows once, whichever list has it. */
+export function mergeSideQuestionEntries(
+  serverEntries: SideQuestionEntry[],
+  sending: SideQuestionEntry[],
+): SideQuestionEntry[] {
+  const pendingOnServer = new Set(
+    serverEntries.filter((entry) => entry.status === 'pending').map((entry) => entry.question),
+  );
+  return [
+    ...serverEntries,
+    ...sending.filter((entry) => entry.status === 'failed' || !pendingOnServer.has(entry.question)),
+  ];
+}
+
 /**
- * Side questions live only in this hook: closing the sheet drops every entry,
- * matching the promise that nothing is stored anywhere else.
+ * The session's side-question history lives on the server, so this hook only
+ * mirrors it. Closing the sheet hides it; Clear is the only thing that discards.
  */
-export function useSideQuestion() {
+export function useSideQuestion({ provider, sessionId, cwd }: SideQuestionTarget) {
   const [open, setOpen] = useState(false);
-  const [entries, setEntries] = useState<SideQuestionEntry[]>([]);
-  const abortRef = useRef<AbortController | null>(null);
+  const [serverEntries, setServerEntries] = useState<SideQuestionEntry[]>([]);
+  // Questions this tab sent whose POST has not come back; the server list takes over once it has them.
+  const [sending, setSending] = useState<SideQuestionEntry[]>([]);
+  const sessionRef = useRef(sessionId);
+  sessionRef.current = sessionId;
 
-  const update = useCallback((id: string, patch: Partial<SideQuestionEntry>) => {
-    setEntries((current) => current.map((entry) => (
-      entry.id === id ? { ...entry, ...patch } : entry
-    )));
-  }, []);
+  const endpoint = sessionId
+    ? `/api/providers/${provider}/sessions/${encodeURIComponent(sessionId)}/side-questions`
+    : null;
 
-  const ask = useCallback(async (question: string, options: AskOptions) => {
-    const trimmed = question.trim();
-    if (!trimmed) {
-      setOpen(true);
+  const refresh = useCallback(async () => {
+    if (!endpoint) {
       return;
     }
-
-    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    setEntries((current) => [...current, { id, question: trimmed, status: 'pending' }]);
-    setOpen(true);
-
-    if (!options.sessionId) {
-      update(id, { status: 'failed', error: 'Start the conversation before asking a side question.' });
-      return;
-    }
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
+    const requestedFor = sessionRef.current;
     try {
-      const response = await authenticatedFetch(
-        `/api/providers/${options.provider}/sessions/${encodeURIComponent(options.sessionId)}/side-questions`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: trimmed, cwd: options.cwd || null }),
-          signal: controller.signal,
-        },
-      );
+      const response = await authenticatedFetch(endpoint);
+      const entries = readEntries(await response.json());
+      if (entries && sessionRef.current === requestedFor) {
+        setServerEntries(entries);
+      }
+    } catch {
+      // A missed refresh is retried by the pending poll or the next open.
+    }
+  }, [endpoint]);
+
+  useEffect(() => {
+    setOpen(false);
+    setServerEntries([]);
+    setSending([]);
+  }, [sessionId]);
+
+  const openSheet = useCallback(() => {
+    setOpen(true);
+    void refresh();
+  }, [refresh]);
+
+  const hasPending = serverEntries.some((entry) => entry.status === 'pending');
+  useEffect(() => {
+    if (!open || !hasPending) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => void refresh(), PENDING_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [open, hasPending, refresh]);
+
+  const ask = useCallback(async (question: string) => {
+    const trimmed = question.trim();
+    setOpen(true);
+    if (!trimmed) {
+      void refresh();
+      return;
+    }
+
+    const local: SideQuestionEntry = {
+      id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      question: trimmed,
+      status: 'pending',
+      askedAt: new Date().toISOString(),
+    };
+    if (!endpoint) {
+      setSending((current) => [...current, {
+        ...local,
+        status: 'failed',
+        error: 'Start the conversation before asking a side question.',
+      }]);
+      return;
+    }
+
+    setSending((current) => [...current, local]);
+    const requestedFor = sessionRef.current;
+    try {
+      const response = await authenticatedFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: trimmed, cwd: cwd || null }),
+      });
       const payload = await response.json();
       if (!response.ok || payload?.success === false) {
         throw new Error(payload?.error?.message || payload?.error || 'That side question could not be answered.');
       }
-
-      const settled = payload?.data?.entry;
-      update(id, settled?.status === 'failed'
-        ? { status: 'failed', error: settled.error || 'That side question could not be answered.' }
-        : { status: 'answered', answer: settled?.answer || '', fallbackNotice: settled?.fallbackNotice || null });
-    } catch (error) {
-      if (controller.signal.aborted) {
+      if (sessionRef.current !== requestedFor) {
         return;
       }
-      update(id, {
-        status: 'failed',
-        error: error instanceof Error ? error.message : 'That side question could not be answered.',
-      });
+      const entries = readEntries(payload);
+      if (entries) {
+        setServerEntries(entries);
+      }
+      setSending((current) => current.filter((entry) => entry.id !== local.id));
+    } catch (error) {
+      if (sessionRef.current !== requestedFor) {
+        return;
+      }
+      setSending((current) => current.map((entry) => (entry.id === local.id
+        ? { ...entry, status: 'failed', error: error instanceof Error ? error.message : 'That side question could not be answered.' }
+        : entry)));
     }
-  }, [update]);
+  }, [cwd, endpoint, refresh]);
 
-  const close = useCallback(() => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setOpen(false);
-    setEntries([]);
-  }, []);
+  const clear = useCallback(async () => {
+    setServerEntries([]);
+    setSending([]);
+    if (!endpoint) {
+      return;
+    }
+    try {
+      await authenticatedFetch(endpoint, { method: 'DELETE' });
+    } catch {
+      void refresh();
+    }
+  }, [endpoint, refresh]);
 
-  return { open, entries, ask, close };
+  const close = useCallback(() => setOpen(false), []);
+
+  const entries = useMemo(() => mergeSideQuestionEntries(serverEntries, sending), [sending, serverEntries]);
+
+  return { open, entries, ask, openSheet, close, clear };
 }
