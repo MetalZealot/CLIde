@@ -1,14 +1,51 @@
+import { useSyncExternalStore } from 'react';
+
 /**
- * Clock times are 12-hour throughout CLIde, deliberately.
- *
- * The device locale decides otherwise on this maintainer's phone, and a
- * 24-hour time reads as a bug to him wherever it appears. Every surface goes
- * through here rather than passing `hour12` itself, so a new one cannot
- * quietly reintroduce it. The locale is pinned for the same reason the chat
- * timestamp pins it: the AM/PM marker and second-precision otherwise vary
- * between his phone and his desktop for the same message.
+ * One hour cycle for every clock in CLIde, chosen in Appearance settings and
+ * defaulting to 12-hour. Every surface formats through here rather than passing
+ * `hour12` itself, so a new one cannot quietly diverge. The locale stays pinned
+ * for a separate reason: the AM/PM marker and second-precision otherwise vary
+ * between one user's phone and desktop for the same message.
  */
 const CLOCK_LOCALE = 'en-US';
+
+export type ClockFormat = '12h' | '24h';
+
+export const isClockFormat = (value: unknown): value is ClockFormat =>
+  value === '12h' || value === '24h';
+
+let clockFormat: ClockFormat = '12h';
+const listeners = new Set<() => void>();
+
+/** Set by the appearance preferences provider; nothing else should call it. */
+export function setClockFormat(next: ClockFormat): void {
+  if (!isClockFormat(next) || next === clockFormat) return;
+  clockFormat = next;
+  listeners.forEach((listener) => listener());
+}
+
+export function getClockFormat(): ClockFormat {
+  return clockFormat;
+}
+
+function subscribeToClockFormat(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/**
+ * Any component rendering a formatted time must call this, or it keeps the old
+ * hour cycle until something else re-renders it.
+ */
+export function useClockFormat(): ClockFormat {
+  return useSyncExternalStore(subscribeToClockFormat, getClockFormat, getClockFormat);
+}
+
+/** `hour12` and `hourCycle` conflict, so a caller picks one or the other. */
+export const clockCycleOptions = (): Intl.DateTimeFormatOptions =>
+  (clockFormat === '24h' ? { hourCycle: 'h23' } : { hour12: true });
 
 type TimeInput = Date | number | string;
 
@@ -17,7 +54,7 @@ function toDate(value: TimeInput): Date | null {
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
-/** "9:05 PM", or "9:05:31 PM" when the caller needs seconds. */
+/** "9:05 PM" or "21:05", with seconds when the caller needs them. */
 export function formatClockTime(value: TimeInput, options: { withSeconds?: boolean } = {}): string {
   const date = toDate(value);
   if (!date) return '';
@@ -25,7 +62,7 @@ export function formatClockTime(value: TimeInput, options: { withSeconds?: boole
     hour: 'numeric',
     minute: '2-digit',
     ...(options.withSeconds ? { second: '2-digit' as const } : {}),
-    hour12: true,
+    ...clockCycleOptions(),
   });
 }
 

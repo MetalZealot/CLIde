@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ClockIcon, PauseIcon, PencilIcon, PlayIcon, SendIcon, XIcon } from 'lucide-react';
 
-import { formatClockTimeWithDay } from '../../../../utils/formatTime';
+import { formatClockTimeWithDay, useClockFormat } from '../../../../utils/formatTime';
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 
 interface ScheduledMessageBubblesProps {
@@ -39,6 +39,7 @@ export default function ScheduledMessageBubbles({
   onResume,
 }: ScheduledMessageBubblesProps) {
   const { t } = useTranslation('chat');
+  useClockFormat();
 
   if (messages.length === 0) return null;
 

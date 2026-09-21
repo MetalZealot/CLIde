@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Button, Dialog, DialogContent, DialogTitle, Shimmer } from '../../shared/view/ui';
 import { cn } from '../../lib/utils';
+import { useClockFormat } from '../../utils/formatTime';
 
 import {
   formatResetLocal,
@@ -41,6 +42,7 @@ type UsageWindowListProps = {
 
 function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
   const { t } = useTranslation('common');
+  useClockFormat();
   const displayLabel = formatUsageWindowLabel(window, t);
   const resetsIn = formatResetsIn(window.resetsAt);
   const exactReset = formatResetLocal(window.resetsAt);
@@ -154,6 +156,7 @@ const REACHED_REASON_COPY: Record<string, string> = {
 
 function UsageBalanceCreditsRow({ credits }: { credits: ProviderUsageBalanceCredits }) {
   const { t } = useTranslation('common');
+  useClockFormat();
   const individualLimit = credits.individualLimit;
   const individualUtilization = individualLimit
     ? 100 - Math.min(100, Math.max(0, individualLimit.remainingPercent))
@@ -250,6 +253,7 @@ export function UsageResetCreditsRow({
   managementUrl?: string;
 }) {
   const { t } = useTranslation('common');
+  useClockFormat();
   const [isConfirming, setIsConfirming] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);

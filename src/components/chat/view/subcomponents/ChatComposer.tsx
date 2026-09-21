@@ -13,7 +13,7 @@ import type {
 import { XIcon, ArrowUpIcon } from 'lucide-react';
 
 import { useLongPress } from '../../../../hooks/useLongPress';
-import { formatClockTimeWithDay } from '../../../../utils/formatTime';
+import { formatClockTimeWithDay, useClockFormat } from '../../../../utils/formatTime';
 import type { ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
 import type { QueuedAsyncAnswer } from '../../utils/asyncQuestionState';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
@@ -251,6 +251,7 @@ export default function ChatComposer({
   isTextareaExpanded,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
+  useClockFormat();
 
   const leadingCommand = useMemo(
     () => splitLeadingCommand(input, new Set(slashCommands.map((command) => command.name))),

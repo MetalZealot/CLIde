@@ -20,7 +20,7 @@ import type { BrowserSessionSummary } from '../../../../shared/browser-use';
 import { cn } from '../../../lib/utils';
 import { Badge, Button, Dialog, DialogContent, DialogTitle } from '../../../shared/view/ui';
 import ContextMenuOverlay, { anchorFromElement, type ContextMenuAnchor } from '../../../shared/view/ui/ContextMenuOverlay';
-import { formatClockTime as formatTime } from '../../../utils/formatTime';
+import { formatClockTime as formatTime, useClockFormat } from '../../../utils/formatTime';
 import RowActionsTrigger from '../../../shared/view/ui/RowActionsTrigger';
 import { authenticatedFetch } from '../../../utils/api';
 import { useLongPress } from '../../../hooks/useLongPress';
@@ -194,6 +194,7 @@ const CAPTURE_ZOOM_CLASSES: Record<CaptureZoom, string> = {
 };
 
 export default function BrowserUsePanel({ isVisible, initialSessionId, onShowSettings }: BrowserUsePanelProps) {
+  useClockFormat();
   const [status, setStatus] = useState<BrowserUseStatus | null>(null);
   const [sessions, setSessions] = useState<BrowserUseSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialSessionId ?? null);

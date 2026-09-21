@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -9,6 +9,7 @@ import {
   type ThemePreference,
 } from '../../../../contexts/AppearancePreferencesContext';
 import { useTheme } from '../../../../contexts/ThemeContext';
+import { formatClockTime, type ClockFormat } from '../../../../utils/formatTime';
 import { languages } from '../../../../i18n/languages';
 import { getScreen } from '../../registry/registry';
 import {
@@ -79,9 +80,11 @@ export default function AppearanceScreen({
   const {
     chatReadingSize,
     chatLineSpacing,
+    clockFormat,
     fontFamily,
     setChatLineSpacing,
     setChatReadingSize,
+    setClockFormat,
     setFontFamily,
   } = useAppearancePreferences();
   const isWide = useWideReadingMetrics();
@@ -109,6 +112,12 @@ export default function AppearanceScreen({
     });
 
   const editorScreen = getScreen('appearance.editor');
+  // A fixed afternoon time, so the preview shows the difference the setting makes.
+  const clockPreviewTime = useMemo(() => {
+    const preview = new Date();
+    preview.setHours(17, 5, 0, 0);
+    return preview;
+  }, []);
 
   return (
     <SettingsScreen>
@@ -179,6 +188,28 @@ export default function AppearanceScreen({
             ariaLabel={t('appearanceSettings.typography.lineSpacing.label')}
             onChange={setChatLineSpacing}
           />
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup title={t('appearanceSettings.time.title')}>
+        <SettingsRow
+          stacked
+          label={t('appearanceSettings.time.clockFormat.label')}
+          description={t('appearanceSettings.time.clockFormat.description')}
+        >
+          <SettingsSegmentedControl<ClockFormat>
+            value={clockFormat}
+            className="w-full justify-between"
+            ariaLabel={t('appearanceSettings.time.clockFormat.label')}
+            onChange={setClockFormat}
+            options={[
+              { value: '12h', label: t('appearanceSettings.time.clockFormat.twelveHour') },
+              { value: '24h', label: t('appearanceSettings.time.clockFormat.twentyFourHour') },
+            ]}
+          />
+          <p className="mt-2 text-sm tabular-nums text-muted-foreground">
+            {formatClockTime(clockPreviewTime)}
+          </p>
         </SettingsRow>
       </SettingsGroup>
 

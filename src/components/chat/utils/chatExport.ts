@@ -1,3 +1,4 @@
+import { clockCycleOptions } from '../../../utils/formatTime';
 import type { ChatMessage, ToolResult } from '../types/types';
 
 export interface ExportOptions {
@@ -46,6 +47,7 @@ function formatTimestamp(date: Date | string | number): string {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+    ...clockCycleOptions(),
   }).format(d);
 }
 

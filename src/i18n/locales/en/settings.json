@@ -196,7 +196,13 @@
   },
   "chat": {
     "messageDisplay": {
-      "title": "Message display"
+      "title": "Message display",
+      "copyFormat": {
+        "label": "Copy format",
+        "description": "Which format the copy button uses for agent messages.",
+        "markdown": "Markdown",
+        "text": "Plain text"
+      }
     },
     "input": {
       "title": "Input"
@@ -379,6 +385,15 @@
         "standard": "Standard",
         "relaxed": "Relaxed",
         "spacious": "Spacious"
+      }
+    },
+    "time": {
+      "title": "Time",
+      "clockFormat": {
+        "label": "Clock format",
+        "description": "How times are shown throughout CLIde, whatever your device is set to.",
+        "twelveHour": "12-hour",
+        "twentyFourHour": "24-hour"
       }
     },
     "language": {

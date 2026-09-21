@@ -28,7 +28,7 @@ import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
-import { formatMessageTimestamp } from '../../../../utils/formatTime';
+import { formatMessageTimestamp, useClockFormat } from '../../../../utils/formatTime';
 
 type DiffLine = {
   type: string;
@@ -77,9 +77,12 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
       (prevMessage.type === 'error'));
   const messageRef = useRef<HTMLDivElement | null>(null);
   const userCopyContent = String(message.content || '');
+  const clockFormat = useClockFormat();
   const formattedMessageContent = useMemo(
-    () => formatUsageLimitText(String(message.content || '')),
-    [message.content]
+    // The formatters read the clock format from their own store, so it is named
+    // here only to re-run this when the setting changes.
+    () => (void clockFormat, formatUsageLimitText(String(message.content || ''))),
+    [message.content, clockFormat]
   );
   const followUpQuestionContent = useMemo(
     () => formatFollowUpQuestions(message.followUpQuestions),
@@ -119,7 +122,10 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
     !message.isCompactSummary;
 
 
-  const formattedTime = useMemo(() => formatMessageTimestamp(message.timestamp), [message.timestamp]);
+  const formattedTime = useMemo(
+    () => (void clockFormat, formatMessageTimestamp(message.timestamp)),
+    [message.timestamp, clockFormat],
+  );
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
   const isFindableConversationMessage = isChatFindConversationMessage(message);
   const usesMobileReadingInset =

@@ -13,11 +13,12 @@ export type ChatLineSpacing = 'condensed' | 'standard' | 'relaxed' | 'spacious';
 export type FontFamilyPreference = 'clide' | 'system';
 
 export type AppearancePreferences = {
-  version: 3;
+  version: 4;
   theme: ThemePreference;
   chatReadingSize: ChatReadingSize;
   chatLineSpacing: ChatLineSpacing;
   fontFamily: FontFamilyPreference;
+  clockFormat: ClockFormat;
 };
 
 type AppearancePreferencesContextValue = AppearancePreferences & {
@@ -26,10 +27,12 @@ type AppearancePreferencesContextValue = AppearancePreferences & {
   setChatReadingSize: (size: ChatReadingSize) => void;
   setChatLineSpacing: (spacing: ChatLineSpacing) => void;
   setFontFamily: (fontFamily: FontFamilyPreference) => void;
+  setClockFormat: (clockFormat: ClockFormat) => void;
   toggleDarkMode: () => void;
 };
 
 import type { SyncedPreferences } from '../../shared/synced-preferences';
+import { isClockFormat, setClockFormat as applyClockFormat, type ClockFormat } from '../utils/formatTime';
 
 export const APPEARANCE_STORAGE_KEY = 'appearancePreferences';
 const LEGACY_THEME_STORAGE_KEY = 'theme';
@@ -37,11 +40,12 @@ const DARK_QUERY = '(prefers-color-scheme: dark)';
 const SYNC_EVENT = 'appearance-preferences:sync';
 
 export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
-  version: 3,
+  version: 4,
   theme: 'system',
   chatReadingSize: 'default',
   chatLineSpacing: 'standard',
   fontFamily: 'clide',
+  clockFormat: '12h',
 };
 
 const AppearancePreferencesContext = createContext<AppearancePreferencesContextValue | null>(null);
@@ -81,7 +85,7 @@ export const parseAppearancePreferences = (
     : {};
 
   return {
-    version: 3,
+    version: 4,
     theme: isThemePreference(stored.theme) ? stored.theme : legacyTheme,
     chatReadingSize: parseChatReadingSize(stored.chatReadingSize),
     chatLineSpacing: isChatLineSpacing(stored.chatLineSpacing)
@@ -90,6 +94,9 @@ export const parseAppearancePreferences = (
     fontFamily: isFontFamilyPreference(stored.fontFamily)
       ? stored.fontFamily
       : DEFAULT_APPEARANCE_PREFERENCES.fontFamily,
+    clockFormat: isClockFormat(stored.clockFormat)
+      ? stored.clockFormat
+      : DEFAULT_APPEARANCE_PREFERENCES.clockFormat,
   };
 };
 
@@ -115,8 +122,8 @@ type SyncEventDetail = {
 };
 
 /**
- * Theme and font follow the user between devices; reading size and line spacing
- * do not, because they are set for the screen in front of you.
+ * Theme, font and clock format follow the user between devices; reading size
+ * and line spacing do not, because they are set for the screen in front of you.
  */
 const syncedFields = (
   preferences: Partial<AppearancePreferences>,
@@ -124,6 +131,7 @@ const syncedFields = (
   const synced: Partial<AppearancePreferences> = {};
   if (isThemePreference(preferences.theme)) synced.theme = preferences.theme;
   if (isFontFamilyPreference(preferences.fontFamily)) synced.fontFamily = preferences.fontFamily;
+  if (isClockFormat(preferences.clockFormat)) synced.clockFormat = preferences.clockFormat;
   return synced;
 };
 
@@ -189,11 +197,21 @@ const prefersDark = () => Boolean(
 );
 
 export function AppearancePreferencesProvider({ children }: { children: React.ReactNode }) {
-  const [preferences, setPreferences] = useState(readInitialPreferences);
+  // Seeded during the first render, not in an effect, so no timestamp paints
+  // in the wrong hour cycle before the preference is applied.
+  const [preferences, setPreferences] = useState(() => {
+    const initial = readInitialPreferences();
+    applyClockFormat(initial.clockFormat);
+    return initial;
+  });
   const [systemPrefersDark, setSystemPrefersDark] = useState(prefersDark);
   const isDarkMode = preferences.theme === 'system'
     ? systemPrefersDark
     : preferences.theme === 'dark';
+
+  useEffect(() => {
+    applyClockFormat(preferences.clockFormat);
+  }, [preferences.clockFormat]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -279,6 +297,13 @@ export function AppearancePreferencesProvider({ children }: { children: React.Re
       : { ...current, fontFamily });
   }, []);
 
+  const setClockFormat = useCallback((clockFormat: ClockFormat) => {
+    if (!isClockFormat(clockFormat)) return;
+    setPreferences((current) => current.clockFormat === clockFormat
+      ? current
+      : { ...current, clockFormat });
+  }, []);
+
   const toggleDarkMode = useCallback(() => {
     setTheme(isDarkMode ? 'light' : 'dark');
   }, [isDarkMode, setTheme]);
@@ -290,12 +315,14 @@ export function AppearancePreferencesProvider({ children }: { children: React.Re
     setChatReadingSize,
     setChatLineSpacing,
     setFontFamily,
+    setClockFormat,
     toggleDarkMode,
   }), [
     isDarkMode,
     preferences,
     setChatLineSpacing,
     setChatReadingSize,
+    setClockFormat,
     setFontFamily,
     setTheme,
     toggleDarkMode,

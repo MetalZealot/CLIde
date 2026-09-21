@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
 import { Button, Shimmer } from '../../../shared/view/ui';
+import { useClockFormat } from '../../../utils/formatTime';
 import type { LLMProvider } from '../../../types/app';
 import SessionProviderLogo from '../../llm-logo-provider/SessionProviderLogo';
 import { CLI_PROVIDERS } from '../../provider-auth/types';
@@ -64,6 +65,7 @@ const formatCredits = (credits: ProviderUsageCredits): string => {
 
 function UsageMetric({ window }: { window: ProviderUsageWindow }) {
   const { t } = useTranslation('common');
+  useClockFormat();
   const resetPending = isUsageWindowResetPending(window.resetsAt);
   const utilization = resetPending ? 0 : Math.max(0, Math.min(100, window.utilization));
   const remaining = 100 - utilization;

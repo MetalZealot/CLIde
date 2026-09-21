@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { CalendarClockIcon, RotateCcwIcon } from 'lucide-react';
 
-import { formatClockTimeWithDay } from '../../../../utils/formatTime';
+import { formatClockTimeWithDay, useClockFormat } from '../../../../utils/formatTime';
 import type { ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
 import { PageScrollLock } from '../../../../shared/view/ui';
 
@@ -42,6 +42,7 @@ export default function ScheduleSendMenu({
   onSchedule,
 }: ScheduleSendMenuProps) {
   const { t } = useTranslation('chat');
+  useClockFormat();
   const [amount, setAmount] = useState('30');
   const [unit, setUnit] = useState<Unit>('minutes');
   const [exact, setExact] = useState<string | null>(null);

@@ -5,7 +5,7 @@ import { GitForkIcon, HistoryIcon, SearchIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
 import type { ChatMessage } from '../../types/types';
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
-import { formatDateTime } from '../../../../utils/formatTime';
+import { formatDateTime, useClockFormat } from '../../../../utils/formatTime';
 
 type ConversationBranchPickerModalProps = {
   open: boolean;
@@ -28,6 +28,7 @@ export default function ConversationBranchPickerModal({
   onPickMessage,
 }: ConversationBranchPickerModalProps) {
   const { t } = useTranslation('chat');
+  useClockFormat();
   const [query, setQuery] = useState('');
   const isFork = mode === 'fork';
   const title = isFork

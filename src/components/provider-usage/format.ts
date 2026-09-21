@@ -1,3 +1,5 @@
+import { clockCycleOptions } from '../../utils/formatTime';
+
 import type { ProviderUsageWindow } from './types';
 
 /** Structural shape of i18next's `t`, so this module stays free of React/i18n. */
@@ -86,8 +88,11 @@ export const formatResetLocal = (resetsAt: string | null): string | null => {
   if (!resetsAt) return null;
   const timestamp = Date.parse(resetsAt);
   if (!Number.isFinite(timestamp)) return null;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-    .format(new Date(timestamp));
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    ...clockCycleOptions(),
+  }).format(new Date(timestamp));
 };
 
 export const usageBarToneClass = (utilization: number): string => {

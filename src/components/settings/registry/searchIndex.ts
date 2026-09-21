@@ -76,6 +76,7 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'appearance', labelKey: 'appearanceSettings.typography.fontFamily.label', keywords: 'font family clide system device interface prose' },
   { screenId: 'appearance', labelKey: 'appearanceSettings.typography.readingSize.label', keywords: 'font text smallest small default large compact readability density preview pixels' },
   { screenId: 'appearance', labelKey: 'appearanceSettings.typography.lineSpacing.label', keywords: 'font text line height leading condensed relaxed spacious readability preview pixels' },
+  { screenId: 'appearance', labelKey: 'appearanceSettings.time.clockFormat.label', keywords: 'time 12 24 hour clock am pm timestamp military' },
   { screenId: 'appearance', labelKey: 'appearanceSettings.language.title', keywords: 'locale translation picker dropdown popover' },
 
   { screenId: 'appearance.editor', labelKey: 'appearanceSettings.codeEditor.wordWrap.label' },

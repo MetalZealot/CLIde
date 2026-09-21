@@ -22,7 +22,7 @@ import { UserInputRequestPanel } from '../../tools/components/InteractiveRendere
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
-import { formatMessageTimestamp } from '../../../../utils/formatTime';
+import { formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
 import {
   DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
   DEFAULT_THINKING_MESSAGE_ORDER,
@@ -149,6 +149,23 @@ describe('chatSubcomponents', () => {
     assert.equal(formatMessageTimestamp(at(8, 10, 9), now), 'Sep 10, 9:05 AM', 'a week back needs the date');
     assert.equal(formatMessageTimestamp(at(11, 31, 21, 2025), now), 'Dec 31, 2025, 9:05 PM');
     assert.equal(formatMessageTimestamp('not a date', now), '');
+  });
+
+  test('the clock format setting switches every timestamp surface, then back', () => {
+    const now = new Date(2026, 8, 17, 8, 0);
+    const at = (month: number, day: number, hour: number, year = 2026) => new Date(year, month, day, hour, 5);
+    try {
+      setClockFormat('24h');
+      assert.equal(formatMessageTimestamp(at(8, 17, 7), now), '07:05');
+      assert.equal(formatMessageTimestamp(at(8, 16, 23), now), 'Yesterday, 23:05');
+      assert.equal(formatMessageTimestamp(at(8, 15, 13), now), 'Tue, 13:05');
+      assert.equal(formatMessageTimestamp(at(11, 31, 21, 2025), now), 'Dec 31, 2025, 21:05');
+      // Midnight is 00:05 on a 24-hour clock, never 24:05.
+      assert.equal(formatMessageTimestamp(at(8, 17, 0), now), '00:05');
+    } finally {
+      setClockFormat('12h');
+    }
+    assert.equal(formatMessageTimestamp(at(8, 17, 7), now), '7:05 AM');
   });
 
   describe('activity messages', () => {

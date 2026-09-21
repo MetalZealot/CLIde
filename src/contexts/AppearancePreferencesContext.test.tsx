@@ -4,6 +4,8 @@ import test, { afterEach } from 'node:test';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import { getClockFormat, setClockFormat as resetClockFormat } from '../utils/formatTime';
+
 import {
   APPEARANCE_STORAGE_KEY,
   applyRemoteAppearancePreferences,
@@ -28,6 +30,7 @@ afterEach(async () => {
   delete document.documentElement.dataset.chatReadingSize;
   delete document.documentElement.dataset.chatLineSpacing;
   delete document.documentElement.dataset.fontFamily;
+  resetClockFormat('12h');
 });
 
 const mount = async () => {
@@ -39,9 +42,11 @@ const mount = async () => {
     const {
       chatReadingSize,
       chatLineSpacing,
+      clockFormat,
       fontFamily,
       setChatReadingSize,
       setChatLineSpacing,
+      setClockFormat,
       setFontFamily,
     } = useAppearancePreferences();
     const { theme, setTheme } = useTheme();
@@ -51,10 +56,12 @@ const mount = async () => {
         <output data-line-spacing>{chatLineSpacing}</output>
         <output data-font-family>{fontFamily}</output>
         <output data-theme>{theme}</output>
+        <output data-clock-format>{clockFormat}</output>
         <button type="button" onClick={() => setChatReadingSize('large')}>Large</button>
         <button type="button" onClick={() => setChatLineSpacing('spacious')}>Spacious</button>
         <button type="button" onClick={() => setFontFamily('system')}>System font</button>
         <button type="button" onClick={() => setTheme('dark')}>Dark</button>
+        <button type="button" onClick={() => setClockFormat('24h')}>24-hour</button>
       </div>
     );
   };
@@ -78,13 +85,15 @@ test('parser validates each stored field independently', () => {
       chatReadingSize: 'huge',
       chatLineSpacing: 'cramped',
       fontFamily: 'comic-sans',
+      clockFormat: '48h',
     }, 'light'),
     {
-      version: 3,
+      version: 4,
       theme: 'dark',
       chatReadingSize: 'default',
       chatLineSpacing: 'standard',
       fontFamily: 'clide',
+      clockFormat: '12h',
     },
   );
   assert.deepEqual(
@@ -93,13 +102,15 @@ test('parser validates each stored field independently', () => {
       theme: 'sepia',
       chatReadingSize: 'compact',
       fontFamily: 'system',
+      clockFormat: '24h',
     }, 'light'),
     {
-      version: 3,
+      version: 4,
       theme: 'light',
       chatReadingSize: 'smallest',
       chatLineSpacing: 'standard',
       fontFamily: 'system',
+      clockFormat: '24h',
     },
   );
 });
@@ -117,11 +128,12 @@ test('provider migrates legacy preferences and applies typography defaults', asy
   assert.equal(document.documentElement.dataset.fontFamily, 'clide');
   assert.equal(document.documentElement.classList.contains('dark'), true);
   assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_STORAGE_KEY) || 'null'), {
-    version: 3,
+    version: 4,
     theme: 'dark',
     chatReadingSize: 'default',
     chatLineSpacing: 'standard',
     fontFamily: 'clide',
+    clockFormat: '12h',
   });
 });
 
@@ -144,11 +156,12 @@ test('typography and theme update immediately and persist together', async () =>
   await React.act(async () => darkButton?.click());
   assert.equal(document.documentElement.classList.contains('dark'), true);
   assert.deepEqual(JSON.parse(localStorage.getItem(APPEARANCE_STORAGE_KEY) || 'null'), {
-    version: 3,
+    version: 4,
     theme: 'dark',
     chatReadingSize: 'large',
     chatLineSpacing: 'spacious',
     fontFamily: 'system',
+    clockFormat: '12h',
   });
 });
 
@@ -159,7 +172,7 @@ test('a storage event applies valid preferences from another tab', async () => {
     window.dispatchEvent(new window.StorageEvent('storage', {
       key: APPEARANCE_STORAGE_KEY,
       newValue: JSON.stringify({
-        version: 3,
+        version: 4,
         theme: 'light',
         chatReadingSize: 'small',
         chatLineSpacing: 'condensed',
@@ -177,26 +190,49 @@ test('a storage event applies valid preferences from another tab', async () => {
   assert.equal(document.documentElement.dataset.fontFamily, 'system');
 });
 
+test('the clock format reaches the shared formatters and travels between devices', async () => {
+  const host = await mount();
+  const changes: unknown[] = [];
+  const unsubscribe = subscribeToAppearanceChanges((change) => changes.push(change));
+  const buttons = host.querySelectorAll<HTMLButtonElement>('button');
+  const clockButton = buttons[buttons.length - 1];
+
+  assert.equal(getClockFormat(), '12h');
+  await React.act(async () => clockButton?.click());
+
+  assert.equal(host.querySelector('[data-clock-format]')?.textContent, '24h');
+  assert.equal(getClockFormat(), '24h', 'the formatters read it from their own store');
+  assert.deepEqual(changes.at(-1), {
+    [APPEARANCE_STORAGE_KEY]: { theme: 'system', fontFamily: 'clide', clockFormat: '24h' },
+  });
+
+  await React.act(async () => applyRemoteAppearancePreferences({
+    [APPEARANCE_STORAGE_KEY]: { clockFormat: '12h' },
+  }));
+  assert.equal(host.querySelector('[data-clock-format]')?.textContent, '12h');
+  assert.equal(getClockFormat(), '12h');
+
+  unsubscribe();
+});
+
 test('a synced appearance change carries theme and font but not the sizing', async () => {
   const host = await mount();
   const changes: unknown[] = [];
   const unsubscribe = subscribeToAppearanceChanges((change) => changes.push(change));
   const [largeButton, , systemFontButton] = host.querySelectorAll<HTMLButtonElement>('button');
 
+  const synced = { theme: 'system', fontFamily: 'system', clockFormat: '12h' };
+
   await React.act(async () => systemFontButton?.click());
-  assert.deepEqual(changes.at(-1), {
-    [APPEARANCE_STORAGE_KEY]: { theme: 'system', fontFamily: 'system' },
-  });
+  assert.deepEqual(changes.at(-1), { [APPEARANCE_STORAGE_KEY]: synced });
 
   await React.act(async () => largeButton?.click());
   assert.deepEqual(
     changes.at(-1),
-    { [APPEARANCE_STORAGE_KEY]: { theme: 'system', fontFamily: 'system' } },
+    { [APPEARANCE_STORAGE_KEY]: synced },
     'reading size is set for the screen in front of you, so it never leaves it',
   );
-  assert.deepEqual(readSyncedAppearancePreferences(), {
-    [APPEARANCE_STORAGE_KEY]: { theme: 'system', fontFamily: 'system' },
-  });
+  assert.deepEqual(readSyncedAppearancePreferences(), { [APPEARANCE_STORAGE_KEY]: synced });
 
   unsubscribe();
 });
