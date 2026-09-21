@@ -6,10 +6,7 @@
   },
   "copyMessage": {
     "copy": "Копировать сообщение",
-    "copied": "Сообщение скопировано",
-    "selectFormat": "Выбрать формат копирования",
-    "copyAsMarkdown": "Копировать как Markdown",
-    "copyAsText": "Копировать как текст"
+    "copied": "Сообщение скопировано"
   },
   "messageTypes": {
     "user": "П",

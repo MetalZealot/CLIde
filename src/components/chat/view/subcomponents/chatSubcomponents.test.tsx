@@ -38,6 +38,7 @@ import {
   useThinkingMessages,
 } from '../../../../hooks/useThinkingMessages';
 
+import MessageCopyControl from './MessageCopyControl';
 import ActivityIndicator from './ActivityIndicator';
 import { ChatExportOptions } from './ChatExportMenu';
 import ChatFindBar from './ChatFindBar';
@@ -454,6 +455,26 @@ describe('chatSubcomponents', () => {
       assert.match(speakControlSource, /voice\.cancelGeneration/);
       assert.match(speakControlSource, /generationElapsedSeconds/);
       assert.match(speakControlSource, /max-w-\[min\(240px,calc\(100vw-2rem\)\)\]/);
+    });
+
+    test('offers a single copy button whose format comes from the setting', async () => {
+      const copyControlSource = readFileSync(new URL('./MessageCopyControl.tsx', import.meta.url), 'utf8');
+      const chatScreenSource = readFileSync(
+        new URL('../../../settings/view/screens/ChatScreen.tsx', import.meta.url),
+        'utf8',
+      );
+      const copyI18n = i18next.createInstance();
+      await copyI18n.init({ lng: 'en', resources: { en: { chat: {} } } });
+      const markup = renderToStaticMarkup(
+        <I18nextProvider i18n={copyI18n} defaultNS="chat">
+          <MessageCopyControl content="# Heading" messageType="assistant" />
+        </I18nextProvider>,
+      );
+
+      assert.equal((markup.match(/<button/g) || []).length, 1);
+      assert.doesNotMatch(copyControlSource, /createPortal/);
+      assert.match(copyControlSource, /preferences\.copyMessageFormat/);
+      assert.match(chatScreenSource, /setPreference\('copyMessageFormat', value\)/);
     });
   });
 

@@ -1,5 +1,8 @@
 import { useEffect, useReducer, useRef } from 'react';
 
+export const COPY_MESSAGE_FORMATS = ['markdown', 'text'] as const;
+export type CopyMessageFormat = (typeof COPY_MESSAGE_FORMATS)[number];
+
 type UiPreferences = {
   showRawParameters: boolean;
   showThinking: boolean;
@@ -8,6 +11,7 @@ type UiPreferences = {
   sidebarVisible: boolean;
   ttsEnabled: boolean;
   sttEnabled: boolean;
+  copyMessageFormat: CopyMessageFormat;
 };
 
 type UiPreferenceKey = keyof UiPreferences;
@@ -41,6 +45,7 @@ const DEFAULTS: UiPreferences = {
   sidebarVisible: true,
   ttsEnabled: false,
   sttEnabled: false,
+  copyMessageFormat: 'markdown',
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
@@ -69,18 +74,44 @@ const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   return fallback;
 };
 
-const readLegacyPreference = (key: string, fallback: boolean): boolean => {
+const parseCopyMessageFormat = (value: unknown, fallback: CopyMessageFormat): CopyMessageFormat => (
+  COPY_MESSAGE_FORMATS.includes(value as CopyMessageFormat) ? value as CopyMessageFormat : fallback
+);
+
+const parsePreference = <K extends UiPreferenceKey>(
+  key: K,
+  value: unknown,
+  fallback: UiPreferences[K],
+): UiPreferences[K] => (
+  key === 'copyMessageFormat'
+    ? parseCopyMessageFormat(value, fallback as CopyMessageFormat) as UiPreferences[K]
+    : parseBoolean(value, fallback as boolean) as UiPreferences[K]
+);
+
+// Generic in the key so each preference keeps its own value type through the write.
+const assignPreference = <K extends UiPreferenceKey>(
+  target: UiPreferences,
+  key: K,
+  value: unknown,
+  fallback: UiPreferences[K],
+): void => {
+  target[key] = parsePreference(key, value, fallback);
+};
+
+// Supports values written by both JSON.stringify and plain strings.
+const readLegacyValue = (key: string): unknown => {
   try {
     const raw = localStorage.getItem(key);
-    if (raw === null) return fallback;
-
-    // Supports values written by both JSON.stringify and plain strings.
-    const parsed = JSON.parse(raw);
-    return parseBoolean(parsed, fallback);
+    if (raw === null) return undefined;
+    return JSON.parse(raw);
   } catch {
-    return fallback;
+    return undefined;
   }
 };
+
+const readLegacyPreference = (key: string, fallback: boolean): boolean => (
+  parseBoolean(readLegacyValue(key), fallback)
+);
 
 const readInitialPreferences = (storageKey: string): UiPreferences => {
   if (typeof window === 'undefined') {
@@ -97,9 +128,9 @@ const readInitialPreferences = (storageKey: string): UiPreferences => {
 
         return PREFERENCE_KEYS.reduce((acc, key) => {
           const fallback = VOICE_KEYS.has(key) && !(key in parsedRecord)
-            ? parseBoolean(parsedRecord[LEGACY_VOICE_KEY], DEFAULTS[key])
+            ? parseBoolean(parsedRecord[LEGACY_VOICE_KEY], DEFAULTS[key] as boolean)
             : DEFAULTS[key];
-          acc[key] = parseBoolean(parsedRecord[key], fallback);
+          assignPreference(acc, key, parsedRecord[key], fallback);
           return acc;
         }, { ...DEFAULTS });
       }
@@ -110,9 +141,9 @@ const readInitialPreferences = (storageKey: string): UiPreferences => {
 
   return PREFERENCE_KEYS.reduce((acc, key) => {
     const fallback = VOICE_KEYS.has(key)
-      ? readLegacyPreference(LEGACY_VOICE_KEY, DEFAULTS[key])
+      ? readLegacyPreference(LEGACY_VOICE_KEY, DEFAULTS[key] as boolean)
       : DEFAULTS[key];
-    acc[key] = readLegacyPreference(key, fallback);
+    assignPreference(acc, key, readLegacyValue(key), fallback);
     return acc;
   }, { ...DEFAULTS });
 };
@@ -129,7 +160,7 @@ function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferenc
         return state;
       }
 
-      const nextValue = parseBoolean(value, state[key]);
+      const nextValue = parsePreference(key, value, state[key]);
       if (state[key] === nextValue) {
         return state;
       }
@@ -145,9 +176,9 @@ function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferenc
         if (!(key in updates)) continue;
 
         const value = updates[key];
-        const nextValue = parseBoolean(value, state[key]);
+        const nextValue = parsePreference(key, value, state[key]);
         if (nextState[key] !== nextValue) {
-          nextState[key] = nextValue;
+          assignPreference(nextState, key, value, state[key]);
           changed = true;
         }
       }

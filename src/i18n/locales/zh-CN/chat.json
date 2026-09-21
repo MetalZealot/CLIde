@@ -6,10 +6,7 @@
   },
   "copyMessage": {
     "copy": "复制消息",
-    "copied": "消息已复制",
-    "selectFormat": "选择复制格式",
-    "copyAsMarkdown": "复制为 Markdown",
-    "copyAsText": "复制为纯文本"
+    "copied": "消息已复制"
   },
   "messageTypes": {
     "user": "U",

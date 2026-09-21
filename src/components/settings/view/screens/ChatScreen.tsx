@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import { useUiPreferences } from '../../../../hooks/useUiPreferences';
+import type { CopyMessageFormat } from '../../../../hooks/useUiPreferences';
 import { useAutoContinueMessage } from '../../hooks/useAutoContinueMessage';
 import { DEFAULT_THINKING_MESSAGES, useThinkingMessages } from '../../../../hooks/useThinkingMessages';
 import { isTouchPrimaryDevice } from '../../../../utils/pointer';
@@ -11,6 +12,7 @@ import {
   SettingsNavRow,
   SettingsRow,
   SettingsScreen,
+  SettingsSegmentedControl,
   SettingsTextField,
   SettingsToggle,
 } from '../primitives';
@@ -60,6 +62,21 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
             checked={preferences.showThinking}
             onChange={(value) => setPreference('showThinking', value)}
             ariaLabel={t('quickSettings.showThinking')}
+          />
+        </SettingsRow>
+        <SettingsRow
+          stacked
+          label={t('chat.messageDisplay.copyFormat.label')}
+          description={t('chat.messageDisplay.copyFormat.description')}
+        >
+          <SettingsSegmentedControl<CopyMessageFormat>
+            value={preferences.copyMessageFormat}
+            options={[
+              { value: 'markdown', label: t('chat.messageDisplay.copyFormat.markdown') },
+              { value: 'text', label: t('chat.messageDisplay.copyFormat.text') },
+            ]}
+            onChange={(value) => setPreference('copyMessageFormat', value)}
+            ariaLabel={t('chat.messageDisplay.copyFormat.label')}
           />
         </SettingsRow>
       </SettingsGroup>

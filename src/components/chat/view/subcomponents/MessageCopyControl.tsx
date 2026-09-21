@@ -1,19 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { copyTextToClipboard } from '../../../../utils/clipboard';
+import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 
 const COPY_SUCCESS_TIMEOUT_MS = 2000;
 
-type CopyFormat = 'text' | 'markdown';
-
-type CopyFormatOption = {
-  format: CopyFormat;
-  label: string;
-};
-
-// Converts markdown into readable plain text for "Copy as text".
+// Converts markdown into readable plain text for the plain-text copy format.
 const convertMarkdownToPlainText = (markdown: string): string => {
   let plainText = markdown.replace(/\r\n/g, '\n');
   const codeBlocks: string[] = [];
@@ -46,111 +39,17 @@ const MessageCopyControl = ({
   messageType: 'user' | 'assistant';
 }) => {
   const { t } = useTranslation('chat');
-  const canSelectCopyFormat = messageType === 'assistant';
-  const defaultFormat: CopyFormat = canSelectCopyFormat ? 'markdown' : 'text';
-  const [selectedFormat, setSelectedFormat] = useState<CopyFormat>(defaultFormat);
+  const { preferences } = useUiPreferences();
+  // A user message was typed as plain text, so only an agent message has a
+  // markdown source worth preserving; the setting applies to those.
+  const format = messageType === 'assistant' ? preferences.copyMessageFormat : 'text';
   const [copied, setCopied] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const copyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // The dropdown is rendered in a portal so it escapes the chat message's
-  // `contain: paint` box (which would otherwise clip it). Anchor it to the
-  // trigger, flipping above when there isn't room below. Positioned with
-  // `left` (not `right`) and clamped on both edges so it can't run off
-  // either side of a narrow viewport.
-  const openDropdown = () => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) {
-      const ESTIMATED_MENU_WIDTH = 144; // matches min-w-36
-      const ESTIMATED_MENU_HEIGHT = 84;
-      const EDGE_GAP = 8;
-      const openUp = rect.bottom + ESTIMATED_MENU_HEIGHT + EDGE_GAP > window.innerHeight;
-      const maxLeft = Math.max(EDGE_GAP, window.innerWidth - ESTIMATED_MENU_WIDTH - EDGE_GAP);
-      const left = Math.min(Math.max(EDGE_GAP, rect.right - ESTIMATED_MENU_WIDTH), maxLeft);
-      setMenuStyle({
-        position: 'fixed',
-        left,
-        zIndex: 1000,
-        ...(openUp
-          ? { bottom: window.innerHeight - rect.top + 4 }
-          : { top: rect.bottom + 4 }),
-      });
-    }
-    setIsDropdownOpen(true);
-  };
-
-  // Correct for actual menu width once rendered (translations can run wider
-  // than the estimate), re-clamping to the viewport rather than the trigger.
-  useLayoutEffect(() => {
-    if (!isDropdownOpen || !menuRef.current) return;
-    const EDGE_GAP = 8;
-    const menuRect = menuRef.current.getBoundingClientRect();
-    const maxLeft = Math.max(EDGE_GAP, window.innerWidth - menuRect.width - EDGE_GAP);
-    const clampedLeft = Math.min(Math.max(EDGE_GAP, menuRect.left), maxLeft);
-    if (clampedLeft !== menuRect.left) {
-      setMenuStyle((prev) => ({ ...prev, left: clampedLeft }));
-    }
-  }, [isDropdownOpen]);
-
-  const copyFormatOptions: CopyFormatOption[] = useMemo(
-    () => [
-      {
-        format: 'markdown',
-        label: t('copyMessage.copyAsMarkdown', { defaultValue: 'Copy as markdown' }),
-      },
-      {
-        format: 'text',
-        label: t('copyMessage.copyAsText', { defaultValue: 'Copy as text' }),
-      },
-    ],
-    [t]
+  const copyPayload = useMemo(
+    () => (format === 'markdown' ? content : convertMarkdownToPlainText(content)),
+    [content, format]
   );
-
-  const selectedFormatTag = selectedFormat === 'markdown'
-    ? t('copyMessage.markdownShort', { defaultValue: 'MD' })
-    : t('copyMessage.textShort', { defaultValue: 'TXT' });
-
-  const copyPayload = useMemo(() => {
-    if (selectedFormat === 'markdown') {
-      return content;
-    }
-    return convertMarkdownToPlainText(content);
-  }, [content, selectedFormat]);
-
-  useEffect(() => {
-    setSelectedFormat(defaultFormat);
-    setIsDropdownOpen(false);
-  }, [defaultFormat]);
-
-  useEffect(() => {
-    if (!isDropdownOpen) return;
-
-    // Close when clicking outside both the control and the portaled menu.
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (dropdownRef.current?.contains(target) || menuRef.current?.contains(target)) {
-        return;
-      }
-      setIsDropdownOpen(false);
-    };
-
-    // The menu is fixed-positioned; close it if the page scrolls so it can't
-    // detach from the trigger.
-    const closeOnScroll = () => setIsDropdownOpen(false);
-
-    window.addEventListener('mousedown', closeOnOutsideClick);
-    window.addEventListener('scroll', closeOnScroll, true);
-    window.addEventListener('resize', closeOnScroll);
-    return () => {
-      window.removeEventListener('mousedown', closeOnOutsideClick);
-      window.removeEventListener('scroll', closeOnScroll, true);
-      window.removeEventListener('resize', closeOnScroll);
-    };
-  }, [isDropdownOpen]);
 
   useEffect(() => {
     return () => {
@@ -174,21 +73,13 @@ const MessageCopyControl = ({
     }, COPY_SUCCESS_TIMEOUT_MS);
   };
 
-  const handleFormatChange = (format: CopyFormat) => {
-    setSelectedFormat(format);
-    setIsDropdownOpen(false);
-  };
-
   // User copy control now sits below the bubble on the chat background, so it
   // uses the same muted tone as the assistant control rather than on-blue text.
   const toneClass = 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300';
   const copyTitle = copied ? t('copyMessage.copied') : t('copyMessage.copy');
-  const rootClassName = canSelectCopyFormat
-    ? 'relative flex min-w-0 items-center gap-0.5'
-    : 'relative flex items-center gap-0.5';
 
   return (
-    <div ref={dropdownRef} className={rootClassName}>
+    <div className="relative flex items-center gap-0.5">
       <button
         type="button"
         onClick={handleCopyClick}
@@ -218,56 +109,7 @@ const MessageCopyControl = ({
             <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
           </svg>
         )}
-        <span className="text-[10px] font-semibold uppercase tracking-wide">{selectedFormatTag}</span>
       </button>
-
-      {canSelectCopyFormat && (
-        <>
-          <button
-            ref={triggerRef}
-            type="button"
-            onClick={() => (isDropdownOpen ? setIsDropdownOpen(false) : openDropdown())}
-            className={`rounded px-1 py-0.5 transition-colors ${toneClass}`}
-            aria-label={t('copyMessage.selectFormat', { defaultValue: 'Select copy format' })}
-            title={t('copyMessage.selectFormat', { defaultValue: 'Select copy format' })}
-          >
-            <svg
-              className={`h-3 w-3 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {isDropdownOpen && createPortal(
-            <div
-              ref={menuRef}
-              style={menuStyle}
-              className="min-w-36 rounded-md border border-border bg-popover p-1 shadow-lg"
-            >
-              {copyFormatOptions.map((option) => {
-                const isSelected = option.format === selectedFormat;
-                return (
-                  <button
-                    key={option.format}
-                    type="button"
-                    onClick={() => handleFormatChange(option.format)}
-                    className={`block w-full rounded px-2 py-1.5 text-left transition-colors ${isSelected
-                      ? 'bg-accent text-foreground'
-                      : 'text-foreground hover:bg-accent'
-                      }`}
-                  >
-                    <span className="block text-xs font-medium">{option.label}</span>
-                  </button>
-                );
-              })}
-            </div>,
-            document.body,
-          )}
-        </>
-      )}
     </div>
   );
 };

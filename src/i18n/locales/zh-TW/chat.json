@@ -6,10 +6,7 @@
   },
   "copyMessage": {
     "copy": "複製訊息",
-    "copied": "訊息已複製",
-    "selectFormat": "選擇複製格式",
-    "copyAsMarkdown": "複製為 Markdown",
-    "copyAsText": "複製為純文字"
+    "copied": "訊息已複製"
   },
   "messageTypes": {
     "user": "U",
