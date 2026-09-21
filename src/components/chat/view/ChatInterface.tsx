@@ -1040,6 +1040,7 @@ function ChatInterface({
             isLoading={isProcessing}
             onAbortSession={requestAbortSession}
             isStopArmed={isStopArmed}
+            isVisible={isVisible}
             permissionMode={permissionMode}
             availablePermissionModes={availablePermissionModes}
             onSelectPermissionMode={(mode) => selectPermissionMode(mode as PermissionMode)}

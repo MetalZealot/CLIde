@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   ChangeEvent,
   ClipboardEvent,
@@ -10,9 +11,10 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { XIcon, ArrowUpIcon } from 'lucide-react';
+import { XIcon, ArrowUpIcon, SquareIcon } from 'lucide-react';
 
 import { useLongPress } from '../../../../hooks/useLongPress';
+import { useHeaderAccessorySlot } from '../../../../contexts/HeaderMenuContext';
 import { formatClockTimeWithDay, useClockFormat } from '../../../../utils/formatTime';
 import type { ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
 import type { QueuedAsyncAnswer } from '../../utils/asyncQuestionState';
@@ -86,6 +88,8 @@ interface ChatComposerProps {
   reserveActivitySpace?: boolean;
   isLoading: boolean;
   onAbortSession: () => void;
+  /** Only the visible chat may claim the header slot for its usage ring. */
+  isVisible?: boolean;
   /** True once the first Escape/tap has armed Stop; the next one aborts. */
   isStopArmed?: boolean;
   permissionMode: PermissionMode | string;
@@ -177,6 +181,7 @@ export default function ChatComposer({
   reserveActivitySpace = true,
   isLoading,
   onAbortSession,
+  isVisible = true,
   isStopArmed = false,
   permissionMode,
   availablePermissionModes,
@@ -314,8 +319,9 @@ export default function ChatComposer({
       || r.toolName === 'request_user_input'
   );
 
-  // Long-press (touch) and right-click (pointer) open the same "send later"
-  // sheet; a plain tap still sends, so the send button keeps its one meaning.
+  const headerSlot = useHeaderAccessorySlot();
+
+  // Long-press (touch) and right-click (pointer) open the same "send later" sheet.
   const [isScheduleMenuOpen, setIsScheduleMenuOpen] = useState(false);
   const canScheduleCurrentInput = Boolean(sessionKey || canStartSession) && Boolean(input.trim());
   const { handlers: scheduleLongPress } = useLongPress(
@@ -329,10 +335,17 @@ export default function ChatComposer({
 
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim() || attachedFiles.length > 0);
+  // Mid-turn the send button is Stop while the input is empty and Queue once it isn't.
+  const showStop = isLoading && !canQueueDraft && !editingSchedule && !isRecording
+    && Boolean(activity?.canInterrupt);
   const submitAriaLabel = disabled
     ? t('input.selectProjectToSend', { defaultValue: 'Select a project to send' })
     : editingSchedule
       ? t('input.schedule.reschedule', { defaultValue: 'Save and keep it scheduled' })
+      : showStop
+      ? isStopArmed
+        ? t('claudeStatus.stopConfirm', { defaultValue: 'Press again to stop' })
+        : t('claudeStatus.stop', { defaultValue: 'Stop' })
       : canQueueDraft
       ? hasQueuedDraft
         ? t('input.queue.update', { defaultValue: 'Update queued message' })
@@ -341,8 +354,24 @@ export default function ChatComposer({
         ? t('claudeStatus.actions.working', { defaultValue: 'Working' })
         : t('input.send');
 
+  const usageRing = (
+    <TokenUsageSummary
+      usage={tokenBudget}
+      request={usagePopoverRequest}
+      onRequestBreakdown={onShowContextBreakdown}
+      onRefreshBreakdown={onRefreshContextBreakdown}
+      isRefreshingBreakdown={isRefreshingContextBreakdown}
+      canRefreshBreakdown={isLoading}
+      sessionKey={sessionKey}
+      provider={provider}
+      model={model}
+    />
+  );
+
   return (
     <div className="chat-composer-shell relative flex-shrink-0 select-none px-4 pb-4 pt-0 md:px-6 md:pb-6">
+      {/* The ring describes the whole session, so it lives in the header when there is one. */}
+      {headerSlot && isVisible && createPortal(usageRing, headerSlot)}
       {(activity || reserveActivitySpace) && (
         // Hidden, never unmounted, while the permission banner holds the slot: the
         // message cycle and its no-repeat bag are per-turn state a remount restarts.
@@ -353,7 +382,7 @@ export default function ChatComposer({
             visibility: activity ? 'visible' : 'hidden',
           }}
         >
-          <ActivityIndicator activity={activity} onAbort={onAbortSession} isStopArmed={isStopArmed} />
+          <ActivityIndicator activity={activity} />
         </div>
       )}
 
@@ -604,17 +633,7 @@ export default function ChatComposer({
           </PromptInputTools>
 
           <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
-            <TokenUsageSummary
-              usage={tokenBudget}
-              request={usagePopoverRequest}
-              onRequestBreakdown={onShowContextBreakdown}
-              onRefreshBreakdown={onRefreshContextBreakdown}
-              isRefreshingBreakdown={isRefreshingContextBreakdown}
-              canRefreshBreakdown={isLoading}
-              sessionKey={sessionKey}
-              provider={provider}
-              model={model}
-            />
+            {!headerSlot && usageRing}
 
             {onVoiceTranscript && voiceAvailable && (
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} />
@@ -632,6 +651,11 @@ export default function ChatComposer({
                       e.preventDefault();
                       onSubmit(e);
                     }
+                  : showStop
+                  ? (e: MouseEvent<HTMLButtonElement>) => {
+                      e.preventDefault();
+                      onAbortSession();
+                    }
                   : isRecording
                     ? (e: MouseEvent<HTMLButtonElement>) => {
                         e.preventDefault();
@@ -643,7 +667,7 @@ export default function ChatComposer({
                 disabled
                   ? true
                   : isLoading
-                    ? !canQueueDraft
+                    ? !canQueueDraft && !showStop
                     : isStartingRecording
                       ? true
                       : isRecording
@@ -654,7 +678,9 @@ export default function ChatComposer({
               }
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
-              className="composer-send-hit-target ml-4 [&_svg]:size-5"
+              className={`composer-send-hit-target ml-4 [&_svg]:size-5 ${
+                showStop ? 'border border-border bg-background text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground active:bg-accent' : ''
+              }`}
               {...scheduleLongPress}
               // After the spread: useLongPress only suppresses the native menu,
               // so right-click has to open ours here or desktop gets nothing.
@@ -663,7 +689,23 @@ export default function ChatComposer({
                 if (canScheduleCurrentInput) setIsScheduleMenuOpen(true);
               }}
             >
-              <ArrowUpIcon className="h-5 w-5" />
+              {showStop ? (
+                // Armed, the pill grows left over its neighbours instead of reflowing the row.
+                <span
+                  className={`absolute -inset-y-px -right-px z-10 flex items-center rounded-lg border pr-[9px] text-sm font-medium transition-colors ${
+                    isStopArmed ? 'border-foreground bg-foreground pl-3 text-background' : 'border-transparent pl-[9px]'
+                  }`}
+                >
+                  <span
+                    className={`overflow-hidden whitespace-nowrap transition-[max-width,margin] duration-150 ${
+                      isStopArmed ? 'mr-1.5 max-w-12' : 'max-w-0'
+                    }`}
+                  >
+                    {t('claudeStatus.stop', { defaultValue: 'Stop' })}
+                  </span>
+                  <SquareIcon className="!h-3.5 !w-3.5 fill-current" />
+                </span>
+              ) : <ArrowUpIcon className="h-5 w-5" />}
             </PromptInputSubmit>
           </div>
         </PromptInputFooter>

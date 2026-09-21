@@ -40,6 +40,7 @@ export function ComposerMenuSurface({
       )}
       style={{
         right: anchor.right,
+        top: anchor.top,
         bottom: anchor.bottom,
         maxHeight: anchor.maxHeight,
         ...(fillAnchorWidth

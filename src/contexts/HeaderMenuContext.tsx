@@ -30,15 +30,31 @@ const SectionContext = createContext<HeaderMenuSection | null>(null);
 const SetSectionContext = createContext<
   ((update: (current: HeaderMenuSection | null) => HeaderMenuSection | null) => void) | null
 >(null);
+const AccessorySlotContext = createContext<HTMLElement | null>(null);
+const SetAccessorySlotContext = createContext<((element: HTMLElement | null) => void) | null>(null);
 
 /** Lets the visible view put its own actions in the header menu. */
 export function HeaderMenuProvider({ children }: { children: ReactNode }) {
   const [section, setSection] = useState<HeaderMenuSection | null>(null);
+  const [accessorySlot, setAccessorySlot] = useState<HTMLElement | null>(null);
   return (
     <SetSectionContext.Provider value={setSection}>
-      <SectionContext.Provider value={section}>{children}</SectionContext.Provider>
+      <SectionContext.Provider value={section}>
+        <SetAccessorySlotContext.Provider value={setAccessorySlot}>
+          <AccessorySlotContext.Provider value={accessorySlot}>{children}</AccessorySlotContext.Provider>
+        </SetAccessorySlotContext.Provider>
+      </SectionContext.Provider>
     </SetSectionContext.Provider>
   );
+}
+
+/** The header's element left of the menu, which the visible view may portal a control into. */
+export function useHeaderAccessorySlot(): HTMLElement | null {
+  return useContext(AccessorySlotContext);
+}
+
+export function useSetHeaderAccessorySlot() {
+  return useContext(SetAccessorySlotContext);
 }
 
 export function useHeaderMenuSection(): HeaderMenuSection | null {

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type ComposerMenuAnchor = {
   right: number;
-  bottom: number;
+  /** Exactly one of `top`/`bottom` is set: the menu opens away from the nearer screen edge. */
+  top?: number;
+  bottom?: number;
   maxHeight: number;
   maxWidth: number;
 };
@@ -10,7 +12,7 @@ export type ComposerMenuAnchor = {
 const VIEWPORT_MARGIN = 8;
 const MENU_GAP = 8;
 
-/** Positions a composer popover above and right-aligned to its trigger. */
+/** Positions a composer popover right-aligned to its trigger, above it unless the trigger sits in the top half. */
 export function useComposerMenuAnchor(
   isOpen: boolean,
   onClose: () => void,
@@ -33,12 +35,20 @@ export function useComposerMenuAnchor(
       furthestSafeRight,
     );
 
-    setAnchor({
-      right,
-      bottom: window.innerHeight - rect.top + MENU_GAP,
-      maxHeight: Math.max(160, rect.top - MENU_GAP - VIEWPORT_MARGIN),
-      maxWidth,
-    });
+    const opensBelow = rect.top < window.innerHeight / 2;
+    setAnchor(opensBelow
+      ? {
+          right,
+          top: rect.bottom + MENU_GAP,
+          maxHeight: Math.max(160, window.innerHeight - rect.bottom - MENU_GAP - VIEWPORT_MARGIN),
+          maxWidth,
+        }
+      : {
+          right,
+          bottom: window.innerHeight - rect.top + MENU_GAP,
+          maxHeight: Math.max(160, rect.top - MENU_GAP - VIEWPORT_MARGIN),
+          maxWidth,
+        });
   }, [preferredWidth]);
 
   useEffect(() => {

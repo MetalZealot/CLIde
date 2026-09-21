@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 
 import type { MainContentHeaderProps } from '../../types/types';
-import { useHeaderMenuSection } from '../../../../contexts/HeaderMenuContext';
+import { useHeaderMenuSection, useSetHeaderAccessorySlot } from '../../../../contexts/HeaderMenuContext';
 
 import MobileMenuButton from './MobileMenuButton';
 import MainContentTabSwitcher from './MainContentTabSwitcher';
@@ -20,6 +20,7 @@ export default function MainContentHeader({
   onMenuClick,
 }: MainContentHeaderProps) {
   const headerMenuSection = useHeaderMenuSection();
+  const setAccessorySlot = useSetHeaderAccessorySlot();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -78,7 +79,10 @@ export default function MainContentHeader({
               )}
             </div>
           )}
-          <MainContentHeaderMenu />
+          <div className="-mr-2 flex flex-shrink-0 items-center">
+            <div ref={setAccessorySlot ?? undefined} className="flex items-center empty:hidden" />
+            <MainContentHeaderMenu />
+          </div>
         </div>
       )}
     </div>
