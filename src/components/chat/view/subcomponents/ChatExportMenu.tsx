@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FileJson, FileText } from 'lucide-react';
 
+import { hydrateHistoryDetails } from '../../hooks/useHistoryDetail';
 import type { ChatMessage } from '../../types/types';
 import {
   downloadMarkdown,
@@ -49,10 +50,12 @@ export function ChatExportOptions({
 
     // PDF windows must open during the click gesture or mobile browsers can
     // block them while the complete transcript is loading.
-    const preparedPDFWindow = format === 'pdf' && hasMoreMessages
+    const needsDetails = include.toolCalls && messages.some((message) => message.elidedDetail);
+    const loadsAsync = hasMoreMessages || needsDetails;
+    const preparedPDFWindow = format === 'pdf' && loadsAsync
       ? window.open('', '', 'width=800,height=600')
       : undefined;
-    if (format === 'pdf' && hasMoreMessages && !preparedPDFWindow) {
+    if (format === 'pdf' && loadsAsync && !preparedPDFWindow) {
       setExportError('PDF export was blocked. Allow popups and try again.');
       setIsPreparing(false);
       return;
@@ -68,6 +71,16 @@ export function ChatExportOptions({
         return;
       }
       exportMessages = completeMessages;
+    }
+    if (include.toolCalls) {
+      try {
+        exportMessages = await hydrateHistoryDetails(exportMessages);
+      } catch {
+        preparedPDFWindow?.close();
+        setExportError('The complete session could not be loaded. Nothing was exported.');
+        setIsPreparing(false);
+        return;
+      }
     }
 
     const timestamp = new Date().toISOString().split('T')[0];

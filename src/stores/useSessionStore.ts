@@ -134,8 +134,10 @@ export interface NormalizedMessage {
    * was never written to the transcript. See server types.
    */
   deliveredToProvider?: boolean;
-  images?: Array<{ path?: string; data?: string; name?: string }>;
+  images?: Array<{ path?: string; data?: string; url?: string; mediaType?: string; name?: string }>;
   files?: Array<{ path?: string; name?: string; mimeType?: string; size?: number }>;
+  /** History pages omit heavy tool payloads; the message detail route serves the complete record. */
+  elidedDetail?: { bytes: number; resultLines?: number };
   toolName?: string;
   toolInput?: unknown;
   toolId?: string;

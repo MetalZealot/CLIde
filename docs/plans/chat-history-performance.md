@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 4/9
-- Next: Phase 5 — bound payloads and load heavy details on demand
+- Status: 5/9
+- Next: Phase 6 — Find and prompt navigation without rendering history
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -56,20 +56,14 @@ reconnects and cancelled Find loads. Six synthetic Browser runs preserve the loa
 tail without duplicate ids and retain phase-3 rendering limits.
 [Contract and verification](../maps/chat-history-performance.md#phase-4-stable-history-bookmarks).
 
-- [ ] **5. Bound transferred work, not just record counts — XL.**
+- [x] **5. Bound transferred work, not just record counts — XL.**
 
-Separate display text/tool summaries from raw output, subagent detail and embedded
-image bodies. Use authenticated, session-scoped detail/attachment references and
-bounded caches. Serve transcript images without repeating their bodies in JSON;
-avoid duplicating full results on both tool and result records. Bound page bytes
-as well as rows, with an explicit path for one oversized prose message.
-
-Preserve full copy/export and error visibility without silent truncation.
-Combine duplicate reads, cancel stale ones and handle missing files. Reuse existing surfaces; agree
-new visible behaviour before building. Activity clustering has its own plan.
-
-**Exit:** unopened heavy bodies do not inflate pages beyond budget; requested
-details/exports remain complete and access-controlled.
+Pages carry image URLs and tool-payload previews instead of bodies; strings over
+8 KiB leave the page, prose never does. Pages stop at 256 KiB, keeping one
+oversized record alone. Opening a card fetches its complete record; export swaps
+in full records or exports nothing. The heavy fixture page fell from 723,743 to
+6,146 bytes; a real 17 MB session's full slim history is 2.6 MB.
+[Contract and evidence](../maps/chat-history-performance.md#phase-5-bounded-page-payloads).
 
 - [ ] **6. Separate Find and prompt navigation from rendered history — XL.**
 

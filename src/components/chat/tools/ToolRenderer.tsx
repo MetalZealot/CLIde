@@ -28,6 +28,7 @@ interface ToolRendererProps {
   showRawParameters?: boolean;
   rawToolInput?: string;
   isSubagentContainer?: boolean;
+  omittedOutputLines?: number;
   subagentState?: {
     childTools: SubagentChildTool[];
     currentToolIndex: number;
@@ -83,6 +84,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
   showRawParameters = false,
   rawToolInput,
   isSubagentContainer,
+  omittedOutputLines,
   subagentState
 }) => {
   const config = getToolConfig(toolName);
@@ -153,6 +155,7 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
         // Commands stay collapsed by default — including failures; the status
         // badge marks errors and the output expands via the chevron.
         defaultOpen={false}
+        omittedOutputLines={omittedOutputLines}
       />
     );
   }

@@ -853,6 +853,113 @@ describe('chatSubcomponents', () => {
 
       assert.deepEqual(revokedUrls.sort(), ['blob:first.png', 'blob:last.png']);
     });
+
+    test('history images omitted from the page load from their authenticated route', async () => {
+      const originalFetch = globalThis.fetch;
+      const originalCreateObjectURL = URL.createObjectURL;
+      const requested: string[] = [];
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        requested.push(String(input));
+        return new Response(new Blob(['png'], { type: 'image/png' }));
+      }) as typeof fetch;
+      URL.createObjectURL = () => 'blob:history-image';
+      const url = '/api/providers/sessions/app/messages/row-4_text_0/images/0';
+      const { container, root } = await mount(<ChatMessageImages images={[{ name: 'shot.png', url }]} />);
+      try {
+        await React.act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
+        assert.deepEqual(requested, [url]);
+        assert.equal(container.querySelector('img')?.getAttribute('src'), 'blob:history-image');
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+        globalThis.fetch = originalFetch;
+        URL.createObjectURL = originalCreateObjectURL;
+      }
+    });
+  });
+
+  describe('omitted tool detail', () => {
+    const elidedBash: ChatMessage = {
+      type: 'assistant', content: '', timestamp: '2026-09-21T10:00:00.000Z', id: 'tool-1', isToolUse: true,
+      toolName: 'Bash', toolId: 'call-1', toolInput: JSON.stringify({ command: 'cat big.log' }),
+      toolResult: { content: 'preview line', isError: false }, elidedDetail: { bytes: 90_000, resultLines: 5000 },
+      historySessionId: 'app-session',
+    };
+    const fullRecord = {
+      id: 'tool-1', sessionId: 'app-session', provider: 'claude', timestamp: '2026-09-21T10:00:00.000Z', kind: 'tool_use',
+      toolName: 'Bash', toolId: 'call-1', toolInput: { command: 'cat big.log' },
+      toolResult: { content: 'full output\n'.repeat(3) + 'final line', isError: false },
+    };
+
+    test('a collapsed row reports the omitted size and loads the complete output when opened', async () => {
+      const hooks = registerHooks({
+        resolve(specifier, context, nextResolve) {
+          return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
+            ? 'react-syntax-highlighter/dist/cjs/styles/prism/index.js'
+            : specifier, context);
+        },
+      });
+      const { default: MessageComponent } = await import('./MessageComponent').finally(() => hooks.deregister());
+      const originalFetch = globalThis.fetch;
+      const originalResizeObserver = globalThis.ResizeObserver;
+      globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+      const requested: string[] = [];
+      let fail = true;
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        requested.push(String(input));
+        return fail ? new Response('{}', { status: 500 }) : Response.json({ data: fullRecord });
+      }) as typeof fetch;
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const settle = () => new Promise((resolve) => window.setTimeout(resolve, 0));
+      try {
+        await React.act(async () => {
+          root.render(<MessageComponent message={elidedBash} prevMessage={null} provider="claude" createDiff={() => []} />);
+        });
+        assert.ok(container.textContent?.includes('5000 lines'), container.textContent ?? '');
+        assert.deepEqual(requested, [], 'nothing loads until the row is opened');
+        const row = container.querySelector<HTMLElement>('[aria-expanded]');
+        assert.ok(row);
+        await React.act(async () => { row.click(); await settle(); });
+        assert.equal(requested.length, 1);
+        assert.match(requested[0], /\/api\/providers\/sessions\/app-session\/messages\/tool-1$/);
+        const retry = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Retry');
+        assert.ok(retry, 'a failed load is visible and retryable');
+        fail = false;
+        await React.act(async () => { retry.click(); await settle(); });
+        assert.ok(container.textContent?.includes('final line'), container.textContent ?? '');
+        assert.equal(container.querySelector('[role="alert"]'), null);
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+        globalThis.fetch = originalFetch;
+        globalThis.ResizeObserver = originalResizeObserver;
+      }
+    });
+
+    test('export swaps omitted tool output for the complete record or exports nothing', async () => {
+      const { hydrateHistoryDetails } = await import('../../hooks/useHistoryDetail');
+      const originalFetch = globalThis.fetch;
+      let records: unknown[] = [fullRecord];
+      const requested: string[] = [];
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        requested.push(String(input));
+        return Response.json({ data: { messages: records } });
+      }) as typeof fetch;
+      try {
+        const prose: ChatMessage = { type: 'assistant', content: 'Done', timestamp: '2026-09-21T10:00:01.000Z' };
+        const [tool, text] = await hydrateHistoryDetails([elidedBash, prose]);
+        assert.deepEqual(requested, ['/api/providers/sessions/app-session/messages?payload=full']);
+        assert.match(String(tool.toolResult?.content), /final line$/);
+        assert.equal(tool.elidedDetail, undefined);
+        assert.equal(text, prose);
+        records = [];
+        await assert.rejects(hydrateHistoryDetails([elidedBash]));
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
   });
 
   describe('ChatExportOptions', () => {

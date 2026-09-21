@@ -14,6 +14,12 @@ import type {
 } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
+import {
+  decodeHistoryImage,
+  HISTORY_PAGE_BUDGET_BYTES,
+  measureHistoryMessage,
+  slimHistoryMessage,
+} from './history-payload.service.js';
 import { paginateHistory } from './history-pagination.service.js';
 
 type CreateAppSessionResult = {
@@ -103,6 +109,80 @@ function resolveProjectDisplayName(
  * class, keeping normalization/history call sites decoupled from implementation
  * file layout.
  */
+/**
+ * Loads a session's complete normalized history by app session id.
+ *
+ * The provider adapter receives the provider-native session id; callers remap
+ * returned records to the app id so provider ids never reach the frontend.
+ */
+async function loadFullHistory(
+  sessionId: string,
+  requireCompleteRead: boolean,
+): Promise<{ result: FetchHistoryResult; identity: string }> {
+  const session = sessionsDb.getSessionById(sessionId);
+  if (!session) {
+    throw new AppError(`Session "${sessionId}" was not found.`, {
+      code: 'SESSION_NOT_FOUND',
+      statusCode: 404,
+    });
+  }
+
+  const identity = JSON.stringify([sessionId, session.provider, session.provider_session_id, session.project_path ?? '', session.jsonl_path]);
+  // App-created sessions that never produced a provider transcript yet
+  // (e.g. first message still streaming) simply have no history.
+  if (!session.provider_session_id) {
+    return { result: { messages: [], total: 0, hasMore: false, offset: 0, limit: null }, identity };
+  }
+
+  const provider = session.provider as LLMProvider;
+  const providerSessions = providerRegistry.resolveProvider(provider).sessions;
+  const historyOptions: FetchHistoryOptions = {
+    limit: null,
+    offset: 0,
+    projectPath: session.project_path ?? '',
+    historyStartTime: session.created_at ?? undefined,
+    requireCompleteRead,
+    providerSessionId: session.provider_session_id,
+  };
+
+  let result: FetchHistoryResult;
+  if (providerSessions.getHistorySourceRevision) {
+    let fullHistory: FetchHistoryResult | null = null;
+    try {
+      fullHistory = await sessionHistoryCache.getFullHistory({
+        sessionId,
+        identity,
+        getRevision: (previous) => providerSessions.getHistorySourceRevision!(
+          sessionId,
+          historyOptions,
+          previous,
+        ),
+        loadFull: () => providerSessions.fetchHistory(sessionId, {
+          ...historyOptions,
+          limit: null,
+          offset: 0,
+          requireCompleteRead: true,
+        }),
+      });
+    } catch {
+      // Uncacheable sources use direct reads; bookmark reads still require completeness.
+    }
+
+    result = fullHistory ?? await providerSessions.fetchHistory(sessionId, historyOptions);
+  } else {
+    // Cursor and OpenCode need database-aware revisions before parsed history
+    // can be reused safely; direct reads are the explicit correctness fallback.
+    result = await providerSessions.fetchHistory(sessionId, historyOptions);
+  }
+
+  const current = sessionsDb.getSessionById(sessionId);
+  if (!current || current.provider !== session.provider || current.provider_session_id !== session.provider_session_id
+    || current.project_path !== session.project_path || current.jsonl_path !== session.jsonl_path) {
+    throw new AppError('History identity changed during loading.', { code: 'HISTORY_CURSOR_INVALIDATED', statusCode: 409 });
+  }
+  return { result, identity };
+}
+
 export const sessionsService = {
   /**
    * Lists provider ids that can load session history and normalize live messages.
@@ -274,77 +354,40 @@ export const sessionsService = {
    */
   async fetchHistory(
     sessionId: string,
-    options: Pick<FetchHistoryOptions, 'limit' | 'offset' | 'before' | 'from'> = {},
+    options: Pick<FetchHistoryOptions, 'limit' | 'offset' | 'before' | 'from'> & { payload?: 'page' | 'full' } = {},
   ): Promise<FetchHistoryResult> {
-    const session = sessionsDb.getSessionById(sessionId);
-    if (!session) {
-      throw new AppError(`Session "${sessionId}" was not found.`, {
-        code: 'SESSION_NOT_FOUND',
-        statusCode: 404,
-      });
-    }
-
-    const identity = JSON.stringify([sessionId, session.provider, session.provider_session_id, session.project_path ?? '', session.jsonl_path]);
-    // App-created sessions that never produced a provider transcript yet
-    // (e.g. first message still streaming) simply have no history.
-    if (!session.provider_session_id) {
-      return paginateHistory({ messages: [], total: 0, hasMore: false, offset: 0, limit: null }, identity, options);
-    }
-
-    const provider = session.provider as LLMProvider;
-    const providerSessions = providerRegistry.resolveProvider(provider).sessions;
-    const historyOptions: FetchHistoryOptions = {
-      limit: null,
-      offset: 0,
-      projectPath: session.project_path ?? '',
-      historyStartTime: session.created_at ?? undefined,
-      requireCompleteRead: options.before !== undefined || options.from !== undefined,
-      providerSessionId: session.provider_session_id,
-    };
-
-    let result: FetchHistoryResult;
-    if (providerSessions.getHistorySourceRevision) {
-      let fullHistory: FetchHistoryResult | null = null;
-      try {
-        fullHistory = await sessionHistoryCache.getFullHistory({
-          sessionId,
-          identity,
-          getRevision: (previous) => providerSessions.getHistorySourceRevision!(
-            sessionId,
-            historyOptions,
-            previous,
-          ),
-          loadFull: () => providerSessions.fetchHistory(sessionId, {
-            ...historyOptions,
-            limit: null,
-            offset: 0,
-            requireCompleteRead: true,
-          }),
-        });
-      } catch {
-        // Uncacheable sources use direct reads; bookmark reads still require completeness.
-      }
-
-      result = fullHistory ?? await providerSessions.fetchHistory(sessionId, historyOptions);
-    } else {
-      // Cursor and OpenCode need database-aware revisions before parsed history
-      // can be reused safely; direct reads are the explicit correctness fallback.
-      result = await providerSessions.fetchHistory(sessionId, historyOptions);
-    }
-
-    const current = sessionsDb.getSessionById(sessionId);
-    if (!current || current.provider !== session.provider || current.provider_session_id !== session.provider_session_id
-      || current.project_path !== session.project_path || current.jsonl_path !== session.jsonl_path) {
-      throw new AppError('History identity changed during loading.', { code: 'HISTORY_CURSOR_INVALIDATED', statusCode: 409 });
-    }
-    const page = paginateHistory(result, identity, options);
+    const { result, identity } = await loadFullHistory(sessionId, options.before !== undefined || options.from !== undefined);
+    const full = options.payload === 'full';
+    const page = paginateHistory(result, identity, options, full ? undefined : {
+      bytes: HISTORY_PAGE_BUDGET_BYTES,
+      measure: (message) => measureHistoryMessage(message, sessionId),
+    });
     return {
       ...page,
       messages: page.messages.map((message) => ({
-        ...message,
+        ...(full ? message : slimHistoryMessage(message, sessionId)),
         sessionId,
       })),
     };
+  },
+
+  /** One complete history record, for details a page omitted. */
+  async fetchHistoryMessage(sessionId: string, messageId: string): Promise<NormalizedMessage> {
+    const { result } = await loadFullHistory(sessionId, false);
+    const message = result.messages.find((candidate) => candidate.id === messageId);
+    if (!message) {
+      throw new AppError('Message not found in this session.', { code: 'HISTORY_MESSAGE_NOT_FOUND', statusCode: 404 });
+    }
+    return { ...message, sessionId };
+  },
+
+  /** One inline image of a history record, decoded from its stored data URL. */
+  async fetchHistoryImage(sessionId: string, messageId: string, index: number): Promise<{ mediaType: string; body: Buffer }> {
+    const image = decodeHistoryImage(await this.fetchHistoryMessage(sessionId, messageId), index);
+    if (!image) {
+      throw new AppError('Image not found in this message.', { code: 'HISTORY_IMAGE_NOT_FOUND', statusCode: 404 });
+    }
+    return image;
   },
 
   /**

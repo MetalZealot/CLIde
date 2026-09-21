@@ -30,7 +30,10 @@
     "readFile": "Read file",
     "updateTodo": "Update todo list",
     "readTodo": "Read todo list",
-    "searchResults": "results"
+    "searchResults": "results",
+    "loadingDetail": "Loading full output…",
+    "detailFailed": "Couldn't load the full output.",
+    "retryDetail": "Retry"
   },
   "search": {
     "found": "Found {{count}} {{type}}",

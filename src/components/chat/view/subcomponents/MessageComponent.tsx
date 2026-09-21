@@ -18,7 +18,8 @@ import {
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { isChatFindConversationMessage } from '../../hooks/useChatFind';
 import type { Project } from '../../../../types/app';
-import { ToolRenderer, ToolErrorDisplay, shouldHideToolResult } from '../../tools';
+import { ToolRenderer, ToolErrorDisplay, getToolConfig, shouldHideToolResult } from '../../tools';
+import { useHistoryDetail } from '../../hooks/useHistoryDetail';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../shared/view/ui';
 
 import ChatMessageImages from './ChatMessageImages';
@@ -76,6 +77,12 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
       (prevMessage.type === 'tool') ||
       (prevMessage.type === 'error' && !prevMessage.usageLimit));
   const messageRef = useRef<HTMLDivElement | null>(null);
+  const toolConfig = message.isToolUse ? getToolConfig(message.toolName || 'UnknownTool') : null;
+  const historyDetail = useHistoryDetail(
+    message,
+    Boolean(toolConfig?.input.defaultOpen || toolConfig?.result?.defaultOpen),
+  );
+  const toolMessage = historyDetail.message;
   const userCopyContent = String(message.content || '');
   const clockFormat = useClockFormat();
   const formattedMessageContent = useMemo(
@@ -287,7 +294,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
           <div className="w-full">
 
             {message.isToolUse ? (
-              <>
+              <div onClickCapture={historyDetail.request}>
                 <div className="flex flex-col">
                   <div className="flex flex-col">
                     <Markdown className="prose prose-sm max-w-none font-prose dark:prose-invert">
@@ -296,41 +303,42 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
                   </div>
                 </div>
 
-                {message.toolInput && (
+                {Boolean(toolMessage.toolInput) && (
                   <ToolRenderer
-                    toolName={message.toolName || 'UnknownTool'}
-                    toolInput={message.toolInput}
-                    toolResult={message.toolResult}
-                    toolId={message.toolId}
+                    toolName={toolMessage.toolName || 'UnknownTool'}
+                    toolInput={toolMessage.toolInput}
+                    toolResult={toolMessage.toolResult}
+                    toolId={toolMessage.toolId}
                     mode="input"
                     onFileOpen={onFileOpen}
                     createDiff={createDiff}
                     selectedProject={selectedProject}
                     showRawParameters={showRawParameters}
-                    rawToolInput={typeof message.toolInput === 'string' ? message.toolInput : undefined}
-                    isSubagentContainer={message.isSubagentContainer}
-                    subagentState={message.subagentState}
+                    rawToolInput={typeof toolMessage.toolInput === 'string' ? toolMessage.toolInput : undefined}
+                    isSubagentContainer={toolMessage.isSubagentContainer}
+                    subagentState={toolMessage.subagentState}
+                    omittedOutputLines={toolMessage.elidedDetail?.resultLines}
                   />
                 )}
 
                 {/* Tool Result Section — Bash renders its output inside the command row above. */}
-                {message.toolResult && message.toolName !== 'Bash' && !shouldHideToolResult(message.toolName || 'UnknownTool', message.toolResult) && (
-                  message.toolResult.isError ? (
+                {toolMessage.toolResult && toolMessage.toolName !== 'Bash' && !shouldHideToolResult(toolMessage.toolName || 'UnknownTool', toolMessage.toolResult) && (
+                  toolMessage.toolResult.isError ? (
                     // Error results — collapsed red row that expands to the content
-                    <div id={`tool-result-${message.toolId}`} className="scroll-mt-4">
+                    <div id={`tool-result-${toolMessage.toolId}`} className="scroll-mt-4">
                       <ToolErrorDisplay
                         label={t('messageTypes.error')}
-                        content={String(message.toolResult.content || '')}
+                        content={String(toolMessage.toolResult.content || '')}
                       />
                     </div>
                   ) : (
                     // Non-error results - route through ToolRenderer (single source of truth)
-                    <div id={`tool-result-${message.toolId}`} className="scroll-mt-4">
+                    <div id={`tool-result-${toolMessage.toolId}`} className="scroll-mt-4">
                       <ToolRenderer
-                        toolName={message.toolName || 'UnknownTool'}
-                        toolInput={message.toolInput}
-                        toolResult={message.toolResult}
-                        toolId={message.toolId}
+                        toolName={toolMessage.toolName || 'UnknownTool'}
+                        toolInput={toolMessage.toolInput}
+                        toolResult={toolMessage.toolResult}
+                        toolId={toolMessage.toolId}
                         mode="result"
                         onFileOpen={onFileOpen}
                         createDiff={createDiff}
@@ -339,7 +347,21 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
                     </div>
                   )
                 )}
-              </>
+                {historyDetail.status === 'loading' && (
+                  <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
+                    <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" aria-hidden="true" />
+                    {t('tools.loadingDetail')}
+                  </div>
+                )}
+                {historyDetail.status === 'error' && (
+                  <div className="mt-1 flex items-center gap-2 text-xs text-red-600 dark:text-red-400" role="alert">
+                    {t('tools.detailFailed')}
+                    <button type="button" className="underline" onClick={historyDetail.request}>
+                      {t('tools.retryDetail')}
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : message.isInteractivePrompt ? (
               // Special handling for interactive prompts
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">

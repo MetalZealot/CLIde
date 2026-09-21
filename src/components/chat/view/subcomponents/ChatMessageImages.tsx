@@ -30,16 +30,16 @@ function useChatImageSrc(image: ChatImage, projectId?: string | null): { src: st
     }
 
     const imagePath = image.path;
-    if (!imagePath) {
+    if (!imagePath && !image.url) {
       setSrc(null);
       setFailed(true);
       return;
     }
 
-    const filename = imagePath.split(/[\\/]/).pop() || '';
-    const candidateUrls = [
+    const filename = imagePath?.split(/[\\/]/).pop() || '';
+    const candidateUrls = image.url ? [image.url] : [
       `/api/assets/images/${encodeURIComponent(filename)}`,
-      ...(projectId
+      ...(projectId && imagePath
         ? [`/api/file-tree/projects/${projectId}/files/content?path=${encodeURIComponent(imagePath)}`]
         : []),
     ];
@@ -77,7 +77,7 @@ function useChatImageSrc(image: ChatImage, projectId?: string | null): { src: st
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [image.data, image.path, projectId]);
+  }, [image.data, image.path, image.url, projectId]);
 
   return { src, failed };
 }

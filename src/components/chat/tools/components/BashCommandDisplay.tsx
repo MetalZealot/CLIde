@@ -14,6 +14,8 @@ interface BashCommandDisplayProps {
   isError?: boolean;
   status?: ToolStatus;
   defaultOpen?: boolean;
+  /** Line count of output the history page omitted, until it loads. */
+  omittedOutputLines?: number;
 }
 
 /**
@@ -30,11 +32,12 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   isError = false,
   status,
   defaultOpen = false,
+  omittedOutputLines,
 }) => {
   const trimmedOutput = (output || '').replace(/\s+$/, '');
   const hasOutput = trimmedOutput.length > 0;
   const isMultilineCommand = command.includes('\n');
-  const outputLineCount = hasOutput ? trimmedOutput.split('\n').length : 0;
+  const outputLineCount = omittedOutputLines ?? (hasOutput ? trimmedOutput.split('\n').length : 0);
   const isRunning = status === 'running';
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);

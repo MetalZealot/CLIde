@@ -905,13 +905,47 @@ router.get(
       offset = parsedOffset;
     }
 
+    const payload = readOptionalQueryString(req.query.payload);
+    if (payload !== undefined && payload !== 'page' && payload !== 'full') {
+      throw new AppError('payload must be page or full.', { code: 'INVALID_QUERY_PARAMETER', statusCode: 400 });
+    }
+
     const result = await sessionsService.fetchHistory(sessionId, {
       limit,
       offset,
       before: readOptionalQueryString(req.query.before),
       from: readOptionalQueryString(req.query.from),
+      payload,
     });
     res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.get(
+  '/sessions/:sessionId/messages/:messageId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const message = await sessionsService.fetchHistoryMessage(sessionId, String(req.params.messageId));
+    res.json(createApiSuccessResponse(message));
+  }),
+);
+
+router.get(
+  '/sessions/:sessionId/messages/:messageId/images/:index',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const index = String(req.params.index);
+    if (!/^\d{1,4}$/.test(index)) {
+      throw new AppError('index must be a non-negative integer.', { code: 'INVALID_QUERY_PARAMETER', statusCode: 400 });
+    }
+    const image = await sessionsService.fetchHistoryImage(sessionId, String(req.params.messageId), Number(index));
+    res.set({
+      'Content-Type': image.mediaType,
+      'Cache-Control': 'private, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+    });
+    res.send(image.body);
   }),
 );
 

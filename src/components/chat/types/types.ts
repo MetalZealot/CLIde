@@ -26,6 +26,8 @@ export interface ChatAttachment {
 export interface ChatImage extends ChatAttachment {
   /** Inline data URL (Claude history stores image attachments as base64). */
   data?: string;
+  /** Authenticated route serving an inline image a history page omitted. */
+  url?: string;
 }
 
 export interface ToolResult {
@@ -94,6 +96,10 @@ export interface ChatMessage {
   isSystemNotice?: boolean;
   /** Set when the provider stopped the turn on a usage limit; drives the Auto-Continue offer. */
   usageLimit?: UsageLimitStop;
+  /** Set when the history page omitted this tool's heavy payload; see useHistoryDetail. */
+  elidedDetail?: { bytes: number; resultLines?: number };
+  /** App session id the elided detail is fetched from. */
+  historySessionId?: string;
   /** Parsed from Codex's trailing provenance envelope; rendered as compact sources. */
   memoryCitations?: MemoryCitation[];
   isSubagentContainer?: boolean;

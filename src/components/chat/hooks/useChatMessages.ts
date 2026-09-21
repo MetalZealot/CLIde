@@ -125,6 +125,8 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       isSystemNotice: msg.isSystemNotice,
       followUpQuestions: msg.followUpQuestions,
       usageLimit: msg.usageLimit,
+      elidedDetail: msg.elidedDetail ?? result?.elidedDetail,
+      historySessionId: msg.elidedDetail || result?.elidedDetail ? msg.sessionId : undefined,
     };
 
     switch (msg.kind) {

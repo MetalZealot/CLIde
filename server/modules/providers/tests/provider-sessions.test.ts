@@ -18,6 +18,7 @@ import {
   sessionHistoryCache,
 } from '@/modules/providers/services/session-history-cache.service.js';
 import { paginateHistory } from '@/modules/providers/services/history-pagination.service.js';
+import { measureHistoryMessage, slimHistoryMessage } from '@/modules/providers/services/history-payload.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { appendFilesInputTag, appendImagesInputTag } from '@/shared/image-attachments.js';
 import type { FetchHistoryResult, HistorySourceRevision, NormalizedMessage } from '@/shared/types.js';
@@ -1150,6 +1151,13 @@ describe('history performance targets', () => {
       const older = await (await fetch(`${url}?limit=3&before=${cursor}`)).json() as { data: FetchHistoryResult };
       assert.equal(older.data.messages.length, 3);
       assert.equal(older.data.messages.at(-1)?.id, 'row-6');
+      assert.equal((await fetch(`${url}?payload=raw`)).status, 400);
+      const detailUrl = `${url}/${encodeURIComponent(older.data.messages[0].id)}`;
+      const detail = await (await fetch(detailUrl)).json() as { data: NormalizedMessage };
+      assert.deepEqual(detail.data, older.data.messages[0]);
+      assert.equal((await fetch(`${url}/missing`)).status, 404);
+      assert.equal((await fetch(`${detailUrl}/images/x`)).status, 400);
+      assert.equal((await fetch(`${detailUrl}/images/0`)).status, 404);
       await fixture.branch(id, 2);
       const replaced = await fetch(`${url}?limit=3&before=${cursor}`);
       assert.equal(replaced.status, 409);
@@ -1296,6 +1304,81 @@ describe('history performance targets', () => {
       const ids = new Set(newest.messages.map((message) => message.id));
       assert.equal(older.messages.filter((message) => ids.has(message.id)).length, historyBudgets.duplicateMessages);
     } finally { await fixture.close(); }
+  });
+
+  test('heavy pages hold the byte budget while details, images and full payloads stay complete', async () => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    try {
+      for (const provider of ['claude', 'codex'] as const) {
+        const id = await fixture.add(provider, 200, 'heavy');
+        const direct = (await fixture.readDirect(id, null)).messages;
+        let page = await fixture.read(id, 20);
+        let walked = page.messages;
+        let elided = 0;
+        for (;;) {
+          assert.ok(page.messages.length === 1 || Buffer.byteLength(JSON.stringify(page)) <= historyBudgets.pageBytes,
+            `${provider} page exceeds the byte budget`);
+          if (!page.nextCursor) break;
+          page = await fixture.read(id, 20, 0, { before: page.nextCursor });
+          walked = [...page.messages, ...walked];
+        }
+        assert.deepEqual(walked.map((m) => m.id), direct.map((m) => m.id), `${provider} budget must not drop records`);
+        for (const [index, message] of walked.entries()) {
+          if (!message.elidedDetail) continue;
+          elided += 1;
+          const detail = await sessionsService.fetchHistoryMessage(id, message.id);
+          assert.deepEqual({ ...detail, sessionId: '' }, { ...direct[index], sessionId: '' });
+        }
+        assert.ok(elided > 0, `${provider} heavy fixture must elide tool output`);
+        const full = await sessionsService.fetchHistory(id, { limit: null, payload: 'full' });
+        assert.deepEqual(full.messages.map((m) => ({ ...m, sessionId: '' })), direct.map((m) => ({ ...m, sessionId: '' })));
+        if (provider === 'claude') {
+          const withImage = walked.find((m) => Array.isArray(m.images) && m.images.length > 0)!;
+          const [image] = withImage.images as Array<{ url?: string; data?: string; mediaType?: string }>;
+          assert.equal(image.data, undefined);
+          assert.equal(image.mediaType, 'image/png');
+          assert.match(image.url!, new RegExp(`/sessions/${id}/messages/.+/images/0$`));
+          const served = await sessionsService.fetchHistoryImage(id, withImage.id, 0);
+          const original = (direct.find((m) => m.id === withImage.id)!.images as Array<{ data: string }>)[0].data;
+          assert.equal(`data:${served.mediaType};base64,${served.body.toString('base64')}`, original);
+          await assert.rejects(sessionsService.fetchHistoryImage(id, withImage.id, 1),
+            (error: AppError) => error.code === 'HISTORY_IMAGE_NOT_FOUND');
+        }
+        await assert.rejects(sessionsService.fetchHistoryMessage(id, 'missing'),
+          (error: AppError) => error.code === 'HISTORY_MESSAGE_NOT_FOUND');
+      }
+    } finally { await fixture.close(); }
+  });
+
+  test('page copies never shorten prose or mutate the cached record', () => {
+    const prose = 'word '.repeat(80_000);
+    const tool = {
+      id: 'tool', sessionId: 'app', provider: 'claude' as const, timestamp: '2026-01-01T00:00:00Z', kind: 'tool_use' as const,
+      toolName: 'Bash', toolInput: { command: 'x', description: 'y' },
+      toolResult: { content: 'line\n'.repeat(5000), isError: false, toolUseResult: { stdout: 'z'.repeat(20_000), exitCode: 0, filenames: Array.from({ length: 5000 }, (_, i) => `f${i}`) } },
+    };
+    const text = { id: 'text', sessionId: 'app', provider: 'claude' as const, timestamp: '2026-01-01T00:00:01Z', kind: 'text' as const, role: 'assistant' as const, content: prose };
+    const before = JSON.stringify(tool);
+    const slim = slimHistoryMessage(tool, 'app');
+    assert.equal(JSON.stringify(tool), before);
+    assert.equal(slimHistoryMessage(text, 'app'), text);
+    assert.deepEqual(slim.elidedDetail, { bytes: Buffer.byteLength(before), resultLines: 5000 });
+    const result = slim.toolResult as { content: string; toolUseResult: { stdout: string; exitCode: number; filenames: string[] } };
+    assert.equal(result.toolUseResult.exitCode, 0);
+    assert.ok(result.content.length < 2048 && result.toolUseResult.stdout.length < 2048);
+    assert.ok(JSON.stringify(result.toolUseResult.filenames).length <= 8192);
+    assert.deepEqual(slim.toolInput, tool.toolInput);
+    const full = { messages: [tool, text, { ...text, id: 'small', content: 'hi' }], total: 3, hasMore: false, offset: 0, limit: null };
+    const budget = { bytes: historyBudgets.pageBytes, measure: (m: NormalizedMessage) => measureHistoryMessage(m, 'app') };
+    const pages: string[][] = [];
+    let page = paginateHistory(full, 'app', { limit: 20 }, budget);
+    pages.push(page.messages.map((m) => m.id));
+    while (page.nextCursor) {
+      page = paginateHistory(full, 'app', { limit: 20, before: page.nextCursor }, budget);
+      pages.unshift(page.messages.map((m) => m.id));
+    }
+    assert.deepEqual(pages, [['tool'], ['text'], ['small']], 'an oversized prose record gets a page of its own');
   });
 
   test('synthetic readers retain full history, branch filtering and dependent-file updates', async () => {

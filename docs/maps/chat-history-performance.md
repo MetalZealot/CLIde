@@ -1,8 +1,8 @@
 # Chat history loading and rendering
 
-Initial diagnosis: `668f4049`, investigated 2026-09-19. Phases 1–4 provide
-server reuse, unchanged-message rendering and stable paging below. Payload size,
-search, mounted contents and acceptance remain open in the [performance plan](../plans/chat-history-performance.md).
+Initial diagnosis: `668f4049`, investigated 2026-09-19. Phases 1–5 provide
+server reuse, unchanged-message rendering, stable paging and bounded payloads
+below. Search, mounted contents and acceptance remain open in the [performance plan](../plans/chat-history-performance.md).
 
 ## What the reader experiences
 
@@ -33,28 +33,13 @@ system can serve them from memory. Timings exclude HTTP transfer and browser
 rendering. Files were selected for size; the Claude sample includes substantial
 embedded image data and is not evidence that all large sessions have that mix.
 
-Other probes established:
-
-- Claude's first three 20-record pages each processed 2,676 raw records and read
-  17.3 MiB including a dependent file. The second and third took 448 and 432 ms.
-- Minimal plain-text fixtures retained the same scaling: a warmed second page
-  processed all 200 or all 2,000 records, taking 8 or 73 ms respectively. Tools
-  and images are not required to reproduce repeated full-history processing.
-- Wrapping the current Claude reader with the inspected upstream history cache
-  gave 554 ms for the initial load and 2.07/2.83 ms for subsequent page preparation.
-  This was an isolated experiment, not an integrated CLIde fix. A separate fixture
-  changing only a dependent child file returned stale cached data.
-- Appending one normalized message recreated all 1,000 existing display objects.
-- Mounting the actual session and Find hooks in JSDOM with simple row bodies grew
-  a cached fixture from 100 rows to 1,000 when Find opened. Closing Find left 1,000
-  rows rendered. There were no history requests; this isolates the render-window
-  contract, not browser layout cost.
-- Appending one transcript row between two offset-based pages produced one
-  overlapping message. This reproduces a pagination stability gap without a
-  browser or concurrent network requests.
-- The existing chat-hook and session-store test files passed all 80 tests while
-  these probes exposed the gaps. Functional coverage does not establish bounded
-  processing or rendering cost.
+Other probes established that tools and images are not needed to reproduce
+repeated full-history processing (a warmed second page of 2,000 plain records
+processed all 2,000 in 73 ms), that one appended message recreated all 1,000
+display objects, that opening Find grew a cached fixture from 100 to 1,000
+rendered rows, and that one appended row between offset pages produced an
+overlapping message. The existing 80 hook/store tests passed throughout:
+functional coverage does not establish bounded cost.
 
 The initial probes were removed after investigation. The maintained phase-1
 fixtures below replace them for repeatable comparisons.
@@ -197,7 +182,7 @@ append/rewind/replacement/truncation, partial and malformed tails,
 missing files, failed loads, Claude subagent changes, Codex parent changes,
 identity changes and eviction. Cursor and OpenCode remain on direct reads: their
 SQLite stores need database-aware revisions before reuse is safe. Heavy page
-sizes still fail phase 5, and the three later client/pagination targets remain
+sizes failed until phase 5; the later client/pagination targets remained
 pending by design.
 
 ## Phase 3 unchanged-message rendering
@@ -314,8 +299,7 @@ no duplicate ids and retention of the loaded tail while scrolling upward.
 The [server report](../../scripts/chat-history/baselines/2026-09-20-server-phase4.json)
 uses three samples per size. At 10,000 records, warm-reader median / observed p95
 was 1.92 / 17.30 ms for Claude and 1.68 / 1.76 ms for Codex, with zero transcript
-bytes reread. Cold p95 was 450 / 484 ms respectively. Heavy pages still exceed
-the unchanged 256 KiB budget (phase 5).
+bytes reread. Cold p95 was 450 / 484 ms respectively.
 
 The [Browser report](../../scripts/chat-history/baselines/2026-09-20-browser-phase4.json)
 has three desktop runs each at 200 and 1,000 records, using the same source hash
@@ -324,18 +308,34 @@ median / observed p95 was 590 / 621 ms and 557 / 586 ms respectively. No console
 errors in the final run. Find at 1,000 records remains 23.1–24.8 seconds; bounded
 search/rendering and physical-phone acceptance remain open.
 
-Verification on the updated checkout: 684 server tests and 402 client tests pass,
-with the existing Find-window TODO. After the final cancellation guard, the
-focused hook/store run passes 89 tests plus that TODO. Typechecking and isolated
-server/client production builds pass. Focused lint has no errors and two existing
-hook warnings. Builds/fixtures use temporary directories; production was not
-rebuilt or restarted.
+## Phase 5: bounded page payloads
+
+The [payload service](../../server/modules/providers/services/history-payload.service.ts)
+sends a copy of each paged record; cached history stays complete. Inline image
+bodies become authenticated `messages/:id/images/:n` URLs. Tool input, results,
+`toolUseResult` and subagent-child strings over 8,192 characters become
+1,024-character previews, and the record carries `elidedDetail` (full size,
+result line count). Authored prose is never shortened. Tail and `before` pages
+stop adding older records past 256 KiB, always keeping the newest, so one
+oversized message gets a page of its own; `from` refreshes and unbounded loads
+are exempt. `payload=full` returns records unchanged.
+
+Clicking an elided tool card (default-open cards: on mount) fetches
+`messages/:id`; the client keeps the last 16 details and shows a retry on
+failure. Export with tool calls swaps every elided record from one full read and
+exports nothing if one is missing. Find loads the slim pages.
+
+[Server report](../../scripts/chat-history/baselines/2026-09-21-server-phase5.json):
+the heavy 20-record page fell from 723,743 to 6,146 bytes (Claude) and 727,572
+to 9,979 (Codex); warm rereads stay zero. A real 17 MB Claude session on a
+branch-test server (2026-09-21) paged at most 147 KB per page and 2.6 MB for its
+whole slim history; its 19 images loaded through the image route.
 
 ## Owners and contracts today
 
 | Boundary | Current owner and behaviour |
 |---|---|
-| History request | [sessions service](../../server/modules/providers/services/sessions.service.ts), `fetchHistory`: resolves app/provider identity, reuses one stable full Claude/Codex history through the bounded revision cache, then applies the same bookmark contract to all providers; Cursor/OpenCode reread directly |
+| History request | [sessions service](../../server/modules/providers/services/sessions.service.ts), `fetchHistory`: resolves app/provider identity, reuses one stable full Claude/Codex history through the bounded revision cache, then applies the same bookmark contract and page payload rules to all providers; Cursor/OpenCode reread directly |
 | Claude | [reader](../../server/modules/providers/list/claude/claude-sessions.provider.ts), `fetchHistory`/`getSessionMessages`: reads main and subagent files, filters the active branch, normalizes and attaches results, then slices |
 | Codex | [reader](../../server/modules/providers/list/codex/codex-sessions.provider.ts), `fetchHistory`: reads the [transcript chain](../../server/modules/providers/list/codex/codex-transcript-chain.ts), normalizes and joins tool results, then slices |
 | Other providers | Cursor loads and normalizes its blobs; OpenCode reads session message/part rows before slicing. Synthetic SQLite paging tests; no live performance sample |

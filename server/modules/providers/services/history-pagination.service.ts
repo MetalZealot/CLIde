@@ -43,11 +43,15 @@ function readBookmark(encoded: string): Bookmark {
   }
 }
 
+/** Holds a bounded page to a serialized-byte target; the newest record always stays. */
+export type PageBudget = { bytes: number; measure: (message: NormalizedMessage) => number };
+
 /** The sessions service pages every provider after normalization and tool/result joins. */
 export function paginateHistory(
   full: FetchHistoryResult,
   identity: string,
   options: Pick<FetchHistoryOptions, 'limit' | 'offset' | 'before' | 'from'>,
+  budget?: PageBudget,
 ): FetchHistoryResult {
   const limit = options.limit ?? null;
   const offset = options.offset ?? 0;
@@ -69,8 +73,21 @@ export function paginateHistory(
   const end = bookmark && options.before !== undefined ? bookmark.end : full.messages.length;
   const pageOffset = options.before !== undefined ? full.messages.length - end : offset;
   const sliced = sliceTailPage(full.messages, limit, pageOffset);
-  const start = options.from !== undefined && bookmark ? bookmark.end : sliced.start;
-  const messages = options.from !== undefined ? full.messages.slice(start) : sliced.page;
+  const pageEnd = sliced.start + sliced.page.length;
+  let tailStart = sliced.start;
+  // A refresh must reach the loaded window, so only bounded pages are held to the budget.
+  if (budget && limit !== null && options.from === undefined) {
+    let size = 0;
+    for (let index = pageEnd - 1; index >= sliced.start; index -= 1) {
+      size += budget.measure(full.messages[index]);
+      if (size > budget.bytes && index < pageEnd - 1) {
+        tailStart = index + 1;
+        break;
+      }
+    }
+  }
+  const start = options.from !== undefined && bookmark ? bookmark.end : tailStart;
+  const messages = options.from !== undefined ? full.messages.slice(start) : full.messages.slice(tailStart, pageEnd);
   // A refresh advances the snapshot; an older-page walk stays on its original snapshot.
   const count = options.before !== undefined && bookmark ? bookmark.count : full.messages.length;
   const nextCursor = start > 0 && limit !== 0
