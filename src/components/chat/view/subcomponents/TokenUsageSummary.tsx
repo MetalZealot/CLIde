@@ -6,6 +6,8 @@ import type { TFunction } from 'i18next';
 
 import type { LLMProvider } from '../../../../types/app';
 import { cn } from '../../../../lib/utils';
+import { ContextMenuOverlay, anchorFromElement } from '../../../../shared/view/ui';
+import { HEADER_MENU_CLASS_NAME } from '../../../main-content/constants/menu';
 import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage';
 import { UsageActivitySection } from '../../../provider-usage/UsageWindowList';
 import { formatResetsIn } from '../../../provider-usage/format';
@@ -19,7 +21,7 @@ import {
 import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
 import { authenticatedFetch } from '../../../../utils/api';
 import { agentScreenId } from '../../../settings/registry/registry';
-import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
+import { useComposerMenuAnchor, type ComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 import { formatTokenCount } from '../../utils/chatFormatting';
 import type {
   ContextCommandData,
@@ -42,6 +44,8 @@ type TokenUsageSummaryProps = {
   model?: string;
   /** Conversation the composer is on; changing it invalidates the breakdown. */
   sessionKey?: string | null;
+  /** In the app bar beside the header menu: match its button and its popover. */
+  inHeader?: boolean;
 };
 
 // A fresh session has no `token_budget` frame yet, so `usage` is null until the
@@ -284,6 +288,60 @@ function PlanWindowRow({
   );
 }
 
+/** Header placement uses the header menu's surface and anchoring so the two popovers match. */
+function UsagePopoverSurface({
+  id,
+  inHeader,
+  anchor,
+  trigger,
+  menuRef,
+  onDismiss,
+  measureKey,
+  ariaLabel,
+  children,
+}: {
+  id: string;
+  inHeader: boolean;
+  anchor: ComposerMenuAnchor | null;
+  trigger: HTMLButtonElement | null;
+  menuRef: React.Ref<HTMLDivElement>;
+  onDismiss: () => void;
+  measureKey: string;
+  ariaLabel: string;
+  children: React.ReactNode;
+}) {
+  if (inHeader && trigger) {
+    return (
+      <ContextMenuOverlay
+        anchor={anchorFromElement(trigger, { x: 0, y: 0 })}
+        anchorElement={trigger}
+        onDismiss={onDismiss}
+        role="dialog"
+        ariaLabel={ariaLabel}
+        className={cn(HEADER_MENU_CLASS_NAME, 'w-[min(19rem,calc(100vw-1.25rem))] px-4 py-3')}
+        measureKey={measureKey}
+      >
+        {children}
+      </ContextMenuOverlay>
+    );
+  }
+  if (!anchor) return null;
+  return createPortal(
+    <ComposerMenuSurface
+      id={id}
+      anchor={anchor}
+      menuRef={menuRef}
+      role="dialog"
+      fillAnchorWidth
+      className="px-4 py-3"
+      ariaLabel={ariaLabel}
+    >
+      {children}
+    </ComposerMenuSurface>,
+    document.body,
+  );
+}
+
 export default function TokenUsageSummary({
   usage,
   request,
@@ -294,6 +352,7 @@ export default function TokenUsageSummary({
   provider,
   model,
   sessionKey = null,
+  inHeader = false,
 }: TokenUsageSummaryProps) {
   const { t } = useTranslation('common');
   const [isOpen, setIsOpen] = useState(false);
@@ -304,7 +363,8 @@ export default function TokenUsageSummary({
   const [contextData, setContextData] = useState<ContextCommandData | null>(null);
   const [derivedCeiling, setDerivedCeiling] = useState<Record<string, unknown> | null>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
-  const handledRequestId = useRef(0);
+  // Seeded, not 0: the ring remounts on moving between header and composer and must not replay a served request.
+  const handledRequestId = useRef(request.id);
   const sessionKeyRef = useRef(sessionKey);
   const popoverId = useId();
   const close = useCallback(() => setIsOpen(false), []);
@@ -313,7 +373,8 @@ export default function TokenUsageSummary({
     setIsOpen(false);
     openSettings(agentScreenId('claude', 'autoCompact'));
   }, [openSettings]);
-  const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 19 * 16);
+  // In the header, ContextMenuOverlay owns dismissal; the hook's outside-press would close on taps inside it.
+  const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen && !inHeader, close, 19 * 16);
   const usageProvider = toUsageProvider(provider);
   const planUsage = useProviderUsage(usageProvider);
   const refreshPlanUsage = planUsage.refresh;
@@ -500,14 +561,19 @@ export default function TokenUsageSummary({
           setIsOpen(true);
           refreshPlanUsageIfStale();
         }}
-        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className={inHeader
+          ? cn(
+            'inline-flex h-11 min-w-8 shrink-0 touch-manipulation items-center justify-center gap-1 rounded-lg px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            isOpen && 'bg-accent/60 text-foreground',
+          )
+          : 'inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'}
         title={accessibleTitle}
         aria-label={creditMarkerVisible
           ? t('usagePopover.showUsageWithCredits', { defaultValue: 'Show usage; credits available' })
           : t('usagePopover.showUsage', { defaultValue: 'Show usage' })}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        aria-controls={isOpen ? popoverId : undefined}
+        aria-controls={isOpen && !inHeader ? popoverId : undefined}
       >
         {fraction === null ? (
           <span className="grid h-5 w-5 place-items-center rounded-md bg-primary/10 text-primary">
@@ -522,14 +588,15 @@ export default function TokenUsageSummary({
         )}
         <span className="hidden font-medium text-foreground md:inline">{formatTokenCount(usedTokens)}</span>
       </button>
-      {isOpen && anchor && createPortal(
-        <ComposerMenuSurface
+      {isOpen && (inHeader ? triggerRef.current : anchor) && (
+        <UsagePopoverSurface
           id={popoverId}
+          inHeader={inHeader}
           anchor={anchor}
+          trigger={triggerRef.current}
           menuRef={menuRef}
-          role="dialog"
-          fillAnchorWidth
-          className="px-4 py-3"
+          onDismiss={close}
+          measureKey={`${view}:${breakdownOpen}:${breakdownLoading}:${planUsage.loading}`}
           ariaLabel={view === 'summary'
             ? t('usagePopover.summaryLabel', { defaultValue: 'Session and plan usage' })
             : t('usagePopover.activity', { defaultValue: 'Usage activity' })}
@@ -750,8 +817,7 @@ export default function TokenUsageSummary({
               )}
             </div>
           )}
-        </ComposerMenuSurface>,
-        document.body,
+        </UsagePopoverSurface>
       )}
     </>
   );

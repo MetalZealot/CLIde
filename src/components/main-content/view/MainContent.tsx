@@ -22,7 +22,7 @@ import { TaskMasterPanel } from '../../task-master';
 import { getCheckoutContextLabel, resolveActivityState } from '../../sidebar/utils/utils';
 import UsageDashboard from '../../usage-dashboard/view/UsageDashboard';
 
-import MainContentHeader from './subcomponents/MainContentHeader';
+import MainContentHeader, { HeaderAccessorySlot } from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
 import MobileMenuButton from './subcomponents/MobileMenuButton';
 import MobileBottomNav from './subcomponents/MobileBottomNav';
@@ -220,8 +220,9 @@ function MainContent({
           onMenuClick={onMenuClick}
         />
       ) : isMobile ? (
-        <div className="app-bar select-none border-b border-border/50 bg-background/80 px-3 sm:px-4">
+        <div className="app-bar flex select-none items-center justify-between border-b border-border/50 bg-background/80 px-3 sm:px-4">
           <MobileMenuButton onMenuClick={onMenuClick} compact />
+          <HeaderAccessorySlot />
         </div>
       ) : null}
       </div>

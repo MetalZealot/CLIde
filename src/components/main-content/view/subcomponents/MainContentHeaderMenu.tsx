@@ -110,7 +110,7 @@ export default function MainContentHeaderMenu() {
         aria-expanded={isOpen || hasPanel}
         onClick={toggle}
         className={cn(
-          'flex h-11 w-11 flex-shrink-0 touch-manipulation items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground',
+          'flex h-11 w-9 flex-shrink-0 touch-manipulation items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground',
           (isOpen || hasPanel) && 'bg-accent/60 text-foreground',
         )}
       >

@@ -8,6 +8,12 @@ import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';
 import MainContentHeaderMenu from './MainContentHeaderMenu';
 
+/** Where the visible view may portal a control, left of the header menu. */
+export function HeaderAccessorySlot() {
+  const setAccessorySlot = useSetHeaderAccessorySlot();
+  return <div ref={setAccessorySlot ?? undefined} className="flex items-center empty:hidden [&:last-child]:-mr-2" />;
+}
+
 export default function MainContentHeader({
   activeTab,
   setActiveTab,
@@ -20,7 +26,6 @@ export default function MainContentHeader({
   onMenuClick,
 }: MainContentHeaderProps) {
   const headerMenuSection = useHeaderMenuSection();
-  const setAccessorySlot = useSetHeaderAccessorySlot();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -79,8 +84,9 @@ export default function MainContentHeader({
               )}
             </div>
           )}
-          <div className="-mr-2 flex flex-shrink-0 items-center">
-            <div ref={setAccessorySlot ?? undefined} className="flex items-center empty:hidden" />
+          {/* Whichever control is last pulls into the bar's padding by the same amount. */}
+          <div className="flex flex-shrink-0 items-center [&>*:last-child]:-mr-2">
+            <HeaderAccessorySlot />
             <MainContentHeaderMenu />
           </div>
         </div>

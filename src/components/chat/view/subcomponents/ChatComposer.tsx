@@ -356,6 +356,7 @@ export default function ChatComposer({
 
   const usageRing = (
     <TokenUsageSummary
+      inHeader={Boolean(headerSlot)}
       usage={tokenBudget}
       request={usagePopoverRequest}
       onRequestBreakdown={onShowContextBreakdown}

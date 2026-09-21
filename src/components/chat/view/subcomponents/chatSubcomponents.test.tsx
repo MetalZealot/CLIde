@@ -1427,13 +1427,37 @@ describe('chatSubcomponents', () => {
       }
     });
 
+    test('a remounted ring does not replay a request it already served', async () => {
+      const ring = (id: number) => (
+        <TokenUsageSummary
+          provider="codex"
+          usage={{ used: 10_000, total: 200_000 }}
+          request={{ id, view: 'summary' }}
+          onRequestBreakdown={() => {}}
+          onRefreshBreakdown={() => {}}
+          isRefreshingBreakdown={false}
+          canRefreshBreakdown={false}
+        />
+      );
+      const host = await mount(ring(3));
+      assert.equal(document.querySelector('[role="dialog"]'), null);
+      const trigger = host.querySelector<HTMLButtonElement>('button');
+      assert.ok(trigger);
+      trigger.getBoundingClientRect = () => ({
+        x: 340, y: 700, left: 340, right: 372, top: 700, bottom: 732, width: 32, height: 32, toJSON: () => ({}),
+      });
+
+      await React.act(async () => root?.render(ring(4)));
+      assert.ok(document.querySelector('[role="dialog"]'));
+    });
+
     test('an expanded breakdown does not carry one session\'s reading into the next', async () => {
-      const summary = (sessionKey: string) => (
+      const summary = (sessionKey: string, requestId = 1) => (
         <TokenUsageSummary
           provider="claude"
           usage={{ used: 10_000, total: 200_000 }}
           request={{
-            id: 1,
+            id: requestId,
             view: 'breakdown',
             context: {
               provider: 'claude',
@@ -1450,7 +1474,8 @@ describe('chatSubcomponents', () => {
         />
       );
       // The `/context` request opens the panel itself, so no trigger click here.
-      await mount(summary('session-a'));
+      await mount(summary('session-a', 0));
+      await React.act(async () => root?.render(summary('session-a')));
       const dialog = document.querySelector('[role="dialog"]');
       assert.ok(dialog);
       assert.match(dialog.textContent || '', /Session A memory/);
