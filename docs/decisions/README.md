@@ -95,3 +95,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0055 — Target size is contextual, with a WCAG floor](0055-target-size-is-contextual-with-a-wcag-floor.md)
 - [0056 — In the installed phone app, the chat scrolls as the page](0056-installed-phone-app-scrolls-the-chat-as-the-page.md)
 - [0057 — The mobile bar's fifth item is a swappable slot](0057-mobile-navbar-swappable-fifth-slot.md)
+- [0058 — Stop lives in the send button; the usage ring lives in the header](0058-stop-in-send-button-ring-in-header.md)
