@@ -1,7 +1,7 @@
 # /btw — side questions beside a running conversation
 
-- Status: 3/7
-- Next: phase 3 — session-scoped side-question history, server-side
+- Status: 4/7
+- Next: phase 4 — the sheet reads the server's history
 - Context: Claude Code ships `/btw` and Codex ships `/side`. CLIde matches
   Claude Code's behaviour; the mechanism is per provider
 
@@ -24,9 +24,9 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
 - **Claude Code keeps a per-session side-question history** in memory: earlier
   exchanges go to each new question as context, `/btw` alone reopens the last
   answer, a question in flight survives closing the panel, and the panel offers
-  copy, fork, and clear history. The SDK call takes a `history` option for the
-  earlier exchanges; its exact shape is read from the binary and phase 3 confirms
-  it by probe.
+  copy, fork, and clear history. The SDK call takes a `history` option,
+  `{ question, response, fallback_notice? }` per exchange — read from the binary,
+  confirmed by probe: a follow-up answered correctly with it and not without.
 - **Codex** has no one-shot. `/side` is an ephemeral fork (`thread/fork` with
   `ephemeral: true`) carrying a boundary instruction: don't continue the parent
   task, don't mutate anything, no sub-agents. Nothing forbids forking while the
@@ -59,13 +59,13 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
 - [x] 2. **A first sheet.** Bottom sheet over the chat with its own input.
       Entries live only in the client and are discarded on close; phases 3–4
       replace that. The route's cancel fix is `c024d761`.
-- [ ] 3. **History on the server.** An in-memory store keyed by app session id,
+- [x] 3. **History on the server.** An in-memory store keyed by app session id,
       capped to the most recent exchanges. Asking appends a pending entry,
       passes the earlier answered exchanges as `history`, and fills the entry in
       when the answer lands — whether or not anyone is still waiting on the
       request. A GET returns the history, a DELETE clears it and cancels anything
-      in flight. Unit-tested; the `history` shape confirmed by one probe asking a
-      follow-up that only makes sense with the earlier exchange.
+      in flight. Unit-tested, plus a test that fails if an SDK bump drops the
+      undocumented call or its `history` field.
 - [ ] 4. **The sheet reads the server.** Opening loads the history; while an
       entry is pending the sheet refreshes until it lands. `/btw` with no text
       opens the sheet on the history. Each answer has a copy button; the header
@@ -90,8 +90,7 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
 ## Risks this plan accepts
 
 - `askSideQuestion` and its `history` option are undocumented. The degrade path
-  and unit tests are the mitigation; the upgrade ledger gets a line so the next
-  SDK bump re-checks both.
+  and a test reading the installed SDK bundle are the mitigation.
 - The idle path spawns a CLI process per question — seconds, not instant.
 - Server-memory history means a restart clears it. That matches Claude Code and
   keeps side chat off disk; if it proves annoying, persisting it is a separate

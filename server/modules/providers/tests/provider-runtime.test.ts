@@ -8,8 +8,9 @@ import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { interactiveRequestRegistry } from '@/modules/providers/services/interactive-request-registry.service.js';
 import { ProviderNativeRuntimeService } from '@/modules/providers/services/provider-native-runtime.service.js';
 import { createProviderRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
+import { createSideQuestionsService } from '@/modules/providers/services/side-questions.service.js';
 import type { IProvider, IProviderRuntime } from '@/shared/interfaces.js';
-import type { LLMProvider, ProviderNativeRuntimeDescriptor } from '@/shared/types.js';
+import type { LLMProvider, ProviderNativeRuntimeDescriptor, SideQuestionRequest } from '@/shared/types.js';
 
 describe('provider-runtime.service', () => {
   function createRuntime(overrides: Partial<IProviderRuntime> = {}): IProviderRuntime {
@@ -489,6 +490,77 @@ describe('interactive-request-registry', () => {
   });
 });
 
+describe('side-questions history', () => {
+  let ids = 0;
+  const create = (ask: (request: SideQuestionRequest) => Promise<{ answer: string } | null>) =>
+    createSideQuestionsService({
+      ask: (_provider, _sessionId, request) => ask(request),
+      now: () => new Date('2026-09-20T12:00:00.000Z'),
+      createId: () => `q${++ids}`,
+    });
+
+  test('each question carries the earlier answered exchanges, so a follow-up has context', async () => {
+    const seen: SideQuestionRequest[] = [];
+    const service = create(async (request) => {
+      seen.push(request);
+      return { answer: `re: ${request.question}` };
+    });
+
+    await service.ask('claude', 's1', 'what is it doing?', null);
+    const followUp = await service.ask('claude', 's1', 'why?', null);
+
+    assert.deepEqual(seen[0].history, []);
+    assert.deepEqual(seen[1].history, [{ question: 'what is it doing?', response: 're: what is it doing?' }]);
+    assert.equal(followUp?.answer, 're: why?');
+    assert.deepEqual(service.list('s1').map((entry) => entry.status), ['answered', 'answered']);
+    assert.deepEqual(service.list('other'), [], 'history is per session');
+  });
+
+  test('a question stays pending in the history until it lands, with no asker needed', async () => {
+    let release: (value: { answer: string }) => void = () => {};
+    const service = create(() => new Promise((resolve) => { release = resolve; }));
+
+    const asked = service.ask('claude', 's1', 'still going?', null);
+    assert.equal(service.list('s1')[0].status, 'pending');
+    release({ answer: 'yes' });
+    await asked;
+    assert.equal(service.list('s1')[0].answer, 'yes');
+  });
+
+  test('clear empties the history and cancels a question still in flight', async () => {
+    let signal: AbortSignal | undefined;
+    const service = create((request) => {
+      signal = request.signal;
+      return new Promise((_resolve, reject) => {
+        request.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    });
+
+    const asked = service.ask('claude', 's1', 'long one', null);
+    service.clear('s1');
+    assert.equal(signal?.aborted, true);
+    assert.equal(await asked, null);
+    assert.deepEqual(service.list('s1'), []);
+  });
+
+  test('a failed ask stays in the history with its reason', async () => {
+    const service = create(async () => { throw new Error('Side questions are unavailable.'); });
+    const entry = await service.ask('claude', 's1', 'why?', null);
+    assert.equal(entry?.status, 'failed');
+    assert.equal(entry?.error, 'Side questions are unavailable.');
+  });
+
+  test('history keeps only the most recent entries', async () => {
+    const service = create(async (request) => ({ answer: request.question }));
+    for (let index = 0; index < 55; index += 1) {
+      await service.ask('claude', 's1', `q${index}`, null);
+    }
+    const entries = service.list('s1');
+    assert.equal(entries.length, 50);
+    assert.equal(entries[0].question, 'q5');
+  });
+});
+
 describe('claude-runtime error results', () => {
   const notice = "You've hit your session limit \u00B7 resets 5:40pm (America/Edmonton)";
   const wrapped = new Error(`Claude Code returned an error result: ${notice}`);
@@ -555,6 +627,28 @@ describe('claude-runtime error results', () => {
       synthetic: false,
       fallbackNotice: 'Answered by sonnet instead of opus.',
     });
+  });
+
+  test('earlier side exchanges reach the SDK in its snake_case wire shape', async () => {
+    const ask = await loadAskSideQuestion();
+    let options: unknown;
+    await ask({
+      async askSideQuestion(_question: string, passed: unknown) {
+        options = passed;
+        return { response: 'ok' };
+      },
+    }, 'and then?', undefined, [{ question: 'first?', response: 'one', fallbackNotice: 'Answered by sonnet' }]);
+
+    assert.deepEqual(options, {
+      history: [{ question: 'first?', response: 'one', fallback_notice: 'Answered by sonnet' }],
+    });
+  });
+
+  test('the installed SDK still ships the undocumented side-question call and its history field', async () => {
+    // Absent from sdk.d.ts, so an SDK bump can drop it without a type error.
+    const bundle = await readFile(path.join(process.cwd(), 'node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs'), 'utf8');
+    assert.match(bundle, /async askSideQuestion\(/);
+    assert.match(bundle, /subtype:"side_question",question:\w+,\.\.\.\w+\?\.history\?\.length&&\{history:/);
   });
 
   test('an SDK without the side-question call degrades instead of failing the chat', async () => {

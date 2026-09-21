@@ -1265,7 +1265,7 @@ async function askClaudeSideQuestion(sessionId, request, context) {
 
   const live = getSession(sessionId);
   if (live?.instance) {
-    return runSideQuestion(live.instance, question, request?.signal);
+    return runSideQuestion(live.instance, question, request?.signal, request?.history);
   }
 
   const providerSessionId = context.resolveProviderSessionId(sessionId);
@@ -1298,7 +1298,7 @@ async function askClaudeSideQuestion(sessionId, request, context) {
   });
 
   try {
-    return await runSideQuestion(queryInstance, question, request?.signal);
+    return await runSideQuestion(queryInstance, question, request?.signal, request?.history);
   } finally {
     request?.signal?.removeEventListener('abort', onAbort);
     controller.abort();
@@ -1311,12 +1311,21 @@ async function askClaudeSideQuestion(sessionId, request, context) {
  * `askSideQuestion` is absent from the SDK's published types, so an upgrade can
  * remove it without a type error; report that rather than failing the chat.
  */
-async function runSideQuestion(queryInstance, question, signal) {
+async function runSideQuestion(queryInstance, question, signal, history = []) {
   if (typeof queryInstance.askSideQuestion !== 'function') {
     throw new Error(SIDE_QUESTION_UNAVAILABLE);
   }
 
-  const result = await queryInstance.askSideQuestion(question, signal ? { signal } : undefined);
+  // Wire shape read from the CLI binary (2.1.270): snake_case `fallback_notice`.
+  const earlier = (history || []).map((exchange) => ({
+    question: exchange.question,
+    response: exchange.response,
+    ...(exchange.fallbackNotice ? { fallback_notice: exchange.fallbackNotice } : {}),
+  }));
+  const result = await queryInstance.askSideQuestion(question, {
+    ...(signal ? { signal } : {}),
+    ...(earlier.length ? { history: earlier } : {}),
+  });
   const answer = typeof result?.response === 'string' ? result.response.trim() : '';
   if (!answer) {
     throw new Error('Claude returned no answer to that side question.');

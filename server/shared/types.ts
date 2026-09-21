@@ -693,10 +693,29 @@ export type ProviderRuntimeContext = {
 };
 
 /** One-shot question answered beside a session, never written to its transcript. */
+/** An earlier side exchange handed to the next question so follow-ups work. */
+export type SideQuestionExchange = {
+  question: string;
+  response: string;
+  fallbackNotice?: string | null;
+};
+
 export type SideQuestionRequest = {
   question: string;
   cwd?: string | null;
   signal?: AbortSignal;
+  history?: SideQuestionExchange[];
+};
+
+/** One side question as the session's history holds it. */
+export type SideQuestionEntry = {
+  id: string;
+  question: string;
+  status: 'pending' | 'answered' | 'failed';
+  answer?: string;
+  fallbackNotice?: string | null;
+  error?: string;
+  askedAt: string;
 };
 
 export type SideQuestionAnswer = {

@@ -55,7 +55,7 @@ export function useSideQuestion() {
 
     try {
       const response = await authenticatedFetch(
-        `/api/providers/${options.provider}/sessions/${encodeURIComponent(options.sessionId)}/side-question`,
+        `/api/providers/${options.provider}/sessions/${encodeURIComponent(options.sessionId)}/side-questions`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -68,11 +68,10 @@ export function useSideQuestion() {
         throw new Error(payload?.error?.message || payload?.error || 'That side question could not be answered.');
       }
 
-      update(id, {
-        status: 'answered',
-        answer: payload?.data?.answer || '',
-        fallbackNotice: payload?.data?.fallbackNotice || null,
-      });
+      const settled = payload?.data?.entry;
+      update(id, settled?.status === 'failed'
+        ? { status: 'failed', error: settled.error || 'That side question could not be answered.' }
+        : { status: 'answered', answer: settled?.answer || '', fallbackNotice: settled?.fallbackNotice || null });
     } catch (error) {
       if (controller.signal.aborted) {
         return;

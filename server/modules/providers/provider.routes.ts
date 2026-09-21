@@ -16,7 +16,6 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
-import { providerRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
 import { providerServiceStatusService } from '@/modules/providers/services/provider-service-status.service.js';
 import {
   getProviderSessionEffort,
@@ -27,6 +26,7 @@ import { providerTokenUsageService } from '@/modules/providers/services/provider
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { sideQuestionsService } from '@/modules/providers/services/side-questions.service.js';
 import type {
   LLMProvider,
   McpScope,
@@ -530,14 +530,32 @@ router.post(
   }),
 );
 
-// A side question is answered and returned, never stored: no transcript row, no
-// session row, and nothing for another client to catch up on. The client
-// aborting the request is the whole cancel path.
+const assertSideQuestionsSupported = (provider: LLMProvider): void => {
+  if (!providerCapabilitiesService.getProviderCapabilities(provider).supportsSideQuestion) {
+    throw new AppError('This provider cannot answer side questions.', {
+      code: 'SIDE_QUESTION_UNSUPPORTED',
+      statusCode: 400,
+    });
+  }
+};
+
+// Side questions live in server memory per session and never reach a
+// transcript. The asker leaving does not cancel one: its answer still lands in
+// the history. DELETE is the only cancel.
+router.get(
+  '/:provider/sessions/:sessionId/side-questions',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    res.json(createApiSuccessResponse({ entries: sideQuestionsService.list(sessionId) }));
+  }),
+);
+
 router.post(
-  '/:provider/sessions/:sessionId/side-question',
+  '/:provider/sessions/:sessionId/side-questions',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const sessionId = parseSessionId(req.params.sessionId);
+    assertSideQuestionsSupported(provider);
     const body = (req.body || {}) as Record<string, unknown>;
     const question = typeof body.question === 'string' ? body.question.trim() : '';
     if (!question) {
@@ -547,41 +565,24 @@ router.post(
       });
     }
 
-    // Cancel on the *response* closing, not the request: `req`'s close fires as
-    // soon as the body is read, which would abort every question on arrival.
-    const controller = new AbortController();
-    res.on('close', () => {
-      if (!res.writableEnded) {
-        controller.abort();
-      }
-    });
-
-    let answer;
-    try {
-      answer = await providerRuntimeService.askSideQuestion(provider, sessionId, {
-        question,
-        cwd: typeof body.cwd === 'string' ? body.cwd : null,
-        signal: controller.signal,
-      });
-    } catch (error) {
-      // The asker closed the sheet: there is no client left to answer.
-      if (controller.signal.aborted) {
-        return;
-      }
-      throw new AppError(
-        error instanceof Error ? error.message : 'That side question could not be answered.',
-        { code: 'SIDE_QUESTION_FAILED', statusCode: 502 },
-      );
+    const entry = await sideQuestionsService.ask(
+      provider,
+      sessionId,
+      question,
+      typeof body.cwd === 'string' ? body.cwd : null,
+    );
+    if (!res.writableEnded && !res.destroyed) {
+      res.json(createApiSuccessResponse({ entry, entries: sideQuestionsService.list(sessionId) }));
     }
+  }),
+);
 
-    if (!answer) {
-      throw new AppError('This provider cannot answer side questions.', {
-        code: 'SIDE_QUESTION_UNSUPPORTED',
-        statusCode: 400,
-      });
-    }
-
-    res.json(createApiSuccessResponse(answer));
+router.delete(
+  '/:provider/sessions/:sessionId/side-questions',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    sideQuestionsService.clear(sessionId);
+    res.json(createApiSuccessResponse({ entries: [] }));
   }),
 );
 
