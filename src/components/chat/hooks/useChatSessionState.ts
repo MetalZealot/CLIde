@@ -15,7 +15,14 @@ import { normalizedToChatMessages } from './useChatMessages';
 export const MESSAGES_PER_PAGE = 20;
 const INITIAL_VISIBLE_MESSAGES = 100;
 const TOP_LOAD_THRESHOLD_PX = 100;
-const TOP_LOAD_REARM_DISTANCE_PX = 140;
+const TOP_LOAD_REARM_MARGIN_PX = 40;
+/** Screens of history kept above the reader, so arriving at the top rarely waits for a page. */
+const TOP_PREFETCH_SCREENS = 1.5;
+
+const topLoadDistance = (container: HTMLElement): number =>
+  Math.max(TOP_LOAD_THRESHOLD_PX, container.clientHeight * TOP_PREFETCH_SCREENS);
+const topLoadRearmDistance = (container: HTMLElement): number =>
+  topLoadDistance(container) + TOP_LOAD_REARM_MARGIN_PX;
 
 interface UseChatSessionStateArgs {
   selectedProject: Project | null;
@@ -471,15 +478,15 @@ export function useChatSessionState({
     isUserScrolledUpRef.current = !nearBottom;
     setIsUserScrolledUp(!nearBottom);
 
-    if (container.scrollTop >= TOP_LOAD_REARM_DISTANCE_PX) {
+    if (container.scrollTop >= topLoadRearmDistance(container)) {
       topLoadArmedRef.current = true;
     }
 
-    const scrolledNearTop = container.scrollTop < TOP_LOAD_THRESHOLD_PX;
+    const scrolledNearTop = container.scrollTop < topLoadDistance(container);
     if (!scrolledNearTop || !hasMoreMessages) return;
     if (!topLoadArmedRef.current) return;
 
-    // One request per arrival at the top. The restore effect re-arms only after
+    // One request per approach to the top. The restore effect re-arms only after
     // the prepend creates enough real scroll distance; collapsed transcript rows
     // are fetched through automatically instead of leaving a false "roof".
     topLoadArmedRef.current = false;
@@ -503,7 +510,7 @@ export function useChatSessionState({
     }, 2000);
 
     if (!hasMoreMessages) return;
-    if (container.scrollTop >= TOP_LOAD_REARM_DISTANCE_PX) {
+    if (container.scrollTop >= topLoadRearmDistance(container)) {
       topLoadArmedRef.current = true;
       return;
     }
@@ -564,7 +571,7 @@ export function useChatSessionState({
     if (
       hasMoreMessages
       && !isUserScrolledUpRef.current
-      && container.scrollTop < TOP_LOAD_THRESHOLD_PX
+      && container.scrollTop < topLoadDistance(container)
       && topLoadArmedRef.current
     ) {
       topLoadArmedRef.current = false;

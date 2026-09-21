@@ -94,8 +94,13 @@ expansion state outside evicted contents. Selection may deliberately extend the
 window; release it afterward. Preserve cross-message copy, screen-reader access,
 reduced motion and bottom-follow only when intended.
 
+Older pages already load 1.5 screens early, so scrolling up no longer waits at
+the top; each prepend still freezes 170–790 ms (measured on a real session),
+growing with mounted rows, because layout covers every row.
+
 **Exit:** rich contents stay bounded except interaction pins; history remains
-reachable. Real phone handles and Browser layout pass.
+reachable; scrolling up never shows loading or a freeze. Real phone handles and
+Browser layout pass.
 
 - [ ] **8. Close cold-load and active-session gaps — M–XL.**
 
