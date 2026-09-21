@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 import type { CopyMessageFormat } from '../../../../hooks/useUiPreferences';
+import { useAutoContinueDefault } from '../../hooks/useAutoContinueDefault';
 import { useAutoContinueMessage } from '../../hooks/useAutoContinueMessage';
 import { DEFAULT_THINKING_MESSAGES, useThinkingMessages } from '../../../../hooks/useThinkingMessages';
 import { isTouchPrimaryDevice } from '../../../../utils/pointer';
@@ -32,6 +33,7 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
   const { preferences, setPreference } = useUiPreferences();
   const { customMessages, cycleMode } = useThinkingMessages();
   const autoContinue = useAutoContinueMessage();
+  const autoContinueDefault = useAutoContinueDefault();
   const isTouchPrimary = isTouchPrimaryDevice();
   const activityMessagesScreen = getScreen('chat.activityMessages');
   const voiceBackendScreen = getScreen('chat.voice');
@@ -110,6 +112,7 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
       <SettingsGroup
         title={t('chat.autoContinue.title')}
         description={t('chat.autoContinue.description')}
+        divided
       >
         <SettingsRow stacked label={t('chat.autoContinue.label')} description={t('chat.autoContinue.help')}>
           <SettingsTextField
@@ -120,14 +123,23 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
             placeholder={autoContinue.defaultMessage}
             ariaLabel={t('chat.autoContinue.label')}
           />
-        </SettingsRow>
-        {autoContinue.saveStatus && (
-          <div className="px-4 pb-4">
-            <span className={`text-xs ${autoContinue.saveStatus === 'success' ? 'text-primary' : 'text-destructive'}`}>
+          {autoContinue.saveStatus && (
+            <span className={`mt-2 block text-xs ${autoContinue.saveStatus === 'success' ? 'text-primary' : 'text-destructive'}`}>
               {autoContinue.saveStatus === 'success' ? t('chat.autoContinue.saved') : t('saveStatus.error')}
             </span>
-          </div>
-        )}
+          )}
+        </SettingsRow>
+        <SettingsRow
+          label={t('chat.autoContinue.newSessions.label')}
+          description={t('chat.autoContinue.newSessions.description')}
+        >
+          <SettingsToggle
+            checked={autoContinueDefault.enabled}
+            onChange={autoContinueDefault.toggle}
+            disabled={autoContinueDefault.isLoading}
+            ariaLabel={t('chat.autoContinue.newSessions.label')}
+          />
+        </SettingsRow>
       </SettingsGroup>
 
       {activityMessagesScreen && (

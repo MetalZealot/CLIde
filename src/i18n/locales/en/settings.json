@@ -249,10 +249,14 @@
     },
     "autoContinue": {
       "title": "Auto-Continue",
-      "description": "Sent when you accept the offer on a usage-limit notice, once the limit resets.",
+      "description": "Sends a message on your behalf once a usage limit resets.",
       "label": "Message",
       "help": "Leave empty to send “Continue”.",
-      "saved": "Saved"
+      "saved": "Saved",
+      "newSessions": {
+        "label": "Always continue in new chats",
+        "description": "New sessions start with Auto-Continue on. Any session can be changed from its chat menu."
+      }
     }
   },
   "quickSettings": {

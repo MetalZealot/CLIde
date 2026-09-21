@@ -4,7 +4,7 @@ import {
   DEFAULT_AUTO_CONTINUE_MESSAGE,
   fetchAutoContinueMessage,
   saveAutoContinueMessage,
-} from '../../../utils/autoContinueMessage';
+} from '../../../utils/autoContinue';
 
 type SaveStatus = 'success' | 'error' | null;
 

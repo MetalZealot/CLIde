@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
-- Status: 4/6
-- Next: phase 5 — the default new sessions take for the standing mode
+- Status: 5/6
+- Next: phase 1's Codex half, which needs a live Codex limit stop
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -84,7 +84,13 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       branch server 2026-09-17: the entry toggles, persists across a reload, and
       shows on Claude and Codex. **The arming itself is unit-tested only**: a
       real limit stop cannot be triggered
-- [ ] 5. Settings carries the default that new sessions take for phase 4
+- [x] 5. Settings carries the default that new sessions take for phase 4, as a
+      switch in the same Settings › Chat group as the message. The mode is
+      stamped on the row at creation, not consulted later, so changing the
+      switch never reaches a session that already exists — and it applies only
+      where CLIde mints the row (a new chat, a fork), never to a transcript the
+      watcher indexes off disk, which would otherwise turn the whole session
+      backlog on at once
 
 ## Done when
 

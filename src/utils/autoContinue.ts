@@ -38,3 +38,37 @@ export async function saveAutoContinueMessage(message: string): Promise<string |
     return null;
   }
 }
+
+const DEFAULT_ENDPOINT = '/api/scheduled-messages/auto-continue-default';
+
+/**
+ * Whether a chat started from now on begins with Auto-Continue already on.
+ * An unreachable server reads as off, which is what a session with no stored
+ * mode does anyway.
+ */
+export async function fetchAutoContinueDefault(): Promise<boolean> {
+  try {
+    const response = await authenticatedFetch(DEFAULT_ENDPOINT);
+    if (!response.ok) return false;
+    const data = await response.json() as { enabled?: boolean };
+    return data.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Saves the new-session default, returning what it now is, or null on failure. */
+export async function saveAutoContinueDefault(enabled: boolean): Promise<boolean | null> {
+  try {
+    const response = await authenticatedFetch(DEFAULT_ENDPOINT, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as { enabled?: boolean };
+    return data.enabled === true;
+  } catch {
+    return null;
+  }
+}

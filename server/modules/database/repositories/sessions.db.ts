@@ -1,4 +1,5 @@
 import { getConnection } from '@/modules/database/connection.js';
+import { appConfigDb } from '@/modules/database/repositories/app-config.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
 
@@ -20,6 +21,8 @@ type SessionRow = {
 const SESSION_ROW_COLUMNS =
   'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isArchived, isStarred, '
   + 'auto_continue, auto_continue_streak, created_at, updated_at';
+
+const AUTO_CONTINUE_DEFAULT_KEY = 'auto_continue_new_sessions';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -192,6 +195,8 @@ export const sessionsDb = {
    * `session_id` is the stable app-facing id, while `provider_session_id`
    * stays NULL until the provider runtime announces its own id and
    * `assignProviderSessionId` records the mapping.
+   *
+   * The row starts in whatever standing Auto-Continue mode Settings holds.
    */
   createAppSession(sessionId: string, provider: string, projectPath: string): string {
     const db = getConnection();
@@ -200,9 +205,9 @@ export const sessionsDb = {
     projectsDb.createProjectPath(normalizedProjectPath);
 
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, NULL, NULL, ?, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).run(sessionId, provider, normalizedProjectPath);
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, auto_continue, created_at, updated_at)
+       VALUES (?, ?, NULL, NULL, ?, NULL, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).run(sessionId, provider, normalizedProjectPath, sessionsDb.getAutoContinueDefault() ? 1 : 0);
 
     return sessionId;
   },
@@ -620,6 +625,20 @@ export const sessionsDb = {
 
     if (!row) return null;
     return { enabled: row.auto_continue === 1, streak: row.auto_continue_streak ?? 0 };
+  },
+
+  /**
+   * The Auto-Continue mode a freshly minted session starts in, chosen in
+   * Settings. It applies only where CLIde mints the row — a transcript the
+   * watcher finds on disk is an existing conversation, not a new chat.
+   */
+  getAutoContinueDefault(): boolean {
+    return appConfigDb.get(AUTO_CONTINUE_DEFAULT_KEY) === '1';
+  },
+
+  setAutoContinueDefault(enabled: boolean): boolean {
+    appConfigDb.set(AUTO_CONTINUE_DEFAULT_KEY, enabled ? '1' : '0');
+    return enabled;
   },
 
   /** Turning the mode on or off always clears the count the cap is measured on. */

@@ -50,6 +50,22 @@ router.put('/auto-continue-message', (req, res) => {
   res.json({ message: writeAutoContinueMessage(message), defaultMessage: DEFAULT_AUTO_CONTINUE_MESSAGE });
 });
 
+/**
+ * Whether a session CLIde creates starts in the standing Auto-Continue mode.
+ * Existing sessions keep whatever their own row says.
+ */
+router.get('/auto-continue-default', (_req, res) => {
+  res.json({ enabled: sessionsDb.getAutoContinueDefault() });
+});
+
+router.put('/auto-continue-default', (req, res) => {
+  if (typeof req.body?.enabled !== 'boolean') {
+    res.status(400).json({ error: 'enabled must be a boolean.' });
+    return;
+  }
+  res.json({ enabled: sessionsDb.setAutoContinueDefault(req.body.enabled) });
+});
+
 /** The sidebar's timer column: which sessions are waiting on something. */
 router.get('/pending-sessions', (_req, res) => {
   res.json({ sessionIds: scheduledMessagesDb.listSessionIdsWithPending() });

@@ -13,6 +13,7 @@ import { saveProviderToolSettings } from '../../../utils/providerToolSettings';
 import { useProviderSkills } from '../../skills/hooks/useProviderSkills';
 import type { SkillsTarget } from '../../skills/types';
 
+import { useAutoContinueDefault } from './useAutoContinueDefault';
 import { useAutoContinueMessage } from './useAutoContinueMessage';
 import { useSettingsNavigation } from './useSettingsNavigation';
 
@@ -354,6 +355,64 @@ describe('useAutoContinueMessage saving', () => {
     await React.act(async () => currentHookValue().handleBlur());
     assert.equal(writes().length, 2);
     assert.equal(currentHookValue().message, 'Continue', 'the field shows what a send would now use');
+  });
+});
+
+describe('useAutoContinueDefault toggling', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let hookValue: ReturnType<typeof useAutoContinueDefault> | null;
+  let stored: boolean;
+  let accept: boolean;
+  let originalFetch: typeof globalThis.fetch;
+
+  const currentHookValue = () => {
+    assert.ok(hookValue);
+    return hookValue;
+  };
+
+  const Harness = () => {
+    hookValue = useAutoContinueDefault();
+    return null;
+  };
+
+  beforeEach(async () => {
+    hookValue = null;
+    stored = true;
+    accept = true;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = ((_input: string | URL | Request, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'PUT') {
+        if (!accept) return Promise.resolve(new Response('no', { status: 500 }));
+        stored = (JSON.parse(String(init?.body)) as { enabled: boolean }).enabled;
+      }
+      return Promise.resolve(new Response(JSON.stringify({ enabled: stored }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    }) as typeof globalThis.fetch;
+    await React.act(async () => root.render(<Harness />));
+  });
+
+  afterEach(async () => {
+    await React.act(async () => root.unmount());
+    container.remove();
+    globalThis.fetch = originalFetch;
+  });
+
+  test('the switch shows the stored default and returns to it when a write fails', async () => {
+    assert.equal(currentHookValue().enabled, true);
+    assert.equal(currentHookValue().isLoading, false);
+
+    await React.act(async () => currentHookValue().toggle(false));
+    assert.equal(currentHookValue().enabled, false);
+
+    accept = false;
+    await React.act(async () => currentHookValue().toggle(true));
+    assert.equal(currentHookValue().enabled, false, 'a refused write never looks saved');
   });
 });
 

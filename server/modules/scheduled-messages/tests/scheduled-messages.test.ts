@@ -689,4 +689,27 @@ describe('scheduled-messages', () => {
       assert.equal(readAutoContinueMessage(), DEFAULT_AUTO_CONTINUE_MESSAGE);
     });
   });
+
+  test('new sessions take the standing Auto-Continue mode Settings holds', async () => {
+    await withIsolatedDatabase(() => {
+      assert.equal(sessionsDb.getAutoContinueDefault(), false);
+      seedSession('session-before');
+      assert.equal(sessionsDb.getSessionAutoContinue('session-before')?.enabled, false);
+
+      sessionsDb.setAutoContinueDefault(true);
+      seedSession('session-after');
+      assert.equal(sessionsDb.getSessionAutoContinue('session-after')?.enabled, true);
+
+      // The default seeds a row, it does not steer one: sessions that already
+      // exist keep whatever their own row says, either way.
+      assert.equal(sessionsDb.getSessionAutoContinue('session-before')?.enabled, false);
+      sessionsDb.setAutoContinueDefault(false);
+      assert.equal(sessionsDb.getSessionAutoContinue('session-after')?.enabled, true);
+
+      // A session the watcher indexes from disk is an existing conversation.
+      sessionsDb.setAutoContinueDefault(true);
+      sessionsDb.createSession('provider-native-id', 'claude', '/workspace/demo-project');
+      assert.equal(sessionsDb.getSessionAutoContinue('provider-native-id')?.enabled, false);
+    });
+  });
 });

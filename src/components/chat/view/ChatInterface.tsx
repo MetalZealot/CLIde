@@ -26,7 +26,7 @@ import {
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
-import { fetchAutoContinueMessage } from '../../../utils/autoContinueMessage';
+import { fetchAutoContinueMessage } from '../../../utils/autoContinue';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
