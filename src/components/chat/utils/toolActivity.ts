@@ -278,9 +278,19 @@ export function summarizeActivity(messages: ChatMessage[]): ActivitySummary {
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const lineCounts = (added: number, removed: number): string => `+${added} −${removed}`;
+export const formatLineCounts = (added: number, removed: number): string => `+${added} −${removed}`;
 
 const capitalize = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
+const formatCounts = (added: number, removed: number): string => (added || removed ? ` ${formatLineCounts(added, removed)}` : '');
+
+/** The call itself, past tense and without line counts: `Edited toolGrouping.ts`. */
+export function operationLabel(operation: ActivityOperation, t: Translate, preferDescription = false): string {
+  if (preferDescription && operation.kind === 'bash' && operation.description) return operation.description;
+  return operation.target
+    ? t(`activity.done.${operation.kind}`, { target: operation.target })
+    : capitalize(t(`activity.facet.${operation.kind === 'fetch' ? 'web' : operation.kind}`, { count: Math.max(operation.paths.length, 1) }));
+}
 
 export function describeActivity(summary: ActivitySummary, t: Translate, isLive: boolean): { label: string; isRunning: boolean } {
   const running = isLive ? summary.running : null;
@@ -294,18 +304,15 @@ export function describeActivity(summary: ActivitySummary, t: Translate, isLive:
     };
   }
 
-  const [only] = summary.operations;
-  if (summary.operations.length === 1 && only.target) {
-    const text = t(`activity.done.${only.kind}`, { target: only.target });
-    return {
-      label: only.kind === 'edit' && (only.added || only.removed) ? `${text} ${lineCounts(only.added, only.removed)}` : text,
-      isRunning: false,
-    };
+  if (summary.operations.length === 1) {
+    const [only] = summary.operations;
+    const counts = only.kind === 'edit' ? formatCounts(only.added, only.removed) : '';
+    return { label: `${operationLabel(only, t)}${counts}`, isRunning: false };
   }
 
   const facets = summary.facets.map((facet) => {
     const text = t(`activity.facet.${facet.kind}`, { count: facet.count });
-    return facet.kind === 'edit' && (facet.added || facet.removed) ? `${text} ${lineCounts(facet.added, facet.removed)}` : text;
+    return facet.kind === 'edit' ? `${text}${formatCounts(facet.added, facet.removed)}` : text;
   });
   return { label: capitalize(facets.join(', ')), isRunning: false };
 }

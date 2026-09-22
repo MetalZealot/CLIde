@@ -83,7 +83,12 @@
       "other": "Using a tool"
     },
     "failed_one": "{{count}} failed",
-    "failed_other": "{{count}} failed"
+    "failed_other": "{{count}} failed",
+    "status": {
+      "error": "failed",
+      "denied": "denied"
+    },
+    "thought": "Thought: {{text}}"
   },
   "search": {
     "found": "Found {{count}} {{type}}",

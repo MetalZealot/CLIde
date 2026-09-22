@@ -23,7 +23,7 @@ import { asyncQuestionDraftKey } from '../../utils/asyncQuestionState';
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
-import { describeActivity, summarizeActivity } from '../../utils/toolActivity';
+import { describeActivity, describeOperation, operationLabel, summarizeActivity } from '../../utils/toolActivity';
 import { formatClockTime, formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
 import {
   DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
@@ -262,6 +262,11 @@ describe('chatSubcomponents', () => {
       assert.equal(label([...burst, codexRunning], true), 'Running npm test');
       assert.equal(label([...burst, codexRunning], false), 'Read 2 files, ran 2 commands, edited 1 file +2 \u22121');
       assert.equal(summarizeActivity(burst).failed, 1);
+      const described = call('d1', 'Bash', { command: 'npm test', description: 'Run client tests' });
+      assert.equal(operationLabel(describeOperation(described), t, true), 'Run client tests', 'an operation row keeps Claude\'s description');
+      assert.equal(operationLabel(describeOperation(described), t), 'Ran npm test');
+      const twoFiles = call('fc', 'FileChanges', [{ path: '/a/x.ts', diff: '+a' }, { path: '/a/y.ts', diff: '-b' }]);
+      assert.equal(label([twoFiles]), 'Edited 2 files +1 \u22121');
       assert.equal(t('activity.failed', { count: 1 }), '1 failed');
 
     });

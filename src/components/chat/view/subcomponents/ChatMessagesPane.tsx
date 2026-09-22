@@ -248,7 +248,6 @@ function ChatMessagesPane({
 
             return groupedVisibleMessages.map((item) => {
               if (isToolActivityItem(item)) {
-                const activityPrevMessage = prevMessage;
                 prevMessage = item.messages[item.messages.length - 1] || prevMessage;
 
                 return (
@@ -256,7 +255,6 @@ function ChatMessagesPane({
                     key={`tool-group-${getMessageKey(item.messages[0])}`}
                     activity={item}
                     isLive={item === liveActivity}
-                    prevMessage={activityPrevMessage}
                     createDiff={createDiff}
                     getMessageKey={getMessageKey}
                     onFileOpen={onFileOpen}

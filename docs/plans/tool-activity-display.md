@@ -1,8 +1,8 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 3/6
-- Next: Phase 4 — compact operation rows; the activity row and Codex running rows are
-  not yet seen on a phone
+- Status: 4/6
+- Next: Phase 5 — raw detail on mobile; phases 2–4 and Codex running rows are not yet
+  seen on a phone
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
@@ -52,10 +52,12 @@ empty.
   and desktop, denser on mobile. A closed activity mounts only its row:
   operations are built on open and kept until it closes, so long sessions draw
   a fraction of today's rows (history plan, phase 7).
-- [ ] 4. **Expanding gives compact operation rows, not nested cards.** One
+- [x] 4. **Expanding gives compact operation rows, not nested cards.** One
   line per operation, inline on every screen: verb, target, line counts for an
-  edit, status, and duration once it reached 1 s. Raw output opens the level
-  below rather than rendering in place
+  edit, status, and duration once it reached 1 s; a Claude command row reads
+  as its description, and shown thinking as a `Thought:` line. Raw output
+  opens the level below rather than rendering in place, as today's card until
+  Phase 5
   ([ADR 0059](../decisions/0059-activity-operations-expand-inline-on-every-screen.md)).
 - [ ] 5. **Raw detail owns the viewport on mobile.** An operation row opens the
   existing `ToolRenderer` inline on desktop, and the full-screen code-editor
