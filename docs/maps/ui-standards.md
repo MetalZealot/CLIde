@@ -136,7 +136,7 @@ they fit on a phone.
 No published standard covers how an agent chat shows its tool calls. Read from
 screenshots of four desktop apps on 2026-09-21 — the Claude app, the Codex app,
 Cursor and T3 Code — a pattern all four share is convention here, one or two is
-taste.
+taste. Each app, part by part: [peer tool activity](peer-tool-activity-anatomy.md).
 
 - **Convention:** a collapsed activity is one line of muted text with no card,
   border or badge, and prose stays full contrast. Past tense when done, "-ing"
