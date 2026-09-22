@@ -34,8 +34,8 @@ things on the two providers and Codex's reasoning summaries are empty.
   `turnId` where a provider supplies one. A cluster is terminated by assistant
   prose, a user message, a permission request, a tool error, an
   `AskUserQuestion`/`request_user_input`, a subagent container, and a compact
-  boundary. Those events stay first-class rows outside any activity. Covered by
-  the first tests this path has had.
+  boundary. Those events stay first-class rows outside any activity. Extends
+  the grouping identity tests in `chatUtils.test.ts`.
 - [ ] 3. **The collapsed row replaces `ToolGroupContainer`.** Faceted counts
   (`6 files · 3 commands · 2 edits`), duration, and an error or denial
   indicator that survives collapse; the current operation while running, using

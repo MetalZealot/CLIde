@@ -1,7 +1,8 @@
 # Fast, stable chat history and navigation
 
 - Status: 6/9
-- Next: Phase 7 — Bound expensive rendered contents
+- Next: Phase 7 — Bound expensive rendered contents, after
+  [tool activity](tool-activity-display.md) phase 3 (a closed activity mounts one row)
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
