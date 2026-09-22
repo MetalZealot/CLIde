@@ -57,6 +57,8 @@ interface UseChatComposerStateArgs {
    */
   currentProviderModel: string;
   currentProviderEffort: string;
+  /** Seed for a chat with no session yet; an established session sends its own pick. */
+  currentProviderFastMode: boolean;
   isLoading: boolean;
   processingSessions?: SessionActivityMap;
   canAbortSession: boolean;
@@ -397,6 +399,7 @@ export function useChatComposerState({
   resolvePermissionModeForProvider,
   currentProviderModel,
   currentProviderEffort,
+  currentProviderFastMode,
   isLoading,
   processingSessions,
   canAbortSession,
@@ -1028,10 +1031,13 @@ export function useChatComposerState({
     const model = resolveSessionSendSetting(sessionSlotModel, currentProviderModel, Boolean(sessionKey));
     const sessionSlotEffort = sessionKey ? sessionStore.getSlot(sessionKey)?.effort : null;
     const effort = resolveSessionSendSetting(sessionSlotEffort, currentProviderEffort, Boolean(sessionKey));
+    const sessionSlotFastMode = sessionKey ? sessionStore.getSlot(sessionKey)?.fastMode : null;
+    const fastMode = sessionSlotFastMode ?? (sessionKey ? undefined : currentProviderFastMode);
 
     return {
       model,
       effort,
+      ...(fastMode !== undefined ? { fastMode } : {}),
       permissionMode: resolvePermissionModeForProvider(provider, permissionMode),
       ...(collaborationMode ? { collaborationMode } : {}),
       toolsSettings,
@@ -1044,6 +1050,7 @@ export function useChatComposerState({
   }, [
     collaborationMode,
     currentProviderEffort,
+    currentProviderFastMode,
     currentProviderModel,
     pendingRewind,
     permissionMode,

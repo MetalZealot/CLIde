@@ -49,6 +49,7 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RequiredProtocolPattern[]>([
     required('field collaborationMode', /collaborationMode\?: CollaborationMode/),
     required('field sandboxPolicy', /sandboxPolicy\?: SandboxPolicy/),
     required('field effort', /effort\?: ReasoningEffort/),
+    required('field serviceTierForTurn', /serviceTierForTurn\?: string \| null/),
   ]],
   ['v2/TurnSteerParams.ts', [
     required('field expectedTurnId', /expectedTurnId: string/),

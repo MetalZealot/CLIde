@@ -85,6 +85,8 @@ interface UseChatProviderStateArgs {
    */
   sessionModel: string | null;
   sessionEffort: string | null;
+  /** The open session's fast-mode pick (false when never chosen); null with no session. */
+  sessionFastMode: boolean | null;
 }
 
 type ProviderModelsApiResponse = {
@@ -124,6 +126,7 @@ export function useChatProviderState({
   selectedProject: _selectedProject,
   sessionModel,
   sessionEffort,
+  sessionFastMode,
 }: UseChatProviderStateArgs) {
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default');
   const [collaborationMode, setCollaborationMode] = useState<CollaborationMode>('build');
@@ -144,6 +147,12 @@ export function useChatProviderState({
       return acc;
     }, {});
   });
+  const [providerFastModes, setProviderFastModes] = useState<Partial<Record<LLMProvider, boolean>>>(() => (
+    PROVIDERS.reduce<Partial<Record<LLMProvider, boolean>>>((acc, targetProvider) => {
+      acc[targetProvider] = localStorage.getItem(`${targetProvider}-fast-mode`) === 'true';
+      return acc;
+    }, {})
+  ));
   const [opencodeModel, setOpenCodeModel] = useState<string>(() => {
     return localStorage.getItem('opencode-model') || FALLBACK_DEFAULT_MODEL.opencode;
   });
@@ -727,6 +736,31 @@ export function useChatProviderState({
       : { scope: 'default' as const, effort };
   }, [setStoredProviderEffort]);
 
+  /**
+   * Applies a fast-mode choice: the per-provider seed for the next new chat, and
+   * the open session's own pick when there is one.
+   */
+  const selectProviderFastMode = useCallback(async (
+    targetProvider: LLMProvider,
+    enabled: boolean,
+    sessionId?: string | null,
+  ) => {
+    setProviderFastModes((previous) => ({ ...previous, [targetProvider]: enabled }));
+    localStorage.setItem(`${targetProvider}-fast-mode`, String(enabled));
+
+    const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
+    if (!normalizedSessionId) return;
+
+    const response = await authenticatedFetch(
+      `/api/providers/${targetProvider}/sessions/${encodeURIComponent(normalizedSessionId)}/fast-mode`,
+      { method: 'POST', body: JSON.stringify({ enabled }) },
+    );
+    const body = await response.json() as { success?: boolean };
+    if (!response.ok || !body.success) {
+      throw new Error('Unable to change fast mode for this session.');
+    }
+  }, []);
+
   // The open session's model wins over the per-provider default, so switching
   // sessions shows (and sends) what each session actually runs with.
   const currentProviderModel = sessionModel ?? providerModels[provider];
@@ -746,6 +780,7 @@ export function useChatProviderState({
     () => providerModelCatalog[provider]?.OPTIONS ?? [],
     [provider, providerModelCatalog],
   );
+  const currentProviderFastMode = sessionFastMode ?? providerFastModes[provider] ?? false;
 
   return {
     provider,
@@ -762,6 +797,8 @@ export function useChatProviderState({
     currentProviderEffortOptions,
     currentProviderModel,
     currentProviderModelOptions,
+    currentProviderFastMode,
+    selectProviderFastMode,
     opencodeModel,
     setOpenCodeModel,
     permissionMode,

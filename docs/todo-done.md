@@ -6,6 +6,10 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **The picker reads Claude's model list from the CLI, with Refresh models for every provider** (2026-09-22, `4639a524`, `ea57e20c`). Older models stay under Legacy, ordered by tier. Verified: tests, and in use on 3001 after the restart. [Anchor](maps/code-anchors.md#model-picker-catalog-and-active-model-are-two-systems). Fork-only. **S**
+
+- [x] **Model menu lists every provider as a logo tab, with starred Favourites** (2026-09-22, `170e0006`). Tabs browse; a pick commits provider and model together; a session shows only its own provider. Stars sync per user. Verified: client tests, Browser on 3002, Grayson's acceptance, and his stars stored server-side. Fork-only. **M**
+
 - [x] **Chat-history phase 6: Find without rendered history** (2026-09-21). Find searches a client text index over a text-only history copy; old matches fetch a window around them that pages both ways and rejoins the tail; sidebar results land the same way. 1,000-record Find 24 s → 3.2 s, 900 → 36 mounted rows; verified in Browser on a branch-test server with a real 17 MB session. Fork-only. [Evidence](maps/chat-history-performance.md#phase-6-find-without-rendered-history). **XL**
 
 - [x] **Chat-history phase 4: stable pagination** (2026-09-20). All-provider bookmarks survive appends, reject changed history, and preserve loaded boundaries on refresh. Cancellation, deduplication and bounded reset recovery have regression tests; six synthetic Browser runs pass paging and rendering checks. [Evidence](maps/chat-history-performance.md#phase-4-stable-history-bookmarks). Fork contract. **XL**

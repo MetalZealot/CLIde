@@ -370,7 +370,7 @@ test('claude legacy ids resolve to their own row, not the current generation', (
 // Shape recorded from `supportedModels()` on Claude Code 2.1.280, 2026-09-22.
 const CLI_MODELS = [
   { value: 'default', resolvedModel: 'claude-opus-5-5', displayName: 'Default (recommended)', description: 'Opus 5.5 · Best for everyday, complex tasks', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
-  { value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus', description: 'Opus 5.5 · Best for everyday, complex tasks', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  { value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus', description: 'Opus 5.5 · Best for everyday, complex tasks', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'], supportsFastMode: true },
   { value: 'claude-fable-5-1[1m]', resolvedModel: 'claude-fable-5-1', displayName: 'Fable', description: 'Fable 5.1 · Most capable for your hardest tasks', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { value: 'haiku', resolvedModel: 'claude-haiku-4-5-20251001', displayName: 'Haiku', description: 'Haiku 4.5 · Fastest for quick answers' },
 ] as const;
@@ -389,6 +389,8 @@ test('claude catalog comes from the CLI, with superseded models under legacy', a
   assert.equal(primary[1].description, 'Best for everyday, complex tasks');
   assert.equal(primary[1].effort?.default, 'high');
   assert.equal(primary[2].effort, undefined);
+  assert.ok(primary[1].fastMode, 'fast mode follows the CLI flag');
+  assert.equal(primary[0].fastMode, undefined);
   assert.ok(models.OPTIONS.some((option) => option.value === 'claude-opus-5' && option.group === 'legacy'));
 
   // The CLI is asked once, and again only on refresh.

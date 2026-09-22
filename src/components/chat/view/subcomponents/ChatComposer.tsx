@@ -105,6 +105,8 @@ interface ChatComposerProps {
   effort: string;
   availableEffortOptions: NonNullable<ProviderModelOption['effort']>['values'];
   onSelectEffort: (effort: string) => void;
+  fastMode: boolean;
+  onSelectFastMode: (enabled: boolean) => void;
   model: string;
   availableModelOptions: ProviderModelOption[];
   /** Every provider's models, for browsing and favourites across providers. */
@@ -198,6 +200,8 @@ export default function ChatComposer({
   effort,
   availableEffortOptions,
   onSelectEffort,
+  fastMode,
+  onSelectFastMode,
   model,
   availableModelOptions,
   modelCatalog,
@@ -616,6 +620,8 @@ export default function ChatComposer({
               effort={effort}
               effortOptions={availableEffortOptions}
               onSelectEffort={onSelectEffort}
+              fastMode={fastMode}
+              onSelectFastMode={onSelectFastMode}
               model={model}
               modelOptions={availableModelOptions}
               modelCatalog={modelCatalog}

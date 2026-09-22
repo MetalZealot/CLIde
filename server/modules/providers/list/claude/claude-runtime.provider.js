@@ -292,6 +292,10 @@ function mapCliOptionsToSDK(options = {}) {
     sdkOptions.effort = resolvedEffort;
   }
 
+  // Always explicit: flag settings outrank a `/fast` toggle left in user settings,
+  // so the session's own pick decides. The CLI ignores it on models without fast mode.
+  sdkOptions.settings = { fastMode: options.fastMode === true };
+
   sdkOptions.systemPrompt = {
     type: 'preset',
     preset: 'claude_code'

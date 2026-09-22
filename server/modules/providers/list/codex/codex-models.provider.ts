@@ -201,6 +201,12 @@ const mapLiveCodexModel = (model: CodexLiveModel): ProviderModelOption => ({
   label: model.displayName || model.model || model.id,
   description: model.description || undefined,
   isDefault: model.isDefault || undefined,
+  ...(model.serviceTiers?.[0] ? {
+    fastMode: {
+      serviceTier: model.serviceTiers[0].id,
+      ...(model.serviceTiers[0].description ? { description: model.serviceTiers[0].description } : {}),
+    },
+  } : {}),
   effort: model.supportedReasoningEfforts.length > 0
     ? {
         default: model.defaultReasoningEffort || undefined,

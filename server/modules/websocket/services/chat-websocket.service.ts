@@ -260,9 +260,20 @@ export async function buildChatRuntimeOptions(input: {
     ?? (await getProviderSessionEffort(provider, sessionId)).effort
     ?? undefined;
 
+  // A sent value is the user's current choice and becomes the session's pick;
+  // an omitted one falls back to that pick, and never chosen runs standard.
+  let fastMode = false;
+  if (typeof clientOptions.fastMode === 'boolean') {
+    fastMode = clientOptions.fastMode;
+    sessionsDb.setSessionFastMode(sessionId, provider, fastMode);
+  } else {
+    fastMode = sessionsDb.getSessionFastMode(sessionId, provider) ?? false;
+  }
+
   return {
     ...clientOptions,
     effort: resolvedEffort,
+    fastMode,
     // Attachments are re-validated server-side: only direct children of the
     // global upload store may reach provider runtimes or their file tools.
     attachments: uniqueAttachments,

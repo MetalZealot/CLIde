@@ -134,6 +134,8 @@ function ChatInterface({
     currentProviderEffortOptions,
     currentProviderModel,
     currentProviderModelOptions,
+    currentProviderFastMode,
+    selectProviderFastMode,
     providerModelCatalog,
     permissionMode,
     collaborationMode,
@@ -163,6 +165,7 @@ function ChatInterface({
     // the hook are only seeds for a chat that has no session of its own yet.
     sessionModel: settingsSlot?.model ?? null,
     sessionEffort: settingsSlot?.effort ?? null,
+    sessionFastMode: settingsSessionId ? settingsSlot?.fastMode ?? false : null,
   });
 
   const hasPendingPermission = pendingPermissionRequests.length > 0;
@@ -226,14 +229,20 @@ function ChatInterface({
     void selectProviderEffort(provider, currentProviderEffort, sessionId).catch((error) => {
       console.error('Error recording the initial reasoning effort:', error);
     });
+    sessionStore.setFastMode(sessionId, currentProviderFastMode);
+    void selectProviderFastMode(provider, currentProviderFastMode, sessionId).catch((error) => {
+      console.error('Error recording the initial fast mode:', error);
+    });
     onSessionEstablished?.(sessionId, context);
     onNavigateToSession?.(sessionId);
   }, [
     currentProviderEffort,
+    currentProviderFastMode,
     onNavigateToSession,
     onSessionEstablished,
     provider,
     selectProviderEffort,
+    selectProviderFastMode,
     sessionStore,
     setCurrentSessionId,
   ]);
@@ -320,6 +329,7 @@ function ChatInterface({
       : undefined,
     currentProviderModel,
     currentProviderEffort,
+    currentProviderFastMode,
     isLoading: isProcessing,
     processingSessions,
     canAbortSession,
@@ -463,6 +473,19 @@ function ChatInterface({
       showSettingsChangeNotice();
     }
   }, [applySessionEffort, currentSessionId, selectedSession?.id, showSettingsChangeNotice]);
+
+  const handleSelectComposerFastMode = useCallback(async (enabled: boolean) => {
+    const sessionId = currentSessionId || selectedSession?.id || null;
+    const previous = sessionId ? sessionStore.getSessionSlot(sessionId)?.fastMode ?? false : null;
+    if (sessionId) sessionStore.setFastMode(sessionId, enabled);
+    try {
+      await selectProviderFastMode(provider, enabled, sessionId);
+      showSettingsChangeNotice();
+    } catch (error) {
+      console.error('Error changing fast mode:', error);
+      if (sessionId && previous !== null) sessionStore.setFastMode(sessionId, previous);
+    }
+  }, [currentSessionId, provider, selectProviderFastMode, selectedSession?.id, sessionStore, showSettingsChangeNotice]);
 
   const handleSelectComposerModel = useCallback(async (model: string, targetProvider: LLMProvider = provider) => {
     const sessionId = currentSessionId || selectedSession?.id || null;
@@ -1072,6 +1095,8 @@ function ChatInterface({
             effort={currentProviderEffort}
             availableEffortOptions={currentProviderEffortOptions}
             onSelectEffort={handleSelectComposerEffort}
+            fastMode={currentProviderFastMode}
+            onSelectFastMode={handleSelectComposerFastMode}
             model={currentProviderModel}
             availableModelOptions={currentProviderModelOptions}
             modelCatalog={composerModelCatalog}

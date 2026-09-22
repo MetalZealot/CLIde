@@ -491,6 +491,13 @@ const addSessionAutoContinueColumns = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'auto_continue_streak', 'INTEGER NOT NULL DEFAULT 0');
 };
 
+/** Adds the per-session fast-mode pick; NULL means never chosen, which runs at standard speed. */
+const addSessionFastModeColumn = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'fast_mode', 'INTEGER');
+};
+
 /** Adds the paused-edit column, and drops the lease columns a pre-release build added. */
 const migrateScheduledMessageEditColumns = (db: Database): void => {
   const columnNames = getTableInfo(db, 'scheduled_messages').map((column) => column.name);
@@ -632,6 +639,7 @@ export const runMigrations = (db: Database) => {
     }
     addSessionEffortColumns(db);
     addSessionAutoContinueColumns(db);
+    addSessionFastModeColumn(db);
     migrateScheduledMessageEditColumns(db);
     ensureProjectsForSessionPaths(db);
 

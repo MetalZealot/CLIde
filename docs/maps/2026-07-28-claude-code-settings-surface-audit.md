@@ -180,7 +180,7 @@ overridden.
 | `alwaysThinkingEnabled` | `/config` → "Thinking mode". |
 | `autoCompactEnabled`, `autoCompactWindow` | Already *read* by `claude-context-window.ts`; no way to change it. Pairs with the open compaction TODO item. |
 | `showThinkingSummaries` | Affects stream content CLIde renders. |
-| `fastMode`, `fastModePerSessionOptIn` | Fast mode has no CLIde surface at all. |
+| `fastModePerSessionOptIn` | CLIde's composer switch is per session already; this key is not surfaced. |
 | `askUserQuestionTimeout` | CLIde renders AskUserQuestion; the timeout is invisible. |
 | `outputStyle` | Real behavioural change. |
 | `language` | Distinct from CLIde's UI language — this is *Claude's response* language. Prime confusion risk; needs careful labelling. |

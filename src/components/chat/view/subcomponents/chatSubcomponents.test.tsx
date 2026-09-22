@@ -2333,6 +2333,40 @@ describe('chatSubcomponents', () => {
       assert.deepEqual(selections, ['codex:gpt-x']);
     });
 
+    test('fast mode is offered only for a model with a faster tier, and toggles once', async () => {
+      const toggles: boolean[] = [];
+      const host = await mountModelMenu({
+        modelOptions: [
+          { value: 'model-a', label: 'Model A', fastMode: { description: 'Costs more' } },
+          { value: 'model-b', label: 'Model B' },
+        ],
+        fastMode: true,
+        onSelectFastMode: (enabled) => toggles.push(enabled),
+      });
+
+      const trigger = host.querySelector<HTMLButtonElement>('button');
+      assert.ok(trigger?.querySelector('[aria-label="Fast mode"]'), 'the trigger marks a fast session');
+      const menu = await openModelMenu(host);
+      assert.match(menu?.textContent || '', /Costs more/);
+      const toggle = document.querySelector<HTMLButtonElement>('[role="menu"] [role="switch"][aria-label="Fast mode"]');
+      assert.ok(toggle);
+      assert.equal(toggle.getAttribute('aria-checked'), 'true');
+      await React.act(async () => toggle.click());
+      assert.deepEqual(toggles, [false]);
+    });
+
+    test('a model without a faster tier shows no fast mode control', async () => {
+      const host = await mountModelMenu({
+        fastMode: true,
+        onSelectFastMode: () => {},
+      });
+
+      const trigger = host.querySelector<HTMLButtonElement>('button');
+      assert.equal(trigger?.querySelector('[aria-label="Fast mode"]'), null);
+      await openModelMenu(host);
+      assert.equal(document.querySelector('[role="menu"] [role="switch"]'), null);
+    });
+
     test('an established session hides favourites from other providers', async () => {
       localStorage.setItem('favoriteModels', JSON.stringify([
         { provider: 'codex', model: 'gpt-x' },

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, Star } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, Star, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { MENU_LIST_MAX_HEIGHT } from '../../../../shared/view/ui';
 import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import { useFavoriteModels } from '../../../../utils/favoriteModels';
+import SettingsToggle from '../../../settings/view/SettingsToggle';
 import { DEFAULT_EFFORT_VALUE } from '../../constants/providerEffort';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
@@ -25,6 +26,8 @@ interface ComposerModelMenuProps {
   effort: string;
   effortOptions: EffortOption[];
   onSelectEffort: (effort: string) => void;
+  fastMode?: boolean;
+  onSelectFastMode?: (enabled: boolean) => void;
   model: string;
   modelOptions: ProviderModelOption[];
   /** Every provider's models; the current provider's come from `modelOptions`. */
@@ -48,6 +51,8 @@ export default function ComposerModelMenu({
   effort,
   effortOptions,
   onSelectEffort,
+  fastMode = false,
+  onSelectFastMode,
   model,
   modelOptions,
   modelCatalog = {},
@@ -103,7 +108,11 @@ export default function ComposerModelMenu({
   );
   const displayedEffort = effortPreview ?? effort;
   const effortLabel = displayedEffort === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : displayedEffort;
-  const modelLabel = modelOptions.find((option) => option.value === model)?.label || model;
+  const currentOption = modelOptions.find((option) => option.value === model);
+  const modelLabel = currentOption?.label || model;
+  // Offered only where the running model has a faster tier.
+  const fastModeOption = onSelectFastMode ? currentOption?.fastMode ?? null : null;
+  const fastModeActive = Boolean(fastModeOption) && fastMode;
   const optionsFor = useCallback(
     (target: LLMProvider) => (target === provider ? modelOptions : modelCatalog[target] ?? []),
     [modelCatalog, modelOptions, provider],
@@ -153,6 +162,7 @@ export default function ComposerModelMenu({
   const legacyLabel = t('composer.legacyModels', { defaultValue: 'Legacy' });
   const defaultBadgeLabel = t('composer.modelIsDefault', { defaultValue: 'Default' });
   const favoritesLabel = t('composer.favoriteModels', { defaultValue: 'Favourites' });
+  const fastModeLabel = t('composer.fastMode', { defaultValue: 'Fast mode' });
   const handleSelectModel = useCallback(async (nextModel: string, targetProvider: LLMProvider) => {
     setSelectionError(null);
     setSelectingModel(`${targetProvider}:${nextModel}`);
@@ -327,6 +337,7 @@ export default function ComposerModelMenu({
         aria-label={ariaLabel}
         title={ariaLabel}
       >
+        {fastModeActive && <Zap className="h-3 w-3 shrink-0 fill-current" aria-label={fastModeLabel} />}
         <span className="truncate">{triggerLabel}</span>
         {hasModelSection && hasEffortSection && (
           <span className="shrink-0 capitalize text-muted-foreground">{effortLabel}</span>
@@ -486,6 +497,24 @@ export default function ComposerModelMenu({
                         );
                       })}
                     </div>
+                  </div>
+                </>
+              )}
+
+              {fastModeOption && onSelectFastMode && (
+                <>
+                  <ComposerMenuSeparator />
+                  <div className="flex items-center gap-3 px-2.5 pb-1.5 pt-1">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1 text-sm text-foreground">
+                        <Zap className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {fastModeLabel}
+                      </p>
+                      {fastModeOption.description && (
+                        <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{fastModeOption.description}</p>
+                      )}
+                    </div>
+                    <SettingsToggle checked={fastMode} onChange={onSelectFastMode} ariaLabel={fastModeLabel} />
                   </div>
                 </>
               )}

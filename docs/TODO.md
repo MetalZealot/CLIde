@@ -72,8 +72,7 @@ Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md
 
 This section is the complete outstanding model-picker list (2026-07-13 and 2026-07-16 reviews).
 
-- [~] **The picker reads Claude's model list from the CLI, with a Refresh models row for every provider.** Older Claude models stay under Legacy. Built and tested; live check on the installed app after a restart remains. [Anchor](maps/code-anchors.md#model-picker-catalog-and-active-model-are-two-systems). **S**
-- [~] **Picker shows every provider as a logo tab, plus starred Favourites.** Browser-checked on 3002; star sync needs a restart and his check. [Anchor](maps/code-anchors.md#model-picker-catalog-and-active-model-are-two-systems). **M**
+- [~] **Fast mode switch in the model menu, per session, for Claude Opus and Codex.** Browser-checked on 3002; no live fast send yet (Claude needs usage credits). Stored in `sessions.fast_mode`. **M**
 - [ ] **#8 PRIORITY — live-verify Claude's per-session model stack.** Three tests remain: (a) A on Fable, B picks Haiku without sending, back to A still sends Fable; (b) popup pick X, then Shell `/model`, newer choice wins; (c) fresh-session popup/header agreement. Codex's equivalent isolation gate is complete. **S to run**
 - [ ] #2 — Shell `/model` stdout regex over-captures: a Default pick in the CLI's own picker shows the raw sentence "Default (recommended)" with no card highlight until the next turn. The `(.+?)\.?$` capture in `claude-models.provider.ts` takes too much. **S**
 - [ ] #4 — `getCurrentActiveModel` reads and parses the entire session JSONL (4.5 MB on a long session) on every `/models` open, even when a fresh pick wins anyway. Stat the file and skip when the pick is newer than mtime, or read only the tail. **S/M**

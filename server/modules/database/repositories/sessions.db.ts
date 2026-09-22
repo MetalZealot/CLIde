@@ -365,6 +365,26 @@ export const sessionsDb = {
     return result.changes > 0;
   },
 
+  /** Records one session's fast-mode pick; false only when no row matches. */
+  setSessionFastMode(sessionId: string, provider: string, enabled: boolean): boolean {
+    const db = getConnection();
+    const result = db
+      .prepare('UPDATE sessions SET fast_mode = ? WHERE session_id = ? AND provider = ?')
+      .run(enabled ? 1 : 0, sessionId, provider);
+
+    return result.changes > 0;
+  },
+
+  /** One session's fast-mode pick, or null when it has never been chosen. */
+  getSessionFastMode(sessionId: string, provider: string): boolean | null {
+    const db = getConnection();
+    const row = db
+      .prepare('SELECT fast_mode FROM sessions WHERE session_id = ? AND provider = ? LIMIT 1')
+      .get(sessionId, provider) as { fast_mode: number | null } | undefined;
+
+    return row?.fast_mode === null || row?.fast_mode === undefined ? null : row.fast_mode === 1;
+  },
+
   /**
    * Reads back one session's effort pick and when it was made.
    *

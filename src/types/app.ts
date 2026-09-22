@@ -8,6 +8,11 @@ export type ProviderModelOption = {
   group?: 'legacy';
   /** The option a session runs when no model is sent; badged in the picker. */
   isDefault?: boolean;
+  /**
+   * Present when the model can run at a faster speed tier. `serviceTier` is the
+   * provider's id for that tier where it needs one; `description` is what it costs.
+   */
+  fastMode?: { serviceTier?: string; description?: string };
   effort?: {
     default?: string;
     values: {

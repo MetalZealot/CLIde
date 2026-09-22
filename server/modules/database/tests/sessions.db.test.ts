@@ -102,6 +102,19 @@ describe('sessions.db.integration', () => {
     });
   });
 
+  test('a fast-mode pick is per session and provider, and null until chosen', async () => {
+    await withIsolatedDatabase(() => {
+      sessionsDb.createSession('session-fast', 'codex', '/workspace/demo-project', 'Fast');
+
+      assert.equal(sessionsDb.getSessionFastMode('session-fast', 'codex'), null);
+      assert.equal(sessionsDb.setSessionFastMode('session-fast', 'codex', true), true);
+      assert.equal(sessionsDb.getSessionFastMode('session-fast', 'codex'), true);
+      assert.equal(sessionsDb.setSessionFastMode('session-fast', 'claude', false), false, 'another provider has no row');
+      assert.equal(sessionsDb.setSessionFastMode('session-fast', 'codex', false), true);
+      assert.equal(sessionsDb.getSessionFastMode('session-fast', 'codex'), false);
+    });
+  });
+
   test('the upsert path counts an omitted timestamp as activity', async () => {
     await withIsolatedDatabase(() => {
       // An app-created row carries no provider id, so indexing it takes the

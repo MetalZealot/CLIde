@@ -31,6 +31,8 @@ export type CodexLiveModel = {
   }>;
   defaultReasoningEffort: string;
   isDefault: boolean;
+  /** Speed tiers beyond standard; Codex's only one so far is Fast (`priority`). */
+  serviceTiers?: Array<{ id: string; name: string; description: string }>;
 };
 
 type CodexModelListResponse = {

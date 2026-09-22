@@ -530,6 +530,35 @@ router.post(
   }),
 );
 
+// Fast mode has no out-of-band path a transcript would record, so the stored
+// pick is the whole answer; null means never chosen.
+router.get(
+  '/:provider/sessions/:sessionId/fast-mode',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    res.json(createApiSuccessResponse({
+      provider,
+      sessionId,
+      fastMode: sessionsDb.getSessionFastMode(sessionId, provider),
+    }));
+  }),
+);
+
+router.post(
+  '/:provider/sessions/:sessionId/fast-mode',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    const enabled = (req.body as Record<string, unknown> | undefined)?.enabled;
+    if (typeof enabled !== 'boolean') {
+      throw new AppError('enabled must be a boolean.', { code: 'FAST_MODE_INVALID', statusCode: 400 });
+    }
+    const changed = sessionsDb.setSessionFastMode(sessionId, provider, enabled);
+    res.json(createApiSuccessResponse({ provider, sessionId, changed, fastMode: enabled }));
+  }),
+);
+
 const assertSideQuestionsSupported = (provider: LLMProvider): void => {
   if (!providerCapabilitiesService.getProviderCapabilities(provider).supportsSideQuestion) {
     throw new AppError('This provider cannot answer side questions.', {

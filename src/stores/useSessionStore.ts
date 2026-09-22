@@ -187,6 +187,7 @@ export interface SessionSlot {
    */
   _modelPickSeq: number;
   _effortPickSeq: number;
+  _fastModePickSeq: number;
   status: SessionStatus;
   fetchedAt: number;
   total: number;
@@ -225,6 +226,10 @@ export interface SessionSlot {
   effortSource: 'pick' | 'transcript' | null;
   effortStatus: 'idle' | 'loading' | 'error';
   effortFetchedAt: number;
+  /** This session's fast-mode pick; null until fetched, and when never chosen. */
+  fastMode: boolean | null;
+  fastModeStatus: 'idle' | 'loading' | 'error';
+  fastModeFetchedAt: number;
 }
 
 const EMPTY: NormalizedMessage[] = [];
@@ -255,9 +260,13 @@ function createEmptySlot(): SessionSlot {
     effortSource: null,
     effortStatus: 'idle',
     effortFetchedAt: 0,
+    fastMode: null,
+    fastModeStatus: 'idle',
+    fastModeFetchedAt: 0,
     _fetchSeq: 0,
     _modelPickSeq: 0,
     _effortPickSeq: 0,
+    _fastModePickSeq: 0,
   };
 }
 
@@ -1069,7 +1078,9 @@ export function useSessionStore() {
       || (slot.model && Date.now() - slot.modelFetchedAt < SETTINGS_FETCH_TTL_MS);
     const effortIsFresh = slot.effortStatus === 'loading'
       || (slot.effort && Date.now() - slot.effortFetchedAt < SETTINGS_FETCH_TTL_MS);
-    if (modelIsFresh && effortIsFresh) {
+    const fastModeIsFresh = slot.fastModeStatus === 'loading'
+      || (slot.fastModeFetchedAt > 0 && Date.now() - slot.fastModeFetchedAt < SETTINGS_FETCH_TTL_MS);
+    if (modelIsFresh && effortIsFresh && fastModeIsFresh) {
       return slot;
     }
 
@@ -1078,6 +1089,9 @@ export function useSessionStore() {
     }
     if (!effortIsFresh) {
       slot.effortStatus = 'loading';
+    }
+    if (!fastModeIsFresh) {
+      slot.fastModeStatus = 'loading';
     }
     notify(sessionId);
 
@@ -1136,7 +1150,29 @@ export function useSessionStore() {
       }
     };
 
-    await Promise.all([loadModel(), loadEffort()]);
+    const loadFastMode = async () => {
+      if (fastModeIsFresh) return;
+      const pickTicket = slot._fastModePickSeq;
+      try {
+        const response = await authenticatedFetch(
+          `/api/providers/${provider}/sessions/${sessionId}/fast-mode`,
+        );
+        const body = await response.json();
+        if (pickTicket !== slot._fastModePickSeq) return;
+        if (body.success) {
+          slot.fastMode = typeof body.data?.fastMode === 'boolean' ? body.data.fastMode : null;
+          slot.fastModeStatus = 'idle';
+          slot.fastModeFetchedAt = Date.now();
+        } else {
+          slot.fastModeStatus = 'error';
+        }
+      } catch (error) {
+        console.error(`[SessionStore] fast mode fetch failed for ${sessionId}:`, error);
+        if (pickTicket === slot._fastModePickSeq) slot.fastModeStatus = 'error';
+      }
+    };
+
+    await Promise.all([loadModel(), loadEffort(), loadFastMode()]);
     notify(sessionId);
     return slot;
   }, [getSlot, notify]);
@@ -1166,6 +1202,16 @@ export function useSessionStore() {
     // TTL suppresses the refetch that would restore the real value.
     slot.effortFetchedAt = effort ? Date.now() : 0;
     slot.effortStatus = 'idle';
+    notify(sessionId);
+  }, [getSlot, notify]);
+
+  /** Optimistically set a session's fast-mode pick, as `setEffort` does for effort. */
+  const setFastMode = useCallback((sessionId: string, enabled: boolean) => {
+    const slot = getSlot(sessionId);
+    slot._fastModePickSeq += 1;
+    slot.fastMode = enabled;
+    slot.fastModeFetchedAt = Date.now();
+    slot.fastModeStatus = 'idle';
     notify(sessionId);
   }, [getSlot, notify]);
 
@@ -1288,6 +1334,7 @@ export function useSessionStore() {
     fetchSessionSettings,
     setModel,
     setEffort,
+    setFastMode,
     patchToolResult,
     truncateFromMessageId,
     retractUndeliveredUserTurn,
@@ -1295,7 +1342,7 @@ export function useSessionStore() {
     getSlot, has, fetchFromServer, fetchMore, fetchAround, fetchNewer, fetchFindText,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
-    clearRealtime, getMessages, getSessionSlot, fetchSessionSettings, setModel, setEffort,
+    clearRealtime, getMessages, getSessionSlot, fetchSessionSettings, setModel, setEffort, setFastMode,
     patchToolResult,
     truncateFromMessageId, retractUndeliveredUserTurn,
   ]);

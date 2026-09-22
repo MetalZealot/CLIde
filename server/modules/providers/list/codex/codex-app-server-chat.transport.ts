@@ -124,6 +124,7 @@ type QueryCodexAppServerOptions = AnyRecord & {
   projectPath?: string;
   model?: string;
   effort?: string;
+  fastMode?: boolean;
   images?: unknown;
   files?: unknown;
   permissionMode?: string;
@@ -204,6 +205,18 @@ function toExternalRequestId(id: CodexRequestId): string {
 
 function readNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/**
+ * The speed tier one turn runs at. Always explicit, so the session's own pick
+ * wins over whatever tier the thread last used; a model with no fast tier
+ * runs standard.
+ */
+async function resolveServiceTierForTurn(fastMode: boolean | undefined, model: string | undefined): Promise<string> {
+  if (!fastMode) return 'default';
+  const catalog = (await providerModelsService.getProviderModels(PROVIDER)).models;
+  const option = catalog.OPTIONS.find((candidate) => candidate.value === (model || catalog.DEFAULT));
+  return option?.fastMode?.serviceTier || 'default';
 }
 
 function normalizeEffort(value: unknown): CodexReasoningEffort | undefined {
@@ -659,6 +672,7 @@ export class CodexAppServerChatTransport {
       resolvedModel = (await providerModelsService.getProviderModels(PROVIDER)).models.DEFAULT;
     }
     const resolvedEffort = normalizeEffort(options.effort);
+    const serviceTierForTurn = await resolveServiceTierForTurn(options.fastMode, resolvedModel);
     const permissions = mapCodexAppServerPermissionMode(options.permissionMode);
 
     // Only a provider-native id can address a rollout on disk. A brand-new
@@ -767,6 +781,7 @@ export class CodexAppServerChatTransport {
         sandboxPolicy: permissions.sandboxPolicy,
         model: resolvedModel,
         effort: resolvedEffort,
+        serviceTierForTurn,
         collaborationMode: {
           // App Server calls normal execution "default"; CLIde calls the
           // user-facing intent "build" so it cannot be confused with access defaults.

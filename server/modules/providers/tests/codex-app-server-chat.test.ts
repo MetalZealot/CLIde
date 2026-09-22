@@ -281,6 +281,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
       { type: 'localImage', path: imagePath },
     ]);
     assert.equal(firstCapture.turn.effort, 'high');
+    assert.equal(firstCapture.turn.serviceTierForTurn, 'default', 'fast mode off is sent explicitly');
     assert.deepEqual(firstCapture.turn.collaborationMode, {
       mode: 'plan',
       settings: {

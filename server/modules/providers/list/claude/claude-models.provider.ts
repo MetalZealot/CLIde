@@ -184,6 +184,11 @@ export const listClaudeCliModels = async (): Promise<ModelInfo[]> => {
   }
 };
 
+// Wording from Claude Code's own /fast screen. Without credits it silently runs standard.
+const CLAUDE_FAST_MODE: NonNullable<ProviderModelOption['fastMode']> = {
+  description: 'Draws usage credits at a higher rate',
+};
+
 const toClaudeEffort = (levels: ModelInfo['supportedEffortLevels']): ProviderModelOption['effort'] => {
   if (!levels?.length) {
     return undefined;
@@ -229,6 +234,7 @@ export const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModels
       label: hasVersionedHeadline ? headline : (model.displayName?.trim() || value),
       ...(description ? { description } : {}),
       ...(effort ? { effort } : {}),
+      ...(model.supportsFastMode ? { fastMode: CLAUDE_FAST_MODE } : {}),
     });
     coveredIds.add(rawValue.toLowerCase());
     if (model.resolvedModel) {

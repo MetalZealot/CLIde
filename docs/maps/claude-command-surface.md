@@ -119,7 +119,7 @@ Each is a surface CLIde already has, missing what the CLI shows in the same plac
 | Command | Destination | Note |
 |---|---|---|
 | `autocompact` | Agents → Claude | Shipped, [plan](../plans/archive/2026-08-23-autocompact-visibility.md) |
-| `fast` | Agents → Claude | `fastMode`; no CLIde surface at all today |
+| `fast` | Composer model menu | Shipped: per-session switch, sent as flag settings each turn; needs usage credits |
 | `sandbox` | Agents → Claude | Needs its own design; `bubblewrap` on Linux |
 | `hooks` | Agents → Claude | View-only first; a JSON editor is a project of its own |
 | `privacy-settings` | Account | Verify where it writes before building |
