@@ -37,6 +37,7 @@ type ClaudeToolResult = {
   isError: boolean;
   subagentTools?: unknown;
   toolUseResult?: unknown;
+  timestamp?: string;
 };
 
 type ClaudeHistoryResult =
@@ -1280,6 +1281,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
               isError: Boolean(part.is_error),
               subagentTools: raw.subagentTools,
               toolUseResult: raw.toolUseResult,
+              timestamp: raw.timestamp,
             });
           }
         }
@@ -1322,6 +1324,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
             : JSON.stringify(toolResult.content),
           isError: toolResult.isError,
           toolUseResult: toolResult.toolUseResult,
+          timestamp: toolResult.timestamp,
         };
         msg.subagentTools = toolResult.subagentTools;
       }

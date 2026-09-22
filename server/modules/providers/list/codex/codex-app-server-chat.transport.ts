@@ -158,6 +158,8 @@ type ActiveTurn = {
   /** Retries reported since the turn last made progress; 0 when not retrying. */
   retryAttempt: number;
   fileChanges: Map<string, unknown>;
+  /** Tool items already sent as running rows; their completion arrives as a result. */
+  runningTools: Set<string>;
   userId: string | number | null;
   sessionName: string | null;
 };
@@ -306,12 +308,18 @@ function tokenBudgetFromUsage(tokenUsage: CodexTokenUsage): AnyRecord {
   };
 }
 
-function completedItemMessages(item: CodexThreadItem, threadId: string): NormalizedMessage[] {
+/** Item types sent on `item/started`, so a slow call is visible while it runs. */
+const RUNNING_TOOL_TYPES = new Set(['commandExecution', 'fileChange', 'mcpToolCall']);
+/** Ends that read as errors even when the item produced no output. */
+const UNSUCCESSFUL_STATUSES = new Set(['failed', 'declined']);
+
+function completedItemMessages(item: CodexThreadItem, threadId: string, turnId?: string): NormalizedMessage[] {
   const common = {
     id: item.id,
     sessionId: threadId,
     provider: PROVIDER,
   } as const;
+  const tool = { ...common, ...(turnId ? { turnId } : {}) };
 
   switch (item.type) {
     case 'userMessage':
@@ -347,9 +355,10 @@ function completedItemMessages(item: CodexThreadItem, threadId: string): Normali
           })]
         : [];
     }
-    case 'commandExecution':
+    case 'commandExecution': {
+      const unsuccessful = UNSUCCESSFUL_STATUSES.has(item.status);
       return [createNormalizedMessage({
-        ...common,
+        ...tool,
         kind: 'tool_use',
         toolName: 'Bash',
         toolInput: {
@@ -358,16 +367,17 @@ function completedItemMessages(item: CodexThreadItem, threadId: string): Normali
         },
         toolId: item.id,
         status: item.status,
-        toolResult: item.aggregatedOutput === null && item.exitCode === null
+        toolResult: item.aggregatedOutput === null && item.exitCode === null && !unsuccessful
           ? undefined
           : {
-              content: item.aggregatedOutput || '',
-              isError: item.exitCode !== null && item.exitCode !== 0,
+              content: item.aggregatedOutput || (unsuccessful ? item.status : ''),
+              isError: unsuccessful || (item.exitCode !== null && item.exitCode !== 0),
             },
       })];
+    }
     case 'fileChange':
       return [createNormalizedMessage({
-        ...common,
+        ...tool,
         kind: 'tool_use',
         toolName: 'FileChanges',
         toolInput: item.changes,
@@ -375,12 +385,12 @@ function completedItemMessages(item: CodexThreadItem, threadId: string): Normali
         status: item.status,
         toolResult: {
           content: item.status,
-          isError: item.status === 'failed',
+          isError: UNSUCCESSFUL_STATUSES.has(item.status),
         },
       })];
     case 'mcpToolCall':
       return [createNormalizedMessage({
-        ...common,
+        ...tool,
         kind: 'tool_use',
         toolName: item.tool || 'MCP',
         toolInput: item.arguments,
@@ -396,7 +406,7 @@ function completedItemMessages(item: CodexThreadItem, threadId: string): Normali
       })];
     case 'webSearch':
       return [createNormalizedMessage({
-        ...common,
+        ...tool,
         kind: 'tool_use',
         toolName: 'WebSearch',
         toolInput: { query: item.query || '' },
@@ -405,6 +415,19 @@ function completedItemMessages(item: CodexThreadItem, threadId: string): Normali
     default:
       return [];
   }
+}
+
+/** A running tool's completion, shaped as Claude's stream reports one: a result for its row. */
+function runningToolResult(message: NormalizedMessage): NormalizedMessage {
+  return createNormalizedMessage({
+    id: `${message.id}:result`,
+    sessionId: message.sessionId,
+    provider: PROVIDER,
+    kind: 'tool_result',
+    toolId: message.toolId,
+    content: message.toolResult?.content ?? '',
+    isError: Boolean(message.toolResult?.isError),
+  });
 }
 
 function validateQuestions(value: unknown): CodexQuestion[] {
@@ -725,6 +748,7 @@ export class CodexAppServerChatTransport {
         errorEmitted: false,
         retryAttempt: 0,
         fileChanges: new Map(),
+        runningTools: new Set(),
         userId: writer.userId ?? null,
         sessionName: readNonEmptyString(options.sessionSummary),
       };
@@ -1053,6 +1077,15 @@ export class CodexAppServerChatTransport {
         if (active && item?.type === 'fileChange' && typeof item.id === 'string') {
           active.fileChanges.set(item.id, item.changes);
         }
+        if (!active || active.terminal || !item || typeof item.id !== 'string'
+          || !RUNNING_TOOL_TYPES.has(String(item.type))) {
+          return;
+        }
+        const turnId = readNonEmptyString(params.turnId) ?? undefined;
+        for (const message of completedItemMessages(item as CodexThreadItem, threadId, turnId)) {
+          active.runningTools.add(item.id);
+          active.writer.send({ ...message, toolResult: undefined });
+        }
         return;
       }
       case 'item/completed': {
@@ -1066,8 +1099,11 @@ export class CodexAppServerChatTransport {
         if (item.type === 'fileChange') {
           active.fileChanges.set(item.id, item.changes);
         }
-        for (const message of completedItemMessages(item, threadId)) {
-          active.writer.send(message);
+        const turnId = readNonEmptyString(params.turnId) ?? undefined;
+        for (const message of completedItemMessages(item, threadId, turnId)) {
+          active.writer.send(message.kind === 'tool_use' && active.runningTools.delete(item.id)
+            ? runningToolResult(message)
+            : message);
         }
         return;
       }

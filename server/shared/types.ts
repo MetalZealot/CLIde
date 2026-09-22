@@ -613,7 +613,11 @@ export type NormalizedMessage = {
     content?: string;
     isError?: boolean;
     toolUseResult?: unknown;
+    /** When the result was recorded; with the tool row's own timestamp, its duration. */
+    timestamp?: string;
   };
+  /** Codex turn that issued this tool call — the provider's own burst boundary. */
+  turnId?: string;
   isError?: boolean;
   text?: string;
   tokens?: number;

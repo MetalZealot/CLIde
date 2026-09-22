@@ -151,6 +151,24 @@ describe('chatFormatting', () => {
     assert.equal(messages[1]?.memoryCitations, undefined);
   });
 
+  test('tool rows keep when their result arrived and which turn issued them', () => {
+    const tool = { sessionId: 's', provider: 'codex' as const, kind: 'tool_use' as const, toolName: 'Bash', toolInput: { command: 'ls' } };
+    const running = { ...tool, id: 'live', toolId: 'live', timestamp: '2026-09-21T10:00:05.000Z', turnId: 'turn-1' };
+    const result = { id: 'live:result', sessionId: 's', provider: 'codex' as const, kind: 'tool_result' as const, toolId: 'live', content: 'done', timestamp: '2026-09-21T10:00:35.000Z' };
+    const [attached] = normalizedToChatMessages([{
+      ...tool, id: 'paged', toolId: 'paged', timestamp: '2026-09-21T10:00:00.000Z',
+      toolResult: { content: 'ok', isError: false, timestamp: '2026-09-21T10:00:04.000Z' },
+    }]);
+    assert.equal(attached?.toolResult?.timestamp, '2026-09-21T10:00:04.000Z');
+
+    const [before] = normalizedToChatMessages([running]);
+    const [after] = normalizedToChatMessages([running, result]);
+    assert.equal(before?.toolResult, null);
+    assert.equal(before?.turnId, 'turn-1');
+    assert.notEqual(after, before, 'a finished tool is a new display object, never a mutated one');
+    assert.equal(after?.toolResult?.timestamp, '2026-09-21T10:00:35.000Z');
+  });
+
   test('assistant normalization preserves a question-only message', () => {
     const [message] = normalizedToChatMessages([{
       id: 'question-1',

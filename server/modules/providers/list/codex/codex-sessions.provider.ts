@@ -438,6 +438,7 @@ async function getCodexSessionMessages(
     }>();
     let tokenUsage: AnyRecord | null = null;
     let pendingTurnId: string | null = null;
+    let currentTurnId: string | null = null;
     const ignoredToolCallIds = new Set<string>();
     const execToolCallIds = new Set<string>();
     const execCallByCellId = new Map<string, string>();
@@ -463,10 +464,15 @@ async function getCodexSessionMessages(
           && typeof entry.payload?.turn_id === 'string'
         ) {
           pendingTurnId = entry.payload.turn_id;
+          currentTurnId = entry.payload.turn_id;
           if (entry.type === 'turn_context') {
             canonicalUserTurnId = entry.payload.turn_id;
           }
         }
+
+        // Tool rows carry their turn: per-item metadata, else the enclosing turn_context.
+        const turnId = readNonEmptyString(entry.payload?.internal_chat_message_metadata_passthrough?.turn_id)
+          ?? currentTurnId ?? undefined;
 
         if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
           const info = entry.payload.info as AnyRecord;
@@ -659,6 +665,7 @@ async function getCodexSessionMessages(
                 uuid: fallbackCallId,
                 type: 'tool_use',
                 timestamp: entry.timestamp,
+                turnId,
                 toolName: 'Task',
                 toolInput: JSON.stringify({
                   subagent_type: 'Codex',
@@ -723,6 +730,7 @@ async function getCodexSessionMessages(
               uuid: entry.payload.call_id,
               type: 'tool_use',
               timestamp: entry.timestamp,
+              turnId,
               toolName: 'Task',
               toolInput: JSON.stringify({
                 subagent_type: 'Codex',
@@ -773,6 +781,7 @@ async function getCodexSessionMessages(
           messages.push({
             type: 'tool_use',
             timestamp: entry.timestamp,
+            turnId,
             toolName,
             toolInput,
             toolCallId: entry.payload.call_id,
@@ -863,6 +872,7 @@ async function getCodexSessionMessages(
               messages.push({
                 type: 'tool_use',
                 timestamp: entry.timestamp,
+                turnId,
                 toolName,
                 toolInput: input,
                 toolCallId: entry.payload.call_id,
@@ -874,6 +884,7 @@ async function getCodexSessionMessages(
             messages.push({
               type: 'tool_use',
               timestamp: entry.timestamp,
+              turnId,
               toolName,
               toolInput: translated.toolInput,
               toolCallId: entry.payload.call_id,
@@ -900,6 +911,7 @@ async function getCodexSessionMessages(
             messages.push({
               type: 'tool_use',
               timestamp: entry.timestamp,
+              turnId,
               toolName: 'Edit',
               toolInput: JSON.stringify({
                 file_path: filePath,
@@ -912,6 +924,7 @@ async function getCodexSessionMessages(
             messages.push({
               type: 'tool_use',
               timestamp: entry.timestamp,
+              turnId,
               toolName,
               toolInput: input,
               toolCallId: entry.payload.call_id,
@@ -1147,6 +1160,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         toolName: raw.toolName || 'Unknown',
         toolInput: raw.toolInput,
         toolId: raw.toolCallId || baseId,
+        turnId: raw.turnId,
       })];
     }
 
@@ -1372,6 +1386,7 @@ export class CodexSessionsProvider implements IProviderSessions {
             content: toolResult.content,
             isError: toolResult.isError,
             toolUseResult: toolResult.toolUseResult,
+            timestamp: toolResult.timestamp,
           };
         }
       }

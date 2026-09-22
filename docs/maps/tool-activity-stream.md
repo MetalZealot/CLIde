@@ -16,8 +16,8 @@ Renderer entry points: `src/components/chat/utils/toolGrouping.ts`,
 | Tool identity | real names (`Read`, `Bash`, `Edit`) | everything is one `exec` call, unwrapped to `Bash`/`Edit` by the adapter | renamed to Claude's names | raw lowercase (`read`, `bash`) |
 | Per-call description | **always** (103/103) | none | none | none |
 | Structured result | `toolUseResult` (`numFiles`, `filenames`, `numLines`, `structuredPatch`, `stdout`) on transcript reload only | `exitCode`, `status`, aggregated output | `toolUseResult` for high-level calls | `state.output`/`state.error` |
-| Cluster key from provider | none | `turnId` on every item, live and on disk | none | none |
-| Running state | yes — `tool_use` arrives before its result | **no** — only `item/completed` is forwarded | n/a | `state.status` |
+| Cluster key from provider | none | `turnId` on every item, live and on disk; CLIde keeps it on tool rows | none | none |
+| Running state | yes — `tool_use` arrives before its result | commands, file changes and MCP calls: `item/started` sends the row, completion a `tool_result` | n/a | `state.status` |
 
 Both Claude paths (live SDK and transcript reload) run through the same
 `normalizeMessage`, so the live stream carries no `toolUseResult`;
@@ -28,16 +28,16 @@ One Codex `Bash` row can hold several shell commands: the adapter joins the
 commands nested inside an `exec` payload with newlines
 (`translateCodexExecInput`). A command count is lines, not tool calls.
 
-## What CLIde drops
+## What CLIde keeps and drops
 
-- **`tool_result` timestamps.** `normalizedToChatMessages` folds a result into
-  `{content, isError, toolUseResult}` and discards its own timestamp, so no
-  duration reaches the client. Both timestamps exist server-side. Measured
-  Claude durations: median 0.10 s, p90 4.8 s, max 310 s.
-- **Codex `turnId` and `completedAtMs`**, present on every `item/started` and
-  `item/completed` and in the rollout's
-  `internal_chat_message_metadata_passthrough`. `turnId` is an explicit
-  burst boundary that CLIde currently re-derives.
+- **Tool duration** is `toolResult.timestamp` minus the tool row's own
+  timestamp, on Claude and Codex, whether the result was attached in history or
+  joined from a live `tool_result`. Measured Claude durations: median 0.10 s,
+  p90 4.8 s, max 310 s. Live rows time arrival at the server; history uses
+  transcript line times. Codex's `startedAtMs`/`completedAtMs` are not used.
+- **Codex `turnId`** rides on every tool row: live from the notification,
+  in history from the item's `internal_chat_message_metadata_passthrough`,
+  else the enclosing `turn_context`. Subagent child tools carry neither field.
 - **Claude's Bash `description`** reaches the client inside `toolInput` and
   renders inside the expanded card, but `ToolGroupContainer` builds its
   collapsed preview from `config.getValue` — the raw command — and never reads

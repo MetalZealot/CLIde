@@ -561,6 +561,40 @@ test('Codex first-message rewind forks before the first turn and explicit fork s
   }
 });
 
+test('A Codex tool shows running from item/started and finishes with a result for that row', async () => {
+  const completedCommand = "    send({ method: 'item/completed', params: {\n      threadId: pendingThread.id, turnId, completedAtMs: Date.now(),\n      item: { type: 'commandExecution',";
+  assert.ok(BASIC_SERVER.includes(completedCommand));
+  const fake = await createFakeServer(BASIC_SERVER.replace(completedCommand, `
+    send({ method: 'item/started', params: { threadId: pendingThread.id, turnId, startedAtMs: Date.now(),
+      item: { type: 'commandExecution', id: 'cmd-' + turnId, command: 'pwd', cwd: message.params.cwd,
+        status: 'inProgress', aggregatedOutput: null, exitCode: null } } });
+    send({ method: 'item/started', params: { threadId: pendingThread.id, turnId, startedAtMs: Date.now(),
+      item: { type: 'commandExecution', id: 'denied', command: 'rm x', cwd: '/', status: 'inProgress', aggregatedOutput: null, exitCode: null } } });
+    send({ method: 'item/completed', params: { threadId: pendingThread.id, turnId, completedAtMs: Date.now(),
+      item: { type: 'commandExecution', id: 'denied', command: 'rm x', cwd: '/', status: 'declined', aggregatedOutput: null, exitCode: null } } });
+${completedCommand}`));
+  const transport = new CodexAppServerChatTransport({ command: fake.command });
+  transports.push(transport);
+  providerModelsService.resolveResumeModel = async () => 'gpt-test';
+  try {
+    const writer = createWriter();
+    await transport.query('Run it', { cwd: fake.root }, writer);
+    const rows = writer.messages.filter((message) => message.toolId === 'cmd-turn-1' || message.toolId === 'denied');
+    assert.deepEqual(rows.map((message) => [message.kind, message.toolId]), [
+      ['tool_use', 'cmd-turn-1'], ['tool_use', 'denied'], ['tool_result', 'denied'], ['tool_result', 'cmd-turn-1'],
+    ]);
+    assert.equal(rows[0].toolResult, undefined);
+    assert.equal(rows[0].turnId, 'turn-1');
+    assert.deepEqual([rows[2].content, rows[2].isError], ['declined', true]);
+    assert.deepEqual([rows[3].content, rows[3].isError], [fake.root + '\n', false]);
+    // An item never seen starting still arrives whole, carrying its turn.
+    const file = writer.messages.find((message) => message.toolId === 'file-turn-1');
+    assert.deepEqual([file?.kind, file?.turnId, file?.toolResult], ['tool_use', 'turn-1', { content: 'completed', isError: false }]);
+  } finally {
+    await fake.cleanup();
+  }
+});
+
 const INTERACTIVE_SERVER = `
 import readline from 'node:readline';
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });

@@ -794,14 +794,15 @@ describe('codex-sessions', () => {
       const unknownExecInput = 'const result = await tools.view_image({"path":"/tmp/example.png"}); image(result.image_url);';
       await writeFile(transcriptPath, [
         JSON.stringify({ type: 'session_meta', payload: { id: providerSessionId, cwd: workspacePath } }),
+        JSON.stringify({ type: 'turn_context', payload: { turn_id: 'turn-context' } }),
         JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'legacy-exec', input: legacyExecInput } }),
         JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'legacy-exec', output: 'legacy done' } }),
         JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'current-exec', input: currentExecInput } }),
         JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'current-exec', output: 'current done' } }),
         JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'plan-1', input: planInput } }),
         JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'plan-1', output: 'done' } }),
-        JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'unknown-exec', input: unknownExecInput } }),
-        JSON.stringify({ type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'unknown-exec', output: 'image done' } }),
+        JSON.stringify({ timestamp: '2026-09-21T10:00:00.000Z', type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', call_id: 'unknown-exec', input: unknownExecInput, internal_chat_message_metadata_passthrough: { turn_id: 'turn-item' } } }),
+        JSON.stringify({ timestamp: '2026-09-21T10:00:04.000Z', type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'unknown-exec', output: 'image done' } }),
       ].join('\n') + '\n', 'utf8');
 
       await withIsolatedDatabase(async () => {
@@ -823,6 +824,9 @@ describe('codex-sessions', () => {
         assert.equal(toolUses[2].toolName, 'exec');
         assert.equal(toolUses[2].toolInput, unknownExecInput);
         assert.equal(toolUses[2].toolResult?.content, 'image done');
+        // A tool row's turn comes from its own metadata, else the enclosing turn_context.
+        assert.deepEqual(toolUses.map((message) => message.turnId), ['turn-context', 'turn-context', 'turn-item']);
+        assert.equal(toolUses[2].toolResult?.timestamp, '2026-09-21T10:00:04.000Z');
         assert.equal(toolResults.some((message) => message.toolCallId === 'plan-1'), false);
       });
     } finally {

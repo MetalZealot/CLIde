@@ -1,7 +1,7 @@
 # Chat shows activities, not raw tool calls
 
-- Status: not started
-- Next: Phase 1 — stop discarding tool-result timestamps, Codex `turnId`, and Codex `item/started`
+- Status: 1/6
+- Next: Phase 2 — the clusterer; Codex running rows are unit-tested, not yet seen live
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); the originating
   brief is `docs/CLIde_Tool_Activity_Display_Investigation.md`, which this plan
@@ -24,11 +24,11 @@ things on the two providers and Codex's reasoning summaries are empty.
 
 ## Phases
 
-- [ ] 1. **The stream carries what the providers already report.** Tool
-  duration survives normalization (the `tool_result` timestamp is folded away
-  today); Codex `turnId` rides on every tool row; Codex `item/started` is
-  forwarded so a running command is visible before it finishes, as Claude's
-  already is.
+- [x] 1. **The stream carries what the providers already report.** A tool's
+  `toolResult.timestamp` is when its result arrived, attached or joined live;
+  Codex `turnId` rides on every tool row; Codex `item/started` sends a running
+  row and its completion a `tool_result`, as Claude's stream does. Both fields
+  survive page slimming.
 - [ ] 2. **An activity is every tool call between two assistant prose
   messages.** New clusterer replaces `groupConsecutiveTools`, keyed on
   `turnId` where a provider supplies one. A cluster is terminated by assistant
@@ -77,7 +77,7 @@ things on the two providers and Codex's reasoning summaries are empty.
   request and one cut by an error.
 - `npm run test:client:one` on the grouping and container tests, plus
   `typecheck:client` and `build:client`; Phase 1 additionally needs
-  `build:server` and a restart from SSH.
+  `build:server` and a server restart.
 
 ## Not doing
 

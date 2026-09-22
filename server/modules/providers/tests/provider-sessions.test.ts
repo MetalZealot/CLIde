@@ -776,6 +776,8 @@ describe('claude-subagent-history', () => {
         );
 
         assert.ok(task, 'the Task tool call should be in history');
+        assert.equal(task.timestamp, '2026-08-31T10:00:00.000Z');
+        assert.equal(task.toolResult?.timestamp, '2026-08-31T10:01:00.000Z', 'the result keeps when it arrived');
         const childTools = task.subagentTools as Array<{
           toolName: string;
           toolResult?: { content?: string };
@@ -1433,8 +1435,8 @@ describe('history performance targets', () => {
     const prose = 'word '.repeat(80_000);
     const tool = {
       id: 'tool', sessionId: 'app', provider: 'claude' as const, timestamp: '2026-01-01T00:00:00Z', kind: 'tool_use' as const,
-      toolName: 'Bash', toolInput: { command: 'x', description: 'y' },
-      toolResult: { content: 'line\n'.repeat(5000), isError: false, toolUseResult: { stdout: 'z'.repeat(20_000), exitCode: 0, filenames: Array.from({ length: 5000 }, (_, i) => `f${i}`) } },
+      toolName: 'Bash', toolInput: { command: 'x', description: 'y' }, turnId: 'turn-1',
+      toolResult: { content: 'line\n'.repeat(5000), isError: false, timestamp: '2026-01-01T00:00:03Z', toolUseResult: { stdout: 'z'.repeat(20_000), exitCode: 0, filenames: Array.from({ length: 5000 }, (_, i) => `f${i}`) } },
     };
     const text = { id: 'text', sessionId: 'app', provider: 'claude' as const, timestamp: '2026-01-01T00:00:01Z', kind: 'text' as const, role: 'assistant' as const, content: prose };
     const before = JSON.stringify(tool);
@@ -1442,8 +1444,9 @@ describe('history performance targets', () => {
     assert.equal(JSON.stringify(tool), before);
     assert.equal(slimHistoryMessage(text, 'app'), text);
     assert.deepEqual(slim.elidedDetail, { bytes: Buffer.byteLength(before), resultLines: 5000 });
-    const result = slim.toolResult as { content: string; toolUseResult: { stdout: string; exitCode: number; filenames: string[] } };
+    const result = slim.toolResult as { content: string; timestamp: string; toolUseResult: { stdout: string; exitCode: number; filenames: string[] } };
     assert.equal(result.toolUseResult.exitCode, 0);
+    assert.deepEqual([result.timestamp, slim.turnId], ['2026-01-01T00:00:03Z', 'turn-1'], 'activity fields survive slimming');
     assert.ok(result.content.length < 2048 && result.toolUseResult.stdout.length < 2048);
     assert.ok(JSON.stringify(result.toolUseResult.filenames).length <= 8192);
     assert.deepEqual(slim.toolInput, tool.toolInput);

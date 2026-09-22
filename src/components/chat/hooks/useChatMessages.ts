@@ -213,6 +213,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
               content: formatToolResultContent(tr.content),
               isError: Boolean(tr.isError),
               toolUseResult: (tr as any).toolUseResult,
+              timestamp: tr.timestamp,
             }
           : null;
 
@@ -225,6 +226,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           toolInput: typeof msg.toolInput === 'string' ? msg.toolInput : JSON.stringify(msg.toolInput ?? '', null, 2),
           toolId: msg.toolId,
           toolResult,
+          turnId: msg.turnId,
           isSubagentContainer,
           subagentState: isSubagentContainer
             ? {

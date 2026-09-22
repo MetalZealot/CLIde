@@ -141,7 +141,9 @@ export interface NormalizedMessage {
   toolName?: string;
   toolInput?: unknown;
   toolId?: string;
-  toolResult?: { content: string; isError: boolean; toolUseResult?: unknown } | null;
+  toolResult?: { content: string; isError: boolean; toolUseResult?: unknown; timestamp?: string } | null;
+  /** Codex turn that issued this tool call — see server types. */
+  turnId?: string;
   isError?: boolean;
   text?: string;
   tokens?: number;

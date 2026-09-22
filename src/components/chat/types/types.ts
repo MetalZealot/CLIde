@@ -77,9 +77,12 @@ export interface ChatMessage {
   isToolUse?: boolean;
   toolName?: string;
   toolInput?: unknown;
+  /** Its `timestamp` is when the result arrived; with the row's own, the tool's duration. */
   toolResult?: ToolResult | null;
   toolId?: string;
   toolCallId?: string;
+  /** Codex turn that issued this tool call. */
+  turnId?: string;
   commandName?: string;
   commandMessage?: string;
   commandArgs?: string;
