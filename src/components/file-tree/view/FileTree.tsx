@@ -185,7 +185,10 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
   useEffect(() => {
     if (operations.renamingItem && renameInputRef.current) {
       renameInputRef.current.focus();
-      renameInputRef.current.select();
+      // Select the base name only; folders and dotfiles like `.env` select whole.
+      const { name, type } = operations.renamingItem;
+      const extStart = type === 'file' ? name.lastIndexOf('.') : -1;
+      renameInputRef.current.setSelectionRange(0, extStart > 0 ? extStart : name.length);
     }
   }, [operations.renamingItem]);
 
