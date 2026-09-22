@@ -54,15 +54,15 @@ const CLAUDE_CURRENT_FALLBACK_MODELS: ProviderModelOption[] = [
     effort: CLAUDE_EFFORT_LEVELS,
   },
   {
-    value: 'sonnet',
-    label: 'Sonnet 5',
-    description: 'Best for everyday tasks · $3/$15 per Mtok',
-    effort: CLAUDE_EFFORT_LEVELS,
-  },
-  {
     value: 'opus',
     label: 'Opus 5.5',
     description: 'Best for everyday, complex tasks · $5/$25 per Mtok',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'sonnet',
+    label: 'Sonnet 5',
+    description: 'Best for everyday tasks · $3/$15 per Mtok',
     effort: CLAUDE_EFFORT_LEVELS,
   },
   {
@@ -79,6 +79,13 @@ const CLAUDE_CURRENT_FALLBACK_MODELS: ProviderModelOption[] = [
 // Opus unless CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP is set, so a row would
 // name a model the session would not use.
 const CLAUDE_LEGACY_MODELS: ProviderModelOption[] = [
+  {
+    value: 'claude-fable-5',
+    label: 'Fable 5',
+    description: 'Previous Fable version',
+    group: 'legacy',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
   {
     value: 'claude-opus-5',
     label: 'Opus 5',
@@ -124,6 +131,13 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   DEFAULT: 'sonnet',
   source: 'fallback',
 };
+
+// Most capable first. The CLI orders its menu around the account's default
+// instead; a family not listed here is newer than this list, so it leads.
+const CLAUDE_FAMILY_TIERS = ['fable', 'opus', 'sonnet', 'haiku'];
+
+const claudeTierRank = (value: string): number =>
+  CLAUDE_FAMILY_TIERS.findIndex((family) => value === family || value.includes(`-${family}-`));
 
 const CLAUDE_CLI_MODELS_TIMEOUT_MS = 20_000;
 
@@ -225,6 +239,9 @@ export const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModels
   if (options.length === 0) {
     return CLAUDE_FALLBACK_MODELS;
   }
+
+  // Array sort is stable, so rows of one tier keep the CLI's order.
+  options.sort((a, b) => claudeTierRank(a.value) - claudeTierRank(b.value));
 
   return {
     OPTIONS: [

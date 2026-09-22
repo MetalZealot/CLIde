@@ -68,7 +68,7 @@ test('claude current active model returns a picker-selected session model immedi
 
 test('claude current active model matches transcript events by the provider session id', async () => {
   await withTempDir(async (dir) => {
-    const jsonlPath = await writeSessionJsonl(dir, 'claude-fable-5');
+    const jsonlPath = await writeSessionJsonl(dir, 'claude-fable-5-1');
 
     const provider = offlineClaudeModels({
       getSessionRow: (sessionId) =>
@@ -104,7 +104,7 @@ test('claude current active model prefers the transcript when a session turn is 
 
 test('claude current active model keeps a popup pick newer than the last transcript turn', async () => {
   await withTempDir(async (dir) => {
-    const jsonlPath = await writeSessionJsonl(dir, 'claude-fable-5', '2026-07-13T23:00:00.000Z');
+    const jsonlPath = await writeSessionJsonl(dir, 'claude-fable-5-1', '2026-07-13T23:00:00.000Z');
 
     const provider = offlineClaudeModels({
       getSessionRow: (sessionId) =>
@@ -130,7 +130,7 @@ test('claude current active model skips synthetic error rows and recovers the re
       {
         type: 'assistant',
         sessionId: PROVIDER_SESSION_ID,
-        message: { model: 'claude-fable-5', content: [] },
+        message: { model: 'claude-fable-5-1', content: [] },
       },
       {
         type: 'assistant',
@@ -236,7 +236,7 @@ test('claude catalog offers no pseudo-model rows', () => {
 test('claude catalog flags the model configured in claude settings as the default', async () => {
   await withTempDir(async (dir) => {
     const settingsPath = path.join(dir, 'settings.json');
-    await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5[1m]' }), 'utf8');
+    await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5-1[1m]' }), 'utf8');
 
     const provider = offlineClaudeModels({ claudeSettingsPath: settingsPath });
     const models = await provider.getSupportedModels();
@@ -300,7 +300,7 @@ test('ANTHROPIC_DEFAULT_MODEL seeds the catalog default, and "default"/"inherit"
 test('claude catalog default prefers the ANTHROPIC_MODEL env override', async () => {
   await withTempDir(async (dir) => {
     const settingsPath = path.join(dir, 'settings.json');
-    await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5[1m]' }), 'utf8');
+    await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5-1[1m]' }), 'utf8');
 
     const previousEnv = process.env.ANTHROPIC_MODEL;
     process.env.ANTHROPIC_MODEL = 'claude-opus-4-8';
@@ -326,7 +326,7 @@ test('claude catalog default prefers the ANTHROPIC_MODEL env override', async ()
 test('claude supported models lookup does not mutate the shared fallback catalog', async () => {
   await withTempDir(async (dir) => {
     const settingsPath = path.join(dir, 'settings.json');
-    await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5[1m]' }), 'utf8');
+    await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5-1[1m]' }), 'utf8');
 
     const provider = offlineClaudeModels({ claudeSettingsPath: settingsPath });
     await provider.getSupportedModels();
@@ -338,7 +338,8 @@ test('claude supported models lookup does not mutate the shared fallback catalog
 test('claude model aliases resolve from full model ids', () => {
   const options = CLAUDE_FALLBACK_MODELS.OPTIONS;
 
-  assert.equal(resolveClaudeModelAlias('claude-fable-5', options), 'fable');
+  assert.equal(resolveClaudeModelAlias('claude-fable-5-1', options), 'fable');
+  assert.equal(resolveClaudeModelAlias('claude-fable-5', options), 'claude-fable-5');
   assert.equal(resolveClaudeModelAlias('claude-opus-5-5', options), 'opus');
   assert.equal(resolveClaudeModelAlias('claude-haiku-4-5-20251001', options), 'haiku');
   // Sonnet 5 is natively 1M and has no [1m] card, so it maps to plain Sonnet.
@@ -382,11 +383,11 @@ test('claude catalog comes from the CLI, with superseded models under legacy', a
   const primary = models.OPTIONS.filter((option) => option.group !== 'legacy');
 
   assert.equal(models.source, 'live');
-  // No "default" row, no [1m] suffix, and Fable keeps its family alias.
-  assert.deepEqual(primary.map((option) => option.value), ['opus', 'fable', 'haiku']);
-  assert.deepEqual(primary.map((option) => option.label), ['Opus 5.5', 'Fable 5.1', 'Haiku 4.5']);
-  assert.equal(primary[0].description, 'Best for everyday, complex tasks');
-  assert.equal(primary[0].effort?.default, 'high');
+  // Tier order, not the CLI's; no "default" row, no [1m], and Fable keeps its alias.
+  assert.deepEqual(primary.map((option) => option.value), ['fable', 'opus', 'haiku']);
+  assert.deepEqual(primary.map((option) => option.label), ['Fable 5.1', 'Opus 5.5', 'Haiku 4.5']);
+  assert.equal(primary[1].description, 'Best for everyday, complex tasks');
+  assert.equal(primary[1].effort?.default, 'high');
   assert.equal(primary[2].effort, undefined);
   assert.ok(models.OPTIONS.some((option) => option.value === 'claude-opus-5' && option.group === 'legacy'));
 
