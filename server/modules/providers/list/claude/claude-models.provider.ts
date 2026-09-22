@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { query, type ModelInfo } from '@anthropic-ai/claude-agent-sdk';
+
 import { sessionsDb } from '@/modules/database/index.js';
 import {
   pickSupersedesTranscript,
@@ -18,6 +20,7 @@ import type {
   ProviderSessionActiveModelChange,
 } from '@/shared/types.js';
 import { buildDefaultProviderCurrentActiveModel } from '@/shared/utils.js';
+import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 
 // Every effort-capable Claude model exposes the same five levels, so they share
 // one frozen block. The catalog is only ever serialised to JSON, so sharing the
@@ -33,79 +36,204 @@ const CLAUDE_EFFORT_LEVELS: ProviderModelOption['effort'] = Object.freeze({
   ]),
 }) as ProviderModelOption['effort'];
 
-// Labels carry the version number ("Opus 5", not "Opus"): the composer picker
+// Labels carry the version number ("Opus 5.5", not "Opus"): the composer picker
 // renders the label alone and never shows `description` (ComposerModelMenu.tsx).
-// Current models use the floating alias as their `value`, so these labels need
-// bumping by hand each new generation; legacy entries pin a concrete id.
+// The live catalog comes from the CLI (`listClaudeCliModels`); these rows are
+// only what the picker shows when the CLI cannot answer.
 //
 // Deliberately no `[1m]` option for any model. The suffix opts into the 1M
 // beta, which only means something where 1M is not already native — third-party
 // platforms and Pro-tier accounts. Above Pro on api.anthropic.com every model is
 // natively 1M, Claude Code suppresses its own "(1M context)" rows, and the
 // suffix only bills the long-context premium under a separate usage key.
+const CLAUDE_CURRENT_FALLBACK_MODELS: ProviderModelOption[] = [
+  {
+    value: 'fable',
+    label: 'Fable 5.1',
+    description: 'Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'sonnet',
+    label: 'Sonnet 5',
+    description: 'Best for everyday tasks · $3/$15 per Mtok',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'opus',
+    label: 'Opus 5.5',
+    description: 'Best for everyday, complex tasks · $5/$25 per Mtok',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'haiku',
+    label: 'Haiku 4.5',
+    description: 'Fastest for quick answers · $1/$5 per Mtok',
+  },
+];
+
+// The CLI's model list names current models only, so superseded ones are kept
+// here and appended under Legacy. Claude Code hides them behind its third-party
+// menu branch, but they run as themselves on a first-party account. Opus 4.1
+// and 4.0 are absent: the CLI's deprecation table remaps them to the latest
+// Opus unless CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP is set, so a row would
+// name a model the session would not use.
+const CLAUDE_LEGACY_MODELS: ProviderModelOption[] = [
+  {
+    value: 'claude-opus-5',
+    label: 'Opus 5',
+    description: 'Previous Opus version',
+    group: 'legacy',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'claude-opus-4-8',
+    label: 'Opus 4.8',
+    description: 'Legacy',
+    group: 'legacy',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'claude-opus-4-7',
+    label: 'Opus 4.7',
+    description: 'Legacy',
+    group: 'legacy',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'claude-opus-4-6',
+    label: 'Opus 4.6',
+    description: 'Legacy',
+    group: 'legacy',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'claude-sonnet-4-6',
+    label: 'Sonnet 4.6',
+    description: 'Legacy',
+    group: 'legacy',
+    effort: CLAUDE_EFFORT_LEVELS,
+  },
+];
+
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
-  OPTIONS: [
-    {
-      value: 'fable',
-      label: 'Fable 5.1',
-      description: 'Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
-      effort: CLAUDE_EFFORT_LEVELS,
-    },
-    {
-      value: 'sonnet',
-      label: 'Sonnet 5',
-      description: 'Best for everyday tasks · $3/$15 per Mtok',
-      effort: CLAUDE_EFFORT_LEVELS,
-    },
-    {
-      value: 'opus',
-      label: 'Opus 5',
-      description: 'Best for everyday, complex tasks · $5/$25 per Mtok',
-      effort: CLAUDE_EFFORT_LEVELS,
-    },
-    {
-      value: 'haiku',
-      label: 'Haiku 4.5',
-      description: 'Fastest for quick answers · $1/$5 per Mtok',
-    },
-    // Claude Code hides these behind its third-party menu branch, but they run
-    // as themselves on a first-party account. Opus 4.1 and 4.0 are absent: the
-    // CLI's deprecation table remaps them to the latest Opus unless
-    // CLAUDE_CODE_DISABLE_LEGACY_MODEL_REMAP is set, so a row would name a model
-    // the session would not use.
-    {
-      value: 'claude-opus-4-8',
-      label: 'Opus 4.8',
-      description: 'Previous Opus version',
-      group: 'legacy',
-      effort: CLAUDE_EFFORT_LEVELS,
-    },
-    {
-      value: 'claude-opus-4-7',
-      label: 'Opus 4.7',
-      description: 'Legacy',
-      group: 'legacy',
-      effort: CLAUDE_EFFORT_LEVELS,
-    },
-    {
-      value: 'claude-opus-4-6',
-      label: 'Opus 4.6',
-      description: 'Legacy',
-      group: 'legacy',
-      effort: CLAUDE_EFFORT_LEVELS,
-    },
-    {
-      value: 'claude-sonnet-4-6',
-      label: 'Sonnet 4.6',
-      description: 'Legacy',
-      group: 'legacy',
-      effort: CLAUDE_EFFORT_LEVELS,
-    },
-  ],
+  OPTIONS: [...CLAUDE_CURRENT_FALLBACK_MODELS, ...CLAUDE_LEGACY_MODELS],
   // Display/seed fallback for when the configured default cannot be read;
   // `getSupportedModels` replaces it with the real one. Claude Code's own
   // built-in fallback is Sonnet, so this matches an unconfigured machine.
   DEFAULT: 'sonnet',
+  source: 'fallback',
+};
+
+const CLAUDE_CLI_MODELS_TIMEOUT_MS = 20_000;
+
+/**
+ * Asks the installed CLI for its model menu without starting a conversation:
+ * the prompt stream never yields, so nothing reaches the model, and
+ * `persistSession: false` keeps the probe out of the session list.
+ */
+export const listClaudeCliModels = async (): Promise<ModelInfo[]> => {
+  const controller = new AbortController();
+  const idlePrompt = (async function* () {
+    await new Promise<void>((resolve) => {
+      controller.signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+  })();
+
+  const queryInstance = query({
+    prompt: idlePrompt,
+    options: {
+      env: { ...process.env },
+      pathToClaudeCodeExecutable: resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH),
+      cwd: os.tmpdir(),
+      persistSession: false,
+      strictMcpConfig: true,
+      mcpServers: {},
+      allowedTools: [],
+      abortController: controller,
+    },
+  });
+
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('claude model list timed out')),
+      CLAUDE_CLI_MODELS_TIMEOUT_MS,
+    );
+  });
+
+  try {
+    return await Promise.race([queryInstance.supportedModels(), timeout]);
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+};
+
+const toClaudeEffort = (levels: ModelInfo['supportedEffortLevels']): ProviderModelOption['effort'] => {
+  if (!levels?.length) {
+    return undefined;
+  }
+  return {
+    default: levels.includes('high') ? 'high' : levels[0],
+    values: levels.map((value) => ({ value })),
+  };
+};
+
+/**
+ * Maps the CLI's menu onto picker rows, then appends the legacy rows the CLI
+ * no longer lists. Rows keep the family alias (`fable`) where the CLI names a
+ * pinned id for it, so stored picks and transcript mapping keep matching.
+ */
+export const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModelsDefinition => {
+  const options: ProviderModelOption[] = [];
+  const coveredIds = new Set<string>();
+
+  for (const model of models) {
+    const rawValue = typeof model.value === 'string' ? model.value.trim().replace(/\[1m\]/gi, '') : '';
+    // "default" is not a model: Claude Code falls back to built-in Sonnet for it.
+    if (!rawValue || rawValue.toLowerCase() === 'default') {
+      continue;
+    }
+
+    const family = model.displayName?.trim().toLowerCase() ?? '';
+    const value = /^[a-z]+$/.test(family) && rawValue.toLowerCase().startsWith(`claude-${family}-`)
+      ? family
+      : rawValue;
+    if (options.some((option) => option.value === value)) {
+      continue;
+    }
+
+    const [headline, ...details] = (model.description ?? '').split(' · ').map((part) => part.trim());
+    const hasVersionedHeadline = Boolean(headline)
+      && headline.toLowerCase().startsWith(model.displayName?.trim().toLowerCase() ?? '');
+    const description = hasVersionedHeadline ? details.join(' · ') : model.description?.trim();
+    const effort = toClaudeEffort(model.supportedEffortLevels);
+
+    options.push({
+      value,
+      label: hasVersionedHeadline ? headline : (model.displayName?.trim() || value),
+      ...(description ? { description } : {}),
+      ...(effort ? { effort } : {}),
+    });
+    coveredIds.add(rawValue.toLowerCase());
+    if (model.resolvedModel) {
+      coveredIds.add(model.resolvedModel.trim().toLowerCase().replace(/\[1m\]/g, ''));
+    }
+  }
+
+  if (options.length === 0) {
+    return CLAUDE_FALLBACK_MODELS;
+  }
+
+  return {
+    OPTIONS: [
+      ...options,
+      ...CLAUDE_LEGACY_MODELS.filter((option) => !coveredIds.has(option.value)),
+    ],
+    DEFAULT: CLAUDE_FALLBACK_MODELS.DEFAULT,
+    source: 'live',
+  };
 };
 
 /**
@@ -155,7 +283,13 @@ export const resolveClaudeModelAlias = (
   let best: string | null = null;
   for (const option of options) {
     const family = option.value.toLowerCase();
-    if (!lowered.includes(family)) {
+    const index = lowered.indexOf(family);
+    if (index === -1) {
+      continue;
+    }
+    // A pinned id followed by another version number is a different model:
+    // `claude-opus-5-5` is not the `claude-opus-5` row. Date stamps are 8 digits.
+    if (family.startsWith('claude-') && /^-\d{1,2}(?!\d)/.test(lowered.slice(index + family.length))) {
       continue;
     }
     if (best === null || family.length > best.length) {
@@ -303,9 +437,12 @@ type ClaudeProviderModelsDeps = {
   getSessionRow?: (sessionId: string) => ClaudeSessionRow | null;
   modelPickStore?: SessionModelPickStore;
   claudeSettingsPath?: string;
+  listCliModels?: () => Promise<ModelInfo[]>;
 };
 
 export class ClaudeProviderModels implements IProviderModels {
+  private catalogRequest: Promise<ProviderModelsDefinition> | null = null;
+
   constructor(private readonly deps: ClaudeProviderModelsDeps = {}) {}
 
   private lookupSessionRow(sessionId: string): ClaudeSessionRow | null {
@@ -345,37 +482,41 @@ export class ClaudeProviderModels implements IProviderModels {
     return readClaudeDefaultModelEnv();
   }
 
-  async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    // claude creates a new jsonl file as a separate session for this request.
-    // As a result, it lists the workspace where this is invoked when it shouldn't.
-    //
-    // Disabled for now:
-    // const queryInstance = query({
-    //   prompt: 'Get supported models',
-    //   options: buildClaudeQueryOptions(),
-    // });
-    // const supportedModels = await queryInstance.supportedModels();
-    // queryInstance.close();
-    // return buildClaudeModelsDefinition(supportedModels);
+  // Every send validates effort against the catalog, so one CLI probe is kept
+  // until a refresh or restart. A failed probe is kept too: retrying it per
+  // send would stall each one for the full timeout.
+  private loadCatalog(refresh: boolean): Promise<ProviderModelsDefinition> {
+    if (refresh || !this.catalogRequest) {
+      const listCliModels = this.deps.listCliModels ?? listClaudeCliModels;
+      this.catalogRequest = listCliModels()
+        .then(buildClaudeModelsDefinition)
+        .catch((error: unknown) => {
+          console.warn('[Claude] Unable to read the model list from the CLI:', error);
+          return CLAUDE_FALLBACK_MODELS;
+        });
+    }
+    return this.catalogRequest;
+  }
+
+  async getSupportedModels(options: { refresh?: boolean } = {}): Promise<ProviderModelsDefinition> {
+    const catalog = await this.loadCatalog(options.refresh === true);
     // No "Default" row exists: the catalog names the model that *is* the default
     // and flags it, so the picker badges a real option. The literal "default"
     // was never a working alias — Claude Code falls back to built-in Sonnet and
     // ignores the configured `model` entirely.
     const configuredDefaultModel = await this.readConfiguredDefaultModel();
     if (!configuredDefaultModel) {
-      return CLAUDE_FALLBACK_MODELS;
+      return catalog;
     }
 
-    const defaultValue = resolveClaudeModelAlias(
-      configuredDefaultModel,
-      CLAUDE_FALLBACK_MODELS.OPTIONS,
-    );
-    if (!CLAUDE_FALLBACK_MODELS.OPTIONS.some((option) => option.value === defaultValue)) {
-      return CLAUDE_FALLBACK_MODELS;
+    const defaultValue = resolveClaudeModelAlias(configuredDefaultModel, catalog.OPTIONS);
+    if (!catalog.OPTIONS.some((option) => option.value === defaultValue)) {
+      return catalog;
     }
 
     return {
-      OPTIONS: CLAUDE_FALLBACK_MODELS.OPTIONS.map((option) =>
+      ...catalog,
+      OPTIONS: catalog.OPTIONS.map((option) =>
         option.value === defaultValue ? { ...option, isDefault: true } : option,
       ),
       DEFAULT: defaultValue,

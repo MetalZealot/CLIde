@@ -92,9 +92,10 @@ export interface IProvider {
  */
 export interface IProviderModels {
   /**
-   * Returns the provider's currently supported model catalog.
+   * Returns the provider's currently supported model catalog. `refresh` asks an
+   * adapter that keeps its own copy to read the provider again.
    */
-  getSupportedModels(): Promise<ProviderModelsDefinition>;
+  getSupportedModels(options?: { refresh?: boolean }): Promise<ProviderModelsDefinition>;
 
   /**
    * Reads the model the provider itself believes one session is running with.

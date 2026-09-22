@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { MENU_LIST_MAX_HEIGHT } from '../../../../shared/view/ui';
@@ -27,6 +27,8 @@ interface ComposerModelMenuProps {
   modelOptions: ProviderModelOption[];
   onSelectModel: (model: string) => Promise<void>;
   modelsLoading: boolean;
+  /** Re-reads every provider's model list from its CLI. */
+  onRefreshModels?: () => Promise<void>;
   openRequest: number;
   provider: LLMProvider;
   providerLabel: string;
@@ -47,6 +49,7 @@ export default function ComposerModelMenu({
   modelOptions,
   onSelectModel,
   modelsLoading,
+  onRefreshModels,
   openRequest,
   provider,
   providerLabel,
@@ -360,6 +363,21 @@ export default function ComposerModelMenu({
                       </button>
                     )}
                   </div>
+                  {onRefreshModels && (
+                    <button
+                      type="button"
+                      onClick={() => { void onRefreshModels(); }}
+                      disabled={modelsLoading}
+                      className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none disabled:pointer-events-none"
+                    >
+                      <RefreshCw className={`h-3 w-3 shrink-0 ${modelsLoading ? 'animate-spin' : ''}`} aria-hidden />
+                      <span className="truncate">
+                        {modelsLoading
+                          ? t('composer.refreshingModels', { defaultValue: 'Checking for new models…' })
+                          : t('composer.refreshModels', { defaultValue: 'Refresh models' })}
+                      </span>
+                    </button>
+                  )}
                   {selectionError && (
                     <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
                       {selectionError}

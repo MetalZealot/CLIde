@@ -22,9 +22,9 @@ import {
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const PROVIDER_MODELS_CACHE_VERSION = 2;
-// Claude and Codex load their catalogs through their adapters. Codex's live
-// runtime reader owns its stale filesystem fallback, so a second CloudCLI
-// cache would hide both refreshes and source labels.
+// Claude and Codex load their catalogs through their adapters: Claude keeps its
+// CLI probe until `bypassCache` refreshes it, and Codex's live runtime reader
+// owns its stale filesystem fallback. A second cache here would hide both.
 const UNCACHED_PROVIDERS = new Set<LLMProvider>(['claude', 'codex']);
 
 type ProviderModelsServiceDependencies = {
@@ -248,8 +248,9 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
 
   const loadDirectModels = (
     provider: LLMProvider,
+    refresh: boolean,
   ): Promise<ProviderModelsResult> => {
-    const request = resolveProvider(provider).models.getSupportedModels()
+    const request = resolveProvider(provider).models.getSupportedModels({ refresh })
       .then((models) => {
         const currentTime = now();
         return {
@@ -275,11 +276,11 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
   ): Promise<ProviderModelsResult> => {
     if (UNCACHED_PROVIDERS.has(provider)) {
       const pendingRequest = pendingRequests.get(provider);
-      if (pendingRequest) {
+      if (pendingRequest && !options.bypassCache) {
         return pendingRequest;
       }
 
-      return loadDirectModels(provider);
+      return loadDirectModels(provider, options.bypassCache === true);
     }
 
     if (options.bypassCache) {

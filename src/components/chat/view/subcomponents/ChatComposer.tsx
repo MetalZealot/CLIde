@@ -109,6 +109,7 @@ interface ChatComposerProps {
   availableModelOptions: ProviderModelOption[];
   onSelectModel: (model: string) => Promise<void>;
   modelsLoading: boolean;
+  onRefreshModels?: () => Promise<void>;
   modelMenuOpenRequest: number;
   tokenBudget: Record<string, unknown> | null;
   usagePopoverRequest: UsagePopoverRequest;
@@ -199,6 +200,7 @@ export default function ChatComposer({
   availableModelOptions,
   onSelectModel,
   modelsLoading,
+  onRefreshModels,
   modelMenuOpenRequest,
   tokenBudget,
   usagePopoverRequest,
@@ -615,6 +617,7 @@ export default function ChatComposer({
               modelOptions={availableModelOptions}
               onSelectModel={onSelectModel}
               modelsLoading={modelsLoading}
+              onRefreshModels={onRefreshModels}
               openRequest={modelMenuOpenRequest}
               provider={provider}
               providerLabel={providerLabel}

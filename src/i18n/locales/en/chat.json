@@ -274,6 +274,8 @@
     "settingsChangeCacheNotice": "Changing model or effort re-sends the conversation on the next turn — one turn at full input price, then caching resumes.",
     "dismissNotice": "Dismiss",
     "loadingModels": "Loading models…",
+    "refreshModels": "Refresh models",
+    "refreshingModels": "Checking for new models…",
     "modelMenu": "Select model and reasoning effort",
     "provider": "Provider",
     "providerMenu": "Select model provider",

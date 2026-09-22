@@ -133,18 +133,19 @@ no worse than the status quo.
 
 ## Model picker: catalog and active-model are two systems
 
-The **catalog** (the static list of selectable models) is server-side and hardcoded:
-`server/modules/providers/list/claude/claude-models.provider.ts`
-(`CLAUDE_FALLBACK_MODELS`). The frontend renders whatever `GET /:provider/models`
-returns.
+The **catalog** (the list of selectable models) is read from each provider's CLI.
+Claude's comes from `supportedModels()` on an idle, unsaved query
+(`listClaudeCliModels` in `claude-models.provider.ts`), kept until a refresh or
+restart; `CLAUDE_LEGACY_MODELS` is appended under Legacy because the CLI lists current
+models only, and `CLAUDE_FALLBACK_MODELS` stands in when the CLI cannot answer. The
+frontend renders whatever `GET /:provider/models` returns.
 
 `ComposerModelMenu` is the only model/effort presentation. The `/models` command
 increments its `openRequest` instead of opening `CommandResultModal`. The menu heads
 with the provider name and opens a provider list **only while the chat is brand new**
 (`canSelectProvider` in `ChatInterface`) — a session belongs to the runtime that
-started it. There is no catalog-refresh action: Claude and Codex are in
-`UNCACHED_PROVIDERS` (`provider-models.service.ts`), so it refetched nothing. The
-server still accepts `?bypassCache=`; no client sends it.
+started it. Its **Refresh models** row refetches every provider with
+`?bypassCache=true`, which also makes Claude's adapter ask the CLI again.
 
 **Per-session active-model tracking** — which model a given session is actually running,
 as opposed to the catalog — is its own subsystem: client `SessionSlot`, server

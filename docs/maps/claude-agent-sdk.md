@@ -189,7 +189,7 @@ redaction behavior as the live stream.
 
 | Capability | Upstream surface | CLIde today | Integration destination | Disposition |
 |---|---|---|---|---|
-| Model catalog | `supportedModels()`, the SDK's embedded registry | Hand-maintained `CLAUDE_FALLBACK_MODELS` plus a pinned legacy list | `claude-models.provider.ts` | Candidate: consume the live list without losing fallbacks |
+| Model catalog | `supportedModels()`, the SDK's embedded registry | Live `supportedModels()` plus a pinned legacy list; hand-maintained fallback if the CLI fails | `claude-models.provider.ts` | Implemented |
 | Context-window facts | SDK model registry (`context.window`, output caps) | Mirrored by hand in `claude-context-window.ts` | Same | Compatibility watch — see §6 |
 | Per-session effective model | Transcript inspection plus `settings.json` `model` | Implemented (ADR 0003) | Active-model service | Keep |
 | Mid-session model switch | `setModel()` | Not reachable — needs streaming input | Chat transport | Defer to the persistent-query migration |

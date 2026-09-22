@@ -145,6 +145,7 @@ function ChatInterface({
     togglePermissionMode,
     toggleCollaborationMode,
     providerModelsLoading,
+    refreshProviderModels,
     selectProviderModel,
     selectProviderEffort,
     modelOffersEffort,
@@ -1062,6 +1063,7 @@ function ChatInterface({
             availableModelOptions={currentProviderModelOptions}
             onSelectModel={handleSelectComposerModel}
             modelsLoading={providerModelsLoading}
+            onRefreshModels={refreshProviderModels}
             modelMenuOpenRequest={modelMenuOpenRequest}
             tokenBudget={tokenBudget}
             usagePopoverRequest={usagePopoverRequest}

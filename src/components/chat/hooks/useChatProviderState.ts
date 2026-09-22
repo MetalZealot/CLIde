@@ -206,10 +206,9 @@ export function useChatProviderState({
     localStorage.setItem(`${targetProvider}-effort`, effort);
   }, []);
 
-  // Single load per mount, and deliberately no client-side hard refresh: Claude
-  // and Codex are never cached server-side, and the two cached providers refresh
-  // on the next page load.
-  const loadProviderModels = useCallback(async () => {
+  // One load per mount; `refresh` re-reads every provider's CLI instead of the
+  // server's saved copies, for when a CLI update adds models.
+  const loadProviderModels = useCallback(async (refresh = false) => {
     const requestId = providerModelsRequestIdRef.current + 1;
     providerModelsRequestIdRef.current = requestId;
     setProviderModelsLoading(true);
@@ -217,7 +216,9 @@ export function useChatProviderState({
     try {
       const results = await Promise.all(
         PROVIDERS.map(async (p) => {
-          const response = await authenticatedFetch(`/api/providers/${p}/models`);
+          const response = await authenticatedFetch(
+            `/api/providers/${p}/models${refresh ? '?bypassCache=true' : ''}`,
+          );
           const body = (await response.json()) as ProviderModelsApiResponse;
           if (!body.success || !body.data?.models || !body.data?.cache) {
             return null;
@@ -254,6 +255,8 @@ export function useChatProviderState({
   useEffect(() => {
     void loadProviderModels();
   }, [loadProviderModels]);
+
+  const refreshProviderModels = useCallback(() => loadProviderModels(true), [loadProviderModels]);
 
   const getPermissionModesForProvider = useCallback((targetProvider: LLMProvider): PermissionMode[] => {
     const capabilityModes = providerCapabilities?.[targetProvider]?.permissionModes;
@@ -766,6 +769,7 @@ export function useChatProviderState({
     toggleCollaborationMode,
     providerModelCatalog,
     providerModelsLoading,
+    refreshProviderModels,
     selectProviderModel,
     selectProviderEffort,
     setStoredProviderEffort,

@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  buildClaudeModelsDefinition,
   CLAUDE_FALLBACK_MODELS,
   ClaudeProviderModels,
   readClaudeDefaultModelEnv,
@@ -14,6 +15,10 @@ import type { SessionModelPickStore } from '@/modules/providers/services/provide
 
 const APP_SESSION_ID = '011a8bc9-ad89-42fd-96c2-c8ac5ef4f999';
 const PROVIDER_SESSION_ID = '77af7791-311d-4f0e-abbf-381f25ed775a';
+
+// Tests never spawn the real CLI; an empty answer falls back to the fixed catalog.
+const offlineClaudeModels = (deps: ConstructorParameters<typeof ClaudeProviderModels>[0] = {}) =>
+  new ClaudeProviderModels({ listCliModels: async () => [], ...deps });
 
 const withTempDir = async (run: (dir: string) => Promise<void>): Promise<void> => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'claude-models-test-'));
@@ -51,7 +56,7 @@ const createPickStore = (
 
 test('claude current active model returns a picker-selected session model immediately', async () => {
   await withTempDir(async (dir) => {
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       getSessionRow: () => null,
       modelPickStore: createPickStore({ model: 'fable', updatedAt: '2026-07-13T21:51:21.834Z' }),
     });
@@ -65,7 +70,7 @@ test('claude current active model matches transcript events by the provider sess
   await withTempDir(async (dir) => {
     const jsonlPath = await writeSessionJsonl(dir, 'claude-fable-5');
 
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       getSessionRow: (sessionId) =>
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
@@ -84,7 +89,7 @@ test('claude current active model prefers the transcript when a session turn is 
     // fast mode / a Shell /model) to Opus 4.8, which the pick never learned about.
     const jsonlPath = await writeSessionJsonl(dir, 'claude-opus-4-8', '2026-07-13T23:22:29.721Z');
 
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       getSessionRow: (sessionId) =>
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
@@ -101,7 +106,7 @@ test('claude current active model keeps a popup pick newer than the last transcr
   await withTempDir(async (dir) => {
     const jsonlPath = await writeSessionJsonl(dir, 'claude-fable-5', '2026-07-13T23:00:00.000Z');
 
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       getSessionRow: (sessionId) =>
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
@@ -149,7 +154,7 @@ test('claude current active model skips synthetic error rows and recovers the re
     ];
     await writeFile(jsonlPath, `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`, 'utf8');
 
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       getSessionRow: (sessionId) =>
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
@@ -165,7 +170,7 @@ test('claude current active model skips synthetic error rows and recovers the re
 
 test('claude current active model falls back to the catalog default without session data', async () => {
   await withTempDir(async (dir) => {
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       getSessionRow: () => null,
       modelPickStore: createPickStore(),
       // Pinned at a path that does not exist: the catalog default now tracks
@@ -189,7 +194,7 @@ test('claude ignores a stored "default" pick and falls through to the transcript
     // no model, so the session's real model is whatever the transcript says.
     const jsonlPath = await writeSessionJsonl(dir, 'claude-sonnet-5', '2026-07-13T21:00:00.000Z');
 
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       getSessionRow: (sessionId) =>
         sessionId === APP_SESSION_ID
           ? { provider_session_id: PROVIDER_SESSION_ID, jsonl_path: jsonlPath }
@@ -205,7 +210,7 @@ test('claude ignores a stored "default" pick and falls through to the transcript
 
 test('claude folds a stored pick for a removed row onto its successor', async () => {
   await withTempDir(async (dir) => {
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       getSessionRow: () => null,
       modelPickStore: createPickStore({ model: 'opus[1m]', updatedAt: '2026-07-13T23:59:00.000Z' }),
       claudeSettingsPath: path.join(dir, 'missing-settings.json'),
@@ -233,7 +238,7 @@ test('claude catalog flags the model configured in claude settings as the defaul
     const settingsPath = path.join(dir, 'settings.json');
     await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5[1m]' }), 'utf8');
 
-    const provider = new ClaudeProviderModels({ claudeSettingsPath: settingsPath });
+    const provider = offlineClaudeModels({ claudeSettingsPath: settingsPath });
     const models = await provider.getSupportedModels();
 
     assert.equal(models.DEFAULT, 'fable');
@@ -243,7 +248,7 @@ test('claude catalog flags the model configured in claude settings as the defaul
 
 test('claude catalog flags nothing when no default model is configured', async () => {
   await withTempDir(async (dir) => {
-    const provider = new ClaudeProviderModels({
+    const provider = offlineClaudeModels({
       claudeSettingsPath: path.join(dir, 'missing-settings.json'),
     });
     const models = await provider.getSupportedModels();
@@ -269,7 +274,7 @@ test('ANTHROPIC_DEFAULT_MODEL seeds the catalog default, and "default"/"inherit"
     delete process.env.ANTHROPIC_MODEL;
     process.env.ANTHROPIC_DEFAULT_MODEL = 'claude-opus-4-7';
     try {
-      const provider = new ClaudeProviderModels({ claudeSettingsPath: settingsPath });
+      const provider = offlineClaudeModels({ claudeSettingsPath: settingsPath });
       const models = await provider.getSupportedModels();
 
       assert.equal(models.DEFAULT, 'claude-opus-4-7');
@@ -280,7 +285,7 @@ test('ANTHROPIC_DEFAULT_MODEL seeds the catalog default, and "default"/"inherit"
 
       // The settings file still outranks it.
       await writeFile(settingsPath, JSON.stringify({ model: 'claude-opus-4-6' }), 'utf8');
-      const withSettings = await new ClaudeProviderModels({ claudeSettingsPath: settingsPath })
+      const withSettings = await offlineClaudeModels({ claudeSettingsPath: settingsPath })
         .getSupportedModels();
       assert.equal(withSettings.DEFAULT, 'claude-opus-4-6');
     } finally {
@@ -300,7 +305,7 @@ test('claude catalog default prefers the ANTHROPIC_MODEL env override', async ()
     const previousEnv = process.env.ANTHROPIC_MODEL;
     process.env.ANTHROPIC_MODEL = 'claude-opus-4-8';
     try {
-      const provider = new ClaudeProviderModels({ claudeSettingsPath: settingsPath });
+      const provider = offlineClaudeModels({ claudeSettingsPath: settingsPath });
       const models = await provider.getSupportedModels();
 
       assert.equal(models.DEFAULT, 'claude-opus-4-8');
@@ -323,7 +328,7 @@ test('claude supported models lookup does not mutate the shared fallback catalog
     const settingsPath = path.join(dir, 'settings.json');
     await writeFile(settingsPath, JSON.stringify({ model: 'claude-fable-5[1m]' }), 'utf8');
 
-    const provider = new ClaudeProviderModels({ claudeSettingsPath: settingsPath });
+    const provider = offlineClaudeModels({ claudeSettingsPath: settingsPath });
     await provider.getSupportedModels();
 
     assert.equal(findFlaggedDefault(CLAUDE_FALLBACK_MODELS.OPTIONS).length, 0);
@@ -334,7 +339,7 @@ test('claude model aliases resolve from full model ids', () => {
   const options = CLAUDE_FALLBACK_MODELS.OPTIONS;
 
   assert.equal(resolveClaudeModelAlias('claude-fable-5', options), 'fable');
-  assert.equal(resolveClaudeModelAlias('claude-opus-5', options), 'opus');
+  assert.equal(resolveClaudeModelAlias('claude-opus-5-5', options), 'opus');
   assert.equal(resolveClaudeModelAlias('claude-haiku-4-5-20251001', options), 'haiku');
   // Sonnet 5 is natively 1M and has no [1m] card, so it maps to plain Sonnet.
   assert.equal(resolveClaudeModelAlias('claude-sonnet-5', options), 'sonnet');
@@ -355,6 +360,47 @@ test('claude legacy ids resolve to their own row, not the current generation', (
   assert.equal(resolveClaudeModelAlias('claude-opus-4-7-fast', options), 'claude-opus-4-7');
   assert.equal(resolveClaudeModelAlias('claude-sonnet-4-6-20251114', options), 'claude-sonnet-4-6');
   // A dropped [1m] variant still belongs on its base model's row.
-  assert.equal(resolveClaudeModelAlias('claude-opus-5[1m]', options), 'opus');
+  assert.equal(resolveClaudeModelAlias('claude-opus-5[1m]', options), 'claude-opus-5');
+  // A pinned row is not a prefix match for a newer point release.
+  assert.equal(resolveClaudeModelAlias('claude-opus-5-5[1m]', options), 'opus');
   assert.equal(resolveClaudeModelAlias('claude-opus-4-6[1m]', options), 'claude-opus-4-6');
+});
+
+// Shape recorded from `supportedModels()` on Claude Code 2.1.280, 2026-09-22.
+const CLI_MODELS = [
+  { value: 'default', resolvedModel: 'claude-opus-5-5', displayName: 'Default (recommended)', description: 'Opus 5.5 · Best for everyday, complex tasks', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  { value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus', description: 'Opus 5.5 · Best for everyday, complex tasks', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  { value: 'claude-fable-5-1[1m]', resolvedModel: 'claude-fable-5-1', displayName: 'Fable', description: 'Fable 5.1 · Most capable for your hardest tasks', supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  { value: 'haiku', resolvedModel: 'claude-haiku-4-5-20251001', displayName: 'Haiku', description: 'Haiku 4.5 · Fastest for quick answers' },
+] as const;
+
+test('claude catalog comes from the CLI, with superseded models under legacy', async () => {
+  const models = buildClaudeModelsDefinition(CLI_MODELS.map((model) => ({
+    ...model,
+    supportedEffortLevels: 'supportedEffortLevels' in model ? [...model.supportedEffortLevels] : undefined,
+  })));
+  const primary = models.OPTIONS.filter((option) => option.group !== 'legacy');
+
+  assert.equal(models.source, 'live');
+  // No "default" row, no [1m] suffix, and Fable keeps its family alias.
+  assert.deepEqual(primary.map((option) => option.value), ['opus', 'fable', 'haiku']);
+  assert.deepEqual(primary.map((option) => option.label), ['Opus 5.5', 'Fable 5.1', 'Haiku 4.5']);
+  assert.equal(primary[0].description, 'Best for everyday, complex tasks');
+  assert.equal(primary[0].effort?.default, 'high');
+  assert.equal(primary[2].effort, undefined);
+  assert.ok(models.OPTIONS.some((option) => option.value === 'claude-opus-5' && option.group === 'legacy'));
+
+  // The CLI is asked once, and again only on refresh.
+  let calls = 0;
+  const provider = new ClaudeProviderModels({
+    claudeSettingsPath: path.join(os.tmpdir(), 'claude-models-test-missing.json'),
+    listCliModels: async () => {
+      calls += 1;
+      return [];
+    },
+  });
+  await provider.getSupportedModels();
+  await provider.getSupportedModels();
+  await provider.getSupportedModels({ refresh: true });
+  assert.equal(calls, 2);
 });
