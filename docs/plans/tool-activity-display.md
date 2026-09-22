@@ -1,7 +1,7 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 5/6
-- Next: Phase 6 — loading advances by activities; Codex running rows are not yet seen
+- Status: 6/9
+- Next: Phase 8 — to-do lists and subagents; Codex running rows are not yet seen
   on a phone
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
@@ -20,7 +20,8 @@ shows or hides content). Its **facets** are the verb phrases that summarise it
 
 A burst of tool calls collapses to one row carrying its facets, line counts,
 and a failure indicator; expanding gives one compact line per operation;
-opening one of those gives today's full tool card. The summary is derived from
+opening one of those shows the call flat, in place. The rows that stay outside
+an activity get the same row and panel, not the old tool cards. The summary is derived from
 the operations, never from prose or reasoning text, because the same prose
 means opposite things on the two providers and Codex's reasoning summaries are
 empty.
@@ -68,6 +69,18 @@ empty.
   [history performance plan](chat-history-performance.md), which owns stable page
   boundaries and record/visible-row counts. Grouping must preserve message anchors
   and request enough bounded pages to advance visibly without a second paging model.
+- [x] 7. **Thinking and answered questions use the activity row and panel.**
+  Thinking reads `Thought for 23s ›`, timed from the row before it (so it includes
+  the wait for the model), and opens to its text in the flat panel; Codex
+  reasoning and the compaction summary share that row. A question shows each
+  prompt over its answer in the panel — no tool name, strip, header chip or
+  unchosen options — and a failure inside it rather than as a red row.
+- [ ] 8. **To-do lists and subagents are rows that update in place.** One to-do
+  card with the current step marked, later updates as one line; a subagent as one
+  row with its name and live status, opening to its calls as activity rows.
+- [ ] 9. **Plans and permission prompts.** `Proposed plan ›` opening to the plan
+  as text; the waiting call and the approval banner redesigned — agree its end
+  state first, since no peer showed one.
 
 ## Done when
 

@@ -1,11 +1,11 @@
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Copy } from 'lucide-react';
 
 import type { ChatMessage } from '../../types/types';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
 import { buildOperationDetail, type DetailLine } from '../../utils/operationDetail';
-import { copyTextToClipboard } from '../../../../utils/clipboard';
+
+import { DetailPanel } from './DetailPanel';
 
 /** Lines each block shows before "Show all". */
 export const DETAIL_LINE_CAP = 12;
@@ -57,7 +57,6 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen }: O
   const history = useHistoryDetail(message, true);
   const detail = useMemo(() => buildOperationDetail(history.message), [history.message]);
   const [showAll, setShowAll] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const cappedLines = detail.blocks.reduce(
     (hidden, block) => hidden + (block.type === 'lines' ? Math.max(0, block.lines.length - DETAIL_LINE_CAP)
@@ -71,30 +70,8 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen }: O
   const cap = <T,>(items: T[]): T[] => (showAll ? items : items.slice(0, DETAIL_LINE_CAP));
   const isProse = detail.blocks.length > 0 && detail.blocks.every((block) => block.type === 'prose');
 
-  const copy = async () => {
-    if (await copyTextToClipboard(detail.copyText)) {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    }
-  };
-
   return (
-    <div
-      className={`relative mb-1.5 mt-0.5 rounded-md bg-muted/60 px-2.5 py-2 dark:bg-muted/40 ${
-        isProse ? 'text-[13px] leading-5' : 'font-mono text-xs leading-[18px]'
-      }`}
-    >
-      {detail.copyText && (
-        <button
-          type="button"
-          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/70 transition-colors hover:text-foreground"
-          onClick={copy}
-          aria-label={copied ? t('activity.detail.copied') : t('activity.detail.copy')}
-        >
-          {copied ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
-        </button>
-      )}
-
+    <DetailPanel copyText={detail.copyText} className={isProse ? 'text-[13px] leading-5' : 'font-mono text-xs leading-[18px]'}>
       {detail.blocks.map((block, index) => (
         <div key={index} className={`${index > 0 ? 'mt-1.5' : ''} ${index === 0 && block.type !== 'lines' ? CORNER : ''}`}>
           {block.type === 'prose' && <div className={`${wrapClass} text-muted-foreground`}>{block.text}</div>}
@@ -154,7 +131,7 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen }: O
           )}
         </div>
       )}
-    </div>
+    </DetailPanel>
   );
 });
 

@@ -191,6 +191,18 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
     );
   }
 
+  // Questions are their own flat card: no tool name, strip or disclosure, and a failure shows inside it.
+  if (displayConfig.contentType === 'question-answer') {
+    const contentProps = displayConfig.getContentProps?.(parsedData, { toolResult }) || {};
+    return (
+      <QuestionAnswerContent
+        questions={contentProps.questions || []}
+        answers={contentProps.answers || {}}
+        errorText={toolStatus === 'error' ? String(toolResult?.content || '').trim().split('\n')[0] : undefined}
+      />
+    );
+  }
+
   if (displayConfig.type === 'collapsible') {
     const title = typeof displayConfig.title === 'function'
       ? displayConfig.title(parsedData, toolResult)
@@ -249,15 +261,6 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
 
       case 'task':
         contentComponent = <TaskListContent content={contentProps.content || ''} />;
-        break;
-
-      case 'question-answer':
-        contentComponent = (
-          <QuestionAnswerContent
-            questions={contentProps.questions || []}
-            answers={contentProps.answers || {}}
-          />
-        );
         break;
 
       case 'text':

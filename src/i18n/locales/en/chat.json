@@ -89,6 +89,8 @@
       "denied": "denied"
     },
     "thought": "Thought: {{text}}",
+    "thoughtFor": "Thought for {{duration}}",
+    "thoughtUntimed": "Thought",
     "detail": {
       "copy": "Copy",
       "copied": "Copied",
@@ -466,6 +468,10 @@
     "pickerSearch": "Search your messages...",
     "pickerEmpty": "No earlier messages can be rewound to.",
     "pickerHint": "Picking a message loads it into the composer; sending rewinds the conversation to that point."
+  },
+  "questions": {
+    "skipped": "Skipped",
+    "notAnswered": "Not answered"
   },
   "compactSummary": {
     "label": "Compaction summary",

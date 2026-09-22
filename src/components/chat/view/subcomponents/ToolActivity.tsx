@@ -1,6 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronRight } from 'lucide-react';
 
 import type { ChatMessage } from '../../types/types';
 import type { ToolActivityItem } from '../../utils/toolGrouping';
@@ -14,6 +13,7 @@ import {
 import { formatDuration } from '../../utils/chatFormatting';
 import { Shimmer } from '../../../../shared/view/ui/Shimmer';
 
+import { DisclosureRow } from './DisclosureRow';
 import OperationDetail from './OperationDetail';
 
 interface ToolActivityProps {
@@ -89,29 +89,17 @@ const ToolActivity = memo(function ToolActivity({
 
   return (
     <div className="chat-message tool px-1 sm:px-0" data-message-timestamp={activity.timestamp || undefined}>
-      <button
-        type="button"
-        className="flex min-h-6 w-full items-center gap-1 text-left text-[13px] leading-5 text-muted-foreground transition-colors hover:text-foreground sm:min-h-7 sm:text-sm"
-        onClick={() => setIsExpanded((current) => !current)}
-        aria-expanded={isExpanded}
-      >
-        {isRunning ? (
-          <Shimmer className="min-w-0 truncate motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-muted-foreground">
-            {label}
-          </Shimmer>
-        ) : (
-          <span className="min-w-0 truncate">{label}</span>
-        )}
-        {summary.failed > 0 && (
+      <DisclosureRow
+        label={label}
+        isRunning={isRunning}
+        isOpen={isExpanded}
+        onToggle={() => setIsExpanded((current) => !current)}
+        trailing={summary.failed > 0 && (
           <span className="flex-shrink-0 text-red-600 dark:text-red-400">
             · {t('activity.failed', { count: summary.failed })}
           </span>
         )}
-        <ChevronRight
-          className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-          aria-hidden
-        />
-      </button>
+      />
 
       {isExpanded && (
         <div className="ml-1 mt-0.5 border-l border-border pl-3">

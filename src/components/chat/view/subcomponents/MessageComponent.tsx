@@ -21,10 +21,11 @@ import { isChatFindConversationMessage } from '../../hooks/useChatFind';
 import type { Project } from '../../../../types/app';
 import { ToolRenderer, ToolErrorDisplay, getToolConfig, shouldHideToolResult } from '../../tools';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
-import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../shared/view/ui';
+import { thinkingDurationMs } from '../../utils/toolActivity';
 
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
+import { TextDisclosure } from './DisclosureRow';
 import FollowUpQuestions from './FollowUpQuestions';
 import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
@@ -63,6 +64,9 @@ type MessageComponentProps = {
 };
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
+
+// Muted prose in a detail panel; the first block clears the copy button.
+const DISCLOSED_TEXT_CLASS = 'prose prose-sm max-w-none font-prose text-[13px] leading-5 text-muted-foreground dark:prose-invert [&>*:first-child]:pr-6';
 
 const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, showAutoContinueOffer = false, onAcceptAutoContinue }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
@@ -129,12 +133,13 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
     [message.timestamp, clockFormat],
   );
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
+  const thinkingMs = message.isThinking ? thinkingDurationMs(prevMessage, message) : null;
+  const thinkingLabel = thinkingMs !== null && thinkingMs >= 1000
+    ? t('activity.thoughtFor', { duration: formatDuration(thinkingMs) })
+    : t('activity.thoughtUntimed');
   const isFindableConversationMessage = isChatFindConversationMessage(message);
-  const usesMobileReadingInset =
-    (message.type === 'user' || message.type === 'assistant') &&
-    !message.isToolUse &&
-    !message.isThinking &&
-    !message.isCompactSummary;
+  // Tool, thinking and summary rows share the activity rows' inset so every muted row starts on one edge.
+  const usesMobileReadingInset = message.type === 'user' || message.type === 'assistant';
 
   if (shouldHideThinkingMessage) {
     return null;
@@ -426,46 +431,22 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
             ) : message.isCompactSummary ? (
               /* Compaction writeups are context bookkeeping, not a reply —
                  collapsed by default, expandable for review. */
-              <Reasoning defaultOpen={false}>
-                <ReasoningTrigger
-                  getThinkingMessage={() => (
-                    <p>{t('compactSummary.label', { defaultValue: 'Compaction summary' })}</p>
-                  )}
-                />
-                <ReasoningContent>
-                  <Markdown className="prose prose-sm prose-gray max-w-none font-prose dark:prose-invert">
-                    {formattedMessageContent}
-                  </Markdown>
-                  <div className="mt-3 flex items-center text-[11px]">
-                    <MessageCopyControl content={String(message.content || '')} messageType="assistant" />
-                  </div>
-                </ReasoningContent>
-              </Reasoning>
+              <TextDisclosure
+                label={t('compactSummary.label', { defaultValue: 'Compaction summary' })}
+                copyText={String(message.content || '')}
+              >
+                <Markdown className={DISCLOSED_TEXT_CLASS}>{formattedMessageContent}</Markdown>
+              </TextDisclosure>
             ) : message.isThinking ? (
-              /* Thinking messages — Reasoning component (ai-elements pattern) */
-              <Reasoning defaultOpen={false}>
-                <ReasoningTrigger />
-                <ReasoningContent>
-                  <Markdown className="prose prose-sm prose-gray max-w-none font-prose dark:prose-invert">
-                    {message.content}
-                  </Markdown>
-                  <div className="mt-3 flex items-center text-[11px]">
-                    <MessageCopyControl content={String(message.content || '')} messageType="assistant" />
-                  </div>
-                </ReasoningContent>
-              </Reasoning>
+              <TextDisclosure label={thinkingLabel} copyText={String(message.content || '')}>
+                <Markdown className={DISCLOSED_TEXT_CLASS}>{String(message.content || '')}</Markdown>
+              </TextDisclosure>
             ) : (
               <div dir="auto" className="text-sm text-gray-700 dark:text-gray-300">
-                {/* Reasoning accordion */}
                 {showThinking && message.reasoning && (
-                  <Reasoning className="mb-3" defaultOpen={false}>
-                    <ReasoningTrigger />
-                    <ReasoningContent>
-                      <div className="whitespace-pre-wrap">
-                        {message.reasoning}
-                      </div>
-                    </ReasoningContent>
-                  </Reasoning>
+                  <TextDisclosure className="mb-3" label={t('activity.thoughtUntimed')} copyText={String(message.reasoning)}>
+                    <Markdown className={DISCLOSED_TEXT_CLASS}>{String(message.reasoning)}</Markdown>
+                  </TextDisclosure>
                 )}
 
                 <div data-chat-find-content>

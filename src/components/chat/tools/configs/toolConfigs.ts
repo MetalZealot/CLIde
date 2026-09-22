@@ -31,6 +31,8 @@ export interface ToolDisplayConfig {
   result?: {
     hidden?: boolean;
     hideOnSuccess?: boolean;
+    /** The input render already shows a failure, so the red error row would repeat it. */
+    showsErrorInInput?: boolean;
     type?: 'one-line' | 'collapsible' | 'plan' | 'special';
     title?: string | ((result: any) => string);
     defaultOpen?: boolean;
@@ -535,7 +537,8 @@ export const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
       }),
     },
     result: {
-      hideOnSuccess: true
+      hidden: true,
+      showsErrorInInput: true
     }
   },
 
@@ -655,7 +658,7 @@ export function shouldHideToolResult(toolName: string, toolResult: any): boolean
 
   // Hidden/success-only configs suppress noisy successful output, but errors
   // still need to be visible so failed tool calls are diagnosable.
-  if (toolResult?.isError) return false;
+  if (toolResult?.isError) return Boolean(config.result.showsErrorInInput);
 
   // Always hidden
   if (config.result.hidden) return true;

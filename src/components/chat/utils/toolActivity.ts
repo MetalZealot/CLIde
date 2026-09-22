@@ -218,6 +218,14 @@ function readTime(value: unknown): number {
   return value instanceof Date ? value.getTime() : new Date(value as string | number).getTime();
 }
 
+/** From the row before a thinking block to the block: the thought plus the wait for it. */
+export function thinkingDurationMs(previous: ChatMessage | null | undefined, thinking: ChatMessage): number | null {
+  if (!previous) return null;
+  const starts = [readTime(previous.timestamp), readTime(previous.toolResult?.timestamp)].filter(Number.isFinite);
+  const durationMs = readTime(thinking.timestamp) - Math.max(...starts);
+  return starts.length > 0 && Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : null;
+}
+
 const operationCache = new WeakMap<ChatMessage, ActivityOperation>();
 
 export function describeOperation(message: ChatMessage): ActivityOperation {

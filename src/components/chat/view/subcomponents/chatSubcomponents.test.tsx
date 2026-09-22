@@ -23,7 +23,7 @@ import { asyncQuestionDraftKey } from '../../utils/asyncQuestionState';
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
-import { describeActivity, describeOperation, operationLabel, summarizeActivity } from '../../utils/toolActivity';
+import { describeActivity, describeOperation, operationLabel, summarizeActivity, thinkingDurationMs } from '../../utils/toolActivity';
 import { formatClockTime, formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
 import {
   DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
@@ -41,6 +41,7 @@ import {
 } from '../../../../hooks/useThinkingMessages';
 
 import ToolActivity from './ToolActivity';
+import { TextDisclosure } from './DisclosureRow';
 import MessageCopyControl from './MessageCopyControl';
 import ActivityIndicator from './ActivityIndicator';
 import { ChatExportOptions } from './ChatExportMenu';
@@ -302,6 +303,32 @@ describe('chatSubcomponents', () => {
       assert.match(container.textContent || '', /\$ npm test/);
       assert.match(container.textContent || '', /2 passed/);
       assert.equal(container.querySelectorAll('button[aria-expanded]').length, 3, 'the detail adds no disclosure of its own');
+    });
+
+    test('a thinking row times from the row before it and mounts its text only once opened', async () => {
+      const thinking: ChatMessage = { id: 't', timestamp: '2026-09-21T00:00:30Z', type: 'assistant', content: 'Plan', isThinking: true };
+      const call: ChatMessage = {
+        id: 'c', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Read',
+        toolResult: { content: '', isError: false, timestamp: '2026-09-21T00:00:07Z' },
+      };
+      assert.equal(thinkingDurationMs(call, thinking), 23_000, 'counts from the result, not the call');
+      assert.equal(thinkingDurationMs(null, thinking), null);
+      assert.equal(thinkingDurationMs({ ...call, timestamp: 'nope', toolResult: undefined }, thinking), null);
+
+      container = document.createElement('div');
+      document.body.append(container);
+      root = createRoot(container);
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <TextDisclosure label="Thought for 23s" copyText="Plan"><p>Plan the fix</p></TextDisclosure>
+        </I18nextProvider>,
+      ));
+      const row = container.querySelector('button[aria-expanded]') as HTMLButtonElement;
+      assert.equal(row.textContent, 'Thought for 23s');
+      assert.doesNotMatch(container.textContent || '', /Plan the fix/);
+      await React.act(async () => row.click());
+      assert.match(container.textContent || '', /Plan the fix/);
+      assert.ok(container.querySelector('button[aria-label="Copy"]'));
     });
 
     test('applies each cycle mode in the same tab while provider status stays authoritative', async () => {
@@ -2454,15 +2481,14 @@ describe('QuestionAnswerContent', () => {
   // string is comma-joined at write time (the Agent SDK's multi-select format),
   // and the renderer must not split the user's free text apart on that delimiter.
 
-  test('keeps a comma-containing custom answer as a single chip', () => {
+  test('keeps a comma-containing custom answer as one answer', () => {
     const html = renderToStaticMarkup(
       React.createElement(QuestionAnswerContent, {
         questions: [{ question: 'Proceed?', options: [{ label: 'Yes' }, { label: 'No' }] }],
         answers: { 'Proceed?': 'Sure, do it now, please' },
       }),
     );
-    assert.ok(html.includes('Sure, do it now, please'));
-    assert.equal(html.split('(custom)').length - 1, 1);
+    assert.ok(html.includes('<span>Sure, do it now, please</span>'));
   });
 
   test('separates a selected option from a comma-containing custom answer', () => {
@@ -2472,9 +2498,7 @@ describe('QuestionAnswerContent', () => {
         answers: { 'Which?': 'A, custom part one, part two' },
       }),
     );
-    assert.ok(html.includes('custom part one, part two'));
-    // Only the merged custom fragment is tagged (custom); "A" matched an option.
-    assert.equal(html.split('(custom)').length - 1, 1);
+    assert.ok(html.includes('<span>A</span>, <span>custom part one, part two</span>'));
   });
 
   test('still splits a plain multi-select answer into option labels', () => {
@@ -2484,9 +2508,24 @@ describe('QuestionAnswerContent', () => {
         answers: { 'Which?': 'A, B' },
       }),
     );
-    assert.ok(html.includes('>A<'));
-    assert.ok(html.includes('>B<'));
-    assert.ok(!html.includes('(custom)'));
+    assert.ok(html.includes('<span>A</span>, <span>B</span>'));
+  });
+
+  test('shows each question over its answer, with no tool name, and marks the rest skipped', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(QuestionAnswerContent, {
+        questions: [
+          { question: 'What kind of app?', header: 'App', options: [{ label: 'React app (Vite)' }] },
+          { question: 'Which port?', options: [{ label: '3000' }] },
+        ],
+        answers: { 'What kind of app?': 'React app (Vite)' },
+        errorText: 'Answer timed out',
+      }),
+    );
+    assert.ok(html.indexOf('What kind of app?') < html.indexOf('React app (Vite)'));
+    assert.doesNotMatch(html, /AskUserQuestion|>App</);
+    assert.match(html, /Skipped/);
+    assert.match(html, /Answer timed out/);
   });
 
   test('renders Codex answer arrays by stable id and keeps secret answers redacted', () => {
