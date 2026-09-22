@@ -69,6 +69,8 @@ phase is small once it lands and impossible before it.
   documented exceptions.
 - Monochrome shows no hue anywhere in the UI; each radius preset changes every
   corner except `rounded-full`.
+- Find's match highlight is obvious on every bubble, including your own
+  messages; today it tints with `--primary`, the user bubble's own colour.
 - Both light and dark verified on the **installed PWA at 3001**, not only the
   5173 dev tab — this is exactly the kind of change whose remaining defects are
   status-bar and safe-area coloured.
