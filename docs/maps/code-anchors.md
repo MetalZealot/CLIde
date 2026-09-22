@@ -142,9 +142,13 @@ frontend renders whatever `GET /:provider/models` returns.
 
 `ComposerModelMenu` is the only model/effort presentation. The `/models` command
 increments its `openRequest` instead of opening `CommandResultModal`. The menu heads
-with the provider name and opens a provider list **only while the chat is brand new**
-(`canSelectProvider` in `ChatInterface`) — a session belongs to the runtime that
-started it. Its **Refresh models** row refetches every provider with
+with a tab strip: Favourites, then **every connected provider while the chat is brand
+new** (`canSelectProvider` in `ChatInterface`), or only the session's own provider once
+it exists — a session belongs to the runtime that started it. Tabs only browse;
+`onSelectModel(model, provider)` commits both, and `handleSelectComposerModel` switches
+provider first. `newChatPicksRef` in `useChatProviderState` stops the configured-default
+re-seed from overwriting that pick. Stars live in `utils/favoriteModels.ts`, synced as
+the `favoriteModels` preference. Its **Refresh models** row refetches every provider with
 `?bypassCache=true`, which also makes Claude's adapter ask the CLI again.
 
 **Per-session active-model tracking** — which model a given session is actually running,

@@ -625,8 +625,15 @@ export function useChatProviderState({
    * rather than running continuously: it fires when a chat is opened or cleared,
    * so a model picked before the first send survives.
    */
+  // Providers given a model by hand in this new chat; a provider switch or a
+  // catalog refresh must not re-seed over that pick.
+  const newChatPicksRef = useRef(new Set<LLMProvider>());
   useEffect(() => {
-    if (selectedSession?.id) {
+    newChatPicksRef.current.clear();
+  }, [selectedSession?.id]);
+
+  useEffect(() => {
+    if (selectedSession?.id || newChatPicksRef.current.has(provider)) {
       return;
     }
 
@@ -656,6 +663,7 @@ export function useChatProviderState({
 
     const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
     if (!normalizedSessionId) {
+      newChatPicksRef.current.add(targetProvider);
       return { scope: 'default' as const, model };
     }
 

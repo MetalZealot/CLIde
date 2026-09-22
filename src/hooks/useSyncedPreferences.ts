@@ -8,6 +8,11 @@ import {
 } from '../contexts/AppearancePreferencesContext';
 import { api } from '../utils/api';
 import {
+  applyRemoteFavoriteModels,
+  readStoredFavoriteModels,
+  subscribeToFavoriteModels,
+} from '../utils/favoriteModels';
+import {
   applyRemoteProviderToolSettings,
   readProviderToolSettings,
   subscribeToProviderToolSettings,
@@ -45,6 +50,11 @@ const SOURCES: PreferenceSource[] = [
     read: readProviderToolSettings,
     apply: applyRemoteProviderToolSettings,
     subscribe: subscribeToProviderToolSettings,
+  },
+  {
+    read: readStoredFavoriteModels,
+    apply: applyRemoteFavoriteModels,
+    subscribe: subscribeToFavoriteModels,
   },
 ];
 

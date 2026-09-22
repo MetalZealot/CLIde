@@ -16,6 +16,7 @@ export const SYNCED_PREFERENCE_KEYS = [
   'claude-settings',
   'cursor-tools-settings',
   'codex-settings',
+  'favoriteModels',
 ] as const;
 
 export type SyncedPreferenceKey = (typeof SYNCED_PREFERENCE_KEYS)[number];

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { MENU_LIST_MAX_HEIGHT } from '../../../../shared/view/ui';
 import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
+import { useFavoriteModels } from '../../../../utils/favoriteModels';
 import { DEFAULT_EFFORT_VALUE } from '../../constants/providerEffort';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
@@ -18,6 +19,7 @@ import {
 
 type EffortOption = NonNullable<ProviderModelOption['effort']>['values'][number];
 type ProviderOption = { value: LLMProvider; label: string; connected: boolean; loading: boolean };
+type MenuTab = LLMProvider | 'favorites';
 
 interface ComposerModelMenuProps {
   effort: string;
@@ -25,7 +27,9 @@ interface ComposerModelMenuProps {
   onSelectEffort: (effort: string) => void;
   model: string;
   modelOptions: ProviderModelOption[];
-  onSelectModel: (model: string) => Promise<void>;
+  /** Every provider's models; the current provider's come from `modelOptions`. */
+  modelCatalog?: Partial<Record<LLMProvider, ProviderModelOption[]>>;
+  onSelectModel: (model: string, provider: LLMProvider) => Promise<void>;
   modelsLoading: boolean;
   /** Re-reads every provider's model list from its CLI. */
   onRefreshModels?: () => Promise<void>;
@@ -34,11 +38,10 @@ interface ComposerModelMenuProps {
   providerLabel: string;
   providerOptions?: ProviderOption[];
   /**
-   * Omitted once the session exists: a session belongs to the runtime that
-   * started it, so the provider row becomes a static label there and only a
-   * brand-new chat can still switch.
+   * False once the session exists: a session belongs to the runtime that
+   * started it, so only a brand-new chat shows every provider's models.
    */
-  onSelectProvider?: ((provider: LLMProvider) => void) | null;
+  canSwitchProvider?: boolean;
 }
 
 export default function ComposerModelMenu({
@@ -47,6 +50,7 @@ export default function ComposerModelMenu({
   onSelectEffort,
   model,
   modelOptions,
+  modelCatalog = {},
   onSelectModel,
   modelsLoading,
   onRefreshModels,
@@ -54,14 +58,16 @@ export default function ComposerModelMenu({
   provider,
   providerLabel,
   providerOptions = [],
-  onSelectProvider = null,
+  canSwitchProvider = false,
 }: ComposerModelMenuProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
-  // One popover, three panes. Providers and legacy models both drill in rather
-  // than extending the list, because this menu is opened from a phone-height
-  // composer and every extra row pushes the effort slider off screen.
-  const [view, setView] = useState<'models' | 'providers' | 'legacy'>('models');
+  // Tabs browse without switching; picking a model is what commits a provider.
+  // Legacy models drill in because every extra row on a phone-height composer
+  // pushes the effort slider off screen.
+  const [tab, setTab] = useState<MenuTab>(provider);
+  const [view, setView] = useState<'models' | 'legacy'>('models');
+  const { favorites, isFavorite, toggleFavorite } = useFavoriteModels();
   const [selectingModel, setSelectingModel] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const effortTrackRef = useRef<HTMLDivElement | null>(null);
@@ -73,15 +79,21 @@ export default function ComposerModelMenu({
     setIsOpen(false);
     setView('models');
   }, []);
+  const resetPanes = useCallback(() => {
+    setSelectionError(null);
+    setView('models');
+    setTab(provider);
+  }, [provider]);
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 14 * 16);
 
   useEffect(() => {
     if (openRequest > 0) {
-      setSelectionError(null);
-      setView('models');
+      resetPanes();
       updateAnchor();
       setIsOpen(true);
     }
+    // Only a new request opens the menu, not a provider change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRequest, updateAnchor]);
 
   const defaultEffortLabel = t('composer.effortDefault', { defaultValue: 'Default' });
@@ -92,39 +104,60 @@ export default function ComposerModelMenu({
   const displayedEffort = effortPreview ?? effort;
   const effortLabel = displayedEffort === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : displayedEffort;
   const modelLabel = modelOptions.find((option) => option.value === model)?.label || model;
+  const optionsFor = useCallback(
+    (target: LLMProvider) => (target === provider ? modelOptions : modelCatalog[target] ?? []),
+    [modelCatalog, modelOptions, provider],
+  );
+  const providerLabelFor = useCallback(
+    (target: LLMProvider) => (target === provider
+      ? providerLabel
+      : providerOptions.find((option) => option.value === target)?.label ?? target),
+    [provider, providerLabel, providerOptions],
+  );
+  // The current provider always shows; others only once connected or still checking.
+  const stripProviders = useMemo<LLMProvider[]>(() => {
+    if (!canSwitchProvider) return [provider];
+    const shown = providerOptions
+      .filter((option) => option.value === provider || option.connected || option.loading)
+      .map((option) => option.value);
+    return shown.includes(provider) ? shown : [provider, ...shown];
+  }, [canSwitchProvider, provider, providerOptions]);
+  const browsedProvider = tab === 'favorites' ? null : tab;
+  const browsedOptions = useMemo(
+    () => (browsedProvider ? optionsFor(browsedProvider) : []),
+    [browsedProvider, optionsFor],
+  );
   const primaryModels = useMemo(
-    () => modelOptions.filter((option) => option.group !== 'legacy'),
-    [modelOptions],
+    () => browsedOptions.filter((option) => option.group !== 'legacy'),
+    [browsedOptions],
   );
   const legacyModels = useMemo(
-    () => modelOptions.filter((option) => option.group === 'legacy'),
-    [modelOptions],
+    () => browsedOptions.filter((option) => option.group === 'legacy'),
+    [browsedOptions],
   );
-  const selectedLegacyModel = legacyModels.find((option) => option.value === model) ?? null;
+  const selectedLegacyModel = browsedProvider === provider
+    ? legacyModels.find((option) => option.value === model) ?? null
+    : null;
+  // A favourite whose model left the catalog stays stored but is not offered.
+  const favoriteRows = useMemo(
+    () => favorites.flatMap((entry) => {
+      if (!stripProviders.includes(entry.provider)) return [];
+      const option = optionsFor(entry.provider).find((candidate) => candidate.value === entry.model);
+      return option ? [{ provider: entry.provider, option }] : [];
+    }),
+    [favorites, optionsFor, stripProviders],
+  );
   const hasEffortSection = resolvedEffortOptions.length > 0;
-  const hasModelSection = modelOptions.length > 0 || modelsLoading;
-  const connectedProviderOptions = useMemo(
-    () => providerOptions.filter((option) => option.connected),
-    [providerOptions],
-  );
-  // A new chat always retains the provider drill-in. Connection status filters
-  // its choices; it never owns whether the selector itself exists.
-  const canSwitchProvider = Boolean(onSelectProvider);
-  const providerConnectionsLoading = providerOptions.some((option) => option.loading);
+  const hasModelSection = modelOptions.length > 0 || modelsLoading || canSwitchProvider;
   const ariaLabel = t('composer.modelMenu', { defaultValue: 'Select model and reasoning effort' });
-  const providerAriaLabel = t('composer.providerMenu', { defaultValue: 'Select model provider' });
   const legacyLabel = t('composer.legacyModels', { defaultValue: 'Legacy' });
   const defaultBadgeLabel = t('composer.modelIsDefault', { defaultValue: 'Default' });
-  const handleSelectProvider = useCallback((nextProvider: LLMProvider) => {
+  const favoritesLabel = t('composer.favoriteModels', { defaultValue: 'Favourites' });
+  const handleSelectModel = useCallback(async (nextModel: string, targetProvider: LLMProvider) => {
     setSelectionError(null);
-    setView('models');
-    onSelectProvider?.(nextProvider);
-  }, [onSelectProvider]);
-  const handleSelectModel = useCallback(async (nextModel: string) => {
-    setSelectionError(null);
-    setSelectingModel(nextModel);
+    setSelectingModel(`${targetProvider}:${nextModel}`);
     try {
-      await onSelectModel(nextModel);
+      await onSelectModel(nextModel, targetProvider);
       setIsOpen(false);
     } catch (error) {
       setSelectionError(error instanceof Error
@@ -179,27 +212,86 @@ export default function ComposerModelMenu({
     setEffortPreview(null);
   }, []);
 
-  if (!hasEffortSection && !hasModelSection && !canSwitchProvider) return null;
+  if (!hasEffortSection && !hasModelSection) return null;
 
-  const renderModelItem = (option: ProviderModelOption) => (
-    <ComposerMenuItem
-      key={option.value}
-      label={option.isDefault ? (
-        <span className="flex items-baseline gap-1.5">
-          <span className="truncate">{option.label || option.value}</span>
-          <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-muted-foreground">
-            {defaultBadgeLabel}
+  const renderModelItem = (option: ProviderModelOption, target: LLMProvider, showProvider = false) => {
+    const starred = isFavorite(target, option.value);
+    const starLabel = starred
+      ? t('composer.unfavoriteModel', { defaultValue: 'Remove from favourites' })
+      : t('composer.favoriteModel', { defaultValue: 'Add to favourites' });
+    return (
+      <div key={`${target}:${option.value}`} className="flex items-center gap-0.5">
+        <ComposerMenuItem
+          className="min-w-0 flex-1"
+          label={option.isDefault ? (
+            <span className="flex items-baseline gap-1.5">
+              <span className="truncate">{option.label || option.value}</span>
+              <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-muted-foreground">
+                {defaultBadgeLabel}
+              </span>
+            </span>
+          ) : (option.label || option.value)}
+          description={showProvider ? (
+            <span className="flex items-center gap-1">
+              <span aria-hidden="true" className="shrink-0">
+                <SessionProviderLogo provider={target} className="h-3 w-3" />
+              </span>
+              <span className="truncate">{providerLabelFor(target)}</span>
+            </span>
+          ) : undefined}
+          isSelected={target === provider && option.value === model}
+          onSelect={() => { void handleSelectModel(option.value, target); }}
+          disabled={selectingModel !== null}
+          trailing={selectingModel === `${target}:${option.value}`
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : undefined}
+        />
+        <button
+          type="button"
+          onClick={() => toggleFavorite(target, option.value)}
+          aria-pressed={starred}
+          aria-label={starLabel}
+          title={starLabel}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+        >
+          <Star className={`h-3.5 w-3.5 ${starred ? 'fill-current text-foreground' : ''}`} aria-hidden />
+        </button>
+      </div>
+    );
+  };
+
+  const renderTab = (value: MenuTab) => {
+    const isActive = tab === value;
+    const label = value === 'favorites' ? favoritesLabel : providerLabelFor(value);
+    const showName = value !== 'favorites' && !canSwitchProvider;
+    return (
+      <button
+        key={value}
+        type="button"
+        role="tab"
+        aria-selected={isActive}
+        aria-label={label}
+        title={label}
+        onClick={() => {
+          setSelectionError(null);
+          setView('models');
+          setTab(value);
+        }}
+        className={`flex h-8 items-center gap-1.5 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          showName ? 'min-w-0 flex-1 px-1.5' : 'w-8 shrink-0 justify-center'
+        } ${isActive ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'}`}
+      >
+        {value === 'favorites' ? (
+          <Star className={`h-4 w-4 ${isActive ? 'fill-current' : ''}`} aria-hidden />
+        ) : (
+          <span aria-hidden="true" className="shrink-0">
+            <SessionProviderLogo provider={value} className="h-4 w-4" />
           </span>
-        </span>
-      ) : (option.label || option.value)}
-      isSelected={option.value === model}
-      onSelect={() => { void handleSelectModel(option.value); }}
-      disabled={selectingModel !== null}
-      trailing={selectingModel === option.value
-        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        : undefined}
-    />
-  );
+        )}
+        {showName && <span className="truncate">{label}</span>}
+      </button>
+    );
+  };
 
   const renderBackRow = (label: string, ariaText: string) => (
     <button
@@ -225,10 +317,7 @@ export default function ComposerModelMenu({
         ref={triggerRef}
         type="button"
         onClick={() => {
-          if (!isOpen) {
-            setSelectionError(null);
-            setView('models');
-          }
+          if (!isOpen) resetPanes();
           updateAnchor();
           setIsOpen((current) => !current);
         }}
@@ -252,42 +341,10 @@ export default function ComposerModelMenu({
         <ComposerMenuSurface
           anchor={anchor}
           menuRef={menuRef}
-          ariaLabel={view === 'providers' ? providerAriaLabel : ariaLabel}
+          ariaLabel={ariaLabel}
         >
-          <div className="w-52 max-w-full">
-            {view === 'providers' ? (
-              <div className="py-0.5">
-                {renderBackRow(
-                  t('composer.provider', { defaultValue: 'Provider' }),
-                  t('composer.backToModels', { defaultValue: 'Back to models' }),
-                )}
-                <ComposerMenuSeparator />
-                <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: MENU_LIST_MAX_HEIGHT }}>
-                  {connectedProviderOptions.map((option) => (
-                    <ComposerMenuItem
-                      key={option.value}
-                      label={(
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span aria-hidden="true" className="shrink-0">
-                            <SessionProviderLogo provider={option.value} className="h-4 w-4" />
-                          </span>
-                          <span className="truncate">{option.label}</span>
-                        </span>
-                      )}
-                      isSelected={option.value === provider}
-                      onSelect={() => handleSelectProvider(option.value)}
-                    />
-                  ))}
-                  {connectedProviderOptions.length === 0 && (
-                    <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
-                      {providerConnectionsLoading
-                        ? t('composer.loadingProviders', { defaultValue: 'Checking connected providers…' })
-                        : t('composer.noConnectedProviders', { defaultValue: 'No connected providers.' })}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : view === 'legacy' ? (
+          <div className="w-56 max-w-full">
+            {view === 'legacy' ? (
               <div className="py-0.5">
                 {renderBackRow(
                   legacyLabel,
@@ -295,7 +352,7 @@ export default function ComposerModelMenu({
                 )}
                 <ComposerMenuSeparator />
                 <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: MENU_LIST_MAX_HEIGHT }}>
-                  {legacyModels.map(renderModelItem)}
+                  {browsedProvider && legacyModels.map((option) => renderModelItem(option, browsedProvider))}
                 </div>
                 {selectionError && (
                   <p role="alert" className="px-2.5 py-1.5 text-xs leading-4 text-destructive">
@@ -305,62 +362,59 @@ export default function ComposerModelMenu({
               </div>
             ) : (
               <>
-              <div className="px-1 pb-1 pt-0.5">
-                {canSwitchProvider ? (
-                  <button
-                    type="button"
-                    onClick={() => setView('providers')}
-                    aria-haspopup="menu"
-                    aria-label={providerAriaLabel}
-                    title={providerAriaLabel}
-                    className="flex w-full items-center gap-1 rounded-lg px-1.5 py-1 text-left text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                  >
-                    <span aria-hidden="true" className="shrink-0">
-                      <SessionProviderLogo provider={provider} className="h-4 w-4" />
-                    </span>
-                    <span className="truncate">{providerLabel}</span>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  </button>
-                ) : (
-                  <span className="flex items-center gap-1 px-1.5 py-1 text-sm font-medium text-muted-foreground">
-                    <span aria-hidden="true" className="shrink-0">
-                      <SessionProviderLogo provider={provider} className="h-4 w-4" />
-                    </span>
-                    <span className="truncate">{providerLabel}</span>
-                  </span>
-                )}
+              <div
+                role="tablist"
+                aria-label={t('composer.provider', { defaultValue: 'Provider' })}
+                className="flex items-center gap-1 px-1 pb-1 pt-0.5"
+              >
+                {renderTab('favorites')}
+                {stripProviders.map(renderTab)}
               </div>
               <ComposerMenuSeparator />
 
               {hasModelSection && (
                 <div className="py-0.5">
-                  {modelOptions.length === 0 && modelsLoading && (
-                    <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
-                      {t('composer.loadingModels', { defaultValue: 'Loading models…' })}
-                    </p>
-                  )}
-                  {/* The list scrolls, not the menu: the provider row above and
-                      the effort slider below stay reachable however many models
+                  {/* The list scrolls, not the menu: the tabs above and the
+                      effort slider below stay reachable however many models
                       a provider offers. */}
                   <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: MENU_LIST_MAX_HEIGHT }}>
-                    {primaryModels.map(renderModelItem)}
-                    {legacyModels.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setView('legacy')}
-                        aria-haspopup="menu"
-                        className="flex w-full items-center gap-1 rounded-lg px-2.5 py-1.5 text-left text-sm text-foreground/90 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                      >
-                        <span className="min-w-0 flex-1 truncate">
-                          {legacyLabel}
-                          {selectedLegacyModel && (
-                            <span className="ml-1.5 text-xs text-muted-foreground">
-                              {selectedLegacyModel.label || selectedLegacyModel.value}
+                    {tab === 'favorites' ? (
+                      favoriteRows.length > 0
+                        ? favoriteRows.map((row) => renderModelItem(row.option, row.provider, true))
+                        : (
+                          <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
+                            {t('composer.noFavoriteModels', { defaultValue: 'Star a model to pin it here.' })}
+                          </p>
+                        )
+                    ) : (
+                      <>
+                        {browsedOptions.length === 0 && (
+                          <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
+                            {modelsLoading
+                              ? t('composer.loadingModels', { defaultValue: 'Loading models…' })
+                              : t('composer.noModels', { defaultValue: 'No models available.' })}
+                          </p>
+                        )}
+                        {browsedProvider && primaryModels.map((option) => renderModelItem(option, browsedProvider))}
+                        {legacyModels.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setView('legacy')}
+                            aria-haspopup="menu"
+                            className="flex w-full items-center gap-1 rounded-lg px-2.5 py-1.5 text-left text-sm text-foreground/90 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                          >
+                            <span className="min-w-0 flex-1 truncate">
+                              {legacyLabel}
+                              {selectedLegacyModel && (
+                                <span className="ml-1.5 text-xs text-muted-foreground">
+                                  {selectedLegacyModel.label || selectedLegacyModel.value}
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                      </button>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                   {onRefreshModels && (

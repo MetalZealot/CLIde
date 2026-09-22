@@ -1927,6 +1927,7 @@ describe('chatSubcomponents', () => {
       await React.act(async () => root?.unmount());
       container?.remove();
       document.querySelectorAll('[role="menu"]').forEach((menu) => menu.remove());
+      localStorage.clear();
       Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
       window.dispatchEvent(new window.Event('resize'));
       root = null;
@@ -2228,100 +2229,132 @@ describe('chatSubcomponents', () => {
       />,
     );
 
-    test('a new chat can switch provider from the model menu', async () => {
-      const providerSelections: string[] = [];
-      const host = await mountModelMenu({ onSelectProvider: (next) => providerSelections.push(next) });
-
+    const openModelMenu = async (host: HTMLElement) => {
       const trigger = host.querySelector<HTMLButtonElement>('button');
       assert.ok(trigger);
       await React.act(async () => trigger.click());
+      return document.querySelector<HTMLElement>('[role="menu"]');
+    };
+    const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="tab"]')];
+    const findTab = (label: string) => tabs().find((tab) => tab.getAttribute('aria-label') === label);
+    const findModel = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
+      .find((button) => button.textContent?.includes(label));
 
-      const providerRow = document.querySelector<HTMLButtonElement>('[role="menu"] [aria-label="Select model provider"]');
-      assert.ok(providerRow, 'the model menu heads with the provider');
-      assert.match(providerRow.textContent || '', /Claude/);
-      assert.ok(providerRow.querySelector('svg[aria-label="Claude"]'), 'the provider row carries its logo');
-      await React.act(async () => providerRow.click());
-
-      const menu = document.querySelector('[role="menu"]');
-      assert.match(menu?.textContent || '', /Codex/);
-      assert.doesNotMatch(menu?.textContent || '', /Cursor/);
-      assert.doesNotMatch(menu?.textContent || '', /OpenCode/);
-      assert.ok(menu?.querySelector('svg[aria-label="Claude"]'), 'the current provider choice carries its logo');
-      assert.ok(menu?.querySelector('svg[aria-label="Codex"]'), 'the other provider choice carries its logo');
-      assert.doesNotMatch(menu?.textContent || '', /Model A/, 'the provider list replaces the model list');
-
-      const codexButton = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
-        .find((button) => button.textContent?.includes('Codex'));
-      assert.ok(codexButton);
-      await React.act(async () => codexButton.click());
-
-      assert.deepEqual(providerSelections, ['codex']);
-      assert.match(
-        document.querySelector('[role="menu"]')?.textContent || '',
-        /Model A/,
-        'picking a provider returns to the model list',
-      );
-    });
-
-    test('an established session shows its provider without offering a switch', async () => {
-      const host = await mountModelMenu({ onSelectProvider: null });
-
-      const trigger = host.querySelector<HTMLButtonElement>('button');
-      assert.ok(trigger);
-      await React.act(async () => trigger.click());
-
-      const menu = document.querySelector('[role="menu"]');
-      assert.match(menu?.textContent || '', /Claude/, 'the provider stays visible as a label');
-      assert.ok(menu?.querySelector('svg[aria-label="Claude"]'), 'the static provider row carries its logo');
-      assert.equal(
-        document.querySelector('[role="menu"] [aria-label="Select model provider"]'),
-        null,
-        'no provider switcher once the session exists',
-      );
-    });
-
-    test('a disconnected new-chat provider can switch to the sole connected provider', async () => {
+    test('a new chat lists every connected provider and browsing one does not switch', async () => {
+      const selections: string[] = [];
       const host = await mountModelMenu({
-        provider: 'claude',
-        providerLabel: 'Claude',
+        canSwitchProvider: true,
+        modelCatalog: { codex: [{ value: 'gpt-x', label: 'GPT X' }] },
+        onSelectModel: async (value, target) => { selections.push(`${target}:${value}`); },
+      });
+
+      const menu = await openModelMenu(host);
+      assert.deepEqual(
+        tabs().map((tab) => tab.getAttribute('aria-label')),
+        ['Favourites', 'Claude', 'Codex'],
+        'disconnected providers stay out of the strip',
+      );
+      assert.equal(findTab('Claude')?.getAttribute('aria-selected'), 'true', 'the menu opens on the current provider');
+      assert.ok(findTab('Codex')?.querySelector('svg[aria-label="Codex"]'), 'each provider tab is its logo');
+
+      const codexTab = findTab('Codex');
+      assert.ok(codexTab);
+      await React.act(async () => codexTab.click());
+      assert.match(menu?.textContent || '', /GPT X/);
+      assert.doesNotMatch(menu?.textContent || '', /Model A/, 'the tab replaces the list');
+      assert.deepEqual(selections, [], 'browsing a provider changes nothing');
+
+      const gpt = findModel('GPT X');
+      assert.ok(gpt);
+      assert.equal(gpt.getAttribute('aria-checked'), 'false', 'another provider\'s model is never marked current');
+      await React.act(async () => gpt.click());
+      assert.deepEqual(selections, ['codex:gpt-x'], 'picking the model commits its provider with it');
+    });
+
+    test('an established session shows only its own provider, by name', async () => {
+      const host = await mountModelMenu({
+        canSwitchProvider: false,
+        modelCatalog: { codex: [{ value: 'gpt-x', label: 'GPT X' }] },
+      });
+
+      await openModelMenu(host);
+      assert.deepEqual(tabs().map((tab) => tab.getAttribute('aria-label')), ['Favourites', 'Claude']);
+      assert.match(findTab('Claude')?.textContent || '', /Claude/, 'the lone provider tab carries its name');
+    });
+
+    test('while connection checks load, the providers being checked stay reachable', async () => {
+      const host = await mountModelMenu({
+        canSwitchProvider: true,
         providerOptions: [
           { value: 'claude', label: 'Claude', connected: false, loading: false },
-          { value: 'codex', label: 'Codex', connected: true, loading: false },
+          { value: 'codex', label: 'Codex', connected: false, loading: true },
+          { value: 'cursor', label: 'Cursor', connected: false, loading: false },
         ],
-        onSelectProvider: () => {},
       });
 
-      const trigger = host.querySelector<HTMLButtonElement>('button');
-      assert.ok(trigger);
-      await React.act(async () => trigger.click());
-
-      const providerRow = document.querySelector<HTMLButtonElement>('[role="menu"] [aria-label="Select model provider"]');
-      assert.ok(providerRow, 'the sole connected alternative remains reachable');
-      await React.act(async () => providerRow.click());
-
-      const menu = document.querySelector('[role="menu"]');
-      assert.match(menu?.textContent || '', /Codex/);
-      assert.doesNotMatch(menu?.textContent || '', /Claude/);
+      await openModelMenu(host);
+      assert.deepEqual(
+        tabs().map((tab) => tab.getAttribute('aria-label')),
+        ['Favourites', 'Claude', 'Codex'],
+        'the current provider shows even when disconnected',
+      );
     });
 
-    test('a new chat retains provider selection while connection checks load', async () => {
+    test('a starred model is listed under Favourites with its provider', async () => {
+      const selections: string[] = [];
       const host = await mountModelMenu({
-        providerOptions: [
-          { value: 'claude', label: 'Claude', connected: false, loading: true },
-          { value: 'codex', label: 'Codex', connected: false, loading: true },
-        ],
-        onSelectProvider: () => {},
+        canSwitchProvider: true,
+        modelCatalog: { codex: [{ value: 'gpt-x', label: 'GPT X' }] },
+        onSelectModel: async (value, target) => { selections.push(`${target}:${value}`); },
       });
 
-      const trigger = host.querySelector<HTMLButtonElement>('button');
-      assert.ok(trigger);
-      await React.act(async () => trigger.click());
+      const menu = await openModelMenu(host);
+      const codexTab = findTab('Codex');
+      assert.ok(codexTab);
+      await React.act(async () => codexTab.click());
+      const star = document.querySelector<HTMLButtonElement>('[role="menu"] [aria-label="Add to favourites"]');
+      assert.ok(star);
+      await React.act(async () => star.click());
+      assert.equal(star.getAttribute('aria-pressed'), 'true');
+      assert.deepEqual(selections, [], 'starring does not pick the model');
+      assert.deepEqual(
+        JSON.parse(localStorage.getItem('favoriteModels') || '[]'),
+        [{ provider: 'codex', model: 'gpt-x' }],
+      );
 
-      const providerRow = document.querySelector<HTMLButtonElement>('[role="menu"] [aria-label="Select model provider"]');
-      assert.ok(providerRow, 'connection loading never removes provider selection');
-      await React.act(async () => providerRow.click());
+      const favouritesTab = findTab('Favourites');
+      assert.ok(favouritesTab);
+      await React.act(async () => favouritesTab.click());
+      assert.match(menu?.textContent || '', /GPT X/);
+      assert.ok(findModel('GPT X')?.querySelector('svg[aria-label="Codex"]'), 'a favourite names its provider');
+      const favourite = findModel('GPT X');
+      assert.ok(favourite);
+      await React.act(async () => favourite.click());
+      assert.deepEqual(selections, ['codex:gpt-x']);
+    });
 
-      assert.match(document.querySelector('[role="menu"]')?.textContent || '', /Checking connected providers/);
+    test('an established session hides favourites from other providers', async () => {
+      localStorage.setItem('favoriteModels', JSON.stringify([
+        { provider: 'codex', model: 'gpt-x' },
+        { provider: 'claude', model: 'model-a' },
+        { provider: 'claude', model: 'retired-model' },
+      ]));
+      const host = await mountModelMenu({
+        canSwitchProvider: false,
+        modelCatalog: { codex: [{ value: 'gpt-x', label: 'GPT X' }] },
+      });
+
+      const menu = await openModelMenu(host);
+      const favouritesTab = findTab('Favourites');
+      assert.ok(favouritesTab);
+      await React.act(async () => favouritesTab.click());
+      assert.match(menu?.textContent || '', /Model A/);
+      assert.doesNotMatch(menu?.textContent || '', /GPT X/, 'the session cannot run another provider');
+      assert.equal(
+        document.querySelectorAll('[role="menu"] [role="menuitemradio"]').length,
+        1,
+        'a favourite no longer in the catalog is not offered',
+      );
     });
 
     test('desktop permission trigger toggles routine access while the chevron opens every mode', async () => {

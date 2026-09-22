@@ -7,7 +7,7 @@ import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import type { ChatInterfaceProps, PermissionMode } from '../types/types';
-import type { LLMProvider } from '../../../types/app';
+import type { LLMProvider, ProviderModelOption } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
@@ -134,6 +134,7 @@ function ChatInterface({
     currentProviderEffortOptions,
     currentProviderModel,
     currentProviderModelOptions,
+    providerModelCatalog,
     permissionMode,
     collaborationMode,
     pendingPermissionRequests,
@@ -463,17 +464,22 @@ function ChatInterface({
     }
   }, [applySessionEffort, currentSessionId, selectedSession?.id, showSettingsChangeNotice]);
 
-  const handleSelectComposerModel = useCallback(async (model: string) => {
+  const handleSelectComposerModel = useCallback(async (model: string, targetProvider: LLMProvider = provider) => {
     const sessionId = currentSessionId || selectedSession?.id || null;
-    await handleSelectProviderModel(provider, model, sessionId);
+    // A new chat picks provider and model together; a session keeps its provider.
+    if (targetProvider !== provider) {
+      if (sessionId) return;
+      selectProvider(targetProvider);
+    }
+    await handleSelectProviderModel(targetProvider, model, sessionId);
 
     // The new model may not offer the effort this session was on. Write the
     // fallback rather than only displaying it, so the stored pick, the composer
     // and the next turn agree on one value. A model with no effort control is
     // the exception: it keeps the session's pick for whatever is selected next.
     const storedEffort = sessionId ? sessionStore.getSessionSlot(sessionId)?.effort ?? null : null;
-    if (storedEffort && modelOffersEffort(provider, model)) {
-      const reconciled = reconcileStoredEffort(provider, model, storedEffort);
+    if (storedEffort && modelOffersEffort(targetProvider, model)) {
+      const reconciled = reconcileStoredEffort(targetProvider, model, storedEffort);
       if (reconciled !== storedEffort) {
         await applySessionEffort(reconciled, sessionId);
       }
@@ -486,6 +492,7 @@ function ChatInterface({
     modelOffersEffort,
     provider,
     reconcileStoredEffort,
+    selectProvider,
     selectedSession?.id,
     sessionStore,
     showSettingsChangeNotice,
@@ -851,6 +858,12 @@ function ChatInterface({
     })),
     [availableProviders, getProviderLabel, providerAuthStatus],
   );
+  const composerModelCatalog = useMemo(
+    () => Object.fromEntries(
+      Object.entries(providerModelCatalog).map(([key, definition]) => [key, definition?.OPTIONS ?? []]),
+    ) as Partial<Record<LLMProvider, ProviderModelOption[]>>,
+    [providerModelCatalog],
+  );
   const isNewSession = !selectedSession && !currentSessionId;
   useEffect(() => {
     if (isNewSession) {
@@ -1055,12 +1068,13 @@ function ChatInterface({
             onSelectCollaborationMode={selectCollaborationMode}
             providerLabel={selectedProviderLabel}
             providerOptions={providerOptions}
-            onSelectProvider={canSelectProvider ? selectProvider : null}
+            canSwitchProvider={canSelectProvider}
             effort={currentProviderEffort}
             availableEffortOptions={currentProviderEffortOptions}
             onSelectEffort={handleSelectComposerEffort}
             model={currentProviderModel}
             availableModelOptions={currentProviderModelOptions}
+            modelCatalog={composerModelCatalog}
             onSelectModel={handleSelectComposerModel}
             modelsLoading={providerModelsLoading}
             onRefreshModels={refreshProviderModels}

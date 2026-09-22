@@ -100,14 +100,16 @@ interface ChatComposerProps {
   onSelectCollaborationMode: (mode: CollaborationMode) => void;
   providerLabel: string;
   providerOptions: { value: LLMProvider; label: string; connected: boolean; loading: boolean }[];
-  /** Null once the session exists — its provider can no longer change. */
-  onSelectProvider: ((provider: LLMProvider) => void) | null;
+  /** False once the session exists — its provider can no longer change. */
+  canSwitchProvider: boolean;
   effort: string;
   availableEffortOptions: NonNullable<ProviderModelOption['effort']>['values'];
   onSelectEffort: (effort: string) => void;
   model: string;
   availableModelOptions: ProviderModelOption[];
-  onSelectModel: (model: string) => Promise<void>;
+  /** Every provider's models, for browsing and favourites across providers. */
+  modelCatalog: Partial<Record<LLMProvider, ProviderModelOption[]>>;
+  onSelectModel: (model: string, provider: LLMProvider) => Promise<void>;
   modelsLoading: boolean;
   onRefreshModels?: () => Promise<void>;
   modelMenuOpenRequest: number;
@@ -192,12 +194,13 @@ export default function ChatComposer({
   onSelectCollaborationMode,
   providerLabel,
   providerOptions,
-  onSelectProvider,
+  canSwitchProvider,
   effort,
   availableEffortOptions,
   onSelectEffort,
   model,
   availableModelOptions,
+  modelCatalog,
   onSelectModel,
   modelsLoading,
   onRefreshModels,
@@ -615,6 +618,7 @@ export default function ChatComposer({
               onSelectEffort={onSelectEffort}
               model={model}
               modelOptions={availableModelOptions}
+              modelCatalog={modelCatalog}
               onSelectModel={onSelectModel}
               modelsLoading={modelsLoading}
               onRefreshModels={onRefreshModels}
@@ -622,7 +626,7 @@ export default function ChatComposer({
               provider={provider}
               providerLabel={providerLabel}
               providerOptions={providerOptions}
-              onSelectProvider={onSelectProvider}
+              canSwitchProvider={canSwitchProvider}
             />
 
             <ComposerPermissionMenu
