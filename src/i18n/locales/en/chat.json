@@ -35,6 +35,56 @@
     "detailFailed": "Couldn't load the full output.",
     "retryDetail": "Retry"
   },
+  "activity": {
+    "facet": {
+      "read_one": "read {{count}} file",
+      "read_other": "read {{count}} files",
+      "search_one": "searched {{count}} pattern",
+      "search_other": "searched {{count}} patterns",
+      "web_one": "searched the web",
+      "web_other": "searched the web {{count}} times",
+      "bash_one": "ran {{count}} command",
+      "bash_other": "ran {{count}} commands",
+      "poll_one": "checked a running command",
+      "poll_other": "checked a running command {{count}} times",
+      "edit_one": "edited {{count}} file",
+      "edit_other": "edited {{count}} files",
+      "other_one": "used {{count}} tool",
+      "other_other": "used {{count}} tools"
+    },
+    "done": {
+      "read": "Read {{target}}",
+      "search": "Searched for {{target}}",
+      "web": "Searched the web for {{target}}",
+      "fetch": "Fetched {{target}}",
+      "bash": "Ran {{target}}",
+      "poll": "Checked a running command",
+      "edit": "Edited {{target}}",
+      "other": "Used {{target}}"
+    },
+    "running": {
+      "read": "Reading {{target}}",
+      "search": "Searching for {{target}}",
+      "web": "Searching the web for {{target}}",
+      "fetch": "Fetching {{target}}",
+      "bash": "Running {{target}}",
+      "poll": "Checking a running command",
+      "edit": "Editing {{target}}",
+      "other": "Using {{target}}"
+    },
+    "runningAny": {
+      "read": "Reading a file",
+      "search": "Searching",
+      "web": "Searching the web",
+      "fetch": "Fetching a page",
+      "bash": "Running a command",
+      "poll": "Checking a running command",
+      "edit": "Editing files",
+      "other": "Using a tool"
+    },
+    "failed_one": "{{count}} failed",
+    "failed_other": "{{count}} failed"
+  },
   "search": {
     "found": "Found {{count}} {{type}}",
     "file": "file",

@@ -3,16 +3,16 @@ import { memo, useCallback, useMemo } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
-import type { ChatMessage } from '../../types/types';
+import type { ChatMessage, PendingPermissionRequest } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
-import { groupConsecutiveTools, isToolGroupItem } from '../../utils/toolGrouping';
+import { groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
 import { computeTurnDurations } from '../../utils/turnDuration';
 
 import MessageComponent from './MessageComponent';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
-import ToolGroupContainer from './ToolGroupContainer';
+import ToolActivity from './ToolActivity';
 
 interface ChatMessagesPaneProps {
   scrollContainerRef: MutableRefObject<HTMLElement | null>;
@@ -46,6 +46,8 @@ interface ChatMessagesPaneProps {
   };
   showRawParameters?: boolean;
   showThinking?: boolean;
+  /** A call waiting on one of these stays its own row until it is answered. */
+  pendingPermissionRequests?: PendingPermissionRequest[];
   selectedProject: Project | null;
   onEditMessage?: (message: ChatMessage) => void;
   canEditMessage?: boolean;
@@ -89,6 +91,7 @@ function ChatMessagesPane({
   onGrantToolPermission,
   showRawParameters,
   showThinking,
+  pendingPermissionRequests,
   selectedProject,
   onEditMessage,
   canEditMessage = false,
@@ -105,10 +108,22 @@ function ChatMessagesPane({
   const nextTaskPrompt = t('tasks.nextTaskPrompt', {
     defaultValue: 'Start the next task',
   });
-  const groupedVisibleMessages = useMemo(
-    () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
-    [visibleMessages, showThinking],
+  const pendingToolIds = useMemo(
+    () => new Set((pendingPermissionRequests ?? []).flatMap((request) => (request.toolId ? [request.toolId] : []))),
+    [pendingPermissionRequests],
   );
+  const groupedVisibleMessages = useMemo(
+    () => groupToolActivities(visibleMessages, { showThinking: Boolean(showThinking), pendingToolIds }),
+    [visibleMessages, showThinking, pendingToolIds],
+  );
+  const liveActivity = useMemo(() => {
+    if (!isProcessing) return null;
+    for (let index = groupedVisibleMessages.length - 1; index >= 0; index -= 1) {
+      const item = groupedVisibleMessages[index];
+      if (isToolActivityItem(item)) return item;
+    }
+    return null;
+  }, [groupedVisibleMessages, isProcessing]);
   // All loaded messages, so a turn whose prompt sits above the visible window still resolves.
   const turnDurations = useMemo(
     () => computeTurnDurations(chatMessages, isProcessing, turnStartedAt),
@@ -135,7 +150,7 @@ function ChatMessagesPane({
       keys.set(message, seen === 0 ? intrinsicKey : `${intrinsicKey}__${seen}`);
     };
     for (const item of groupedVisibleMessages) {
-      if (isToolGroupItem(item)) {
+      if (isToolActivityItem(item)) {
         item.messages.forEach(assign);
       } else {
         assign(item);
@@ -232,15 +247,16 @@ function ChatMessagesPane({
             let prevMessage: ChatMessage | null = null;
 
             return groupedVisibleMessages.map((item) => {
-              if (isToolGroupItem(item)) {
-                const groupPrevMessage = prevMessage;
+              if (isToolActivityItem(item)) {
+                const activityPrevMessage = prevMessage;
                 prevMessage = item.messages[item.messages.length - 1] || prevMessage;
 
                 return (
-                  <ToolGroupContainer
+                  <ToolActivity
                     key={`tool-group-${getMessageKey(item.messages[0])}`}
-                    group={item}
-                    prevMessage={groupPrevMessage}
+                    activity={item}
+                    isLive={item === liveActivity}
+                    prevMessage={activityPrevMessage}
                     createDiff={createDiff}
                     getMessageKey={getMessageKey}
                     onFileOpen={onFileOpen}

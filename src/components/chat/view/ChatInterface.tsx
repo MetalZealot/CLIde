@@ -921,6 +921,7 @@ function ChatInterface({
           onGrantToolPermission={handleGrantToolPermission}
           showRawParameters={showRawParameters}
           showThinking={showThinking}
+          pendingPermissionRequests={pendingPermissionRequests}
           selectedProject={selectedProject}
           onEditMessage={beginRewindEdit}
           canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing}

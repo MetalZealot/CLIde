@@ -23,6 +23,7 @@ import { asyncQuestionDraftKey } from '../../utils/asyncQuestionState';
 import { getNextRoutinePermissionMode } from '../../utils/chatPermissions';
 import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
+import { describeActivity, summarizeActivity } from '../../utils/toolActivity';
 import { formatClockTime, formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
 import {
   DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
@@ -234,6 +235,35 @@ describe('chatSubcomponents', () => {
       const shuffled = shuffleThinkingMessageIndices(4, 2, () => 0);
       assert.deepEqual([...shuffled].sort(), [0, 1, 2, 3]);
       assert.notEqual(shuffled[0], 2, 'a reshuffle cannot immediately repeat its previous message');
+    });
+
+    test('a tool activity row reads as facets, as its one call, or as the call still running, plus failures', () => {
+      const t = i18next.getFixedT('en', 'chat');
+      const done = { content: '', isError: false, timestamp: '2026-09-21T00:00:01Z' };
+      const call = (id: string, toolName: string, toolInput: unknown, extra: Partial<ChatMessage> = {}): ChatMessage => ({
+        id, timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true,
+        toolName, toolInput: JSON.stringify(toolInput), toolResult: done, ...extra,
+      });
+      const edit = call('edit', 'Edit', { file_path: '/src/toolGrouping.ts', old_string: 'a', new_string: 'b\nc' });
+      const burst = [
+        call('r1', 'Read', { file_path: '/src/a.ts' }),
+        call('r2', 'Read', { file_path: '/src/b.ts' }),
+        call('b1', 'Bash', { command: 'npm test' }, { toolResult: { content: 'exit 1', isError: true } }),
+        edit,
+      ];
+      const label = (messages: ChatMessage[], isLive = false) => describeActivity(summarizeActivity(messages), t, isLive).label;
+
+      assert.equal(label(burst), 'Read 2 files, ran 1 command, edited 1 file +2 \u22121');
+      assert.equal(label([edit]), 'Edited toolGrouping.ts +2 \u22121');
+      assert.equal(label([call('m1', 'mcp__cloudcli-browser__browser_click', {})]), 'Used browser_click');
+      const claudeRunning = call('run', 'Bash', { command: 'npm test', description: 'Run client tests' }, { toolResult: null });
+      const codexRunning = call('run', 'Bash', { command: 'npm test' }, { toolResult: null });
+      assert.equal(label([...burst, claudeRunning], true), 'Run client tests');
+      assert.equal(label([...burst, codexRunning], true), 'Running npm test');
+      assert.equal(label([...burst, codexRunning], false), 'Read 2 files, ran 2 commands, edited 1 file +2 \u22121');
+      assert.equal(summarizeActivity(burst).failed, 1);
+      assert.equal(t('activity.failed', { count: 1 }), '1 failed');
+
     });
 
     test('applies each cycle mode in the same tab while provider status stays authoritative', async () => {

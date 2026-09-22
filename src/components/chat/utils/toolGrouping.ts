@@ -1,36 +1,53 @@
 import type { ChatMessage } from '../types/types';
 
-export const TOOL_GROUP_THRESHOLD = 2;
+import { isStandaloneTool } from './toolActivity';
 
-export interface ToolGroupItem {
+export interface ToolActivityItem {
   _isGroup: true;
-  toolName: string;
+  /** Tool calls in order, with any shown thinking that fell between two of them. */
   messages: ChatMessage[];
   timestamp: ChatMessage['timestamp'];
 }
 
-export type MessageListItem = ChatMessage | ToolGroupItem;
+export type MessageListItem = ChatMessage | ToolActivityItem;
 
-export function isToolGroupItem(item: MessageListItem): item is ToolGroupItem {
-  return '_isGroup' in item && (item as ToolGroupItem)._isGroup === true;
+export interface GroupToolActivitiesOptions {
+  showThinking?: boolean;
+  /** Calls waiting on a permission prompt; each is its own row until answered. */
+  pendingToolIds?: ReadonlySet<string>;
 }
 
-function isGroupableToolMessage(message: ChatMessage): message is ChatMessage & { toolName: string } {
-  return Boolean(message.isToolUse && message.toolName && !message.isSubagentContainer);
+export function isToolActivityItem(item: MessageListItem): item is ToolActivityItem {
+  return '_isGroup' in item && (item as ToolActivityItem)._isGroup === true;
 }
 
-// Messages that render nothing (e.g. reasoning hidden when showThinking is off)
-// shouldn't split an otherwise-continuous run of the same tool — providers like
-// Codex interleave hidden reasoning between consecutive tool calls.
-function rendersNothing(message: ChatMessage, showThinking: boolean): boolean {
-  return Boolean(message.isThinking && !showThinking);
+function isActivityMember(message: ChatMessage, pendingToolIds?: ReadonlySet<string>): boolean {
+  return Boolean(
+    message.isToolUse
+    && message.toolName
+    && !isStandaloneTool(message)
+    && !(message.toolId && pendingToolIds?.has(message.toolId)),
+  );
 }
 
-const groupCache = new WeakMap<ChatMessage, ToolGroupItem>();
+const activityCache = new WeakMap<ChatMessage, ToolActivityItem>();
 
-export function groupConsecutiveTools(
+function toActivity(members: ChatMessage[]): ToolActivityItem {
+  const cached = activityCache.get(members[0]);
+  const activity = cached && cached.messages.length === members.length
+    && cached.messages.every((member, position) => member === members[position])
+    ? cached : { _isGroup: true as const, messages: members, timestamp: members[0].timestamp };
+  activityCache.set(members[0], activity);
+  return activity;
+}
+
+/**
+ * An activity is every tool call between two rendered non-tool rows. Thinking never ends one;
+ * a different Codex `turnId` does.
+ */
+export function groupToolActivities(
   messages: ChatMessage[],
-  showThinking: boolean = true,
+  { showThinking = true, pendingToolIds }: GroupToolActivitiesOptions = {},
 ): MessageListItem[] {
   const items: MessageListItem[] = [];
   let index = 0;
@@ -38,45 +55,41 @@ export function groupConsecutiveTools(
   while (index < messages.length) {
     const message = messages[index];
 
-    if (!isGroupableToolMessage(message)) {
+    if (!isActivityMember(message, pendingToolIds)) {
       items.push(message);
       index += 1;
       continue;
     }
 
-    const run: ChatMessage[] = [message];
+    const members: ChatMessage[] = [message];
+    let lastCall = message;
+    // Shown thinking joins only once a later call proves it sits inside the activity.
+    let heldThinking: ChatMessage[] = [];
     let nextIndex = index + 1;
 
     while (nextIndex < messages.length) {
       const candidate = messages[nextIndex];
 
-      // Skip invisible interleaved messages so they don't break the run.
-      if (rendersNothing(candidate, showThinking)) {
+      if (candidate.isThinking) {
+        if (showThinking) heldThinking.push(candidate);
         nextIndex += 1;
         continue;
       }
 
-      if (isGroupableToolMessage(candidate) && candidate.toolName === message.toolName) {
-        run.push(candidate);
-        nextIndex += 1;
-        continue;
+      if (
+        !isActivityMember(candidate, pendingToolIds)
+        || (lastCall.turnId && candidate.turnId && lastCall.turnId !== candidate.turnId)
+      ) {
+        break;
       }
 
-      break;
+      members.push(...heldThinking, candidate);
+      heldThinking = [];
+      lastCall = candidate;
+      nextIndex += 1;
     }
 
-    if (run.length >= TOOL_GROUP_THRESHOLD) {
-      const cached = groupCache.get(message);
-      const group = cached && cached.messages.length === run.length
-        && cached.messages.every((member, position) => member === run[position])
-        ? cached : { _isGroup: true as const, toolName: message.toolName, messages: run, timestamp: message.timestamp };
-      groupCache.set(message, group);
-      items.push(group);
-    } else {
-      groupCache.delete(message);
-      items.push(...run);
-    }
-
+    items.push(toActivity(members), ...heldThinking);
     index = nextIndex;
   }
 

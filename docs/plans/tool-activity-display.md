@@ -1,7 +1,8 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 1/6
-- Next: Phase 2 — the clusterer; Codex running rows are unit-tested, not yet seen live
+- Status: 3/6
+- Next: Phase 4 — compact operation rows; the activity row and Codex running rows are
+  not yet seen on a phone
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
@@ -31,15 +32,15 @@ empty.
   Codex `turnId` rides on every tool row; Codex `item/started` sends a running
   row and its completion a `tool_result`, as Claude's stream does. Both fields
   survive page slimming.
-- [ ] 2. **An activity is every tool call between two assistant prose
-  messages.** New clusterer replaces `groupConsecutiveTools`, keyed on
-  `turnId` where a provider supplies one. A cluster is terminated by assistant
-  prose, a user message, a permission request, an
-  `AskUserQuestion`/`request_user_input`, a subagent container, and a compact
-  boundary; those events stay first-class rows outside any activity. A failed
-  or denied call stays inside its activity. Extends the grouping identity tests
-  in `chatUtils.test.ts`.
-- [ ] 3. **The collapsed row replaces `ToolGroupContainer`.** One line of muted
+- [x] 2. **An activity is every tool call between two assistant prose
+  messages.** `groupToolActivities` replaced `groupConsecutiveTools`; a
+  different Codex `turnId` also cuts. A cluster is terminated by assistant
+  prose, a user message, a pending permission request, a question, a to-do
+  list, a plan, a subagent container, and a compact boundary; those stay
+  first-class rows. A failed or denied call and any thinking stay inside. A
+  permission prompt cuts only when it carries the call's id: Claude's do,
+  Codex's do not.
+- [x] 3. **The collapsed row replaces `ToolGroupContainer`.** One line of muted
   text with a trailing chevron — no border, tint, icon box or count pill —
   reading as past-tense facets with line counts:
   `Read 6 files, ran 3 commands, edited 2 files +41 −7`. A failure or denial

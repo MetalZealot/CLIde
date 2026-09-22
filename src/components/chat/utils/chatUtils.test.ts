@@ -8,7 +8,8 @@ import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
 import type { ChatMessage } from '../types/types';
 
-import { groupConsecutiveTools, isToolGroupItem } from './toolGrouping';
+import { summarizeActivity } from './toolActivity';
+import { groupToolActivities, isToolActivityItem } from './toolGrouping';
 import {
   extractInternalMemoryCitation,
   formatDuration,
@@ -448,22 +449,98 @@ describe('newSessionLauncher', () => {
 });
 
 
-test('tool grouping reuses unchanged groups and updates changed members or membership', () => {
+test('tool activities reuse unchanged groups and update changed members or membership', () => {
   const first: ChatMessage = { id: 'tool-a', timestamp: '2026-09-19T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash' };
   const second: ChatMessage = { ...first, id: 'tool-b' };
   const text: ChatMessage = { id: 'plain', timestamp: '2026-09-19T00:00:01Z', type: 'assistant', content: 'Reply' };
-  const initial = groupConsecutiveTools([first, second]);
-  const appended = groupConsecutiveTools([first, second, text]);
+  const initial = groupToolActivities([first, second]);
+  const appended = groupToolActivities([first, second, text]);
   assert.equal(appended[0], initial[0]);
-  assert.equal(groupConsecutiveTools([first])[0], first);
-  assert.notEqual(groupConsecutiveTools([first, second])[0], initial[0], 'a dissolved group must release its removed members');
-  const updated = groupConsecutiveTools([first, { ...second, toolResult: { content: 'finished', isError: false } }, text]);
+  const alone = groupToolActivities([first]);
+  assert.ok(isToolActivityItem(alone[0]), 'one call is still an activity');
+  assert.notEqual(alone[0], initial[0], 'a shrunk activity must release its removed members');
+  const updated = groupToolActivities([first, { ...second, toolResult: { content: 'finished', isError: false } }, text]);
   assert.notEqual(updated[0], initial[0]);
-  assert.ok(isToolGroupItem(updated[0]));
+  assert.ok(isToolActivityItem(updated[0]));
   assert.equal(updated[0].messages[1].toolResult?.content, 'finished');
-  const hidden: ChatMessage = { ...text, id: 'thought', isThinking: true };
-  assert.ok(isToolGroupItem(groupConsecutiveTools([first, hidden, second], false)[0]));
-  assert.equal(groupConsecutiveTools([first, hidden, second], true)[0], first);
+});
+
+describe('tool activity boundaries', () => {
+  const call = (id: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({
+    id, timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash', ...extra,
+  });
+  const read = call('read', { toolName: 'Read' });
+  const failed = call('failed', { toolResult: { content: 'exit 1', isError: true } });
+  const thought: ChatMessage = { id: 'thought', timestamp: '2026-09-21T00:00:01Z', type: 'assistant', content: 'Checking', isThinking: true };
+  const prose: ChatMessage = { id: 'prose', timestamp: '2026-09-21T00:00:02Z', type: 'assistant', content: 'Next.' };
+
+  test('prose ends an activity; failures and thinking stay inside it', () => {
+    const [activity, between, next] = groupToolActivities([read, thought, failed, prose, call('edit', { toolName: 'Edit' })]);
+    assert.ok(isToolActivityItem(activity));
+    assert.deepEqual(activity.messages, [read, thought, failed]);
+    assert.equal(between, prose);
+    assert.ok(isToolActivityItem(next));
+    const [hidden] = groupToolActivities([read, thought, failed], { showThinking: false });
+    assert.ok(isToolActivityItem(hidden));
+    assert.deepEqual(hidden.messages, [read, failed]);
+    assert.deepEqual(groupToolActivities([read, thought, prose]).slice(1), [thought, prose], 'trailing thinking belongs to what follows');
+  });
+
+  test('questions, to-do lists, subagents, compaction, turns and pending permissions cut one', () => {
+    const boundaries: ChatMessage[] = [
+      call('question', { toolName: 'AskUserQuestion' }),
+      call('input', { toolName: 'request_user_input' }),
+      call('todo', { toolName: 'TodoWrite' }),
+      call('plan', { toolName: 'ExitPlanMode' }),
+      call('agent', { toolName: 'Agent', isSubagentContainer: true }),
+      { id: 'compact', timestamp: '2026-09-21T00:00:03Z', type: 'assistant', content: '', isCompactBoundary: true },
+      { id: 'prompt', timestamp: '2026-09-21T00:00:03Z', type: 'user', content: 'Go on' },
+    ];
+    for (const boundary of boundaries) {
+      const items = groupToolActivities([read, boundary, failed]);
+      assert.equal(items.length, 3, String(boundary.id));
+      assert.equal(items[1], boundary);
+    }
+    assert.equal(groupToolActivities([call('turn-a', { turnId: 'a' }), call('turn-b', { turnId: 'b' })]).length, 2);
+    assert.equal(groupToolActivities([call('turn-a', { turnId: 'a' }), call('child')]).length, 1, 'a missing turnId never cuts');
+    const waiting = call('waiting', { toolId: 'call-7' });
+    const cut = groupToolActivities([read, waiting, failed], { pendingToolIds: new Set(['call-7']) });
+    assert.equal(cut.length, 3);
+    assert.equal(cut[1], waiting);
+    assert.equal(groupToolActivities([read, waiting, failed]).length, 1, 'an answered call rejoins its activity');
+  });
+
+  test('a summary counts files, commands and line changes across provider shapes', () => {
+    const done = { content: '', isError: false, timestamp: '2026-09-21T00:00:02Z' };
+    const tool = (id: string, toolName: string, toolInput: unknown, extra: Partial<ChatMessage> = {}) =>
+      call(id, { toolName, toolInput: typeof toolInput === 'string' ? toolInput : JSON.stringify(toolInput), toolResult: done, ...extra });
+    const codexPatch = 'const patch = "*** Begin Patch\\n*** Update File: /a/w.ts\\n@@\\n-x\\n+y\\n+z\\n*** End Patch";\ntools.apply_patch(patch);';
+    const summary = summarizeActivity([
+      tool('r1', 'Read', { file_path: '/a/x.ts' }),
+      tool('r2', 'Read', { file_path: '/a/x.ts' }),
+      thought,
+      tool('r3', 'Read', { file_path: '/a/y.ts' }),
+      tool('b1', 'Bash', { command: 'cat > f <<EOF\nline\nEOF', description: 'Write f' }),
+      tool('e1', 'Edit', { file_path: '/a/x.ts', old_string: 'a\nb', new_string: 'a\nc\nd' }),
+      tool('e2', 'FileChanges', [{ path: '/a/z.ts', kind: { type: 'update' }, diff: '@@ -1 +1 @@\n-old\n+new\n' }]),
+      tool('e3', 'exec', codexPatch),
+      tool('f1', 'Bash', { command: 'false' }, { toolResult: { content: 'exit 1', isError: true } }),
+      tool('m1', 'mcp__cloudcli-browser__browser_click', {}),
+      call('live', { toolName: 'Bash', toolInput: JSON.stringify({ command: 'npm test' }) }),
+    ]);
+    assert.deepEqual(summary.facets, [
+      { kind: 'read', count: 2, added: 0, removed: 0 },
+      { kind: 'bash', count: 3, added: 0, removed: 0 },
+      { kind: 'edit', count: 3, added: 5, removed: 3 },
+      { kind: 'other', count: 1, added: 0, removed: 0 },
+    ]);
+    assert.equal(summary.failed, 1);
+    assert.equal(summary.operations[0].durationMs, 2000);
+    assert.equal(summary.operations[3].description, 'Write f');
+    assert.equal(summary.operations[6].target, 'w.ts');
+    assert.equal(summary.operations[8].target, 'browser_click');
+    assert.equal(summary.running?.target, 'npm test');
+  });
 });
 
 // --- chat find index --------------------------------------------------------

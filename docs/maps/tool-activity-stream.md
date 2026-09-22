@@ -5,8 +5,9 @@ the shape of a real transcript is. Measured 2026-08-23 against one 295-call
 Claude session and 60 Codex rollouts on the maintainer's machine; Cursor and
 OpenCode rows are source inspection only, as neither has local data.
 
-Renderer entry points: `src/components/chat/utils/toolGrouping.ts`,
-`view/subcomponents/ToolGroupContainer.tsx`, `tools/ToolRenderer.tsx`,
+Renderer entry points: `src/components/chat/utils/toolGrouping.ts` (the
+clusterer), `utils/toolActivity.ts` (what each call counts as),
+`view/subcomponents/ToolActivity.tsx`, `tools/ToolRenderer.tsx`,
 `tools/configs/toolConfigs.ts`.
 
 ## Per-provider fields
@@ -18,7 +19,7 @@ Renderer entry points: `src/components/chat/utils/toolGrouping.ts`,
 | Structured result | `toolUseResult` (`numFiles`, `filenames`, `numLines`, `structuredPatch`, `stdout`) on transcript reload only | `exitCode`, `status`, aggregated output | `toolUseResult` for high-level calls | `state.output`/`state.error` |
 | Cluster key from provider | none | `turnId` on every item, live and on disk; CLIde keeps it on tool rows | none | none |
 | Running state | yes — `tool_use` arrives before its result | commands, file changes and MCP calls: `item/started` sends the row, completion a `tool_result` | n/a | `state.status` |
-| Edit line counts (source only) | `old_string`/`new_string` in the Edit input, diffed by `calculateDiff` | `changes[].diff`, a unified diff per path, on `fileChange` | not checked | not checked |
+| Edit line counts | `old_string`/`new_string` in the Edit input (measured: all 67 Edits in 4 sessions), diffed by `calculateDiff` | live: `changes[].diff` on `FileChanges` (source only); history: see below | not checked | not checked |
 
 Both Claude paths (live SDK and transcript reload) run through the same
 `normalizeMessage`, so the live stream carries no `toolUseResult`;
@@ -27,7 +28,15 @@ output until a reload fills it in.
 
 One Codex `Bash` row can hold several shell commands: the adapter joins the
 commands nested inside an `exec` payload with newlines
-(`translateCodexExecInput`). A command count is lines, not tool calls.
+(`translateCodexExecInput`). Count rows anyway: across 6 rollouts, 690 of 727
+rows held one command, while 247 commands were multi-line scripts, so counting
+lines overshoots by ~2,600 where rows undershoot by 41 (measured 2026-09-21).
+
+Codex history has no `FileChanges` rows. An edit is an untranslated `exec`
+row whose input is source text calling `tools.apply_patch("*** Begin Patch…")`;
+`write_stdin`, `web__run` and `view_image` arrive the same way.
+`toolActivity.ts` reads the nested tool name and the patch text. The rollout's
+own `FileChange` item, keyed `{ [path]: { unified_diff } }`, is not read.
 
 ## What CLIde keeps and drops
 
@@ -39,10 +48,11 @@ commands nested inside an `exec` payload with newlines
 - **Codex `turnId`** rides on every tool row: live from the notification,
   in history from the item's `internal_chat_message_metadata_passthrough`,
   else the enclosing `turn_context`. Subagent child tools carry neither field.
-- **Claude's Bash `description`** reaches the client inside `toolInput` and
-  renders inside the expanded card, but `ToolGroupContainer` builds its
-  collapsed preview from `config.getValue` — the raw command — and never reads
-  it.
+- **Claude's Bash `description`** reaches the client inside `toolInput`; the
+  activity row shows it verbatim while that command runs.
+- **Permission prompts** are not message rows. Claude's carry the call's
+  `toolId`, so a waiting call is cut out of its activity; Codex's approvals
+  carry `itemId` but it is not forwarded, so they do not cut.
 
 ## Shape of a real transcript
 
@@ -68,6 +78,10 @@ burst as a heading (*"Now the server test."*), Codex's follows it as a result
 (*"The shim baseline is clean: 5/5 tests pass"*) — so it is usable as a
 boundary and not as a title.
 
+Thinking is not a boundary. Over 1,040 calls in 5 Claude sessions, cutting on
+shown thinking took 197 activities to 219 and single-call ones from 37 to 47;
+608 of 631 thinking blocks were empty (measured 2026-09-21).
+
 ## Codex has no reasoning summaries here
 
 3,010 reasoning rows across 40 rollouts carry an empty `summary` array and
@@ -86,4 +100,4 @@ model could populate it — nothing in CLIde may depend on it.
   themselves, not the headers.
 - `visibleMessages` is a tail slice of 20 raw messages; under prose-bounded
   clustering that is 3–4 activities per page.
-- `groupConsecutiveTools` keeps a group's object identity across renders (`groupCache`); `chatUtils.test.ts` pins it.
+- `groupToolActivities` keeps an activity's object identity across renders (`activityCache`); `chatUtils.test.ts` pins it.
