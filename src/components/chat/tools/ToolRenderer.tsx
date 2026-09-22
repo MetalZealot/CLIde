@@ -165,27 +165,16 @@ export const ToolRenderer: React.FC<ToolRendererProps> = memo(({
   }
 
   if (displayConfig.type === 'plan') {
-    const title = typeof displayConfig.title === 'function'
-      ? displayConfig.title(parsedData)
-      : displayConfig.title || 'Plan';
-
     const contentProps = displayConfig.getContentProps?.(parsedData, {
       selectedProject,
       createDiff,
       onFileOpen
     }) || {};
 
-    const isStreaming = mode === 'input' && !toolResult;
-
     return (
       <PlanDisplay
-        title={title}
         content={contentProps.content || ''}
-        defaultOpen={displayConfig.defaultOpen ?? false}
-        isStreaming={isStreaming}
-        showRawParameters={mode === 'input' && showRawParameters}
-        rawContent={rawToolInput}
-        toolName={toolName}
+        isStreaming={mode === 'input' && !toolResult}
         toolId={toolId}
       />
     );

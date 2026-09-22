@@ -91,6 +91,11 @@
     "thought": "Thought: {{text}}",
     "thoughtFor": "Thought for {{duration}}",
     "thoughtUntimed": "Thought",
+    "plan": {
+      "proposed": "Proposed plan",
+      "build": "Build",
+      "revise": "Revise"
+    },
     "agent": {
       "defaultType": "Agent",
       "calls_one": "{{count}} call",

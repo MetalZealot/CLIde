@@ -369,6 +369,46 @@ describe('chatSubcomponents', () => {
       assert.deepEqual(lines, ['Asked: Find every caller', 'Searched for caller', 'Reported: Found 3 callers']);
     });
 
+    test('a plan waiting for a decision stays open with Build and Revise; a decided one is a closed row', async () => {
+      const hooks = registerHooks({
+        resolve(specifier, context, nextResolve) {
+          return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
+            ? 'react-syntax-highlighter/dist/cjs/styles/prism/index.js'
+            : specifier, context);
+        },
+      });
+      const [{ PlanDisplay }, { default: PermissionContext }] = await Promise.all([
+        import('../../tools/components/PlanDisplay'),
+        import('../../../../contexts/PermissionContext'),
+      ]).finally(() => hooks.deregister());
+      const decisions: unknown[] = [];
+      const permissions = {
+        pendingPermissionRequests: [{ requestId: 'r1', toolName: 'ExitPlanMode', toolId: 'p1' }],
+        handlePermissionDecision: (_ids: string | string[], decision: unknown) => { decisions.push(decision); },
+      };
+      container = document.createElement('div');
+      document.body.append(container);
+      root = createRoot(container);
+      const draw = (isStreaming: boolean) => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <PermissionContext.Provider value={permissions}>
+            <PlanDisplay content="Slim the composer" isStreaming={isStreaming} toolId="p1" />
+          </PermissionContext.Provider>
+        </I18nextProvider>,
+      );
+      await React.act(async () => draw(true));
+      assert.equal(container.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded'), 'true');
+      assert.match(container.textContent || '', /Slim the composer/);
+      const build = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Build') as HTMLButtonElement;
+      await React.act(async () => build.click());
+      assert.deepEqual(decisions, [{ allow: true }]);
+
+      await React.act(async () => root?.unmount());
+      root = createRoot(container);
+      await React.act(async () => draw(false));
+      assert.equal(container.textContent, 'Proposed plan', 'a decided plan is its row alone');
+    });
+
     test('applies each cycle mode in the same tab while provider status stays authoritative', async () => {
       container = document.createElement('div');
       document.body.appendChild(container);

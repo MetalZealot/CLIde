@@ -1,8 +1,8 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 7/9
-- Next: Phase 9 — plans and permission prompts; Codex running rows are not yet
-  seen on a phone
+- Status: 8/10
+- Next: Phase 10 — agree the permission prompt's end state first; Codex running
+  rows are not yet seen on a phone
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
@@ -80,9 +80,11 @@ empty.
   its calls as operation rows, and what it reported, each opening flat. It is
   phase 4 of the [subagent plan](subagent-visibility.md), whose phase 3 makes it
   update live.
-- [ ] 9. **Plans and permission prompts.** `Proposed plan ›` opening to the plan
-  as text; the waiting call and the approval banner redesigned — agree its end
-  state first, since no peer showed one.
+- [x] 9. **A plan is one row.** `Proposed plan ›` opens to the plan in the flat
+  panel at full contrast; while it waits for a decision it stays open with Build
+  and Revise under it, matched to its own call so an older plan never shows them.
+- [ ] 10. **Permission prompts.** The waiting call and the approval banner
+  redesigned — agree the end state first, since no peer showed one.
 
 ## Done when
 
