@@ -16,6 +16,7 @@ import { AppError } from '@/shared/utils.js';
 
 import {
   decodeHistoryImage,
+  findTextHistoryMessage,
   HISTORY_PAGE_BUDGET_BYTES,
   measureHistoryMessage,
   slimHistoryMessage,
@@ -354,9 +355,21 @@ export const sessionsService = {
    */
   async fetchHistory(
     sessionId: string,
-    options: Pick<FetchHistoryOptions, 'limit' | 'offset' | 'before' | 'from'> & { payload?: 'page' | 'full' } = {},
+    options: Pick<FetchHistoryOptions, 'limit' | 'offset' | 'before' | 'from' | 'after' | 'around'>
+      & { payload?: 'page' | 'full' | 'text' } = {},
   ): Promise<FetchHistoryResult> {
-    const { result, identity } = await loadFullHistory(sessionId, options.before !== undefined || options.from !== undefined);
+    const anchored = [options.before, options.from, options.after, options.around].some((value) => value !== undefined);
+    const { result, identity } = await loadFullHistory(sessionId, anchored);
+    if (options.payload === 'text') {
+      // Find's index: every searchable record, no paging, tied to the same revision as pages.
+      const all = paginateHistory(result, identity, { limit: null });
+      const messages: NormalizedMessage[] = [];
+      for (const message of all.messages) {
+        const copy = findTextHistoryMessage(message);
+        if (copy) messages.push({ ...copy, sessionId });
+      }
+      return { ...all, messages };
+    }
     const full = options.payload === 'full';
     const page = paginateHistory(result, identity, options, full ? undefined : {
       bytes: HISTORY_PAGE_BUDGET_BYTES,

@@ -20,6 +20,26 @@ export function normalizeInlineCodeFences(text: string) {
   }
 }
 
+export type InteractiveOption = {
+  number: string;
+  text: string;
+  isSelected: boolean;
+};
+
+/** Splits a CLI menu prompt into its question and numbered options ("❯ 1. Yes", "  2. No"). */
+export function parseInteractivePrompt(content: string): { questionLine: string; options: InteractiveOption[] } {
+  const lines = content.split('\n').filter((line) => line.trim());
+  const questionLine = lines.find((line) => line.includes('?')) || lines[0] || '';
+  const options: InteractiveOption[] = [];
+  for (const line of lines) {
+    const optionMatch = line.match(/[❯\s]*(\d+)\.\s+(.+)/);
+    if (optionMatch) {
+      options.push({ number: optionMatch[1], text: optionMatch[2].trim(), isSelected: line.includes('❯') });
+    }
+  }
+  return { questionLine, options };
+}
+
 export type ExtractedMemoryCitation = {
   text: string;
   citations: MemoryCitation[];

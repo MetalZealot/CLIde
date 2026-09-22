@@ -36,6 +36,7 @@ import { appendStreamChunk, dedupePermissionRequestsById } from './useChatRealti
 import { normalizeVoiceTranscript } from './useVoiceInput';
 import {
   collectChatFindOccurrences,
+  initialMatchIndex,
   isChatFindConversationMessage,
   stepChatFindIndex,
   useChatFind,
@@ -108,52 +109,51 @@ test('chat find includes authored turns and excludes transcript activity rows', 
 });
 
 test('chat find navigation wraps in both directions', () => {
+  const at = (entry: number) => ({ entry, messageId: String(entry), recordId: String(entry), ordinal: 0 });
+  assert.equal(initialMatchIndex([at(1), at(4), at(9)], 5), 1, 'the newest match at or above the reader');
+  assert.equal(initialMatchIndex([at(6), at(9)], 5), 0, 'with none above, the nearest below');
+  assert.equal(initialMatchIndex([], 5), -1);
   assert.equal(stepChatFindIndex(2, 3, 1), 0);
   assert.equal(stepChatFindIndex(0, 3, -1), 2);
   assert.equal(stepChatFindIndex(-1, 3, 1), 0);
   assert.equal(stepChatFindIndex(-1, 0, 1), -1);
 });
 
-test('chat find waits for complete history and closes on Escape or session change', async () => {
+test('chat find searches whole-history text and closes on Escape or session change', async () => {
   const host = document.createElement('div');
   const previousFocus = document.createElement('button');
   document.body.append(previousFocus, host);
   previousFocus.focus();
   const root = createRoot(host);
   let controller: ChatFindController | undefined;
-  let resolveHistory!: (messages: ChatMessage[]) => void;
-  const history = new Promise<ChatMessage[]>((resolve) => { resolveHistory = resolve; });
-  const chatMessages: ChatMessage[] = [];
-  let loadCalls = 0;
-  const loadAllMessages = async () => {
-    loadCalls += 1;
-    return history;
-  };
+  let resolveText!: (records: NormalizedMessage[]) => void;
+  const text = new Promise<NormalizedMessage[]>((resolve) => { resolveText = resolve; });
+  let textCalls = 0;
+  const slot = { hasMore: true, hasNewer: false, revision: 'rev-1', status: 'idle' };
+  const sessionStore = {
+    getSessionSlot: () => slot,
+    fetchFindText: async () => { textCalls += 1; return text; },
+  } as unknown as SessionStore;
+  const jumps: string[] = [];
+  const noRecords: NormalizedMessage[] = [];
+  const noRows: ChatMessage[] = [];
+  const liveRecords: NormalizedMessage[] = [
+    { id: 'recent', sessionId: 'session-1', provider: 'claude', kind: 'text', role: 'assistant', content: 'Needle and **needle** again', timestamp: '2026-01-01T00:01:00Z' },
+    { id: 'live', sessionId: 'session-1', provider: 'claude', kind: 'stream_delta', role: 'assistant', content: 'A streamed needle', timestamp: '2026-01-01T00:02:00Z' },
+  ];
 
-  function Harness({ sessionId }: { sessionId: string }) {
+  function Harness({ sessionId, loaded = noRecords }: { sessionId: string; loaded?: NormalizedMessage[] }) {
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
     const messagesContentRef = React.useRef<HTMLDivElement>(null);
     controller = useChatFind({
-      isVisible: true,
-      sessionId,
-      chatMessages,
-      loadAllMessages,
-      scrollContainerRef,
-      messagesContentRef,
+      isVisible: true, sessionId, sessionStore, loadedRecords: loaded, renderedMessages: noRows,
+      jumpToMessage: async ({ messageId }) => { jumps.push(messageId); return false; },
+      scrollContainerRef, messagesContentRef,
     });
-    return React.createElement(
-      'div',
-      { ref: scrollContainerRef },
-      React.createElement(
-        'div',
-        { ref: messagesContentRef },
-        React.createElement(
-          'div',
-          { className: 'chat-message', 'data-chat-find-scope': 'conversation' },
-          React.createElement('div', { 'data-chat-find-content': true }, 'Needle and needle again'),
-        ),
-      ),
-    );
+    return React.createElement('div', { ref: scrollContainerRef },
+      React.createElement('div', { ref: messagesContentRef },
+        React.createElement('div', { className: 'chat-message', 'data-chat-message-id': 'recent', 'data-chat-find-scope': 'conversation' },
+          React.createElement('div', { 'data-chat-find-content': true }, 'Needle and needle again'))));
   }
 
   try {
@@ -168,16 +168,28 @@ test('chat find waits for complete history and closes on Escape or session chang
     });
     assert.equal(controller!.isOpen, true);
     assert.equal(controller!.isPreparing, true);
-    assert.equal(loadCalls, 0, 'opening find does not synchronously load history');
+    assert.equal(textCalls, 1, 'an incomplete window fetches the text-only history once');
 
     await React.act(async () => controller!.setQuery('needle'));
     assert.equal(controller!.total, 0);
-    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
-    assert.equal(loadCalls, 1);
-    await React.act(async () => resolveHistory([]));
-    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
+    await React.act(async () => resolveText([
+      { id: 'old', sessionId: 'session-1', provider: 'claude', kind: 'text', role: 'user', content: 'An old needle', timestamp: '2026-01-01T00:00:00Z' },
+      { id: 'recent', sessionId: 'session-1', provider: 'claude', kind: 'text', role: 'assistant', content: 'Needle and **needle** again', timestamp: '2026-01-01T00:01:00Z' },
+    ]));
+    for (let i = 0; i < 2; i += 1) await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
     assert.equal(controller!.isPreparing, false);
-    assert.equal(controller!.total, 2);
+    assert.equal(controller!.total, 3, 'unrendered history counts without rendering it');
+    assert.equal(controller!.currentIndex, 2, 'starts at the newest match at or above the reader');
+    assert.deepEqual(jumps, []);
+    await React.act(async () => controller!.previous());
+    await React.act(async () => controller!.previous());
+    assert.equal(controller!.currentIndex, 0);
+    assert.deepEqual(jumps, ['old'], 'an unrendered match asks the chat to jump to it');
+
+    await React.act(async () => root.render(React.createElement(Harness, { sessionId: 'session-1', loaded: liveRecords })));
+    for (let i = 0; i < 2; i += 1) await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
+    assert.equal(controller!.total, 4, 'a streamed row joins the count');
+    assert.equal(controller!.currentIndex, 0, 'new rows do not move the current match');
 
     await React.act(async () => {
       window.dispatchEvent(new window.KeyboardEvent('keydown', {
@@ -192,6 +204,7 @@ test('chat find waits for complete history and closes on Escape or session chang
 
     await React.act(async () => controller!.open());
     assert.equal(controller!.isOpen, true);
+    assert.equal(textCalls, 2, 'the store owns reuse per revision; the hook asks again on open');
     await React.act(async () => root.render(React.createElement(Harness, { sessionId: 'session-2' })));
     assert.equal(controller!.isOpen, false);
   } finally {
@@ -201,7 +214,7 @@ test('chat find waits for complete history and closes on Escape or session chang
   }
 });
 
-test('find reveals cached history again after jump to bottom without refetching', async () => {
+test('find jumps within cached history, keeps rows bounded and returns to the latest', async () => {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
@@ -231,19 +244,18 @@ test('find reveals cached history again after jump to bottom without refetching'
   function Harness() {
     state = useChatSessionState(args);
     find = useChatFind({
-      isVisible: true, sessionId: 'find-cached', chatMessages: state.chatMessages,
-      loadAllMessages: state.loadAllMessages,
+      isVisible: true, sessionId: 'find-cached', sessionStore, loadedRecords: state.loadedRecords,
+      renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage,
       scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef,
     });
     return React.createElement('div', { ref: state.scrollContainerRef },
       React.createElement('div', { ref: state.messagesContentRef }, state.visibleMessages.map((message) => (
-        React.createElement('div', { key: message.id, className: 'chat-message', 'data-chat-find-scope': 'conversation' },
+        React.createElement('div', { key: message.id, className: 'chat-message', 'data-chat-message-id': message.id, 'data-chat-find-scope': 'conversation' },
           React.createElement('div', { 'data-chat-find-content': true }, message.content))
       ))));
   }
   const settle = async () => {
-    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
-    await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
+    for (let i = 0; i < 3; i += 1) await React.act(async () => new Promise((resolve) => setTimeout(resolve, 250)));
   };
   try {
     await React.act(async () => root.render(React.createElement(Harness)));
@@ -253,10 +265,16 @@ test('find reveals cached history again after jump to bottom without refetching'
       await React.act(async () => { find.setQuery('older unique needle'); });
       await settle();
       assert.equal(find.total, 1, 'the oldest cached message must be searchable');
-      assert.equal(state.visibleMessages.length, 120);
+      assert.equal(state.visibleMessages[0].id, '0', 'the match is rendered');
+      assert.ok(state.visibleMessages.length <= 16, `a jump renders its neighbourhood, not the gap (${state.visibleMessages.length})`);
+      assert.equal(state.isViewDetached, true);
       assert.equal(fetches, 0, 'complete cached history must not be downloaded again');
-      await React.act(async () => { find.close(); state.scrollToBottomAndReset(); });
+      await React.act(async () => { find.close(); });
+      assert.equal(state.visibleMessages[0].id, '0', 'closing Find stays at the match');
+      await React.act(async () => { state.scrollToBottomAndReset(); });
       assert.equal(state.visibleMessages.length, 100);
+      assert.equal(state.visibleMessages.at(-1)?.id, '119');
+      assert.equal(state.isViewDetached, false);
     }
   } finally {
     await React.act(async () => root.unmount());
@@ -1070,7 +1088,6 @@ test('Auto-Continue steps aside for a message already waiting, and for a user wh
   );
 });
 
-// Opt-in strict mode keeps future performance targets red without breaking normal correctness checks.
 test('history performance target: appending one row preserves unchanged display objects', async () => {
   const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
   const messages = clientHistory(1000);
@@ -1112,9 +1129,7 @@ test('a cancelled full-history load cannot mark a partial window complete for Fi
   }
 });
 
-test('history performance target: Find keeps the rendered window bounded', {
-  todo: process.env.CLIDE_HISTORY_PERF_STRICT === '1' ? false : 'history plan phases 6–7',
-}, async () => {
+test('history performance target: Find keeps the rendered window bounded', async () => {
   const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
   const messages = clientHistory(200);
   const originalFetch = globalThis.fetch;
@@ -1139,12 +1154,12 @@ test('history performance target: Find keeps the rendered window bounded', {
   let find!: ChatFindController;
   function Harness() {
     state = useChatSessionState(args);
-    find = useChatFind({ isVisible: true, sessionId: 'fixture-client', chatMessages: state.chatMessages,
-      loadAllMessages: state.loadAllMessages, scrollContainerRef: state.scrollContainerRef,
-      messagesContentRef: state.messagesContentRef });
+    find = useChatFind({ isVisible: true, sessionId: 'fixture-client', sessionStore: store,
+      loadedRecords: state.loadedRecords, renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage,
+      scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef });
     return React.createElement('div', { ref: state.scrollContainerRef },
       React.createElement('div', { ref: state.messagesContentRef }, state.visibleMessages.map((message) =>
-        React.createElement('div', { key: message.id, className: 'chat-message', 'data-chat-find-scope': 'conversation' },
+        React.createElement('div', { key: message.id, className: 'chat-message', 'data-chat-message-id': message.id, 'data-chat-find-scope': 'conversation' },
           React.createElement('div', { 'data-chat-find-content': true }, message.content)))));
   }
   try {
@@ -1155,6 +1170,7 @@ test('history performance target: Find keeps the rendered window bounded', {
     assert.equal(find.total, 1, 'target must remain reachable');
     assert.equal(requests, 0, 'complete cache must not be fetched again');
     assert.ok(state.visibleMessages.length <= historyBudgets.findMountedRows, `Find rendered ${state.visibleMessages.length} rows`);
+    assert.ok(state.visibleMessages.some((message) => String(message.content).startsWith('Oldest unique needle')), 'the match is rendered');
   } finally {
     await React.act(async () => root.unmount());
     host.remove();

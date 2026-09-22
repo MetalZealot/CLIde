@@ -1,8 +1,9 @@
 # Chat history loading and rendering
 
-Initial diagnosis: `668f4049`, investigated 2026-09-19. Phases 1–5 provide
-server reuse, unchanged-message rendering, stable paging and bounded payloads
-below. Search, mounted contents and acceptance remain open in the [performance plan](../plans/chat-history-performance.md).
+Initial diagnosis: `668f4049`, investigated 2026-09-19. Phases 1–6 provide
+server reuse, unchanged-message rendering, stable paging, bounded payloads and
+Find without rendered history below. Mounted contents and acceptance remain open
+in the [performance plan](../plans/chat-history-performance.md).
 
 ## What the reader experiences
 
@@ -41,8 +42,7 @@ rendered rows, and that one appended row between offset pages produced an
 overlapping message. The existing 80 hook/store tests passed throughout:
 functional coverage does not establish bounded cost.
 
-The initial probes were removed after investigation. The maintained phase-1
-fixtures below replace them for repeatable comparisons.
+The phase-1 fixtures below replace those probes.
 
 ## Repeatable phase-1 baseline
 
@@ -127,11 +127,8 @@ median append frame p95 is 2,083 / 10,250 ms. Find's longest individual task
 reaches 24,771 ms in the larger fixture. Tool-result/hidden records explain why
 fixture record counts, converted messages and mounted rows differ.
 
-These measurements confirm independently growing reader and rendering costs.
-They are a baseline for optimization, not proof of production latency or touch
-smoothness. Precise browser heap capture and physical-phone acceptance are still
-unmeasured. Increasing page size alone would not resolve the measured rendering
-stalls; collapsing tool cards alone would not eliminate transcript rereads.
+Reader and rendering costs grew independently. This is a baseline, not proof of
+production latency or touch smoothness.
 
 ## Phase 2 server cache
 
@@ -170,20 +167,13 @@ limited to eight entries and 32 MiB of normalized serialized values, and one
 oversized history is served without retention. Identity generations are retained
 only while requests are active; superseded requests cannot repopulate the cache.
 
-Cold-reader p95 stayed below the advisory 500 ms target in this run. Cold-path
-work remains phase 8, and timing thresholds remain advisory until phase 9's
-controlled runner.
+Cold-path work remains phase 8.
 
-Regression coverage compares cached pages to direct provider reads, including
-tool results, token usage and turn-start metadata; it also covers concurrent
-loads, subagent creation during discovery, transient directory-read failures,
-identity bookkeeping cleanup and overlapping identity changes,
-append/rewind/replacement/truncation, partial and malformed tails,
-missing files, failed loads, Claude subagent changes, Codex parent changes,
-identity changes and eviction. Cursor and OpenCode remain on direct reads: their
-SQLite stores need database-aware revisions before reuse is safe. Heavy page
-sizes failed until phase 5; the later client/pagination targets remained
-pending by design.
+Tests compare cached pages to direct reads (tool results, token usage, turn
+starts) and cover concurrent loads, subagent discovery, directory-read failures,
+identity changes, append/rewind/replacement/truncation, partial or malformed
+tails, missing files, failed loads, parent/subagent changes and eviction. Cursor
+and OpenCode stay on direct reads until their SQLite stores have revisions.
 
 ## Phase 3 unchanged-message rendering
 
@@ -198,10 +188,8 @@ streaming text, grouping membership and server removals have regression coverage
 
 [Browser report](../../scripts/chat-history/baselines/2026-09-20-browser-phase3.json):
 three samples each at 200 and 1,000 mixed records, same desktop Browser preset and
-fixture as phase 1. Concurrent copy/settings edits remain outside this change;
-the report fingerprints the measured source. The final dissolved-group cache
-cleanup was checked separately by regression test. The production fixture bundle passed
-with no Browser console errors; this is not deployed-app or physical-phone acceptance.
+fixture as phase 1, with no Browser console errors; not deployed-app or
+physical-phone acceptance.
 
 | Operation, median / observed p95 ms | 200 records | 1,000 records |
 |---|---:|---:|
@@ -218,10 +206,8 @@ append/update at most one conversion, three rows and one Markdown render; unchan
 refresh zero of each. Conversion instrumentation now counts cache misses; phase 1
 counted input records, so those counter definitions differ. Row counters are comparable.
 
-Find still takes 23.7–26.1 seconds at 1,000 records and leaves 900 rows mounted.
-Append frame p95 still reaches 200 ms despite bounded React work. These are still
-failures against the overall experience budgets; phases 6–7 own full-history Find
-and mounted-content limits. No claim of fully smooth long-session scrolling yet.
+Append frame p95 still reached 200 ms despite bounded React work; phase 7 owns
+mounted-content limits.
 
 ### Targets and enforcement
 
@@ -242,11 +228,9 @@ numbers; change a target only with an explained measurement-based decision.
 | Frame interval p95 / longest task | 32 / 200 ms |
 | Server retained growth / browser heap growth | 64 / 128 MiB |
 
-Warm reads, unchanged display objects and append-safe pagination pass ordinary
-tests. Only the Find-window target remains a TODO assertion;
-`--regressions-only` removes TODO status and must currently exit 1 with one failure.
-`--check` additionally checks warm rereads and oversized pages. Remove each TODO
-when its implementation phase lands so future regressions fail ordinary CI.
+Warm reads, unchanged display objects, append-safe pagination and the Find
+window pass ordinary tests; `--regressions-only` runs those targets and exits 0.
+`--check` additionally checks warm rereads and oversized pages.
 Timing and memory targets are advisory until phase 9 establishes a
 controlled runner, precise memory capture and accepted tolerances; no green
 correctness run means scrolling has passed. With five server or three browser
@@ -278,17 +262,16 @@ rows, and arms the existing scroll restoration before publishing a page reset.
 Surviving message anchors can be restored; a removed anchor uses the existing
 scroll fallback. Refresh appends retain the oldest loaded record. A newer request,
 session switch, unmount or optimistic rewind cancels obsolete work; request tickets
-also guard transports that ignore abort. Find cannot mark a cancelled partial
-load complete. Failed reads retain the existing window.
+also guard transports that ignore abort. A cancelled full load cannot mark a
+partial window complete. Failed reads retain the existing window.
 Legacy servers without bookmark metadata retain offset compatibility.
 
 Bookmarks are stateless and survive cache eviction/server restart. Fingerprints
 are weakly owned by the normalized array, capped at eight requested boundaries
 per snapshot, with 2 KiB reserved in the existing 32 MiB cache budget. Warm requests reuse them. Cold or changed histories
-still require full normalization and hashing; payload and incremental-read work
-remain later phases. Cursor uses stable session creation time plus sequence for
-its synthetic timestamps; missing persisted ids/timestamps have deterministic
-fallbacks. These timestamps do not establish real per-message wall-clock times.
+still require full normalization and hashing (phase 8). Cursor's synthetic
+timestamps (session creation time plus sequence) and fallback ids are
+deterministic, not real wall-clock times.
 
 Verification covers all four providers, app/native ids deliberately unequal,
 appends and cache eviction, equal timestamps, hidden-only pages, tool joins,
@@ -302,11 +285,9 @@ was 1.92 / 17.30 ms for Claude and 1.68 / 1.76 ms for Codex, with zero transcrip
 bytes reread. Cold p95 was 450 / 484 ms respectively.
 
 The [Browser report](../../scripts/chat-history/baselines/2026-09-20-browser-phase4.json)
-has three desktop runs each at 200 and 1,000 records, using the same source hash
-as the server report. All paging and phase-3 rendering checks pass; older-page
+has three desktop runs each at 200 and 1,000 records. All paging and phase-3 rendering checks pass; older-page
 median / observed p95 was 590 / 621 ms and 557 / 586 ms respectively. No console
-errors in the final run. Find at 1,000 records remains 23.1–24.8 seconds; bounded
-search/rendering and physical-phone acceptance remain open.
+errors in the final run. Physical-phone acceptance remains open.
 
 ## Phase 5: bounded page payloads
 
@@ -323,13 +304,40 @@ are exempt. `payload=full` returns records unchanged.
 Clicking an elided tool card (default-open cards: on mount) fetches
 `messages/:id`; the client keeps the last 16 details and shows a retry on
 failure. Export with tool calls swaps every elided record from one full read and
-exports nothing if one is missing. Find loads the slim pages.
+exports nothing if one is missing.
 
 [Server report](../../scripts/chat-history/baselines/2026-09-21-server-phase5.json):
 the heavy 20-record page fell from 723,743 to 6,146 bytes (Claude) and 727,572
 to 9,979 (Codex); warm rereads stay zero. A real 17 MB Claude session on a
 branch-test server (2026-09-21) paged at most 147 KB per page and 2.6 MB for its
 whole slim history; its 19 images loaded through the image route.
+
+## Phase 6: Find without rendered history
+
+Find searches a text index, not the page. The [index](../../src/components/chat/utils/chatFindIndex.ts)
+converts each record the way the chat does and reduces Markdown to its displayed
+text with the renderer's parser, one segment per `data-chat-find-content` element,
+built in 12 ms slices. A complete loaded history is indexed in place; otherwise
+`?payload=text` returns only records that can display as conversation text, with
+only the fields conversion reads, on the pages' revision; the store reuses it per
+revision. The loaded window lies over it, so streamed and live rows count.
+
+A match is a message id plus an ordinal. Rendered matches highlight as before; an
+unrendered one reveals from memory or fetches `?around=<id>` (40 records, page
+byte cap). That window is detached: it hides live rows, skips refreshes, and pages
+newer with an id-anchored `after` token that survives a growing tail, rejoining
+through ↓, sending, or the newest page. Sidebar results land the same way.
+Prompt navigation is API-only: `listPromptTurns`, `adjacentPromptTurn`.
+
+[Browser report](../../scripts/chat-history/baselines/2026-09-21-browser-phase6.json),
+medians of three at 200 / 1,000 records: Find fell from 3.7 / 24.0 s to 1.4 /
+3.2 s, longest task from 2.9 / 16.2 s to 0.30 / 0.33 s, mounted rows from 180 /
+900 to 36, bytes from 441 KB / 2.2 MB to 87 / 352 KB. The rest is the index build
+(Markdown parsing, about 2 ms per short record in Node here; the fixture has 850),
+so the 500 ms target still fails. A real 17 MB session (139 searchable records,
+130 KB text) built in 671 ms in Node, no record over 52 ms; on a branch-test server
+its first prompt showed 778 ms after typing, 24 rows mounted. No worker or server
+search: slicing keeps typing responsive; the server lacks display conversion.
 
 ## Owners and contracts today
 
@@ -342,7 +350,7 @@ whole slim history; its 19 images loaded through the image route.
 | Client history | [store](../../src/stores/useSessionStore.ts), `fetchMore`/`refreshFromServer`: reuses unchanged records, prepends bookmark pages and refreshes from the oldest loaded boundary; latest-started requests own publication, with cancellation and deduplication |
 | Display conversion | [normalizedToChatMessages](../../src/components/chat/hooks/useChatMessages.ts): weakly caches projections by immutable source record and attached result identity; changed records/results rebuild their projection |
 | Rendering | [pane](../../src/components/chat/view/subcomponents/ChatMessagesPane.tsx) renders the growing visible slice; [Markdown](../../src/components/chat/view/subcomponents/Markdown.tsx) is memoized; unchanged tool groups also retain identity |
-| Scroll and Find | [session hook](../../src/components/chat/hooks/useChatSessionState.ts) requests 20 records, preserves prepend anchors, and sets an unlimited visible count for full-history paths; [Find](../../src/components/chat/hooks/useChatFind.ts) loads all history and searches rendered text |
+| Scroll and Find | [session hook](../../src/components/chat/hooks/useChatSessionState.ts) requests 20 records, preserves prepend anchors, and renders the tail or a detached range around a jump; [Find](../../src/components/chat/hooks/useChatFind.ts) searches the [text index](../../src/components/chat/hooks/useChatTextIndex.ts) and highlights rendered rows |
 
 Claude and Codex pages include tool-result records even when they attach to
 another row. `recordTotal` counts normalized records; legacy `total` retains each

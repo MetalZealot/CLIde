@@ -749,6 +749,10 @@ export type FetchHistoryOptions = {
   before?: string;
   /** Refresh from the loaded oldest boundary through the current tail. */
   from?: string;
+  /** Opaque token from `newerCursor`: the page after a detached window. */
+  after?: string;
+  /** Record id to centre a detached window on. */
+  around?: string;
   projectPath?: string;
   /** Stable session creation time for providers without per-message wall-clock timestamps. */
   historyStartTime?: string;
@@ -770,6 +774,9 @@ export type FetchHistoryResult = {
   revision?: string;
   /** Null means the oldest boundary is reached; undefined is a legacy reader. */
   nextCursor?: string | null;
+  /** Set only on `around`/`after` pages: newer records exist past this window. */
+  newerCursor?: string | null;
+  hasNewer?: boolean;
   messages: NormalizedMessage[];
   total: number;
   hasMore: boolean;

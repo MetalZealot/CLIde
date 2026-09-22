@@ -187,6 +187,8 @@ function ChatInterface({
     setTokenBudget,
     visibleMessageCount,
     visibleMessages,
+    loadedRecords,
+    jumpToMessage,
     loadAllMessages,
     isLoadingAllMessages,
     createDiff,
@@ -861,8 +863,10 @@ function ChatInterface({
   const chatFind = useChatFind({
     isVisible,
     sessionId: selectedSession?.id ?? null,
-    chatMessages,
-    loadAllMessages,
+    sessionStore,
+    loadedRecords,
+    renderedMessages: visibleMessages,
+    jumpToMessage,
     scrollContainerRef,
     messagesContentRef,
   });

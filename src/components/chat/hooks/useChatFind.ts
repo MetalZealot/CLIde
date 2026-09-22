@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 
+import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
 import type { ChatMessage } from '../types/types';
+import { searchChatFindEntries, type ChatFindEntry, type ChatFindMatch } from '../utils/chatFindIndex';
 import { getChatViewportRect } from '../utils/chatScrollHost';
+
+import { useChatTextIndex } from './useChatTextIndex';
+
+export { isChatFindConversationMessage } from '../utils/chatFindIndex';
 
 const SEARCH_IDLE_MS = 200;
 
@@ -15,28 +21,18 @@ export type ChatFindOccurrence = {
   offset: number;
 };
 
-type ChatFindIdentity = Pick<ChatFindOccurrence, 'messageElement' | 'offset'>;
-
-export function isChatFindConversationMessage(message: ChatMessage): boolean {
-  if (message.type === 'user') {
-    return true;
-  }
-
-  return message.type === 'assistant'
-    && !message.isToolUse
-    && !message.isThinking
-    && !message.isCompactSummary
-    && !message.isCompactBoundary
-    && !message.isSystemNotice
-    && !message.isTaskNotification
-    && !message.isLocalCommandStdout;
-}
+export type ChatJumpTarget = { messageId: string; recordId: string };
 
 type UseChatFindArgs = {
   isVisible: boolean;
   sessionId: string | null;
-  chatMessages: ChatMessage[];
-  loadAllMessages: () => Promise<ChatMessage[] | null>;
+  sessionStore: SessionStore;
+  /** The store's loaded window; the index lays it over the whole-history text. */
+  loadedRecords: NormalizedMessage[];
+  /** Rows currently rendered; highlights refresh when they change. */
+  renderedMessages: ChatMessage[];
+  /** Brings a message that is not rendered into the chat; resolves false when it cannot be found. */
+  jumpToMessage: (target: ChatJumpTarget) => Promise<boolean>;
   scrollContainerRef: RefObject<HTMLElement>;
   messagesContentRef: RefObject<HTMLDivElement>;
 };
@@ -161,27 +157,63 @@ const getOccurrenceRect = (occurrence: ChatFindOccurrence) => {
   return occurrence.messageElement.getBoundingClientRect();
 };
 
-const initialIndexFromViewport = (
-  occurrences: ChatFindOccurrence[],
-  scrollContainer: HTMLElement | null,
-) => {
-  if (occurrences.length === 0 || !scrollContainer) {
-    return occurrences.length > 0 ? 0 : -1;
+const findRenderedRow = (root: HTMLElement, messageId: string): HTMLElement | null => {
+  for (const row of root.querySelectorAll<HTMLElement>('.chat-message[data-chat-message-id]')) {
+    if (row.dataset.chatMessageId === messageId) return row;
   }
-  const viewportTop = getChatViewportRect(scrollContainer).top;
-  const index = occurrences.findIndex((occurrence) => getOccurrenceRect(occurrence).bottom >= viewportTop);
-  return index >= 0 ? index : 0;
+  return null;
 };
 
+/**
+ * Index position just below where the reader is: the first indexed message
+ * rendered below the viewport's bottom edge, else just past the last indexed
+ * message at or above it.
+ */
+export function readingBoundary(
+  entries: ChatFindEntry[],
+  root: HTMLElement | null,
+  scrollContainer: HTMLElement | null,
+): number {
+  const rows = root ? Array.from(root.querySelectorAll<HTMLElement>('.chat-message[data-chat-message-id]')) : [];
+  if (rows.length === 0 || !scrollContainer) return entries.length;
+  const viewportBottom = getChatViewportRect(scrollContainer).bottom;
+  let reading = rows.length - 1;
+  for (let index = 0; index < rows.length; index += 1) {
+    if (rows[index].getBoundingClientRect().top >= viewportBottom) {
+      reading = Math.max(0, index - 1);
+      break;
+    }
+  }
+  const position = new Map(entries.map((entry, index) => [entry.messageId, index]));
+  for (let index = reading + 1; index < rows.length; index += 1) {
+    const entry = position.get(rows[index].dataset.chatMessageId!);
+    if (entry !== undefined) return entry;
+  }
+  for (let index = reading; index >= 0; index -= 1) {
+    const entry = position.get(rows[index].dataset.chatMessageId!);
+    if (entry !== undefined) return entry + 1;
+  }
+  return entries.length;
+}
+
+/** The newest match at or above the reader; with none above, the nearest below. */
+export function initialMatchIndex(matches: ChatFindMatch[], boundary: number): number {
+  for (let index = matches.length - 1; index >= 0; index -= 1) {
+    if (matches[index].entry < boundary) return index;
+  }
+  return matches.length > 0 ? 0 : -1;
+}
+
 const scrollToOccurrence = (
-  occurrence: ChatFindOccurrence,
+  target: ChatFindOccurrence | HTMLElement,
   scrollContainer: HTMLElement | null,
 ) => {
   if (!scrollContainer) {
     return;
   }
 
-  const matchRect = getOccurrenceRect(occurrence);
+  const element = target instanceof HTMLElement ? target : target.messageElement;
+  const matchRect = target instanceof HTMLElement ? target.getBoundingClientRect() : getOccurrenceRect(target);
   const containerRect = getChatViewportRect(scrollContainer);
   if (matchRect.top >= containerRect.top && matchRect.bottom <= containerRect.bottom) {
     return;
@@ -196,41 +228,35 @@ const scrollToOccurrence = (
     return;
   }
 
-  occurrence.messageElement.scrollIntoView?.({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+  element.scrollIntoView?.({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
 };
 
-/** Owns the open chat's find state; the header is only a view of this controller. */
+/**
+ * Owns the open chat's find state; the header is only a view of this controller.
+ * Matches come from a text index of the whole conversation, so old matches need
+ * no rendered history: stepping to one outside the rendered rows jumps there.
+ */
 export function useChatFind({
   isVisible,
   sessionId,
-  chatMessages,
-  loadAllMessages,
+  sessionStore,
+  loadedRecords,
+  renderedMessages,
+  jumpToMessage,
   scrollContainerRef,
   messagesContentRef,
 }: UseChatFindArgs): ChatFindController {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQueryState] = useState('');
-  const [occurrences, setOccurrences] = useState<ChatFindOccurrence[]>([]);
+  const [matches, setMatches] = useState<ChatFindMatch[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
-  const [isPreparing, setIsPreparing] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const loadAttemptRef = useRef(0);
-  const historyPreparedRef = useRef(false);
   const lastQueryRef = useRef('');
-  const activeIdentityRef = useRef<ChatFindIdentity | null>(null);
-
-  const prepareCompleteHistory = useCallback(async () => {
-    const attempt = ++loadAttemptRef.current;
-    setLoadFailed(false);
-    setIsPreparing(true);
-    const loaded = await loadAllMessages();
-    if (attempt !== loadAttemptRef.current) {
-      return;
-    }
-    setIsPreparing(false);
-    setLoadFailed(loaded === null);
-  }, [loadAllMessages]);
+  const activeMatchRef = useRef<ChatFindMatch | null>(null);
+  const jumpedKeyRef = useRef<string | null>(null);
+  const scrolledKeyRef = useRef<string | null>(null);
+  const index = useChatTextIndex({ sessionStore, sessionId, enabled: isOpen, loadedRecords });
+  const { entries } = index;
 
   const open = useCallback(() => {
     if (isOpen) {
@@ -240,36 +266,23 @@ export function useChatFind({
       ? document.activeElement
       : null;
     setQueryState('');
-    setOccurrences([]);
+    setMatches([]);
     setCurrentIndex(-1);
-    activeIdentityRef.current = null;
+    activeMatchRef.current = null;
     lastQueryRef.current = '';
-    historyPreparedRef.current = false;
-    setIsPreparing(true);
     setIsOpen(true);
   }, [isOpen]);
 
-  useEffect(() => {
-    if (!isOpen || historyPreparedRef.current) return;
-    const timer = window.setTimeout(() => {
-      historyPreparedRef.current = true;
-      void prepareCompleteHistory();
-    }, SEARCH_IDLE_MS);
-    return () => window.clearTimeout(timer);
-  }, [isOpen, query, prepareCompleteHistory]);
-
   const closeWithoutFocus = useCallback(() => {
-    loadAttemptRef.current += 1;
-    historyPreparedRef.current = false;
     clearHighlights(messagesContentRef.current);
     setIsOpen(false);
     setQueryState('');
-    setOccurrences([]);
+    setMatches([]);
     setCurrentIndex(-1);
-    setIsPreparing(false);
-    setLoadFailed(false);
-    activeIdentityRef.current = null;
+    activeMatchRef.current = null;
     lastQueryRef.current = '';
+    jumpedKeyRef.current = null;
+    scrolledKeyRef.current = null;
   }, [messagesContentRef]);
 
   const close = useCallback(() => {
@@ -283,10 +296,6 @@ export function useChatFind({
       }
     });
   }, [closeWithoutFocus]);
-
-  const retryLoad = useCallback(() => {
-    void prepareCompleteHistory();
-  }, [prepareCompleteHistory]);
 
   useEffect(() => {
     closeWithoutFocus();
@@ -321,106 +330,117 @@ export function useChatFind({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [close, isOpen, isVisible, open, sessionId]);
 
+  // Search the index; a rebuild under the same query keeps the current match.
   useEffect(() => {
-    const root = messagesContentRef.current;
-    clearHighlights(root);
-    if (!isOpen || isPreparing || loadFailed || !query || !root) {
-      setOccurrences([]);
+    if (!isOpen || !query || !entries) {
+      setMatches([]);
       setCurrentIndex(-1);
-      activeIdentityRef.current = null;
+      activeMatchRef.current = null;
       lastQueryRef.current = query;
       return undefined;
     }
 
     const timer = window.setTimeout(() => {
-      const nextOccurrences = collectChatFindOccurrences(root, query);
-      const queryChanged = lastQueryRef.current !== query;
-      const retainedIndex = !queryChanged && activeIdentityRef.current
-        ? nextOccurrences.findIndex((occurrence) => (
-            occurrence.messageElement === activeIdentityRef.current?.messageElement
-            && occurrence.offset === activeIdentityRef.current.offset
-          ))
+      const nextMatches = searchChatFindEntries(entries, query);
+      const active = lastQueryRef.current === query ? activeMatchRef.current : null;
+      const retained = active
+        ? nextMatches.findIndex((match) => match.messageId === active.messageId && match.ordinal === active.ordinal)
         : -1;
-      const nextIndex = retainedIndex >= 0
-        ? retainedIndex
-        : initialIndexFromViewport(nextOccurrences, scrollContainerRef.current);
-      setOccurrences(nextOccurrences);
+      const nextIndex = retained >= 0
+        ? retained
+        : initialMatchIndex(nextMatches, readingBoundary(entries, messagesContentRef.current, scrollContainerRef.current));
+      setMatches(nextMatches);
       setCurrentIndex(nextIndex);
-      activeIdentityRef.current = nextIndex >= 0 ? nextOccurrences[nextIndex] : null;
+      activeMatchRef.current = nextIndex >= 0 ? nextMatches[nextIndex] : null;
       lastQueryRef.current = query;
     }, SEARCH_IDLE_MS);
     return () => window.clearTimeout(timer);
-  }, [chatMessages, isOpen, isPreparing, loadFailed, messagesContentRef, query, scrollContainerRef]);
+  }, [entries, isOpen, messagesContentRef, query, scrollContainerRef]);
 
+  // Highlight what is rendered; bring the current match into the chat when it is not.
   useEffect(() => {
     const root = messagesContentRef.current;
     clearHighlights(root);
-    if (!isOpen || occurrences.length === 0 || currentIndex < 0) {
+    if (!isOpen || !query || !root) {
       return undefined;
     }
+    const current = currentIndex >= 0 ? matches[currentIndex] : undefined;
+    activeMatchRef.current = current ?? null;
 
-    const current = occurrences[currentIndex];
-    if (!current) {
-      return undefined;
+    const occurrences = collectChatFindOccurrences(root, query);
+    const row = current ? findRenderedRow(root, current.messageId) : null;
+    const key = current ? `${current.messageId}:${current.ordinal}` : null;
+    if (current && key && !row && jumpedKeyRef.current !== key) {
+      jumpedKeyRef.current = key;
+      scrolledKeyRef.current = null;
+      void jumpToMessage({ messageId: current.messageId, recordId: current.recordId });
     }
-    activeIdentityRef.current = current;
 
+    const inRow = row ? occurrences.filter((occurrence) => occurrence.messageElement === row) : [];
+    const currentOccurrence = current && inRow.length > 0 ? inRow[Math.min(current.ordinal, inRow.length - 1)] : null;
     if (typeof CSS !== 'undefined' && CSS.highlights && typeof Highlight !== 'undefined') {
-      const allHighlight = new Highlight(...occurrences.map((occurrence) => occurrence.range));
-      const currentHighlight = new Highlight(current.range);
-      currentHighlight.priority = 1;
-      CSS.highlights.set(MATCH_HIGHLIGHT, allHighlight);
-      CSS.highlights.set(CURRENT_HIGHLIGHT, currentHighlight);
+      if (occurrences.length > 0) CSS.highlights.set(MATCH_HIGHLIGHT, new Highlight(...occurrences.map((occurrence) => occurrence.range)));
+      if (currentOccurrence) {
+        const currentHighlight = new Highlight(currentOccurrence.range);
+        currentHighlight.priority = 1;
+        CSS.highlights.set(CURRENT_HIGHLIGHT, currentHighlight);
+      } else {
+        row?.classList.add(FALLBACK_CURRENT_CLASS);
+      }
     } else {
-      current.messageElement.classList.add(FALLBACK_CURRENT_CLASS);
+      row?.classList.add(FALLBACK_CURRENT_CLASS);
     }
 
-    scrollToOccurrence(current, scrollContainerRef.current);
+    if (row && key && scrolledKeyRef.current !== key) {
+      scrolledKeyRef.current = key;
+      scrollToOccurrence(currentOccurrence ?? row, scrollContainerRef.current);
+    }
     return () => clearHighlights(root);
-  }, [currentIndex, isOpen, messagesContentRef, occurrences, scrollContainerRef]);
+  }, [currentIndex, isOpen, jumpToMessage, matches, messagesContentRef, query, renderedMessages, scrollContainerRef]);
 
   useEffect(() => () => clearHighlights(messagesContentRef.current), [messagesContentRef]);
 
   const setQuery = useCallback((nextQuery: string) => {
     setQueryState(nextQuery);
-    setOccurrences([]);
+    setMatches([]);
     setCurrentIndex(-1);
+    jumpedKeyRef.current = null;
     clearHighlights(messagesContentRef.current);
   }, [messagesContentRef]);
 
   const next = useCallback(() => {
-    setCurrentIndex((index) => stepChatFindIndex(index, occurrences.length, 1));
-  }, [occurrences.length]);
+    setCurrentIndex((value) => stepChatFindIndex(value, matches.length, 1));
+  }, [matches.length]);
 
   const previous = useCallback(() => {
-    setCurrentIndex((index) => stepChatFindIndex(index, occurrences.length, -1));
-  }, [occurrences.length]);
+    setCurrentIndex((value) => stepChatFindIndex(value, matches.length, -1));
+  }, [matches.length]);
 
   return useMemo(() => ({
     isOpen,
     query,
     currentIndex,
-    total: occurrences.length,
-    isPreparing,
-    loadFailed,
+    total: matches.length,
+    isPreparing: index.isPreparing,
+    loadFailed: index.loadFailed,
     open,
     close,
     setQuery,
     next,
     previous,
-    retryLoad,
+    retryLoad: index.retry,
   }), [
     close,
     currentIndex,
+    index.isPreparing,
+    index.loadFailed,
+    index.retry,
     isOpen,
-    isPreparing,
-    loadFailed,
+    matches.length,
     next,
-    occurrences.length,
     open,
     previous,
     query,
-    retryLoad,
     setQuery,
   ]);
 }

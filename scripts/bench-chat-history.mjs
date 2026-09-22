@@ -17,7 +17,7 @@ if (strict || args.includes('--regressions-only')) {
     ['tsconfig.json', ['--import', './src/test/setup-client-env.ts'], 'src/components/chat/hooks/chatHooks.test.ts'],
   ]) {
     const result = spawnSync(process.execPath, ['--import', 'tsx', ...preload, '--test', '--test-name-pattern=history performance target', file], {
-      cwd: root, stdio: 'inherit', env: { ...process.env, TSX_TSCONFIG_PATH: config, CLIDE_HISTORY_PERF_STRICT: '1' },
+      cwd: root, stdio: 'inherit', env: { ...process.env, TSX_TSCONFIG_PATH: config },
     });
     if (result.error) throw result.error;
     failed ||= result.status !== 0;

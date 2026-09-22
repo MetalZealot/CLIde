@@ -191,9 +191,22 @@ export interface SessionSlot {
   hasMore: boolean;
   offset: number;
   nextCursor: string | null | undefined;
+  /**
+   * A detached window (a jump into older history) has newer records still on
+   * the server; realtime rows stay out of `merged` until paging rejoins the tail.
+   */
+  hasNewer: boolean;
+  newerCursor: string | null;
+  /** Full-history revision the latest page reported; null from legacy servers. */
+  revision: string | null;
   /** @internal Latest request owns publication, including failures and cancellation. */
   _historyRequest?: AbortController;
   _olderRequest?: AbortController;
+  _newerRequest?: AbortController;
+  /** @internal `merged` excluded realtime rows when last computed. */
+  _lastDetached: boolean;
+  /** @internal Find's copy of every searchable record, keyed by the page revision it was fetched under. */
+  _findText?: { revision: string; messages: NormalizedMessage[] };
   /** Prompt time of the turn the oldest loaded page opens mid-way through. */
   turnStartedAt: string | null;
   tokenUsage: unknown;
@@ -221,12 +234,16 @@ function createEmptySlot(): SessionSlot {
     merged: EMPTY,
     _lastServerRef: EMPTY,
     _lastRealtimeRef: EMPTY,
+    _lastDetached: false,
     status: 'idle',
     fetchedAt: 0,
     total: 0,
     hasMore: false,
     offset: 0,
     nextCursor: undefined,
+    hasNewer: false,
+    newerCursor: null,
+    revision: null,
     turnStartedAt: null,
     tokenUsage: null,
     model: null,
@@ -495,12 +512,15 @@ function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[
  * (by reference). Returns true if merged was recomputed.
  */
 function recomputeMergedIfNeeded(slot: SessionSlot): boolean {
-  if (slot.serverMessages === slot._lastServerRef && slot.realtimeMessages === slot._lastRealtimeRef) {
+  if (slot.serverMessages === slot._lastServerRef && slot.realtimeMessages === slot._lastRealtimeRef
+    && slot.hasNewer === slot._lastDetached) {
     return false;
   }
   slot._lastServerRef = slot.serverMessages;
   slot._lastRealtimeRef = slot.realtimeMessages;
-  slot.merged = computeMerged(slot.serverMessages, slot.realtimeMessages);
+  slot._lastDetached = slot.hasNewer;
+  // Live rows belong after the tail; a detached window does not reach it.
+  slot.merged = computeMerged(slot.serverMessages, slot.hasNewer ? EMPTY : slot.realtimeMessages);
   return true;
 }
 
@@ -605,6 +625,9 @@ export function useSessionStore() {
       slot.total = data.total ?? messages.length;
       slot.hasMore = Boolean(data.hasMore);
       slot.nextCursor = data.nextCursor;
+      slot.hasNewer = false;
+      slot.newerCursor = null;
+      slot.revision = data.revision ?? null;
       slot.turnStartedAt = data.turnStartedAt ?? null;
       slot.offset = (opts.offset ?? 0) + messages.length;
       slot.fetchedAt = Date.now();
@@ -626,6 +649,54 @@ export function useSessionStore() {
         notify(sessionId);
       }
       return slot;
+    }
+  }, [getSlot, notify]);
+
+  /**
+   * Replace the window with records centred on one message, for a jump into
+   * history that is not loaded. Resolves null when the server has no such
+   * record, leaving the current window untouched.
+   */
+  const fetchAround = useCallback(async (
+    sessionId: string,
+    messageId: string,
+    opts: { limit?: number; onBeforeNotify?: (slot: SessionSlot) => void } = {},
+  ): Promise<SessionSlot | null> => {
+    const slot = getSlot(sessionId);
+    slot._historyRequest?.abort();
+    const controller = new AbortController();
+    slot._historyRequest = controller;
+    const fetchTicket = ++slot._fetchSeq;
+    const params = new URLSearchParams({ limit: String(opts.limit ?? 40), around: messageId });
+    try {
+      const response = await authenticatedFetch(
+        `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages?${params}`,
+        { signal: controller.signal },
+      );
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json();
+      const data = body?.data ?? body;
+      if (controller.signal.aborted || fetchTicket !== slot._fetchSeq) return null;
+      const messages: NormalizedMessage[] = data.messages || [];
+      slot.serverMessages = reuseUnchangedServerMessages(slot.serverMessages, messages);
+      slot.total = data.total ?? slot.total;
+      slot.hasMore = Boolean(data.hasMore);
+      slot.nextCursor = data.nextCursor;
+      slot.hasNewer = Boolean(data.hasNewer);
+      slot.newerCursor = data.newerCursor ?? null;
+      slot.revision = data.revision ?? null;
+      slot.turnStartedAt = data.turnStartedAt ?? null;
+      slot.offset = messages.length;
+      slot.fetchedAt = Date.now();
+      if (slot.status === 'loading') slot.status = 'idle';
+      recomputeMergedIfNeeded(slot);
+      opts.onBeforeNotify?.(slot);
+      notify(sessionId);
+      return slot;
+    } catch (error) {
+      if (!controller.signal.aborted) console.error(`[SessionStore] fetchAround failed for ${sessionId}:`, error);
+      return null;
     }
   }, [getSlot, notify]);
 
@@ -667,7 +738,14 @@ export function useSessionStore() {
         const error = await response.json();
         if (error?.error?.code === 'HISTORY_CURSOR_INVALIDATED'
           && !controller.signal.aborted && fetchTicket === slot._fetchSeq) {
-          return await fetchFromServer(sessionId, {
+          // A detached window reloads around where the reader is, not at the tail.
+          const oldest = slot.hasNewer ? slot.serverMessages[0]?.id : undefined;
+          const reloaded = oldest
+            ? await fetchAround(sessionId, oldest, {
+              limit: slot.serverMessages.length + 2 * limit, onBeforeNotify: opts.onBeforeNotify,
+            })
+            : null;
+          return reloaded ?? await fetchFromServer(sessionId, {
             limit: Math.max(limit, slot.serverMessages.length), onBeforeNotify: opts.onBeforeNotify,
           });
         }
@@ -689,6 +767,7 @@ export function useSessionStore() {
       slot.serverMessages = [...added, ...slot.serverMessages];
       slot.hasMore = Boolean(data.hasMore);
       slot.nextCursor = data.nextCursor;
+      slot.revision = data.revision ?? slot.revision;
       slot.turnStartedAt = data.turnStartedAt ?? null;
       slot.offset = slot.nextCursor === undefined ? slot.offset + olderMessages.length : slot.serverMessages.length;
       slot.total = data.total ?? slot.total;
@@ -706,7 +785,80 @@ export function useSessionStore() {
     } finally {
       if (slot._olderRequest === controller) slot._olderRequest = undefined;
     }
-  }, [getSlot, notify, fetchFromServer]);
+  }, [getSlot, notify, fetchFromServer, fetchAround]);
+
+  /**
+   * Append the page after a detached window. Reaching the tail rejoins it:
+   * realtime rows merge again and refreshes resume.
+   */
+  const fetchNewer = useCallback(async (
+    sessionId: string,
+    opts: { limit?: number } = {},
+  ): Promise<boolean> => {
+    const slot = getSlot(sessionId);
+    if (!slot.hasNewer || !slot.newerCursor || (slot._newerRequest && !slot._newerRequest.signal.aborted)) return false;
+    slot._historyRequest?.abort();
+    const controller = new AbortController();
+    slot._historyRequest = controller;
+    slot._newerRequest = controller;
+    const fetchTicket = ++slot._fetchSeq;
+    const limit = opts.limit ?? 20;
+    const params = new URLSearchParams({ limit: String(limit), after: slot.newerCursor });
+    try {
+      const response = await authenticatedFetch(
+        `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages?${params}`,
+        { signal: controller.signal },
+      );
+      if (response.status === 409 && !controller.signal.aborted && fetchTicket === slot._fetchSeq) {
+        const newest = slot.serverMessages.at(-1)?.id;
+        const reloaded = newest ? await fetchAround(sessionId, newest, { limit: 2 * limit }) : null;
+        if (!reloaded) await fetchFromServer(sessionId, { limit: Math.max(limit, slot.serverMessages.length) });
+        return true;
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json();
+      const data = body?.data ?? body;
+      if (controller.signal.aborted || fetchTicket !== slot._fetchSeq) return false;
+      const existingIds = new Set(slot.serverMessages.map((message) => message.id));
+      const added = (data.messages as NormalizedMessage[] || []).filter((message) => !existingIds.has(message.id));
+      slot.serverMessages = [...slot.serverMessages, ...added];
+      slot.hasNewer = Boolean(data.hasNewer);
+      slot.newerCursor = data.newerCursor ?? null;
+      slot.revision = data.revision ?? slot.revision;
+      slot.offset = slot.serverMessages.length;
+      slot.fetchedAt = Date.now();
+      if (!slot.hasNewer) {
+        slot.realtimeMessages = pruneRealtimeSupersededByServer(slot.serverMessages, slot.realtimeMessages);
+      }
+      recomputeMergedIfNeeded(slot);
+      notify(sessionId);
+      return added.length > 0 || !slot.hasNewer;
+    } catch (error) {
+      if (!controller.signal.aborted) console.error(`[SessionStore] fetchNewer failed for ${sessionId}:`, error);
+      return false;
+    } finally {
+      if (slot._newerRequest === controller) slot._newerRequest = undefined;
+    }
+  }, [getSlot, notify, fetchAround, fetchFromServer]);
+
+  /**
+   * Every searchable record of a session, text only, for Find's index. Reused
+   * while the loaded pages report the same revision.
+   */
+  const fetchFindText = useCallback(async (sessionId: string, signal?: AbortSignal): Promise<NormalizedMessage[]> => {
+    const slot = getSlot(sessionId);
+    const revision = slot.revision;
+    if (revision && slot._findText?.revision === revision) return slot._findText.messages;
+    const response = await authenticatedFetch(
+      `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages?payload=text`,
+      { signal },
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    const messages: NormalizedMessage[] = (body?.data ?? body)?.messages ?? [];
+    if (revision) slot._findText = { revision, messages };
+    return messages;
+  }, [getSlot]);
 
   /**
    * Append a realtime (WebSocket) message to the correct session slot.
@@ -754,6 +906,8 @@ export function useSessionStore() {
     sessionId: string,
   ) => {
     const slot = getSlot(sessionId);
+    // A detached window does not follow the tail; returning to it reloads.
+    if (slot.hasNewer) return;
     slot._historyRequest?.abort();
     const controller = new AbortController();
     slot._historyRequest = controller;
@@ -800,6 +954,7 @@ export function useSessionStore() {
       slot.total = data.total ?? slot.serverMessages.length;
       slot.hasMore = Boolean(data.hasMore);
       slot.nextCursor = data.nextCursor;
+      slot.revision = data.revision ?? null;
       slot.turnStartedAt = data.turnStartedAt ?? null;
       slot.offset = slot.serverMessages.length;
       slot.fetchedAt = Date.now();
@@ -1114,6 +1269,9 @@ export function useSessionStore() {
     has,
     fetchFromServer,
     fetchMore,
+    fetchAround,
+    fetchNewer,
+    fetchFindText,
     appendRealtime,
     appendRealtimeBatch,
     refreshFromServer,
@@ -1132,7 +1290,7 @@ export function useSessionStore() {
     truncateFromMessageId,
     retractUndeliveredUserTurn,
   }), [
-    getSlot, has, fetchFromServer, fetchMore,
+    getSlot, has, fetchFromServer, fetchMore, fetchAround, fetchNewer, fetchFindText,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
     clearRealtime, getMessages, getSessionSlot, fetchSessionSettings, setModel, setEffort,

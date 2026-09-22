@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import i18next from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { useSessionStore } from '../../src/stores/useSessionStore';
+import { historyBudgets } from './budgets';
 import { useChatSessionState } from '../../src/components/chat/hooks/useChatSessionState';
 import { useChatFind } from '../../src/components/chat/hooks/useChatFind';
 import ChatMessagesPane from '../../src/components/chat/view/subcomponents/ChatMessagesPane';
@@ -44,9 +45,9 @@ function Harness() {
   state = useChatSessionState({ selectedProject: project, selectedSession: session, ws: null,
     sendMessage: send, resetStreamingState: noop, statusCheckSentAtRef: status,
     getReplayProgress: replay, sessionStore: store });
-  find = useChatFind({ isVisible: true, sessionId: session.id, chatMessages: state.chatMessages,
-    loadAllMessages: state.loadAllMessages, scrollContainerRef: state.scrollContainerRef,
-    messagesContentRef: state.messagesContentRef });
+  find = useChatFind({ isVisible: true, sessionId: session.id, sessionStore: store, loadedRecords: state.loadedRecords,
+    renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage,
+    scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef });
   useEffect(() => { document.title = `History fixture: ${session.id}`; }, [session.id]);
   return <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
     <ChatMessagesPane {...state} selectedProject={project} selectedSession={session}
@@ -121,11 +122,21 @@ const measure = async (operation: () => Promise<void>) => {
       find.open();
       await pause(0);
       find.setQuery('Oldest unique needle');
-      await until(() => !find.isPreparing && find.total > 0);
+      await until(() => !find.isPreparing && find.total > 0
+        && state.visibleMessages.some((message) => String(message.content).startsWith('Oldest unique needle')));
     });
     const afterFind = snapshot();
+    const findRequests = performance.getEntriesByType('resource').map((entry) => entry.name)
+      .filter((name) => new URL(name).pathname.endsWith('/messages'));
     find.close();
     await painted();
+    // Back to the live conversation, as the reader's arrow button does, before live-message checks.
+    state.scrollToBottomAndReset();
+    await until(() => !state.isViewDetached && state.visibleMessages.at(-1)?.id === store.getMessages(fixture.id).at(-1)?.id);
+    const phase6Targets = {
+      boundedRows: afterFind.visible! <= historyBudgets.findMountedRows,
+      noCompleteRead: findRequests.every((name) => /payload=text|around=/.test(name)),
+    };
     const streaming = await measure(async () => {
       store.appendRealtime(fixture.id, { id: 'fixture-live-delta', sessionId: fixture.id, provider: 'claude',
         kind: 'text', role: 'assistant', content: 'A new live message.', timestamp: '2025-01-01T00:00:00Z' });
@@ -148,11 +159,12 @@ const measure = async (operation: () => Promise<void>) => {
       streamUpdate: streamingUpdate.conversions <= 1 && streamingUpdate.rows <= 3 && streamingUpdate.markdown <= 1,
     };
     const result = { fixture, userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight],
-      productionBundle: true, rowCountersInstrumented: true, initial, older, searching, afterFind, streaming, refreshing, streamingUpdate, phase3Targets, phase4Targets };
+      productionBundle: true, rowCountersInstrumented: true, initial, older, searching, afterFind, findRequests, streaming, refreshing, streamingUpdate, phase3Targets, phase4Targets, phase6Targets };
     const saved = await fetch('/results', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(result) });
     if (!saved.ok) throw new Error('Could not save benchmark result');
     if (Object.values(phase3Targets).some((passed) => !passed)) throw new Error('Phase 3 work-count target failed; see saved report');
     if (Object.values(phase4Targets).some(passed => !passed)) throw new Error('Phase 4 paging target failed; see saved report');
+    if (Object.values(phase6Targets).some(passed => !passed)) throw new Error('Phase 6 Find target failed; see saved report');
     return result;
   },
 };

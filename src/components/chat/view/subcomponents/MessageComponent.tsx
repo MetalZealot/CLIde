@@ -14,6 +14,7 @@ import {
   formatFollowUpQuestions,
   formatMemoryCitationSource,
   formatUsageLimitText,
+  parseInteractivePrompt,
 } from '../../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { isChatFindConversationMessage } from '../../hooks/useChatFind';
@@ -59,12 +60,6 @@ type MessageComponentProps = {
   /** This limit notice is the live one: it carries the Auto-Continue button. */
   showAutoContinueOffer?: boolean;
   onAcceptAutoContinue?: () => void;
-};
-
-type InteractiveOption = {
-  number: string;
-  text: string;
-  isSelected: boolean;
 };
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
@@ -157,6 +152,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
     <div
       ref={messageRef}
       data-message-timestamp={message.timestamp || undefined}
+      data-chat-message-id={message.id}
       data-chat-find-scope={isFindableConversationMessage ? 'conversation' : undefined}
       className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end' : ''} ${usesMobileReadingInset ? 'px-1 sm:px-0' : 'px-3 sm:px-0'}`}
     >
@@ -376,23 +372,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
                       {t('interactive.title')}
                     </h4>
                     {(() => {
-                      const lines = (message.content || '').split('\n').filter((line) => line.trim());
-                      const questionLine = lines.find((line) => line.includes('?')) || lines[0] || '';
-                      const options: InteractiveOption[] = [];
-
-                      // Parse the menu options
-                      lines.forEach((line) => {
-                        // Match lines like "❯ 1. Yes" or "  2. No"
-                        const optionMatch = line.match(/[❯\s]*(\d+)\.\s+(.+)/);
-                        if (optionMatch) {
-                          const isSelected = line.includes('❯');
-                          options.push({
-                            number: optionMatch[1],
-                            text: optionMatch[2].trim(),
-                            isSelected
-                          });
-                        }
-                      });
+                      const { questionLine, options } = parseInteractivePrompt(message.content || '');
 
                       return (
                         <>

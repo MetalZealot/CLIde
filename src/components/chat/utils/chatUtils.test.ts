@@ -17,6 +17,16 @@ import {
   splitLeadingCommand,
 } from './chatFormatting';
 import { exportToHTML, exportToMarkdown } from './chatExport';
+import {
+  adjacentPromptTurn,
+  chatFindEntriesForRecord,
+  chatFindSegments,
+  listPromptTurns,
+  locateSearchTarget,
+  markdownDisplayText,
+  mergeFindRecords,
+  searchChatFindEntries,
+} from './chatFindIndex';
 import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from './newSessionLauncher';
 import { computeTurnDurations } from './turnDuration';
 import {
@@ -436,4 +446,73 @@ test('tool grouping reuses unchanged groups and updates changed members or membe
   const hidden: ChatMessage = { ...text, id: 'thought', isThinking: true };
   assert.ok(isToolGroupItem(groupConsecutiveTools([first, hidden, second], false)[0]));
   assert.equal(groupConsecutiveTools([first, hidden, second], true)[0], first);
+});
+
+// --- chat find index --------------------------------------------------------
+
+const findRecord = (id: string, content: string, role: 'user' | 'assistant' = 'assistant', extra: Record<string, unknown> = {}) => ({
+  id, sessionId: 's', provider: 'claude' as const, kind: 'text' as const, role, content,
+  timestamp: `2026-01-01T00:00:${id.replace(/\D/g, '').padStart(2, '0')}Z`, ...extra,
+});
+
+test('find text is the Markdown as displayed: no syntax, blocks kept apart', () => {
+  assert.equal(markdownDisplayText('A **bold** [link](https://x.invalid) and `code`.'), 'A bold link and code.');
+  assert.equal(markdownDisplayText('First.\n\nSecond.'), 'First.\nSecond.');
+  assert.equal(markdownDisplayText('```ts\nconst a = 1;\n```'), 'ts\nconst a = 1;', 'the language label shows above code');
+  assert.equal(markdownDisplayText('| Key | Value |\n| --- | --- |\n| row | 1 |'), 'Key\nValue\nrow\n1');
+  assert.equal(markdownDisplayText('Use ```npm test``` here'), 'Use npm test here', 'inline fences render as code');
+  assert.equal(markdownDisplayText('![alt text](x.png) <b>raw</b>'), ' <b>raw</b>', 'raw HTML shows as text; image alt does not');
+});
+
+test('find segments mirror what a message marks searchable', () => {
+  const [assistant] = normalizedToChatMessages([findRecord('1', '{"a":1}')]);
+  assert.deepEqual(chatFindSegments(assistant), ['{\n  "a": 1\n}'], 'JSON replies are shown pretty-printed');
+  const questions = [{ question: 'Which one?', options: ['Left', 'Right'] }];
+  const [asking] = normalizedToChatMessages([findRecord('2', formatFollowUpQuestions(questions), 'assistant', { followUpQuestions: questions })]);
+  assert.deepEqual(chatFindSegments(asking), ['Which one?', 'Left', 'Right'], 'the duplicate fallback text is hidden');
+  const [prompt] = normalizedToChatMessages([{ ...findRecord('3', 'Proceed?\n❯ 1. Yes\n  2. No'), kind: 'interactive_prompt' as const }]);
+  assert.deepEqual(chatFindSegments(prompt), ['Proceed?', 'Yes', 'No']);
+  const [tool] = normalizedToChatMessages([{ ...findRecord('4', ''), kind: 'tool_use' as const, toolName: 'Bash', toolId: 't', toolInput: { command: 'needle' } }]);
+  assert.deepEqual(chatFindSegments(tool), [], 'tool activity is never searched');
+  assert.deepEqual(chatFindEntriesForRecord({ ...findRecord('5', 'thinking needle'), kind: 'thinking' as const }), []);
+});
+
+test('find search is literal, case-insensitive and never joins segments', () => {
+  const entries = [
+    ...chatFindEntriesForRecord(findRecord('1', 'Price (a+b)? PRICE (A+B)?', 'user')),
+    ...chatFindEntriesForRecord(findRecord('2', 'split', 'assistant', { followUpQuestions: [{ question: 'end', options: ['start'] }] })),
+  ];
+  assert.deepEqual(searchChatFindEntries(entries, 'price (a+b)?').map((match) => [match.messageId, match.ordinal]), [['1', 0], ['1', 1]]);
+  assert.equal(searchChatFindEntries(entries, 'endstart').length, 0);
+  assert.equal(searchChatFindEntries(entries, '').length, 0);
+});
+
+test('loaded rows lay over the whole-history text in conversation order', () => {
+  const snapshot = [findRecord('1', 'a'), findRecord('2', 'b'), findRecord('3', 'c')];
+  const edited = findRecord('2', 'b streamed');
+  const tool = { ...findRecord('7', ''), kind: 'tool_use' as const, toolId: 't' };
+  const ids = (records: Array<{ id: string; content?: string }>) => records.map((record) => record.content ?? record.id);
+  assert.deepEqual(ids(mergeFindRecords(snapshot, [tool, edited, findRecord('8', 'new'), findRecord('3', 'c')])), ['a', 'b streamed', 'new', 'c']);
+  assert.deepEqual(ids(mergeFindRecords(snapshot, [findRecord('3', 'c'), findRecord('9', 'live')])), ['a', 'b', 'c', 'live']);
+  assert.deepEqual(ids(mergeFindRecords(snapshot, [findRecord('6', 'early'), findRecord('2', 'b')])), ['a', 'early', 'b', 'c']);
+  assert.deepEqual(ids(mergeFindRecords(snapshot, [findRecord('9', 'first turn')])), ['a', 'b', 'c', 'first turn']);
+  assert.deepEqual(ids(mergeFindRecords(null, [tool, findRecord('3', 'c')])), ['c']);
+});
+
+test('prompt navigation walks authored prompts from any message', () => {
+  const entries = ['1', '2', '3', '4'].flatMap((id, index) => chatFindEntriesForRecord(findRecord(id, `turn ${id}`, index % 2 ? 'assistant' : 'user')));
+  assert.deepEqual(listPromptTurns(entries).map((entry) => entry.messageId), ['1', '3']);
+  assert.equal(adjacentPromptTurn(entries, null, -1)?.messageId, '3');
+  assert.equal(adjacentPromptTurn(entries, null, 1)?.messageId, '1');
+  assert.equal(adjacentPromptTurn(entries, '4', -1)?.messageId, '3');
+  assert.equal(adjacentPromptTurn(entries, '2', 1)?.messageId, '3');
+  assert.equal(adjacentPromptTurn(entries, '3', 1), null);
+  assert.equal(adjacentPromptTurn(entries, 'missing', 1), null);
+});
+
+test('a sidebar result finds its record by snippet, else by nearest time', () => {
+  const records = [findRecord('1', 'The deploy\nfailed twice today'), findRecord('30', 'later reply')];
+  assert.equal(locateSearchTarget(records, { snippet: '...the deploy failed twice...' })?.id, '1');
+  assert.equal(locateSearchTarget(records, { snippet: 'no such words anywhere', timestamp: '2026-01-01T00:00:28Z' })?.id, '30');
+  assert.equal(locateSearchTarget(records, {}), null);
 });

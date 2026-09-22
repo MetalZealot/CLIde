@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Chat-history phase 6: Find without rendered history** (2026-09-21). Find searches a client text index over a text-only history copy; old matches fetch a window around them that pages both ways and rejoins the tail; sidebar results land the same way. 1,000-record Find 24 s → 3.2 s, 900 → 36 mounted rows; verified in Browser on a branch-test server with a real 17 MB session. Fork-only. [Evidence](maps/chat-history-performance.md#phase-6-find-without-rendered-history). **XL**
+
 - [x] **Chat-history phase 4: stable pagination** (2026-09-20). All-provider bookmarks survive appends, reject changed history, and preserve loaded boundaries on refresh. Cancellation, deduplication and bounded reset recovery have regression tests; six synthetic Browser runs pass paging and rendering checks. [Evidence](maps/chat-history-performance.md#phase-4-stable-history-bookmarks). Fork contract. **XL**
 
 - [x] **Chat-history phase 3: reuse unchanged messages** (2026-09-20). Preserve display and refreshed-record identity, memoize Markdown and retain tool groups. Four focused client files pass; synthetic Browser append at 1,000 records fell from 10.36 s median to 255 ms, rendering two rows instead of 901. Find/layout limits remain later phases. [Evidence](maps/chat-history-performance.md#phase-3-unchanged-message-rendering). Fork adaptation of upstream rendering reuse. **L**

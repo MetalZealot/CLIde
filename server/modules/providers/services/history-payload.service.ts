@@ -127,6 +127,39 @@ export function slimHistoryMessage(message: NormalizedMessage, sessionId: string
   return result;
 }
 
+const TEXT_FIELDS = [
+  'id', 'sessionId', 'provider', 'kind', 'role', 'content', 'timestamp', 'displayText', 'commandName',
+  'commandMessage', 'commandArgs', 'isLocalCommand', 'isLocalCommandStdout', 'isCompactSummary',
+  'isSystemNotice', 'followUpQuestions', 'usageLimit', 'isError',
+] as const satisfies ReadonlyArray<keyof NormalizedMessage>;
+
+const textCopies = new WeakMap<NormalizedMessage, NormalizedMessage | null>();
+
+/**
+ * The search copy of a record: only kinds that can display as conversation
+ * text, with only the fields display conversion reads for them. Null otherwise.
+ */
+export function findTextHistoryMessage(message: NormalizedMessage): NormalizedMessage | null {
+  const cached = textCopies.get(message);
+  if (cached !== undefined) return cached;
+  const searchable = message.kind === 'text'
+    || message.kind === 'interactive_prompt'
+    || (message.kind === 'tool_result' && !message.toolId);
+  const hasText = Boolean(message.content?.trim()) || Boolean(message.followUpQuestions?.length);
+  let copy: NormalizedMessage | null = null;
+  if (searchable && hasText) {
+    const fields: Partial<Record<keyof NormalizedMessage, unknown>> = {};
+    for (const key of TEXT_FIELDS) {
+      if (message[key] !== undefined) fields[key] = message[key];
+    }
+    copy = fields as NormalizedMessage;
+    // Pages show a standalone result's preview, so search matches the preview too.
+    if (message.kind === 'tool_result' && message.content) copy.content = slimString(message.content, { changed: false });
+  }
+  textCopies.set(message, copy);
+  return copy;
+}
+
 /** Serialized size of a record's page copy, used to hold pages to the byte budget. */
 export function measureHistoryMessage(message: NormalizedMessage, sessionId: string): number {
   return Buffer.byteLength(JSON.stringify({ ...slimHistoryMessage(message, sessionId), sessionId }));

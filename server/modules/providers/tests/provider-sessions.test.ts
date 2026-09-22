@@ -1057,6 +1057,82 @@ describe('history performance targets', () => {
     assert.equal(paginateHistory(full, 'app:provider:branch', { limit: 0 }).hasMore, false);
   });
 
+  test('detached windows centre on a record, walk both ways and survive a changing tail', () => {
+    const messages = Array.from({ length: 30 }, (_, i) => ({
+      id: `record-${i}`, sessionId: 'app', provider: 'claude' as const, timestamp: '2026-01-01T00:00:00Z',
+      kind: 'text' as const, role: i % 2 ? 'assistant' as const : 'user' as const, content: String(i),
+    }));
+    const full = { messages, total: 30, hasMore: false, offset: 0, limit: null };
+    const scope = 'app:provider:branch';
+    const ids = (page: FetchHistoryResult) => page.messages.map((m) => m.id);
+    const window = paginateHistory(full, scope, { around: 'record-10', limit: 6 });
+    assert.deepEqual(ids(window), ['record-7', 'record-8', 'record-9', 'record-10', 'record-11', 'record-12']);
+    assert.equal(window.hasMore, true);
+    assert.equal(window.hasNewer, true);
+    let newer = window;
+    let below: string[] = [];
+    while (newer.newerCursor) {
+      newer = paginateHistory(full, scope, { after: newer.newerCursor, limit: 6 });
+      below = [...below, ...ids(newer)];
+    }
+    assert.deepEqual(below, messages.slice(13).map((m) => m.id));
+    let older = window;
+    let above: string[] = [];
+    while (older.nextCursor) {
+      older = paginateHistory(full, scope, { before: older.nextCursor, limit: 4 });
+      above = [...ids(older), ...above];
+    }
+    assert.deepEqual(above, messages.slice(0, 7).map((m) => m.id));
+    assert.deepEqual(ids(paginateHistory(full, scope, { around: 'record-0', limit: 6 })), messages.slice(0, 6).map((m) => m.id));
+    assert.equal(paginateHistory(full, scope, { around: 'record-29', limit: 6 }).hasNewer, false);
+
+    // A live turn rewriting and extending the tail must not strand a reader above it.
+    const live = { ...full, messages: [...messages.slice(0, 29), { ...messages[29], content: 'changed' }, { ...messages[0], id: 'appended' }] };
+    const caughtUp = paginateHistory(live, scope, { after: window.newerCursor!, limit: 100 });
+    assert.deepEqual(ids(caughtUp).slice(-2), ['record-29', 'appended']);
+    assert.equal(caughtUp.hasNewer, false);
+    assert.throws(() => paginateHistory({ ...full, messages: messages.slice(0, 11) }, scope, { after: window.newerCursor! }),
+      (error: AppError) => error.code === 'HISTORY_CURSOR_INVALIDATED');
+    assert.throws(() => paginateHistory(full, 'other-app:provider:branch', { after: window.newerCursor! }),
+      (error: AppError) => error.code === 'HISTORY_CURSOR_INVALIDATED');
+    assert.throws(() => paginateHistory(full, scope, { after: window.nextCursor! }),
+      (error: AppError) => error.code === 'INVALID_HISTORY_CURSOR');
+    assert.throws(() => paginateHistory(full, scope, { around: 'missing' }),
+      (error: AppError) => error.code === 'HISTORY_MESSAGE_NOT_FOUND');
+    assert.throws(() => paginateHistory(full, scope, { around: 'record-1', before: window.nextCursor! }),
+      (error: AppError) => error.code === 'INVALID_QUERY_PARAMETER');
+
+    // The byte budget trims from the side farther from the target and never drops it.
+    const budget = { bytes: 3, measure: () => 1 };
+    assert.deepEqual(ids(paginateHistory(full, scope, { around: 'record-10', limit: 6 }, budget)), ['record-9', 'record-10', 'record-11']);
+    assert.deepEqual(ids(paginateHistory(full, scope, { around: 'record-10', limit: 6 }, { bytes: 0, measure: () => 1 })), ['record-10']);
+    assert.equal(paginateHistory(full, scope, { after: window.newerCursor!, limit: 10 }, budget).messages.length, 3);
+  });
+
+  test('the find-text payload carries only searchable text, on the same revision as pages', async () => {
+    const { createHistoryFixture } = await import('./chat-history.fixture.js');
+    const fixture = await createHistoryFixture();
+    try {
+      for (const provider of ['claude', 'codex'] as const) {
+        const id = await fixture.add(provider, 200, 'heavy');
+        const direct = (await fixture.readDirect(id, null)).messages;
+        const text = await fixture.read(id, null, 0, { payload: 'text' });
+        const expected = direct.filter((m) => (m.kind === 'text' || m.kind === 'interactive_prompt'
+          || (m.kind === 'tool_result' && !m.toolId)) && (m.content?.trim() || m.followUpQuestions?.length));
+        assert.deepEqual(text.messages.map((m) => m.id), expected.map((m) => m.id));
+        assert.deepEqual(text.messages.map((m) => m.content), expected.map((m) => m.content), `${provider} prose must stay whole`);
+        assert.ok(text.messages.every((m) => m.images === undefined && m.toolInput === undefined && m.sessionId === id));
+        assert.equal(text.revision, (await fixture.read(id, 20)).revision);
+        const target = expected[3].id;
+        const window = await fixture.read(id, 40, 0, { around: target });
+        assert.ok(window.messages.some((m) => m.id === target));
+        assert.ok(Buffer.byteLength(JSON.stringify(window)) <= historyBudgets.pageBytes || window.messages.length === 1);
+        const next = await fixture.read(id, 40, 0, { after: window.newerCursor! });
+        assert.equal(next.messages[0].id, direct[direct.findIndex((m) => m.id === window.messages.at(-1)!.id) + 1].id);
+      }
+    } finally { await fixture.close(); }
+  });
+
   test('provider bookmarks survive rereads and appends but invalidate branch and content replacements', async () => {
     const { createHistoryFixture } = await import('./chat-history.fixture.js');
     const fixture = await createHistoryFixture();
@@ -1140,7 +1216,7 @@ describe('history performance targets', () => {
       const id = await fixture.add('claude', 10);
       const address = server.address() as import('node:net').AddressInfo;
       const url = `http://127.0.0.1:${address.port}/sessions/${id}/messages`;
-      for (const query of ['limit=1x', 'limit=1.5', 'offset=-1', 'offset=9007199254740992', 'before=', 'before=a&before=b', 'limit=']) {
+      for (const query of ['limit=1x', 'limit=1.5', 'offset=-1', 'offset=9007199254740992', 'before=', 'before=a&before=b', 'limit=', 'around=', 'after=', `around=${'x'.repeat(513)}`, 'after=!']) {
         assert.equal((await fetch(`${url}?${query}`)).status, 400, query);
       }
       const first = await (await fetch(`${url}?limit=3`)).json() as { data: FetchHistoryResult };
@@ -1152,6 +1228,8 @@ describe('history performance targets', () => {
       assert.equal(older.data.messages.length, 3);
       assert.equal(older.data.messages.at(-1)?.id, 'row-6');
       assert.equal((await fetch(`${url}?payload=raw`)).status, 400);
+      assert.equal((await fetch(`${url}?around=missing`)).status, 404);
+      assert.equal((await fetch(`${url}?payload=text`)).status, 200);
       const detailUrl = `${url}/${encodeURIComponent(older.data.messages[0].id)}`;
       const detail = await (await fetch(detailUrl)).json() as { data: NormalizedMessage };
       assert.deepEqual(detail.data, older.data.messages[0]);

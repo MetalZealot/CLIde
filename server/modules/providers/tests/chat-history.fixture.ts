@@ -125,7 +125,8 @@ export async function createHistoryFixture() {
         { uuid: 'child-2', sessionId: r.nativeId, isSidechain: true, timestamp: '2024-01-01T00:00:01Z', type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'child-tool', content: output }] } },
       ].map((row) => JSON.stringify(row)).join('\n') + '\n');
     },
-    read: (id: string, limit: number | null = 20, offset = 0, bookmarks: { before?: string; from?: string } = {}) => sessionsService.fetchHistory(id, { limit, offset, ...bookmarks }),
+    read: (id: string, limit: number | null = 20, offset = 0, bookmarks: { before?: string; from?: string; after?: string; around?: string; payload?: 'text' } = {}) => sessionsService.fetchHistory(id, { limit, offset, ...bookmarks }),
+    image: (id: string, messageId: string, index: number) => sessionsService.fetchHistoryImage(id, messageId, index),
     readDirect: (id: string, limit: number | null = 20, offset = 0) => {
       const row = sessionsDb.getSessionById(id);
       if (!row?.provider_session_id) throw new Error(`Missing fixture session ${id}`);

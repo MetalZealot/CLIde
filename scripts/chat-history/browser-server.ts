@@ -53,10 +53,22 @@ try {
       if ((limit !== null && (!Number.isInteger(limit) || limit < 0)) || !Number.isInteger(offset) || offset < 0) {
         res.sendStatus(400); return;
       }
-      res.json({ success: true, data: await fixture!.read(req.params.id, limit, offset, { before: req.query.before as string | undefined, from: req.query.from as string | undefined }) });
+      const query = (key: string) => typeof req.query[key] === 'string' ? req.query[key] as string : undefined;
+      const payload = query('payload') === 'text' ? 'text' as const : undefined;
+      res.json({ success: true, data: await fixture!.read(req.params.id, limit, offset,
+        { before: query('before'), from: query('from'), after: query('after'), around: query('around'), payload }) });
     } catch (error) {
       const failure = error as { statusCode?: number; code?: string };
       res.status(failure.statusCode ?? 500).json({ error: { code: failure.code } });
+    }
+  });
+  app.get('/api/providers/sessions/:id/messages/:messageId/images/:index', async (req, res) => {
+    if (!allowed.has(req.params.id)) { res.sendStatus(404); return; }
+    try {
+      const image = await fixture!.image(req.params.id, req.params.messageId, Number(req.params.index));
+      res.type(image.mediaType).send(image.body);
+    } catch (error) {
+      res.sendStatus((error as { statusCode?: number }).statusCode ?? 500);
     }
   });
   app.get('/api/providers/sessions/:id/token-usage', (req, res) => {

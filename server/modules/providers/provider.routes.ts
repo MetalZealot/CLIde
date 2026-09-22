@@ -873,7 +873,7 @@ router.get(
   '/sessions/:sessionId/messages',
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
-    for (const key of ['limit', 'offset', 'before', 'from']) {
+    for (const key of ['limit', 'offset', 'before', 'from', 'after', 'around']) {
       if (req.query[key] !== undefined && (typeof req.query[key] !== 'string' || !String(req.query[key]).trim())) {
         throw new AppError(`Invalid ${key}.`, { code: 'INVALID_QUERY_PARAMETER', statusCode: 400 });
       }
@@ -906,8 +906,12 @@ router.get(
     }
 
     const payload = readOptionalQueryString(req.query.payload);
-    if (payload !== undefined && payload !== 'page' && payload !== 'full') {
-      throw new AppError('payload must be page or full.', { code: 'INVALID_QUERY_PARAMETER', statusCode: 400 });
+    if (payload !== undefined && payload !== 'page' && payload !== 'full' && payload !== 'text') {
+      throw new AppError('payload must be page, full or text.', { code: 'INVALID_QUERY_PARAMETER', statusCode: 400 });
+    }
+    const around = readOptionalQueryString(req.query.around);
+    if (around !== undefined && around.length > 512) {
+      throw new AppError('Invalid around.', { code: 'INVALID_QUERY_PARAMETER', statusCode: 400 });
     }
 
     const result = await sessionsService.fetchHistory(sessionId, {
@@ -915,6 +919,8 @@ router.get(
       offset,
       before: readOptionalQueryString(req.query.before),
       from: readOptionalQueryString(req.query.from),
+      after: readOptionalQueryString(req.query.after),
+      around,
       payload,
     });
     res.json(createApiSuccessResponse(result));

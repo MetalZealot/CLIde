@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 5/9
-- Next: Phase 6 — Find and prompt navigation without rendering history
+- Status: 6/9
+- Next: Phase 7 — Bound expensive rendered contents
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -65,21 +65,14 @@ in full records or exports nothing. The heavy fixture page fell from 723,743 to
 6,146 bytes; a real 17 MB session's full slim history is 2.6 MB.
 [Contract and evidence](../maps/chat-history-performance.md#phase-5-bounded-page-payloads).
 
-- [ ] **6. Separate Find and prompt navigation from rendered history — XL.**
+- [x] **6. Separate Find and prompt navigation from rendered history — XL.**
 
-Build a lightweight text/turn lookup, tied to the history revision, for Find and
-future prompt navigation. Preserve authored-text scope, literal case-insensitive
-matching, counts, wraparound, keyboard actions and focus restoration. Match the
-text actually displayed, including Markdown boundaries and follow-up questions;
-exclude hidden markup/tool bodies and existing excluded message kinds.
-
-Return message ids/match locations; fetch a bounded window around the chosen id
-and highlight after mounting. Cancel stale work on typing, switch or rewind. Bound
-and update the index; choose worker/server search from measurements. Expose
-previous/next authored-turn and list APIs; new controls are separate.
-
-**Exit:** old matches need no page walk, attachment reads or full render; cached
-history needs no full redownload. Streaming preserves correctness.
+Find searches a client text index over a text-only history copy, tied to the
+history revision; an old match fetches a window around it that pages both ways
+and rejoins the tail. Sidebar results land the same way; prompt navigation is
+API-only. At 1,000 records Find fell from 24 s to 3.2 s and 900 to 36 mounted
+rows; the Find-window target is a passing test.
+[Contract and evidence](../maps/chat-history-performance.md#phase-6-find-without-rendered-history).
 
 - [ ] **7. Bound expensive rendered contents — XL.**
 
@@ -96,7 +89,8 @@ reduced motion and bottom-follow only when intended.
 
 Older pages already load 1.5 screens early, so scrolling up no longer waits at
 the top; each prepend still freezes 170–790 ms (measured on a real session),
-growing with mounted rows, because layout covers every row.
+growing with mounted rows, because layout covers every row. Scrolling down from
+a Find jump grows rows the same way.
 
 **Exit:** rich contents stay bounded except interaction pins; history remains
 reachable; scrolling up never shows loading or a freeze. Real phone handles and

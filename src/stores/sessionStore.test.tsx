@@ -45,7 +45,10 @@ describe('useSessionStore.pagination', () => {
     content,
   });
 
-  type Page = { messages: NormalizedMessage[]; total?: number; hasMore?: boolean; nextCursor?: string | null; status?: number; error?: { code: string } };
+  type Page = {
+    messages: NormalizedMessage[]; total?: number; hasMore?: boolean; nextCursor?: string | null;
+    hasNewer?: boolean; newerCursor?: string | null; revision?: string; status?: number; error?: { code: string };
+  };
 
   const pageResponse = (page: Page) =>
     ({
@@ -58,6 +61,9 @@ describe('useSessionStore.pagination', () => {
         messages: page.messages,
         total: page.total ?? page.messages.length,
         hasMore: page.hasMore ?? false,
+        hasNewer: page.hasNewer,
+        newerCursor: page.newerCursor,
+        revision: page.revision,
       }),
     }) as unknown as Response;
 
@@ -355,6 +361,58 @@ describe('useSessionStore.pagination', () => {
     respond({ messages: [message('1', 'old branch')], hasMore: false });
     await finish(pending);
     assert.deepEqual(store.getSlot(SESSION_ID).serverMessages.map(m => m.id), ['3']);
+  });
+
+  test('a jump detaches the window from live rows until newer pages rejoin the tail', async () => {
+    await loadFirstPage();
+    await React.act(async () => store.appendRealtime(SESSION_ID, message('9', 'live')));
+    const contents = () => store.getMessages(SESSION_ID).map((m) => m.content);
+    assert.deepEqual(contents(), ['three', 'four', 'live']);
+
+    const { pending: jumping } = await begin(() => store.fetchAround(SESSION_ID, '1', { limit: 2 }));
+    await settle();
+    assert.match(requestedUrls.at(-1)!, /limit=2&around=1/);
+    respond({ messages: [message('1', 'one'), message('2', 'two')], hasNewer: true, newerCursor: 'n1', revision: 'r1' });
+    await finish(jumping);
+    assert.deepEqual(contents(), ['one', 'two'], 'live rows belong after the tail, which this window does not reach');
+
+    const requests = requestedUrls.length;
+    await finish(store.refreshFromServer(SESSION_ID));
+    assert.equal(requestedUrls.length, requests, 'a detached window does not follow the tail');
+
+    const { pending: paging } = await begin(() => store.fetchNewer(SESSION_ID, { limit: 2 }));
+    await settle();
+    assert.match(requestedUrls.at(-1)!, /limit=2&after=n1/);
+    respond({ messages: [message('3', 'three'), message('4', 'four')], hasNewer: false, newerCursor: null, revision: 'r1' });
+    await finish(paging);
+    assert.deepEqual(contents(), ['one', 'two', 'three', 'four', 'live']);
+    assert.equal(store.getSessionSlot(SESSION_ID)!.hasNewer, false);
+  });
+
+  test('a missing jump target keeps the window; search text is reused per revision', async () => {
+    const { pending: fetching } = await begin(() => store.fetchFromServer(SESSION_ID, { limit: 2, offset: 0 }));
+    await settle();
+    respond({ messages: [message('3', 'three'), message('4', 'four')], hasMore: true, revision: 'r1' });
+    await finish(fetching);
+
+    const { pending: jumping } = await begin(() => store.fetchAround(SESSION_ID, 'gone'));
+    await settle();
+    respond({ messages: [], status: 404 });
+    let jumped: unknown;
+    await React.act(async () => { jumped = await jumping; });
+    assert.equal(jumped, null);
+    assert.deepEqual(store.getMessages(SESSION_ID).map((m) => m.content), ['three', 'four']);
+
+    const { pending: reading } = await begin(() => store.fetchFindText(SESSION_ID));
+    await settle();
+    assert.match(requestedUrls.at(-1)!, /payload=text/);
+    respond({ messages: [message('1', 'one')] });
+    let text: NormalizedMessage[] = [];
+    await React.act(async () => { text = await reading; });
+    assert.deepEqual(text.map((m) => m.id), ['1']);
+    const requests = requestedUrls.length;
+    await React.act(async () => { text = await store.fetchFindText(SESSION_ID); });
+    assert.equal(requestedUrls.length, requests, 'the same revision needs no second download');
   });
 
   test('a watcher refresh retains the loaded window instead of pulling all history', async () => {

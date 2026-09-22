@@ -9,7 +9,9 @@ import type { SessionStore, NormalizedMessage } from '../../../stores/useSession
 import type { ChatMessage } from '../types/types';
 import { createCachedDiffCalculator, type DiffCalculator } from '../utils/messageTransforms';
 import { getChatViewportRect, isPageScrollHost, scrollEventTarget } from '../utils/chatScrollHost';
+import { chatFindEntriesForRecord, locateSearchTarget } from '../utils/chatFindIndex';
 
+import type { ChatJumpTarget } from './useChatFind';
 import { normalizedToChatMessages } from './useChatMessages';
 
 export const MESSAGES_PER_PAGE = 20;
@@ -18,11 +20,17 @@ const TOP_LOAD_THRESHOLD_PX = 100;
 const TOP_LOAD_REARM_MARGIN_PX = 40;
 /** Screens of history kept above the reader, so arriving at the top rarely waits for a page. */
 const TOP_PREFETCH_SCREENS = 1.5;
+/** Rows kept each side of a jump target: a screen or two of context. */
+const JUMP_ROWS_AROUND = 15;
+/** Records fetched around a jump target that is not loaded. */
+const JUMP_RECORDS = 40;
 
 const topLoadDistance = (container: HTMLElement): number =>
   Math.max(TOP_LOAD_THRESHOLD_PX, container.clientHeight * TOP_PREFETCH_SCREENS);
 const topLoadRearmDistance = (container: HTMLElement): number =>
   topLoadDistance(container) + TOP_LOAD_REARM_MARGIN_PX;
+const distanceToBottom = (container: HTMLElement): number =>
+  container.scrollHeight - container.scrollTop - container.clientHeight;
 
 interface UseChatSessionStateArgs {
   selectedProject: Project | null;
@@ -171,6 +179,12 @@ export function useChatSessionState({
   const [scrollRestoreTick, setScrollRestoreTick] = useState(0);
   const [viewHiddenCount, setViewHiddenCount] = useState(0);
   const [selectionStartIndex, setSelectionStartIndex] = useState<number | null>(null);
+  /**
+   * Rows rendered away from the live tail after a jump. Ids bound it; a null
+   * edge follows the loaded window. Null: the tail window of `visibleMessageCount`.
+   */
+  const [viewRange, setViewRange] = useState<{ startId: string | null; endId: string | null } | null>(null);
+  const [flashTargetId, setFlashTargetId] = useState<string | null>(null);
 
   const selectedSessionId = selectedSession?.id ?? null;
   /** The pane, or the document root when the page scrolls; set by the pane's ref. */
@@ -186,6 +200,15 @@ export function useChatSessionState({
   currentSessionIdRef.current = currentSessionId;
   const isUserScrolledUpRef = useRef(false);
   isUserScrolledUpRef.current = isUserScrolledUp;
+  // Render-time mirrors of the rendered window, for scroll handlers and jumps.
+  const viewRangeRef = useRef<typeof viewRange>(null);
+  const windowStartRef = useRef(0);
+  const windowEndRef = useRef(0);
+  const isViewDetachedRef = useRef(false);
+  const chatMessagesRef = useRef<ChatMessage[]>([]);
+  const isLoadingNewerRef = useRef(false);
+  const returnToLatestRef = useRef<() => void>(() => undefined);
+  const jumpToMessageRef = useRef<(target: ChatJumpTarget) => Promise<boolean>>(async () => false);
   const [searchTarget, setSearchTarget] = useState<{ timestamp?: string; uuid?: string; snippet?: string } | null>(null);
   const searchScrollActiveRef = useRef(false);
   const isLoadingSessionRef = useRef(false);
@@ -260,6 +283,7 @@ export function useChatSessionState({
     
     setTokenBudget(null);
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setViewRange(null);
     setAllMessagesLoaded(false);
     setIsLoadingAllMessages(false);
     setViewHiddenCount(0);
@@ -362,6 +386,8 @@ export function useChatSessionState({
       setPendingUserMessage(msg);
       return;
     }
+    // A message sent from a jumped-to window lands in the live conversation, so show it.
+    if (msg.type === 'user' && isViewDetachedRef.current) returnToLatestRef.current();
     const prov = (localStorage.getItem('selected-provider') as LLMProvider) || 'claude';
     const normalized = chatMessageToNormalized(msg, activeSessionId, prov);
     if (normalized) {
@@ -383,12 +409,31 @@ export function useChatSessionState({
   }, []);
 
   const scrollToBottomAndReset = useCallback(() => {
+    const slot = activeSessionId ? sessionStore.getSessionSlot(activeSessionId) : undefined;
+    if (viewRangeRef.current || slot?.hasNewer) {
+      // Back from a jump: the latest page, followed from the bottom as on open.
+      const rejoin = () => {
+        setViewRange(null);
+        setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+        setAllMessagesLoaded(false);
+        pendingInitialScrollRef.current = true;
+        isUserScrolledUpRef.current = false;
+        setIsUserScrolledUp(false);
+      };
+      if (activeSessionId && slot?.hasNewer) {
+        void sessionStore.fetchFromServer(activeSessionId, { limit: MESSAGES_PER_PAGE, onBeforeNotify: rejoin });
+      } else {
+        rejoin();
+      }
+      return;
+    }
     scrollToBottom();
     if (allMessagesLoaded) {
       setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
       setAllMessagesLoaded(false);
     }
-  }, [allMessagesLoaded, scrollToBottom]);
+  }, [activeSessionId, allMessagesLoaded, scrollToBottom, sessionStore]);
+  returnToLatestRef.current = scrollToBottomAndReset;
 
   const isNearBottom = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -427,7 +472,10 @@ export function useChatSessionState({
             pendingScrollRestoreRef.current = scrollRestore;
             capturedScrollRestoreRef.current = null;
             setScrollRestoreTick((tick) => tick + 1);
-            if (madeProgress) setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+            if (madeProgress) {
+              if (viewRangeRef.current) setViewRange((range) => range && { ...range, startId: null });
+              else setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+            }
             if (!updatedSlot.hasMore) {
               setAllMessagesLoaded(true);
             }
@@ -450,7 +498,8 @@ export function useChatSessionState({
           pendingScrollRestoreRef.current = scrollRestore;
           capturedScrollRestoreRef.current = null;
           setScrollRestoreTick((tick) => tick + 1);
-          setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+          if (viewRangeRef.current) setViewRange((range) => range && { ...range, startId: null });
+          else setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
           if (!slot.hasMore) {
             setAllMessagesLoaded(true);
           }
@@ -467,6 +516,50 @@ export function useChatSessionState({
     [hasMoreMessages, isLoadingMoreMessages, selectedProject?.projectId, selectedSession?.id, sessionStore],
   );
 
+  /** Loaded rows above the rendered window need no request, only the prepend anchor. */
+  const revealOlderRows = useCallback((container: HTMLElement): boolean => {
+    const start = windowStartRef.current;
+    if (start <= 0) return false;
+    pendingScrollRestoreRef.current = captureScrollRestore(container);
+    setScrollRestoreTick((tick) => tick + 1);
+    if (viewRangeRef.current) {
+      const nextStart = Math.max(0, start - MESSAGES_PER_PAGE);
+      const id = chatMessagesRef.current[nextStart]?.id;
+      setViewRange((range) => range && { ...range, startId: nextStart === 0 || !id ? null : id });
+    } else {
+      setVisibleMessageCount((count) => count + MESSAGES_PER_PAGE);
+    }
+    return true;
+  }, []);
+
+  /**
+   * Below a jumped-to window: loaded rows first, then newer pages. Reaching the
+   * live tail resumes the ordinary tail window.
+   */
+  const revealNewer = useCallback(async () => {
+    const sessionId = currentSessionIdRef.current;
+    if (!sessionId || isLoadingNewerRef.current || !isViewDetachedRef.current) return;
+    const messages = chatMessagesRef.current;
+    const end = windowEndRef.current;
+    if (viewRangeRef.current && end < messages.length) {
+      const nextEnd = Math.min(messages.length, end + MESSAGES_PER_PAGE);
+      const id = messages[nextEnd - 1]?.id;
+      setViewRange((range) => range && { ...range, endId: nextEnd >= messages.length || !id ? null : id });
+      return;
+    }
+    if (sessionStore.getSessionSlot(sessionId)?.hasNewer) {
+      isLoadingNewerRef.current = true;
+      try {
+        await sessionStore.fetchNewer(sessionId, { limit: MESSAGES_PER_PAGE });
+      } finally {
+        isLoadingNewerRef.current = false;
+      }
+      return;
+    }
+    setVisibleMessageCount(Math.max(INITIAL_VISIBLE_MESSAGES, messages.length - windowStartRef.current));
+    setViewRange(null);
+  }, [sessionStore]);
+
   const handleScroll = useCallback(async () => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -474,17 +567,28 @@ export function useChatSessionState({
     const trackedRestore = capturedScrollRestoreRef.current ?? settlingScrollRestoreRef.current;
     if (trackedRestore) updateScrollRestoreTarget(container, trackedRestore);
 
-    const nearBottom = isNearBottom();
-    isUserScrolledUpRef.current = !nearBottom;
-    setIsUserScrolledUp(!nearBottom);
+    // A jumped-to window's bottom is not the conversation's: never follow it.
+    const detached = isViewDetachedRef.current;
+    const scrolledUp = !isNearBottom() || detached;
+    isUserScrolledUpRef.current = scrolledUp;
+    setIsUserScrolledUp(scrolledUp);
 
     if (container.scrollTop >= topLoadRearmDistance(container)) {
       topLoadArmedRef.current = true;
     }
 
+    if (detached && distanceToBottom(container) < topLoadDistance(container)) {
+      void revealNewer();
+    }
+
     const scrolledNearTop = container.scrollTop < topLoadDistance(container);
-    if (!scrolledNearTop || !hasMoreMessages) return;
-    if (!topLoadArmedRef.current) return;
+    if (!scrolledNearTop || !topLoadArmedRef.current) return;
+    if (windowStartRef.current > 0) {
+      topLoadArmedRef.current = false;
+      revealOlderRows(container);
+      return;
+    }
+    if (!hasMoreMessages) return;
 
     // One request per approach to the top. The restore effect re-arms only after
     // the prepend creates enough real scroll distance; collapsed transcript rows
@@ -494,7 +598,7 @@ export function useChatSessionState({
     setIsUserScrolledUp(true);
     const didLoad = await loadOlderMessages(container);
     if (!didLoad) topLoadArmedRef.current = true;
-  }, [hasMoreMessages, isNearBottom, loadOlderMessages]);
+  }, [hasMoreMessages, isNearBottom, loadOlderMessages, revealNewer, revealOlderRows]);
 
   useLayoutEffect(() => {
     if (!pendingScrollRestoreRef.current || !scrollContainerRef.current) return;
@@ -509,7 +613,7 @@ export function useChatSessionState({
       scrollRestoreReleaseTimerRef.current = null;
     }, 2000);
 
-    if (!hasMoreMessages) return;
+    if (!hasMoreMessages && windowStartRef.current === 0) return;
     if (container.scrollTop >= topLoadRearmDistance(container)) {
       topLoadArmedRef.current = true;
       return;
@@ -519,14 +623,14 @@ export function useChatSessionState({
     // little or no visible height. Fetch another page in a controlled chain so
     // the reader always gets enough distance to scroll before the next load.
     const frame = requestAnimationFrame(() => {
-      if (!pendingScrollRestoreRef.current && !isLoadingMoreRef.current) {
-        void loadOlderMessages(container).then((didLoad) => {
-          if (!didLoad) topLoadArmedRef.current = true;
-        });
-      }
+      if (pendingScrollRestoreRef.current || isLoadingMoreRef.current) return;
+      if (revealOlderRows(container)) return;
+      void loadOlderMessages(container).then((didLoad) => {
+        if (!didLoad) topLoadArmedRef.current = true;
+      });
     });
     return () => cancelAnimationFrame(frame);
-  }, [scrollRestoreTick, hasMoreMessages, loadOlderMessages]);
+  }, [scrollRestoreTick, hasMoreMessages, loadOlderMessages, revealOlderRows]);
 
   // Reset scroll/pagination state on session change
   useLayoutEffect(() => {
@@ -534,6 +638,7 @@ export function useChatSessionState({
       pendingInitialScrollRef.current = true;
       setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
     }
+    setViewRange(null);
     topLoadArmedRef.current = true;
     capturedScrollRestoreRef.current = null;
     pendingScrollRestoreRef.current = null;
@@ -586,6 +691,7 @@ export function useChatSessionState({
     loadOlderMessages,
     selectedProject?.projectId,
     selectedSession?.id,
+    viewRange,
     visibleMessageCount,
   ]);
 
@@ -606,6 +712,7 @@ export function useChatSessionState({
       }
       if (
         !isUserScrolledUpRef.current
+        && !isViewDetachedRef.current
         && !searchScrollActiveRef.current
         && !isLoadingMoreRef.current
         && !hasChatSelectionRef.current
@@ -663,6 +770,7 @@ export function useChatSessionState({
 
     // Reset pagination/scroll state
     setVisibleMessageCount(INITIAL_VISIBLE_MESSAGES);
+    setViewRange(null);
     setAllMessagesLoaded(false);
     setIsLoadingAllMessages(false);
     setViewHiddenCount(0);
@@ -685,7 +793,8 @@ export function useChatSessionState({
     // guard only reused the cache when the same session was already selected,
     // forcing a needless full transcript parse on every A -> B -> A switch.
     const cachedSlot = sessionStore.getSessionSlot(requestedSessionId);
-    if (cachedSlot && !sessionStore.isStale(requestedSessionId) && cachedSlot.status !== 'error') {
+    // A slot left on a jumped-to window reopens at the latest messages instead.
+    if (cachedSlot && !sessionStore.isStale(requestedSessionId) && cachedSlot.status !== 'error' && !cachedSlot.hasNewer) {
       setAllMessagesLoaded(!cachedSlot.hasMore);
       if (cachedSlot.tokenUsage) setTokenBudget(cachedSlot.tokenUsage as Record<string, unknown>);
       setIsLoadingSessionMessages(false);
@@ -750,7 +859,7 @@ export function useChatSessionState({
       try {
         await sessionStore.refreshFromServer(selectedSessionId);
 
-        if (isNearBottom()) {
+        if (isNearBottom() && !isViewDetachedRef.current) {
           setTimeout(() => scrollToBottom(), 200);
         }
       } catch (error) {
@@ -785,78 +894,31 @@ export function useChatSessionState({
     }
   }, [selectedSession]);
 
-  // Scroll to search target
+  // Scroll to search target: located in the text index, reached by a jump.
   useEffect(() => {
-    if (!searchTarget || chatMessages.length === 0 || isLoadingSessionMessages) return;
+    if (!searchTarget || chatMessages.length === 0 || isLoadingSessionMessages || !activeSessionId) return;
 
     const target = searchTarget;
+    const sessionId = activeSessionId;
     setSearchTarget(null);
 
-    const scrollToTarget = async () => {
-      if (hasMoreMessages && selectedSession && selectedProject) {
-          try {
-            // Load all messages into the store for search navigation
-            const slot = await sessionStore.fetchFromServer(selectedSession.id, {
-              limit: null,
-              offset: 0,
-            });
-            if (slot) {
-              setVisibleMessageCount(Infinity);
-              setAllMessagesLoaded(true);
-              await new Promise(resolve => setTimeout(resolve, 300));
-            }
-          } catch {
-            // Fall through and scroll in current messages
-          }
+    void (async () => {
+      try {
+        const slot = sessionStore.getSessionSlot(sessionId);
+        const records = slot && !slot.hasMore && !slot.hasNewer
+          ? sessionStore.getMessages(sessionId)
+          : await sessionStore.fetchFindText(sessionId);
+        if (currentSessionIdRef.current !== sessionId) return;
+        const record = locateSearchTarget(records, target);
+        if (!record) return;
+        const messageId = chatFindEntriesForRecord(record)[0]?.messageId ?? record.id;
+        if (await jumpToMessageRef.current({ messageId, recordId: record.id })) setFlashTargetId(messageId);
+      } catch {
+        // The chat stays at its latest messages.
+      } finally {
+        searchScrollActiveRef.current = false;
       }
-      setVisibleMessageCount(Infinity);
-
-      const findAndScroll = (retriesLeft: number) => {
-        const container = scrollContainerRef.current;
-        if (!container) return;
-
-        let targetElement: Element | null = null;
-
-        if (target.snippet) {
-          const cleanSnippet = target.snippet.replace(/^\.{3}/, '').replace(/\.{3}$/, '').trim();
-          const searchPhrase = cleanSnippet.slice(0, 80).toLowerCase().trim();
-          if (searchPhrase.length >= 10) {
-            const messageElements = container.querySelectorAll('.chat-message');
-            for (const el of messageElements) {
-              const text = (el.textContent || '').toLowerCase();
-              if (text.includes(searchPhrase)) { targetElement = el; break; }
-            }
-          }
-        }
-
-        if (!targetElement && target.timestamp) {
-          const targetDate = new Date(target.timestamp).getTime();
-          const messageElements = container.querySelectorAll('[data-message-timestamp]');
-          let closestDiff = Infinity;
-          for (const el of messageElements) {
-            const ts = el.getAttribute('data-message-timestamp');
-            if (!ts) continue;
-            const diff = Math.abs(new Date(ts).getTime() - targetDate);
-            if (diff < closestDiff) { closestDiff = diff; targetElement = el; }
-          }
-        }
-
-        if (targetElement) {
-          targetElement.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          targetElement.classList.add('search-highlight-flash');
-          setTimeout(() => targetElement?.classList.remove('search-highlight-flash'), 4000);
-          searchScrollActiveRef.current = false;
-        } else if (retriesLeft > 0) {
-          setTimeout(() => findAndScroll(retriesLeft - 1), 200);
-        } else {
-          searchScrollActiveRef.current = false;
-        }
-      };
-
-      setTimeout(() => findAndScroll(15), 150);
-    };
-
-    scrollToTarget();
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatMessages.length, isLoadingSessionMessages, searchTarget]);
 
@@ -904,14 +966,44 @@ export function useChatSessionState({
 
   const chatMessageCountRef = useRef(chatMessages.length);
   chatMessageCountRef.current = chatMessages.length;
-  const visibleMessageCountRef = useRef(visibleMessageCount);
-  visibleMessageCountRef.current = visibleMessageCount;
+
+  const viewBounds = useMemo(() => {
+    if (!viewRange) return null;
+    const indexOf = (id: string) => chatMessages.findIndex((message) => message.id === id);
+    const start = viewRange.startId === null ? 0 : indexOf(viewRange.startId);
+    const last = viewRange.endId === null ? chatMessages.length - 1 : indexOf(viewRange.endId);
+    return start < 0 || last < start ? null : { start, end: last + 1 };
+  }, [chatMessages, viewRange]);
+  // An anchor that left the loaded window (rewind, reload) returns to the tail window.
+  useEffect(() => {
+    if (viewRange && !viewBounds) setViewRange(null);
+  }, [viewBounds, viewRange]);
+
+  const windowStart = viewBounds ? viewBounds.start : Math.max(0, chatMessages.length - visibleMessageCount);
+  const windowEnd = viewBounds ? viewBounds.end : chatMessages.length;
+  const isViewDetached = viewBounds !== null || Boolean(activeSessionSlot?.hasNewer);
+  viewRangeRef.current = viewBounds ? viewRange : null;
+  windowStartRef.current = windowStart;
+  windowEndRef.current = windowEnd;
+  isViewDetachedRef.current = isViewDetached;
+  chatMessagesRef.current = chatMessages;
 
   const visibleMessages = useMemo(() => {
-    const windowStart = Math.max(0, chatMessages.length - visibleMessageCount);
     const start = selectionStartIndex === null ? windowStart : Math.min(windowStart, selectionStartIndex);
-    return start === 0 ? chatMessages : chatMessages.slice(start);
-  }, [chatMessages, selectionStartIndex, visibleMessageCount]);
+    return start === 0 && windowEnd === chatMessages.length ? chatMessages : chatMessages.slice(start, windowEnd);
+  }, [chatMessages, selectionStartIndex, windowEnd, windowStart]);
+
+  useEffect(() => {
+    if (!flashTargetId) return;
+    const row = Array.from(messagesContentRef.current?.querySelectorAll<HTMLElement>('.chat-message[data-chat-message-id]') ?? [])
+      .find((element) => element.dataset.chatMessageId === flashTargetId);
+    if (!row) return;
+    setFlashTargetId(null);
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    row.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    row.classList.add('search-highlight-flash');
+    setTimeout(() => row.classList.remove('search-highlight-flash'), 4000);
+  }, [flashTargetId, visibleMessages]);
 
   // Arrivals trim the oldest rendered message and scrolling follows new output;
   // either would move or destroy text the reader is selecting, so both wait.
@@ -926,7 +1018,7 @@ export function useChatSessionState({
       document.documentElement.classList.toggle('chat-text-selected', selecting);
 
       if (selecting) {
-        const start = Math.max(0, chatMessageCountRef.current - visibleMessageCountRef.current);
+        const start = windowStartRef.current;
         selectionStartIndexRef.current = start;
         setSelectionStartIndex(start);
         return;
@@ -934,7 +1026,7 @@ export function useChatSessionState({
       const held = selectionStartIndexRef.current;
       selectionStartIndexRef.current = null;
       setSelectionStartIndex(null);
-      if (held !== null) {
+      if (held !== null && !viewRangeRef.current) {
         // Keep what was on screen instead of trimming it the moment the selection clears.
         setVisibleMessageCount((count) => Math.max(count, chatMessageCountRef.current - held));
       }
@@ -952,7 +1044,7 @@ export function useChatSessionState({
     if (!scrollContainerRef.current || chatMessages.length === 0) return;
     if (isLoadingMoreRef.current || isLoadingMoreMessages || pendingScrollRestoreRef.current) return;
     if (searchScrollActiveRef.current) return;
-    if (isUserScrolledUp) return;
+    if (isUserScrolledUp || isViewDetachedRef.current) return;
 
     setTimeout(() => {
       if (!hasChatSelectionRef.current) scrollToBottom();
@@ -1003,6 +1095,52 @@ export function useChatSessionState({
     return () => window.removeEventListener('resize', onResize);
   }, [pageScroll]);
 
+  /** Renders rows around one message; false when it is not among `messages`. */
+  const revealAround = useCallback((messages: ChatMessage[], messageId: string): boolean => {
+    const index = messages.findIndex((message) => message.id === messageId);
+    if (index < 0) return false;
+    const start = Math.max(0, index - JUMP_ROWS_AROUND);
+    const end = Math.min(messages.length, index + JUMP_ROWS_AROUND + 1);
+    pendingScrollRestoreRef.current = null;
+    capturedScrollRestoreRef.current = null;
+    cancelSettlingScrollRestore();
+    isUserScrolledUpRef.current = true;
+    setIsUserScrolledUp(true);
+    setViewRange({
+      startId: start === 0 ? null : messages[start].id ?? null,
+      endId: end >= messages.length ? null : messages[end - 1].id ?? null,
+    });
+    return true;
+  }, [cancelSettlingScrollRestore]);
+
+  /**
+   * Brings one message into the rendered rows without rendering what lies
+   * between: loaded rows are revealed in place, anything else is fetched as
+   * a window around it. Resolves false when the message cannot be found.
+   */
+  const jumpToMessage = useCallback(async ({ messageId, recordId }: ChatJumpTarget): Promise<boolean> => {
+    const sessionId = activeSessionId;
+    if (!sessionId) return false;
+    const messages = chatMessagesRef.current;
+    const index = messages.findIndex((message) => message.id === messageId);
+    if (index >= windowStartRef.current && index < windowEndRef.current) return true;
+    if (index >= 0) return revealAround(messages, messageId);
+
+    let found = false;
+    const reveal = (slot: { merged: NormalizedMessage[] }) => {
+      if (currentSessionIdRef.current !== sessionId) return;
+      const converted = normalizedToChatMessages(slot.merged);
+      found = revealAround(converted, messageId) || revealAround(converted, recordId);
+    };
+    const slot = await sessionStore.fetchAround(sessionId, recordId, { limit: JUMP_RECORDS, onBeforeNotify: reveal });
+    // A live row not yet in the transcript is only in the tail window.
+    if (!slot && sessionStore.getSessionSlot(sessionId)?.hasNewer) {
+      await sessionStore.fetchFromServer(sessionId, { limit: MESSAGES_PER_PAGE, onBeforeNotify: reveal });
+    }
+    return found;
+  }, [activeSessionId, revealAround, sessionStore]);
+  jumpToMessageRef.current = jumpToMessage;
+
   const loadAllMessages = useCallback(async (): Promise<ChatMessage[] | null> => {
     if (!selectedSession || !selectedProject) return null;
     if (isLoadingAllMessages) return null;
@@ -1016,7 +1154,7 @@ export function useChatSessionState({
 
     try {
       // A complete cache can still have older rows hidden by the display limit.
-      const slot = hasMoreMessages
+      const slot = hasMoreMessages || sessionStore.getSessionSlot(requestSessionId)?.hasNewer
         ? await sessionStore.fetchFromServer(requestSessionId, { limit: null, offset: 0 })
         : sessionStore.getSessionSlot(requestSessionId);
 
@@ -1029,6 +1167,7 @@ export function useChatSessionState({
           setScrollRestoreTick((tick) => tick + 1);
         }
 
+        setViewRange(null);
         setVisibleMessageCount(Infinity);
         setAllMessagesLoaded(true);
 
@@ -1068,8 +1207,12 @@ export function useChatSessionState({
     setIsUserScrolledUp,
     tokenBudget,
     setTokenBudget,
-    visibleMessageCount,
+    // Rows loaded but not rendered above count as hidden, as in the tail window.
+    visibleMessageCount: viewBounds ? chatMessages.length - viewBounds.start : visibleMessageCount,
     visibleMessages,
+    loadedRecords: storeMessages,
+    isViewDetached,
+    jumpToMessage,
     loadAllMessages,
     isLoadingAllMessages,
     createDiff,
