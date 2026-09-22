@@ -1,10 +1,10 @@
 # Subagents are visible while they run and readable after they die
 
-- Status: 2/5
+- Status: 3/5
 - Next: Phase 3 — watch `subagents/**` so a running agent updates without a reload
 - Context: transcript shape and the id rules in
   [code anchors](../maps/code-anchors.md); detail-surface rule in
-  [ADR 0046](../decisions/0046-tool-detail-leaves-the-chat-column.md); this
+  [ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md); this
   supersedes TODO items "Subagent tracking in the UI" and "A running subagent's
   tool calls render as the session's own".
 
@@ -37,14 +37,16 @@ constraint holds for every phase below.
   `session_upserted`. The client drops the server's `parentToolUseId` stamp
   today, so live child tools only reach the container on refresh; that lands
   here too.
-- [ ] 4. **One row per agent at its launch point.** Agent type, a
-  running/done/failed dot, elapsed time, tool count, updating live. Identical
-  shape for inline `Task`, background, and forked-skill agents — which kind it
-  was is not something the reader should have to know.
-- [ ] 5. **The row opens the agent's transcript.** Full-screen on mobile,
-  rendered by the same `MessageComponent` as chat, read-only, no composer; back
-  returns to the chat at that row. Desktop expands an operation list inline in
-  the chat column and offers the same full transcript in an overlay.
+- [x] 4. **One row per agent at its launch point.** Agent type and task, tool
+  count and elapsed time, a shimmer while running and red when it failed — the
+  activity row's shape, no dot. Identical for inline `Task`, background, and
+  forked-skill agents, and for Codex's `spawn_agent`. It updates live once
+  phase 3 lands.
+- [ ] 5. **The row opens the agent's whole transcript.** It opens in place to the
+  prompt, the calls and the report
+  ([ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md)); the
+  agent's own text between calls is still missing, because history attaches
+  only its tools.
 
 ## Done when
 
@@ -52,8 +54,7 @@ constraint holds for every phase below.
   still there, complete, after a reload.
 - Killing the server mid-agent leaves the row readable as failed, with the
   tools it completed.
-- Opening an agent transcript on a phone fills the screen; back lands on the
-  chat row, not the top of the chat.
+- Opening an agent on a phone shows its calls and report in place, wrapped.
 - The sidebar session list is byte-identical before and after an agent runs.
 
 ## Not doing

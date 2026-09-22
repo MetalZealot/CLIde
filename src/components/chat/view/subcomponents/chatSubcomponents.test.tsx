@@ -331,6 +331,44 @@ describe('chatSubcomponents', () => {
       assert.ok(container.querySelector('button[aria-label="Copy"]'));
     });
 
+    test('a subagent is one row that opens to what it was asked, its calls, and its report', async () => {
+      const hooks = registerHooks({
+        resolve(specifier, context, nextResolve) {
+          return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
+            ? 'react-syntax-highlighter/dist/cjs/styles/prism/index.js'
+            : specifier, context);
+        },
+      });
+      const { default: SubagentActivity } = await import('./SubagentActivity').finally(() => hooks.deregister());
+      const agent: ChatMessage = {
+        id: 'a1', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Agent',
+        toolInput: JSON.stringify({ subagent_type: 'Explore', description: 'Find call sites', prompt: 'Find every caller' }),
+        toolResult: { content: JSON.stringify([{ type: 'text', text: 'Found 3 callers' }]), isError: false, timestamp: '2026-09-21T00:01:05Z' },
+        isSubagentContainer: true,
+        subagentState: {
+          childTools: [{
+            toolId: 'c1', toolName: 'Grep', toolInput: { pattern: 'caller' },
+            toolResult: { content: 'a.ts', isError: false }, timestamp: new Date('2026-09-21T00:00:10Z'),
+          }],
+          currentToolIndex: 0,
+          isComplete: true,
+        },
+      };
+      container = document.createElement('div');
+      document.body.append(container);
+      root = createRoot(container);
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <SubagentActivity message={agent} isLive={false} />
+        </I18nextProvider>,
+      ));
+      const row = container.querySelector('button[aria-expanded]') as HTMLButtonElement;
+      assert.equal(row.textContent, 'Explore \u00b7 Find call sites\u00b7 1 call \u00b7 1m 5s');
+      await React.act(async () => row.click());
+      const lines = [...container.querySelectorAll('button[aria-expanded]')].slice(1).map((line) => line.textContent);
+      assert.deepEqual(lines, ['Asked: Find every caller', 'Searched for caller', 'Reported: Found 3 callers']);
+    });
+
     test('applies each cycle mode in the same tab while provider status stays authoritative', async () => {
       container = document.createElement('div');
       document.body.appendChild(container);

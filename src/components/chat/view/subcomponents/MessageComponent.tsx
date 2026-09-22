@@ -25,7 +25,7 @@ import { thinkingDurationMs } from '../../utils/toolActivity';
 
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
-import { TextDisclosure } from './DisclosureRow';
+import { DISCLOSED_TEXT_CLASS, TextDisclosure } from './DisclosureRow';
 import FollowUpQuestions from './FollowUpQuestions';
 import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
@@ -64,9 +64,6 @@ type MessageComponentProps = {
 };
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
-
-// Muted prose in a detail panel; the first block clears the copy button.
-const DISCLOSED_TEXT_CLASS = 'prose prose-sm max-w-none font-prose text-[13px] leading-5 text-muted-foreground dark:prose-invert [&>*:first-child]:pr-6';
 
 const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, showAutoContinueOffer = false, onAcceptAutoContinue }: MessageComponentProps) => {
   const { t } = useTranslation('chat');

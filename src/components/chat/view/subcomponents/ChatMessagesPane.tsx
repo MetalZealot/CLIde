@@ -11,6 +11,7 @@ import { groupToolActivities, isToolActivityItem } from '../../utils/toolGroupin
 import { computeTurnDurations } from '../../utils/turnDuration';
 
 import MessageComponent from './MessageComponent';
+import SubagentActivity from './SubagentActivity';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
 import ToolActivity from './ToolActivity';
 
@@ -263,6 +264,17 @@ function ChatMessagesPane({
 
               const messagePrevMessage = prevMessage;
               prevMessage = item;
+
+              if (item.isSubagentContainer) {
+                return (
+                  <SubagentActivity
+                    key={getMessageKey(item)}
+                    message={item}
+                    isLive={Boolean(isProcessing)}
+                    onFileOpen={onFileOpen}
+                  />
+                );
+              }
 
               return (
                 <MessageComponent

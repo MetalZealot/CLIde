@@ -26,7 +26,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
 | [Turn liveness and usage warnings](turn-liveness-and-usage-warnings.md) | 3/6 | Phase 3: name a silence with no runtime frames |
-| [Subagent visibility](subagent-visibility.md) | 2/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
+| [Subagent visibility](subagent-visibility.md) | 3/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Markdown-native project board](markdown-project-board.md) | not started | First observe the existing dashboard, then test the status contract across three projects |
@@ -37,7 +37,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main` |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
-| [Chat activities, not raw tool calls](tool-activity-display.md) | 6/9 | Phase 8: to-do lists and subagents |
+| [Chat activities, not raw tool calls](tool-activity-display.md) | 7/9 | Phase 9: plans and permission prompts |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.

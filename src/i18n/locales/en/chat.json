@@ -91,6 +91,13 @@
     "thought": "Thought: {{text}}",
     "thoughtFor": "Thought for {{duration}}",
     "thoughtUntimed": "Thought",
+    "agent": {
+      "defaultType": "Agent",
+      "calls_one": "{{count}} call",
+      "calls_other": "{{count}} calls",
+      "asked": "Asked: {{text}}",
+      "reported": "Reported: {{text}}"
+    },
     "detail": {
       "copy": "Copy",
       "copied": "Copied",

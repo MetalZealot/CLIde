@@ -27,7 +27,8 @@ interface ToolActivityProps {
 const firstLine = (text: unknown): string =>
   String(text ?? '').split('\n').map((line) => line.trim()).find(Boolean) || '';
 
-const rowClass = 'flex min-h-6 w-full min-w-0 items-center gap-2 text-left text-[13px] leading-5 text-muted-foreground transition-colors hover:text-foreground sm:min-h-7 sm:text-sm';
+/** An operation line inside an open activity or agent. */
+export const operationRowClass = 'flex min-h-6 w-full min-w-0 items-center gap-2 text-left text-[13px] leading-5 text-muted-foreground transition-colors hover:text-foreground sm:min-h-7 sm:text-sm';
 const shimmerClass = 'min-w-0 flex-1 truncate motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-muted-foreground';
 
 interface OperationRowProps {
@@ -39,12 +40,12 @@ interface OperationRowProps {
 }
 
 /** One truncated line per call; its detail opens below it. */
-const OperationRow = memo(function OperationRow({ message, isOpen, isLive, onToggle, messageKey }: OperationRowProps) {
+export const OperationRow = memo(function OperationRow({ message, isOpen, isLive, onToggle, messageKey }: OperationRowProps) {
   const { t } = useTranslation('chat');
 
   if (message.isThinking) {
     return (
-      <button type="button" className={rowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
+      <button type="button" className={operationRowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
         <span className="min-w-0 flex-1 truncate italic">{t('activity.thought', { text: firstLine(message.content) })}</span>
       </button>
     );
@@ -57,7 +58,7 @@ const OperationRow = memo(function OperationRow({ message, isOpen, isLive, onTog
   const failure = operation.status === 'error' || operation.status === 'denied' ? operation.status : null;
 
   return (
-    <button type="button" className={rowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
+    <button type="button" className={operationRowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
       {isRunning ? <Shimmer className={shimmerClass}>{label}</Shimmer> : <span className="min-w-0 flex-1 truncate">{label}</span>}
       {hasCounts && <span className="flex-shrink-0 tabular-nums">{formatLineCounts(operation.added, operation.removed)}</span>}
       {failure && <span className="flex-shrink-0 text-red-600 dark:text-red-400">{t(`activity.status.${failure}`)}</span>}

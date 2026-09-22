@@ -5,6 +5,9 @@ import { Shimmer } from '../../../../shared/view/ui/Shimmer';
 
 import { DetailPanel } from './DetailPanel';
 
+// Muted markdown in a detail panel; the first block clears the copy button.
+export const DISCLOSED_TEXT_CLASS = 'prose prose-sm max-w-none font-prose text-[13px] leading-5 text-muted-foreground dark:prose-invert prose-headings:mb-1 prose-headings:mt-3 prose-headings:text-[13px] prose-headings:font-semibold [&>*:first-child]:mt-0 [&>*:first-child]:pr-6';
+
 interface DisclosureRowProps {
   label: string;
   isOpen: boolean;

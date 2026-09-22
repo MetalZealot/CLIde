@@ -1,8 +1,8 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 6/9
-- Next: Phase 8 — to-do lists and subagents; Codex running rows are not yet seen
-  on a phone
+- Status: 7/9
+- Next: Phase 9 — plans and permission prompts; Codex running rows are not yet
+  seen on a phone
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
@@ -75,9 +75,11 @@ empty.
   reasoning and the compaction summary share that row. A question shows each
   prompt over its answer in the panel — no tool name, strip, header chip or
   unchosen options — and a failure inside it rather than as a red row.
-- [ ] 8. **To-do lists and subagents are rows that update in place.** One to-do
-  card with the current step marked, later updates as one line; a subagent as one
-  row with its name and live status, opening to its calls as activity rows.
+- [x] 8. **A subagent is one row.** `Explore · Find call sites · 18 calls · 1m 35s`,
+  shimmering while it runs, red when it failed; it opens to what it was asked,
+  its calls as operation rows, and what it reported, each opening flat. It is
+  phase 4 of the [subagent plan](subagent-visibility.md), whose phase 3 makes it
+  update live.
 - [ ] 9. **Plans and permission prompts.** `Proposed plan ›` opening to the plan
   as text; the waiting call and the approval banner redesigned — agree its end
   state first, since no peer showed one.
@@ -115,6 +117,9 @@ empty.
   hides the prose that bounds activities.
 - **A changed-files card at the end of a turn** — its own item in
   `docs/TODO.md`.
+- **To-do lists**, this pass: Claude made no TodoWrite or Task* call in 30 days
+  of sessions (measured 2026-09-22) and Codex hides `update_plan`, so they keep
+  the old card until one reappears.
 - **A conversation-density setting.** Ship one representation, then judge
   whether a second is wanted.
 - **Titling activities from prose or reasoning.** The map records why: opposite
