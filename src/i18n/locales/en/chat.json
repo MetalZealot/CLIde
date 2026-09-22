@@ -82,6 +82,38 @@
       "edit": "Editing files",
       "other": "Using a tool"
     },
+    "waiting": {
+      "read": "Read {{target}}",
+      "search": "Search for {{target}}",
+      "web": "Search the web for {{target}}",
+      "fetch": "Fetch {{target}}",
+      "bash": "Run {{target}}",
+      "poll": "Check a running command",
+      "edit": "Edit {{target}}",
+      "other": "Use {{target}}"
+    },
+    "waitingAny": {
+      "read": "Read a file",
+      "search": "Search",
+      "web": "Search the web",
+      "fetch": "Fetch a page",
+      "bash": "Run a command",
+      "poll": "Check a running command",
+      "edit": "Edit files",
+      "other": "Use a tool"
+    },
+    "waitingForApproval": "waiting",
+    "approval": {
+      "ask": "Allow {{provider}} to {{action}}?",
+      "command": "Allow {{provider}} to run this command?",
+      "permissions": "Allow {{provider}} extra permissions?",
+      "sessionCovers": "Allow for session covers {{entry}}",
+      "allowOnce": "Allow once",
+      "allowSession": "Allow for session",
+      "allowSessionSaved": "Allow for session (saved)",
+      "deny": "Deny",
+      "cancel": "Cancel"
+    },
     "failed_one": "{{count}} failed",
     "failed_other": "{{count}} failed",
     "status": {

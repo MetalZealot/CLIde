@@ -507,7 +507,8 @@ describe('tool activity boundaries', () => {
     const waiting = call('waiting', { toolId: 'call-7' });
     const cut = groupToolActivities([read, waiting, failed], { pendingToolIds: new Set(['call-7']) });
     assert.equal(cut.length, 3);
-    assert.equal(cut[1], waiting);
+    assert.ok(isToolActivityItem(cut[1]) && cut[1].messages.length === 1 && cut[1].messages[0] === waiting,
+      'the waiting call is a one-call activity of its own');
     assert.equal(groupToolActivities([read, waiting, failed]).length, 1, 'an answered call rejoins its activity');
   });
 

@@ -9,6 +9,7 @@ import {
   formatLineCounts,
   operationLabel,
   summarizeActivity,
+  waitingLabel,
 } from '../../utils/toolActivity';
 import { formatDuration } from '../../utils/chatFormatting';
 import { Shimmer } from '../../../../shared/view/ui/Shimmer';
@@ -20,6 +21,8 @@ interface ToolActivityProps {
   activity: ToolActivityItem;
   /** The newest activity of a run still in flight: it may name a running call. */
   isLive?: boolean;
+  /** Its one call is waiting on a permission prompt. */
+  isWaiting?: boolean;
   getMessageKey: (message: ChatMessage) => string;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
 }
@@ -52,9 +55,11 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
   }
 
   const operation = describeOperation(message);
-  const label = operationLabel(operation, t, true);
+  const isDenied = operation.status === 'denied';
+  // A denied call never ran: name what it asked for, without its line counts.
+  const label = isDenied ? waitingLabel(operation, t) : operationLabel(operation, t, true);
   const isRunning = isLive && operation.status === 'running';
-  const hasCounts = operation.kind === 'edit' && (operation.added > 0 || operation.removed > 0);
+  const hasCounts = !isDenied && operation.kind === 'edit' && (operation.added > 0 || operation.removed > 0);
   const failure = operation.status === 'error' || operation.status === 'denied' ? operation.status : null;
 
   return (
@@ -72,6 +77,7 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
 const ToolActivity = memo(function ToolActivity({
   activity,
   isLive = false,
+  isWaiting = false,
   getMessageKey,
   onFileOpen,
 }: ToolActivityProps) {
@@ -86,7 +92,14 @@ const ToolActivity = memo(function ToolActivity({
     });
   }, []);
   const summary = useMemo(() => summarizeActivity(activity.messages), [activity.messages]);
-  const { label, isRunning } = describeActivity(summary, t, isLive);
+  const described = describeActivity(summary, t, isLive);
+  const waitingFor = isWaiting ? summary.operations[0] : undefined;
+  const deniedOnly = !waitingFor && summary.operations.length === 1 && summary.operations[0].status === 'denied'
+    ? summary.operations[0]
+    : undefined;
+  const asked = waitingFor || deniedOnly;
+  const label = asked ? waitingLabel(asked, t) : described.label;
+  const isRunning = !waitingFor && described.isRunning;
 
   return (
     <div className="chat-message tool px-1 sm:px-0" data-message-timestamp={activity.timestamp || undefined}>
@@ -95,9 +108,11 @@ const ToolActivity = memo(function ToolActivity({
         isRunning={isRunning}
         isOpen={isExpanded}
         onToggle={() => setIsExpanded((current) => !current)}
-        trailing={summary.failed > 0 && (
+        trailing={waitingFor ? (
+          <span className="flex-shrink-0">· {t('activity.waitingForApproval')}</span>
+        ) : summary.failed > 0 && (
           <span className="flex-shrink-0 text-red-600 dark:text-red-400">
-            · {t('activity.failed', { count: summary.failed })}
+            · {deniedOnly ? t('activity.status.denied') : t('activity.failed', { count: summary.failed })}
           </span>
         )}
       />

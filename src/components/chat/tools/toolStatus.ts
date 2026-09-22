@@ -1,8 +1,10 @@
 import type { ToolStatus } from './components/ToolStatusBadge';
 
-// Exact denial messages from the Claude runtime adapter — other providers can't reliably signal denial
+// Exact denial messages from the Claude runtime adapter and the approval banner — other providers can't reliably signal denial
 const CLAUDE_DENIAL_MESSAGES = [
   'user denied tool use',
+  'user denied the request',
+  'user cancelled the request',
   'tool disallowed by settings',
   'permission request timed out',
   'permission request cancelled',

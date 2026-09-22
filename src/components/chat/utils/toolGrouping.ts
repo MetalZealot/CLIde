@@ -21,13 +21,12 @@ export function isToolActivityItem(item: MessageListItem): item is ToolActivityI
   return '_isGroup' in item && (item as ToolActivityItem)._isGroup === true;
 }
 
+function isToolActivityCall(message: ChatMessage): boolean {
+  return Boolean(message.isToolUse && message.toolName && !isStandaloneTool(message));
+}
+
 function isActivityMember(message: ChatMessage, pendingToolIds?: ReadonlySet<string>): boolean {
-  return Boolean(
-    message.isToolUse
-    && message.toolName
-    && !isStandaloneTool(message)
-    && !(message.toolId && pendingToolIds?.has(message.toolId)),
-  );
+  return isToolActivityCall(message) && !(message.toolId && pendingToolIds?.has(message.toolId));
 }
 
 const activityCache = new WeakMap<ChatMessage, ToolActivityItem>();
@@ -56,7 +55,8 @@ export function groupToolActivities(
     const message = messages[index];
 
     if (!isActivityMember(message, pendingToolIds)) {
-      items.push(message);
+      // A call waiting on its prompt is a one-call activity of its own until answered.
+      items.push(isToolActivityCall(message) ? toActivity([message]) : message);
       index += 1;
       continue;
     }

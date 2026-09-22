@@ -41,6 +41,7 @@ import {
 } from '../../../../hooks/useThinkingMessages';
 
 import ToolActivity from './ToolActivity';
+import PermissionRequestsBanner from './PermissionRequestsBanner';
 import { TextDisclosure } from './DisclosureRow';
 import MessageCopyControl from './MessageCopyControl';
 import ActivityIndicator from './ActivityIndicator';
@@ -407,6 +408,62 @@ describe('chatSubcomponents', () => {
       root = createRoot(container);
       await React.act(async () => draw(false));
       assert.equal(container.textContent, 'Proposed plan', 'a decided plan is its row alone');
+    });
+
+    test('a waiting call is one row, and its approval is the flat call detail with the decisions under it', async () => {
+      const waiting: ChatMessage = {
+        id: 'w1', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash',
+        toolId: 'call-7', toolInput: JSON.stringify({ command: 'npm test', description: 'Run client tests' }), toolResult: null,
+      };
+      const decisions: unknown[] = [];
+      container = document.createElement('div');
+      document.body.append(container);
+      root = createRoot(container);
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <ToolActivity activity={{ _isGroup: true, messages: [waiting], timestamp: waiting.timestamp }} isLive isWaiting getMessageKey={(message) => String(message.id)} />
+          <PermissionRequestsBanner
+            pendingPermissionRequests={[
+              { requestId: 'r1', provider: 'claude', toolName: 'Bash', toolId: 'call-7', input: { command: 'npm test', description: 'Run client tests' } },
+              { requestId: 'r2', provider: 'codex', requestType: 'file_change_approval', toolName: 'FileChanges', input: { reason: 'Fix the test', changes: [{ path: '/src/a.ts', diff: '-old\n+new' }] } },
+            ]}
+            handlePermissionDecision={(_ids, decision) => { decisions.push(decision); }}
+            handleGrantToolPermission={() => ({ success: true })}
+          />
+        </I18nextProvider>,
+      ));
+      assert.equal(container.querySelector('button[aria-expanded]')?.textContent, 'Run client tests\u00b7 waiting');
+      const text = container.textContent || '';
+      assert.match(text, /Allow Claude to run client tests\?/);
+      assert.match(text, /\$ npm test/);
+      assert.match(text, /Allow Codex to edit a\.ts\?Fix the test/);
+      assert.match(text, /old/);
+      assert.match(text, /new/);
+      assert.doesNotMatch(text, /needs approval|View tool input/);
+      const allowOnce = [...container.querySelectorAll('button')].find((button) => button.textContent === 'Allow once') as HTMLButtonElement;
+      await React.act(async () => allowOnce.click());
+      assert.deepEqual(decisions, [{ requestType: undefined, decision: 'allow_once', allow: true }]);
+
+      const denied: ChatMessage = {
+        ...waiting, id: 'w2', toolName: 'Write', toolInput: JSON.stringify({ file_path: '/tmp/probe.txt', content: 'probe' }),
+        toolResult: { content: 'Permission request timed out', isError: true },
+      };
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <ToolActivity activity={{ _isGroup: true, messages: [denied], timestamp: denied.timestamp }} getMessageKey={(message) => String(message.id)} />
+        </I18nextProvider>,
+      ));
+      assert.equal(container.querySelector('button[aria-expanded]')?.textContent, 'Edit probe.txt· denied', 'a denied call names what it asked for');
+
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <ToolActivity
+            activity={{ _isGroup: true, messages: [{ ...denied, id: 'w3', toolResult: { content: 'User denied the request', isError: true } }], timestamp: denied.timestamp }}
+            getMessageKey={(message) => String(message.id)}
+          />
+        </I18nextProvider>,
+      ));
+      assert.equal(container.querySelector('button[aria-expanded]')?.textContent, 'Edit probe.txt· denied', 'the banner\'s Deny counts as a denial');
     });
 
     test('applies each cycle mode in the same tab while provider status stays authoritative', async () => {

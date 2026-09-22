@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ChatMessage } from '../../types/types';
@@ -49,10 +49,14 @@ function DetailLineRow({ line, isFirstCommand, reserveCorner }: { line: DetailLi
 interface OperationDetailProps {
   message: ChatMessage;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
+  /** Leads the panel and takes the copy button's corner. */
+  heading?: ReactNode;
+  /** Closes the panel, after "Show all" and "Open file". */
+  footer?: ReactNode;
 }
 
 /** A call's full input and result, flat, under its line in an open activity. */
-const OperationDetail = memo(function OperationDetail({ message, onFileOpen }: OperationDetailProps) {
+const OperationDetail = memo(function OperationDetail({ message, onFileOpen, heading, footer }: OperationDetailProps) {
   const { t } = useTranslation('chat');
   const history = useHistoryDetail(message, true);
   const detail = useMemo(() => buildOperationDetail(history.message), [history.message]);
@@ -72,8 +76,9 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen }: O
 
   return (
     <DetailPanel copyText={detail.copyText} className={isProse ? 'text-[13px] leading-5' : 'font-mono text-xs leading-[18px]'}>
+      {heading && <div className={`mb-1.5 font-sans ${CORNER}`}>{heading}</div>}
       {detail.blocks.map((block, index) => (
-        <div key={index} className={`${index > 0 ? 'mt-1.5' : ''} ${index === 0 && block.type !== 'lines' ? CORNER : ''}`}>
+        <div key={index} className={`${index > 0 ? 'mt-1.5' : ''} ${index === 0 && !heading && block.type !== 'lines' ? CORNER : ''}`}>
           {block.type === 'prose' && <div className={`${wrapClass} text-muted-foreground`}>{block.text}</div>}
           {block.type === 'files' && cap(block.paths).map((path) => (
             <button
@@ -88,14 +93,14 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen }: O
           {block.type === 'lines' && (
             <>
               {block.heading && (
-                <div className={`font-sans text-[11px] text-muted-foreground ${index === 0 ? CORNER : ''}`}>{block.heading}</div>
+                <div className={`font-sans text-[11px] text-muted-foreground ${index === 0 && !heading ? CORNER : ''}`}>{block.heading}</div>
               )}
               {cap(block.lines).map((line, lineIndex) => (
                 <DetailLineRow
                   key={lineIndex}
                   line={line}
                   isFirstCommand={line.tone === 'command' && lineIndex === 0 && !block.heading}
-                  reserveCorner={index === 0 && lineIndex === 0 && !block.heading}
+                  reserveCorner={index === 0 && lineIndex === 0 && !block.heading && !heading}
                 />
               ))}
             </>
@@ -131,6 +136,7 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen }: O
           )}
         </div>
       )}
+      {footer}
     </DetailPanel>
   );
 });

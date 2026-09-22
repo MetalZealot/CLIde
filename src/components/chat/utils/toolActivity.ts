@@ -300,6 +300,14 @@ export function operationLabel(operation: ActivityOperation, t: Translate, prefe
     : capitalize(t(`activity.facet.${operation.kind === 'fetch' ? 'web' : operation.kind}`, { count: Math.max(operation.paths.length, 1) }));
 }
 
+/** A call waiting on its prompt, in the imperative: `Run npm test`. */
+export function waitingLabel(operation: ActivityOperation, t: Translate): string {
+  if (operation.kind === 'bash' && operation.description) return operation.description;
+  return operation.target
+    ? t(`activity.waiting.${operation.kind}`, { target: operation.target })
+    : t(`activity.waitingAny.${operation.kind}`);
+}
+
 export function describeActivity(summary: ActivitySummary, t: Translate, isLive: boolean): { label: string; isRunning: boolean } {
   const running = isLive ? summary.running : null;
   if (running) {

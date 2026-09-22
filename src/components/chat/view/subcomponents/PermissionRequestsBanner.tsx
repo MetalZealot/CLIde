@@ -1,21 +1,65 @@
-import React from 'react';
-import { ShieldAlertIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-import type { PendingPermissionRequest } from '../../types/types';
+import type { ChatMessage, PendingPermissionRequest } from '../../types/types';
 import { buildClaudeToolPermissionEntry, formatToolInputForDisplay } from '../../utils/chatPermissions';
 import { getClaudeSettings } from '../../utils/chatStorage';
 import { getPermissionPanel, registerPermissionPanel } from '../../tools/configs/permissionPanelRegistry';
 import { UserInputRequestPanel } from '../../tools/components/InteractiveRenderers';
-import {
-  Confirmation,
-  ConfirmationTitle,
-  ConfirmationRequest,
-  ConfirmationActions,
-  ConfirmationAction,
-} from '../../../../shared/view/ui';
+import { Button } from '../../../../shared/view/ui';
+import { describeOperation, waitingLabel } from '../../utils/toolActivity';
+
+import OperationDetail from './OperationDetail';
 
 registerPermissionPanel('AskUserQuestion', UserInputRequestPanel);
 registerPermissionPanel('request_user_input', UserInputRequestPanel);
+
+type Translate = ReturnType<typeof useTranslation>['t'];
+
+const PROVIDER_LABEL_KEYS: Record<string, string> = {
+  codex: 'messageTypes.codex',
+  cursor: 'messageTypes.cursor',
+  opencode: 'messageTypes.opencode',
+};
+
+const approvalMessages = new WeakMap<PendingPermissionRequest, ChatMessage>();
+
+/** The waiting call as a chat message, so its detail renders like any opened call. */
+function approvalMessage(request: PendingPermissionRequest): ChatMessage {
+  let message = approvalMessages.get(request);
+  if (!message) {
+    // Codex wraps a file-change approval's changes under `changes`.
+    const input = request.toolName === 'FileChanges' && request.input && typeof request.input === 'object' && 'changes' in request.input
+      ? (request.input as { changes?: unknown }).changes ?? {}
+      : request.input;
+    message = {
+      id: request.requestId,
+      type: 'assistant',
+      content: '',
+      isToolUse: true,
+      toolId: request.toolId,
+      toolName: request.toolName,
+      toolInput: typeof input === 'string' ? input : JSON.stringify(input ?? {}),
+      toolResult: null,
+      timestamp: new Date(),
+    };
+    approvalMessages.set(request, message);
+  }
+  return message;
+}
+
+function readReason(input: unknown): string {
+  const reason = input && typeof input === 'object' ? (input as { reason?: unknown }).reason : null;
+  return typeof reason === 'string' ? reason.trim() : '';
+}
+
+function approvalTitle(request: PendingPermissionRequest, message: ChatMessage, t: Translate): string {
+  const provider = t(PROVIDER_LABEL_KEYS[request.provider ?? ''] ?? 'messageTypes.claude');
+  if (request.requestType === 'permission_approval') return t('activity.approval.permissions', { provider });
+  const operation = describeOperation(message);
+  if (operation.kind === 'bash' && !operation.description) return t('activity.approval.command', { provider });
+  const action = waitingLabel(operation, t);
+  return t('activity.approval.ask', { provider, action: action.charAt(0).toLowerCase() + action.slice(1) });
+}
 
 interface PermissionRequestsBannerProps {
   pendingPermissionRequests: PendingPermissionRequest[];
@@ -40,6 +84,7 @@ export default function PermissionRequestsBanner({
   handlePermissionDecision,
   handleGrantToolPermission,
 }: PermissionRequestsBannerProps) {
+  const { t } = useTranslation('chat');
   // Filter out plan tool requests — they are handled inline by PlanDisplay
   const filteredRequests = pendingPermissionRequests.filter(
     (r) => r.toolName !== 'ExitPlanMode' && r.toolName !== 'exit_plan_mode'
@@ -63,14 +108,12 @@ export default function PermissionRequestsBanner({
           );
         }
 
-        const isCodex = request.provider === 'codex';
         const rawInput = formatToolInputForDisplay(request.input);
-        const permissionEntry = isCodex
+        const permissionEntry = request.provider === 'codex'
           ? null
           : buildClaudeToolPermissionEntry(request.toolName, rawInput);
         const settings = getClaudeSettings();
         const alreadyAllowed = permissionEntry ? settings.allowedTools.includes(permissionEntry) : false;
-        const rememberLabel = alreadyAllowed ? 'Allow for session (saved)' : 'Allow for session';
         const matchingRequestIds = permissionEntry
           ? filteredRequests
               .filter(
@@ -79,97 +122,83 @@ export default function PermissionRequestsBanner({
               )
               .map((item) => item.requestId)
           : [request.requestId];
+        const message = approvalMessage(request);
+        const reason = readReason(request.input);
 
         return (
-          <Confirmation key={request.requestId} approval="pending">
-            <ConfirmationTitle className="flex items-start gap-3">
-              <ShieldAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <ConfirmationRequest>
-                <div>
-                  <span className="font-medium text-foreground">
-                    {isCodex ? 'Codex needs approval' : 'Claude needs approval'}
-                  </span>
-                  <span className="ml-2 text-muted-foreground">
-                    {request.requestType === 'command_approval'
-                      ? 'Command'
-                      : request.requestType === 'file_change_approval'
-                        ? 'File changes'
-                        : request.requestType === 'permission_approval'
-                          ? 'Additional permissions'
-                          : 'Tool'}:{' '}
-                    <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{request.toolName}</code>
-                  </span>
-                </div>
+          <OperationDetail
+            key={request.requestId}
+            message={message}
+            heading={(
+              <>
+                <div className="text-[13px] leading-5 text-foreground">{approvalTitle(request, message, t)}</div>
+                {reason && <div className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{reason}</div>}
+              </>
+            )}
+            footer={(
+              <div className="mt-2 font-sans">
                 {permissionEntry && (
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Allow rule: <code className="rounded bg-muted px-1 py-0.5 text-xs">{permissionEntry}</code>
+                  <div className="mb-1.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                    {t('activity.approval.sessionCovers', { entry: permissionEntry })}
                   </div>
                 )}
-              </ConfirmationRequest>
-            </ConfirmationTitle>
-
-            {rawInput && (
-              <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                  View tool input
-                </summary>
-                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/50 p-2 text-xs text-muted-foreground">
-                  {rawInput}
-                </pre>
-              </details>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() => handlePermissionDecision(request.requestId, {
+                      requestType: request.requestType,
+                      decision: 'cancel',
+                      allow: false,
+                      message: 'User cancelled the request',
+                    })}
+                  >
+                    {t('activity.approval.cancel')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handlePermissionDecision(request.requestId, {
+                      requestType: request.requestType,
+                      decision: 'deny',
+                      allow: false,
+                      message: 'User denied the request',
+                    })}
+                  >
+                    {t('activity.approval.deny')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (permissionEntry && !alreadyAllowed) {
+                        handleGrantToolPermission({ entry: permissionEntry, toolName: request.toolName });
+                      }
+                      handlePermissionDecision(matchingRequestIds, {
+                        requestType: request.requestType,
+                        decision: 'allow_session',
+                        allow: true,
+                        rememberEntry: permissionEntry,
+                      });
+                    }}
+                  >
+                    {alreadyAllowed ? t('activity.approval.allowSessionSaved') : t('activity.approval.allowSession')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handlePermissionDecision(request.requestId, {
+                      requestType: request.requestType,
+                      decision: 'allow_once',
+                      allow: true,
+                    })}
+                  >
+                    {t('activity.approval.allowOnce')}
+                  </Button>
+                </div>
+              </div>
             )}
-
-            <ConfirmationActions>
-              <ConfirmationAction
-                variant="outline"
-                onClick={() => handlePermissionDecision(request.requestId, {
-                  requestType: request.requestType,
-                  decision: 'cancel',
-                  allow: false,
-                  message: 'User cancelled the request',
-                })}
-              >
-                Cancel
-              </ConfirmationAction>
-              <ConfirmationAction
-                variant="outline"
-                onClick={() => handlePermissionDecision(request.requestId, {
-                  requestType: request.requestType,
-                  decision: 'deny',
-                  allow: false,
-                  message: 'User denied the request',
-                })}
-              >
-                Deny
-              </ConfirmationAction>
-              <ConfirmationAction
-                variant="outline"
-                onClick={() => {
-                  if (permissionEntry && !alreadyAllowed) {
-                    handleGrantToolPermission({ entry: permissionEntry, toolName: request.toolName });
-                  }
-                  handlePermissionDecision(matchingRequestIds, {
-                    requestType: request.requestType,
-                    decision: 'allow_session',
-                    allow: true,
-                    rememberEntry: permissionEntry,
-                  });
-                }}
-              >
-                {rememberLabel}
-              </ConfirmationAction>
-              <ConfirmationAction
-                variant="default"
-                onClick={() => handlePermissionDecision(request.requestId, {
-                  requestType: request.requestType,
-                  decision: 'allow_once',
-                  allow: true,
-                })}
-              >
-                Allow once
-              </ConfirmationAction>
-            </ConfirmationActions>
-          </Confirmation>
+          />
         );
       })}
     </div>

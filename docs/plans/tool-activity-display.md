@@ -1,8 +1,7 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 8/10
-- Next: Phase 10 — agree the permission prompt's end state first; Codex running
-  rows are not yet seen on a phone
+- Status: 9/10
+- Next: Phase 6; Codex running rows are not yet seen on a phone
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
@@ -83,8 +82,9 @@ empty.
 - [x] 9. **A plan is one row.** `Proposed plan ›` opens to the plan in the flat
   panel at full contrast; while it waits for a decision it stays open with Build
   and Revise under it, matched to its own call so an older plan never shows them.
-- [ ] 10. **Permission prompts.** The waiting call and the approval banner
-  redesigned — agree the end state first, since no peer showed one.
+- [x] 10. **Permission prompts.** The waiting call is its own row,
+  `Run npm test · waiting`; above the composer, one question line over the
+  call's flat detail, then the decisions. A denied call keeps that label.
 
 ## Done when
 

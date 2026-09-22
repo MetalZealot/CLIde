@@ -256,6 +256,7 @@ function ChatMessagesPane({
                     key={`tool-group-${getMessageKey(item.messages[0])}`}
                     activity={item}
                     isLive={item === liveActivity}
+                    isWaiting={item.messages.length === 1 && Boolean(item.messages[0].toolId && pendingToolIds.has(item.messages[0].toolId))}
                     getMessageKey={getMessageKey}
                     onFileOpen={onFileOpen}
                   />
