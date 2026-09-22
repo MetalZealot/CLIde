@@ -83,7 +83,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0043 — Reading size is content-scoped and device-local](0043-reading-size-is-content-scoped-and-device-local.md)
 - [0044 — Input capability sets targets; row shortcuts stay bounded](0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md) *(target-size rule superseded by 0055)*
 - [0045 — HTML file preview is static and isolated](0045-html-file-preview-is-static-and-isolated.md)
-- [0046 — Tool detail leaves the chat column instead of nesting inside it](0046-tool-detail-leaves-the-chat-column.md)
+- [0046 — Tool detail leaves the chat column instead of nesting inside it](0046-tool-detail-leaves-the-chat-column.md) *(mobile sheet superseded by 0059)*
 - [0047 — The liveness probe clears on any inbound frame, not a matching echo](0047-ws-liveness-probe-clears-on-any-frame.md)
 - [0048 — Mobile bottom navigation has five roles; plugins share overflow](0048-mobile-navbar-five-roles-plugin-overflow.md) *(fifth role superseded by 0057)*
 - [0049 — File browsing loads folders, not whole projects](0049-file-tree-loads-folders-not-projects.md)
@@ -96,3 +96,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0056 — In the installed phone app, the chat scrolls as the page](0056-installed-phone-app-scrolls-the-chat-as-the-page.md)
 - [0057 — The mobile bar's fifth item is a swappable slot](0057-mobile-navbar-swappable-fifth-slot.md)
 - [0058 — Stop lives in the send button; the usage ring lives in the header](0058-stop-in-send-button-ring-in-header.md)
+- [0059 — An activity's operation list expands inline on every screen](0059-activity-operations-expand-inline-on-every-screen.md)

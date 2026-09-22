@@ -18,6 +18,7 @@ Renderer entry points: `src/components/chat/utils/toolGrouping.ts`,
 | Structured result | `toolUseResult` (`numFiles`, `filenames`, `numLines`, `structuredPatch`, `stdout`) on transcript reload only | `exitCode`, `status`, aggregated output | `toolUseResult` for high-level calls | `state.output`/`state.error` |
 | Cluster key from provider | none | `turnId` on every item, live and on disk; CLIde keeps it on tool rows | none | none |
 | Running state | yes — `tool_use` arrives before its result | commands, file changes and MCP calls: `item/started` sends the row, completion a `tool_result` | n/a | `state.status` |
+| Edit line counts (source only) | `old_string`/`new_string` in the Edit input, diffed by `calculateDiff` | `changes[].diff`, a unified diff per path, on `fileChange` | not checked | not checked |
 
 Both Claude paths (live SDK and transcript reload) run through the same
 `normalizeMessage`, so the live stream carries no `toolUseResult`;

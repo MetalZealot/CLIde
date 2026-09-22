@@ -1,7 +1,7 @@
 # 0046 — Tool detail leaves the chat column instead of nesting inside it
 
 - Date: 2026-08-23
-- Status: Accepted
+- Status: Accepted; mobile bottom sheet superseded by 0059
 
 ## Decision
 

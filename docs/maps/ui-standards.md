@@ -131,6 +131,27 @@ they fit on a phone.
   their slot count and displacement rules must be decided against the published
   five-or-fewer default guidance rather than silently widening the bar.
 
+### Tool activity rows
+
+No published standard covers how an agent chat shows its tool calls. Read from
+screenshots of four desktop apps on 2026-09-21 — the Claude app, the Codex app,
+Cursor and T3 Code — a pattern all four share is convention here, one or two is
+taste.
+
+- **Convention:** a collapsed activity is one line of muted text with no card,
+  border or badge, and prose stays full contrast. Past tense when done, "-ing"
+  while running. A mixed burst reads as verb phrases (`Read 6 files, ran 3
+  commands`), edits carry `+N −M` line counts, and a one-call burst shows the
+  call rather than "1 tool". The chevron follows the label. Expanded, each call
+  is one truncated line that opens its raw output. Questions, to-do lists and
+  subagents stay their own rows. Time sits on the turn, never on an activity.
+- **Taste:** collapsing a whole turn, prose included, to `Worked for 2m` (Codex,
+  and T3 Code, which follows it); a category icon on every row; a bordered list
+  versus a flat indent when expanded; rewriting descriptions into past tense,
+  which in Claude's app produced "Built and open…".
+- **Not seen:** a failed call while collapsed, or any phone. The running-label
+  shimmer (Claude, T3 Code) is inferred from stills.
+
 ## Standing findings
 
 Re-measure rather than trusting this list; it records the last pass, not a
