@@ -37,7 +37,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main` |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
-| [Chat activities, not raw tool calls](tool-activity-display.md) | 4/6 | Phase 5: raw detail owns the viewport on mobile |
+| [Chat activities, not raw tool calls](tool-activity-display.md) | 5/6 | Phase 6: loading advances by activities |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.

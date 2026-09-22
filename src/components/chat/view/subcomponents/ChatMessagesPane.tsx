@@ -255,15 +255,8 @@ function ChatMessagesPane({
                     key={`tool-group-${getMessageKey(item.messages[0])}`}
                     activity={item}
                     isLive={item === liveActivity}
-                    createDiff={createDiff}
                     getMessageKey={getMessageKey}
                     onFileOpen={onFileOpen}
-                    onShowSettings={onShowSettings}
-                    onGrantToolPermission={onGrantToolPermission}
-                    showRawParameters={showRawParameters}
-                    showThinking={showThinking}
-                    selectedProject={selectedProject as Project}
-                    provider={provider}
                   />
                 );
               }

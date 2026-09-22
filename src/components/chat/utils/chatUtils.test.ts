@@ -8,6 +8,7 @@ import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
 import type { ChatMessage } from '../types/types';
 
+import { buildOperationDetail } from './operationDetail';
 import { summarizeActivity } from './toolActivity';
 import { groupToolActivities, isToolActivityItem } from './toolGrouping';
 import {
@@ -540,6 +541,40 @@ describe('tool activity boundaries', () => {
     assert.equal(summary.operations[6].target, 'w.ts');
     assert.equal(summary.operations[8].target, 'browser_click');
     assert.equal(summary.running?.target, 'npm test');
+  });
+
+  test('an opened call flattens to lines: command and output, changed lines only, files', () => {
+    const done = (content: string, isError = false) => ({ content, isError, timestamp: '2026-09-21T00:00:02Z' });
+    const bash = buildOperationDetail(call('b', { toolInput: JSON.stringify({ command: 'npm test', description: 'Run tests' }), toolResult: done('ok\n2 passed\n') }));
+    assert.deepEqual(bash.blocks, [
+      { type: 'lines', lines: [{ text: 'npm test', tone: 'command' }] },
+      { type: 'lines', lines: [{ text: 'ok', tone: 'output' }, { text: '2 passed', tone: 'output' }] },
+    ]);
+    assert.equal(bash.copyText, 'npm test');
+
+    const edit = buildOperationDetail(call('e', { toolName: 'Edit', toolInput: JSON.stringify({ file_path: '/a/x.ts', old_string: 'a\nb', new_string: 'a\nc' }), toolResult: done('') }));
+    assert.deepEqual(edit.blocks, [{ type: 'lines', lines: [{ text: 'b', tone: 'removed' }, { text: 'c', tone: 'added' }] }]);
+
+    const codex = buildOperationDetail(call('c', {
+      toolName: 'FileChanges',
+      toolInput: JSON.stringify([{ path: '/a/x.ts', diff: '@@ -1 +1 @@\n-old\n+new\n ctx\n@@ -9 +9 @@\n+more' }, { path: '/a/y.ts', diff: '+y' }]),
+      toolResult: done('completed'),
+    }));
+    assert.deepEqual(codex.blocks[0], {
+      type: 'lines',
+      heading: 'x.ts',
+      lines: [{ text: 'old', tone: 'removed' }, { text: 'new', tone: 'added' }, { text: '', tone: 'gap' }, { text: 'more', tone: 'added' }],
+    });
+
+    const search = buildOperationDetail(call('s', { toolName: 'Glob', toolInput: JSON.stringify({ pattern: '*.ts' }), toolResult: done('/a/x.ts\n/a/y.ts') }));
+    assert.deepEqual(search.blocks, [{ type: 'files', paths: ['/a/x.ts', '/a/y.ts'] }]);
+
+    const read = buildOperationDetail(call('r', { toolName: 'Read', toolInput: JSON.stringify({ file_path: '/a/x.ts' }), toolResult: done('1\tline') }));
+    assert.equal(read.openPath, '/a/x.ts');
+
+    const failed = buildOperationDetail(call('f', { toolInput: JSON.stringify({ command: 'false' }), toolResult: done('exit 1', true) }));
+    assert.equal((failed.blocks[1] as { lines: Array<{ tone: string }> }).lines[0].tone, 'error');
+    assert.deepEqual(buildOperationDetail(thought).blocks, [{ type: 'prose', text: 'Checking' }]);
   });
 });
 

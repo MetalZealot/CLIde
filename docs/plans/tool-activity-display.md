@@ -1,8 +1,8 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 4/6
-- Next: Phase 5 — raw detail on mobile; phases 2–4 and Codex running rows are not yet
-  seen on a phone
+- Status: 5/6
+- Next: Phase 6 — loading advances by activities; Codex running rows are not yet seen
+  on a phone
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
@@ -56,13 +56,14 @@ empty.
   line per operation, inline on every screen: verb, target, line counts for an
   edit, status, and duration once it reached 1 s; a Claude command row reads
   as its description, and shown thinking as a `Thought:` line. Raw output
-  opens the level below rather than rendering in place, as today's card until
-  Phase 5
+  opens the level below rather than rendering in place
   ([ADR 0059](../decisions/0059-activity-operations-expand-inline-on-every-screen.md)).
-- [ ] 5. **Raw detail owns the viewport on mobile.** An operation row opens the
-  existing `ToolRenderer` inline on desktop, and the full-screen code-editor
-  overlay on mobile, which already handles safe areas and highlighting. Back
-  from it returns to the chat with the operation list still open.
+- [x] 5. **A call opens flat, in place, on every screen.** Tapping an
+  operation row shows its full input and output under it in one new panel —
+  command then output, changed lines only for an edit, matched files for a
+  search — with no header, badge, strip or second disclosure. Lines wrap;
+  blocks stop at 12 lines behind "Show all"; the old tool card and code-editor
+  overlay are not used ([ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md)).
 - [ ] 6. **Loading advances a useful number of activities.** Integrate with the
   [history performance plan](chat-history-performance.md), which owns stable page
   boundaries and record/visible-row counts. Grouping must preserve message anchors
@@ -70,10 +71,10 @@ empty.
 
 ## Done when
 
-- A session with a 14-call burst renders one row, and expanding it twice
-  reaches the same raw output visible today.
-- On a phone, a file read opened from an activity fills the screen and scrolls
-  sideways without wrapping; closing it lands back on the open operation list.
+- A session with a 14-call burst renders one row, and two taps reach a call's
+  full input and output.
+- On a phone, a call opened from an activity shows its output in place,
+  wrapped, with nothing further to expand.
 - On a phone, an open activity's operation rows each stay one line, and none
   scrolls sideways.
 - A failed or denied command inside an otherwise successful burst is visible

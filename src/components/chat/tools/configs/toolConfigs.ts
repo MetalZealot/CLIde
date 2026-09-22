@@ -53,7 +53,7 @@ export interface ToolDisplayConfig {
  * data is missing. content-mode Grep additionally reports matching *lines*
  * (numFiles is always 0), so it must be labelled "matches", not "files".
  */
-function parseSearchResult(result: any): { count: number; unit: 'file' | 'match'; files: string[] } {
+export function parseSearchResult(result: any): { count: number; unit: 'file' | 'match'; files: string[] } {
   const toolData = result?.toolUseResult || {};
   const content = typeof result?.content === 'string' ? result.content : '';
   const trimmed = content.trim();

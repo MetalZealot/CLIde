@@ -2,8 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
 
-import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, Provider } from '../../types/types';
-import type { Project } from '../../../../types/app';
+import type { ChatMessage } from '../../types/types';
 import type { ToolActivityItem } from '../../utils/toolGrouping';
 import {
   describeActivity,
@@ -15,27 +14,14 @@ import {
 import { formatDuration } from '../../utils/chatFormatting';
 import { Shimmer } from '../../../../shared/view/ui/Shimmer';
 
-import MessageComponent from './MessageComponent';
-
-type DiffLine = {
-  type: string;
-  content: string;
-  lineNum: number;
-};
+import OperationDetail from './OperationDetail';
 
 interface ToolActivityProps {
   activity: ToolActivityItem;
   /** The newest activity of a run still in flight: it may name a running call. */
   isLive?: boolean;
-  createDiff: (oldStr: string, newStr: string) => DiffLine[];
   getMessageKey: (message: ChatMessage) => string;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
-  onShowSettings?: () => void;
-  onGrantToolPermission?: (suggestion: ClaudePermissionSuggestion) => PermissionGrantResult | null | undefined;
-  showRawParameters?: boolean;
-  showThinking?: boolean;
-  selectedProject?: Project | null;
-  provider: Provider | string;
 }
 
 const firstLine = (text: unknown): string =>
@@ -52,7 +38,7 @@ interface OperationRowProps {
   messageKey: string;
 }
 
-/** One truncated line per call; its full card opens below it. */
+/** One truncated line per call; its detail opens below it. */
 const OperationRow = memo(function OperationRow({ message, isOpen, isLive, onToggle, messageKey }: OperationRowProps) {
   const { t } = useTranslation('chat');
 
@@ -85,15 +71,8 @@ const OperationRow = memo(function OperationRow({ message, isOpen, isLive, onTog
 const ToolActivity = memo(function ToolActivity({
   activity,
   isLive = false,
-  createDiff,
   getMessageKey,
   onFileOpen,
-  onShowSettings,
-  onGrantToolPermission,
-  showRawParameters,
-  showThinking,
-  selectedProject,
-  provider,
 }: ToolActivityProps) {
   const { t } = useTranslation('chat');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -148,23 +127,7 @@ const ToolActivity = memo(function ToolActivity({
                   isLive={isLive}
                   onToggle={toggleOperation}
                 />
-                {isOpen && (
-                  <div className="mb-2 mt-1">
-                    <MessageComponent
-                      message={message}
-                      // A card inside an activity never repeats the assistant header.
-                      prevMessage={message}
-                      createDiff={createDiff}
-                      onFileOpen={onFileOpen}
-                      onShowSettings={onShowSettings}
-                      onGrantToolPermission={onGrantToolPermission}
-                      showRawParameters={showRawParameters}
-                      showThinking={showThinking}
-                      selectedProject={selectedProject}
-                      provider={provider}
-                    />
-                  </div>
-                )}
+                {isOpen && <OperationDetail message={message} onFileOpen={onFileOpen} />}
               </div>
             );
           })}

@@ -1,7 +1,7 @@
 # 0059 — An activity's operation list expands inline on every screen
 
 - Date: 2026-09-21
-- Status: Accepted; supersedes 0046's mobile bottom sheet
+- Status: Accepted; supersedes 0046's mobile bottom sheet; raw detail on phones superseded by 0060
 
 ## Decision
 

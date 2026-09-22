@@ -40,6 +40,7 @@ import {
   useThinkingMessages,
 } from '../../../../hooks/useThinkingMessages';
 
+import ToolActivity from './ToolActivity';
 import MessageCopyControl from './MessageCopyControl';
 import ActivityIndicator from './ActivityIndicator';
 import { ChatExportOptions } from './ChatExportMenu';
@@ -269,6 +270,38 @@ describe('chatSubcomponents', () => {
       assert.equal(label([twoFiles]), 'Edited 2 files +1 \u22121');
       assert.equal(t('activity.failed', { count: 1 }), '1 failed');
 
+    });
+
+    test('an opened activity shows one line per call, and a call opens flat with nothing left to expand', async () => {
+      const burst: ChatMessage[] = [
+        {
+          id: 'b1', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash',
+          toolInput: JSON.stringify({ command: 'npm test', description: 'Run client tests' }),
+          toolResult: { content: 'ok\n2 passed', isError: false, timestamp: '2026-09-21T00:00:03Z' },
+        },
+        {
+          id: 'e1', timestamp: '2026-09-21T00:00:04Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Edit',
+          toolInput: JSON.stringify({ file_path: '/src/x.ts', old_string: 'a', new_string: 'b' }),
+          toolResult: { content: '', isError: false, timestamp: '2026-09-21T00:00:04Z' },
+        },
+      ];
+      container = document.createElement('div');
+      document.body.append(container);
+      root = createRoot(container);
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <ToolActivity activity={{ _isGroup: true, messages: burst, timestamp: burst[0].timestamp }} getMessageKey={(message) => String(message.id)} />
+        </I18nextProvider>,
+      ));
+      const activityRow = container.querySelector('button[aria-expanded]') as HTMLButtonElement;
+      assert.equal(activityRow.textContent, 'Ran 1 command, edited 1 file +1 \u22121');
+      await React.act(async () => activityRow.click());
+      const lines = [...container.querySelectorAll('button[aria-expanded]')].slice(1) as HTMLButtonElement[];
+      assert.deepEqual(lines.map((line) => line.textContent), ['Run client tests3s', 'Edited x.ts+1 \u22121']);
+      await React.act(async () => lines[0].click());
+      assert.match(container.textContent || '', /\$ npm test/);
+      assert.match(container.textContent || '', /2 passed/);
+      assert.equal(container.querySelectorAll('button[aria-expanded]').length, 3, 'the detail adds no disclosure of its own');
     });
 
     test('applies each cycle mode in the same tab while provider status stays authoritative', async () => {

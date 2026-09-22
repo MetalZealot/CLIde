@@ -62,7 +62,7 @@ export function isStandaloneTool(message: ChatMessage): boolean {
     || STANDALONE_TOOL_NAMES.has(String(message.toolName || ''));
 }
 
-function parseInput(toolInput: unknown): any {
+export function parseToolInput(toolInput: unknown): any {
   if (typeof toolInput !== 'string') return toolInput ?? {};
   try {
     return JSON.parse(toolInput);
@@ -71,7 +71,7 @@ function parseInput(toolInput: unknown): any {
   }
 }
 
-const basename = (path: string): string => path.split('/').filter(Boolean).pop() || path;
+export const basename = (path: string): string => path.split('/').filter(Boolean).pop() || path;
 
 const firstLine = (text: unknown): string =>
   String(text ?? '').split('\n').map((line) => line.trim()).find(Boolean) || '';
@@ -108,7 +108,7 @@ function describeFileChanges(input: any): Pick<ActivityOperation, 'paths' | 'add
   return { paths: entries.map((entry) => entry.path).filter(Boolean), added, removed };
 }
 
-function readApplyPatchText(source: string): string {
+export function readApplyPatchText(source: string): string {
   const quoted = /"(\*\*\* Begin Patch(?:[^"\\]|\\.)*)"/.exec(source);
   if (quoted) {
     try {
@@ -229,7 +229,7 @@ export function describeOperation(message: ChatMessage): ActivityOperation {
     ? readTime(toolResult.timestamp) - readTime(message.timestamp)
     : NaN;
   const operation: ActivityOperation = {
-    ...describeInput(toolName, parseInput(message.toolInput)),
+    ...describeInput(toolName, parseToolInput(message.toolInput)),
     message,
     status: deriveToolStatus(toolResult),
     durationMs: Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : null,

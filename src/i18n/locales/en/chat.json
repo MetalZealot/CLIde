@@ -88,7 +88,15 @@
       "error": "failed",
       "denied": "denied"
     },
-    "thought": "Thought: {{text}}"
+    "thought": "Thought: {{text}}",
+    "detail": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "openFile": "Open file",
+      "showAll_one": "Show all {{count}} line",
+      "showAll_other": "Show all {{count}} lines",
+      "empty": "No output"
+    }
   },
   "search": {
     "found": "Found {{count}} {{type}}",
