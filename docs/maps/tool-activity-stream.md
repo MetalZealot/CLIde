@@ -86,4 +86,4 @@ model could populate it — nothing in CLIde may depend on it.
   themselves, not the headers.
 - `visibleMessages` is a tail slice of 20 raw messages; under prose-bounded
   clustering that is 3–4 activities per page.
-- `groupConsecutiveTools` has no test coverage.
+- `groupConsecutiveTools` keeps a group's object identity across renders (`groupCache`); `chatUtils.test.ts` pins it.
