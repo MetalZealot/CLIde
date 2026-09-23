@@ -1,136 +1,121 @@
 # Fast, stable chat history and navigation
 
-- Status: 6/9
-- Next: Phase 7 — Bound expensive rendered contents, after
-  [tool activity](tool-activity-display.md) phase 3 (a closed activity mounts one row)
+- Status: 6/13
+- Next: Phase 7 — profile one scroll-up on the reference session and cut its per-page cost
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
-  [tool detail](../decisions/0046-tool-detail-leaves-the-chat-column.md)
+  [tool activities](tool-activity-display.md)
 
-Long conversations should open promptly, preserve the reader's place, and support
-Find/direct jumps without loading intervening tool output.
+Long conversations open promptly, scroll back without a Load button or a
+freeze that grows with length, keep their place and open state, and let any
+prompt be reached directly.
+
+The **reference session** is the largest local Claude transcript (17 MB, 115
+rendered rows): real tool bursts, images and subagents. Synthetic fixtures
+are prose-heavy and missed the per-page growth phase 7 targets.
 
 ## Effort sizes
 
-Estimates include implementation, tests and verification.
-They do not predict model tokens, cost or how much fits in a usage window.
 **M:** bounded work with focused checks. **L:** several connected changes with
-substantial edge-case testing; split into reviewable batches. **XL:** changes
-across layers/providers or complex interaction behaviour; multiple L-sized batches.
-Completed phases provide reference sizes.
+substantial edge-case testing. **XL:** changes across layers or complex
+interaction behaviour. Sizes include tests and verification, not model cost.
 
 ## Phases
 
-- [x] **1. Establish repeatable evidence and limits — M.**
+- [x] **1. Repeatable evidence and limits — M.** Synthetic fixtures, server and
+  Browser harnesses, numeric budgets. `6de67688`
+- [x] **2. Reuse unchanged server history — L.** Bounded revision cache; warm
+  reads never reparse. `dc29d441`
+- [x] **3. Unchanged messages keep their render — L.** Identity-preserving
+  conversion, memoized Markdown. `6cd6f553`
+- [x] **4. Stable page boundaries — XL.** Session-scoped bookmarks on all four
+  providers; rewind invalidates. `83015151`
+- [x] **5. Bounded page payloads — XL.** Previews instead of tool output and
+  image bodies; 256 KiB page cap. `1047d1e4`
+- [x] **6. Find without rendered history — XL.** Text index over a text-only
+  copy; jumps load a window around the match. `20db29e2`
 
-Synthetic provider fixtures, four executable regression targets, isolated server
-and production-built Browser harnesses are maintained in the repository. The
-[baseline, commands and numeric budgets](../maps/chat-history-performance.md#repeatable-phase-1-baseline)
-separate reader, transport, conversion and rendering costs. Real-device acceptance
-and precise browser heap measurement remain explicit later-phase requirements.
+- [ ] **7. Cut the per-page cost of scrolling up — M–L.**
 
-- [x] **2. Reuse unchanged server history safely — L.**
+Each scroll-up step blocks the main thread longer as rows accumulate: 67 ms at
+14 rows, 855 ms at 112, with requests near 20 ms
+([measurement](../maps/chat-history-performance.md#what-the-reader-experiences)).
+About half is layout forced from script, the rest JavaScript. Profile one
+step, remove repeated measure-then-write in scroll restoration, find the work
+that scales with mounted rows, then probe `content-visibility` on the phone
+before adopting it.
 
-Shipped a 32 MiB serialized-history cache with bounded entries, shared concurrent
-loads and before/after source checks. Claude subagents and Codex ancestry
-participate; Cursor/OpenCode remain uncached. Review fixes cover discovery races,
-directory-read failures and identity cleanup. Warm reads avoid reparsing; measured
-memory and correctness coverage are in the [map](../maps/chat-history-performance.md#phase-2-server-cache).
+**Exit:** in the reference session no scroll-up step blocks over 100 ms in
+CLIde Browser, and cost no longer grows with rows already mounted.
 
-- [x] **3. Stop rendering unchanged messages again — L.**
+- [ ] **8. Activity identity survives older pages — M.**
 
-Shipped identity-preserving conversion and server refreshes, stable tool groups,
-and memoized Markdown. Tests cover changed tools, subagents, streaming and removals;
-Browser checks enforce bounded append/update work and zero unchanged-refresh work.
-At 1,000 records, median append time fell from 10.36 s to 255 ms. Full-history Find
-and remaining layout stalls stay in phases 6–7. [Evidence](../maps/chat-history-performance.md#phase-3-unchanged-message-rendering).
+An activity is keyed by its first call, so older calls joining a burst remount
+it and close it. Key it by something a prepend cannot change.
 
-- [x] **4. Keep page boundaries stable while history changes — XL.**
+**Exit:** an expanded activity stays expanded, and in place, while older
+history loads above it.
 
-Shipped session-scoped bookmarks across all four providers, explicit record counts,
-append-safe older pages and refreshes from the oldest loaded boundary. Rewind or
-replacement invalidates bookmarks and reloads the window. Requests are cancelled
-and guarded against stale publication; tools join before paging. Tests cover
-SQLite/JSONL histories, hidden records, equal timestamps, identity changes,
-reconnects and cancelled Find loads. Six synthetic Browser runs preserve the loaded
-tail without duplicate ids and retain phase-3 rendering limits.
-[Contract and verification](../maps/chat-history-performance.md#phase-4-stable-history-bookmarks).
+- [ ] **9. Load ahead instead of on demand — L.**
 
-- [x] **5. Bound transferred work, not just record counts — XL.**
+After open, fetch the viewed session's remaining slim history in the
+background in bounded pages; scrolling reveals rows from memory. Evict other
+sessions' histories from browser memory past a bound. Remove the Load all
+bar: show progress only while a needed fetch runs, with retry on failure.
+Export reads complete records without widening the rendered window. Replaces
+tool-activity phase 6 (loading by activities).
 
-Pages carry image URLs and tool-payload previews instead of bodies; strings over
-8 KiB leave the page, prose never does. Pages stop at 256 KiB, keeping one
-oversized record alone. Opening a card fetches its complete record; export swaps
-in full records or exports nothing. The heavy fixture page fell from 723,743 to
-6,146 bytes; a real 17 MB session's full slim history is 2.6 MB.
-[Contract and evidence](../maps/chat-history-performance.md#phase-5-bounded-page-payloads).
+**Exit:** scrolling to the top of the reference session shows no Load button
+and waits on no request on a normal connection; export leaves the view as it
+was.
 
-- [x] **6. Separate Find and prompt navigation from rendered history — XL.**
+- [ ] **10. Tests match real sessions and sustained use — M.**
 
-Find searches a client text index over a text-only history copy, tied to the
-history revision; an old match fetches a window around it that pages both ways
-and rejoins the tail. Sidebar results land the same way; prompt navigation is
-API-only. At 1,000 records Find fell from 24 s to 3.2 s and 900 to 36 mounted
-rows; the Find-window target is a passing test.
-[Contract and evidence](../maps/chat-history-performance.md#phase-6-find-without-rendered-history).
+A tool-heavy fixture with long bursts. Walk to the top and back, stream while
+reading old text, expand output mid-walk; count row renders per prepend.
 
-- [ ] **7. Bound expensive rendered contents — XL.**
+**Exit:** the benchmark fails when per-page cost grows with mounted rows.
 
-After phase 6, render near-viewport contents with measured-height placeholders
-elsewhere. Agree loading/selection behaviour first. Support desktop scroll boxes
-and phone page scrolling. Preserve message/pixel anchors through prepends, image/
-font loads, expansion, keyboard/typography changes and tab switches. Bound prefetch
-and prevent overlapping loads.
+- [ ] **11. One rendered-window model — L; XL if bounding is needed.**
 
-Pin selected text, focus, editing and the active search result as needed. Keep
-expansion state outside evicted contents. Selection may deliberately extend the
-window; release it afterward. Preserve cross-message copy, screen-reader access,
-reduced motion and bottom-follow only when intended.
+The tail count, the jump range and the selection hold become one range over
+loaded records. The prompt list and jumps work with Find closed. Re-measure
+long sessions: only if freezes remain, render near-viewport rows with reserved
+space, keeping selection, focus, editing, Find highlights, expansion and phone
+page scrolling intact. Otherwise record the evidence and close.
 
-Older pages already load 1.5 screens early, so scrolling up no longer waits at
-the top; each prepend still freezes 170–790 ms (measured on a real session),
-growing with mounted rows, because layout covers every row. Scrolling down from
-a Find jump grows rows the same way.
+**Exit:** any user prompt is reachable directly without rendering what lies
+between; scrolling from a jump pages both ways and rejoins the tail.
 
-**Exit:** rich contents stay bounded except interaction pins; history remains
-reachable; scrolling up never shows loading or a freeze. Real phone handles and
-Browser layout pass.
+- [ ] **12. Close cold-load and Find-preparation gaps — M–XL.**
 
-- [ ] **8. Close cold-load and active-session gaps — M–XL.**
+First open of a changed transcript reparses it (1.9 s for the reference
+session); Find preparation is 3.2 s on the 1,000-record fixture. Profile, then
+add incremental parsing or indexing only for measured need. Any persistent
+index must be rebuildable from provider history.
 
-M for profiling; up to XL if incremental parsing/indexing is needed.
-Profile after phases 2–7. If cold/live paths exceed budget, add incremental parsing
-and index updates, rebuilding for branch replacement/incompatible formats. Any
-persistent index must be reconstructible from provider history. Yield/isolate work
-if traces show other requests blocked. Add storage/workers/dependencies only for
-measured need with required authorization. Record evidence if none is needed.
+**Exit:** first open and Find meet the map's budgets, or the evidence for
+leaving them is recorded.
 
-**Exit:** first open, appends, dependent histories and concurrent sessions meet
-budgets without unbounded caches or stale results.
+- [ ] **13. Accept on the phone — M.**
 
-- [ ] **9. Enforce regressions and accept the experience — L.**
+Cold open, scroll to the top and back, Find, jumps, streaming while reading
+old text, reconnect, rewind, selection and session switching on the installed
+phone app. Update the map and orientation as rules change.
 
-Test operation counts and correctness in the relevant normal tests. Run
-browser scaling benchmarks on a controlled runner with explicit thresholds and
-variance; avoid blind wall-clock gates. Re-run for provider/parser, store,
-Markdown, search, transcript and upstream integration changes.
-
-Exercise cold open, upward scrolling, Find/jumps, streaming while reading old text,
-reconnect, rewind/fork, selection, details and session switching. Memory must settle
-within budget. Publish before/after results distinguishing source/build/runtime/
-device evidence. Ship reviewable commits with tested fallbacks where needed. Update
-the map and orientation as rules change; verify the served checkout before closing.
-
-**Exit:** gates pass; device acceptance and unverified cases are recorded.
+**Exit:** device acceptance recorded, with unverified cases named.
 
 ## Done when
 
-All nine exits hold. Loading preserves position, old text is directly searchable,
-and future regressions fail maintained gates.
+- The reference session scrolls bottom to top with no Load button and no step
+  blocking over 100 ms in CLIde Browser, and without visible stalls on the phone.
+- An expanded activity stays expanded while older history loads.
+- Any user prompt can be reached directly; old text is findable.
+- Maintained tests fail when per-page cost grows with mounted rows.
 
 ## Not doing
 
 - Replacing provider transcripts as authority or importing upstream's restructure.
-- Designing the prompt navigator/minimap or [activity UI](tool-activity-display.md).
-- Runtime changes or deployment during this planning task.
+- Designing the prompt navigator; it has its own item in `docs/TODO.md`.
+- Rendering only near-viewport rows unless phase 11's measurement needs it.

@@ -1,48 +1,33 @@
 # Chat history loading and rendering
 
-Initial diagnosis: `668f4049`, investigated 2026-09-19. Phases 1–6 provide
-server reuse, unchanged-message rendering, stable paging, bounded payloads and
-Find without rendered history below. Mounted contents and acceptance remain open
-in the [performance plan](../plans/chat-history-performance.md).
+Phases 1–6 provide server reuse, unchanged-message rendering, stable paging,
+bounded payloads and Find without rendered history below. What remains is in
+the [performance plan](../plans/chat-history-performance.md).
 
 ## What the reader experiences
 
-Opening a long conversation, walking backward, and finding an old sentence share
-the same expensive history path. A small response does not imply a small read:
-the server processes the full transcript before choosing a page. Unchanged client records now reuse their display objects, but the rendered
-window still grows as older pages arrive. Collapsing tool cards can reduce screen space without reducing the
-work to read, transfer, or convert their contents.
+Opening fetches the newest 20 records; scrolling within 1.5 screens of the top
+reveals loaded rows, then fetches 20 more. Rendered rows only accumulate until
+the session changes or ↓ rejoins the tail. Collapsed activities fold many
+records into one row, so a page can add little height and the pane chains
+further requests. Find and jumps use the detached window below.
 
-## Measured baseline
+Measured 2026-09-23 in CLIde Browser on a branch-test server serving `main`,
+412 px viewport, pane scrolling, the 17 MB reference session:
 
-Read-only probes called the deployed provider readers against the largest local
-Claude and Codex transcript files by byte size. Session metadata was read through
-a read-only database connection; the reader's database lookup was substituted in
-the probe process. No transcripts or user database rows were changed. These are
-diagnostic samples, not a representative latency distribution or browser profile.
+| Measurement | Result |
+|---|---:|
+| Whole session rendered | 115 rows, 1,778 elements |
+| Scroll-to-top steps / history requests to reach the top | 17 / 52 |
+| Request time per page, server cache warm | ~20 ms |
+| Blocked main thread per step at 14 / 112 mounted rows | 67 / 855 ms |
+| Of which layout forced from script | 28 / 497 ms |
+| DOM change per step | ~17 nodes added; no existing row remounted |
+| First request, server cache cold | 1.9 s |
 
-| Reader measurement | Claude sample | Codex sample |
-|---|---:|---:|
-| Sequential 20-record requests to exhaust history | 46 | 21 |
-| Total elapsed reader time for those requests | 17.98 s | 7.24 s |
-| Logical bytes read across those requests | 795.6 MiB | 308.1 MiB |
-| One complete-history read | 391 ms | 329 ms |
-| Complete serialized response, uncompressed | 16.43 MiB | 3.14 MiB |
-
-Logical bytes are stream bytes, not measured physical disk traffic. The operating
-system can serve them from memory. Timings exclude HTTP transfer and browser
-rendering. Files were selected for size; the Claude sample includes substantial
-embedded image data and is not evidence that all large sessions have that mix.
-
-Other probes established that tools and images are not needed to reproduce
-repeated full-history processing (a warmed second page of 2,000 plain records
-processed all 2,000 in 73 ms), that one appended message recreated all 1,000
-display objects, that opening Find grew a cached fixture from 100 to 1,000
-rendered rows, and that one appended row between offset pages produced an
-overlapping message. The existing 80 hook/store tests passed throughout:
-functional coverage does not establish bounded cost.
-
-The phase-1 fixtures below replace those probes.
+Cost per step grows with rows already mounted while the DOM change stays
+small: work repeats over unchanged rows (plan phase 7). Frame-end layout is
+under 35 ms; the layout cost is forced by script reading geometry.
 
 ## Repeatable phase-1 baseline
 

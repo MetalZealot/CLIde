@@ -10,7 +10,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 
 | Plan | Status | Next |
 |---|---|---|
-| [Chat history performance](chat-history-performance.md) | 6/9 | Phase 7 (XL): bound expensive rendered contents, after tool-activity phase 3 |
+| [Chat history performance](chat-history-performance.md) | 6/13 | Phase 7: cut the per-page cost of scrolling up |
 | [Phone chat text selection](mobile-chat-page-scroll.md) | complete | Merged to `main` 2026-09-16; iPhone keyboard behaviour untested |
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
@@ -39,7 +39,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main` |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
-| [Chat activities, not raw tool calls](tool-activity-display.md) | 9/10 | Phase 6: loading by activities |
+| [Chat activities, not raw tool calls](tool-activity-display.md) | 10/10 | See a Codex command running 30 s on a phone |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.

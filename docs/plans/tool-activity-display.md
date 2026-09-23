@@ -1,7 +1,7 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 9/10
-- Next: Phase 6; Codex running rows are not yet seen on a phone
+- Status: 10/10
+- Next: See a Codex command running 30 s on a phone (Done when)
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
@@ -64,10 +64,9 @@ empty.
   search — with no header, badge, strip or second disclosure. Lines wrap;
   blocks stop at 12 lines behind "Show all"; the old tool card and code-editor
   overlay are not used ([ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md)).
-- [ ] 6. **Loading advances a useful number of activities.** Integrate with the
-  [history performance plan](chat-history-performance.md), which owns stable page
-  boundaries and record/visible-row counts. Grouping must preserve message anchors
-  and request enough bounded pages to advance visibly without a second paging model.
+- [x] 6. **Loading advances a useful number of activities.** Moved to the
+  [history plan](chat-history-performance.md), phase 9: the viewed session's
+  history loads ahead, so page size no longer decides visible progress.
 - [x] 7. **Thinking and answered questions use the activity row and panel.**
   Thinking reads `Thought for 23s ›`, timed from the row before it, and opens to
   its text in the flat panel; redacted thinking keeps the line, no ›.
