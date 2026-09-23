@@ -27,6 +27,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | — | | |
 | [Turn liveness and usage warnings](turn-liveness-and-usage-warnings.md) | 4/6 | Phase 3: name a silence after 30 s with no runtime frames |
 | [Subagent visibility](subagent-visibility.md) | 3/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
+| [Workspace surfaces](workspace-surfaces.md) | not started | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Markdown-native project board](markdown-project-board.md) | not started | First observe the existing dashboard, then test the status contract across three projects |
