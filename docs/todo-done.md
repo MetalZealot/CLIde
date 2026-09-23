@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Browser captures fit the tab by default** (2026-09-22). The whole screenshot stays between the address and activity bars at desktop and phone sizes; Fullscreen retains Fit, Fill, and 1:1. Verified: client build and Browser measurements on 3002 using a temporary phone capture at 412×839 and 1280×800. Fork-only, client-only. **S**
+
 - [x] **Follow installed Claude/Codex CLIs; update from New Session** (2026-09-22). Automatic Codex compatibility checks replace manual version promotion; explicit native updates wait for this server's active work. Verified: full tests, typecheck, build, lint, real-process updater harness, and simulated Browser states. Production restart and a real CLI upgrade remain unexercised. Fork-only. [Decision](decisions/0061-follow-installed-provider-clis.md). **L**
 
 - [x] **The picker reads Claude's model list from the CLI, with Refresh models for every provider** (2026-09-22, `4639a524`, `ea57e20c`). Older models stay under Legacy, ordered by tier. Verified: tests, and in use on 3001 after the restart. [Anchor](maps/code-anchors.md#model-picker-catalog-and-active-model-are-two-systems). Fork-only. **S**

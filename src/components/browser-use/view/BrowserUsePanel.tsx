@@ -477,14 +477,13 @@ export default function BrowserUsePanel({ isVisible, initialSessionId, onShowSet
 
   const menuSession = actionMenu ? sessions.find((item) => item.id === actionMenu.sessionId) || null : null;
 
-  // The capture is the surface: full column width, height from its own aspect,
-  // so nothing is letterboxed and no minimum reserves empty space.
+  // Keep the whole capture in the space between the address and activity bars.
   const renderCapture = () => (
     selectedSession?.screenshotDataUrl ? (
       <img
         src={selectedSession.screenshotDataUrl}
         alt={`Latest capture of ${selectedSession.title || getDomain(selectedSession.url)}`}
-        className="block w-full outline outline-1 -outline-offset-1 outline-white/10"
+        className="block max-h-full max-w-full object-contain outline outline-1 -outline-offset-1 outline-white/10"
       />
     ) : (
       <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -547,11 +546,11 @@ export default function BrowserUsePanel({ isVisible, initialSessionId, onShowSet
                 </div>
               )}
 
-              <div className="min-h-0 flex-1 overflow-auto">
-                <div className="mx-auto max-w-7xl">
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="mx-auto flex h-full min-h-0 max-w-7xl flex-col">
                   {/* An address bar: what this is and one way to look closer.
                       Acting on the session belongs to its own row's menu. */}
-                  <div className="sticky top-0 z-10 flex items-center gap-2 bg-black/80 px-3 py-2">
+                  <div className="z-10 flex shrink-0 items-center gap-2 bg-black/80 px-3 py-2">
                     <span className="shrink-0 rounded border border-white/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/80">
                       {selectedSession?.status || 'empty'}
                     </span>
@@ -597,10 +596,12 @@ export default function BrowserUsePanel({ isVisible, initialSessionId, onShowSet
                     </div>
                   </div>
 
-                  {renderCapture()}
+                  <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+                    {renderCapture()}
+                  </div>
 
                   {selectedSession && (
-                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-white/60">
+                    <div className="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-white/60">
                       <span className="inline-flex shrink-0 items-center gap-1">
                         {(() => {
                           const DeviceIcon = DEVICE_ICONS[selectedSession.device] || Monitor;

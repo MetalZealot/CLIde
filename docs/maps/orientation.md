@@ -167,12 +167,15 @@ agent left is still there when you send the next message; it closes on Stop, whe
 agent closes it, or after it sits unused. An open window alone does not mean the agent
 is using it; the preview distinguishes active, idle, stopped, and unavailable states.
 Questions and queued messages take priority over the thumbnail, which shrinks to a
-text row in the normal layout.
+text row in the normal layout. The Browser tab fits the whole capture between its
+address and activity bars; Fullscreen offers closer scaling controls.
 
 **What breaks:** guessing from whichever browser was used most recently can show
 another chat's work, and treating an open window as activity leaves a false spinner.
 If the browser reset between replies, an agent's first action each time would land on
-a blank page it thought it had already navigated.
+a blank page it thought it had already navigated. Stretching a phone capture across
+the desktop column makes it huge, while a tall capture pushes the activity line off
+the phone screen.
 Provider coverage and current limits: [Chat browser activity](chat-browser-activity.md).
 
 ## 12. Agents sign in to test servers without ever seeing the password
