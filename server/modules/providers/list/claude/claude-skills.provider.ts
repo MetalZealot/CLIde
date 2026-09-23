@@ -1,63 +1,19 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import {
+  listClaudePluginInstalls,
+  listClaudePluginSkills,
+} from '@/modules/providers/list/claude/claude-plugins.js';
 import { SkillsProvider } from '@/modules/providers/shared/skills/skills.provider.js';
-import { parseFrontMatter } from '@/shared/frontmatter.js';
 import type {
   ProviderSkill,
   ProviderSkillListOptions,
   ProviderSkillSource,
 } from '@/shared/types.js';
-import {
-  addUniqueProviderSkillSource,
-  findProviderSkillMarkdownFiles,
-  readJsonConfig,
-  readObjectRecord,
-  readOptionalString,
-  readProviderSkillMarkdownDefinition,
-} from '@/shared/utils.js';
+import { addUniqueProviderSkillSource } from '@/shared/utils.js';
 
 const getClaudeHomePath = (): string => path.join(os.homedir(), '.claude');
-
-const getClaudePluginName = (pluginId: string): string | null => {
-  const normalizedPluginId = pluginId.trim();
-  if (!normalizedPluginId || normalizedPluginId === '@') {
-    return null;
-  }
-
-  const [pluginName] = normalizedPluginId.split('@');
-  return readOptionalString(pluginName) ?? null;
-};
-
-const stripMarkdownExtension = (filename: string): string =>
-  filename.replace(/\.md$/i, '');
-
-const pathExistsAsDirectory = async (directoryPath: string): Promise<boolean> => {
-  try {
-    const directoryStats = await stat(directoryPath);
-    return directoryStats.isDirectory();
-  } catch {
-    return false;
-  }
-};
-
-const readClaudePluginName = async (
-  installPath: string,
-  pluginId: string,
-): Promise<string | null> => {
-  try {
-    const pluginConfig = await readJsonConfig(
-      path.join(installPath, '.claude-plugin', 'plugin.json'),
-    );
-
-    // Older or partial plugin installs may not have plugin.json yet. Falling
-    // back keeps discovery useful without inventing a separate namespace.
-    return readOptionalString(pluginConfig.name) ?? getClaudePluginName(pluginId);
-  } catch {
-    return getClaudePluginName(pluginId);
-  }
-};
 
 export class ClaudeSkillsProvider extends SkillsProvider {
   constructor() {
@@ -67,7 +23,7 @@ export class ClaudeSkillsProvider extends SkillsProvider {
   async listSkills(options?: ProviderSkillListOptions): Promise<ProviderSkill[]> {
     return [
       ...(await super.listSkills(options)),
-      ...(await this.listPluginSkills(getClaudeHomePath())),
+      ...(await this.listPluginSkills(options?.workspacePath)),
     ];
   }
 
@@ -81,11 +37,13 @@ export class ClaudeSkillsProvider extends SkillsProvider {
       rootDir: path.join(claudeHomePath, 'skills'),
       commandPrefix: '/',
     });
-    // The direct personal scan cannot see skills nested below `synced`.
+    // claude.ai-synced skills sit one account folder below `synced` and
+    // answer to the namespace Claude Code gives them.
     addUniqueProviderSkillSource(sources, seenRootDirs, {
-      scope: 'user',
+      scope: 'synced',
       rootDir: path.join(claudeHomePath, 'skills', 'synced'),
-      commandPrefix: '/',
+      recursive: true,
+      commandForSkill: (skillName) => `/anthropic-skills:${skillName}`,
     });
 
     if (workspacePath) {
@@ -107,150 +65,15 @@ export class ClaudeSkillsProvider extends SkillsProvider {
     };
   }
 
-  private async listPluginSkills(claudeHomePath: string): Promise<ProviderSkill[]> {
-    const settings = await readJsonConfig(path.join(claudeHomePath, 'settings.json'));
-    const enabledPlugins = readObjectRecord(settings.enabledPlugins);
-    if (!enabledPlugins) {
-      return [];
-    }
-
-    const installedConfig = await readJsonConfig(
-      path.join(claudeHomePath, 'plugins', 'installed_plugins.json'),
+  private async listPluginSkills(workspacePath?: string): Promise<ProviderSkill[]> {
+    const installs = await listClaudePluginInstalls(
+      getClaudeHomePath(),
+      workspacePath ? path.resolve(workspacePath) : undefined,
     );
-    const installedPlugins = readObjectRecord(installedConfig.plugins);
-    if (!installedPlugins) {
-      return [];
-    }
-
     const skills: ProviderSkill[] = [];
-    const visitedPluginFolders = new Set<string>();
-    const pluginEntries = Object.entries(enabledPlugins)
-      .sort(([left], [right]) => left.localeCompare(right));
-    for (const [pluginId, enabled] of pluginEntries) {
-      if (enabled !== true) {
-        continue;
-      }
-
-      const installs = installedPlugins[pluginId];
-      if (!Array.isArray(installs)) {
-        continue;
-      }
-
-      for (const install of installs) {
-        const installRecord = readObjectRecord(install);
-        const installPath = readOptionalString(installRecord?.installPath);
-        if (!installPath) {
-          continue;
-        }
-
-        const pluginFolderKey = `${pluginId}:${path.resolve(installPath)}`;
-        if (visitedPluginFolders.has(pluginFolderKey)) {
-          continue;
-        }
-        visitedPluginFolders.add(pluginFolderKey);
-
-        const pluginName = await readClaudePluginName(installPath, pluginId);
-        if (!pluginName) {
-          continue;
-        }
-
-        const skillsPath = path.join(installPath, 'skills');
-        const pluginSkills = await pathExistsAsDirectory(skillsPath)
-          ? await this.listPluginSkillMarkdowns(installPath, pluginId, pluginName)
-          : [];
-        const commandsPath = path.join(installPath, 'commands');
-        const pluginCommands = await pathExistsAsDirectory(commandsPath)
-          ? await this.listPluginCommandSkills(commandsPath, pluginId, pluginName)
-          : [];
-        const skillCommands = new Set(pluginSkills.map((skill) => skill.command));
-
-        skills.push(...pluginSkills);
-        skills.push(...pluginCommands.filter((skill) => !skillCommands.has(skill.command)));
-      }
+    for (const install of installs.filter((candidate) => candidate.enabled)) {
+      skills.push(...(await listClaudePluginSkills(this.provider, install)));
     }
-
-    return skills;
-  }
-
-  private async listPluginCommandSkills(
-    commandsPath: string,
-    pluginId: string,
-    pluginName: string,
-  ): Promise<ProviderSkill[]> {
-    const skills: ProviderSkill[] = [];
-
-    try {
-      const entries = await readdir(commandsPath, { withFileTypes: true });
-      const commandFiles = entries
-        .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'))
-        .sort((left, right) => left.name.localeCompare(right.name));
-
-      for (const commandFile of commandFiles) {
-        const sourcePath = path.join(commandsPath, commandFile.name);
-        try {
-          const definition = await this.readPluginCommandDefinition(sourcePath);
-          skills.push({
-            provider: this.provider,
-            name: definition.name,
-            description: definition.description,
-            command: `/${pluginName}:${definition.name}`,
-            scope: 'plugin',
-            sourcePath,
-            pluginName,
-            pluginId,
-          });
-        } catch {
-          // Malformed command markdown should not block sibling plugin commands.
-        }
-      }
-    } catch {
-      // Missing or unreadable command folders are treated as empty plugin command sets.
-    }
-
-    return skills;
-  }
-
-  private async readPluginCommandDefinition(
-    commandPath: string,
-  ): Promise<{ name: string; description: string }> {
-    const content = await readFile(commandPath, 'utf8');
-    const parsed = parseFrontMatter(content);
-    const data = readObjectRecord(parsed.data) ?? {};
-
-    return {
-      name: stripMarkdownExtension(path.basename(commandPath)),
-      description: readOptionalString(data.description) ?? '',
-    };
-  }
-
-  private async listPluginSkillMarkdowns(
-    installPath: string,
-    pluginId: string,
-    pluginName: string,
-  ): Promise<ProviderSkill[]> {
-    const skillFiles = await findProviderSkillMarkdownFiles(path.join(installPath, 'skills'), {
-      recursive: true,
-    });
-    const skills: ProviderSkill[] = [];
-
-    for (const skillPath of skillFiles) {
-      try {
-        const definition = await readProviderSkillMarkdownDefinition(skillPath);
-        skills.push({
-          provider: this.provider,
-          name: definition.name,
-          description: definition.description,
-          command: `/${pluginName}:${definition.name}`,
-          scope: 'plugin',
-          sourcePath: skillPath,
-          pluginName,
-          pluginId,
-        });
-      } catch {
-        // A bad plugin skill file should not block other installed plugin skills.
-      }
-    }
-
     return skills;
   }
 }

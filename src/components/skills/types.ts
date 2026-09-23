@@ -1,7 +1,7 @@
 import type { LLMProvider } from '../../types/app';
 
 export type SkillsProvider = LLMProvider;
-export type SkillsScope = 'user' | 'project' | 'plugin' | 'repo' | 'admin' | 'system';
+export type SkillsScope = 'user' | 'project' | 'plugin' | 'repo' | 'admin' | 'system' | 'synced';
 
 export type SkillsTarget =
   | { kind: 'global' }

@@ -17,6 +17,7 @@ main checkout only).
 
 ## Provider maintenance
 
+- [~] **Skills page can't see claude.ai-synced plugins, and nothing shows plugins or connector sign-in.** One Tools page per provider (Skills · Plugins · MCP), read-only. [Plan](plans/provider-tools-page.md). **L**
 - [ ] **Multiple Codex clients can claim the same native thread.** Add App Server-native Chat compaction and cross-process single-writer coordination so Shell, another CLIde service, or an external client cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**
 - [ ] **Claude, Cursor and OpenCode MCP edits still erase native keys CLIde does not model.** Codex was fixed in `2a4a727`; the shared base now hands `buildServerConfig` the existing record, so each remaining adapter needs the same merge plus its own owned-key list. **S each**
 - [ ] **Split [the Claude SDK map](maps/claude-agent-sdk.md)** — 29 KB against a 24 KB cap, and its "Current CLIde mapping" section alone is 13 KB. Split native surface from CLIde mapping, then drop its entry from `SIZE_EXCEPTIONS` in `scripts/check-docs.mjs`. Its 2026-07-19 delta section was already folded into [the ledger](maps/claude-upgrade-ledger.md) on 2026-08-06. **S/M**
@@ -45,7 +46,6 @@ main checkout only).
 - [ ] **The Git branch switcher can wreck the working tree when the selected project is CLIde's own checkout** — the norm for anyone forking CLIde to hack on CLIde. `handleSwitchBranch` → `switchBranch` → the switch route runs a real `git checkout` on the running app's directory. Needs the self-hosting guard from [the plan](plans/source-control-truthfulness.md). [upstreamable] **M**
 - [ ] **Duplicate-session double-send:** pressing send twice on a brand-new chat creates two sessions running the same message. `handleSubmit` (`useChatComposerState.ts`) awaits `POST /api/providers/sessions` before anything visible happens — no optimistic append, no processing state, and **no in-flight guard**. Observed 2026-07-16, two JSONLs 250 ms apart. **S/M**
 - [ ] **Project force-delete orphans subagent transcripts on disk.** It unlinks each session's top-level `<slug>/<session-id>.jsonl`, but nested `<slug>/<session-id>/subagents/agent-*.jsonl` were never session rows, so they survive and keep the whole `<slug>/` tree alive against the non-recursive prune. Pre-existing, not caused by `0a738ae`. **S/M**
-- [x] **The Browser tab needs a layout pass.** Reviewed with `better-interface`, then a `variant` round picked the Filled direction: the capture fills the column, the bar over it is an address bar, and Stop/Delete/Settings moved to each session row's own menu. Panel header, counts strip and the refresh button are gone — chrome fell from 145px to 56px on a 412px screen. **M**
 
 ## Mobile UX polish
 
@@ -94,7 +94,6 @@ Queued work first. Below the rule is **someday**: real ideas, but nothing here i
 started, sliced, or blocking anything — skip it unless you are deliberately picking
 new work.
 
-- [x] **Build an auditable TTS speech front end.** Markdown, normalization, lexicon, phoneme and voice-model boundaries are separated, measured and editable from Voice Studio. Accepted by listening 2026-08-24. [Plan](plans/tts-speech-front-end.md). **L**
 - [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, maps and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**

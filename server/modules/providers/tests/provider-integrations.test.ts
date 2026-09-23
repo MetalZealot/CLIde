@@ -9,6 +9,8 @@ import TOML from '@iarna/toml';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { createProviderServiceStatusService } from '@/modules/providers/services/provider-service-status.service.js';
+import { parseClaudeMcpList } from '@/modules/providers/list/claude/claude-tools.provider.js';
+import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { AppError } from '@/shared/utils.js';
 
@@ -655,8 +657,9 @@ describe('skills', () => {
         'claude-collision',
         'Claude personal variant',
       );
+      // claude.ai syncs skills one account folder below `synced`.
       await writeSkill(
-        path.join(tempRoot, '.claude', 'skills', 'synced'),
+        path.join(tempRoot, '.claude', 'skills', 'synced', 'account-uuid'),
         'claude-synced-dir',
         'claude-synced',
         'Claude synced skill',
@@ -769,11 +772,36 @@ describe('skills', () => {
         'Disabled plugin skill',
       );
 
+      const syncedAccount = path.join(tempRoot, '.claude', 'plugins', 'synced', 'account-uuid');
+      await fs.mkdir(syncedAccount, { recursive: true });
+      await fs.writeFile(path.join(syncedAccount, 'manifest.json'), JSON.stringify({
+        plugins: [
+          { name: 'engineering', description: 'Engineering workflows', version: '0040' },
+          { name: 'turned-off', description: 'Disabled synced plugin' },
+          { name: 'not-downloaded' },
+        ],
+      }), 'utf8');
+      await writeSkill(path.join(syncedAccount, 'engineering', 'skills'), 'debug', 'debug', 'Structured debugging');
+      await fs.writeFile(
+        path.join(syncedAccount, 'engineering', '.mcp.json'),
+        JSON.stringify({ mcpServers: { github: { type: 'http' }, linear: { type: 'http' } } }),
+        'utf8',
+      );
+      await writeSkill(path.join(syncedAccount, 'turned-off', 'skills'), 'off-skill', 'off-skill', 'Hidden');
+      // A project may enable a plugin the user settings leave off.
+      await fs.mkdir(path.join(workspacePath, '.claude'), { recursive: true });
+      await fs.writeFile(
+        path.join(workspacePath, '.claude', 'settings.local.json'),
+        JSON.stringify({ enabledPlugins: { 'disabled-skills@disabled-marketplace': true } }),
+        'utf8',
+      );
+
       await fs.writeFile(
         path.join(tempRoot, '.claude', 'settings.json'),
         JSON.stringify(
           {
             enabledPlugins: {
+              'turned-off@synced': false,
               '': true,
               '@': true,
               'notion@notion-marketplace': true,
@@ -844,8 +872,8 @@ describe('skills', () => {
       assert.equal(byName.get('claude-project')?.command, '/claude-project');
       // Synced skills run in the session, so they must also be listed; the
       // sibling trash folder holds skills the account has revoked.
-      assert.equal(byName.get('claude-synced')?.scope, 'user');
-      assert.equal(byName.get('claude-synced')?.command, '/claude-synced');
+      assert.equal(byName.get('claude-synced')?.scope, 'synced');
+      assert.equal(byName.get('claude-synced')?.command, '/anthropic-skills:claude-synced');
       assert.equal(byName.has('claude-trashed'), false);
       // Claude does not document how personal, synced, and project skills
       // resolve a name collision, so CLIde lists all three rather than guessing
@@ -856,7 +884,7 @@ describe('skills', () => {
       assert.equal(collisionSkills.length, 3);
       assert.deepEqual(
         new Set(collisionSkills.map((skill) => skill.scope)),
-        new Set(['user', 'project']),
+        new Set(['user', 'synced', 'project']),
       );
       assert.equal(new Set(collisionSkills.map((skill) => skill.sourcePath)).size, 3);
       // Only the selected workspace is scanned; its Git-root ancestor is not.
@@ -898,8 +926,12 @@ describe('skills', () => {
       assert.equal(nestedPluginSkill?.description, 'Nested Claude plugin skill');
 
       assert.equal(byName.has('claude-plugin-sibling'), false);
-      assert.equal(byName.has('disabled-command'), false);
-      assert.equal(byName.has('disabled-plugin'), false);
+      const syncedPluginSkill = byName.get('debug');
+      assert.equal(syncedPluginSkill?.scope, 'plugin');
+      assert.equal(syncedPluginSkill?.command, '/engineering:debug');
+      assert.equal(syncedPluginSkill?.pluginId, 'engineering@synced');
+      assert.equal(byName.has('off-skill'), false);
+      assert.equal(byName.get('disabled-command')?.pluginId, 'disabled-skills@disabled-marketplace');
       assert.equal(byName.has('invalid-empty-command'), false);
       assert.equal(byName.has('invalid-at-command'), false);
       assert.equal(skills.some((skill) => skill.command.startsWith('/:')), false);
@@ -908,10 +940,56 @@ describe('skills', () => {
       assert.equal(globalSkills.some((skill) => skill.scope === 'project'), false);
       assert.equal(globalSkills.some((skill) => skill.name === 'claude-user'), true);
       assert.equal(globalSkills.some((skill) => skill.name === 'insert-row'), true);
+      assert.equal(globalSkills.some((skill) => skill.name === 'disabled-command'), false);
+
+      const tools = providerRegistry.resolveProvider('claude').tools;
+      const plugins = new Map((await tools!.listPlugins()).map((plugin) => [plugin.id, plugin]));
+      const engineering = plugins.get('engineering@synced');
+      assert.equal(engineering?.enabled, true);
+      assert.equal(engineering?.marketplaceLabel, 'Synced from claude.ai');
+      assert.deepEqual(engineering?.skills, ['/engineering:debug']);
+      assert.deepEqual(engineering?.connectors, ['github', 'linear']);
+      assert.equal(plugins.get('turned-off@synced')?.enabled, false);
+      assert.equal(plugins.has('not-downloaded@synced'), false);
+      assert.equal(plugins.get('disabled-skills@disabled-marketplace')?.enabled, false);
+      assert.equal(plugins.get('notion@notion-marketplace')?.name, 'Notion');
     } finally {
       restoreHomeDir();
       await fs.rm(tempRoot, { recursive: true, force: true });
     }
+  });
+
+  test('claude mcp list output maps every status Claude Code prints', () => {
+    const output = [
+      'Checking MCP server health…',
+      '',
+      'claude.ai Claude Docs:  - ✔ Connected',
+      'claude.ai Google Drive:  - ⊘ Disabled for this project (re-enable via /mcp)',
+      'plugin:design:google calendar:  (HTTP) - - Not configured',
+      'plugin:productivity:slack: https://mcp.slack.com/mcp (HTTP) - ! Needs authentication',
+      'plugin:engineering:github: https://api.githubcopilot.com/mcp/ (HTTP) - ✘ Failed to connect — Incompatible auth server: does not support dynamic client registration',
+      'plugin:pm:pendo: https://x.test/mcp (HTTP) - ✘ Failed to connect — ECONNREFUSED',
+      'local: node server.js --mode a - b - ✔ Connected',
+      'odd: npx thing - ? Something new',
+    ].join('\n');
+    const byId = new Map(parseClaudeMcpList(output).map((connector) => [connector.id, connector]));
+
+    assert.equal(byId.size, 8);
+    assert.deepEqual(
+      { ...byId.get('claude.ai Claude Docs') },
+      { id: 'claude.ai Claude Docs', name: 'Claude Docs', origin: 'account', state: 'connected', detail: '✔ Connected' },
+    );
+    assert.equal(byId.get('claude.ai Google Drive')?.state, 'disabled');
+    assert.equal(byId.get('plugin:design:google calendar')?.state, 'not-configured');
+    assert.equal(byId.get('plugin:design:google calendar')?.name, 'google calendar');
+    assert.equal(byId.get('plugin:productivity:slack')?.state, 'needs-auth');
+    assert.equal(byId.get('plugin:productivity:slack')?.pluginName, 'productivity');
+    assert.equal(byId.get('plugin:engineering:github')?.state, 'cannot-auth');
+    assert.equal(byId.get('plugin:pm:pendo')?.state, 'failed');
+    assert.equal(byId.get('local')?.origin, 'user');
+    assert.equal(byId.get('local')?.state, 'connected');
+    // A status word CLIde has never seen is shown as unknown, never dropped.
+    assert.equal(byId.get('odd')?.state, 'unknown');
   });
 
   /**

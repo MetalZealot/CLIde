@@ -6,6 +6,8 @@ import type {
   LLMProvider,
   McpScope,
   NormalizedMessage,
+  ProviderConnector,
+  ProviderPlugin,
   ProviderSkill,
   ProviderSkillListOptions,
   ProviderAuthStatus,
@@ -77,6 +79,8 @@ export interface IProvider {
    * omit this member and the usage endpoint reports `supported: false`.
    */
   readonly usage?: IProviderUsage;
+  /** Read-only plugin and connector inventory; absent means `supported: false`. */
+  readonly tools?: IProviderTools;
 }
 
 // ---------------------------
@@ -193,6 +197,15 @@ export interface IProviderSkills {
   removeSkill(
     input: ProviderSkillRemoveInput,
   ): Promise<{ removed: boolean; provider: LLMProvider; directoryName: string }>;
+}
+
+/**
+ * Read-only inventory of what a provider has installed beyond plain skills.
+ * Both lists come from the provider's own tooling for one working directory.
+ */
+export interface IProviderTools {
+  listPlugins(options?: ProviderSkillListOptions): Promise<ProviderPlugin[]>;
+  listConnectors(options?: ProviderSkillListOptions): Promise<ProviderConnector[]>;
 }
 
 // ---------------------------

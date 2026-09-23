@@ -90,6 +90,7 @@ import the service from `server/modules/providers/index.ts`.
 | `skills` | Discover provider-native skill markdown files | `SkillsProvider` -> `providerSkillsService` |
 | `sessions` | Normalize live events and fetch session history | `IProviderSessions` -> `sessionsService` |
 | `sessionSynchronizer` | Scan transcript artifacts and upsert session metadata | `IProviderSessionSynchronizer` -> `sessionSynchronizerService` |
+| `tools` (optional) | Read-only plugin inventory and connector status from the provider's own tooling; absent → `supported: false` | `IProviderTools` -> `providerToolsService` |
 
 `sessions` and `sessionSynchronizer` are separate concerns:
 
@@ -166,7 +167,7 @@ Current skill discovery roots are:
 
 | Provider | User Roots | Project / Repo Roots | Prefix | Notes |
 | --- | --- | --- | --- | --- |
-| Claude | `~/.claude/skills`, `~/.claude/skills/synced` | `<workspace>/.claude/skills` | `/` | Same-name skills from different sources are all listed; CLIde does not model Claude's precedence because it is undocumented. Each enabled plugin install contributes both its `skills/` and its legacy `commands/`; a skill wins a same-namespace collision. |
+| Claude | `~/.claude/skills`, `~/.claude/skills/synced/<account>/` (as `/anthropic-skills:<name>`) | `<workspace>/.claude/skills` | `/` | Same-name skills from different sources are all listed; CLIde does not model Claude's precedence because it is undocumented. Each enabled plugin — `installed_plugins.json` or claude.ai-synced under `plugins/synced/<account>/` — contributes its `skills/` and legacy `commands/`; a skill wins a same-namespace collision. `enabledPlugins` layers user → project → local settings. |
 | Codex | `~/.agents/skills`, `~/.codex/skills`, `/etc/codex/skills`, bundled system skills | Cwd-to-git-root `.agents/skills` | `$` | Exact overlapping roots are scanned once; path-distinct same-name skills remain separate. |
 | Cursor | `~/.cursor/skills` | `<workspace>/.agents/skills`, `<workspace>/.cursor/skills` | `/` | Only Cursor's own root and the shared `.agents` root; Claude and Codex roots are not added because Cursor does not document reading them. Same-name variants remain separate because Cursor does not document precedence. |
 | OpenCode | `~/.config/opencode/skills`, `~/.claude/skills`, `~/.agents/skills` | Cwd-to-topmost-git-root `.opencode/skills`, `.claude/skills`, and `.agents/skills` | `/` | Reuses OpenCode, Claude, and Agents skill locations. Overlapping roots are deduplicated before scanning. |

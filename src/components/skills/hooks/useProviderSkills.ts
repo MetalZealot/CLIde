@@ -22,6 +22,7 @@ const skillsCache = new Map<string, SkillsCacheEntry>();
 
 const SKILL_SCOPE_ORDER: Record<SkillsScope, number> = {
   user: 0,
+  synced: 1,
   plugin: 1,
   repo: 2,
   project: 3,

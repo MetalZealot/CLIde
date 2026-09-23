@@ -15,6 +15,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Merged to `main` 2026-09-15; editing a waiting message is [the edit model](message-edit-model.md) |
+| [Provider Tools page](provider-tools-page.md) | 1/4 | Phase 2: Codex plugins and connector status from the app-server |
 | [`/btw` side questions](side-questions.md) | 6/7 | Phase 6 — fork a side conversation into a session |
 | [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 4/6 | Phase 5 — the default new sessions take for the standing mode |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |

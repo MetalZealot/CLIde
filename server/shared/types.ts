@@ -846,7 +846,7 @@ export type HistorySourceTarget = {
  * `project` is used for providers that treat workspace-local skills as project
  * scoped.
  */
-export type ProviderSkillScope = 'user' | 'project' | 'plugin' | 'repo' | 'admin' | 'system';
+export type ProviderSkillScope = 'user' | 'project' | 'plugin' | 'repo' | 'admin' | 'system' | 'synced';
 
 /**
  * Shared input accepted by provider skill listing operations.
@@ -941,6 +941,46 @@ export type ProviderSkillSource = {
   commandForSkill?: (skillName: string) => string;
   pluginName?: string;
   pluginId?: string;
+};
+
+/**
+ * One plugin as its provider reports it, with the skills and MCP servers it
+ * bundles. `connectors` are the plugin's own server names, not status.
+ */
+export type ProviderPlugin = {
+  id: string;
+  name: string;
+  description: string;
+  marketplace: string;
+  marketplaceLabel: string;
+  enabled: boolean;
+  version?: string;
+  skills: string[];
+  connectors: string[];
+};
+
+/**
+ * `cannot-auth` is a server whose sign-in the provider cannot perform at all
+ * (e.g. no dynamic client registration), as distinct from one awaiting sign-in.
+ */
+export type ProviderConnectorState =
+  | 'connected'
+  | 'needs-auth'
+  | 'cannot-auth'
+  | 'failed'
+  | 'disabled'
+  | 'not-configured'
+  | 'unknown';
+
+export type ProviderConnector = {
+  /** The provider's own identifier, e.g. `plugin:engineering:github`. */
+  id: string;
+  name: string;
+  origin: 'plugin' | 'account' | 'user';
+  pluginName?: string;
+  state: ProviderConnectorState;
+  /** The provider's status text, verbatim, for states CLIde does not model. */
+  detail?: string;
 };
 
 // ---------------------------

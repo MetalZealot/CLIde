@@ -25,6 +25,7 @@ import {
 import { providerUsageService } from '@/modules/providers/services/provider-usage.service.js';
 import { providerTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
+import { providerToolsService } from '@/modules/providers/services/provider-tools.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import { sideQuestionsService } from '@/modules/providers/services/side-questions.service.js';
@@ -639,6 +640,28 @@ router.get(
       model: current.model,
       source: current.source ?? 'default',
     }));
+  }),
+);
+
+// ----------------- Plugin and connector inventory -----------------
+router.get(
+  '/:provider/plugins',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const workspacePath = readOptionalQueryString(req.query.workspacePath);
+    const result = await providerToolsService.listPlugins(provider, { workspacePath });
+    res.json(createApiSuccessResponse({ provider, ...result }));
+  }),
+);
+
+router.get(
+  '/:provider/connectors',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const workspacePath = readOptionalQueryString(req.query.workspacePath);
+    const refresh = parseOptionalBooleanQuery(req.query.refresh, 'refresh') ?? false;
+    const result = await providerToolsService.listConnectors(provider, { workspacePath, refresh });
+    res.json(createApiSuccessResponse({ provider, ...result }));
   }),
 );
 

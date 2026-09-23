@@ -76,6 +76,7 @@ const SCOPE_LABELS: Record<SkillsScope, string> = {
   project: 'Project',
   admin: 'Admin',
   system: 'System',
+  synced: 'claude.ai',
 };
 
 const WORKSPACE_SCOPES: SkillsScope[] = ['project', 'repo'];
