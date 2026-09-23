@@ -44,6 +44,10 @@ small. Profiled causes, largest first:
 A whole walk to the top blocked the main thread 6.7 s before these fixes and
 ~5.8 s after; injected `content-visibility` alone gave 4.1 s.
 
+Scrolling up in 120 px steps, the settling restore (two seconds after each
+prepend, reapplied on every resize) swallowed 3 of 276 steps; with
+`content-visibility` rows resizing into view, 19 of 279.
+
 ## Repeatable phase-1 baseline
 
 The fixture version and source fingerprint travel with each report. The initial
@@ -373,10 +377,8 @@ session-history cache, identity-preserving message conversion, memoized Markdown
 and lazy row contents. The cache sits above the provider readers; inspecting only
 the readers misses that improvement.
 
-Its cache validates the main transcript path, modification time, and size. CLIde
-adapted that boundary in phase 2 but validates dependent subagent files, Codex
-ancestry, replacement/truncation and stable before/after snapshots, while
-bounding normalized retained data instead of transcript bytes. Its lazy rows assume a
+Its cache validates only the main transcript's path, time and size; CLIde's
+(phase 2) also covers subagent files and Codex ancestry. Its lazy rows assume a
 scroll container and need adaptation for page scrolling, selection, Find,
 expansion state, and variable heights. Adapt behaviours and tests; do not import
 the unrelated frontend restructure. The [sync map](upstream-sync.md) owns the
