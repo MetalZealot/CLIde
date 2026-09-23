@@ -15,6 +15,8 @@ import type { ChatJumpTarget } from './useChatFind';
 import { normalizedToChatMessages } from './useChatMessages';
 
 export const MESSAGES_PER_PAGE = 20;
+/** A chain of loads that each added too little height doubles its page up to this. */
+const MAX_CHAINED_PAGE = 160;
 const INITIAL_VISIBLE_MESSAGES = 100;
 const TOP_LOAD_THRESHOLD_PX = 100;
 const TOP_LOAD_REARM_MARGIN_PX = 40;
@@ -219,6 +221,7 @@ export function useChatSessionState({
   const isLoadingSessionRef = useRef(false);
   const isLoadingMoreRef = useRef(false);
   const topLoadArmedRef = useRef(true);
+  const chainedPageSizeRef = useRef(MESSAGES_PER_PAGE);
   const capturedScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
   const pendingScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
   const settlingScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
@@ -295,6 +298,7 @@ export function useChatSessionState({
     setSearchTarget(null);
     searchScrollActiveRef.current = false;
     topLoadArmedRef.current = true;
+    chainedPageSizeRef.current = MESSAGES_PER_PAGE;
     capturedScrollRestoreRef.current = null;
     pendingScrollRestoreRef.current = null;
     cancelSettlingScrollRestore();
@@ -448,7 +452,7 @@ export function useChatSessionState({
   }, []);
 
   const loadOlderMessages = useCallback(
-    async (container: HTMLElement) => {
+    async (container: HTMLElement, limit = MESSAGES_PER_PAGE) => {
       if (!container || isLoadingMoreRef.current || isLoadingMoreMessages) return false;
       if (!hasMoreMessages || !selectedSession?.id || !selectedProject?.projectId) return false;
 
@@ -463,7 +467,7 @@ export function useChatSessionState({
 
       try {
         const slot = await sessionStore.fetchMore(selectedSession.id, {
-          limit: MESSAGES_PER_PAGE,
+          limit,
           onBeforeNotify: (updatedSlot) => {
             const madeProgress =
               updatedSlot.offset > previousOffset
@@ -479,7 +483,7 @@ export function useChatSessionState({
             setScrollRestoreTick((tick) => tick + 1);
             if (madeProgress) {
               if (viewRangeRef.current) setViewRange((range) => range && { ...range, startId: null });
-              else setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+              else setVisibleMessageCount((prev) => prev + limit);
             }
             if (!updatedSlot.hasMore) {
               setAllMessagesLoaded(true);
@@ -504,7 +508,7 @@ export function useChatSessionState({
           capturedScrollRestoreRef.current = null;
           setScrollRestoreTick((tick) => tick + 1);
           if (viewRangeRef.current) setViewRange((range) => range && { ...range, startId: null });
-          else setVisibleMessageCount((prev) => prev + MESSAGES_PER_PAGE);
+          else setVisibleMessageCount((prev) => prev + limit);
           if (!slot.hasMore) {
             setAllMessagesLoaded(true);
           }
@@ -522,17 +526,17 @@ export function useChatSessionState({
   );
 
   /** Loaded rows above the rendered window need no request, only the prepend anchor. */
-  const revealOlderRows = useCallback((container: HTMLElement): boolean => {
+  const revealOlderRows = useCallback((container: HTMLElement, count = MESSAGES_PER_PAGE): boolean => {
     const start = windowStartRef.current;
     if (start <= 0) return false;
     pendingScrollRestoreRef.current = captureScrollRestore(container);
     setScrollRestoreTick((tick) => tick + 1);
     if (viewRangeRef.current) {
-      const nextStart = Math.max(0, start - MESSAGES_PER_PAGE);
+      const nextStart = Math.max(0, start - count);
       const id = chatMessagesRef.current[nextStart]?.id;
       setViewRange((range) => range && { ...range, startId: nextStart === 0 || !id ? null : id });
     } else {
-      setVisibleMessageCount((count) => count + MESSAGES_PER_PAGE);
+      setVisibleMessageCount((visible) => visible + count);
     }
     return true;
   }, []);
@@ -621,16 +625,20 @@ export function useChatSessionState({
     if (!hasMoreMessages && windowStartRef.current === 0) return;
     if (container.scrollTop >= topLoadRearmDistance(container)) {
       topLoadArmedRef.current = true;
+      chainedPageSizeRef.current = MESSAGES_PER_PAGE;
       return;
     }
 
     // Some provider rows collapse into an already-rendered tool call and add
     // little or no visible height. Fetch another page in a controlled chain so
-    // the reader always gets enough distance to scroll before the next load.
+    // the reader always gets enough distance to scroll before the next load;
+    // each link doubles, since every commit restyles the whole list.
+    const pageSize = Math.min(chainedPageSizeRef.current * 2, MAX_CHAINED_PAGE);
+    chainedPageSizeRef.current = pageSize;
     const frame = requestAnimationFrame(() => {
       if (pendingScrollRestoreRef.current || isLoadingMoreRef.current) return;
-      if (revealOlderRows(container)) return;
-      void loadOlderMessages(container).then((didLoad) => {
+      if (revealOlderRows(container, pageSize)) return;
+      void loadOlderMessages(container, pageSize).then((didLoad) => {
         if (!didLoad) topLoadArmedRef.current = true;
       });
     });
@@ -645,6 +653,7 @@ export function useChatSessionState({
     }
     setViewRange(null);
     topLoadArmedRef.current = true;
+    chainedPageSizeRef.current = MESSAGES_PER_PAGE;
     capturedScrollRestoreRef.current = null;
     pendingScrollRestoreRef.current = null;
     cancelSettlingScrollRestore();

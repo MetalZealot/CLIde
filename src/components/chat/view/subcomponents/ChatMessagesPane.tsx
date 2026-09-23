@@ -165,9 +165,12 @@ function ChatMessagesPane({
     return keys;
   }, [groupedVisibleMessages]);
 
+  // Stable identity, so memoized rows skip re-rendering when only other rows changed.
+  const messageKeyMapRef = useRef(messageKeyMap);
+  messageKeyMapRef.current = messageKeyMap;
   const getMessageKey = useCallback(
-    (message: ChatMessage) => messageKeyMap.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
-    [messageKeyMap],
+    (message: ChatMessage) => messageKeyMapRef.current.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
+    [],
   );
 
   const committedActivityKeysRef = useRef<ReadonlyMap<string, string>>(new Map());

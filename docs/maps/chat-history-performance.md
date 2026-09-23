@@ -41,14 +41,15 @@ small. Profiled causes, largest first:
 - The top activity remounted, with all its rows, on each prepend that
   extended it; it now keeps its key.
 
-A whole walk to the top blocked 6.7 s before these fixes, 4.1 s without
-`content-visibility`, 1.9 s with it (desktop). Worst frame 105 ms, but late
-steps still sum 210–286 ms over 3–5 long frames: one per commit.
+A walk to the top blocked 6.7 s before these fixes, 4.1 s without
+`content-visibility`, 1.9 s with it, 1.2 s once chained pages double
+(41 requests, was 52). A step is now one 50–125 ms render that
+grows with rows added, not mounted; 4 of 13 exceed 100 ms.
 
 A row may skip only after a real layout records its size: one skipped
-before that holds the 150 px guess and jumps the reader when reached (why
-it was removed on 2026-07-31). Scrolling up 120 px at a time, 0 of 274
-steps jump; a restore also keeps scroll the reader made since capture.
+before that holds the 150 px guess and jumps the reader when reached.
+Scrolling up 120 px at a time, 0 of 274 steps jump; a restore also keeps
+scroll the reader made since capture.
 
 ## Repeatable phase-1 baseline
 
