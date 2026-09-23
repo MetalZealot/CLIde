@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
+import { formatUpdatedAgo } from '../../provider-usage/format';
 import {
   Badge,
   Button,
@@ -23,6 +24,7 @@ import {
   DialogTitle,
   Input,
 } from '../../../shared/view/ui';
+import { useClaudePluginUpdates } from '../hooks/useClaudePluginUpdates';
 import { useProviderSkills } from '../hooks/useProviderSkills';
 import type {
   ProviderSkill,
@@ -234,6 +236,21 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
     addSkills,
     refreshSkills,
   } = useProviderSkills({ selectedProvider, target });
+  const tracksPlugins = selectedProvider === 'claude';
+  const {
+    status: pluginStatus,
+    isUpdating: isUpdatingPlugins,
+    error: pluginUpdateError,
+    updateNow: updatePlugins,
+  } = useClaudePluginUpdates(tracksPlugins, () => void refreshSkills({ force: true }));
+  const pluginUpdatedAgo = pluginStatus?.lastUpdatedAt ? formatUpdatedAgo(pluginStatus.lastUpdatedAt) : null;
+  const pluginStatusText = isUpdatingPlugins
+    ? 'Updating plugins…'
+    : pluginUpdateError
+      ?? (pluginStatus
+        ? `${pluginUpdatedAgo ? `Plugins updated ${pluginUpdatedAgo}` : 'Plugins not updated yet'}${pluginStatus.updatedPlugins
+          ? ` · ${pluginStatus.updatedPlugins} new version${pluginStatus.updatedPlugins === 1 ? '' : 's'}` : ''}`
+        : null);
   const [queuedFiles, setQueuedFiles] = useState<QueuedSkillFile[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -587,17 +604,25 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
             {target.kind === 'workspace' ? 'Add to Global' : 'Add Skill'}
           </Button>
           <Button
-            onClick={() => void refreshSkills({ force: true })}
+            onClick={() => {
+              if (tracksPlugins) void updatePlugins();
+              void refreshSkills({ force: true });
+            }}
             variant="outline"
             size="sm"
-            aria-label="Refresh skills"
-            title="Refresh skills"
+            aria-label={tracksPlugins ? 'Refresh skills and update plugins' : 'Refresh skills'}
+            title={tracksPlugins ? 'Refresh skills and update plugins' : 'Refresh skills'}
             className="h-9 w-9 shrink-0 px-0"
-            disabled={isLoading}
+            disabled={isLoading || isUpdatingPlugins}
           >
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
+            <RefreshCw className={cn('h-4 w-4', (isLoading || isUpdatingPlugins) && 'animate-spin')} />
           </Button>
         </div>
+        {tracksPlugins && pluginStatusText && (
+          <p className={cn('text-xs', pluginUpdateError ? 'text-destructive' : 'text-muted-foreground')}>
+            {pluginStatusText}
+          </p>
+        )}
       </div>
 
       <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogOpenChange}>

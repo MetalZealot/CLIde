@@ -8,6 +8,7 @@ import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { interactiveRequestRegistry } from '@/modules/providers/services/interactive-request-registry.service.js';
 import { ProviderNativeRuntimeService } from '@/modules/providers/services/provider-native-runtime.service.js';
 import { createProviderRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
+import { ClaudePluginUpdatesService, PLUGIN_UPDATE_STALE_MS } from '@/modules/providers/services/claude-plugin-updates.service.js';
 import { ProviderCliUpdatesService, runNativeCliUpdate } from '@/modules/providers/services/provider-cli-updates.service.js';
 import { ProviderUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
 import { createSideQuestionsService } from '@/modules/providers/services/side-questions.service.js';
@@ -448,6 +449,46 @@ describe('provider CLI updates', () => {
     release();
     await tick();
     assert.equal(installs, 0);
+  });
+
+  test('Claude plugin updates skip fresh marketplaces, update each install in its scope, and count version changes', async () => {
+    const calls: Array<{ args: string[]; cwd: string }> = [];
+    let version = '1.0.0';
+    let now = Date.parse('2026-09-23T12:00:00Z');
+    const service = new ClaudePluginUpdatesService({
+      run: async (args, cwd) => {
+        calls.push({ args, cwd });
+        if (args[1] === 'list') {
+          return JSON.stringify([
+            { id: 'a@m', scope: 'user', version },
+            { id: 'b@m', scope: 'project', projectPath: '/work', version: '2.0.0' },
+            { id: 'c@m', scope: 'managed', version: '1.0.0' },
+          ]);
+        }
+        if (args[1] === 'update' && args[2] === 'a@m') version = '1.1.0';
+        if (args[1] === 'update' && args[2] === 'b@m') throw new Error('refused');
+        return '';
+      },
+      readLastUpdatedAt: async () => '2026-09-23T10:00:00Z',
+      now: () => now,
+    });
+    assert.equal((await service.startUpdate({ ifStale: true })).state, 'idle');
+    assert.equal(calls.length, 0);
+    now += PLUGIN_UPDATE_STALE_MS;
+    assert.equal((await service.startUpdate({ ifStale: true })).state, 'updating');
+    await service.settled();
+    const updates = calls.filter((call) => call.args[1] === 'update');
+    assert.deepEqual(updates.map((call) => [call.args.join(' '), call.cwd]), [
+      ['plugin update a@m --scope user', os.homedir()],
+      ['plugin update b@m --scope project', '/work'],
+    ]);
+    const status = await service.getStatus();
+    assert.equal(status.updatedPlugins, 1);
+    assert.equal(status.state, 'error');
+    assert.match(status.message ?? '', /1 plugin could not/);
+    calls.length = 0;
+    assert.equal((await service.startUpdate({ ifStale: true })).state, 'error');
+    assert.equal(calls.length, 0);
   });
 });
 

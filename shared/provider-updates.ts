@@ -8,3 +8,11 @@ export type ProviderCliUpdateStatus = {
   state: 'idle' | 'waiting' | 'updating' | 'updated' | 'error';
   message: string | null;
 };
+
+/** Claude plugin/marketplace refresh status for the Skills page. */
+export type ClaudePluginUpdateStatus = {
+  state: 'idle' | 'updating' | 'error';
+  lastUpdatedAt: string | null;
+  updatedPlugins: number;
+  message: string | null;
+};

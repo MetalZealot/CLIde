@@ -14,6 +14,7 @@ import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { useAsyncAnswerQueueAutoSend } from '../../hooks/useAsyncAnswerQueueAutoSend';
 import { useSyncedPreferences } from '../../hooks/useSyncedPreferences';
 import { api } from '../../utils/api';
+import { requestStaleClaudePluginUpdate } from '../skills/hooks/useClaudePluginUpdates';
 
 import MobileSidebarOverlay from './MobileSidebarOverlay';
 
@@ -155,6 +156,16 @@ function AppContentInner() {
   useEffect(() => {
     void refreshRunningSessions();
   }, [refreshRunningSessions]);
+
+  // Opening or resuming the app refreshes Claude plugins the way starting Claude Code does.
+  useEffect(() => {
+    requestStaleClaudePluginUpdate();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') requestStaleClaudePluginUpdate();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
