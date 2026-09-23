@@ -65,6 +65,7 @@ const isSkillsScope = (value: unknown): value is SkillsScope => (
   || value === 'repo'
   || value === 'admin'
   || value === 'system'
+  || value === 'synced'
 );
 
 const normalizeScope = (value: unknown): SkillsScope => (

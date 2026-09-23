@@ -159,12 +159,14 @@ describe('registry', () => {
     }
   });
 
-  test('OpenCode has neither a permissions nor a skills screen', () => {
-    // Both were unreachable-or-blank before the restructure: the old category pane
-    // rendered nothing for OpenCode › Permissions, and Skills was already hidden.
+  test('OpenCode has no permissions screen, and every provider reaches MCP through Tools', () => {
     assert.equal(getScreen('agent.opencode.permissions'), undefined);
-    assert.equal(getScreen('agent.opencode.skills'), undefined);
-    assert.ok(getScreen('agent.opencode.mcp'));
+    for (const provider of AGENT_PROVIDERS) {
+      assert.equal(getScreen(agentScreenId(provider.id, 'mcp'))?.parent, agentScreenId(provider.id, 'tools'));
+      assert.equal(getScreen(`agent.${provider.id}.skills`), undefined);
+    }
+    // A remembered Skills screen opens its replacement.
+    assert.equal(normalizeScreenId('agent.codex.skills'), 'agent.codex.tools');
   });
 
   test('parseAgentScreenId round-trips agent screens and ignores the rest', () => {

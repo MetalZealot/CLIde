@@ -72,7 +72,7 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
  */
 export type AgentProviderId = 'claude' | 'cursor' | 'codex' | 'opencode';
 
-export type AgentSubsystem = 'model' | 'autoCompact' | 'permissions' | 'mcp' | 'skills';
+export type AgentSubsystem = 'model' | 'autoCompact' | 'permissions' | 'tools' | 'mcp';
 
 type AgentProviderDescriptor = {
   id: AgentProviderId;
@@ -84,15 +84,19 @@ type AgentProviderDescriptor = {
    * place on the account card rather than pushing a screen.
    */
   subsystems: AgentSubsystem[];
+  /** Screens reached from inside Tools rather than from a row of their own. */
+  nested: AgentSubsystem[];
+  /** OpenCode's skills are not listed per provider, so its Tools page has no Skills tab. */
+  listsSkills: boolean;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDescriptor[] = [
   // Auto-compact is Claude's alone: it lives in Claude Code's settings file,
   // which no other adapter reads.
-  { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'autoCompact', 'permissions', 'mcp', 'skills'] },
-  { id: 'cursor', icon: 'providerCursor', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
-  { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'mcp', 'skills'] },
-  { id: 'opencode', icon: 'providerOpenCode', subsystems: ['model', 'mcp'] },
+  { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'autoCompact', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
+  { id: 'cursor', icon: 'providerCursor', subsystems: ['model', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
+  { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
+  { id: 'opencode', icon: 'providerOpenCode', subsystems: ['model', 'tools'], nested: ['mcp'], listsSkills: false },
 ];
 
 export const AGENT_PROVIDER_IDS: AgentProviderId[] = AGENT_PROVIDERS.map((provider) => provider.id);
@@ -113,15 +117,15 @@ const SUBSYSTEM_NODES: Record<AgentSubsystem, { labelKey: string; icon: Settings
     icon: 'permissions',
     keywords: 'permissions allow deny skip tools commands bypass mode',
   },
+  tools: {
+    labelKey: 'tabs.tools',
+    icon: 'skills',
+    keywords: 'tools skills plugins mcp connectors marketplace sign in upload',
+  },
   mcp: {
     labelKey: 'tabs.mcpServers',
     icon: 'mcp',
-    keywords: 'mcp model context protocol servers stdio http sse',
-  },
-  skills: {
-    labelKey: 'tabs.skills',
-    icon: 'skills',
-    keywords: 'skills upload folder markdown',
+    keywords: 'mcp model context protocol servers stdio http sse add edit',
   },
 };
 
@@ -150,6 +154,15 @@ const AGENT_SCREENS: SettingsScreenNode[] = AGENT_PROVIDERS.flatMap((provider) =
     group: 'agents' as const,
     keywords: `${provider.id} ${SUBSYSTEM_NODES[subsystem].keywords}`,
     parent: agentScreenId(provider.id),
+  })),
+  ...provider.nested.map((subsystem) => ({
+    kind: 'screen' as const,
+    id: agentScreenId(provider.id, subsystem),
+    labelKey: SUBSYSTEM_NODES[subsystem].labelKey,
+    icon: SUBSYSTEM_NODES[subsystem].icon,
+    group: 'agents' as const,
+    keywords: `${provider.id} ${SUBSYSTEM_NODES[subsystem].keywords}`,
+    parent: agentScreenId(provider.id, 'tools'),
   })),
 ]);
 
@@ -281,6 +294,9 @@ export const MAX_SETTINGS_DEPTH = 3;
  * enable toggle now lives on `chat`. `git` merged into `projects-git`.
  */
 export const LEGACY_SCREEN_IDS: Record<string, string> = {
+  'agent.claude.skills': 'agent.claude.tools',
+  'agent.cursor.skills': 'agent.cursor.tools',
+  'agent.codex.skills': 'agent.codex.tools',
   tools: 'agent.claude',
   agents: 'agent.claude',
   api: 'credentials',
@@ -334,7 +350,7 @@ export type AgentScreenRef = {
 const AGENT_SCREEN_REFS = new Map<string, AgentScreenRef>(
   AGENT_PROVIDERS.flatMap((provider) => [
     [agentScreenId(provider.id), { provider: provider.id, subsystem: null }] as const,
-    ...provider.subsystems.map((subsystem) => (
+    ...[...provider.subsystems, ...provider.nested].map((subsystem) => (
       [agentScreenId(provider.id, subsystem), { provider: provider.id, subsystem }] as const
     )),
   ]),

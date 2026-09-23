@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 
 import { compactHomePath } from '../../../sidebar/utils/worktreeManager';
-import { ProviderSkills } from '../../../skills';
 import { GLOBAL_SKILLS_TARGET, type SkillsTarget } from '../../../skills/types';
-import type { AgentProviderId } from '../../registry/registry';
+import ProviderTools from '../../../tools/view/ProviderTools';
+import { AGENT_PROVIDERS, type AgentProviderId, agentScreenId } from '../../registry/registry';
 import type { SettingsProject } from '../../types/types';
 import {
   SettingsChoicePopover,
@@ -12,9 +12,10 @@ import {
   SettingsScreen,
 } from '../primitives';
 
-type AgentSkillsScreenProps = {
+type AgentToolsScreenProps = {
   provider: AgentProviderId;
   projects: SettingsProject[];
+  onOpenScreen: (screenId: string) => void;
 };
 
 type SkillsWorkspace = {
@@ -53,18 +54,15 @@ const toSkillsWorkspaces = (projects: SettingsProject[]): SkillsWorkspace[] => {
 };
 
 /**
- * Skills for one provider, listed for one workspace at a time.
+ * Skills, plugins and MCP for one provider, listed for one workspace at a time.
  *
  * Settings is opened from the sidebar and has no working directory of its own,
- * so there is no checkout to infer: the screen lists global skills until you
- * name a workspace, and the chosen path is what makes a project skill visible.
+ * so there is no checkout to infer: the screen lists global tools until you
+ * name a workspace, and the chosen path is what makes project tools visible.
  * That is also why the choice resets — a remembered checkout would claim a
  * context this screen does not have.
- *
- * Only reachable for providers whose registry entry lists `skills`, which is
- * every provider but OpenCode.
  */
-export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScreenProps) {
+export default function AgentToolsScreen({ provider, projects, onOpenScreen }: AgentToolsScreenProps) {
   const [target, setTarget] = useState<SkillsTarget>(GLOBAL_SKILLS_TARGET);
   const [listedProvider, setListedProvider] = useState(provider);
   const workspaces = useMemo(() => toSkillsWorkspaces(projects), [projects]);
@@ -110,12 +108,12 @@ export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScr
           109px; 40vw leaves that at every width down to 320. A longer project
           name truncates, and the picker still names the checkout underneath.
         */}
-        <SettingsRow label="Showing skills for">
+        <SettingsRow label="Showing tools for">
           <SettingsChoicePopover
             value={target.kind === 'global' ? GLOBAL_OPTION_VALUE : target.path}
             options={options}
             onChange={handleTargetChange}
-            ariaLabel="Showing skills for"
+            ariaLabel="Showing tools for"
             searchable
             searchPlaceholder="Search projects"
             showSelectedDetail={false}
@@ -125,7 +123,12 @@ export default function AgentSkillsScreen({ provider, projects }: AgentSkillsScr
         </SettingsRow>
       </SettingsGroup>
 
-      <ProviderSkills selectedProvider={provider} target={target} />
+      <ProviderTools
+        provider={provider}
+        target={target}
+        showSkills={AGENT_PROVIDERS.find((descriptor) => descriptor.id === provider)?.listsSkills ?? false}
+        onOpenMcpEditor={() => onOpenScreen(agentScreenId(provider, 'mcp'))}
+      />
     </SettingsScreen>
   );
 }

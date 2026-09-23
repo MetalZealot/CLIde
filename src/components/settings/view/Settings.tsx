@@ -18,7 +18,7 @@ import AgentAutoCompactScreen from './screens/AgentAutoCompactScreen';
 import AgentDefaultModelScreen from './screens/AgentDefaultModelScreen';
 import AgentPermissionsScreen from './screens/AgentPermissionsScreen';
 import AgentProviderScreen from './screens/AgentProviderScreen';
-import AgentSkillsScreen from './screens/AgentSkillsScreen';
+import AgentToolsScreen from './screens/AgentToolsScreen';
 import AppearanceEditorScreen from './screens/AppearanceEditorScreen';
 import AppearanceScreen from './screens/AppearanceScreen';
 import ChatScreen from './screens/ChatScreen';
@@ -224,8 +224,14 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
         case 'mcp':
           return <AgentMcpScreen provider={provider} projects={projects} />;
 
-        case 'skills':
-          return <AgentSkillsScreen provider={provider} projects={projects} />;
+        case 'tools':
+          return (
+            <AgentToolsScreen
+              provider={provider}
+              projects={projects}
+              onOpenScreen={isMobile ? nav.push : nav.select}
+            />
+          );
 
         default:
           return (

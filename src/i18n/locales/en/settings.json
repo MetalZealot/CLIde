@@ -4,6 +4,7 @@
     "permissions": "Permissions",
     "mcpServers": "MCP Servers",
     "skills": "Skills",
+    "tools": "Tools",
     "appearance": "Appearance",
     "defaultModel": "Default Model",
     "runtime": "Runtime",
@@ -578,7 +579,8 @@
       "opencode": "OpenCode"
     },
     "subsystems": {
-      "mcpCount": "{{count}} configured"
+      "mcpCount": "{{count}} configured",
+      "toolsCount": "{{count}} skills"
     },
     "codexTransport": {
       "title": "Chat transport",

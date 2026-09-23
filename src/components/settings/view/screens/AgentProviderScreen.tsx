@@ -1,8 +1,5 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useMcpServers } from '../../../mcp/hooks/useMcpServers';
-import type { McpProject } from '../../../mcp/types';
 import { useProviderSkills } from '../../../skills/hooks/useProviderSkills';
 import { GLOBAL_SKILLS_TARGET } from '../../../skills/types';
 import {
@@ -35,58 +32,18 @@ type SubsystemRowProps = {
 };
 
 /**
- * `SettingsProject.name` is populated from the DB projectId by
- * `normalizeProjectForSettings`, so it maps straight through to the identifier
- * the MCP subsystem expects.
+ * The count comes from the same hook the Tools page uses, so the number can
+ * never disagree with the list it previews, and the fetch it triggers is what
+ * makes drilling in instant.
  */
-const toSubsystemProjects = (projects: SettingsProject[]): McpProject[] => (
-  projects.map((project) => ({
-    projectId: project.name,
-    displayName: project.displayName,
-    fullPath: project.fullPath,
-    path: project.path,
-  }))
-);
-
-const useSubsystemProjects = (projects: SettingsProject[]) => (
-  useMemo(() => toSubsystemProjects(projects), [projects])
-);
-
-/**
- * The counts on these two rows come from the same hooks the destination screens
- * use, rather than a cheaper count endpoint, so the number can never disagree
- * with the list it previews. The hooks keep a module-level cache with a TTL, so
- * the fetch this triggers is also what makes drilling in instant.
- */
-function McpSubsystemRow({ provider, projects, onOpenScreen }: SubsystemRowProps) {
-  const { t } = useTranslation('settings');
-  const currentProjects = useSubsystemProjects(projects);
-  const { servers, isLoading } = useMcpServers({ selectedProvider: provider, currentProjects });
-  const screen = getScreen(agentScreenId(provider, 'mcp'));
-
-  if (!screen) {
-    return null;
-  }
-
-  return (
-    <SettingsNavRow
-      label={t(screen.labelKey)}
-      icon={SETTINGS_ICONS[screen.icon]}
-      value={isLoading && servers.length === 0
-        ? undefined
-        : t('agents.subsystems.mcpCount', { count: servers.length })}
-      onClick={() => onOpenScreen(screen.id)}
-    />
-  );
-}
-
-function SkillsSubsystemRow({ provider, onOpenScreen }: SubsystemRowProps) {
+function ToolsSubsystemRow({ provider, onOpenScreen }: SubsystemRowProps) {
   const { t } = useTranslation('settings');
   const { skills, isLoading } = useProviderSkills({
     selectedProvider: provider,
     target: GLOBAL_SKILLS_TARGET,
   });
-  const screen = getScreen(agentScreenId(provider, 'skills'));
+  const screen = getScreen(agentScreenId(provider, 'tools'));
+  const listsSkills = AGENT_PROVIDERS.find((descriptor) => descriptor.id === provider)?.listsSkills;
 
   if (!screen) {
     return null;
@@ -96,7 +53,9 @@ function SkillsSubsystemRow({ provider, onOpenScreen }: SubsystemRowProps) {
     <SettingsNavRow
       label={t(screen.labelKey)}
       icon={SETTINGS_ICONS[screen.icon]}
-      value={isLoading && skills.length === 0 ? undefined : String(skills.length)}
+      value={!listsSkills || (isLoading && skills.length === 0)
+        ? undefined
+        : t('agents.subsystems.toolsCount', { count: skills.length })}
       onClick={() => onOpenScreen(screen.id)}
     />
   );
@@ -135,7 +94,7 @@ function PlainSubsystemRow({
  * rows, so the screen owns exactly one scroll container.
  *
  * Which rows appear is driven by `AGENT_PROVIDERS`, not by branching here, so
- * OpenCode's missing Permissions and Skills stay a registry fact.
+ * OpenCode's missing Permissions stays a registry fact.
  */
 export default function AgentProviderScreen({
   provider,
@@ -167,21 +126,11 @@ export default function AgentProviderScreen({
         <SettingsGroup divided>
           {/* Rendered from the registry list, in its order, so registering a
               subsystem is the whole job — an unlisted one has no way in. Only
-              the two rows that preview a count need a component of their own. */}
+              the Tools row, which previews a count, needs a component of its own. */}
           {subsystems.map((subsystem) => {
-            if (subsystem === 'mcp') {
+            if (subsystem === 'tools') {
               return (
-                <McpSubsystemRow
-                  key={subsystem}
-                  provider={provider}
-                  projects={projects}
-                  onOpenScreen={onOpenScreen}
-                />
-              );
-            }
-            if (subsystem === 'skills') {
-              return (
-                <SkillsSubsystemRow
+                <ToolsSubsystemRow
                   key={subsystem}
                   provider={provider}
                   projects={projects}

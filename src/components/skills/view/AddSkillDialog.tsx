@@ -1,42 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import {
-  CheckCircle2,
-  ChevronRight,
-  FileText,
-  FileUp,
-  FolderUp,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Search,
-  Upload,
-  X,
-} from 'lucide-react';
+import { FileText, FileUp, FolderUp, Loader2, Upload, X } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
-import { formatUpdatedAgo } from '../../provider-usage/format';
-import {
-  Badge,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Input,
-} from '../../../shared/view/ui';
-import { useClaudePluginUpdates } from '../hooks/useClaudePluginUpdates';
-import { useProviderSkills } from '../hooks/useProviderSkills';
-import type {
-  ProviderSkill,
-  ProviderSkillCreateEntryPayload,
-  SkillsProvider,
-  SkillsScope,
-  SkillsTarget,
-} from '../types';
+import { Button, Dialog, DialogContent, DialogTitle } from '../../../shared/view/ui';
+import type { ProviderSkillCreateEntryPayload, SkillsProvider } from '../types';
 
-type ProviderSkillsProps = {
-  selectedProvider: SkillsProvider;
-  target: SkillsTarget;
+type AddSkillDialogProps = {
+  provider: SkillsProvider;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  addSkills: (payload: { entries: ProviderSkillCreateEntryPayload[] }) => Promise<unknown>;
 };
 
 type QueuedSkillSourceFile = {
@@ -67,61 +41,6 @@ const PROVIDER_SKILL_PATHS: Record<Exclude<SkillsProvider, 'opencode'>, string> 
   claude: '~/.claude/skills/<skill-name>/SKILL.md',
   codex: '~/.agents/skills/<skill-name>/SKILL.md',
   cursor: '~/.cursor/skills/<skill-name>/SKILL.md',
-};
-
-const SCOPE_LABELS: Record<SkillsScope, string> = {
-  user: 'Personal',
-  plugin: 'Plugin',
-  repo: 'Repo',
-  project: 'Project',
-  admin: 'Admin',
-  system: 'System',
-  synced: 'claude.ai',
-};
-
-const WORKSPACE_SCOPES: SkillsScope[] = ['project', 'repo'];
-
-const GLOBAL_GROUP_LABEL = 'Available everywhere';
-
-type SkillsGroup = {
-  key: string;
-  label: string;
-  skills: ProviderSkill[];
-  /**
-   * Only the everywhere group badges its rows. Inside a checkout's own group
-   * the scope is what the heading already said.
-   */
-  showScope: boolean;
-};
-
-/**
- * Grouped by where a skill comes from, not by its scope: the chosen checkout's
- * own skills are the reason it was chosen, and there are usually a handful of
- * them against twenty-odd global ones, so anywhere else on the list is
- * effectively buried. Scope rides on the row badge instead.
- */
-const groupSkillsByLocation = (
-  skills: ProviderSkill[],
-  target: SkillsTarget,
-): SkillsGroup[] => {
-  const isWorkspaceSkill = (skill: ProviderSkill) => WORKSPACE_SCOPES.includes(skill.scope);
-  const workspaceSkills = skills.filter(isWorkspaceSkill);
-  const everywhereSkills = skills.filter((skill) => !isWorkspaceSkill(skill));
-
-  return [
-    {
-      key: 'workspace',
-      label: target.kind === 'workspace' ? target.displayName : 'This checkout',
-      skills: workspaceSkills,
-      showScope: false,
-    },
-    {
-      key: 'everywhere',
-      label: GLOBAL_GROUP_LABEL,
-      skills: everywhereSkills,
-      showScope: true,
-    },
-  ].filter((group) => group.skills.length > 0);
 };
 
 const formatFileSize = (size: number): string => {
@@ -228,52 +147,17 @@ const buildQueuedSkillFolders = (selectedFiles: File[]): QueuedSkillFile[] => {
   });
 };
 
-export default function ProviderSkills({ selectedProvider, target }: ProviderSkillsProps) {
-  const {
-    skills,
-    isLoading,
-    loadError,
-    saveStatus,
-    addSkills,
-    refreshSkills,
-  } = useProviderSkills({ selectedProvider, target });
-  const tracksPlugins = selectedProvider === 'claude';
-  const {
-    status: pluginStatus,
-    isUpdating: isUpdatingPlugins,
-    error: pluginUpdateError,
-    updateNow: updatePlugins,
-  } = useClaudePluginUpdates(tracksPlugins, () => void refreshSkills({ force: true }));
-  const pluginUpdatedAgo = pluginStatus?.lastUpdatedAt ? formatUpdatedAgo(pluginStatus.lastUpdatedAt) : null;
-  const pluginStatusText = isUpdatingPlugins
-    ? 'Updating plugins…'
-    : pluginUpdateError
-      ?? (pluginStatus
-        ? `${pluginUpdatedAgo ? `Plugins updated ${pluginUpdatedAgo}` : 'Plugins not updated yet'}${pluginStatus.updatedPlugins
-          ? ` · ${pluginStatus.updatedPlugins} new version${pluginStatus.updatedPlugins === 1 ? '' : 's'}` : ''}`
-        : null);
+/** Uploads a SKILL.md or skill folder into the provider's global skill location. */
+export default function AddSkillDialog({ provider, open, onOpenChange, addSkills }: AddSkillDialogProps) {
   const [queuedFiles, setQueuedFiles] = useState<QueuedSkillFile[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [justInstalled, setJustInstalled] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showInstallPath, setShowInstallPath] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
-  const providerName = PROVIDER_NAMES[selectedProvider];
-  const providerPath = selectedProvider === 'opencode' ? null : PROVIDER_SKILL_PATHS[selectedProvider];
-
-  useEffect(() => {
-    setQueuedFiles([]);
-    setSubmitError(null);
-    setIsSubmitting(false);
-    setSearchQuery('');
-    setIsAddDialogOpen(false);
-    setShowInstallPath(false);
-    setJustInstalled(false);
-  }, [selectedProvider]);
+  const providerName = PROVIDER_NAMES[provider];
+  const providerPath = provider === 'opencode' ? null : PROVIDER_SKILL_PATHS[provider];
 
   const setFolderInputRef = useCallback((node: HTMLInputElement | null) => {
     folderInputRef.current = node;
@@ -285,31 +169,12 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
     node.setAttribute('directory', '');
   }, []);
 
-  const filteredSkills = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
-    if (!normalizedQuery) {
-      return skills;
-    }
-
-    return skills.filter((skill) => (
-      [
-        skill.command,
-        skill.name,
-        skill.description,
-        skill.scope,
-        skill.pluginName,
-        skill.projectDisplayName,
-        skill.sourcePath,
-      ]
-        .filter(Boolean)
-        .some((value) => value?.toLocaleLowerCase().includes(normalizedQuery))
-    ));
-  }, [searchQuery, skills]);
-
-  const groupedSkills = useMemo(
-    () => groupSkillsByLocation(filteredSkills, target),
-    [filteredSkills, target],
-  );
+  const handleAddDialogOpenChange = useCallback((nextOpen: boolean) => {
+    setQueuedFiles([]);
+    setSubmitError(null);
+    setShowInstallPath(false);
+    onOpenChange(nextOpen);
+  }, [onOpenChange]);
 
   const queueSkillFolders = useCallback((selectedFiles: File[]) => {
     const queuedFolders = buildQueuedSkillFolders(selectedFiles);
@@ -408,30 +273,14 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
       })));
       await addSkills({ entries });
       setQueuedFiles([]);
-      setJustInstalled(true);
-      setIsAddDialogOpen(false);
+      handleAddDialogOpenChange(false);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Failed to import skills');
     } finally {
       setIsSubmitting(false);
     }
-  }, [addSkills, queuedFiles]);
+  }, [addSkills, handleAddDialogOpenChange, queuedFiles]);
 
-  const handleAddDialogOpenChange = useCallback((open: boolean) => {
-    if (open) {
-      setSubmitError(null);
-      setShowInstallPath(false);
-      setJustInstalled(false);
-      setIsAddDialogOpen(true);
-      return;
-    }
-
-    setQueuedFiles([]);
-    setSubmitError(null);
-    setShowInstallPath(false);
-    setJustInstalled(false);
-    setIsAddDialogOpen(false);
-  }, []);
 
   const uploadPanel = (
     <div className="space-y-4">
@@ -558,75 +407,9 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
     </div>
   );
 
-  return (
-    // No `overflow-x-hidden` here: a non-visible overflow on one axis makes the
-    // other axis a scroll container too, which would be a second scroller inside
-    // the Settings screen that owns this pane. The screen already clips X.
-    <div className="min-w-0 space-y-4">
-      {/*
-        No heading: this renders as its own Settings screen, whose header already
-        says "Skills".
-      */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search"
-              aria-label="Search skills"
-              className="h-9 w-full pl-9 pr-9"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                aria-label="Clear skill search"
-                className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-          {/*
-            Named for where it installs, not for the list being viewed: a
-            workspace is selectable here, but a new skill always lands in the
-            provider's global location.
-          */}
-          <Button
-            type="button"
-            size="sm"
-            className="shrink-0"
-            onClick={() => handleAddDialogOpenChange(true)}
-          >
-            <Plus className="h-4 w-4" />
-            {target.kind === 'workspace' ? 'Add to Global' : 'Add Skill'}
-          </Button>
-          <Button
-            onClick={() => {
-              if (tracksPlugins) void updatePlugins();
-              void refreshSkills({ force: true });
-            }}
-            variant="outline"
-            size="sm"
-            aria-label={tracksPlugins ? 'Refresh skills and update plugins' : 'Refresh skills'}
-            title={tracksPlugins ? 'Refresh skills and update plugins' : 'Refresh skills'}
-            className="h-9 w-9 shrink-0 px-0"
-            disabled={isLoading || isUpdatingPlugins}
-          >
-            <RefreshCw className={cn('h-4 w-4', (isLoading || isUpdatingPlugins) && 'animate-spin')} />
-          </Button>
-        </div>
-        {tracksPlugins && pluginStatusText && (
-          <p className={cn('text-xs', pluginUpdateError ? 'text-destructive' : 'text-muted-foreground')}>
-            {pluginStatusText}
-          </p>
-        )}
-      </div>
 
-      <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogOpenChange}>
+  return (
+      <Dialog open={open} onOpenChange={handleAddDialogOpenChange}>
         <DialogContent
           wrapperClassName="z-[10000]"
           className="flex h-[calc(100vh-2rem)] max-h-[760px] w-[calc(100vw-2rem)] max-w-4xl flex-col overflow-hidden p-0 sm:h-[720px]"
@@ -663,14 +446,9 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
 
           <div className="flex flex-shrink-0 flex-col gap-3 border-t border-border/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
-              {(submitError || loadError || (justInstalled && saveStatus === 'success')) ? (
-                <div className={cn(
-                  'max-h-24 overflow-y-auto whitespace-pre-wrap rounded-lg border px-3 py-2 text-sm',
-                  submitError || loadError
-                    ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200'
-                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-                )}>
-                  {submitError || loadError || 'Skills saved successfully.'}
+              {submitError ? (
+                <div className="max-h-24 overflow-y-auto whitespace-pre-wrap rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200">
+                  {submitError}
                 </div>
               ) : (
                 <span className="text-xs text-muted-foreground">
@@ -703,124 +481,5 @@ export default function ProviderSkills({ selectedProvider, target }: ProviderSki
           </div>
         </DialogContent>
       </Dialog>
-
-      {!isAddDialogOpen && (submitError || loadError) && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200">
-          {submitError || loadError}
-        </div>
-      )}
-
-      {justInstalled && saveStatus === 'success' && !isAddDialogOpen && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-          <CheckCircle2 className="h-4 w-4" />
-          Skills saved successfully.
-        </div>
-      )}
-
-      <div className="space-y-5">
-        {isLoading && skills.length === 0 && (
-          <div className="flex min-h-[180px] items-center justify-center text-sm text-muted-foreground">
-            Loading {providerName} skills…
-          </div>
-        )}
-
-        {!isLoading && skills.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border/70 bg-muted/15 px-4 py-10 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg border border-border/60 bg-background/80 text-muted-foreground">
-              <FileText className="h-6 w-6" />
-            </div>
-            <div className="mt-4 text-sm font-medium text-foreground">No skills discovered yet</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              Add a global skill above or create project-specific skill folders in your workspace.
-            </div>
-          </div>
-        )}
-
-        {!isLoading && skills.length > 0 && filteredSkills.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border/70 bg-muted/15 px-4 py-10 text-center">
-            <Search className="mx-auto h-6 w-6 text-muted-foreground" />
-            <div className="mt-3 text-sm font-medium text-foreground">No matching skills</div>
-            <div className="mt-1 text-sm text-muted-foreground">
-              Try a different command, name, scope, project, or source path.
-            </div>
-          </div>
-        )}
-
-        {groupedSkills.map((group) => (
-          <section key={group.key} className="min-w-0 space-y-3">
-            {/*
-              A section label, not a status: coloured pills down the page read
-              as warnings. The count carries the only thing the pill added.
-            */}
-            <p className="min-w-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <span className="break-words">{group.label}</span>
-              <span className="ml-1.5 font-normal normal-case tracking-normal opacity-70">
-                {group.skills.length}
-              </span>
-            </p>
-
-            <div className="grid min-w-0 gap-1.5 lg:grid-cols-2">
-              {group.skills.map((skill) => (
-                /*
-                  The card face is the accepted design: command, one line of
-                  description, scope badge. The whole face is the disclosure
-                  control, so the full description and source path sit one tap
-                  away without a visible "details" row lengthening every card.
-                */
-                <details
-                  key={`${skill.command}:${skill.sourcePath}:${skill.projectPath || 'global'}`}
-                  className="group/card min-w-0 rounded-lg border border-border/60 bg-card/50"
-                >
-                  <summary className="flex min-h-11 min-w-0 cursor-pointer list-none items-start gap-3 px-3 py-2.5 marker:content-none [&::-webkit-details-marker]:hidden">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{skill.command}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {skill.description || 'No description provided in the skill front matter.'}
-                      </p>
-                    </div>
-
-                    {group.showScope && (
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 rounded-md bg-muted/40 px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground"
-                      >
-                        {SCOPE_LABELS[skill.scope]}
-                      </Badge>
-                    )}
-                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-open/card:rotate-90" />
-                  </summary>
-
-                  <div className="min-w-0 border-t border-border/60 px-3 py-3">
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      {skill.description || 'No description provided in the skill front matter.'}
-                    </p>
-
-                    {(skill.pluginName || skill.projectDisplayName) && (
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {skill.pluginName && (
-                          <Badge variant="outline" className="rounded-full bg-background/70">
-                            Plugin: {skill.pluginName}
-                          </Badge>
-                        )}
-                        {skill.projectDisplayName && (
-                          <Badge variant="outline" className="rounded-full bg-background/70">
-                            Project: {skill.projectDisplayName}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mt-3 min-w-0 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                      <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Source</div>
-                      <code className="mt-1 block whitespace-normal break-all text-xs text-foreground">{skill.sourcePath}</code>
-                    </div>
-                  </div>
-                </details>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
   );
 }
