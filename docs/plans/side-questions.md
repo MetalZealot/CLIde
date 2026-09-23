@@ -1,7 +1,7 @@
 # /btw — side questions beside a running conversation
 
 - Status: 5/7
-- Next: see phase 4 live on a clean build, then phase 5 — Codex
+- Next: phase 5 — Codex
 - Context: Claude Code ships `/btw` and Codex ships `/side`. CLIde matches
   Claude Code's behaviour; the mechanism is per provider
 
@@ -69,7 +69,8 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
 - [x] 4. **The sheet reads the server.** Opening loads the history; while an
       entry is pending the sheet refreshes until it lands. `/btw` with no text
       opens the sheet on the history. Each answer has a copy button; the header
-      has Clear. Unit-tested; not yet seen live.
+      has Clear. Seen live on the phone 2026-09-23: close before the answer,
+      reopen with `/btw`, copy, and Clear all work. — `6ab64cc1`, `f08cb312`
 - [ ] 5. **Codex.** Same route and store, adapter-side: ephemeral fork with the
       boundary instructions and a read-only sandbox, earlier exchanges prepended
       to the question, one turn, collect the assistant text for that thread id,
