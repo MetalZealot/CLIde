@@ -47,16 +47,30 @@ describe('provider-usage.service', () => {
     assert.equal(calls, 3);
   });
 
-  test('Claude live rate-limit events normalize epoch seconds into shared windows', () => {
+  test('Claude live rate-limit events convert fractions to percent and epoch seconds to ISO', () => {
     assert.deepEqual(normalizeClaudeRateLimitEvent({
       rateLimitType: 'seven_day_sonnet',
-      utilization: 67.5,
+      utilization: 0.675,
       resetsAt: 1_776_000_000,
-    }), {
+    }), [{
       id: 'seven_day_sonnet',
       utilization: 67.5,
       resetsAt: new Date(1_776_000_000_000).toISOString(),
-    });
+    }]);
+
+    // Shape captured from a live CLI 2.1.280 turn: the top level has no utilization.
+    assert.deepEqual(normalizeClaudeRateLimitEvent({
+      status: 'allowed',
+      resetsAt: 1_790_136_600,
+      rateLimitType: 'five_hour',
+      unifiedWindows: {
+        five_hour: { utilization: 0.41, resetsAt: 1_790_136_600 },
+        seven_day: { utilization: 0.49, resetsAt: 1_790_557_200 },
+      },
+    }).map(({ id, utilization }) => ({ id, utilization: Math.round(utilization) })), [
+      { id: 'five_hour', utilization: 41 },
+      { id: 'seven_day', utilization: 49 },
+    ]);
   });
 
   test('redemption forwards one logical attempt and refreshes past both cache timers', async () => {

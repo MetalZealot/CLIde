@@ -15,10 +15,9 @@ const USAGE_FETCH_TIMEOUT_MS = 10_000;
 
 const clampUtilization = (value: number): number => Math.min(100, Math.max(0, value));
 
-/** Normalizes one Claude SDK rate-limit push for the runtime usage cache. */
-export const normalizeClaudeRateLimitEvent = (value: unknown): ProviderUsageWindow | null => {
+const readRateLimitWindow = (id: string, value: unknown): ProviderUsageWindow | null => {
   const record = readObjectRecord(value);
-  if (!record || typeof record.rateLimitType !== 'string' || typeof record.utilization !== 'number') {
+  if (!record || typeof record.utilization !== 'number') {
     return null;
   }
 
@@ -29,10 +28,31 @@ export const normalizeClaudeRateLimitEvent = (value: unknown): ProviderUsageWind
   const resetsAt = Number.isFinite(resetMs) ? new Date(resetMs).toISOString() : null;
 
   return {
-    id: record.rateLimitType,
-    utilization: clampUtilization(record.utilization),
+    id,
+    // The push carries a 0-1 fraction (measured against CLI 2.1.280); the OAuth endpoint uses percent.
+    utilization: clampUtilization(record.utilization * 100),
     resetsAt,
   };
+};
+
+/** Normalizes one Claude SDK rate-limit push for the runtime usage cache. */
+export const normalizeClaudeRateLimitEvent = (value: unknown): ProviderUsageWindow[] => {
+  const record = readObjectRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  const unified = readObjectRecord(record.unifiedWindows);
+  if (unified) {
+    return Object.entries(unified)
+      .map(([id, window]) => readRateLimitWindow(id, window))
+      .filter((window): window is ProviderUsageWindow => window !== null);
+  }
+
+  const single = typeof record.rateLimitType === 'string'
+    ? readRateLimitWindow(record.rateLimitType, record)
+    : null;
+  return single ? [single] : [];
 };
 
 /**

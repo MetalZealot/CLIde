@@ -1088,9 +1088,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
             resets: typeof info.resetsAt === 'number' ? new Date(info.resetsAt * 1000).toISOString() : undefined,
           });
         }
-        const window = normalizeClaudeRateLimitEvent(message.rate_limit_info);
-        if (window) {
-          const usage = providerUsageService.mergeProviderUsageWindows('claude', [window]);
+        const windows = normalizeClaudeRateLimitEvent(message.rate_limit_info);
+        if (windows.length > 0) {
+          const usage = providerUsageService.mergeProviderUsageWindows('claude', windows);
           ws.send({ kind: 'provider_usage', provider: 'claude', usage });
         }
       }
