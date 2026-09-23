@@ -408,10 +408,16 @@ const rebuildSessionsTableWithProjectSchema = (db: Database): void => {
  * Rows that existed before this migration were always keyed directly by the
  * provider-native session id, so backfilling `provider_session_id` with
  * `session_id` keeps every legacy row resolvable through the new mapping.
+ * Backfill only when adding the column: a NULL after that is a new session
+ * that has not run yet, and stamping it makes its first run resume a
+ * conversation the provider never created.
  */
 const addProviderSessionIdMapping = (db: Database): void => {
   const sessionsTableInfo = getTableInfo(db, 'sessions');
   const columnNames = sessionsTableInfo.map((column) => column.name);
+  if (columnNames.includes('provider_session_id')) {
+    return;
+  }
 
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'provider_session_id', 'TEXT');
   db.exec(`

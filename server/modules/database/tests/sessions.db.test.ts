@@ -191,6 +191,16 @@ describe('sessions-provider-mapping', () => {
     });
   });
 
+  test('a restart leaves a not-yet-run app session without a provider id', async () => {
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createAppSession('app-unrun', 'claude', '/workspace/demo');
+      closeConnection();
+      await initializeDatabase();
+
+      assert.equal(sessionsDb.getSessionById('app-unrun')?.provider_session_id, null);
+    });
+  });
+
   test('app sessions get the provider id assigned without creating a duplicate row', async () => {
     await withIsolatedDatabase(() => {
       sessionsDb.createAppSession('app-id-1', 'claude', '/workspace/demo');
