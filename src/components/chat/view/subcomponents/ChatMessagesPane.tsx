@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
@@ -8,7 +8,7 @@ import type { Project, ProjectSession, LLMProvider } from '../../../../types/app
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
-import { groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
+import { assignActivityKeys, groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
 import { computeTurnDurations } from '../../utils/turnDuration';
 
 import ActivityIndicator from './ActivityIndicator';
@@ -170,6 +170,15 @@ function ChatMessagesPane({
     [messageKeyMap],
   );
 
+  const committedActivityKeysRef = useRef<ReadonlyMap<string, string>>(new Map());
+  const activityKeys = useMemo(
+    () => assignActivityKeys(groupedVisibleMessages, getMessageKey, committedActivityKeysRef.current),
+    [groupedVisibleMessages, getMessageKey],
+  );
+  useLayoutEffect(() => {
+    committedActivityKeysRef.current = activityKeys.byMessage;
+  }, [activityKeys]);
+
   const attachScrollHost = useCallback(
     (node: HTMLDivElement | null) => {
       scrollContainerRef.current = node && pageScroll ? document.documentElement : node;
@@ -259,7 +268,7 @@ function ChatMessagesPane({
 
                 return (
                   <ToolActivity
-                    key={`tool-group-${getMessageKey(item.messages[0])}`}
+                    key={activityKeys.keys.get(item)}
                     activity={item}
                     isLive={item === liveActivity}
                     isWaiting={item.messages.length === 1 && Boolean(item.messages[0].toolId && pendingToolIds.has(item.messages[0].toolId))}

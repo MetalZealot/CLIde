@@ -95,3 +95,32 @@ export function groupToolActivities(
 
   return items;
 }
+
+/**
+ * An activity keeps the key any of its calls had last render, so calls joining
+ * either end of a burst never remount the row (or close it). `previous` maps a
+ * message key to its activity key; `byMessage` is the same map for this render.
+ */
+export function assignActivityKeys(
+  items: readonly MessageListItem[],
+  messageKey: (message: ChatMessage) => string,
+  previous: ReadonlyMap<string, string>,
+): { keys: Map<ToolActivityItem, string>; byMessage: Map<string, string> } {
+  const keys = new Map<ToolActivityItem, string>();
+  const byMessage = new Map<string, string>();
+  const used = new Set<string>();
+  for (const item of items) {
+    if (!isToolActivityItem(item)) continue;
+    const messageKeys = item.messages.map(messageKey);
+    let key = messageKeys.map((k) => previous.get(k)).find((k) => k !== undefined && !used.has(k));
+    if (!key) {
+      const base = `tool-group-${messageKeys[0]}`;
+      key = base;
+      for (let n = 1; used.has(key); n += 1) key = `${base}__${n}`;
+    }
+    used.add(key);
+    keys.set(item, key);
+    for (const k of messageKeys) byMessage.set(k, key);
+  }
+  return { keys, byMessage };
+}

@@ -10,7 +10,7 @@ import type { ChatMessage } from '../types/types';
 
 import { buildOperationDetail } from './operationDetail';
 import { summarizeActivity } from './toolActivity';
-import { groupToolActivities, isToolActivityItem } from './toolGrouping';
+import { assignActivityKeys, groupToolActivities, isToolActivityItem } from './toolGrouping';
 import {
   extractInternalMemoryCitation,
   formatDuration,
@@ -464,6 +464,26 @@ test('tool activities reuse unchanged groups and update changed members or membe
   assert.notEqual(updated[0], initial[0]);
   assert.ok(isToolActivityItem(updated[0]));
   assert.equal(updated[0].messages[1].toolResult?.content, 'finished');
+});
+
+test('an activity keeps its key while calls join it from above or below', () => {
+  const call = (id: string): ChatMessage => ({ id, timestamp: '2026-09-23T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash' });
+  const text: ChatMessage = { id: 'reply', timestamp: '2026-09-23T00:00:01Z', type: 'assistant', content: 'Reply' };
+  const key = (message: ChatMessage) => String(message.id);
+  const keyOf = (items: ReturnType<typeof groupToolActivities>, previous: ReadonlyMap<string, string>) => {
+    const { keys, byMessage } = assignActivityKeys(items, key, previous);
+    return { list: items.filter(isToolActivityItem).map((item) => keys.get(item)), byMessage };
+  };
+
+  const first = keyOf(groupToolActivities([call('c'), call('d')]), new Map());
+  const prepended = keyOf(groupToolActivities([call('a'), call('b'), call('c'), call('d')]), first.byMessage);
+  assert.deepEqual(prepended.list, first.list, 'older calls joining from above');
+  const appended = keyOf(groupToolActivities([call('a'), call('b'), call('c'), call('d'), call('e')]), prepended.byMessage);
+  assert.deepEqual(appended.list, first.list, 'newer calls joining from below');
+
+  const split = keyOf(groupToolActivities([call('a'), call('b'), text, call('c'), call('d')]), appended.byMessage);
+  assert.equal(split.list[0], first.list[0]);
+  assert.equal(new Set(split.list).size, 2, 'a split burst gets a second, distinct key');
 });
 
 describe('tool activity boundaries', () => {
