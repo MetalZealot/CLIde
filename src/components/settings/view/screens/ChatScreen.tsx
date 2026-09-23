@@ -4,7 +4,6 @@ import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 import type { CopyMessageFormat } from '../../../../hooks/useUiPreferences';
 import { useAutoContinueDefault } from '../../hooks/useAutoContinueDefault';
 import { useAutoContinueMessage } from '../../hooks/useAutoContinueMessage';
-import { DEFAULT_THINKING_MESSAGES, useThinkingMessages } from '../../../../hooks/useThinkingMessages';
 import { isTouchPrimaryDevice } from '../../../../utils/pointer';
 import { getScreen } from '../../registry/registry';
 import {
@@ -31,23 +30,10 @@ type ChatScreenProps = {
 export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
   const { t } = useTranslation('settings');
   const { preferences, setPreference } = useUiPreferences();
-  const { customMessages, cycleMode } = useThinkingMessages();
   const autoContinue = useAutoContinueMessage();
   const autoContinueDefault = useAutoContinueDefault();
   const isTouchPrimary = isTouchPrimaryDevice();
-  const activityMessagesScreen = getScreen('chat.activityMessages');
   const voiceBackendScreen = getScreen('chat.voice');
-  // Blank and empty custom lists fall back to the built-ins in the indicator; count what it shows.
-  const activityMessageCount = customMessages?.filter((message) => message.trim()).length
-    || DEFAULT_THINKING_MESSAGES.length;
-  const activityMessageSummary = cycleMode === 'never'
-    ? t('chat.activityMessages.summaryNever', { count: activityMessageCount })
-    : cycleMode === 'turn'
-      ? t('chat.activityMessages.summaryTurn', { count: activityMessageCount })
-      : t('chat.activityMessages.summarySeconds', {
-        count: activityMessageCount,
-        seconds: Number(cycleMode),
-      });
 
   return (
     <SettingsScreen>
@@ -141,18 +127,6 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
           />
         </SettingsRow>
       </SettingsGroup>
-
-      {activityMessagesScreen && (
-        <SettingsGroup>
-          <SettingsNavRow
-            label={t(activityMessagesScreen.labelKey)}
-            description={activityMessageSummary}
-            wrapDescription
-            icon={SETTINGS_ICONS[activityMessagesScreen.icon]}
-            onClick={() => onOpenScreen(activityMessagesScreen.id)}
-          />
-        </SettingsGroup>
-      )}
 
       <SettingsGroup title={t('voiceSettings.title')} divided>
         <SettingsRow

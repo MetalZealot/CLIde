@@ -21,7 +21,6 @@ import AgentProviderScreen from './screens/AgentProviderScreen';
 import AgentSkillsScreen from './screens/AgentSkillsScreen';
 import AppearanceEditorScreen from './screens/AppearanceEditorScreen';
 import AppearanceScreen from './screens/AppearanceScreen';
-import ActivityMessagesScreen from './screens/ActivityMessagesScreen';
 import ChatScreen from './screens/ChatScreen';
 import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
 import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
@@ -267,8 +266,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
       case 'chat':
         return <ChatScreen onOpenScreen={isMobile ? nav.push : nav.select} />;
 
-      case 'chat.activityMessages':
-        return <ActivityMessagesScreen />;
 
       case 'chat.voice':
         return (

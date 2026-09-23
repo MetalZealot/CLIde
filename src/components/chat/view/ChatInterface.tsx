@@ -937,6 +937,7 @@ function ChatInterface({
           pageScroll={pageScroll}
           isLoadingSessionMessages={isLoadingSessionMessages}
           isProcessing={isProcessing}
+          activity={sessionActivity}
           chatMessages={chatMessages}
           selectedSession={selectedSession}
           currentSessionId={currentSessionId}
@@ -1080,7 +1081,6 @@ function ChatInterface({
             handlePermissionDecision={handlePermissionDecision}
             handleGrantToolPermission={handleGrantToolPermission}
             activity={sessionActivity}
-            reserveActivitySpace={!isNewSession}
             isLoading={isProcessing}
             onAbortSession={requestAbortSession}
             isStopArmed={isStopArmed}

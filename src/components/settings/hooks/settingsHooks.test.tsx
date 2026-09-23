@@ -4,11 +4,8 @@ import test, { afterEach, beforeEach, describe } from 'node:test';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
-import {
-  THINKING_MESSAGES_STORAGE_KEY,
-  useThinkingMessages,
-} from '../../../hooks/useThinkingMessages';
 import { useSyncedPreferences } from '../../../hooks/useSyncedPreferences';
+import { useFavoriteModels } from '../../../utils/favoriteModels';
 import { saveProviderToolSettings } from '../../../utils/providerToolSettings';
 import { useProviderSkills } from '../../skills/hooks/useProviderSkills';
 import type { SkillsTarget } from '../../skills/types';
@@ -419,21 +416,23 @@ describe('useAutoContinueDefault toggling', () => {
 describe('useSyncedPreferences mirroring', () => {
   let container: HTMLDivElement;
   let root: Root;
-  let thinking: ReturnType<typeof useThinkingMessages> | null;
+  let favorites: ReturnType<typeof useFavoriteModels> | null;
   let requests: Array<{ url: string; method: string; body: any }>;
   let serverPreferences: Record<string, unknown>;
   let originalFetch: typeof globalThis.fetch;
 
-  const currentThinking = () => {
-    assert.ok(thinking);
-    return thinking;
+  const currentFavorites = () => {
+    assert.ok(favorites);
+    return favorites;
   };
+  const opus = { provider: 'claude', model: 'opus' };
+  const gpt = { provider: 'codex', model: 'gpt-5' };
 
   const writes = () => requests.filter((request) => request.method === 'PUT');
 
   const Harness = () => {
     useSyncedPreferences();
-    thinking = useThinkingMessages();
+    favorites = useFavoriteModels();
     return null;
   };
 
@@ -450,7 +449,7 @@ describe('useSyncedPreferences mirroring', () => {
   };
 
   beforeEach(() => {
-    thinking = null;
+    favorites = null;
     requests = [];
     serverPreferences = {};
     localStorage.clear();
@@ -482,14 +481,13 @@ describe('useSyncedPreferences mirroring', () => {
   });
 
   test('a browser with no stored list adopts the saved one without writing it back', async () => {
-    serverPreferences = { thinkingMessages: ['Pondering'], thinkingMessageCycle: '2' };
+    serverPreferences = { favoriteModels: [opus] };
     await render();
 
-    assert.deepEqual(currentThinking().customMessages, ['Pondering']);
-    assert.equal(currentThinking().cycleMode, '2');
+    assert.deepEqual(currentFavorites().favorites, [opus]);
     assert.equal(
-      localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY),
-      JSON.stringify(['Pondering']),
+      localStorage.getItem('favoriteModels'),
+      JSON.stringify([opus]),
       'the adopted list survives the next load offline',
     );
 
@@ -497,28 +495,23 @@ describe('useSyncedPreferences mirroring', () => {
     assert.deepEqual(writes(), [], 'adopting the server copy is not an edit');
   });
 
-  test('an edit reaches the server, and a reset deletes the stored value', async () => {
+  test('an edit reaches the server', async () => {
     await render();
-    await React.act(async () => currentThinking().setCustomMessages(['Cogitating']));
+    await React.act(async () => currentFavorites().toggleFavorite('codex', 'gpt-5'));
     await settleWrites();
 
     assert.equal(writes().length, 1);
-    assert.deepEqual(writes()[0]?.body.preferences, { thinkingMessages: ['Cogitating'] });
-    assert.deepEqual(serverPreferences, { thinkingMessages: ['Cogitating'] });
-
-    await React.act(async () => currentThinking().resetThinkingMessages());
-    await settleWrites();
-    assert.deepEqual(writes()[1]?.body.preferences.thinkingMessages, null);
-    assert.deepEqual(serverPreferences, {}, 'the next device inherits nothing');
+    assert.deepEqual(writes()[0]?.body.preferences, { favoriteModels: [gpt] });
+    assert.deepEqual(serverPreferences, { favoriteModels: [gpt] });
   });
 
   test('values this browser already had seed an empty server', async () => {
-    localStorage.setItem(THINKING_MESSAGES_STORAGE_KEY, JSON.stringify(['Ruminating']));
+    localStorage.setItem('favoriteModels', JSON.stringify([gpt]));
     await render();
     await settleWrites();
 
     assert.equal(writes().length, 1);
-    assert.deepEqual(writes()[0]?.body.preferences, { thinkingMessages: ['Ruminating'] });
+    assert.deepEqual(writes()[0]?.body.preferences, { favoriteModels: [gpt] });
   });
 
   test('tool permissions saved here reach the server, and one saved elsewhere lands here', async () => {
@@ -546,11 +539,11 @@ describe('useSyncedPreferences mirroring', () => {
   });
 
   test('an unreachable server leaves this browser on its own values', async () => {
-    localStorage.setItem(THINKING_MESSAGES_STORAGE_KEY, JSON.stringify(['Ruminating']));
+    localStorage.setItem('favoriteModels', JSON.stringify([gpt]));
     globalThis.fetch = (() => Promise.reject(new Error('offline'))) as typeof globalThis.fetch;
     await render();
     await settleWrites();
 
-    assert.deepEqual(currentThinking().customMessages, ['Ruminating']);
+    assert.deepEqual(currentFavorites().favorites, [gpt]);
   });
 });

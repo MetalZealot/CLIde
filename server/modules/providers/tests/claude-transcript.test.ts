@@ -188,6 +188,25 @@ describe('claude-harness-rows', () => {
     assert.equal(messages[0].isCompactSummary, true);
   });
 
+  test('claude: a redacted thinking block still yields an empty thinking row', () => {
+    const provider = new ClaudeSessionsProvider();
+    const entry = {
+      uuid: 'th1',
+      timestamp: '2026-09-22T10:00:00.000Z',
+      message: {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: '', signature: 'sig' },
+          { type: 'thinking', thinking: 'Shown text', signature: 'sig' },
+        ],
+      },
+    };
+
+    const thinking = provider.normalizeMessage(entry, SESSION_ID).filter((message) => message.kind === 'thinking');
+
+    assert.deepEqual(thinking.map((message) => message.content), ['', 'Shown text']);
+  });
+
   test('claude history: isMeta and transcript-only user rows are filtered', () => {
     const provider = new ClaudeSessionsProvider();
 

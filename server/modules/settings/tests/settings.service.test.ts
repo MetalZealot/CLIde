@@ -64,11 +64,15 @@ test('updateSyncedPreferences stores allowlisted keys and drops unknown ones', (
   }));
 
   service.updateSyncedPreferences(1, {
-    thinkingMessages: ['Pondering'],
-    thinkingMessageCycle: '2',
+    favoriteModels: [{ provider: 'claude', model: 'opus' }],
+    'codex-settings': { skipPermissions: false },
     authToken: 'stolen',
+    thinkingMessages: ['retired key'],
   });
-  assert.deepEqual(stored, [{ thinkingMessages: ['Pondering'], thinkingMessageCycle: '2' }]);
+  assert.deepEqual(stored, [{
+    favoriteModels: [{ provider: 'claude', model: 'opus' }],
+    'codex-settings': { skipPermissions: false },
+  }]);
 });
 
 test('updateSyncedPreferences keeps a null value so a reset deletes the stored row', () => {
@@ -80,14 +84,14 @@ test('updateSyncedPreferences keeps a null value so a reset deletes the stored r
     },
   }));
 
-  service.updateSyncedPreferences(1, { thinkingMessages: null });
-  assert.deepEqual(stored, [{ thinkingMessages: null }]);
+  service.updateSyncedPreferences(1, { favoriteModels: null });
+  assert.deepEqual(stored, [{ favoriteModels: null }]);
 });
 
 test('updateSyncedPreferences rejects a value past the size cap', () => {
   const service = createSettingsService(dependencies());
   assert.throws(
-    () => service.updateSyncedPreferences(1, { thinkingMessages: ['x'.repeat(9000)] }),
+    () => service.updateSyncedPreferences(1, { favoriteModels: ['x'.repeat(9000)] }),
     /too large/,
   );
 });

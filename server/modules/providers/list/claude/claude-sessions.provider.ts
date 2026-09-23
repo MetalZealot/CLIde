@@ -1205,14 +1205,15 @@ export class ClaudeSessionsProvider implements IProviderSessions {
               toolInput: part.input,
               toolId: part.id,
             }));
-          } else if (part.type === 'thinking' && part.thinking) {
+          } else if (part.type === 'thinking') {
+            // Claude redacts most thinking text; the empty block still marks that it thought.
             messages.push(createNormalizedMessage({
               id: `${baseId}_${partIndex}`,
               sessionId,
               timestamp: ts,
               provider: PROVIDER,
               kind: 'thinking',
-              content: part.thinking,
+              content: typeof part.thinking === 'string' ? part.thinking : '',
             }));
           }
           partIndex++;

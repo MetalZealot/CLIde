@@ -18,12 +18,6 @@ import {
   subscribeToProviderToolSettings,
 } from '../utils/providerToolSettings';
 
-import {
-  applyRemoteThinkingPreferences,
-  readStoredThinkingPreferences,
-  subscribeToThinkingPreferenceChanges,
-} from './useThinkingMessages';
-
 /**
  * Each synced preference family owns reading its stored values, applying the
  * server's, and reporting local edits. Adding a family is an entry here plus an
@@ -36,11 +30,6 @@ type PreferenceSource = {
 };
 
 const SOURCES: PreferenceSource[] = [
-  {
-    read: readStoredThinkingPreferences,
-    apply: applyRemoteThinkingPreferences,
-    subscribe: subscribeToThinkingPreferenceChanges,
-  },
   {
     read: readSyncedAppearancePreferences,
     apply: applyRemoteAppearancePreferences,
@@ -58,8 +47,8 @@ const SOURCES: PreferenceSource[] = [
   },
 ];
 
-// Long enough that typing a message list or tapping through cycle options
-// settles into one request, short enough to survive closing the tab after.
+// Long enough that a burst of edits settles into one request, short enough
+// to survive closing the tab after.
 const WRITE_DEBOUNCE_MS = 600;
 
 const sameValue = (left: unknown, right: unknown): boolean =>

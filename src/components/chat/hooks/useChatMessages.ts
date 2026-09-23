@@ -240,16 +240,15 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         break;
       }
 
+      // Kept when empty: Claude redacts the text, and the row still says it thought and for how long.
       case 'thinking':
-        if (msg.content?.trim()) {
-          converted.push({
-            type: 'assistant',
-            content: unescapeWithMathProtection(msg.content),
-            timestamp: msg.timestamp,
-            isThinking: true,
-            ...sharedMetadata,
-          });
-        }
+        converted.push({
+          type: 'assistant',
+          content: unescapeWithMathProtection(msg.content || ''),
+          timestamp: msg.timestamp,
+          isThinking: true,
+          ...sharedMetadata,
+        });
         break;
 
       case 'compact_boundary':

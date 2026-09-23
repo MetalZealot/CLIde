@@ -25,7 +25,7 @@ import { thinkingDurationMs } from '../../utils/toolActivity';
 
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
-import { DISCLOSED_TEXT_CLASS, TextDisclosure } from './DisclosureRow';
+import { DISCLOSED_TEXT_CLASS, StaticRow, TextDisclosure } from './DisclosureRow';
 import FollowUpQuestions from './FollowUpQuestions';
 import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
@@ -435,9 +435,13 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
                 <Markdown className={DISCLOSED_TEXT_CLASS}>{formattedMessageContent}</Markdown>
               </TextDisclosure>
             ) : message.isThinking ? (
-              <TextDisclosure label={thinkingLabel} copyText={String(message.content || '')}>
-                <Markdown className={DISCLOSED_TEXT_CLASS}>{String(message.content || '')}</Markdown>
-              </TextDisclosure>
+              String(message.content || '').trim() ? (
+                <TextDisclosure label={thinkingLabel} copyText={String(message.content || '')}>
+                  <Markdown className={DISCLOSED_TEXT_CLASS}>{String(message.content || '')}</Markdown>
+                </TextDisclosure>
+              ) : (
+                <StaticRow label={thinkingLabel} />
+              )
             ) : (
               <div dir="auto" className="text-sm text-gray-700 dark:text-gray-300">
                 {showThinking && message.reasoning && (

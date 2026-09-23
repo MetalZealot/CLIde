@@ -69,9 +69,9 @@ empty.
   boundaries and record/visible-row counts. Grouping must preserve message anchors
   and request enough bounded pages to advance visibly without a second paging model.
 - [x] 7. **Thinking and answered questions use the activity row and panel.**
-  Thinking reads `Thought for 23s ›`, timed from the row before it (so it includes
-  the wait for the model), and opens to its text in the flat panel; Codex
-  reasoning and the compaction summary share that row. A question shows each
+  Thinking reads `Thought for 23s ›`, timed from the row before it, and opens to
+  its text in the flat panel; redacted thinking keeps the line, no ›.
+  Codex reasoning and the compaction summary share that row. A question shows each
   prompt over its answer in the panel — no tool name, strip, header chip or
   unchosen options — and a failure inside it rather than as a red row.
 - [x] 8. **A subagent is one row.** `Explore · Find call sites · 18 calls · 1m 35s`,

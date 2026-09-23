@@ -43,7 +43,6 @@ import UsageLimitNotice from '../../../provider-usage/UsageLimitNotice';
 import { splitLeadingCommand } from '../../utils/chatFormatting';
 
 import CommandMenu from './CommandMenu';
-import ActivityIndicator from './ActivityIndicator';
 import { ComposerAttachmentGallery } from './ComposerAttachment';
 import type { AttachmentRejection } from '../../hooks/useChatComposerState';
 import VoiceInputButton from './VoiceInputButton';
@@ -81,12 +80,6 @@ interface ChatComposerProps {
   ) => void;
   handleGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
   activity: SessionActivity | null;
-  /**
-   * Hold the activity strip's height while it is idle so the composer does not
-   * jump when a turn starts. Pointless before a session exists, where it only
-   * pushes the launcher away from the composer.
-   */
-  reserveActivitySpace?: boolean;
   isLoading: boolean;
   onAbortSession: () => void;
   /** Only the visible chat may claim the header slot for its usage ring. */
@@ -184,7 +177,6 @@ export default function ChatComposer({
   handlePermissionDecision,
   handleGrantToolPermission,
   activity,
-  reserveActivitySpace = true,
   isLoading,
   onAbortSession,
   isVisible = true,
@@ -383,19 +375,6 @@ export default function ChatComposer({
     <div className="chat-composer-shell relative flex-shrink-0 select-none px-4 pb-4 pt-0 md:px-6 md:pb-6">
       {/* The ring describes the whole session, so it lives in the header when there is one. */}
       {headerSlot && isVisible && createPortal(usageRing, headerSlot)}
-      {(activity || reserveActivitySpace) && (
-        // Hidden, never unmounted, while the permission banner holds the slot: the
-        // message cycle and its no-repeat bag are per-turn state a remount restarts.
-        <div
-          className="mx-auto mb-2 max-w-[54.25rem]"
-          style={{
-            display: pendingPermissionRequests.length > 0 ? 'none' : undefined,
-            visibility: activity ? 'visible' : 'hidden',
-          }}
-        >
-          <ActivityIndicator activity={activity} />
-        </div>
-      )}
 
       {pendingPermissionRequests.length > 0 && (
         <div className="mx-auto mb-3 max-w-[54.25rem]">
@@ -456,7 +435,7 @@ export default function ChatComposer({
       <UsageLimitNotice provider={provider} />
 
       {pendingRewind && (
-        <RewindEditCard snippet={pendingRewind.snippet} onCancel={onCancelRewindEdit} />
+        <RewindEditCard onCancel={onCancelRewindEdit} />
       )}
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-[54.25rem]">

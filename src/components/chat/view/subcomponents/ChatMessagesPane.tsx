@@ -5,11 +5,13 @@ import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'reac
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 import type { ChatMessage, PendingPermissionRequest } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
+import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
 import { computeTurnDurations } from '../../utils/turnDuration';
 
+import ActivityIndicator from './ActivityIndicator';
 import MessageComponent from './MessageComponent';
 import SubagentActivity from './SubagentActivity';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
@@ -23,6 +25,8 @@ interface ChatMessagesPaneProps {
   isLoadingSessionMessages: boolean;
   /** True while the viewed session has an active provider run in flight. */
   isProcessing?: boolean;
+  /** The running turn's status, drawn as the conversation's last row. */
+  activity?: SessionActivity | null;
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
@@ -71,6 +75,7 @@ function ChatMessagesPane({
   pageScroll = false,
   isLoadingSessionMessages,
   isProcessing = false,
+  activity = null,
   chatMessages,
   selectedSession,
   currentSessionId,
@@ -306,6 +311,7 @@ function ChatMessagesPane({
           })()}
         </>
       )}
+      {!isLoadingSessionMessages && <ActivityIndicator activity={activity} />}
       {!isLoadingSessionMessages && (
         <ScheduledMessageBubbles
           messages={scheduledMessages}

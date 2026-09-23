@@ -25,22 +25,8 @@ import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
 import { describeActivity, describeOperation, operationLabel, summarizeActivity, thinkingDurationMs } from '../../utils/toolActivity';
 import { formatClockTime, formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
-import {
-  DEFAULT_THINKING_MESSAGE_CYCLE_MODE,
-  DEFAULT_THINKING_MESSAGE_ORDER,
-  MAX_THINKING_MESSAGE_LENGTH,
-  MAX_THINKING_MESSAGES,
-  THINKING_MESSAGE_CYCLE_STORAGE_KEY,
-  THINKING_MESSAGE_ORDER_STORAGE_KEY,
-  THINKING_MESSAGES_STORAGE_KEY,
-  parseThinkingMessageCycleMode,
-  parseThinkingMessageOrder,
-  parseThinkingMessages,
-  shuffleThinkingMessageIndices,
-  useThinkingMessages,
-} from '../../../../hooks/useThinkingMessages';
 
-import ToolActivity from './ToolActivity';
+import ToolActivity, { OperationRow } from './ToolActivity';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import { TextDisclosure } from './DisclosureRow';
 import MessageCopyControl from './MessageCopyControl';
@@ -255,27 +241,6 @@ describe('chatSubcomponents', () => {
       container = null;
     });
 
-    test('bounds stored entries without accepting non-strings', () => {
-      const overlong = 'x'.repeat(MAX_THINKING_MESSAGE_LENGTH + 5);
-      const parsed = parseThinkingMessages([
-        overlong,
-        42,
-        ...Array.from({ length: MAX_THINKING_MESSAGES }, (_, index) => `Message ${index}`),
-      ]);
-
-      assert.equal(parsed?.length, MAX_THINKING_MESSAGES);
-      assert.equal(parsed?.[0], 'x'.repeat(MAX_THINKING_MESSAGE_LENGTH));
-      assert.equal(parseThinkingMessages('Thinking'), null);
-      assert.equal(parseThinkingMessageCycleMode('turn'), 'turn');
-      assert.equal(parseThinkingMessageCycleMode('9'), null);
-      assert.equal(parseThinkingMessageOrder('random'), 'random');
-      assert.equal(parseThinkingMessageOrder('alphabetical'), null);
-
-      const shuffled = shuffleThinkingMessageIndices(4, 2, () => 0);
-      assert.deepEqual([...shuffled].sort(), [0, 1, 2, 3]);
-      assert.notEqual(shuffled[0], 2, 'a reshuffle cannot immediately repeat its previous message');
-    });
-
     test('a tool activity row reads as facets, as its one call, or as the call still running, plus failures', () => {
       const t = i18next.getFixedT('en', 'chat');
       const done = { content: '', isError: false, timestamp: '2026-09-21T00:00:01Z' };
@@ -366,6 +331,21 @@ describe('chatSubcomponents', () => {
       await React.act(async () => row.click());
       assert.match(container.textContent || '', /Plan the fix/);
       assert.ok(container.querySelector('button[aria-label="Copy"]'));
+      // Redacted thinking is a timed line with nothing to open.
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <OperationRow
+            message={{ ...thinking, content: '' }}
+            previous={call}
+            messageKey="t"
+            isOpen={false}
+            isLive={false}
+            onToggle={() => {}}
+          />
+        </I18nextProvider>,
+      ));
+      assert.equal(container.textContent, 'Thought for 23s');
+      assert.equal(container.querySelector('button'), null);
     });
 
     test('a subagent is one row that opens to what it was asked, its calls, and its report', async () => {
@@ -502,168 +482,47 @@ describe('chatSubcomponents', () => {
       assert.equal(container.querySelector('button[aria-expanded]')?.textContent, 'Edit probe.txt· denied', 'the banner\'s Deny counts as a denial');
     });
 
-    test('applies each cycle mode in the same tab while provider status stays authoritative', async () => {
+    test('the status row puts time and tokens first, then the reported stage or Working', async () => {
       container = document.createElement('div');
       document.body.appendChild(container);
       root = createRoot(container);
-
-      const initialStartedAt = Date.now() - 4_500;
-      const Harness = () => {
-        const {
-          cycleMode,
-          messageOrder,
-          setCustomMessages,
-          setCycleMode,
-          setMessageOrder,
-          resetThinkingMessages,
-        } = useThinkingMessages();
-        const [statusText, setStatusText] = React.useState<string | null>(null);
-        const [startedAt, setStartedAt] = React.useState(initialStartedAt);
-        return (
-          <>
-            <button type="button" onClick={() => setCustomMessages(['Pondering', 'Scheming'])}>
-              Customize
-            </button>
-            <button type="button" onClick={() => setCustomMessages([])}>
-              Clear
-            </button>
-            <button type="button" onClick={resetThinkingMessages}>
-              Reset
-            </button>
-            <button type="button" onClick={() => setStatusText('Compacting conversation')}>
-              Set provider status
-            </button>
-            <button type="button" onClick={() => setCycleMode('2')}>Every 2 seconds</button>
-            <button type="button" onClick={() => setCycleMode('never')}>Never</button>
-            <button type="button" onClick={() => setCycleMode('turn')}>Per turn</button>
-            <button type="button" onClick={() => setMessageOrder('random')}>Random order</button>
-            <button type="button" onClick={() => setStartedAt((current) => current + 1_000)}>Next turn</button>
-            <output>{cycleMode}:{messageOrder}</output>
-            <ActivityIndicator
-              activity={{ statusText, canInterrupt: true, startedAt }}
-            />
-          </>
-        );
-      };
-
-      await React.act(async () => root?.render(<Harness />));
-      assert.match(container.textContent ?? '', /Processing/);
-
-      const button = (label: string) => [...container!.querySelectorAll<HTMLButtonElement>('button')]
-        .find((candidate) => candidate.textContent?.trim() === label);
-      const customize = button('Customize');
-      const clear = button('Clear');
-      const reset = button('Reset');
-      const setProviderStatus = button('Set provider status');
-      await React.act(async () => customize?.click());
-      assert.match(container.textContent ?? '', /Scheming/);
-      assert.deepEqual(
-        JSON.parse(localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY) ?? 'null'),
-        ['Pondering', 'Scheming'],
-      );
-
-      await React.act(async () => clear?.click());
-      assert.match(container.textContent ?? '', /Processing/);
-      assert.deepEqual(JSON.parse(localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY) ?? 'null'), []);
-
-      await React.act(async () => customize?.click());
-      await React.act(async () => button('Every 2 seconds')?.click());
-      assert.match(container.textContent ?? '', /Pondering/);
-      assert.equal(localStorage.getItem(THINKING_MESSAGE_CYCLE_STORAGE_KEY), '2');
-
-      await React.act(async () => button('Never')?.click());
-      assert.match(container.textContent ?? '', /Pondering/);
-
-      await React.act(async () => button('Per turn')?.click());
-      assert.match(container.textContent ?? '', /Pondering/);
-      await React.act(async () => button('Next turn')?.click());
-      assert.match(container.textContent ?? '', /Scheming/);
-
-      // A settings change restarts the list instead of keeping its place, so the
-      // change proves itself on screen rather than resuming at an arbitrary word.
-      await React.act(async () => clear?.click());
-      assert.match(container.textContent ?? '', /Thinking/);
-      assert.doesNotMatch(container.textContent ?? '', /Processing/);
-      await React.act(async () => customize?.click());
-      assert.match(container.textContent ?? '', /Pondering/);
-
-      await React.act(async () => button('Random order')?.click());
-      const firstRandomMessage = container.querySelector<HTMLElement>('span[title]')?.title;
-      assert.ok(firstRandomMessage);
-      await React.act(async () => button('Next turn')?.click());
-      const secondRandomMessage = container.querySelector<HTMLElement>('span[title]')?.title;
-      assert.ok(secondRandomMessage);
-      assert.notEqual(secondRandomMessage, firstRandomMessage);
-      assert.equal(localStorage.getItem(THINKING_MESSAGE_ORDER_STORAGE_KEY), 'random');
-
-      await React.act(async () => setProviderStatus?.click());
-      assert.match(container.textContent ?? '', /Compacting conversation/);
-      assert.doesNotMatch(container.textContent ?? '', /Scheming/);
-      const activityLabel = container.querySelector<HTMLElement>('[title="Compacting conversation"]');
-      assert.ok(activityLabel);
-      assert.match(activityLabel.className, /min-w-0/);
-      assert.match(activityLabel.querySelector('span')?.className ?? '', /truncate/);
-
-
-      await React.act(async () => reset?.click());
-      assert.equal(
-        container.querySelector('output')?.textContent,
-        `${DEFAULT_THINKING_MESSAGE_CYCLE_MODE}:${DEFAULT_THINKING_MESSAGE_ORDER}`,
-      );
-      assert.equal(localStorage.getItem(THINKING_MESSAGES_STORAGE_KEY), null);
-      assert.equal(localStorage.getItem(THINKING_MESSAGE_CYCLE_STORAGE_KEY), null);
-      assert.equal(localStorage.getItem(THINKING_MESSAGE_ORDER_STORAGE_KEY), null);
-
-      // A reported stage outranks both the custom words and the status text.
-      await React.act(async () => root?.render(
-        <ActivityIndicator
-          activity={{
-            statusText: 'Compacting conversation',
-            stage: { name: 'thinking', tokens: 5350 },
-            outputTokens: 5350,
-            canInterrupt: true,
-            startedAt: initialStartedAt,
-          }}
-        />,
+      const startedAt = Date.now() - 4_500;
+      const render = (activity: React.ComponentProps<typeof ActivityIndicator>['activity']) => React.act(async () => (
+        root?.render(<I18nextProvider i18n={i18next}><ActivityIndicator activity={activity} /></I18nextProvider>)
       ));
-      assert.match(container.textContent ?? '', /Thinking…/);
-      // The count sits in the fixed right-hand slot, not in the label.
-      const countSlot = [...container.querySelectorAll('span')].find((span) => /5,350 tokens · /.test(span.textContent ?? ''));
-      assert.match(countSlot?.className ?? '', /shrink-0/);
-      const thinkingLabel = container.querySelector('[title="Thinking"]');
-      assert.ok(thinkingLabel);
-      assert.doesNotMatch(thinkingLabel.textContent ?? '', /tokens/);
-      assert.doesNotMatch(container.textContent ?? '', /Compacting conversation/);
 
-      await React.act(async () => root?.render(
-        <ActivityIndicator
-          activity={{
-            statusText: null,
-            stage: { name: 'retrying', attempt: 3, maxAttempts: 10, reason: 'overloaded' },
-            canInterrupt: true,
-            startedAt: initialStartedAt,
-          }}
-        />,
-      ));
+      await render({ statusText: null, canInterrupt: true, startedAt });
+      assert.equal(container.querySelector('[role="status"]')?.textContent, '4s ·Working…');
+
+      await render({ statusText: 'Compacting conversation', canInterrupt: true, startedAt });
+      assert.match(container.textContent ?? '', /Compacting conversation…/);
+
+      // A reported stage outranks the provider's status text.
+      await render({
+        statusText: 'Compacting conversation',
+        stage: { name: 'thinking', tokens: 5350 },
+        outputTokens: 5350,
+        canInterrupt: true,
+        startedAt,
+      });
+      assert.equal(container.querySelector('[role="status"]')?.textContent, '4s · 5,350 tokens ·Thinking…');
+      assert.ok(container.querySelector('[title="Thinking"]'));
+
+      await render({
+        statusText: null,
+        stage: { name: 'retrying', attempt: 3, maxAttempts: 10, reason: 'overloaded' },
+        canInterrupt: true,
+        startedAt,
+      });
       assert.match(container.textContent ?? '', /Retrying · overloaded · 3 of 10/);
-      // No reported count leaves just the elapsed time.
       assert.doesNotMatch(container.textContent ?? '', /tokens/);
-
     });
 
-    test('a permission prompt hides the indicator without unmounting its cycle', () => {
+    test('the status row lives in the conversation, not above the composer', () => {
+      const paneSource = readFileSync(new URL('./ChatMessagesPane.tsx', import.meta.url), 'utf8');
       const composerSource = readFileSync(new URL('./ChatComposer.tsx', import.meta.url), 'utf8');
-      const mountConditionIndex = composerSource.indexOf('{(activity || reserveActivitySpace) && (');
-      const indicatorIndex = composerSource.indexOf('<ActivityIndicator activity={activity}');
-
-      assert.ok(mountConditionIndex > 0);
-      assert.ok(indicatorIndex > mountConditionIndex);
-      assert.match(
-        composerSource.slice(mountConditionIndex, indicatorIndex),
-        /display: pendingPermissionRequests\.length > 0 \? 'none' : undefined/,
-      );
-      // Gating the mount on this restarts the turn counter and the no-repeat bag per prompt.
-      assert.doesNotMatch(composerSource, /pendingPermissionRequests\.length === 0 &&/);
+      assert.ok(paneSource.indexOf('<ActivityIndicator activity={activity} />') < paneSource.indexOf('<ScheduledMessageBubbles'));
+      assert.doesNotMatch(composerSource, /ActivityIndicator/);
     });
   });
 

@@ -95,10 +95,6 @@ describe('registry', () => {
   test('getScreenPath returns the ancestor chain ending with the screen', () => {
     assert.deepEqual(getScreenPath('appearance.editor'), ['appearance', 'appearance.editor']);
     assert.deepEqual(
-      getScreenPath('chat.activityMessages'),
-      ['chat', 'chat.activityMessages'],
-    );
-    assert.deepEqual(
       getScreenPath('chat.voice.library'),
       ['chat', 'chat.voice', 'chat.voice.library'],
     );
@@ -110,7 +106,7 @@ describe('registry', () => {
     assert.deepEqual(getChildScreens('appearance').map((s) => s.id), ['appearance.editor']);
     assert.deepEqual(
       getChildScreens('chat').map((screen) => screen.id),
-      ['chat.activityMessages', 'chat.voice'],
+      ['chat.voice'],
     );
     assert.deepEqual(getChildScreens('about'), []);
   });

@@ -7,9 +7,6 @@
  * server is a one-line addition here plus a client that reports its changes.
  */
 export const SYNCED_PREFERENCE_KEYS = [
-  'thinkingMessages',
-  'thinkingMessageCycle',
-  'thinkingMessageOrder',
   // Theme and font only; reading size and line spacing stay per device, where
   // screen size is the reason they were set.
   'appearancePreferences',

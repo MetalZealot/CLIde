@@ -9,12 +9,13 @@ import {
   formatLineCounts,
   operationLabel,
   summarizeActivity,
+  thinkingDurationMs,
   waitingLabel,
 } from '../../utils/toolActivity';
 import { formatDuration } from '../../utils/chatFormatting';
 import { Shimmer } from '../../../../shared/view/ui/Shimmer';
 
-import { DisclosureRow } from './DisclosureRow';
+import { DisclosureRow, StaticRow } from './DisclosureRow';
 import OperationDetail from './OperationDetail';
 
 interface ToolActivityProps {
@@ -40,11 +41,24 @@ interface OperationRowProps {
   isLive: boolean;
   onToggle: (key: string) => void;
   messageKey: string;
+  /** The row before it, which times a thinking row. */
+  previous?: ChatMessage;
 }
 
 /** One truncated line per call; its detail opens below it. */
-export const OperationRow = memo(function OperationRow({ message, isOpen, isLive, onToggle, messageKey }: OperationRowProps) {
+export const OperationRow = memo(function OperationRow({ message, isOpen, isLive, onToggle, messageKey, previous }: OperationRowProps) {
   const { t } = useTranslation('chat');
+
+  if (message.isThinking && !firstLine(message.content)) {
+    const thinkingMs = thinkingDurationMs(previous, message);
+    return (
+      <StaticRow
+        label={thinkingMs !== null && thinkingMs >= 1000
+          ? t('activity.thoughtFor', { duration: formatDuration(thinkingMs) })
+          : t('activity.thoughtUntimed')}
+      />
+    );
+  }
 
   if (message.isThinking) {
     return (
@@ -119,7 +133,7 @@ const ToolActivity = memo(function ToolActivity({
 
       {isExpanded && (
         <div className="ml-1 mt-0.5 border-l border-border pl-3">
-          {activity.messages.map((message) => {
+          {activity.messages.map((message, index) => {
             const messageKey = getMessageKey(message);
             const isOpen = openKeys.has(messageKey);
             return (
@@ -130,6 +144,7 @@ const ToolActivity = memo(function ToolActivity({
                   isOpen={isOpen}
                   isLive={isLive}
                   onToggle={toggleOperation}
+                  previous={activity.messages[index - 1]}
                 />
                 {isOpen && <OperationDetail message={message} onFileOpen={onFileOpen} />}
               </div>

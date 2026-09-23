@@ -39,6 +39,15 @@ export function DisclosureRow({ label, isOpen, onToggle, isRunning = false, trai
   );
 }
 
+/** The activity row's shape with nothing to open: no chevron, not a button. */
+export function StaticRow({ label }: { label: string }) {
+  return (
+    <p className="flex min-h-6 items-center text-[13px] leading-5 text-muted-foreground sm:min-h-7 sm:text-sm">
+      <span className="min-w-0 truncate">{label}</span>
+    </p>
+  );
+}
+
 interface TextDisclosureProps {
   label: string;
   copyText: string;
