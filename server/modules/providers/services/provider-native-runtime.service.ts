@@ -27,6 +27,7 @@ import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
 type PersistedRuntimeFingerprint = {
   realPath: string;
   fingerprint: string;
+  launcherPath?: string;
 };
 
 type PersistedProviderSelection = {
@@ -125,7 +126,10 @@ const readPersistedFingerprint = (value: unknown): PersistedRuntimeFingerprint |
   const record = readObjectRecord(value);
   const realPathValue = readOptionalString(record?.realPath);
   const fingerprint = readOptionalString(record?.fingerprint);
-  return realPathValue && fingerprint ? { realPath: realPathValue, fingerprint } : null;
+  const launcherPath = readOptionalString(record?.launcherPath);
+  return realPathValue && fingerprint
+    ? { realPath: realPathValue, fingerprint, ...(launcherPath ? { launcherPath } : {}) }
+    : null;
 };
 
 const readPersistedSelection = (value: unknown): PersistedProviderSelection | null => {
@@ -270,8 +274,7 @@ const installationId = (provider: string, fingerprint: string): string => (
 
 /**
  * Provider adapters instantiate this shared resolver to discover executables,
- * persist one approved fingerprint, and reject missing or changed selections
- * without silently falling back to another candidate.
+ * follow one stable launcher and check compatibility whenever its target changes.
  */
 export class ProviderNativeRuntimeService {
   private readonly descriptor: ProviderNativeRuntimeDescriptor;
@@ -302,6 +305,14 @@ export class ProviderNativeRuntimeService {
     return [...(await this.loadSnapshot(refresh)).installations];
   }
 
+  /** Update management follows the same launcher even when compatibility fails. */
+  async getLauncherPath(): Promise<string> {
+    const snapshot = await this.loadSnapshot(true);
+    const launcherPath = snapshot.selection.active.launcherPath;
+    if (!launcherPath) throw new Error(snapshot.activeError ?? 'No installed CLI launcher found.');
+    return launcherPath;
+  }
+
   async getRuntimeState(refresh = false): Promise<ProviderNativeRuntimeState> {
     const snapshot = await this.loadSnapshot(refresh);
     const previous = snapshot.selection.previous
@@ -327,21 +338,18 @@ export class ProviderNativeRuntimeService {
   }
 
   async getActiveRuntime(): Promise<ProviderNativeRuntimeInstallation> {
-    const snapshot = await this.loadSnapshot(false);
+    let snapshot = await this.loadSnapshot(false);
+    const launcherPath = snapshot.selection.active.launcherPath;
+    const current = launcherPath ? await this.probeCandidate({
+      candidatePath: launcherPath,
+      source: 'persisted',
+    }, '') : null;
+    if (!current || current.fingerprint !== snapshot.selection.active.fingerprint || !snapshot.active) {
+      snapshot = await this.loadSnapshot(true);
+    }
     if (!snapshot.active) {
       throw new Error(snapshot.activeError ?? `No ${this.descriptor.provider} runtime is selected.`);
     }
-
-    const current = await this.probeCandidate({
-      candidatePath: snapshot.active.realPath,
-      source: 'persisted',
-    }, snapshot.active.realPath);
-    if (!current || current.fingerprint !== snapshot.selection.active.fingerprint) {
-      throw new Error(
-        `The selected ${this.descriptor.provider} runtime is missing or changed; promote it again before use.`,
-      );
-    }
-
     return snapshot.active;
   }
 
@@ -366,7 +374,7 @@ export class ProviderNativeRuntimeService {
     }
 
     const nextSelection: PersistedProviderSelection = {
-      active: { realPath: selected.realPath, fingerprint: selected.fingerprint },
+      active: { realPath: selected.realPath, fingerprint: selected.fingerprint, launcherPath: selected.launcherPath },
       previous: snapshot.selection.active,
     };
     await this.persistSelection(nextSelection);
@@ -399,14 +407,18 @@ export class ProviderNativeRuntimeService {
     this.loading = this.discoverSnapshot().finally(() => {
       this.loading = null;
     });
+    const previousFingerprint = this.snapshot?.selection.active.fingerprint;
     this.snapshot = await this.loading;
+    if (previousFingerprint && this.snapshot.active && previousFingerprint !== this.snapshot.active.fingerprint) {
+      for (const listener of this.selectionListeners) listener(this.snapshot.active);
+    }
     return this.snapshot;
   }
 
   private async discoverSnapshot(): Promise<RuntimeSnapshot> {
     const store = await readRuntimeStore(this.storePath);
     let selection = readPersistedSelection(store.providers[this.descriptor.provider]);
-    const bundledPath = await this.descriptor.resolveBundledExecutablePath();
+    const bundledPath = await this.descriptor.resolveBundledExecutablePath().catch(() => '');
     const pathEntries = (this.env.PATH ?? this.env.Path ?? this.env.path ?? '')
       .split(path.delimiter)
       .filter(Boolean);
@@ -437,16 +449,18 @@ export class ProviderNativeRuntimeService {
       ...(selection
         ? [selection.active, selection.previous]
           .filter((entry): entry is PersistedRuntimeFingerprint => entry !== null)
-          .map((entry) => ({ candidatePath: entry.realPath, source: 'persisted' as const }))
+          .flatMap((entry) => [entry.launcherPath, entry.realPath]
+            .filter((value): value is string => Boolean(value))
+            .map((candidatePath) => ({ candidatePath, source: 'persisted' as const })))
         : []),
-      { candidatePath: bundledPath, source: 'bundled' },
+      ...(bundledPath ? [{ candidatePath: bundledPath, source: 'bundled' as const }] : []),
     ];
 
-    let bundledRealPath: string;
+    let bundledRealPath = '';
     try {
       bundledRealPath = await realpath(bundledPath);
     } catch {
-      throw new Error(`Bundled ${this.descriptor.provider} runtime is unavailable.`);
+      // The installed CLI does not depend on the SDK's bundled executable.
     }
 
     const installationsByPath = new Map<string, ProviderNativeRuntimeInstallation>();
@@ -466,42 +480,36 @@ export class ProviderNativeRuntimeService {
       }
     }
     const installations = [...installationsByPath.values()];
-    const bundled = installations.find((installation) => installation.bundled);
-    if (!bundled) {
-      throw new Error(`Bundled ${this.descriptor.provider} runtime is unavailable.`);
-    }
-
-    if (!selection) {
-      const compatibility = await this.readCompatibility(bundled);
-      if (compatibility !== 'compatible') {
-        throw new Error(
-          `Bundled ${this.descriptor.provider} runtime compatibility ${compatibility}.`,
-        );
-      }
-      selection = {
-        active: { realPath: bundled.realPath, fingerprint: bundled.fingerprint },
-        previous: null,
-      };
-      await this.persistSelection(selection);
-    }
-
-    const active = installations.find((installation) => (
-      installation.realPath === selection.active.realPath
-      && installation.fingerprint === selection.active.fingerprint
-    )) ?? null;
+    const configuredPath = this.env[this.descriptor.configuredPathEnvVar];
+    // Legacy fingerprints migrate once to the installed CLI; never to the SDK bundle.
+    const launcherPath = configuredPath || selection?.active.launcherPath
+      || installations.find((installation) => !installation.bundled
+        && installation.sources.some((source) => source === 'path' || source === 'known'))?.launcherPath;
+    const active = launcherPath
+      ? await this.probeCandidate({ candidatePath: launcherPath, source: 'persisted' }, bundledRealPath)
+      : null;
     let activeError: string | null = null;
     if (!active) {
-      activeError = `The selected ${this.descriptor.provider} runtime is missing or changed; promote it again before use.`;
+      activeError = `The installed ${this.descriptor.provider} CLI is unavailable. Check its configured launcher.`;
     } else {
       const compatibility = await this.readCompatibility(active);
       if (compatibility !== 'compatible') {
         activeError = `The selected ${this.descriptor.provider} runtime compatibility is ${compatibility}.`;
       }
     }
+    if (active && !activeError && (selection?.active.fingerprint !== active.fingerprint
+      || selection.active.launcherPath !== launcherPath)) {
+      selection = {
+        active: { realPath: active.realPath, fingerprint: active.fingerprint, launcherPath },
+        previous: selection?.active ?? null,
+      };
+      await this.persistSelection(selection);
+    }
+    selection ??= { active: { realPath: '', fingerprint: '', launcherPath }, previous: null };
 
     return {
       installations,
-      selection,
+      selection: { ...selection, active: { ...selection.active, launcherPath } },
       active: activeError ? null : active,
       activeError,
     };
@@ -531,6 +539,7 @@ export class ProviderNativeRuntimeService {
         id: installationId(this.descriptor.provider, fingerprint),
         provider: this.descriptor.provider,
         realPath: resolvedPath,
+        launcherPath: path.resolve(candidate.candidatePath),
         version,
         fingerprint,
         sources: [candidate.source],
@@ -549,7 +558,7 @@ export class ProviderNativeRuntimeService {
       return cached;
     }
     const compatibility = await this.descriptor.checkCompatibility(installation.realPath);
-    this.compatibilityByFingerprint.set(installation.fingerprint, compatibility);
+    if (compatibility !== 'check_failed') this.compatibilityByFingerprint.set(installation.fingerprint, compatibility);
     return compatibility;
   }
 

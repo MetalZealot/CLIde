@@ -99,6 +99,7 @@ type RunStoppedNotifier = (options: RunNotificationBase & {
 }) => void;
 
 type AppServerChatOptions = {
+  refreshRuntime?: () => Promise<unknown>;
   command?: CodexAppServerCommand;
   resolveCommand?: () => Promise<{
     command: CodexAppServerCommand;
@@ -969,6 +970,7 @@ export class CodexAppServerChatTransport {
   }
 
   private async withRuntimeOperation<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.activeOperations === 0) await this.options.refreshRuntime?.();
     this.activeOperations += 1;
     try {
       return await operation();
@@ -1567,6 +1569,7 @@ const sharedTransport = new CodexAppServerChatTransport({
     ['app-server', '--stdio'],
   ),
   subscribeRuntimeChanges: (listener) => codexNativeRuntimeService.onSelectionChanged(listener),
+  refreshRuntime: () => codexNativeRuntimeService.getActiveRuntime(),
 });
 
 export async function queryCodexAppServer(

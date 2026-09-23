@@ -3,6 +3,7 @@ export { providerCapabilitiesService } from './services/provider-capabilities.se
 export { providerSkillsService } from './services/skills.service.js';
 export { providerMcpService } from './services/mcp.service.js';
 export { providerRuntimeService } from './services/provider-runtime.service.js';
+export { providerUpdateCoordinator } from './services/provider-update-coordinator.service.js';
 export {
   buildSelectedCodexShellCommand,
   codexNativeRuntimeService,

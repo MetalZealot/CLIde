@@ -58,8 +58,44 @@ import QueuedMessagesRow from './QueuedMessagesRow';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
 import ComposerAddMenu from './ComposerAddMenu';
 import TokenUsageSummary from './TokenUsageSummary';
+import ProviderUpdateNotice from './ProviderUpdateNotice';
 
 describe('chatSubcomponents', () => {
+  test('provider update notice checks without installing and updates only on explicit click', async () => {
+    const translations = i18next.createInstance();
+    await translations.use(initReactI18next).init({ lng: 'en', resources: { en: { chat: {} } } });
+    const originalFetch = globalThis.fetch;
+    const calls: string[] = [];
+    let updated = false;
+    let modelRefreshes = 0;
+    globalThis.fetch = (async (url, options) => {
+      calls.push(`${options?.method ?? 'GET'} ${String(url)}`);
+      if (options?.method === 'POST') updated = true;
+      return new Response(JSON.stringify({ success: true, data: {
+        provider: 'codex', installedVersion: updated ? '0.156.0' : '0.153.4', latestVersion: '0.156.0',
+        updateAvailable: !updated, canUpdate: true, state: updated ? 'updated' : 'idle',
+        message: updated ? 'Updated to 0.156.0.' : null,
+      } }), { headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    try {
+      await React.act(async () => root.render(<I18nextProvider i18n={translations}><ProviderUpdateNotice provider="codex" onUpdated={() => { modelRefreshes += 1; }} /></I18nextProvider>));
+      assert.match(host.textContent ?? '', /Codex update available: 0.156.0/);
+      assert.ok(calls.every((call) => call.startsWith('GET')));
+      await React.act(async () => (host.querySelector('button') as HTMLButtonElement).click());
+      assert.equal(calls.filter((call) => call.startsWith('POST')).length, 1);
+      assert.match(host.querySelector('[role="status"]')?.textContent ?? '', /Updated to 0.156.0/);
+      assert.equal(host.querySelector('button'), null);
+      assert.equal(modelRefreshes, 1);
+      await React.act(async () => root.render(<ProviderUpdateNotice key="cursor" provider="cursor" />));
+      assert.equal(host.textContent, '');
+      assert.ok(calls.every((call) => call.includes('/codex/')));
+    } finally {
+      await React.act(async () => root.unmount());
+      globalThis.fetch = originalFetch;
+    }
+  });
   test('shows each assistant reply timestamp regardless of its preceding message', async () => {
     // Node needs the CommonJS theme entry; Vite resolves the ESM entry in the app.
     const hooks = registerHooks({

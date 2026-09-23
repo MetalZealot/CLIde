@@ -643,7 +643,7 @@
     },
     "codexRuntime": {
       "title": "Native runtime",
-      "description": "One approved Codex executable is used by Chat, Shell, models and account usage.",
+      "description": "Chat, Shell, models and account usage follow the installed Codex CLI. Updates are checked for compatibility automatically.",
       "installationsTitle": "Installations",
       "diagnosticsTitle": "Diagnostics",
       "loading": "Reading installed runtimes…",

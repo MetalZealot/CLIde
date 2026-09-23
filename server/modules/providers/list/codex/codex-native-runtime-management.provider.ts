@@ -16,6 +16,7 @@ export type CodexNativeRuntimeInstallationDto = {
 };
 
 export type CodexNativeRuntimeStatusDto = {
+  followsInstalled: boolean;
   installations: CodexNativeRuntimeInstallationDto[];
   activeInstallationId: string | null;
   previousInstallationId: string | null;
@@ -74,6 +75,7 @@ export class CodexNativeRuntimeManagementService {
     const state = await this.dependencies.runtimeService.getRuntimeState(refresh);
     const diagnostics = this.dependencies.getDiagnostics();
     return {
+      followsInstalled: true,
       installations: state.installations.map((installation) => (
         installationDto(installation, this.dependencies.homeDirectory)
       )),

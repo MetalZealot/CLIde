@@ -141,7 +141,7 @@ function InstallationRow({
         </div>
       )}
 
-      {!isActive && (
+      {!isActive && !status.followsInstalled && (
         <div className="mt-2 flex flex-wrap gap-2">
           {isPrevious ? (
             <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={() => onSelect('rollback')}>

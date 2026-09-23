@@ -18,7 +18,11 @@ import ProjectCreationWizard from '../../../project-creation-wizard';
 import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import WorktreeManagerModal from '../../../sidebar/view/subcomponents/WorktreeManagerModal';
 
+import ProviderUpdateNotice from './ProviderUpdateNotice';
+
 type NewSessionLauncherProps = {
+  provider: string;
+  onProviderUpdated?: () => void;
   projects: Project[];
   selectedProject: Project | null;
   onTargetSelect: (project: Project) => void;
@@ -37,6 +41,8 @@ const menuItemClassName =
   'flex min-h-11 w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-accent active:bg-accent';
 
 export default function NewSessionLauncher({
+  provider,
+  onProviderUpdated,
   projects,
   selectedProject,
   onTargetSelect,
@@ -140,6 +146,7 @@ export default function NewSessionLauncher({
 
   return (
     <>
+      <ProviderUpdateNotice key={provider} provider={provider} onUpdated={onProviderUpdated} />
       {selectedProject && tasksEnabled && isTaskMasterInstalled && (
         <div className="px-2 pb-2 sm:px-4">
           <div className="mx-auto max-w-[54.25rem]">

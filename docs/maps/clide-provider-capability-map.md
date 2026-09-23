@@ -88,7 +88,7 @@ runtime state; the other providers still depend on manual assumptions.
 | Provider | Interactive profile | Other relevant profiles | Current availability note |
 |---|---|---|---|
 | Claude | Agent SDK spawns a standalone Claude Code per turn | Separate Claude Shell; SDK control surface | Pinned SDK 0.3.165 bundles runtime 2.1.165; the runtime actually spawned is whatever `PATH` resolves (2.1.220 observed) |
-| Codex | Long-lived App Server from the approved installation; explicit SDK escape hatch or initialization-only fallback | SDK jobs, disposable reads, Shell, models, auth, and usage all resolve the same approved installation | Bundled and standalone 0.147.0 installations are distinct by path; new stores select bundled until promotion |
+| Codex | Long-lived App Server from the installed CLI; explicit SDK escape hatch or initialization-only fallback | SDK jobs, disposable reads, Shell, models, auth, and usage follow the same configured launcher | Changed executables are checked automatically; incompatible or missing CLIs do not fall back to bundled (ADR 0061) |
 | Cursor | External `cursor-agent` process | Native model/config/session stores | No installation detected in the audited service environment |
 | OpenCode | External `opencode run` process | Native model command and shared SQLite history | No installation detected in the audited service environment |
 

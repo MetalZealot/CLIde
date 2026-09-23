@@ -11,6 +11,7 @@ import test, { describe } from 'node:test';
 import express, { type NextFunction, type Request, type Response } from 'express';
 
 import { createCodexNativeRuntimeRouter } from '@/modules/providers/codex-native-runtime.routes.js';
+import { createProviderCliUpdatesRouter } from '@/modules/providers/provider-cli-updates.routes.js';
 import { checkCodexAppServerCompatibility } from '@/modules/providers/list/codex/codex-app-server-compatibility.js';
 import { CodexNativeRuntimeManagementService } from '@/modules/providers/list/codex/codex-native-runtime-management.provider.js';
 import { JsonlRpcClient, JsonlRpcError } from '@/modules/providers/shared/jsonl-rpc.client.js';
@@ -88,6 +89,34 @@ describe('codex-app-server-protocol-drift', () => {
 });
 
 describe('codex-native-runtime-management', () => {
+  test('CLI update routes allow only supported providers and never install on GET', async () => {
+    const calls: string[] = [];
+    const status = (provider: 'claude' | 'codex') => ({
+      provider, installedVersion: '1.0.0', latestVersion: '1.1.0', updateAvailable: true,
+      canUpdate: true, state: 'idle' as const, message: null,
+    });
+    const app = express();
+    app.use(express.json());
+    app.use(createProviderCliUpdatesRouter({
+      getStatus: async (provider) => { calls.push(`get:${provider}`); return status(provider); },
+      startUpdate: async (provider) => { calls.push(`update:${provider}`); return status(provider); },
+      cancelUpdate: async (provider) => { calls.push(`cancel:${provider}`); return status(provider); },
+    }));
+    app.use((error: AppError, _req: Request, res: Response, _next: NextFunction) => {
+      res.status(error.statusCode ?? 500).json({ error: error.message });
+    });
+    const server = app.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      assert.equal((await fetch(`${url}/codex/cli-update`)).status, 200);
+      assert.deepEqual(calls, ['get:codex']);
+      assert.equal((await fetch(`${url}/claude/cli-update`, { method: 'POST' })).status, 202);
+      assert.equal((await fetch(`${url}/claude/cli-update`, { method: 'DELETE' })).status, 200);
+      assert.equal((await fetch(`${url}/cursor/cli-update`, { method: 'POST' })).status, 400);
+      assert.deepEqual(calls, ['get:codex', 'update:claude', 'cancel:claude']);
+    } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
+  });
   const bundled: ProviderNativeRuntimeInstallation = {
     id: 'runtime_111111111111111111111111',
     provider: 'codex',

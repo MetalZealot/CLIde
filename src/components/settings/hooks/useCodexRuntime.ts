@@ -11,6 +11,7 @@ export type RuntimeInstallation = {
 };
 
 export type RuntimeStatus = {
+  followsInstalled?: boolean;
   installations: RuntimeInstallation[];
   activeInstallationId: string | null;
   previousInstallationId: string | null;

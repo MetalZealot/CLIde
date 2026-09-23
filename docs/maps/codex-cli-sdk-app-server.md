@@ -16,19 +16,20 @@ semantics belong in the
 |---|---|
 | Dispositions compiled at | 0.153.4, spanning the 0.153.0–0.153.4 notes |
 | Native thread store | `~/.codex/state_*.sqlite`, table `threads`; `session_index.jsonl` is a legacy mirror and absent on a current install |
-| Repository pin | `@openai/codex-sdk` 0.153.4, with `@openai/codex` 0.153.4 transitively |
-| Available installations | Repository bundle and discovered standalone both 0.153.4; selection remains explicit and installation-specific |
+| Application dependency | `@openai/codex-sdk` 0.153.4, with `@openai/codex` 0.153.4 transitively; does not select the installed CLI |
+| Installed CLI | Follows the configured stable launcher; standalone 0.156.0 passed the structural compatibility check on 2026-09-22 |
 | Default generated protocol | 102 client requests, 10 server requests, 83 notifications |
 | Experimental generated protocol | 158 client requests, 11 server requests, 83 notifications |
 | Interactive Chat | App Server by default; SDK by explicit escape hatch or initialization-only fallback |
-| Runtime selection | Bundled seed, explicit compatible promotion, no silent fallback |
+| Runtime selection | Configured launcher, or discovered installed CLI on first use; automatic compatibility check when its target changes, no silent fallback |
 | Isolated live evidence | Managed-runtime lifecycle proven at 0.147.0; 0.153.4 Astra default, new Chat, and mobile async-question display passed |
 | Production state | Intentionally unchanged by this isolated update |
 
-The SDK and bundled CLI stay pinned as one compatibility pair, but version is
-not installation identity. A provider-generic resolver persists one approved
-Codex installation for Chat, Shell, SDK jobs, models, authentication, and usage.
-Discovery never promotes an installation.
+The SDK remains a locked application dependency. Chat, Shell, SDK jobs, models,
+authentication, and usage follow one installed CLI launcher independently of that
+dependency. Installer symlink changes trigger compatibility checks automatically;
+legacy fingerprint selections migrate to the installed CLI. See
+[0061](../decisions/0061-follow-installed-provider-clis.md).
 
 ## 1. Surface model
 
@@ -42,7 +43,7 @@ Discovery never promotes an installation.
 | Codex Cloud | Not used | Separate hosted-task lifecycle |
 
 ```text
-Browser -> CLIde session_id -> Codex adapter -> approved installation
+Browser -> CLIde session_id -> Codex adapter -> installed CLI launcher
                                       |-- long-lived Chat App Server
                                       |-- bounded App Server reads
                                       |-- SDK jobs / startup fallback
@@ -99,12 +100,21 @@ transport. CLIde keeps `approvalsReviewer: 'user'` and does not expose
 | Rate limits and account activity | Bounded selected App Server; unsupported modes report honestly | Keep |
 | Usage-limit reset redemption | Confirmed `/usage` action calls `account/rateLimitResetCredit/consume`, preserves one idempotency key across a logical retry, and refreshes usage | Keep capability-gated; link to OpenAI Usage when absent |
 | Effective config and requirements | Direct TOML editing; native read-only cascade not exposed | Defer |
-| Runtime diagnostics and selection | Active, live, pending, previous, per-facet ids; row-level Check and Use | Keep |
+| Runtime diagnostics and updates | Active, live, pending, previous, per-facet ids; automatic compatibility checks and New Session update notice | Keep |
 
-The runtime selector displays sanitized paths and sends opaque ids. Check reuses
-the generated App Server compatibility gate and enables Use only for the row
-that passed. Promotions wait for an active Chat turn to finish; unavailable or
-changed selections do not fall back to bundled.
+Runtime diagnostics display sanitized paths. The resolver follows a stable
+launcher and checks a changed executable before using it; an incompatible or
+missing installation does not fall back to bundled. Chat checks for changes at
+idle operation boundaries, and a change detected during a turn recycles the
+App Server only after active operations finish.
+
+New Session checks the selected provider's release channel at most hourly and
+offers an explicit Update action. Native Claude and standalone Codex installations
+use their own `update` command; other installers are identified as manual updates.
+This server waits for its active Chat, jobs, and provider Shells, prevents new
+work during the update, and allows cancellation while waiting. Updaters preserve
+their own channel and installation policy; external terminals and other CLIde
+server instances are outside the in-process execution gate.
 
 ### 2.4 MCP, skills, plugins, and advanced surfaces
 
@@ -247,11 +257,12 @@ Primary current sources:
 2. Audit release, compare, tagged source, official docs, declarations, CLI help,
    feature flags, and generated default/experimental protocol.
 3. Classify every material change as consumed, candidate, watch, or no action.
-4. Pin SDK, bundled CLI, and platform lockfile packages together.
+4. Update SDK dependencies only when the integration library needs changes;
+   ordinary installed CLI updates require no package or lockfile edit.
 5. Expand curated protocol only for consumed fields and run the shared
-   compatibility check against every promotable candidate.
+   compatibility check against the installed CLI.
 6. Run focused/full checks and isolated live Chat, interactions, models, usage,
-   Shell, promotion, idle recycle, and rollback gates.
+   Shell, installed-launcher changes, and idle recycle gates.
 7. Record production state only after deployment; never infer it from source or
    a branch server.
 

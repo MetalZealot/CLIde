@@ -71,7 +71,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0031 — Selection follows the theme; sidebar status uses symbols](0031-theme-relative-selection-and-symbolic-sidebar-status.md)
 - [0032 — The composer ring owns a summary-first usage popover](0032-summary-first-composer-usage-popover.md)
 - [0033 — A worktree with no project row is listed, not registered](0033-discovered-checkouts-are-derived-not-stored.md)
-- [0034 — Codex uses one explicitly approved native runtime](0034-codex-managed-native-runtime.md)
+- [0034 — Codex uses one explicitly approved native runtime](0034-codex-managed-native-runtime.md) *(selection superseded by 0061)*
 - [0035 — Discovered checkout selection registers first](0035-discovered-checkout-selection-registers-first.md)
 - [0036 — Pins belong to session lists; activity belongs to status](0036-pins-belong-to-session-lists-activity-belongs-to-status.md)
 - [0037 — The sidebar view menu owns Archive and global list controls](0037-sidebar-view-menu-owns-archive-and-global-list-controls.md)
@@ -98,3 +98,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0058 — Stop lives in the send button; the usage ring lives in the header](0058-stop-in-send-button-ring-in-header.md)
 - [0059 — An activity's operation list expands inline on every screen](0059-activity-operations-expand-inline-on-every-screen.md) *(phone raw detail superseded by 0060)*
 - [0060 — A call's detail opens flat, in place, on every screen](0060-a-calls-detail-opens-flat-in-place.md)
+- [0061 — Follow installed provider CLIs](0061-follow-installed-provider-clis.md)

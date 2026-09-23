@@ -2,6 +2,7 @@ import express, { type Request, type Response } from 'express';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import codexNativeRuntimeRoutes from '@/modules/providers/codex-native-runtime.routes.js';
+import { createProviderCliUpdatesRouter } from '@/modules/providers/provider-cli-updates.routes.js';
 import {
   readClaudeAutoCompactSettings,
   writeClaudeAutoCompactSettings,
@@ -43,6 +44,7 @@ import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils
 const router = express.Router();
 
 router.use('/codex/runtime', codexNativeRuntimeRoutes);
+router.use(createProviderCliUpdatesRouter());
 
 const readPathParam = (value: unknown, name: string): string => {
   if (typeof value === 'string') {

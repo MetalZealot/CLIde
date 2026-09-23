@@ -6,6 +6,7 @@ import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject } from '@/shared/utils.js';
+import { providerUpdateCoordinator } from '@/modules/providers/index.js';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -397,19 +398,26 @@ export function handleShellConnection(
         const termRows = readNumber(data.rows, 24);
         const prioritizedPath = prioritizeUserNpmGlobalBin(process.env);
 
-        shellProcess = (dependencies.spawnPty ?? pty.spawn)(shell, shellArgs, {
-          name: 'xterm-256color',
-          cols: termCols,
-          rows: termRows,
-          cwd: resolvedProjectPath,
-          env: {
-            ...process.env,
-            [prioritizedPath.key]: prioritizedPath.value,
-            TERM: 'xterm-256color',
-            COLORTERM: 'truecolor',
-            FORCE_COLOR: '3',
-          },
-        });
+        const releaseProvider = !isPlainShell && (provider === 'claude' || provider === 'codex')
+          ? providerUpdateCoordinator.acquire(provider) : undefined;
+        try {
+          shellProcess = (dependencies.spawnPty ?? pty.spawn)(shell, shellArgs, {
+            name: 'xterm-256color',
+            cols: termCols,
+            rows: termRows,
+            cwd: resolvedProjectPath,
+            env: {
+              ...process.env,
+              [prioritizedPath.key]: prioritizedPath.value,
+              TERM: 'xterm-256color',
+              COLORTERM: 'truecolor',
+              FORCE_COLOR: '3',
+            },
+          });
+        } catch (error) {
+          releaseProvider?.();
+          throw error;
+        }
 
         ptySessionsMap.set(ptySessionKey, {
           pty: shellProcess,
@@ -497,6 +505,7 @@ export function handleShellConnection(
         });
 
         shellProcess.onExit((exitCode) => {
+          releaseProvider?.();
           if (!ptySessionKey) {
             return;
           }

@@ -1029,6 +1029,8 @@ function ChatInterface({
 
           {isNewSession && (
             <NewSessionLauncher
+              provider={provider}
+              onProviderUpdated={refreshProviderModels}
               projects={projects}
               selectedProject={selectedProject}
               onTargetSelect={onNewSessionTarget}

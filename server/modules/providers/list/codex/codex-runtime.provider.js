@@ -18,6 +18,7 @@
 
 import { Codex } from '@openai/codex-sdk';
 
+import { providerUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
 import {
   abortCodexAppServerSession,
   isCodexAppServerChatEnabled,
@@ -605,7 +606,8 @@ export async function queryCodexChat(command, options = {}, ws, context = defaul
  * enter from the agent routes without a registry runtime context.
  */
 export async function queryCodexJob(command, options = {}, writer) {
-  return queryCodexSdk(command, { ...options, runtimeFacet: 'jobs' }, writer);
+  return providerUpdateCoordinator.run('codex',
+    () => queryCodexSdk(command, { ...options, runtimeFacet: 'jobs' }, writer));
 }
 
 export async function abortCodexSession(sessionId) {

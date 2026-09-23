@@ -84,8 +84,8 @@ export type ProviderNativeRuntimeCompatibility =
 
 /**
  * Discovery route that made a provider executable visible to CLIde. A runtime
- * may have several sources after symlink resolution; selection never follows
- * this ordering after an explicit fingerprint has been persisted.
+ * may have several sources after symlink resolution; a persisted launcher
+ * stays authoritative when its installer changes the target.
  */
 export type ProviderNativeRuntimeSource =
   | 'configured'
@@ -95,7 +95,7 @@ export type ProviderNativeRuntimeSource =
   | 'persisted';
 
 /**
- * Codex execution surface recording which approved installation it resolved.
+ * Codex execution surface recording which installed executable it resolved.
  * Diagnostics expose only installation ids and versions, never executable paths.
  */
 export type CodexNativeRuntimeFacet = 'auth' | 'chat' | 'shell' | 'models' | 'usage' | 'jobs';
@@ -109,6 +109,8 @@ export type ProviderNativeRuntimeInstallation = {
   id: string;
   provider: LLMProvider;
   realPath: string;
+  /** Stable launcher followed across installer symlink changes. */
+  launcherPath?: string;
   version: string;
   fingerprint: string;
   sources: ProviderNativeRuntimeSource[];

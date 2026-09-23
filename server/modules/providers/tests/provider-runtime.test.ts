@@ -8,6 +8,8 @@ import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { interactiveRequestRegistry } from '@/modules/providers/services/interactive-request-registry.service.js';
 import { ProviderNativeRuntimeService } from '@/modules/providers/services/provider-native-runtime.service.js';
 import { createProviderRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
+import { ProviderCliUpdatesService, runNativeCliUpdate } from '@/modules/providers/services/provider-cli-updates.service.js';
+import { ProviderUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
 import { createSideQuestionsService } from '@/modules/providers/services/side-questions.service.js';
 import type { IProvider, IProviderRuntime } from '@/shared/interfaces.js';
 import type { LLMProvider, ProviderNativeRuntimeDescriptor, SideQuestionRequest } from '@/shared/types.js';
@@ -206,7 +208,7 @@ describe('provider-native-runtime', () => {
     await chmod(filePath, 0o700);
   };
 
-  test('native runtime discovery seeds bundled, deduplicates symlinks, and persists promotion', async () => {
+  test('native runtime follows the installed launcher across upgrades and restarts', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'clide-native-runtime-'));
     const storePath = path.join(root, 'state', 'provider-runtimes.json');
     const bundledPath = path.join(root, 'bundled-codex');
@@ -239,33 +241,38 @@ describe('provider-native-runtime', () => {
       assert.deepEqual(external.sources, ['configured']);
 
       const seeded = await service.getActiveRuntime();
-      assert.equal(seeded.bundled, true);
-      assert.equal(seeded.version, '0.147.0');
+      assert.equal(seeded.bundled, false);
+      assert.equal(seeded.version, '0.148.0');
       assert.equal((await lstat(storePath)).mode & 0o777, 0o600);
-
-      const promoted = await service.selectInstallation(external.id);
-      assert.equal(promoted.realPath, externalPath);
+      const changes: string[] = [];
+      service.onSelectionChanged((runtime) => changes.push(runtime.version));
+      const nextPath = path.join(root, 'codex-next');
+      await makeExecutable(nextPath, '0.149.0');
+      await rm(linkedPath);
+      await symlink(nextPath, linkedPath);
+      assert.equal((await service.getActiveRuntime()).version, '0.149.0');
+      assert.deepEqual(changes, ['0.149.0']);
       const persisted = JSON.parse(await readFile(storePath, 'utf8')) as {
         providers: { codex: { active: { realPath: string }; previous: { realPath: string } } };
       };
-      assert.equal(persisted.providers.codex.active.realPath, externalPath);
-      assert.equal(persisted.providers.codex.previous.realPath, bundledPath);
+      assert.equal(persisted.providers.codex.active.realPath, nextPath);
+      assert.equal(persisted.providers.codex.previous.realPath, externalPath);
       const state = await service.getRuntimeState();
-      assert.equal(state.active?.id, external.id);
+      assert.equal(state.active?.version, '0.149.0');
       assert.equal(state.previous?.id, seeded.id);
-      assert.equal((await service.getInstallation(seeded.id))?.realPath, bundledPath);
+      assert.equal((await service.getInstallation(seeded.id))?.realPath, externalPath);
 
       const reloaded = new ProviderNativeRuntimeService(descriptor, {
         storePath,
         homeDirectory: root,
         env: { PATH: '' },
       });
-      assert.equal((await reloaded.getActiveRuntime()).realPath, externalPath);
+      assert.equal((await reloaded.getActiveRuntime()).realPath, nextPath);
 
-      await rm(externalPath);
+      await rm(linkedPath);
       await assert.rejects(
         reloaded.getActiveRuntime(),
-        /selected codex runtime is missing or changed/,
+        /installed codex CLI is unavailable/,
       );
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -302,10 +309,145 @@ describe('provider-native-runtime', () => {
         service.selectInstallation(incompatible.id),
         /compatibility incompatible/,
       );
-      assert.equal((await service.getActiveRuntime()).bundled, true);
+      await assert.rejects(service.getActiveRuntime(), /compatibility is incompatible/);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  test('legacy bundled pins migrate to PATH and later incompatible updates cannot fall back', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'clide-native-runtime-'));
+    const bundled = path.join(root, 'bundle');
+    const installed = path.join(root, 'installed');
+    const launcher = path.join(root, 'codex');
+    const storePath = path.join(root, 'runtimes.json');
+    await makeExecutable(bundled, '0.153.4');
+    await makeExecutable(installed, '0.156.0');
+    await symlink(installed, launcher);
+    await writeFile(storePath, JSON.stringify({ version: 1, providers: {
+      codex: { active: { realPath: bundled, fingerprint: 'old-bundled-pin' }, previous: null },
+    } }));
+    const checks: string[] = [];
+    const service = new ProviderNativeRuntimeService({
+      provider: 'codex', executableName: 'codex', configuredPathEnvVar: 'TEST_CODEX',
+      resolveBundledExecutablePath: async () => bundled,
+      readVersion: (filename) => readFile(filename, 'utf8'),
+      checkCompatibility: async (filename) => {
+        const version = await readFile(filename, 'utf8');
+        checks.push(version);
+        return version === '9.0.0' ? 'incompatible' : 'compatible';
+      },
+    }, { storePath, homeDirectory: root, env: { PATH: root } });
+    try {
+      assert.equal((await service.getActiveRuntime()).version, '0.156.0');
+      await service.getActiveRuntime();
+      assert.deepEqual(checks, ['0.156.0']);
+      await makeExecutable(installed, '9.0.0');
+      await assert.rejects(service.getActiveRuntime(), /compatibility is incompatible/);
+      assert.equal((await service.getRuntimeState()).active, null);
+      await makeExecutable(installed, '0.157.0');
+      assert.equal((await service.getActiveRuntime()).version, '0.157.0');
+      assert.deepEqual(checks, ['0.156.0', '9.0.0', '0.157.0']);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+});
+
+describe('provider CLI updates', () => {
+  const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  test('the native updater runs only the fixed update argument and reports process failures', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'clide-updater-process-'));
+    const launcher = path.join(root, 'fake-cli');
+    const invocation = path.join(root, 'invocation.json');
+    try {
+      await writeFile(launcher, '#!/usr/bin/env node\n'
+        + 'const fs = require("node:fs");\n'
+        + `fs.writeFileSync(${JSON.stringify(invocation)}, JSON.stringify(process.argv.slice(2)));\n`, { mode: 0o700 });
+      await runNativeCliUpdate('claude', { launcher, version: '1.0.0', canUpdate: true });
+      assert.deepEqual(JSON.parse(await readFile(invocation, 'utf8')), ['update']);
+      await writeFile(launcher, '#!/usr/bin/env node\nprocess.exit(7);\n', { mode: 0o700 });
+      await assert.rejects(runNativeCliUpdate('codex', { launcher, version: '1.0.0', canUpdate: true }), /updater failed/);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  test('checks are cached and never install; explicit updates wait for work and reject duplicate starts', async () => {
+    const coordinator = new ProviderUpdateCoordinator();
+    const release = coordinator.acquire('codex');
+    let checks = 0;
+    let installs = 0;
+    let version = '0.153.4';
+    const service = new ProviderCliUpdatesService({
+      inspect: async () => ({ launcher: '/fake/codex', version, canUpdate: true }),
+      latest: async () => { checks += 1; return '0.156.0'; },
+      install: async () => { installs += 1; version = '0.156.0'; },
+      verify: async () => {}, coordinator, now: () => 1000,
+    });
+    assert.equal((await service.getStatus('codex')).updateAvailable, true);
+    await service.getStatus('codex');
+    assert.equal(checks, 1);
+    assert.equal(installs, 0);
+    const updates = await Promise.all([service.startUpdate('codex'), service.startUpdate('codex')]);
+    assert.ok(updates.every((status) => status.state === 'waiting'));
+    assert.throws(() => coordinator.acquire('codex'), /update is pending/);
+    assert.equal(installs, 0);
+    const releaseClaude = coordinator.acquire('claude');
+    releaseClaude();
+    release();
+    await tick();
+    const done = await service.getStatus('codex');
+    assert.equal(done.state, 'updated');
+    assert.equal(done.installedVersion, '0.156.0');
+    assert.equal(done.updateAvailable, false);
+    assert.equal(installs, 1);
+    coordinator.acquire('codex')();
+  });
+
+  test('incompatible updates report failure and release the execution gate', async () => {
+    const coordinator = new ProviderUpdateCoordinator();
+    let version = '0.153.4';
+    const service = new ProviderCliUpdatesService({
+      inspect: async () => ({ launcher: '/fake/codex', version, canUpdate: true }),
+      latest: async () => '0.156.0',
+      install: async () => { version = '0.156.0'; },
+      verify: async () => { throw new Error('Missing required approval method.'); },
+      coordinator, now: () => 1000,
+    });
+    await service.startUpdate('codex');
+    await tick();
+    const failed = await service.getStatus('codex');
+    assert.equal(failed.state, 'error');
+    assert.match(failed.message ?? '', /Missing required approval method/);
+    coordinator.acquire('codex')();
+  });
+
+  test('unsupported installers and unavailable release checks never run an installer', async () => {
+    let installs = 0;
+    const service = new ProviderCliUpdatesService({
+      inspect: async () => ({ launcher: '/fake/claude', version: '2.1.280', canUpdate: false }),
+      latest: async () => { throw new Error('offline'); },
+      install: async () => { installs += 1; }, verify: async () => {},
+      coordinator: new ProviderUpdateCoordinator(), now: () => 1000,
+    });
+    assert.equal((await service.getStatus('claude')).latestVersion, null);
+    await assert.rejects(service.startUpdate('claude'), /original installer/);
+    assert.equal(installs, 0);
+  });
+
+  test('a waiting update can be cancelled without interrupting existing work', async () => {
+    const coordinator = new ProviderUpdateCoordinator();
+    const release = coordinator.acquire('claude');
+    let installs = 0;
+    const service = new ProviderCliUpdatesService({
+      inspect: async () => ({ launcher: '/fake/claude', version: '2.1.280', canUpdate: true }),
+      latest: async () => '2.1.281', install: async () => { installs += 1; },
+      verify: async () => {}, coordinator, now: () => 1000,
+    });
+    assert.equal((await service.startUpdate('claude')).state, 'waiting');
+    assert.equal((await service.cancelUpdate('claude')).state, 'idle');
+    coordinator.acquire('claude')();
+    release();
+    await tick();
+    assert.equal(installs, 0);
   });
 });
 

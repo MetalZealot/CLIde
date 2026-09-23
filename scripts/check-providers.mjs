@@ -141,7 +141,7 @@ const codexBundled = installed('@openai/codex');
 record('Codex CLI (bundled)', codexBundled, published('@openai/codex'), 'transitive through the SDK');
 
 const codexBin = onPath('codex');
-record('Codex CLI (on PATH)', versionOf(codexBin && run(codexBin, ['--version'])), null, 'standalone install, selectable at runtime');
+record('Codex CLI (on PATH)', versionOf(codexBin && run(codexBin, ['--version'])), null, 'installed launcher, followed after compatibility checks');
 
 // Cursor and OpenCode have no pinned dependency: CLIde spawns whatever binary
 // the user installed. So the row answers a different question — is the runtime
@@ -369,7 +369,7 @@ if (want('--protocol')) {
 
 if (!behind.length) say('\nNothing moved.');
 say('\nNext, if anything moved:');
-say('  1. Bump the pin, `npm install`, then `npm test` — the drift tests name what broke.');
+say('  1. CLI updates follow the installed launcher. For SDK changes, update dependencies and run `npm test`.');
 say('  2. Classify each change: consumed, candidate, watch, or no action.');
 say('  3. Append one ledger entry and update the map rows you actually re-measured.');
 if (artifacts.length) say(`\nArtifacts: ${OUT}`);

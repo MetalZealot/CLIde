@@ -286,6 +286,18 @@ window, and a cancelled request cannot put abandoned messages back.
 after a rewind. Hidden tool records still count toward paging even though they do
 not each become a visible bubble.
 
+## 18. Updating a CLI does not require updating CLIde's copy
+
+**The assumption:** the installed Claude or Codex launcher owns which version runs.
+
+**The rule:** CLIde follows that launcher, automatically checks changed Codex
+versions, and finishes active work before replacing its running process. New
+Session offers an Update action; checking for an update never installs one.
+
+**What breaks:** a private bundled version misses the fixes you installed, while
+switching a running process can interrupt work. An incompatible update must say
+so rather than silently choosing an older copy. [Decision](../decisions/0061-follow-installed-provider-clis.md).
+
 ## When to stop and ask
 
 You do not need to understand a diff to catch these. If a proposed change would:
