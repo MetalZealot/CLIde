@@ -1,4 +1,4 @@
-import { AlertTriangle, LogIn, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ExternalLink, LogIn, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useProviderCapabilities } from '../../../../../hooks/useProviderCapabilities';
@@ -6,7 +6,7 @@ import { Button } from '../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../llm-logo-provider/SessionProviderLogo';
 import UsageWindowList from '../../../../provider-usage/UsageWindowList';
 import { useProviderUsage } from '../../../../provider-usage/hooks/useProviderUsage';
-import { supportsProviderUsageReset } from '../../../../provider-usage/types';
+import { PROVIDER_USAGE_MANAGEMENT_URLS, supportsProviderUsageReset } from '../../../../provider-usage/types';
 import {
   type CodexTransportDiagnostics,
   isTransportDegraded,
@@ -114,6 +114,7 @@ export default function AgentAccountCard({
     || notificationPreferences.channels.desktop;
   const usageResetEnabled = notificationPreferences.events.usageReset[provider] === true;
   const serviceStatusPageUrl = capabilities?.[provider]?.serviceStatusPageUrl ?? null;
+  const managementUrl = PROVIDER_USAGE_MANAGEMENT_URLS[provider];
 
   const setUsageResetEnabled = (enabled: boolean) => {
     onNotificationPreferencesChange({
@@ -274,6 +275,19 @@ export default function AgentAccountCard({
           <div className="p-4">
             <UsageWindowList usage={planUsage.usage} loading={planUsage.loading} error={planUsage.error} />
           </div>
+          {managementUrl && (
+            <div className="border-t border-border px-4 py-3">
+              <a
+                href={managementUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                {t('agents.usage.managePlan')}
+              </a>
+            </div>
+          )}
         </SettingsGroup>
       )}
 

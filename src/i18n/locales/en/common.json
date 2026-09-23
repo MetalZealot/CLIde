@@ -419,7 +419,6 @@
     "sessionTokens": "{{used}} tokens",
     "creditsTokens": "Credits/Tokens",
     "creditSpendHint": "Usage-credit spend this period",
-    "managePlan": "Manage Plan and Balance",
     "oneResetAvailable": "1 usage reset available",
     "resetsAvailable": "{{count}} usage resets available",
     "viewUsage": "View usage",

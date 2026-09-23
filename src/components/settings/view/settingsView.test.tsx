@@ -1086,10 +1086,9 @@ describe('AccountScreen', () => {
 
 describe('AgentAccountCard', () => {
   /**
-   * Covers the Runtime row only. Every case renders unauthenticated on purpose:
-   * that disables the plan-usage fetch and the reset toggle, so the card's one
-   * remaining request is the capability matrix and the row under test is the
-   * only thing that varies.
+   * Runtime cases render unauthenticated on purpose: that disables the
+   * plan-usage fetch and the reset toggle, so the card's one remaining request
+   * is the capability matrix and the row under test is the only thing that varies.
    */
 
   let root: Root | null = null;
@@ -1197,6 +1196,39 @@ describe('AgentAccountCard', () => {
     const host = await render(null);
 
     assert.doesNotMatch(host.textContent ?? '', /Runtime/);
+  });
+
+  test('a signed-in plan ends its usage card with the plan management link', async () => {
+    const usageFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => new Response(
+      JSON.stringify(String(input).includes('/usage')
+        ? { success: true, data: { provider: 'claude', supported: true, windows: [], fetchedAt: new Date().toISOString() } }
+        : { success: true, data: { providers: [] } }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )) as typeof globalThis.fetch;
+
+    try {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+      await React.act(async () => {
+        root?.render(React.createElement(AgentAccountCard, {
+          provider: 'claude',
+          authStatus: { ...authStatus(null), authenticated: true, method: 'oauth' },
+          onLogin: () => {},
+          notificationPreferences: preferences,
+          onNotificationPreferencesChange: () => {},
+          onOpenNotifications: () => {},
+        }));
+      });
+      await React.act(async () => new Promise((resolve) => window.setTimeout(resolve, 0)));
+
+      const link = [...container.querySelectorAll<HTMLAnchorElement>('a')]
+        .find((anchor) => anchor.textContent?.includes('Manage Plan and Balance'));
+      assert.equal(link?.href, 'https://claude.ai/new#settings/usage');
+    } finally {
+      globalThis.fetch = usageFetch;
+    }
   });
 });
 

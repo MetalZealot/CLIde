@@ -1607,9 +1607,8 @@ describe('chatSubcomponents', () => {
       assert.equal(providerUsageRequests.length, requestCountBeforeRefresh + 1);
       assert.match(providerUsageRequests.at(-1) || '', /[?&]refresh=true/);
 
-      const link = dialog.querySelector<HTMLAnchorElement>('a');
-      assert.equal(link?.textContent?.trim(), 'Manage Plan and Balance');
-      assert.equal(link?.href, 'https://claude.ai/new#settings/usage');
+      // Plan management lives on the provider's Agent settings page.
+      assert.equal(dialog.querySelector('a'), null);
 
       const breakdown = dialog.querySelector<HTMLButtonElement>(
         'button[aria-label="Session breakdown"]',
@@ -1791,10 +1790,7 @@ describe('chatSubcomponents', () => {
       assert.doesNotMatch(text, /Auto(?: off)?/);
       assert.match(text, /Credits\/Tokens\$25\.00/);
       assert.match(text, /3 usage resets availableView usage/);
-      assert.equal(
-        dialog.querySelector<HTMLAnchorElement>('a')?.href,
-        'https://chatgpt.com/#settings/Usage',
-      );
+      assert.equal(dialog.querySelector('a'), null);
 
       const resetButton = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
         .find((button) => button.textContent?.includes('3 usage resets available'));

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActivityIcon, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from 'lucide-react';
+import { ActivityIcon, ChevronDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
@@ -12,7 +12,6 @@ import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage
 import { UsageActivitySection } from '../../../provider-usage/UsageWindowList';
 import { formatResetsIn } from '../../../provider-usage/format';
 import {
-  PROVIDER_USAGE_MANAGEMENT_URLS,
   type ProviderUsageBalanceCredits,
   type ProviderUsageCredits,
   type ProviderUsageSpendCredits,
@@ -486,7 +485,6 @@ export default function TokenUsageSummary({
       ))?.id
     : undefined;
   const creditMarkerVisible = creditsAreAvailable(providerUsage?.credits);
-  const managementUrl = usageProvider ? PROVIDER_USAGE_MANAGEMENT_URLS[usageProvider] : undefined;
   // Claude's own vocabulary: "auto" means no cap is configured, NOT "auto-compact
   // is enabled". Reporting the enabled flag under that word read as Claude's own
   // window while a user cap was in force, hiding an 80% cut. Name the source.
@@ -772,18 +770,6 @@ export default function TokenUsageSummary({
                 <p className="text-xs text-muted-foreground">
                   {t('planUsage.loadError', { defaultValue: "Couldn't load plan usage." })}
                 </p>
-              )}
-
-              {managementUrl && (
-                <a
-                  href={managementUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <ExternalLink className="h-3 w-3" aria-hidden />
-                  {t('usagePopover.managePlan', { defaultValue: 'Manage Plan and Balance' })}
-                </a>
               )}
             </div>
           )}
