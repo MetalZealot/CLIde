@@ -649,7 +649,8 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const workspacePath = readOptionalQueryString(req.query.workspacePath);
-    const result = await providerToolsService.listPlugins(provider, { workspacePath });
+    const refresh = parseOptionalBooleanQuery(req.query.refresh, 'refresh') ?? false;
+    const result = await providerToolsService.listPlugins(provider, { workspacePath, refresh });
     res.json(createApiSuccessResponse({ provider, ...result }));
   }),
 );

@@ -1,7 +1,7 @@
 # One Tools page per provider: skills, plugins, and MCP
 
-- Status: 1/4
-- Next: Phase 2 — Codex plugins and connector status from the app-server
+- Status: 2/4
+- Next: Phase 3 — the Tools page replaces the Skills and MCP rows
 - Context: [provider skills contract](../../server/modules/providers/README.md),
   [context-correct skills](skills-settings-discovery-scope.md),
   [Settings navigation](../decisions/0018-settings-drill-down-one-scroll-container.md),
@@ -42,8 +42,10 @@ here / Off for this project / Not set up".
       standalone skills one folder deeper appear; a new optional provider
       member serves plugins (with their skills and connectors) and connector
       status for one workspace. Cursor and OpenCode report `supported: false`.
-- [ ] 2. **Codex data is complete.** Same member from the app-server, plus
-      skills that Codex plugins bundle.
+- [x] 2. **Codex data is complete.** Same member from the app-server, plus
+      skills that Codex plugins bundle (carried on each plugin, since the
+      Codex skills list is file-based and must not wait on the app-server).
+      Installed plugins only; account apps are its connectors.
 - [ ] 3. **The Tools page replaces Skills and MCP rows.** Tabs, search, rows,
       plugin sheet, refresh for connector status; existing add-skill and
       add-MCP flows reachable from their tabs. Checked at 320/390/900 px.

@@ -122,7 +122,7 @@ export class ClaudeToolsProvider implements IProviderTools {
         marketplaceLabel: MARKETPLACE_LABELS[install.marketplace] ?? install.marketplace,
         enabled: install.enabled,
         version: install.version,
-        skills: skills.map((skill) => skill.command),
+        skills: skills.map(({ name, command, description }) => ({ name, command, description })),
         connectors: await listClaudePluginServerNames(install),
       });
     }

@@ -5,52 +5,64 @@ import type {
   ProviderSkillListOptions,
 } from '@/shared/types.js';
 
-// Connector status costs a health check of every server, so a page visit reuses it.
-const CONNECTOR_CACHE_TTL_MS = 5 * 60 * 1000;
+// Both reads can take seconds (a health check of every server, or one plugin
+// read per install), so a page visit reuses them until asked to refresh.
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
-type ConnectorsResult = { supported: boolean; connectors: ProviderConnector[]; checkedAt?: string };
-type CacheEntry = { result?: ConnectorsResult; expiresAt: number; inFlight?: Promise<ConnectorsResult> };
+type Supported<T> = { supported: boolean; checkedAt?: string } & T;
+type CacheEntry<T> = { result?: T; expiresAt: number; inFlight?: Promise<T> };
+type ToolsOptions = ProviderSkillListOptions & { refresh?: boolean };
 
-const connectorCache = new Map<string, CacheEntry>();
+const caches = new Map<string, CacheEntry<unknown>>();
+
+const cached = <T>(key: string, refresh: boolean, load: () => Promise<T>): Promise<T> => {
+  const entry = (caches.get(key) ?? { expiresAt: 0 }) as CacheEntry<T>;
+  caches.set(key, entry);
+  if (entry.inFlight) {
+    return entry.inFlight;
+  }
+  if (!refresh && entry.result && Date.now() < entry.expiresAt) {
+    return Promise.resolve(entry.result);
+  }
+
+  entry.inFlight = load()
+    .then((result) => {
+      entry.result = result;
+      entry.expiresAt = Date.now() + CACHE_TTL_MS;
+      return result;
+    })
+    .finally(() => { entry.inFlight = undefined; });
+  return entry.inFlight;
+};
 
 export const providerToolsService = {
   async listPlugins(
     providerName: string,
-    options?: ProviderSkillListOptions,
-  ): Promise<{ supported: boolean; plugins: ProviderPlugin[] }> {
+    options: ToolsOptions = {},
+  ): Promise<Supported<{ plugins: ProviderPlugin[] }>> {
     const tools = providerRegistry.resolveProvider(providerName).tools;
     if (!tools) {
       return { supported: false, plugins: [] };
     }
-    return { supported: true, plugins: await tools.listPlugins(options) };
+    return cached(`plugins\0${providerName}\0${options.workspacePath ?? ''}`, Boolean(options.refresh), async () => ({
+      supported: true,
+      plugins: await tools.listPlugins({ workspacePath: options.workspacePath }),
+      checkedAt: new Date().toISOString(),
+    }));
   },
 
   async listConnectors(
     providerName: string,
-    options: ProviderSkillListOptions & { refresh?: boolean } = {},
-  ): Promise<ConnectorsResult> {
+    options: ToolsOptions = {},
+  ): Promise<Supported<{ connectors: ProviderConnector[] }>> {
     const tools = providerRegistry.resolveProvider(providerName).tools;
     if (!tools) {
       return { supported: false, connectors: [] };
     }
-
-    const key = `${providerName}\0${options.workspacePath ?? ''}`;
-    const entry = connectorCache.get(key) ?? { expiresAt: 0 };
-    connectorCache.set(key, entry);
-    if (entry.inFlight) {
-      return entry.inFlight;
-    }
-    if (!options.refresh && entry.result && Date.now() < entry.expiresAt) {
-      return entry.result;
-    }
-
-    entry.inFlight = tools.listConnectors({ workspacePath: options.workspacePath })
-      .then((connectors) => {
-        entry.result = { supported: true, connectors, checkedAt: new Date().toISOString() };
-        entry.expiresAt = Date.now() + CONNECTOR_CACHE_TTL_MS;
-        return entry.result;
-      })
-      .finally(() => { entry.inFlight = undefined; });
-    return entry.inFlight;
+    return cached(`connectors\0${providerName}\0${options.workspacePath ?? ''}`, Boolean(options.refresh), async () => ({
+      supported: true,
+      connectors: await tools.listConnectors({ workspacePath: options.workspacePath }),
+      checkedAt: new Date().toISOString(),
+    }));
   },
 };

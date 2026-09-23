@@ -20,6 +20,7 @@ type PendingRequest = {
 export type JsonlRpcClientOptions = {
   command: JsonlRpcCommand;
   env?: NodeJS.ProcessEnv;
+  cwd?: string;
   requestTimeoutMs?: number;
   maxStderrLength?: number;
   onNotification?: (method: string, params: unknown) => void | Promise<void>;
@@ -103,6 +104,7 @@ export class JsonlRpcClient {
     this.terminalError = null;
     this.child = spawn(this.options.command.command, this.options.command.args, {
       env: this.options.env ?? process.env,
+      cwd: this.options.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     this.lineReader = readline.createInterface({

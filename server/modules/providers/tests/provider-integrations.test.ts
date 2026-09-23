@@ -10,6 +10,7 @@ import { providerMcpService } from '@/modules/providers/services/mcp.service.js'
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { createProviderServiceStatusService } from '@/modules/providers/services/provider-service-status.service.js';
 import { parseClaudeMcpList } from '@/modules/providers/list/claude/claude-tools.provider.js';
+import { CodexToolsProvider } from '@/modules/providers/list/codex/codex-tools.provider.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { AppError } from '@/shared/utils.js';
@@ -947,7 +948,7 @@ describe('skills', () => {
       const engineering = plugins.get('engineering@synced');
       assert.equal(engineering?.enabled, true);
       assert.equal(engineering?.marketplaceLabel, 'Synced from claude.ai');
-      assert.deepEqual(engineering?.skills, ['/engineering:debug']);
+      assert.deepEqual(engineering?.skills.map((skill) => skill.command), ['/engineering:debug']);
       assert.deepEqual(engineering?.connectors, ['github', 'linear']);
       assert.equal(plugins.get('turned-off@synced')?.enabled, false);
       assert.equal(plugins.has('not-downloaded@synced'), false);
@@ -990,6 +991,76 @@ describe('skills', () => {
     assert.equal(byId.get('local')?.state, 'connected');
     // A status word CLIde has never seen is shown as unknown, never dropped.
     assert.equal(byId.get('odd')?.state, 'unknown');
+  });
+
+  test('codex tools list installed plugins only and map server and app status', async () => {
+    const calls: string[] = [];
+    const responses: Record<string, unknown> = {
+      'plugin/list': {
+        marketplaces: [
+          {
+            name: 'openai-bundled', path: '/m/bundled.json', interface: { displayName: 'OpenAI Bundled' },
+            plugins: [{ id: 'sites@openai-bundled', name: 'sites', installed: true, enabled: true, interface: { displayName: 'Sites' } }],
+          },
+          {
+            name: 'openai-curated-remote', path: null, interface: null,
+            plugins: [
+              { id: 'github@openai-curated-remote', name: 'github', installed: true, enabled: false },
+              { id: 'gmail@openai-curated-remote', name: 'gmail', installed: false, enabled: false },
+            ],
+          },
+        ],
+      },
+      'mcpServerStatus/list': {
+        data: [
+          { name: 'docs', authStatus: 'unsupported', runtimeStatus: null, tools: { search: {} } },
+          { name: 'linear', pluginId: 'linear@x', authStatus: 'notLoggedIn', runtimeStatus: null, tools: {} },
+          { name: 'broken', authStatus: 'oAuth', runtimeStatus: 'failed', tools: {} },
+          { name: 'codex_apps', authStatus: 'bearerToken', runtimeStatus: null, tools: { a: {} } },
+        ],
+        nextCursor: null,
+      },
+      'app/installed': { apps: [
+        { id: 'connector_1', runtimeName: 'GitHub', enabled: true, callable: true },
+        { id: 'connector_2', runtimeName: 'Drive', enabled: false, callable: false },
+      ] },
+    };
+    const provider = new CodexToolsProvider(async () => ({
+      request: async (method, params) => {
+        calls.push(`${method} ${JSON.stringify(params)}`);
+        if (method === 'plugin/read') {
+          const { pluginName } = params as { pluginName: string };
+          return { plugin: {
+            skills: [{ name: `${pluginName}:build`, shortDescription: 'Build it', enabled: true }, { name: 'off', enabled: false }],
+            mcpServers: [],
+            apps: [{ id: 'connector_1', name: pluginName === 'github' ? 'GitHub' : 'Sites' }],
+          } };
+        }
+        return responses[method];
+      },
+      close: () => {},
+    }));
+
+    const plugins = await provider.listPlugins({ workspacePath: '/work' });
+    assert.deepEqual(plugins.map((plugin) => plugin.id), ['sites@openai-bundled', 'github@openai-curated-remote']);
+    assert.equal(plugins[0].marketplaceLabel, 'OpenAI Bundled');
+    assert.deepEqual(plugins[0].skills, [{ name: 'sites:build', command: '$sites:build', description: 'Build it' }]);
+    assert.equal(plugins[1].marketplaceLabel, 'openai-curated-remote');
+    assert.equal(plugins[1].enabled, false);
+    assert.deepEqual(plugins[1].connectors, ['GitHub']);
+    // A remote marketplace has no path, so it is read by name.
+    assert.ok(calls.includes('plugin/read {"remoteMarketplaceName":"openai-curated-remote","pluginName":"github"}'));
+    assert.ok(calls.includes('plugin/list {"cwds":["/work"]}'));
+
+    const byName = new Map((await provider.listConnectors()).map((connector) => [connector.name, connector]));
+    assert.equal(byName.get('docs')?.state, 'connected');
+    assert.equal(byName.get('linear')?.state, 'needs-auth');
+    assert.equal(byName.get('linear')?.pluginName, 'linear');
+    assert.equal(byName.get('broken')?.state, 'failed');
+    assert.equal(byName.has('codex_apps'), false);
+    assert.equal(byName.get('GitHub')?.origin, 'account');
+    assert.equal(byName.get('GitHub')?.state, 'connected');
+    assert.equal(byName.get('Drive')?.state, 'disabled');
   });
 
   /**

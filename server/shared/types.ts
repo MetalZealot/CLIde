@@ -955,8 +955,14 @@ export type ProviderPlugin = {
   marketplaceLabel: string;
   enabled: boolean;
   version?: string;
-  skills: string[];
+  skills: ProviderPluginSkill[];
   connectors: string[];
+};
+
+export type ProviderPluginSkill = {
+  name: string;
+  command: string;
+  description: string;
 };
 
 /**
