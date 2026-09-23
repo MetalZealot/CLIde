@@ -93,6 +93,47 @@ function logTurn(event, sessionId, fields) {
   console.log(formatTurnLog(event, sessionId, fields));
 }
 
+/**
+ * The turn's output tokens as shown beside the activity label. Mid-turn an
+ * assistant row reports a placeholder `output_tokens` (1–2, measured against
+ * CLI 2.1.280), so a finished step keeps at least its thinking estimate; the
+ * result's real total replaces the running sum.
+ */
+function createTurnTokenCounter() {
+  // Rows of one step share a message id, so each id is credited once.
+  const stepTokens = new Map();
+  let finished = 0;
+  let estimate = 0;
+  let base = 0;
+  let live = 0;
+  let resultTotal = null;
+  return {
+    thinking(estimated) {
+      estimate = estimated || estimate;
+      // A lower estimate means the CLI restarted the count for a new step.
+      if (estimate < base) {
+        base = 0;
+      }
+      live = estimate - base;
+    },
+    step(id, output) {
+      if (!id) return;
+      const previous = stepTokens.get(id) ?? 0;
+      const credit = Math.max(previous + live, typeof output === 'number' ? output : 0);
+      finished += credit - previous;
+      stepTokens.set(id, credit);
+      base = estimate;
+      live = 0;
+    },
+    result(output) {
+      if (typeof output === 'number' && output > 0) {
+        resultTotal = output;
+      }
+    },
+    total: () => resultTotal ?? finished + live,
+  };
+}
+
 /** How the SDK rethrows a turn that ended on an error result. */
 const SDK_ERROR_RESULT_PREFIX = 'Claude Code returned an error result:';
 
@@ -721,13 +762,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let sentLogged = false;
   // The rate-limit event can land after the first model output; "Sent" must not follow it.
   let outputStarted = false;
-  // Output tokens for the turn: finished steps from their own usage, plus the
-  // live thinking estimate of the step still running. Rows of one step share a
-  // message id and its final usage, so each id counts once.
-  const stepOutputTokens = new Map();
-  let finishedOutputTokens = 0;
-  let thinkingBase = 0;
-  let liveThinkingTokens = 0;
+  const turnTokens = createTurnTokenCounter();
   let sentOutputTokens = 0;
 
   const emitNotification = (event) => {
@@ -1005,23 +1040,17 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         thinkingEstimate = message.estimated_tokens || thinkingEstimate;
         outputStarted = true;
         sendStage({ name: 'thinking', tokens: thinkingEstimate });
-        // A lower estimate means the CLI restarted the count for a new step.
-        if (thinkingEstimate < thinkingBase) {
-          thinkingBase = 0;
-        }
-        liveThinkingTokens = thinkingEstimate - thinkingBase;
+        turnTokens.thinking(message.estimated_tokens);
       }
 
-      const stepId = message?.type === 'assistant' ? message.message?.id : null;
-      const stepOutput = message?.message?.usage?.output_tokens;
-      if (stepId && typeof stepOutput === 'number' && stepOutput > 0) {
-        finishedOutputTokens += Math.max(0, stepOutput - (stepOutputTokens.get(stepId) ?? 0));
-        stepOutputTokens.set(stepId, Math.max(stepOutput, stepOutputTokens.get(stepId) ?? 0));
-        thinkingBase = thinkingEstimate;
-        liveThinkingTokens = 0;
+      if (message?.type === 'assistant') {
+        turnTokens.step(message.message?.id, message.message?.usage?.output_tokens);
+      }
+      if (message?.type === 'result') {
+        turnTokens.result(message.usage?.output_tokens);
       }
 
-      const turnOutputTokens = finishedOutputTokens + liveThinkingTokens;
+      const turnOutputTokens = turnTokens.total();
       if (turnOutputTokens !== sentOutputTokens) {
         sentOutputTokens = turnOutputTokens;
         ws.send(createNormalizedMessage({
@@ -1439,5 +1468,6 @@ export {
   reconnectSessionWriter,
   refreshClaudeContextUsage,
   duplicatesStreamedNotice,
-  formatTurnLog
+  formatTurnLog,
+  createTurnTokenCounter
 };

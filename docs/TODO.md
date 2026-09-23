@@ -33,7 +33,7 @@ main checkout only).
 
 ## Bugs
 
-- [ ] **Turn token count resets after each thinking burst.** Live steps report a 1–2 token placeholder (measured 2026-09-22) that replaces the estimate. **S**
+- [~] **Turn token count resets after each thinking burst.** Live steps report a 1–2 token placeholder (measured 2026-09-22) that replaces the estimate. **S**
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**

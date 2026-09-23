@@ -261,7 +261,7 @@ Everything else in the 32-type union falls through and is dropped:
 | `api_retry` | Attempt, max retries, delay, HTTP status, error class for a retryable failure | Implemented: logged and shown as the `retrying` activity stage. Arrives without `includePartialMessages`, one frame per attempt (measured against a local 529 stub at 2.1.270) |
 | `compact_boundary` | Where context was compacted | Candidate |
 | `task_notification`, `task_started`, `task_updated`, `task_progress` | Background-task lifecycle | Candidate |
-| `thinking_tokens` | Running thinking-token estimate while thinking text is redacted; not billed `output_tokens` | Implemented: the live part of the activity row's turn token count, added to finished steps' `output_tokens`. Arrives without `includePartialMessages`: 46 frames over a 55 s Opus think, average gap 1.2 s, max 1.7 s, estimate reaching 5,350; thinking text itself is 0 characters (measured at 2.1.270) |
+| `thinking_tokens` | Running thinking-token estimate while thinking text is redacted; not billed `output_tokens` | Implemented: the live part of the activity row's turn token count. A finished step keeps its estimate, because mid-turn `assistant` rows report a placeholder `output_tokens` of 1–2 (measured 2026-09-22); the result's total replaces the sum. Arrives without `includePartialMessages`: 46 frames over a 55 s Opus think, average gap 1.2 s, max 1.7 s, estimate reaching 5,350; thinking text itself is 0 characters (measured at 2.1.270) |
 | `tool_progress`, `tool_use_summary` | Per-tool progress and summaries | Candidate |
 | `commands_changed` | Live slash-menu invalidation | Integrate with `supportedCommands()` |
 | `stream_event` partials | Token-level deltas | Blocked on `includePartialMessages` |

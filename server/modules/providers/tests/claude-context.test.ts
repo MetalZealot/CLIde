@@ -952,3 +952,48 @@ describe('claude-settings-catalog', () => {
     });
   });
 });
+
+describe('claude-turn-tokens', () => {
+  // The runtime module only initialises behind the registry that imports it.
+  const loadCounter = async () => {
+    await import('@/modules/providers/provider.registry.js');
+    return (await import('@/modules/providers/list/claude/claude-runtime.provider.js')).createTurnTokenCounter;
+  };
+
+  test('a finished step keeps its thinking estimate instead of the placeholder output', async () => {
+    const counter = (await loadCounter())();
+    counter.thinking(400);
+    counter.thinking(1200);
+    assert.equal(counter.total(), 1200);
+
+    // Live rows of one step, as recorded: every one reports output_tokens 2.
+    counter.step('msg-1', 2);
+    counter.step('msg-1', 2);
+    counter.step('msg-1', 2);
+    assert.equal(counter.total(), 1200);
+
+    // The next step's thinking restarts the estimate and adds on top.
+    counter.thinking(300);
+    assert.equal(counter.total(), 1500);
+    counter.step('msg-2', 1);
+    assert.equal(counter.total(), 1500);
+  });
+
+  test('a step without thinking still counts what it reports, once per message id', async () => {
+    const counter = (await loadCounter())();
+    counter.step('msg-1', 40);
+    counter.step('msg-1', 55);
+    counter.step('msg-2', 10);
+    assert.equal(counter.total(), 65);
+  });
+
+  test('the result total replaces the running estimate, unless it reports nothing', async () => {
+    const counter = (await loadCounter())();
+    counter.thinking(900);
+    counter.step('msg-1', 2);
+    counter.result(0);
+    assert.equal(counter.total(), 900);
+    counter.result(282);
+    assert.equal(counter.total(), 282);
+  });
+});
