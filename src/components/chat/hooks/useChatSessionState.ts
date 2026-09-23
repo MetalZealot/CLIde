@@ -51,7 +51,7 @@ interface UseChatSessionStateArgs {
   pageScroll?: boolean;
 }
 
-interface ScrollRestoreState {
+export interface ScrollRestoreState {
   height: number;
   top: number;
   anchor: HTMLElement | null;
@@ -73,14 +73,17 @@ function captureScrollRestore(container: HTMLElement): ScrollRestoreState {
   };
 }
 
-function applyScrollRestore(container: HTMLElement, restore: ScrollRestoreState): void {
+export function applyScrollRestore(container: HTMLElement, restore: ScrollRestoreState): void {
   // Every geometry read precedes the write: a read after it lays the whole pane out again.
   const height = container.scrollHeight;
+  // Anchoring is off, so any scroll since the target was recorded is the reader's: keep it.
+  const readerScroll = container.scrollTop - restore.top;
   if (restore.anchor?.isConnected && restore.anchorOffset !== null) {
     const currentOffset = restore.anchor.getBoundingClientRect().top - getChatViewportRect(container).top;
+    restore.anchorOffset -= readerScroll;
     container.scrollTop += currentOffset - restore.anchorOffset;
   } else {
-    container.scrollTop = restore.top + Math.max(height - restore.height, 0);
+    container.scrollTop = restore.top + readerScroll + Math.max(height - restore.height, 0);
   }
 
   restore.height = height;

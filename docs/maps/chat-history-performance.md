@@ -34,19 +34,21 @@ small. Profiled causes, largest first:
   gathers some state that makes insertion restyle existing rows; its source
   is not identified. `content-visibility: auto` on rows cut it ~5× (desktop,
   injected; phone scroll stability untested).
-- Tailwind `space-y` on the list: its sibling selector restyles every row on
-  a top insert (130 ms vs 9 ms on a fresh list); the list uses `gap`.
-- Closed rewind/fork pickers re-filtered the conversation on every render
-  (~13 ms each, twice per render); they now scan only when open.
+- Tailwind `space-y`'s sibling selector restyled every row on a top insert
+  (130 vs 9 ms on a fresh list); the list uses `gap`.
+- Closed rewind/fork pickers re-filtered the conversation twice per render
+  (~13 ms each); they now scan only when open.
 - Scroll restoration read `scrollHeight` after writing `scrollTop`, a second
   forced layout per commit; reads now precede the write.
 
 A whole walk to the top blocked the main thread 6.7 s before these fixes and
 ~5.8 s after; injected `content-visibility` alone gave 4.1 s.
 
-Scrolling up in 120 px steps, the settling restore (two seconds after each
-prepend, reapplied on every resize) swallowed 3 of 276 steps; with
-`content-visibility` rows resizing into view, 19 of 279.
+Scrolling up 120 px at a time, a prepend restore committing before the
+reader's scroll was tracked undid it (3 of 276 steps); restores now keep
+scroll made since capture (0 of 274). With `content-visibility` 20 of 280
+still jump: the top activity remounts per prepend (phase 8) at the 150 px
+placeholder and shrinks before the ResizeObserver samples.
 
 ## Repeatable phase-1 baseline
 

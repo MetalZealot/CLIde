@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
 - Status: 6/13
-- Next: Phase 7 — stop the settling scroll restore overriding the reader, then re-probe `content-visibility`
+- Next: Phase 8 — stable activity key, which `content-visibility` (phase 7) needs
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -42,9 +42,9 @@ Each scroll-up step blocks the main thread longer as rows accumulate: 67 ms at
 14 rows, 855 ms at 112, with requests near 20 ms
 ([measurement](../maps/chat-history-performance.md#what-the-reader-experiences)).
 Done: pickers scan only when open, restoration reads before writing, the
-list uses `gap` (walk 6.7 → ~5.8 s blocked). Left: the settling restore
-that swallows reader scrolls (map), then `content-visibility` on rows, probed
-on the phone; fewer commits per step.
+list uses `gap` (walk 6.7 → ~5.8 s blocked), restores keep the reader's
+scroll. Left: `content-visibility` on rows once phase 8 stops the top
+activity remounting (map), probed on the phone; fewer commits per step.
 
 **Exit:** in the reference session no scroll-up step blocks over 100 ms in
 CLIde Browser, and cost no longer grows with rows already mounted.

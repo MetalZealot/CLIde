@@ -20,7 +20,7 @@ import { writeQueuedMessage } from '../utils/chatStorage';
 import { resolveEffortValuesForModel } from '../constants/providerEffort';
 
 import { useAsyncQuestions } from './useAsyncQuestions';
-import { useChatSessionState } from './useChatSessionState';
+import { applyScrollRestore, useChatSessionState, type ScrollRestoreState } from './useChatSessionState';
 import {
   describeDropRejections,
   resolveComposerTabAction,
@@ -212,6 +212,28 @@ test('chat find searches whole-history text and closes on Escape or session chan
     previousFocus.remove();
     host.remove();
   }
+});
+
+test('a prepend restore keeps a scroll the reader made after it was captured', () => {
+  const pane = { scrollTop: 1000, scrollHeight: 5000, getBoundingClientRect: () => ({ top: 0, bottom: 600 }) };
+  let anchorContentTop = 1500;
+  const anchor = { isConnected: true, getBoundingClientRect: () => ({ top: anchorContentTop - pane.scrollTop }) };
+  const restore: ScrollRestoreState = { height: 5000, top: 1000, anchor: anchor as unknown as HTMLElement, anchorOffset: 500 };
+
+  pane.scrollTop = 880; // the reader scrolls up before the page commits
+  anchorContentTop += 2000; // 2000 px of older rows land above the anchor
+  pane.scrollHeight = 7000;
+  applyScrollRestore(pane as unknown as HTMLElement, restore);
+  assert.equal(pane.scrollTop, 2880);
+
+  applyScrollRestore(pane as unknown as HTMLElement, restore); // a later settle holds it
+  assert.equal(pane.scrollTop, 2880);
+
+  restore.anchor = null;
+  pane.scrollTop = 2760;
+  pane.scrollHeight = 7400;
+  applyScrollRestore(pane as unknown as HTMLElement, restore);
+  assert.equal(pane.scrollTop, 3160);
 });
 
 test('find jumps within cached history, keeps rows bounded and returns to the latest', async () => {
