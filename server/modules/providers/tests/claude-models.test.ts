@@ -393,6 +393,22 @@ test('claude catalog comes from the CLI, with superseded models under legacy', a
   assert.equal(primary[0].fastMode, undefined);
   assert.ok(models.OPTIONS.some((option) => option.value === 'claude-opus-5' && option.group === 'legacy'));
 
+  // Shape recorded 2026-09-23: versioned display names, superseded models listed by the CLI itself.
+  const versioned = buildClaudeModelsDefinition([
+    { value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus 5.5', description: 'Most capable for ambitious work' },
+    { value: 'claude-fable-5-1', resolvedModel: 'claude-fable-5-1', displayName: 'Fable 5.1', description: 'For your toughest challenges' },
+    { value: 'claude-opus-5', resolvedModel: 'claude-opus-5', displayName: 'Opus 5', description: 'Best for everyday, complex tasks' },
+    { value: 'claude-fable-5', resolvedModel: 'claude-fable-5', displayName: 'Fable 5', description: 'Most capable' },
+    { value: 'claude-opus-4-9', resolvedModel: 'claude-opus-4-9', displayName: 'Opus 4.9', description: 'Not on the known list' },
+  ]);
+  assert.deepEqual(
+    versioned.OPTIONS.filter((option) => option.group !== 'legacy').map((option) => option.value),
+    ['fable', 'opus'],
+  );
+  const versionedLegacy = versioned.OPTIONS.filter((option) => option.group === 'legacy').map((option) => option.value);
+  assert.ok(['claude-fable-5', 'claude-opus-5', 'claude-opus-4-9', 'claude-opus-4-8'].every((value) => versionedLegacy.includes(value)));
+  assert.equal(new Set(versioned.OPTIONS.map((option) => option.value)).size, versioned.OPTIONS.length);
+
   // The CLI is asked once, and again only on refresh.
   let calls = 0;
   const provider = new ClaudeProviderModels({

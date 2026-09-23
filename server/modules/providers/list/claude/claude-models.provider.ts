@@ -200,13 +200,15 @@ const toClaudeEffort = (levels: ModelInfo['supportedEffortLevels']): ProviderMod
 };
 
 /**
- * Maps the CLI's menu onto picker rows, then appends the legacy rows the CLI
- * no longer lists. Rows keep the family alias (`fable`) where the CLI names a
+ * Maps the CLI's menu onto picker rows, groups superseded ones under Legacy,
+ * then appends the legacy rows the CLI does not list. Rows keep the family alias (`fable`) where the CLI names a
  * pinned id for it, so stored picks and transcript mapping keep matching.
  */
 export const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModelsDefinition => {
   const options: ProviderModelOption[] = [];
   const coveredIds = new Set<string>();
+  const knownLegacyIds = new Set(CLAUDE_LEGACY_MODELS.map((option) => option.value));
+  const currentFamilies = new Set<string>();
 
   for (const model of models) {
     const rawValue = typeof model.value === 'string' ? model.value.trim().replace(/\[1m\]/gi, '') : '';
@@ -215,10 +217,17 @@ export const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModels
       continue;
     }
 
-    const family = model.displayName?.trim().toLowerCase() ?? '';
-    const value = /^[a-z]+$/.test(family) && rawValue.toLowerCase().startsWith(`claude-${family}-`)
-      ? family
-      : rawValue;
+    // displayName is "Fable" or "Fable 5.1" depending on the account's menu.
+    const family = model.displayName?.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+    const isFamilyName = /^[a-z]+$/.test(family);
+    const isPinned = isFamilyName && rawValue.toLowerCase().startsWith(`claude-${family}-`);
+    // The CLI lists newest first, so a pinned id whose family already has a row is superseded.
+    const isLegacy = knownLegacyIds.has(rawValue.toLowerCase())
+      || (isPinned && currentFamilies.has(family));
+    const value = isPinned && !isLegacy ? family : rawValue;
+    if (isFamilyName && !isLegacy) {
+      currentFamilies.add(family);
+    }
     if (options.some((option) => option.value === value)) {
       continue;
     }
@@ -235,6 +244,7 @@ export const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModels
       ...(description ? { description } : {}),
       ...(effort ? { effort } : {}),
       ...(model.supportsFastMode ? { fastMode: CLAUDE_FAST_MODE } : {}),
+      ...(isLegacy ? { group: 'legacy' as const } : {}),
     });
     coveredIds.add(rawValue.toLowerCase());
     if (model.resolvedModel) {
