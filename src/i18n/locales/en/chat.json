@@ -294,7 +294,6 @@
     },
     "rewind": {
       "label": "Editing earlier message",
-      "willRewind": "Sending rewinds the conversation to this point",
       "cancel": "Cancel rewind edit"
     }
   },
