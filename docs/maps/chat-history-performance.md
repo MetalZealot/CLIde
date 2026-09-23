@@ -46,9 +46,9 @@ A whole walk to the top blocked the main thread 6.7 s before these fixes and
 
 Scrolling up 120 px at a time, a prepend restore committing before the
 reader's scroll was tracked undid it (3 of 276 steps); restores now keep
-scroll made since capture (0 of 274). With `content-visibility` 20 of 280
-still jump: the top activity remounts per prepend (phase 8) at the 150 px
-placeholder and shrinks before the ResizeObserver samples.
+scroll made since capture (0 of 274). With `content-visibility` 5 of 266
+still jump: rows prepended far above are skipped before any layout, so hold
+the 150 px guess until the reader reaches them.
 
 ## Repeatable phase-1 baseline
 

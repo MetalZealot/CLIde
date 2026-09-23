@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 6/13
-- Next: Phase 8 — stable activity key, which `content-visibility` (phase 7) needs
+- Status: 7/13
+- Next: Phase 7 — `content-visibility` only on rows already laid out, then the phone probe
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -43,19 +43,14 @@ Each scroll-up step blocks the main thread longer as rows accumulate: 67 ms at
 ([measurement](../maps/chat-history-performance.md#what-the-reader-experiences)).
 Done: pickers scan only when open, restoration reads before writing, the
 list uses `gap` (walk 6.7 → ~5.8 s blocked), restores keep the reader's
-scroll. Left: `content-visibility` on rows once phase 8 stops the top
-activity remounting (map), probed on the phone; fewer commits per step.
+scroll. Left: `content-visibility` on rows, only once each has been laid out
+(map), probed on the phone; fewer commits per step.
 
 **Exit:** in the reference session no scroll-up step blocks over 100 ms in
 CLIde Browser, and cost no longer grows with rows already mounted.
 
-- [ ] **8. Activity identity survives older pages — M.**
-
-An activity is keyed by its first call, so older calls joining a burst remount
-it and close it. Key it by something a prepend cannot change.
-
-**Exit:** an expanded activity stays expanded, and in place, while older
-history loads above it.
+- [x] **8. Activity identity survives older pages — M.** An activity keeps
+  the key any of its calls had; it stays open and in place. `445ef15d`
 
 - [ ] **9. Load ahead instead of on demand — L.**
 
