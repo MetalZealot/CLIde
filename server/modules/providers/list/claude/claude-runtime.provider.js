@@ -719,6 +719,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let retries = 0;
   let thinkingEstimate = 0;
   let sentLogged = false;
+  // The rate-limit event can land after the first model output; "Sent" must not follow it.
+  let outputStarted = false;
   // Output tokens for the turn: finished steps from their own usage, plus the
   // live thinking estimate of the step still running. Rows of one step share a
   // message id and its final usage, so each id counts once.
@@ -1001,6 +1003,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // the last value is logged, at the end of the turn.
       if (message?.type === 'system' && message.subtype === 'thinking_tokens') {
         thinkingEstimate = message.estimated_tokens || thinkingEstimate;
+        outputStarted = true;
         sendStage({ name: 'thinking', tokens: thinkingEstimate });
         // A lower estimate means the CLI restarted the count for a new step.
         if (thinkingEstimate < thinkingBase) {
@@ -1076,7 +1079,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         if (!sentLogged) {
           sentLogged = true;
           logTurn('sent', capturedSessionId || sessionId, { ms: sinceStart(), window: info.rateLimitType, status: info.status });
-          sendStage({ name: 'sent' });
+          if (!outputStarted) {
+            sendStage({ name: 'sent' });
+          }
         }
         if (info.status && info.status !== 'allowed') {
           logTurn('usage', capturedSessionId || sessionId, {
@@ -1101,6 +1106,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
       // Text, a tool call or a tool result means the stage is over: those rows
       // are the activity now, and a stale "Thinking" would sit above them.
+      if (message?.type === 'assistant' || message?.type === 'user') {
+        outputStarted = true;
+      }
       if (stageSent && (message?.type === 'assistant' || message?.type === 'user')) {
         sendStage(null);
       }
