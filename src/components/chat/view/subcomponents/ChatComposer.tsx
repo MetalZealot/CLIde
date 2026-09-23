@@ -556,7 +556,7 @@ export default function ChatComposer({
               <div className={`chat-input-placeholder block w-full whitespace-pre-wrap break-words text-transparent ${PROMPT_INPUT_TEXT_LAYOUT}`}>
                 {leadingCommand ? (
                   <>
-                    <span className="-ml-0.5 box-decoration-clone rounded-md bg-violet-200/70 px-0.5 text-transparent dark:bg-violet-400/30">
+                    <span className="-mx-0.5 box-decoration-clone rounded-md bg-violet-200/70 px-0.5 text-transparent dark:bg-violet-400/30">
                       {leadingCommand.command}
                     </span>
                     {leadingCommand.separator}
