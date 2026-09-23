@@ -694,9 +694,17 @@
   }
 
   .chat-message {
-    /* Pagination restores from measured height deltas, so every message must
-       contribute its real geometry even while it is off-screen. */
     contain: layout style paint;
+  }
+
+  /* Pagination restores from measured height deltas, so a row may skip
+     rendering off-screen only after a real layout has recorded its size. */
+  .chat-rows > .chat-message {
+    contain-intrinsic-size: auto 150px;
+  }
+
+  .chat-rows > .chat-message[data-laid-out] {
+    content-visibility: auto;
   }
 
 }

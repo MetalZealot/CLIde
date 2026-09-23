@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
 - Status: 7/13
-- Next: Phase 7 — `content-visibility` only on rows already laid out, then the phone probe
+- Next: Phase 7 — fewer commits per step; phone check of `content-visibility`
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -42,9 +42,10 @@ Each scroll-up step blocks the main thread longer as rows accumulate: 67 ms at
 14 rows, 855 ms at 112, with requests near 20 ms
 ([measurement](../maps/chat-history-performance.md#what-the-reader-experiences)).
 Done: pickers scan only when open, restoration reads before writing, the
-list uses `gap` (walk 6.7 → ~5.8 s blocked), restores keep the reader's
-scroll. Left: `content-visibility` on rows, only once each has been laid out
-(map), probed on the phone; fewer commits per step.
+list uses `gap`, restores keep the reader's scroll, laid-out rows skip
+rendering off-screen (walk 6.7 → 1.9 s blocked). Left: late steps still sum
+210–286 ms over one long frame per commit, so fewer commits per step; the
+phone check.
 
 **Exit:** in the reference session no scroll-up step blocks over 100 ms in
 CLIde Browser, and cost no longer grows with rows already mounted.

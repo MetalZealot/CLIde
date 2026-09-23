@@ -179,6 +179,19 @@ function ChatMessagesPane({
     committedActivityKeysRef.current = activityKeys.byMessage;
   }, [activityKeys]);
 
+  // Two frames: the first lays new rows out and records their size, then they may skip rendering.
+  const laidOutMarkPendingRef = useRef(false);
+  useLayoutEffect(() => {
+    if (laidOutMarkPendingRef.current) return;
+    laidOutMarkPendingRef.current = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      laidOutMarkPendingRef.current = false;
+      for (const row of messagesContentRef.current?.children ?? []) {
+        if (row.classList.contains('chat-message') && !row.hasAttribute('data-laid-out')) row.setAttribute('data-laid-out', '');
+      }
+    }));
+  }, [groupedVisibleMessages, messagesContentRef]);
+
   const attachScrollHost = useCallback(
     (node: HTMLDivElement | null) => {
       scrollContainerRef.current = node && pageScroll ? document.documentElement : node;
@@ -202,7 +215,7 @@ function ChatMessagesPane({
       {/* Gap, not space-y: a sibling selector restyles every row when older rows are prepended. */}
       <div
         ref={messagesContentRef}
-        className={`mx-auto flex w-full max-w-[54.25rem] flex-col gap-3 px-4 sm:gap-4 ${
+        className={`chat-rows mx-auto flex w-full max-w-[54.25rem] flex-col gap-3 px-4 sm:gap-4 ${
           fillsPane ? (pageScroll ? 'flex-1' : 'h-full') : ''
         }`}
       >

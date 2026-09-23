@@ -518,6 +518,15 @@ describe('chatSubcomponents', () => {
       assert.doesNotMatch(container.textContent ?? '', /tokens/);
     });
 
+    test('rows skip rendering off-screen only after a real layout', () => {
+      const css = readFileSync(new URL('../../../../index.css', import.meta.url), 'utf8');
+      const rules = css.match(/[^{}]+\{[^{}]*content-visibility[^{}]*\}/g) ?? [];
+      assert.ok(rules.length > 0);
+      for (const rule of rules) assert.match(rule, /\[data-laid-out\]\s*\{/, 'a row skipped before layout holds a guessed height');
+      const paneSource = readFileSync(new URL('./ChatMessagesPane.tsx', import.meta.url), 'utf8');
+      assert.match(paneSource, /setAttribute\('data-laid-out'/);
+    });
+
     test('the status row lives in the conversation, not above the composer', () => {
       const paneSource = readFileSync(new URL('./ChatMessagesPane.tsx', import.meta.url), 'utf8');
       const composerSource = readFileSync(new URL('./ChatComposer.tsx', import.meta.url), 'utf8');

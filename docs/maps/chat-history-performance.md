@@ -29,26 +29,26 @@ Cost per step grows with rows already mounted while the DOM change stays
 small. Profiled causes, largest first:
 
 - Style recalculation forced by scroll restoration once per commit, ~70 ms
-  at 40–66 rows; a step makes ~4 commits (chained fetches). A freshly
-  inserted copy of the same list restyles 5–6× faster, so the live list
-  gathers some state that makes insertion restyle existing rows; its source
-  is not identified. `content-visibility: auto` on rows cut it ~5× (desktop,
-  injected; phone scroll stability untested).
+  at 40–66 rows; a step makes ~4 commits (chained fetches). A fresh copy of
+  the list restyles 5–6× faster, for an unidentified reason. Rows now skip
+  rendering off-screen (`content-visibility`), which cuts it ~5×.
 - Tailwind `space-y`'s sibling selector restyled every row on a top insert
   (130 vs 9 ms on a fresh list); the list uses `gap`.
 - Closed rewind/fork pickers re-filtered the conversation twice per render
   (~13 ms each); they now scan only when open.
 - Scroll restoration read `scrollHeight` after writing `scrollTop`, a second
   forced layout per commit; reads now precede the write.
+- The top activity remounted, with all its rows, on each prepend that
+  extended it; it now keeps its key.
 
-A whole walk to the top blocked the main thread 6.7 s before these fixes and
-~5.8 s after; injected `content-visibility` alone gave 4.1 s.
+A whole walk to the top blocked 6.7 s before these fixes, 4.1 s without
+`content-visibility`, 1.9 s with it (desktop). Worst frame 105 ms, but late
+steps still sum 210–286 ms over 3–5 long frames: one per commit.
 
-Scrolling up 120 px at a time, a prepend restore committing before the
-reader's scroll was tracked undid it (3 of 276 steps); restores now keep
-scroll made since capture (0 of 274). With `content-visibility` 5 of 266
-still jump: rows prepended far above are skipped before any layout, so hold
-the 150 px guess until the reader reaches them.
+A row may skip only after a real layout records its size: one skipped
+before that holds the 150 px guess and jumps the reader when reached (why
+it was removed on 2026-07-31). Scrolling up 120 px at a time, 0 of 274
+steps jump; a restore also keeps scroll the reader made since capture.
 
 ## Repeatable phase-1 baseline
 
