@@ -1,7 +1,7 @@
 # /btw — side questions beside a running conversation
 
-- Status: 5/7
-- Next: phase 5 — Codex
+- Status: 6/7
+- Next: phase 6 — fork a side conversation into a real session
 - Context: Claude Code ships `/btw` and Codex ships `/side`. CLIde matches
   Claude Code's behaviour; the mechanism is per provider
 
@@ -30,8 +30,10 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
 - **Codex** has no one-shot. `/side` is an ephemeral fork (`thread/fork` with
   `ephemeral: true`) carrying a boundary instruction: don't continue the parent
   task, don't mutate anything, no sub-agents. Nothing forbids forking while the
-  parent turn runs. A fork re-reads the thread, so it is not free the way
-  Claude's is.
+  parent turn runs: on 0.156.0 an ephemeral fork of a running thread took
+  87 ms, wrote no rollout, and left the parent turn intact. The parent must be
+  on disk — an in-memory thread cannot be forked. A fork re-reads the thread,
+  so it is not free the way Claude's is.
 - **Cursor and OpenCode** have neither, and get no command.
 
 ## Contract every provider keeps
@@ -71,10 +73,12 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
       opens the sheet on the history. Each answer has a copy button; the header
       has Clear. Seen live on the phone 2026-09-23: close before the answer,
       reopen with `/btw`, copy, and Clear all work. — `6ab64cc1`, `f08cb312`
-- [ ] 5. **Codex.** Same route and store, adapter-side: ephemeral fork with the
+- [x] 5. **Codex.** Same route and store, adapter-side: ephemeral fork with the
       boundary instructions and a read-only sandbox, earlier exchanges prepended
       to the question, one turn, collect the assistant text for that thread id,
-      discard the fork. Flag flips true for Codex.
+      discard the fork. Flag flips true for Codex. Driven end to end against
+      real Codex 0.156.0 mid-run (answer, follow-up, cancel); not yet seen in
+      the app.
 - [ ] 6. **Fork a side conversation into a real session.** Starts a new session
       seeded with the side exchanges, the way Claude Code's `f` does.
 - [ ] 7. **Acceptance on the phone.** Installed PWA against production: ask

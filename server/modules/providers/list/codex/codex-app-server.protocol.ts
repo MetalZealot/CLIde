@@ -85,6 +85,8 @@ export type CodexThreadForkParams = CodexThreadStartParams & {
   /** Fork before this turn, excluding it and all later turns. */
   beforeTurnId?: string | null;
   excludeTurns?: boolean;
+  /** In memory only: no rollout on disk, gone once unsubscribed. */
+  ephemeral?: boolean;
 };
 
 export type CodexThreadForkResponse = CodexThreadResponse;

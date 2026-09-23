@@ -55,12 +55,14 @@ import {
   normalizeImageDescriptors,
 } from '@/shared/image-attachments.js';
 import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/codex-async-questions.js';
+import { buildCodexSideQuestionPrompt } from '@/modules/providers/list/codex/codex-side-question.js';
 import type {
   AnyRecord,
   InteractiveRequestDecision,
   InteractiveRequestResponse,
   NormalizedMessage,
   ProviderNativeRuntimeInstallation,
+  SideQuestionExchange,
   TurnStage,
 } from '@/shared/types.js';
 import {
@@ -138,6 +140,22 @@ type ForkCodexThreadOptions = {
   model?: string;
   permissionMode?: string;
   lastTurnId?: string;
+};
+
+type SideQuestionOptions = {
+  question: string;
+  /** App session id, for the session's model. */
+  sessionId?: string | null;
+  cwd?: string | null;
+  history?: SideQuestionExchange[];
+  signal?: AbortSignal;
+};
+
+/** A side question's ephemeral fork; nothing it emits reaches a chat writer. */
+type SideTurn = {
+  text: string[];
+  error: string | null;
+  settle: (error: Error | null) => void;
 };
 
 type ActiveTurn = {
@@ -630,6 +648,7 @@ export class CodexAppServerChatTransport {
   private client: JsonlRpcClient | null = null;
   private startup: Promise<JsonlRpcClient> | null = null;
   private readonly activeTurns = new Map<string, ActiveTurn>();
+  private readonly sideTurns = new Map<string, SideTurn>();
   private activeOperations = 0;
   private updatePending = false;
   private readonly unsubscribeRuntimeChanges: (() => void) | null;
@@ -954,6 +973,100 @@ export class CodexAppServerChatTransport {
     return response.thread;
   }
 
+  /**
+   * Answers one question in an ephemeral, read-only fork of the thread, the way
+   * Codex's `/side` does. Forking is allowed while the parent turn runs; the
+   * fork never writes a rollout and is unsubscribed once answered.
+   */
+  async askSideQuestion(threadId: string, options: SideQuestionOptions): Promise<string> {
+    return this.withRuntimeOperation(() => this.runSideQuestion(threadId, options));
+  }
+
+  private async runSideQuestion(threadId: string, options: SideQuestionOptions): Promise<string> {
+    const client = await this.ensureClient();
+    const model = await providerModelsService.resolveResumeModel(
+      PROVIDER,
+      options.sessionId ?? undefined,
+    );
+    const cwd = readNonEmptyString(options.cwd);
+    const forkResponse = await client.request<CodexThreadForkResponse>('thread/fork', {
+      threadId,
+      ephemeral: true,
+      excludeTurns: true,
+      approvalPolicy: 'never',
+      sandbox: 'read-only',
+      ...(model ? { model } : {}),
+      ...(cwd ? { cwd } : {}),
+    });
+    const sideThreadId = readNonEmptyString(forkResponse?.thread?.id);
+    if (!sideThreadId) {
+      throw new Error('Codex App Server returned a fork without a thread id.');
+    }
+
+    const side: SideTurn = { text: [], error: null, settle: () => {} };
+    const settled = new Promise<void>((resolve, reject) => {
+      side.settle = (error) => (error ? reject(error) : resolve());
+    });
+    // A cancel can settle this before anything awaits it.
+    settled.catch(() => {});
+    this.sideTurns.set(sideThreadId, side);
+    let turnId: string | null = null;
+    const onAbort = () => {
+      side.settle(new Error('Side question cancelled.'));
+      if (turnId) {
+        void client.request('turn/interrupt', { threadId: sideThreadId, turnId }).catch(() => {});
+      }
+    };
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+
+    try {
+      if (options.signal?.aborted) {
+        onAbort();
+      }
+      const turnResponse = await client.request<CodexTurnStartResponse>('turn/start', {
+        threadId: sideThreadId,
+        input: [{
+          type: 'text',
+          text: buildCodexSideQuestionPrompt(options.question, options.history),
+          text_elements: [],
+        }],
+        approvalPolicy: 'never',
+        sandboxPolicy: { type: 'readOnly', networkAccess: false },
+        ...(model ? { model } : {}),
+      });
+      turnId = readNonEmptyString(turnResponse?.turn?.id);
+      if (turnResponse?.turn && turnResponse.turn.status !== 'inProgress') {
+        this.settleSideTurn(sideThreadId, turnResponse.turn);
+      }
+      await settled;
+      const answer = side.text.join('\n\n').trim();
+      if (!answer) {
+        throw new Error('Codex returned no answer to that side question.');
+      }
+      return answer;
+    } finally {
+      options.signal?.removeEventListener('abort', onAbort);
+      this.sideTurns.delete(sideThreadId);
+      if (client.isOpen) {
+        void client.request('thread/unsubscribe', { threadId: sideThreadId }).catch(() => {});
+      }
+    }
+  }
+
+  private settleSideTurn(threadId: string, turn: CodexTurn): void {
+    const side = this.sideTurns.get(threadId);
+    if (!side) {
+      return;
+    }
+    if (turn.status === 'completed') {
+      side.settle(null);
+      return;
+    }
+    side.settle(new Error(
+      readNonEmptyString(turn.error?.message) || side.error || `Codex side question ${turn.status}.`,
+    ));
+  }
+
   isActive(sessionId: string): boolean {
     const active = this.findActiveTurn(sessionId);
     return Boolean(active && !active.terminal);
@@ -965,6 +1078,7 @@ export class CodexAppServerChatTransport {
     this.client = null;
     this.startup = null;
     this.activeTurns.clear();
+    this.sideTurns.clear();
     this.activeOperations = 0;
     this.updatePending = false;
   }
@@ -1077,6 +1191,22 @@ export class CodexAppServerChatTransport {
     const params = readObjectRecord(value);
     const threadId = readNonEmptyString(params?.threadId);
     if (!params || !threadId) {
+      return;
+    }
+
+    const side = this.sideTurns.get(threadId);
+    if (side) {
+      if (method === 'item/completed') {
+        const item = readObjectRecord(params.item);
+        if (item?.type === 'agentMessage' && typeof item.text === 'string' && item.text.trim()) {
+          side.text.push(item.text.trim());
+        }
+      } else if (method === 'error' && params.willRetry !== true) {
+        const error = readObjectRecord(params.error);
+        side.error = readNonEmptyString(error?.message) || readNonEmptyString(params.message);
+      } else if (method === 'turn/completed') {
+        this.settleSideTurn(threadId, params.turn as CodexTurn);
+      }
       return;
     }
 
@@ -1559,6 +1689,9 @@ export class CodexAppServerChatTransport {
       });
     }
     this.activeTurns.clear();
+    for (const side of this.sideTurns.values()) {
+      side.settle(error);
+    }
   }
 }
 
@@ -1586,6 +1719,13 @@ export function abortCodexAppServerSession(threadId: string): Promise<boolean> {
 
 export function steerCodexAppServerSession(threadId: string, content: string): Promise<boolean> {
   return sharedTransport.steer(threadId, content);
+}
+
+export function askCodexAppServerSideQuestion(
+  threadId: string,
+  options: SideQuestionOptions,
+): Promise<string> {
+  return sharedTransport.askSideQuestion(threadId, options);
 }
 
 export function isCodexAppServerSessionActive(threadId: string): boolean {

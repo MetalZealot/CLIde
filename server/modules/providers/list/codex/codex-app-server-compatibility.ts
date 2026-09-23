@@ -27,6 +27,7 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RequiredProtocolPattern[]>([
     required('method turn/start', /"method": "turn\/start"/),
     required('method turn/steer', /"method": "turn\/steer"/),
     required('method turn/interrupt', /"method": "turn\/interrupt"/),
+    required('method thread/unsubscribe', /"method": "thread\/unsubscribe"/),
     required('method model/list', /"method": "model\/list"/),
   ]],
   ['ServerRequest.ts', [
@@ -44,6 +45,7 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RequiredProtocolPattern[]>([
   ['v2/ThreadForkParams.ts', [
     required('field lastTurnId', /lastTurnId\?: string \| null/),
     required('field beforeTurnId', /beforeTurnId\?: string \| null/),
+    required('field ephemeral', /ephemeral\?: boolean/),
   ]],
   ['v2/TurnStartParams.ts', [
     required('field collaborationMode', /collaborationMode\?: CollaborationMode/),

@@ -136,7 +136,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsRewind: false,
     supportsFork: false,
     supportsCompactCommand: false,
-    supportsSideQuestion: false,
+    supportsSideQuestion: true,
   },
   opencode: {
     provider: 'opencode',

@@ -527,6 +527,37 @@ test('Codex rewind forks before the selected turn and remaps the writer to the c
   }
 });
 
+test('Codex side question answers in an ephemeral read-only fork and writes to no chat', async () => {
+  const fake = await createFakeServer(FORK_SERVER);
+  const transport = new CodexAppServerChatTransport({ command: fake.command });
+  transports.push(transport);
+  providerModelsService.resolveResumeModel = async () => 'gpt-test';
+
+  try {
+    const answer = await transport.askSideQuestion('source-thread', {
+      question: 'Why that one?',
+      sessionId: 'app-source',
+      history: [{ question: 'Which file?', response: 'server/index.ts' }],
+    });
+    const capture = JSON.parse(answer.slice(8));
+    assert.equal(capture.thread.method, 'thread/fork');
+    assert.equal(capture.thread.params.threadId, 'source-thread');
+    assert.equal(capture.thread.params.ephemeral, true);
+    assert.equal(capture.thread.params.sandbox, 'read-only');
+    assert.equal(capture.thread.params.approvalPolicy, 'never');
+    assert.equal(capture.thread.params.model, 'gpt-test');
+    assert.equal(capture.turn.threadId, 'fork-1');
+    assert.deepEqual(capture.turn.sandboxPolicy, { type: 'readOnly', networkAccess: false });
+    const prompt = capture.turn.input[0].text;
+    assert.match(prompt, /^Everything before this boundary is inherited history/);
+    assert.match(prompt, /Q: Which file\?\nA: server\/index\.ts/);
+    assert.match(prompt, /Side question:\nWhy that one\?$/);
+    assert.equal(transport.isActive('source-thread'), false);
+  } finally {
+    await fake.cleanup();
+  }
+});
+
 test('Codex first-message rewind forks before the first turn and explicit fork starts no turn', async () => {
   const fake = await createFakeServer(FORK_SERVER);
   const transport = new CodexAppServerChatTransport({ command: fake.command });

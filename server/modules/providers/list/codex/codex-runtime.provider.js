@@ -21,6 +21,7 @@ import { Codex } from '@openai/codex-sdk';
 import { providerUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
 import {
   abortCodexAppServerSession,
+  askCodexAppServerSideQuestion,
   isCodexAppServerChatEnabled,
   isCodexAppServerSessionActive,
   queryCodexAppServer,
@@ -523,6 +524,7 @@ export const codexRuntime = {
   run: queryCodexChat,
   abort: abortCodexSession,
   steer: steerCodexSession,
+  askSideQuestion: askCodexSideQuestion,
   permissions: {
     resolve: (requestId, response) => interactiveRequestRegistry.resolve(requestId, response),
     // Provider-scoped for the same reason Claude's is: one shared map, so an
@@ -622,4 +624,30 @@ export async function steerCodexSession(sessionId, content) {
     return false;
   }
   return steerCodexAppServerSession(sessionId, content);
+}
+
+/**
+ * Answers one question beside a session in an ephemeral, read-only fork of its
+ * thread. The SDK transport has no fork, so it offers no side questions.
+ */
+async function askCodexSideQuestion(sessionId, request, context) {
+  const question = typeof request?.question === 'string' ? request.question.trim() : '';
+  if (!question) {
+    throw new Error('A side question needs a question.');
+  }
+  if (!isCodexAppServerChatEnabled()) {
+    throw new Error('Side questions need Codex App Server chat.');
+  }
+  const threadId = context.resolveProviderSessionId(sessionId);
+  if (!threadId) {
+    throw new Error('This session has nothing to ask about yet.');
+  }
+  const answer = await askCodexAppServerSideQuestion(threadId, {
+    question,
+    sessionId,
+    cwd: request?.cwd,
+    history: request?.history,
+    signal: request?.signal,
+  });
+  return { answer };
 }
