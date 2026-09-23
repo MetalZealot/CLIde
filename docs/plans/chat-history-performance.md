@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 7/13
-- Next: Phase 7 — the ~50 ms fixed cost of each commit; phone check
+- Status: 7/14
+- Next: Phase 7 — count commits per step, then cut the ~50 ms fixed cost of each; phone check
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -47,6 +47,12 @@ rendering off-screen, chained pages double (walk 6.7 → 1.2 s blocked). Left:
 each commit re-renders ChatInterface's whole tree (~50 ms even at 14 rows),
 so 4 of 13 steps still exceed 100 ms; the phone check.
 
+Count before cutting: timings on the Pi vary run to run and can hide a small
+win. Record React commits and rows re-rendered per scroll-up step in the
+reference session. Those counts repeat exactly. Confirm once that lowering them
+lowers blocked time, then work against the counts. Phase 10 turns them into
+the failing check.
+
 **Exit:** in the reference session no scroll-up step blocks over 100 ms in
 CLIde Browser, and cost no longer grows with rows already mounted.
 
@@ -69,7 +75,8 @@ was.
 - [ ] **10. Tests match real sessions and sustained use — M.**
 
 A tool-heavy fixture with long bursts. Walk to the top and back, stream while
-reading old text, expand output mid-walk; count row renders per prepend.
+reading old text, expand output mid-walk; assert phase 7's commit and row-render counts per
+prepend.
 
 **Exit:** the benchmark fails when per-page cost grows with mounted rows.
 
@@ -94,10 +101,20 @@ index must be rebuildable from provider history.
 **Exit:** first open and Find meet the map's budgets, or the evidence for
 leaving them is recorded.
 
-- [ ] **13. Accept on the phone — M.**
+- [ ] **13. Streaming replies stay cheap as they grow — M.**
 
-Cold open, scroll to the top and back, Find, jumps, streaming while reading
-old text, reconnect, rewind, selection and session switching on the installed
+Markdown skips work only for unchanged text, so a streaming reply probably
+reparses all of itself on every chunk (read from source, not measured). Measure
+per-chunk cost against reply length on a long reply with code blocks. If it
+grows, render finished blocks once and reparse only the open tail.
+
+**Exit:** per-chunk work does not grow with reply length, or the measurement
+for leaving it is recorded.
+
+- [ ] **14. Accept on the phone — M.**
+
+Cold open, scroll to the top and back, Find, jumps, streaming a long reply and
+streaming while reading old text, reconnect, rewind, selection and session switching on the installed
 phone app. Update the map and orientation as rules change.
 
 **Exit:** device acceptance recorded, with unverified cases named.
@@ -109,6 +126,8 @@ phone app. Update the map and orientation as rules change.
 - An expanded activity stays expanded while older history loads.
 - Any user prompt can be reached directly; old text is findable.
 - Maintained tests fail when per-page cost grows with mounted rows.
+- A long streaming reply costs no more per chunk at its end than at its start,
+  or the measurement for leaving it is recorded.
 
 ## Not doing
 
