@@ -74,14 +74,16 @@ function captureScrollRestore(container: HTMLElement): ScrollRestoreState {
 }
 
 function applyScrollRestore(container: HTMLElement, restore: ScrollRestoreState): void {
+  // Every geometry read precedes the write: a read after it lays the whole pane out again.
+  const height = container.scrollHeight;
   if (restore.anchor?.isConnected && restore.anchorOffset !== null) {
     const currentOffset = restore.anchor.getBoundingClientRect().top - getChatViewportRect(container).top;
     container.scrollTop += currentOffset - restore.anchorOffset;
   } else {
-    container.scrollTop = restore.top + Math.max(container.scrollHeight - restore.height, 0);
+    container.scrollTop = restore.top + Math.max(height - restore.height, 0);
   }
 
-  restore.height = container.scrollHeight;
+  restore.height = height;
   restore.top = container.scrollTop;
 }
 

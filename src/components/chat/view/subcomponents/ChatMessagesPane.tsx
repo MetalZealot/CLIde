@@ -190,9 +190,10 @@ function ChatMessagesPane({
       }`}
       style={{ overflowAnchor: 'none' }}
     >
+      {/* Gap, not space-y: a sibling selector restyles every row when older rows are prepended. */}
       <div
         ref={messagesContentRef}
-        className={`mx-auto w-full max-w-[54.25rem] space-y-3 px-4 sm:space-y-4 ${
+        className={`mx-auto flex w-full max-w-[54.25rem] flex-col gap-3 px-4 sm:gap-4 ${
           fillsPane ? (pageScroll ? 'flex-1' : 'h-full') : ''
         }`}
       >

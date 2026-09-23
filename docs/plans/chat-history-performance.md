@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
 - Status: 6/13
-- Next: Phase 7 — profile one scroll-up on the reference session and cut its per-page cost
+- Next: Phase 7 — probe `content-visibility` rows for scroll jumps, desktop then phone
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -36,15 +36,15 @@ interaction behaviour. Sizes include tests and verification, not model cost.
 - [x] **6. Find without rendered history — XL.** Text index over a text-only
   copy; jumps load a window around the match. `20db29e2`
 
-- [ ] **7. Cut the per-page cost of scrolling up — M–L.**
+- [~] **7. Cut the per-page cost of scrolling up — M–L.**
 
 Each scroll-up step blocks the main thread longer as rows accumulate: 67 ms at
 14 rows, 855 ms at 112, with requests near 20 ms
 ([measurement](../maps/chat-history-performance.md#what-the-reader-experiences)).
-About half is layout forced from script, the rest JavaScript. Profile one
-step, remove repeated measure-then-write in scroll restoration, find the work
-that scales with mounted rows, then probe `content-visibility` on the phone
-before adopting it.
+Done: pickers scan only when open, restoration reads before writing, the
+list uses `gap` (walk 6.7 → ~5.8 s blocked). Left: the restyle each commit
+forces (map), fewer commits per step, and `content-visibility` on rows,
+probed on the phone for scroll jumps before adopting it.
 
 **Exit:** in the reference session no scroll-up step blocks over 100 ms in
 CLIde Browser, and cost no longer grows with rows already mounted.

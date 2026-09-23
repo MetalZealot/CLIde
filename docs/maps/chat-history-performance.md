@@ -26,8 +26,23 @@ Measured 2026-09-23 in CLIde Browser on a branch-test server serving `main`,
 | First request, server cache cold | 1.9 s |
 
 Cost per step grows with rows already mounted while the DOM change stays
-small: work repeats over unchanged rows (plan phase 7). Frame-end layout is
-under 35 ms; the layout cost is forced by script reading geometry.
+small. Profiled causes, largest first:
+
+- Style recalculation forced by scroll restoration once per commit, ~70 ms
+  at 40–66 rows; a step makes ~4 commits (chained fetches). A freshly
+  inserted copy of the same list restyles 5–6× faster, so the live list
+  gathers some state that makes insertion restyle existing rows; its source
+  is not identified. `content-visibility: auto` on rows cut it ~5× (desktop,
+  injected; phone scroll stability untested).
+- Tailwind `space-y` on the list: its sibling selector restyles every row on
+  a top insert (130 ms vs 9 ms on a fresh list); the list uses `gap`.
+- Closed rewind/fork pickers re-filtered the conversation on every render
+  (~13 ms each, twice per render); they now scan only when open.
+- Scroll restoration read `scrollHeight` after writing `scrollTop`, a second
+  forced layout per commit; reads now precede the write.
+
+A whole walk to the top blocked the main thread 6.7 s before these fixes and
+~5.8 s after; injected `content-visibility` alone gave 4.1 s.
 
 ## Repeatable phase-1 baseline
 

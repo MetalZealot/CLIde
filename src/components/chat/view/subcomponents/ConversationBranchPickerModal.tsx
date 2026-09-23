@@ -35,7 +35,9 @@ export default function ConversationBranchPickerModal({
     ? t('fork.pickerTitle', { defaultValue: 'Fork from an earlier message' })
     : t('rewind.pickerTitle', { defaultValue: 'Rewind to an earlier message' });
 
+  // Closed, it re-renders with every history change; scanning the conversation then is wasted.
   const candidates = useMemo(() => {
+    if (!open) return [];
     return chatMessages
       .filter(
         (message) =>
@@ -47,7 +49,7 @@ export default function ConversationBranchPickerModal({
           getTranscriptMessageUuid(message.id) !== null,
       )
       .reverse();
-  }, [chatMessages]);
+  }, [chatMessages, open]);
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLowerCase();
