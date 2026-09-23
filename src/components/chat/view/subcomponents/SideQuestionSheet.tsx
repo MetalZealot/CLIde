@@ -60,7 +60,7 @@ export default function SideQuestionSheet({ open, entries, onAsk, onClose, onCle
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="bottom-0 left-1/2 top-auto max-h-[80dvh] w-full max-w-2xl -translate-x-1/2 translate-y-0 flex-col overflow-hidden rounded-b-none rounded-t-3xl border-border/80 bg-popover p-0 pb-[env(safe-area-inset-bottom)] shadow-2xl">
+      <DialogContent className="bottom-0 left-1/2 top-auto max-h-[80dvh] w-full max-w-2xl -translate-x-1/2 translate-y-0 flex flex-col overflow-hidden rounded-b-none rounded-t-3xl border-border/80 bg-popover p-0 pb-[env(safe-area-inset-bottom)] shadow-2xl">
         <DialogTitle className="sr-only">Side question</DialogTitle>
 
         <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
