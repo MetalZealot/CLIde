@@ -6,8 +6,9 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { initReactI18next } from 'react-i18next';
 
-import { isUsageWindowResetPending } from './format';
+import { isUsageWindowResetPending, pickUsageWarning, usageWarningKey } from './format';
 import { useProviderUsage } from './hooks/useProviderUsage';
+import UsageLimitNotice from './UsageLimitNotice';
 import { UsageResetCreditsRow } from './UsageWindowList';
 import { supportsProviderUsageReset } from './types';
 
@@ -39,6 +40,33 @@ describe('format', () => {
     assert.equal(isUsageWindowResetPending(null), false);
     assert.equal(isUsageWindowResetPending(undefined), false);
     assert.equal(isUsageWindowResetPending('not a date'), false);
+  });
+
+  test('the warning picks the fullest live window at 90% or more that is not dismissed', () => {
+    const resetsAt = new Date(Date.now() + 3_600_000).toISOString();
+    const windows = [
+      { id: 'seven_day', utilization: 51, resetsAt },
+      { id: 'five_hour', utilization: 91, resetsAt },
+      { id: 'seven_day_opus', utilization: 95, resetsAt },
+      // Past its own reset: the reading describes a window that is gone.
+      { id: 'stale', utilization: 99, resetsAt: new Date(Date.now() - 60_000).toISOString() },
+    ];
+    const none = () => false;
+
+    assert.equal(pickUsageWarning('claude', windows, none)?.window.id, 'seven_day_opus');
+    const opusKey = usageWarningKey('claude', windows[2]);
+    assert.equal(pickUsageWarning('claude', windows, (key) => key === opusKey)?.window.id, 'five_hour');
+    assert.equal(pickUsageWarning('claude', [{ id: 'five_hour', utilization: 89.9, resetsAt }], none), null);
+    assert.equal(pickUsageWarning('claude', undefined, none), null);
+  });
+
+  test('a warning key survives sub-second reset drift but changes with the next window', () => {
+    const base = Date.parse('2026-09-22T23:10:00.000Z');
+    const at = (ms: number) => ({ id: 'five_hour', utilization: 90, resetsAt: new Date(ms).toISOString() });
+
+    assert.equal(usageWarningKey('claude', at(base)), usageWarningKey('claude', at(base + 412)));
+    assert.notEqual(usageWarningKey('claude', at(base)), usageWarningKey('claude', at(base + 5 * 3_600_000)));
+    assert.notEqual(usageWarningKey('claude', at(base)), usageWarningKey('codex', at(base)));
   });
 });
 
@@ -306,6 +334,53 @@ describe('useProviderUsage', () => {
       });
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('UsageLimitNotice', () => {
+  test('shows the window past the warning line and stays dismissed until it resets', async () => {
+    const originalFetch = globalThis.fetch;
+    const resetsAt = new Date(Date.now() + 3_600_000).toISOString();
+    globalThis.fetch = (async () => new Response(JSON.stringify({
+      success: true,
+      data: {
+        provider: 'claude',
+        supported: true,
+        windows: [
+          { id: 'five_hour', utilization: 92, resetsAt },
+          { id: 'seven_day', utilization: 40, resetsAt },
+        ],
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+    localStorage.removeItem('usage-warning-dismissed');
+
+    const render = async () => {
+      await React.act(async () => root?.unmount());
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+      await React.act(async () => {
+        root?.render(React.createElement(UsageLimitNotice, { provider: 'claude' }));
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      });
+      return container;
+    };
+
+    try {
+      const container = await render();
+      assert.match(container.textContent ?? '', /^5-hour limit: 92% used · resets /);
+
+      await React.act(async () => {
+        container.querySelector<HTMLButtonElement>('button[aria-label="Dismiss"]')?.click();
+      });
+      assert.equal(container.textContent, '');
+
+      // A remount (a reload, another session) reads the dismissal back.
+      assert.equal((await render()).textContent, '');
+    } finally {
+      globalThis.fetch = originalFetch;
+      localStorage.removeItem('usage-warning-dismissed');
     }
   });
 });

@@ -1,7 +1,7 @@
 # A running turn shows what the provider is actually doing
 
-- Status: 3/6
-- Next: Phase 3 — name the silence when no runtime frame has arrived for a threshold
+- Status: 4/6
+- Next: Phase 3 — name the silence after a fixed 30 s without a runtime frame
 - Context: [Claude SDK map §4](../maps/claude-agent-sdk.md) (the stream messages CLIde drops),
   [Codex map](../maps/codex-cli-sdk-app-server.md), [tool activity stream](../maps/tool-activity-stream.md),
   ADR 0013 (abort). Client-side recording is the separate
@@ -49,15 +49,18 @@ What was established that shapes the phases (Phase 0 figures in the
       label so they survive stage changes. Codex, Cursor and OpenCode send no stage and keep
       the cycling words: Codex's App Server reports no API retry or think
       estimate, and Cursor's only retry is a workspace-trust re-run.
-- [ ] **3. Silence is named.** When no runtime frame has arrived for a threshold
+- [ ] **3. Silence is named.** When no runtime frame has arrived for 30 s
       after the turn was sent, the label says how long Claude has been silent
-      instead of shimmering. Thinking frames never gapped more than 1.7 s in
-      Phase 0; set the threshold from Phase 1 logs of ordinary turns, not a guess.
-- [ ] **4. Usage warning before the limit.** `allowed_warning` shows one
-      dismissible in-chat notice per window per threshold, naming the window and
-      its reset time; `rejected` states the reset time. Dismissal holds for the
-      rest of that window. The runtime must read the frame's `status`, which
-      the usage normalizer ignores today. Codex derives the same from its rate-limit windows.
+      instead of shimmering. A fixed threshold, not a measured one: thinking
+      frames never gapped more than 1.7 s in Phase 0, and Phase 2's climbing
+      count already separates thinking from a stall.
+- [x] **4. Usage warning before the limit.** Any plan window at 90% or more
+      shows one dismissible line above the composer, naming the window and its
+      reset; dismissal holds until that window resets. Derived client-side from
+      the usage every provider already reports, so Codex gets it too (on its
+      next usage fetch, not mid-turn). 90% is where Anthropic's own 5-hour
+      `allowed_warning` fires; its weekly flags at 25% and 50% are ignored.
+      `rejected` needs nothing new: the limit notice row already states the reset.
 - [ ] **5. Acceptance.** Retry, silence and warning paths are proven by tests
       feeding recorded frames. Live, on the checkout's own test server: Grayson
       sends a turn and watches the stage advance and the thinking count climb.

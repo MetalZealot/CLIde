@@ -95,6 +95,33 @@ export const formatResetLocal = (resetsAt: string | null): string | null => {
   }).format(new Date(timestamp));
 };
 
+/** Anthropic's own 5-hour warning fires here (measured from `[turn] usage` logs, 2026-09-22). */
+export const USAGE_WARNING_PERCENT = 90;
+
+/** Identity of one warning: the window plus the reset it runs to, so a new window warns afresh. */
+export const usageWarningKey = (provider: string, window: ProviderUsageWindow): string => {
+  const resetMs = window.resetsAt ? Date.parse(window.resetsAt) : NaN;
+  // Minute precision: the push and the fetch report the same reset with different sub-second parts.
+  const resetMinute = Number.isFinite(resetMs) ? Math.round(resetMs / 60_000) : 'none';
+  return `${provider}:${window.id}:${resetMinute}`;
+};
+
+/** The fullest window at or past the warning line that is still live and not dismissed. */
+export const pickUsageWarning = (
+  provider: string,
+  windows: ProviderUsageWindow[] | undefined,
+  isDismissed: (key: string) => boolean,
+): { window: ProviderUsageWindow; key: string } | null => {
+  let picked: { window: ProviderUsageWindow; key: string } | null = null;
+  for (const window of windows ?? []) {
+    if (window.utilization < USAGE_WARNING_PERCENT || isUsageWindowResetPending(window.resetsAt)) continue;
+    const key = usageWarningKey(provider, window);
+    if (isDismissed(key)) continue;
+    if (!picked || window.utilization > picked.window.utilization) picked = { window, key };
+  }
+  return picked;
+};
+
 export const usageBarToneClass = (utilization: number): string => {
   if (utilization >= 90) return 'bg-red-500';
   if (utilization >= 75) return 'bg-amber-500';

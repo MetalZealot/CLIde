@@ -39,6 +39,7 @@ import {
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
 
+import UsageLimitNotice from '../../../provider-usage/UsageLimitNotice';
 import { splitLeadingCommand } from '../../utils/chatFormatting';
 
 import CommandMenu from './CommandMenu';
@@ -451,6 +452,8 @@ export default function ChatComposer({
           </button>
         </div>
       )}
+
+      <UsageLimitNotice provider={provider} />
 
       {pendingRewind && (
         <RewindEditCard snippet={pendingRewind.snippet} onCancel={onCancelRewindEdit} />
