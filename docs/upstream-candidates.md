@@ -11,6 +11,8 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [ ] **Provider-id backfill re-runs on every start. Upstreamable.** `addProviderSessionIdMapping` stamps any unrun app session with its own id, so its first run resumes a conversation that never existed. Same code in `upstream/main` (read from source); `gh` not searched. Fixed in `5b164e36`.
+
 - [x] **Follow installed CLIs and offer native updates in New Session. Fork-only policy.** Replaces CLIde's manual Codex runtime promotion with automatic compatibility checks and an explicit, idle-safe update action for Claude/Codex. [Decision](decisions/0061-follow-installed-provider-clis.md). No upstream defect or PR claimed.
 
 - [x] **Collapsible asynchronous questions. Fork UI.** Async and blocking questions share a bounded, collapsible frame; async Send now / Queue delivery stays separate. [Rule](maps/orientation.md#14-nothing-has-a-published-place-around-the-composer). No upstream PR proposed.
