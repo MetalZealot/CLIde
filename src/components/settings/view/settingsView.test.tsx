@@ -1388,7 +1388,7 @@ describe('AgentSkillsScreen', () => {
     const search = container?.querySelector('input[aria-label="Search skills"]');
     const controls = search?.closest('div')?.parentElement;
     assert.equal(controls?.className.includes('flex-col'), false);
-    assert.ok(container?.querySelector('button[aria-label="Refresh skills"]'));
+    assert.ok(container?.querySelector('button[aria-label="Refresh skills and update plugins"]'));
   });
 
   test('the parent Skills row counts global skills without scanning any checkout', async () => {
