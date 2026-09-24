@@ -30,14 +30,19 @@ main checkout only).
 - [ ] **Codex 0.152.1 exposes two limits CLIde never sets.** App-server clients can configure `thread/shellCommand` timeouts past an hour, so long commands currently sit on the default deadline; individual MCP tools take an `output_token_limit` truncated consistently across resumes. [Map](maps/codex-cli-sdk-app-server.md). **S each**
 - [ ] **Claude's `--restricted` mode has no CLIde equivalent.** `CLAUDE_CODE_RESTRICTED=1` drops the command-running tools and `WebFetch`, holds file tools to the working directory, refuses `bypassPermissions`, and ignores user/project/local settings. A runtime-enforced narrow mode needs a capability-flag decision before it reaches shared UI. **M — design first**
 
+## Browser
+
+- [~] **Save the displayed Browser screenshot.** The session menu downloads its current JPEG; client typecheck, lint, docs check and isolated build pass. Live Browser acceptance and the production client build remain. [Browser map](maps/chat-browser-activity.md). **S**
+- [ ] **Record short Browser clips without Electron.** Explore Playwright MCP video in CLIde-owned headless sessions, with bounded clip size, cleanup, and download. Keep the Browser tab view-only. [Browser policy](decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md). **M — explore first**
+
 ## Bugs
 
+- [ ] **Claude thoughts come back empty because CLIde never requests summaries.** Passing `thinking: { display: 'summarized' }` returned text where the current run returns 0 characters (probe, 2026-09-24). Check adaptive vs fixed-budget models first. [Map](maps/tool-activity-stream.md#settings-that-decide-what-is-sent). **S**
 - [ ] **Codex history never flags a failed command.** Reloaded `exec` results never set `isError`; 18 failed commands in one sample came back unflagged. The rollout's `CommandExecution` records carry exit code and duration. [Map](maps/tool-activity-stream.md). **S**
 - [ ] **Cursor `ApplyPatch` edits show 0/0 line counts.** It is renamed `Edit` but only `patch` is filled. Source only; no Cursor session to test. [Map](maps/tool-activity-stream.md). **S**
 - [ ] **OpenCode live tool rows may be empty.** Live parsing reads top-level `tool`/`input`/`output`; history nests them under `state`. Unverified — needs one real OpenCode run. [Map](maps/tool-activity-stream.md). **S/?**
 - [ ] **Claude's live stream drops `tool_use_result`.** The SDK sends snake_case; `normalizeMessage` reads camelCase, so search counts and diffs appear only after reload. Source only. [Map](maps/tool-activity-stream.md). **S**
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
-- [ ] **Claude thoughts come back empty because CLIde never requests summaries.** Passing `thinking: { display: 'summarized' }` returned text where the current run returns 0 characters (probe, 2026-09-24). Check adaptive vs fixed-budget models first. [Map](maps/tool-activity-stream.md#settings-that-decide-what-is-sent). **S**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**

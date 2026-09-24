@@ -94,6 +94,21 @@ function getDomain(url: string | null): string {
   }
 }
 
+function saveScreenshot(session: BrowserUseSession): void {
+  const image = session.screenshotDataUrl?.split(',')[1];
+  if (!image) return;
+
+  const bytes = Uint8Array.from(atob(image), (character) => character.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `clide-browser-${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
 function formatAction(action: string | null): string {
   if (!action) return 'Waiting';
   return action.replace(/_/g, ' ').replace(/:/g, ': ');
@@ -443,6 +458,13 @@ export default function BrowserUsePanel({ isVisible, initialSessionId, onShowSet
   );
 
   const sessionMenuActions = (session: BrowserUseSession | null) => [
+    {
+      key: 'save-screenshot',
+      label: 'Save screenshot',
+      icon: Download,
+      disabled: !session?.screenshotDataUrl,
+      onSelect: () => session && saveScreenshot(session),
+    },
     {
       key: 'stop',
       label: 'Stop session',

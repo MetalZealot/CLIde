@@ -5,6 +5,7 @@ app session id. A changed capture version fetches the selected session's image;
 screenshots never enter normal agent tool results. Pending questions, permissions,
 queued messages/answers, and rewind edits collapse the preview to a text row. The browser/async-question area scrolls within
 half the usable viewport on short screens, keeping the composer below it reachable.
+The session menu can download the JPEG currently shown; it does not request a new capture.
 
 The preview opens the matching Browser session; a missing session cannot silently
 select another. A session's row is removed the moment its browser closes (idle timeout,
