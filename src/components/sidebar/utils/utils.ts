@@ -257,7 +257,7 @@ export const isMainCheckout = (project: Project): boolean => {
  *
  * Registered checkouts outrank discovered ones whatever git says about the main
  * worktree: the lead is the target of every repository-scoped action (rename,
- * accent colour, TaskMaster), and a discovered checkout's `projectId` is
+ * accent colour), and a discovered checkout's `projectId` is
  * synthetic, so addressing one would 404. Main-before-linked decides the rest;
  * the sort is stable, so anything past that keeps the caller's order.
  */
@@ -614,28 +614,6 @@ export const applyRepositoryViewOptions = (
   }
 
   return sorted;
-};
-
-export const getTaskIndicatorStatus = (
-  project: Project,
-  mcpServerStatus: { hasMCPServer?: boolean; isConfigured?: boolean } | null,
-) => {
-  const projectConfigured = Boolean(project.taskmaster?.hasTaskmaster);
-  const mcpConfigured = Boolean(mcpServerStatus?.hasMCPServer && mcpServerStatus?.isConfigured);
-
-  if (projectConfigured && mcpConfigured) {
-    return 'fully-configured';
-  }
-
-  if (projectConfigured) {
-    return 'taskmaster-only';
-  }
-
-  if (mcpConfigured) {
-    return 'mcp-only';
-  }
-
-  return 'not-configured';
 };
 
 export const normalizeProjectForSettings = (project: Project): SettingsProject => {

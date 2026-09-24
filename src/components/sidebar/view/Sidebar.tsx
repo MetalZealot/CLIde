@@ -7,9 +7,8 @@ import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useSidebarWidth } from '../../../hooks/useSidebarWidth';
 import { useSidebarController } from '../hooks/useSidebarController';
-import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
-import type { Project, LLMProvider } from '../../../types/app';
+import type { LLMProvider } from '../../../types/app';
 import type {
   RepositoryEntry,
   SidebarBrowseMode,
@@ -31,10 +30,6 @@ import SidebarAccentColorMenu from './subcomponents/SidebarAccentColorMenu';
 import SidebarSessionViewMenu from './subcomponents/SidebarSessionViewMenu';
 import WorktreeManagerModal from './subcomponents/WorktreeManagerModal';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
-
-type TaskMasterSidebarContext = {
-  setCurrentProject: (project: Project) => void;
-};
 
 function Sidebar({
   projects,
@@ -75,7 +70,6 @@ function Sidebar({
   const { preferences, setPreference } = useUiPreferences();
   const { width: sidebarWidth, setWidth: setSidebarWidth, resetWidth: resetSidebarWidth } = useSidebarWidth();
   const { sidebarVisible } = preferences;
-  const { setCurrentProject } = useTaskMaster() as TaskMasterSidebarContext;
   const paletteOps = usePaletteOps();
 
   const {
@@ -177,7 +171,6 @@ function Sidebar({
     onToggleSessionStar,
     onLoadMoreSessions,
     onProjectDelete,
-    setCurrentProject,
     setSidebarVisible: (visible) => setPreference('sidebarVisible', visible),
     sidebarVisible,
   });

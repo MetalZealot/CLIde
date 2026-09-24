@@ -20,7 +20,6 @@ export default function MainContentHeader({
   selectedProject,
   selectedSession,
   checkoutLabel,
-  shouldShowTasksTab,
   shouldShowBrowserTab,
   isMobile,
   onMenuClick,
@@ -57,7 +56,6 @@ export default function MainContentHeader({
               selectedProject={selectedProject}
               selectedSession={selectedSession}
               checkoutLabel={checkoutLabel}
-              shouldShowTasksTab={shouldShowTasksTab}
             />
           </div>
 
@@ -75,7 +73,6 @@ export default function MainContentHeader({
                 <MainContentTabSwitcher
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
-                  shouldShowTasksTab={shouldShowTasksTab}
                   shouldShowBrowserTab={shouldShowBrowserTab}
                 />
               </div>

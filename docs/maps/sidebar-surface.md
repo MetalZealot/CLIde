@@ -193,7 +193,5 @@ visuals with extra hit area supplied by the helper class.
 
 `TaskIndicator` had exactly one render site, inside the repository row's
 `md:hidden` block while itself carrying `hidden md:inline-flex`, so it could not
-appear at either breakpoint. Removed 2026-08-11 along with the `tasksEnabled`
-and `mcpServerStatus` prop chain that fed it; `getTaskIndicatorStatus` and the
-component remain. Whether the row should carry the indicator at all is a TODO
-item, not a regression.
+appear at either breakpoint. It went with the rest of TaskMaster, which CLIde
+no longer ships.

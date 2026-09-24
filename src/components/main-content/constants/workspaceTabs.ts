@@ -1,4 +1,4 @@
-import { ClipboardCheck, Folder, GitBranch, MessageSquare, MonitorPlay, Terminal, type LucideIcon } from 'lucide-react';
+import { Folder, GitBranch, MessageSquare, MonitorPlay, Terminal, type LucideIcon } from 'lucide-react';
 
 import type { Plugin } from '../../../contexts/PluginsContext';
 import type { AppTab } from '../../../types/app';
@@ -32,13 +32,6 @@ export const BROWSER_TAB: BuiltInTab = {
   id: 'browser',
   labelKey: 'tabs.browser',
   icon: MonitorPlay,
-};
-
-export const TASKS_TAB: BuiltInTab = {
-  kind: 'builtin',
-  id: 'tasks',
-  labelKey: 'tabs.tasks',
-  icon: ClipboardCheck,
 };
 
 export function getPluginTabs(plugins: Plugin[]): PluginTab[] {

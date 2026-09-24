@@ -19,7 +19,6 @@ export type SettingsIconName =
   | 'git'
   | 'plugins'
   | 'browser'
-  | 'tasks'
   | 'credentials'
   | 'about'
   | 'account'
@@ -249,14 +248,6 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
   },
   {
     kind: 'screen',
-    id: 'tasks',
-    labelKey: 'mainTabs.tasks',
-    icon: 'tasks',
-    group: 'extensions',
-    keywords: 'tasks taskmaster',
-  },
-  {
-    kind: 'screen',
     id: 'account',
     labelKey: 'mainTabs.account',
     icon: 'account',
@@ -294,6 +285,7 @@ export const MAX_SETTINGS_DEPTH = 3;
  * enable toggle now lives on `chat`. `git` merged into `projects-git`.
  */
 export const LEGACY_SCREEN_IDS: Record<string, string> = {
+  tasks: 'plugins',
   'agent.claude.skills': 'agent.claude.tools',
   'agent.cursor.skills': 'agent.cursor.tools',
   'agent.codex.skills': 'agent.codex.tools',

@@ -6,7 +6,6 @@ import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 import type { ChatMessage, PendingPermissionRequest } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
-import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { assignActivityKeys, groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
 import { computeTurnDurations } from '../../utils/turnDuration';
@@ -31,10 +30,6 @@ interface ChatMessagesPaneProps {
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
   provider: LLMProvider;
-  tasksEnabled: boolean;
-  isTaskMasterInstalled: boolean | null;
-  onShowAllTasks?: (() => void) | null;
-  setInput: Dispatch<SetStateAction<string>>;
   isLoadingMoreMessages: boolean;
   hasMoreMessages: boolean;
   /** Prompt time of the turn the oldest loaded message belongs to, when that prompt is not loaded. */
@@ -80,10 +75,6 @@ function ChatMessagesPane({
   selectedSession,
   currentSessionId,
   provider,
-  tasksEnabled,
-  isTaskMasterInstalled,
-  onShowAllTasks,
-  setInput,
   isLoadingMoreMessages,
   hasMoreMessages,
   turnStartedAt = null,
@@ -111,9 +102,6 @@ function ChatMessagesPane({
   onResumeScheduledMessage,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
-  const nextTaskPrompt = t('tasks.nextTaskPrompt', {
-    defaultValue: 'Start the next task',
-  });
   const pendingToolIds = useMemo(
     () => new Set((pendingPermissionRequests ?? []).flatMap((request) => (request.toolId ? [request.toolId] : []))),
     [pendingPermissionRequests],
@@ -243,14 +231,6 @@ function ChatMessagesPane({
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {t('session.continue.description')}
               </p>
-              {tasksEnabled && isTaskMasterInstalled && (
-                <div className="mt-5">
-                  <NextTaskBanner
-                    onStartTask={() => setInput(nextTaskPrompt)}
-                    onShowAllTasks={onShowAllTasks}
-                  />
-                </div>
-              )}
             </div>
           </div>
         )

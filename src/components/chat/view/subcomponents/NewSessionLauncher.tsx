@@ -15,7 +15,6 @@ import {
 } from '../../../sidebar/utils/utils';
 import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from '../../utils/newSessionLauncher';
 import ProjectCreationWizard from '../../../project-creation-wizard';
-import NextTaskBanner from '../../../task-master/view/NextTaskBanner';
 import WorktreeManagerModal from '../../../sidebar/view/subcomponents/WorktreeManagerModal';
 
 import ProviderUpdateNotice from './ProviderUpdateNotice';
@@ -29,10 +28,6 @@ type NewSessionLauncherProps = {
   onProjectsRefresh: () => Promise<Project[]>;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;
   onAdoptCheckout: (checkoutPath: string) => Promise<Project | null>;
-  tasksEnabled: boolean;
-  isTaskMasterInstalled: boolean | null;
-  onShowAllTasks?: (() => void) | null;
-  setInput: Dispatch<SetStateAction<string>>;
 };
 
 type OpenMenu = 'project' | 'worktree' | null;
@@ -49,10 +44,6 @@ export default function NewSessionLauncher({
   onProjectsRefresh,
   onCreateWorktree,
   onAdoptCheckout,
-  tasksEnabled,
-  isTaskMasterInstalled,
-  onShowAllTasks,
-  setInput,
 }: NewSessionLauncherProps) {
   const { t } = useTranslation('chat');
   const { t: sidebarT } = useTranslation('sidebar');
@@ -132,9 +123,6 @@ export default function NewSessionLauncher({
     onTargetSelect(refreshedEntry ? resolvePrimaryCheckout(refreshedEntry) : canonicalProject);
   };
 
-  const nextTaskPrompt = t('tasks.nextTaskPrompt', {
-    defaultValue: 'Start the next task',
-  });
   const projectLabel = selectedEntry?.displayName ?? t('launcher.selectProject', { defaultValue: 'Project' });
   const selectedCheckout = selectedProject ? getCheckoutLabel(selectedProject) : null;
   // The trigger has room for one line, so it shows state and carries place in
@@ -147,14 +135,6 @@ export default function NewSessionLauncher({
   return (
     <>
       <ProviderUpdateNotice key={provider} provider={provider} onUpdated={onProviderUpdated} />
-      {selectedProject && tasksEnabled && isTaskMasterInstalled && (
-        <div className="px-2 pb-2 sm:px-4">
-          <div className="mx-auto max-w-[54.25rem]">
-            <NextTaskBanner onStartTask={() => setInput(nextTaskPrompt)} onShowAllTasks={onShowAllTasks} />
-          </div>
-        </div>
-      )}
-
       <div className="px-2 pb-1 sm:px-4">
         {/* One centred group, not two half-width cells, so the pair reads as a
             single control. Triggers size to their labels and only truncate once

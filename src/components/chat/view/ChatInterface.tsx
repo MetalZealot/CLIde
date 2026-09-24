@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { ArrowDownIcon, XIcon } from 'lucide-react';
 
 import { ChatBrowserPreview, useChatBrowser } from '../../browser-use';
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import type { ChatInterfaceProps, PermissionMode } from '../types/types';
@@ -70,7 +69,6 @@ function ChatInterface({
   enterToSend,
   externalMessageUpdate,
   newSessionTrigger,
-  onShowAllTasks,
   onNewSessionTarget,
   onProjectsRefresh,
   onCreateWorktree,
@@ -81,7 +79,6 @@ function ChatInterface({
   pageScroll = false,
   hasBottomNav = false,
 }: ChatInterfaceProps) {
-  const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe, isConnected, probeConnection, getReplayProgress } = useWebSocket();
   const { t } = useTranslation('chat');
   const {
@@ -930,10 +927,6 @@ function ChatInterface({
           selectedSession={selectedSession}
           currentSessionId={currentSessionId}
           provider={provider}
-          tasksEnabled={tasksEnabled}
-          isTaskMasterInstalled={isTaskMasterInstalled}
-          onShowAllTasks={onShowAllTasks}
-          setInput={setInput}
           isLoadingMoreMessages={isLoadingMoreMessages}
           hasMoreMessages={hasMoreMessages}
           turnStartedAt={turnStartedAt}
@@ -1026,10 +1019,6 @@ function ChatInterface({
               onProjectsRefresh={onProjectsRefresh}
               onCreateWorktree={onCreateWorktree}
               onAdoptCheckout={onAdoptCheckout}
-              tasksEnabled={tasksEnabled}
-              isTaskMasterInstalled={isTaskMasterInstalled}
-              onShowAllTasks={onShowAllTasks}
-              setInput={setInput}
             />
           )}
 

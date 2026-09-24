@@ -249,3 +249,4 @@ Short records: what/why, commit, classification, verification. Detail lives in t
 - [x] **Copy either session id from the sidebar row menu** (upstream `#1040`, `c62a838a`). Done by Grayson 2026-09-23. **S**
 - [x] **Does usage tracking count subagent tokens?** Closed 2026-09-23 with no UI: plan-window % includes them, the session ring skips sidechains by design. **S**
 - [x] **The activity indicator's changed state isn't legible.** Closed 2026-09-23: superseded by `da6948ef`, which names the real stage in the last row. **M**
+- [x] **TaskMaster removed from CLIde** (2026-09-24). Grayson does not use it: the server module and project lookup, the Tasks tab, Settings → Tasks, the chat next-task banner, the PRD editor, the sidebar indicator and the `tasks` locale namespace are gone, along with the WebSocket `latestMessage` state only TaskMaster read. Verified: typecheck, 440 client and 19 projects tests, full build. **M**

@@ -8,7 +8,6 @@ import PluginIcon from '../../../plugins/view/PluginIcon';
 import {
   BASE_TABS,
   BROWSER_TAB,
-  TASKS_TAB,
   getPluginTabs,
   type TabDefinition,
 } from '../../constants/workspaceTabs';
@@ -16,14 +15,12 @@ import {
 type MainContentTabSwitcherProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
-  shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
 };
 
 export default function MainContentTabSwitcher({
   activeTab,
   setActiveTab,
-  shouldShowTasksTab,
   shouldShowBrowserTab,
 }: MainContentTabSwitcherProps) {
   const { t } = useTranslation();
@@ -32,7 +29,6 @@ export default function MainContentTabSwitcher({
   const tabs: TabDefinition[] = [
     ...BASE_TABS,
     ...(shouldShowBrowserTab ? [BROWSER_TAB] : []),
-    ...(shouldShowTasksTab ? [TASKS_TAB] : []),
     ...getPluginTabs(plugins),
   ];
 

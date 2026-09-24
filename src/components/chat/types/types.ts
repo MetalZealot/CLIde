@@ -204,8 +204,6 @@ export interface ChatInterfaceProps {
   enterToSend?: boolean;
   externalMessageUpdate?: number;
   newSessionTrigger?: number;
-  onTaskClick?: (...args: unknown[]) => void;
-  onShowAllTasks?: (() => void) | null;
   onNewSessionTarget: (project: Project) => void;
   onProjectsRefresh: () => Promise<Project[]>;
   onCreateWorktree: (options: CreateWorktreeOptions) => Promise<CreateWorktreeOutcome>;

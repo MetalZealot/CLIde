@@ -34,7 +34,6 @@ import {
     authRoutes,
     validateApiKey,
 } from './modules/auth/index.js';
-import { taskmasterRoutes } from './modules/taskmaster/index.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { settingsRoutes } from './modules/settings/index.js';
 import { createSystemModule } from './modules/system/index.js';
@@ -174,9 +173,6 @@ app.use('/api/git', authenticateToken, gitRoutes);
 // worktrees module out of the tree until the repository/checkout identity and
 // preflight contract from 2026-07-26-git-source-control-workspace-ux.md is
 // implemented — see the 1.37 integration spec, Phase 4.
-
-// TaskMaster API Routes (protected)
-app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
 
 // Commands API Routes (protected)
 app.use('/api/commands', authenticateToken, commandsRoutes);

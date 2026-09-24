@@ -12,7 +12,6 @@ import type { ActivityState } from '../../../sidebar/types/types';
 import {
   BASE_TABS,
   BROWSER_TAB,
-  TASKS_TAB,
   getPluginTabs,
   type TabDefinition,
 } from '../../constants/workspaceTabs';
@@ -23,7 +22,6 @@ type MobileBottomNavProps = {
   activeTab: AppTab;
   hasSelectedProject: boolean;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
-  shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
   /** The open session's status in the sidebar's shapes; the spinner is left off the bar. */
   chatStatus: Exclude<ActivityState, 'running'> | null;
@@ -62,7 +60,6 @@ export default function MobileBottomNav({
   activeTab,
   hasSelectedProject,
   setActiveTab,
-  shouldShowTasksTab,
   shouldShowBrowserTab,
   chatStatus,
   onShowSettings,
@@ -81,7 +78,6 @@ export default function MobileBottomNav({
 
   const overflowTabs: TabDefinition[] = [
     ...(shouldShowBrowserTab ? [BROWSER_TAB] : []),
-    ...(shouldShowTasksTab ? [TASKS_TAB] : []),
     ...getPluginTabs(plugins),
   ];
   const [storedSlotTab, setStoredSlotTab] = useState(readStoredSlotTab);

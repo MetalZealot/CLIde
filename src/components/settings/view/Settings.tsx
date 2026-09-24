@@ -27,7 +27,6 @@ import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
 import CredentialsScreen from './screens/CredentialsScreen';
 import ExtensionsBrowserScreen from './screens/ExtensionsBrowserScreen';
 import ExtensionsPluginsScreen from './screens/ExtensionsPluginsScreen';
-import ExtensionsTasksScreen from './screens/ExtensionsTasksScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ProjectsGitScreen from './screens/ProjectsGitScreen';
 import SettingsHeader from './shell/SettingsHeader';
@@ -308,9 +307,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
 
       case 'browser':
         return <ExtensionsBrowserScreen />;
-
-      case 'tasks':
-        return <ExtensionsTasksScreen />;
 
       case 'account':
         return <AccountScreen />;

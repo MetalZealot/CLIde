@@ -113,7 +113,6 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'browser', labelKey: 'browserSettings.sessions.title', keywords: 'concurrent limit idle timeout expire memory default preset' },
   { screenId: 'browser', labelKey: 'browserSettings.origins.title', keywords: 'origins allow block network sites urls domains' },
 
-  { screenId: 'tasks', labelKey: 'tasks.settings.enableLabel', keywords: 'taskmaster' },
 
   { screenId: 'credentials', labelKey: 'apiKeys.title', keywords: 'external api token' },
   { screenId: 'credentials', labelKey: 'apiKeys.github.title', keywords: 'personal access token clone private' },

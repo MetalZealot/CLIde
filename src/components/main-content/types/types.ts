@@ -12,35 +12,6 @@ import type {
   CreateWorktreeOutcome,
 } from '../../sidebar/types/types';
 
-export type TaskMasterTask = {
-  id: string | number;
-  title?: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  details?: string;
-  testStrategy?: string;
-  parentId?: string | number;
-  dependencies?: Array<string | number>;
-  subtasks?: TaskMasterTask[];
-  [key: string]: unknown;
-};
-
-export type TaskReference = {
-  id: string | number;
-  title?: string;
-  [key: string]: unknown;
-};
-
-export type TaskSelection = TaskMasterTask | TaskReference;
-
-export type PrdFile = {
-  name: string;
-  content?: string;
-  isExisting?: boolean;
-  [key: string]: unknown;
-};
-
 export type MainContentProps = {
   projects: Project[];
   selectedProject: Project | null;
@@ -90,7 +61,6 @@ export type MainContentHeaderProps = {
    * answers that — see `getCheckoutContextLabel`.
    */
   checkoutLabel: string | null;
-  shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
@@ -107,6 +77,4 @@ export type MobileMenuButtonProps = {
   compact?: boolean;
 };
 
-export type TaskMasterPanelProps = {
-  isVisible: boolean;
-};
+

@@ -51,7 +51,7 @@ function Harness() {
   useEffect(() => { document.title = `History fixture: ${session.id}`; }, [session.id]);
   return <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
     <ChatMessagesPane {...state} selectedProject={project} selectedSession={session}
-      provider="claude" tasksEnabled={false} isTaskMasterInstalled={false} setInput={noop}
+      provider="claude"
       onGrantToolPermission={grant} showThinking={false} scheduledMessages={[]}
       onSendScheduledNow={noop} onEditScheduledMessage={noop} onCancelScheduledMessage={noop}
       onResumeScheduledMessage={noop} />

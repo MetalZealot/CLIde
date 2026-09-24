@@ -34,7 +34,7 @@ export type ProviderModelsCacheInfo = {
   source: 'memory' | 'disk' | 'fresh';
 };
 
-export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'browser' | `plugin:${string}`;
+export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'browser' | `plugin:${string}`;
 
 export interface ProjectSession {
   id: string;
@@ -67,13 +67,6 @@ export interface ProjectSessionMeta {
   [key: string]: unknown;
 }
 
-export interface ProjectTaskmasterInfo {
-  hasTaskmaster?: boolean;
-  status?: string;
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
 // After the projectName → projectId migration the backend no longer returns a
 // folder-derived `name` string. Projects are now addressed everywhere by the
 // DB-assigned `projectId` (primary key in the `projects` table), and the UI
@@ -91,7 +84,6 @@ export interface Project {
   accentColor?: string | null;
   sessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
-  taskmaster?: ProjectTaskmasterInfo;
   // ADR 0016: git-derived identity supplied by the projects API. `repositoryId`
   // is the shared git directory that every checkout of one repository resolves
   // to, and is the key the sidebar groups on. Absent for non-repository projects

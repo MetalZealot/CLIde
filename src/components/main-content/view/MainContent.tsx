@@ -8,9 +8,7 @@ import GitPanel from '../../git-panel/view/GitPanel';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { BrowserUsePanel } from '../../browser-use';
 import type { MainContentProps } from '../types/types';
-import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver, type FileOpenResolutionIssue } from '../../../hooks/useFileOpenResolver';
 import { useSoftKeyboardOpen } from '../../../hooks/useSoftKeyboardOpen';
@@ -18,7 +16,6 @@ import { authenticatedFetch } from '../../../utils/api';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
 import type { Project } from '../../../types/app';
-import { TaskMasterPanel } from '../../task-master';
 import { getCheckoutContextLabel, resolveActivityState } from '../../sidebar/utils/utils';
 import UsageDashboard from '../../usage-dashboard/view/UsageDashboard';
 
@@ -27,17 +24,6 @@ import MainContentStateView from './subcomponents/MainContentStateView';
 import MobileMenuButton from './subcomponents/MobileMenuButton';
 import MobileBottomNav from './subcomponents/MobileBottomNav';
 import ErrorBoundary from './ErrorBoundary';
-
-type TaskMasterContextValue = {
-  currentProject?: Project | null;
-  setCurrentProject?: ((project: Project) => void) | null;
-};
-
-type TasksSettingsContextValue = {
-  tasksEnabled: boolean;
-  isTaskMasterInstalled: boolean | null;
-  isTaskMasterReady: boolean | null;
-};
 
 function MainContent({
   projects,
@@ -88,12 +74,9 @@ function MainContent({
   });
   const chatStatus = chatActivity === 'running' ? null : chatActivity;
 
-  const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
-  const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
   const [browserUseEnabled, setBrowserUseEnabled] = useState(false);
   const [fileOpenNotice, setFileOpenNotice] = useState<string | null>(null);
 
-  const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
   const shouldShowBrowserTab = browserUseEnabled;
 
   const {
@@ -146,23 +129,6 @@ function MainContent({
     [selectedProject, projects],
   );
 
-  useEffect(() => {
-    // Identify projects by DB `projectId`; the TaskMaster context uses the
-    // same identifier to key its internal maps.
-    const selectedProjectId = selectedProject?.projectId;
-    const currentProjectId = currentProject?.projectId;
-
-    if (selectedProject && selectedProjectId !== currentProjectId) {
-      setCurrentProject?.(selectedProject);
-    }
-  }, [selectedProject, currentProject?.projectId, setCurrentProject]);
-
-  useEffect(() => {
-    if (!shouldShowTasksTab && activeTab === 'tasks') {
-      setActiveTab('chat');
-    }
-  }, [shouldShowTasksTab, activeTab, setActiveTab]);
-
   const loadBrowserUseSettings = useCallback(async () => {
     try {
       const response = await authenticatedFetch('/api/browser-use/settings');
@@ -214,7 +180,6 @@ function MainContent({
           selectedProject={selectedProject}
           selectedSession={selectedSession}
           checkoutLabel={checkoutLabel}
-          shouldShowTasksTab={shouldShowTasksTab}
           shouldShowBrowserTab={shouldShowBrowserTab}
           isMobile={isMobile}
           onMenuClick={onMenuClick}
@@ -261,7 +226,6 @@ function MainContent({
                 enterToSend={enterToSend}
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
-                onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
                 onNewSessionTarget={onNewSessionTarget}
                 onProjectsRefresh={onProjectsRefresh}
                 onCreateWorktree={onCreateWorktree}
@@ -310,8 +274,6 @@ function MainContent({
             </div>
           )}
 
-          {selectedProject && shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
-
           {selectedProject && shouldShowBrowserTab && activeTab === 'browser' && (
             <div className="h-full overflow-hidden">
               <BrowserUsePanel initialSessionId={browserSessionId} isVisible={activeTab === 'browser'} onShowSettings={onShowSettings} />
@@ -353,7 +315,6 @@ function MainContent({
           activeTab={selectedProject ? activeTab : 'chat'}
           hasSelectedProject={Boolean(selectedProject)}
           setActiveTab={setActiveTab}
-          shouldShowTasksTab={shouldShowTasksTab}
           shouldShowBrowserTab={shouldShowBrowserTab}
           chatStatus={chatStatus}
           onShowSettings={onShowSettings}

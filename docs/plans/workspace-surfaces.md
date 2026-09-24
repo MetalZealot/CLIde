@@ -70,5 +70,5 @@ tabs get the same set.
   session's status.
 - A Pull request surface. How PRs belong in CLIde's Git control is not yet
   assessed.
-- TaskMaster. Its tab already hides unless TaskMaster is installed; the new
-  Tasks surface takes a separate internal id and leaves it alone.
+- TaskMaster. CLIde no longer ships it, so the Tasks surface owns the `tasks`
+  id outright.
