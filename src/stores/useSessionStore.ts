@@ -388,7 +388,36 @@ function isEchoedInSameTurnOnServer(
 const isServerAssistantText = (message: NormalizedMessage) =>
   message.kind === 'text' && message.role === 'assistant';
 
-const isServerError = (message: NormalizedMessage) => message.kind === 'error';
+/**
+ * A live error is the transcript's if the same failure was recorded after the
+ * last user message before it. Timestamps, not turn ordinals: a long turn's
+ * opening user message is often older than the loaded page.
+ */
+function isErrorRecordedOnServer(
+  message: NormalizedMessage,
+  serverMessages: NormalizedMessage[],
+  realtimeMessages: NormalizedMessage[],
+): boolean {
+  const text = (message.content || '').trim();
+  const errorTime = readMessageTime(message);
+  if (!text || errorTime === null) {
+    return false;
+  }
+
+  let turnStart = -Infinity;
+  for (const candidate of [...serverMessages, ...realtimeMessages]) {
+    const candidateTime = candidate.kind === 'text' && candidate.role === 'user' ? readMessageTime(candidate) : null;
+    if (candidateTime !== null && candidateTime <= errorTime && candidateTime > turnStart) {
+      turnStart = candidateTime;
+    }
+  }
+
+  return serverMessages.some((serverMessage) =>
+    serverMessage.kind === 'error'
+    && (serverMessage.content || '').trim() === text
+    && (readMessageTime(serverMessage) ?? -Infinity) >= turnStart,
+  );
+}
 
 function isAssistantTextEchoedInSameTurnOnServer(
   message: NormalizedMessage,
@@ -477,7 +506,7 @@ function pruneRealtimeSupersededByServer(
 
     // A failed turn's live error row, once the transcript records the same failure.
     if (message.kind === 'error') {
-      return !isEchoedInSameTurnOnServer(message, serverMessages, realtimeMessages, isServerError);
+      return !isErrorRecordedOnServer(message, serverMessages, realtimeMessages);
     }
 
     if (message.kind === 'tool_use' && message.toolId) {

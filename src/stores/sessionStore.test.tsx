@@ -548,6 +548,21 @@ describe('useSessionStore.pagination', () => {
     });
     await finish(again);
     assert.ok(store.getMessages(SESSION_ID).some((m) => m.id === 'live_again'));
+
+    // A long turn: the loaded page starts after its opening user message.
+    await begin(() => store.appendRealtime(SESSION_ID, error('live_long', 8.5, LIMIT)));
+    const { pending: long } = await begin(() => store.refreshFromServer(SESSION_ID));
+    await settle();
+    respond({
+      messages: [{ ...message('7', 'tool output'), role: undefined, kind: 'tool_result' }, error('server_long', 8.4, LIMIT)],
+      total: 30,
+      hasMore: true,
+    });
+    await finish(long);
+    assert.deepEqual(
+      store.getMessages(SESSION_ID).filter((m) => m.kind === 'error' && m.id.endsWith('long')).map((m) => m.id),
+      ['server_long'],
+    );
   });
 });
 
