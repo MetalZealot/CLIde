@@ -997,3 +997,35 @@ describe('claude-turn-tokens', () => {
     assert.equal(counter.total(), 282);
   });
 });
+
+describe('claude live usage-limit notice', () => {
+  const liveNotice = {
+    type: 'assistant',
+    error: 'rate_limit',
+    uuid: 'u1',
+    message: { role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: "You've hit your limit" }] },
+  };
+  const rejected = { status: 'rejected', resetsAt: 1790188800, rateLimitType: 'five_hour' };
+
+  const classify = async (message: unknown) => {
+    const { ClaudeSessionsProvider } = await import('@/modules/providers/list/claude/claude-sessions.provider.js');
+    return new ClaudeSessionsProvider().normalizeMessage(message, 's1').find((m) => m.kind === 'text')?.usageLimit;
+  };
+
+  test('a window limit seen this turn makes the notice resumable, so Auto-Continue can arm', async () => {
+    const { withLiveQuotaLimits } = await import('@/modules/providers/list/claude/claude-runtime.provider.js');
+    assert.equal((await classify(liveNotice))?.resumes, false, 'the bare live notice reads as a spent balance');
+    assert.deepEqual(await classify(withLiveQuotaLimits(liveNotice, rejected)), {
+      resumes: true,
+      resetsAt: new Date(1790188800 * 1000).toISOString(),
+      windowId: 'five_hour',
+    });
+  });
+
+  test('with no rejected event the notice is left alone', async () => {
+    const { withLiveQuotaLimits } = await import('@/modules/providers/list/claude/claude-runtime.provider.js');
+    assert.equal(withLiveQuotaLimits(liveNotice, null), liveNotice);
+    const text = { type: 'assistant', message: { role: 'assistant', content: 'hi' } };
+    assert.equal(withLiveQuotaLimits(text, rejected), text);
+  });
+});

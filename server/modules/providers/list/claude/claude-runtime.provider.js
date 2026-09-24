@@ -437,6 +437,13 @@ function transformMessage(sdkMessage) {
   return sdkMessage;
 }
 
+/** Gives a live limit notice the `quotaLimits` its transcript row carries, so it classifies as resumable. */
+export function withLiveQuotaLimits(message, rejectedRateLimit) {
+  if (message?.type !== 'assistant' || message.error !== 'rate_limit') return message;
+  if (message.quotaLimits !== undefined || !rejectedRateLimit) return message;
+  return { ...message, quotaLimits: rejectedRateLimit };
+}
+
 function readNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -760,6 +767,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let retries = 0;
   let thinkingEstimate = 0;
   let sentLogged = false;
+  // The live limit notice lacks the transcript's `quotaLimits`; this turn's rejected event supplies it.
+  let rejectedRateLimit = null;
   // The rate-limit event can land after the first model output; "Sent" must not follow it.
   let outputStarted = false;
   const turnTokens = createTurnTokenCounter();
@@ -1010,7 +1019,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       }
 
       // Transform and normalize message via adapter
-      const transformedMessage = transformMessage(message);
+      const transformedMessage = withLiveQuotaLimits(transformMessage(message), rejectedRateLimit);
       const sid = capturedSessionId || sessionId || null;
 
       // Compaction is a minutes-long silence in the stream unless it is
@@ -1105,6 +1114,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         // The first one marks the API answering, which is the only "it left the
         // building" signal without `includePartialMessages`.
         const info = message.rate_limit_info || {};
+        if (info.status === 'rejected') rejectedRateLimit = info;
         if (!sentLogged) {
           sentLogged = true;
           logTurn('sent', capturedSessionId || sessionId, { ms: sinceStart(), window: info.rateLimitType, status: info.status });
