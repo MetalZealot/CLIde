@@ -238,3 +238,9 @@ Short records: what/why, commit, classification, verification. Detail lives in t
 - [x] **Turn token count resets after each thinking burst** (2026-09-22, `5488d645`). Live steps no longer replace the estimate; the climbing count was seen in daily use with the turn-liveness work. **S**
 - [x] **Context ring to the header** (2026-09-20, `a9c441a7`). The ring portals into a header slot left of the kebab. **S**
 - [x] **Double-tap Esc to stop mid-send** (`e5ede32`, `adab285`, `d6a3e980`; ADR 0013). First Escape or tap arms Stop, second fires. Editing a turn the provider already took moved to [the edit model](plans/message-edit-model.md). **M**
+- [x] **Async questions share the collapsible Question frame** (`d3487cc7`). Accepted by Grayson 2026-09-23: Codex questions fold, Send now and Queue work. **S**
+- [x] **Tools page per provider (Skills · Plugins · MCP), read-only.** [Plan](plans/provider-tools-page.md). Accepted on the phone 2026-09-23: all plugins and skills show. **L**
+- [x] **Live-verify Claude's per-session model stack (#8).** Accepted in daily use 2026-09-23: Shell and Chat agree on the model and model/effort changes cause no trouble. The A/B switch-without-sending case was not run as a separate test. **S**
+- [x] **Composer controls:** split Permissions and Build/Plan pickers on desktop, one access icon on mobile, Shift+Tab mode cycling, effort dots that snap. Accepted on desktop and mobile 2026-09-23. **S**
+- [x] **Chat renders activities, not raw tool calls.** [Plan](plans/tool-activity-display.md), [map](maps/tool-activity-stream.md). Codex running rows accepted on the phone 2026-09-23. **L**
+- [x] **Turn status is the chat's last row; Activity messages retired** (`da6948ef`). Accepted by Grayson 2026-09-23. **M**

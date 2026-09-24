@@ -1,7 +1,7 @@
 # One Tools page per provider: skills, plugins, and MCP
 
-- Status: 3/4
-- Next: Phase 4 — restart `cloudcli`, then Grayson checks Engineering and GitHub on the phone
+- Status: complete
+- Next: none — accepted on the phone 2026-09-23
 - Context: [provider skills contract](../../server/modules/providers/README.md),
   [context-correct skills](skills-settings-discovery-scope.md),
   [Settings navigation](../decisions/0018-settings-drill-down-one-scroll-container.md),
@@ -50,7 +50,7 @@ here / Off for this project / Not set up".
       plugin sheet, refresh for connector status; existing add-skill and
       add-MCP flows reachable from their tabs. Checked on a branch-test slot
       at 320/390/900 px; enabled plugins sort first, a checkout's skills lead.
-- [ ] 4. **Accepted live** on 3001 on the phone: Engineering visible with its
+- [x] 4. **Accepted live** on 3001 on the phone: Engineering visible with its
       skills and connectors, GitHub shown as "Can't sign in here".
 
 ## Done when

@@ -11,14 +11,12 @@ main checkout only).
 
 ## Operations
 
-- [~] **Share the collapsible Question frame with asynchronous questions.** Bound long content, preserve answers, and retain Send now / Queue. [Rule](maps/orientation.md). **S**
 
-- [~] **Builds identify the source and dependency state that produced them.** Dependency installs and client/server builds emit ignored whole-artifact release markers for host tooling; live deployment proof remains. **S**
+- [~] **Builds identify the source and dependency state that produced them.** Installs and builds write stamps to `.generated/release/`. Gap found 2026-09-23: `npm audit fix` changed the lockfile without refreshing the dependency stamp, so it reads stale though the installed packages match. **S**
 
 ## Provider maintenance
 
-- [~] **Skills page can't see claude.ai-synced plugins, and nothing shows plugins or connector sign-in.** One Tools page per provider (Skills · Plugins · MCP), read-only. [Plan](plans/provider-tools-page.md). **L**
-- [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows [the Tools plan](plans/provider-tools-page.md). **L — design first**
+- [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows [the finished Tools plan](plans/provider-tools-page.md). **L — design first**
 - [ ] **Multiple Codex clients can claim the same native thread.** Add App Server-native Chat compaction and cross-process single-writer coordination so Shell, another CLIde service, or an external client cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**
 - [ ] **Claude, Cursor and OpenCode MCP edits still erase native keys CLIde does not model.** Codex was fixed in `2a4a727`; the shared base now hands `buildServerConfig` the existing record, so each remaining adapter needs the same merge plus its own owned-key list. **S each**
 - [ ] **Split [the Claude SDK map](maps/claude-agent-sdk.md)** — 29 KB against a 24 KB cap, and its "Current CLIde mapping" section alone is 13 KB. Split native surface from CLIde mapping, then drop its entry from `SIZE_EXCEPTIONS` in `scripts/check-docs.mjs`. Its 2026-07-19 delta section was already folded into [the ledger](maps/claude-upgrade-ledger.md) on 2026-08-06. **S/M**
@@ -44,13 +42,13 @@ main checkout only).
 - [ ] Sidebar session names sometimes don't match those shown under `claude /resume`. **?**
 - [ ] Shell view: no touch-drag scrolling — pinned to the bottom, can't scroll up through output. **M**
 - [ ] **The Git branch switcher can wreck the working tree when the selected project is CLIde's own checkout** — the norm for anyone forking CLIde to hack on CLIde. `handleSwitchBranch` → `switchBranch` → the switch route runs a real `git checkout` on the running app's directory. Needs the self-hosting guard from [the plan](plans/source-control-truthfulness.md). [upstreamable] **M**
+- [ ] **Codex turns show no token count in the status row.** The app server sends `thread/tokenUsage/updated` with `last.outputTokens`, but CLIde feeds it only to the context ring. **S**
 - [ ] **Duplicate-session double-send:** pressing send twice on a brand-new chat creates two sessions running the same message. `handleSubmit` (`useChatComposerState.ts`) awaits `POST /api/providers/sessions` before anything visible happens — no optimistic append, no processing state, and **no in-flight guard**. Observed 2026-07-16, two JSONLs 250 ms apart. **S/M**
 - [ ] **Project force-delete orphans subagent transcripts on disk.** It unlinks each session's top-level `<slug>/<session-id>.jsonl`, but nested `<slug>/<session-id>/subagents/agent-*.jsonl` were never session rows, so they survive and keep the whole `<slug>/` tree alive against the non-recursive prune. Pre-existing, not caused by `0a738ae`. **S/M**
 
 ## Mobile UX polish
 
 
-- [~] **Composer controls:** desktop split pickers keep Permissions and Build/Plan separate, with matching hover/open states; Shift+Tab cycles collaboration mode; Clear Input/shortcut clutter is gone. Mobile keeps one compact access icon; tapping opens the complete picker with Build/Plan inside. Effort dot taps now snap to that value. Desktop/mobile acceptance remain. **S**
 
 - [ ] **Consider floating New Session above the sidebar footer instead of inside it.** `--app-footer-height` is 60px, accepted with the bottom nav; ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if the button misfires near the gesture strip. **S — on trial, don't act unprompted**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
@@ -74,7 +72,6 @@ Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md
 This section is the complete outstanding model-picker list (2026-07-13 and 2026-07-16 reviews).
 
 - [~] **Fast mode switch in the model menu, per session, for Claude Opus and Codex.** Browser-checked on 3002; no live fast send yet (Claude needs usage credits). Stored in `sessions.fast_mode`. **M**
-- [ ] **#8 PRIORITY — live-verify Claude's per-session model stack.** Three tests remain: (a) A on Fable, B picks Haiku without sending, back to A still sends Fable; (b) popup pick X, then Shell `/model`, newer choice wins; (c) fresh-session popup/header agreement. Codex's equivalent isolation gate is complete. **S to run**
 - [ ] #2 — Shell `/model` stdout regex over-captures: a Default pick in the CLI's own picker shows the raw sentence "Default (recommended)" with no card highlight until the next turn. The `(.+?)\.?$` capture in `claude-models.provider.ts` takes too much. **S**
 - [ ] #4 — `getCurrentActiveModel` reads and parses the entire session JSONL (4.5 MB on a long session) on every `/models` open, even when a fresh pick wins anyway. Stat the file and skip when the pick is newer than mtime, or read only the tail. **S/M**
 - [ ] #11 — upstreaming opportunity: upstream issue #981 and PR #996 hit the same bug family as the `85ddd7e`/`5d9da84`/`8771eea` stack. Consider a PR — needs Grayson's go-ahead. **S**
@@ -100,8 +97,6 @@ new work.
 - [~] **Source Control: manage worktrees and integrate branches without leaving CLIde.** Identity and grouping shipped (ADRs 0016, 0028, 0029); truthfulness and lifecycle remain. [Plan](plans/source-control-truthfulness.md). **L**
 - [ ] **Does usage tracking count subagent tokens?** Answered — two systems, two behaviours. Plan-window % and credits come live from Anthropic's OAuth endpoint and **already include** agent tokens. The per-session context ring skips `isSidechain` rows by design. Remaining work is deciding whether to surface that difference. **S — decision**
 - [ ] **Four Claude command surfaces sit behind the CLI's** — the slash menu (9 hardcoded vs 52 live from `supportedCommands()`), `/context`'s grid, `/usage`'s per-model costs, and `/stats`. Sized and detailed in [the command surface map](maps/claude-command-surface.md); the slash menu is the cheapest. **S–M each**
-- [~] **Chat renders raw tool calls instead of activities.** All phases merged (6 moved to the history plan): one row per burst, one line per call, each call flat in place; thinking, questions, agents, plans, approvals match. Codex running rows not yet seen on a phone. [Plan](plans/tool-activity-display.md), [map](maps/tool-activity-stream.md). **L**
-- [~] **Live status becomes the chat's last row; Activity message settings retire.** Per Activity Screenshots; a livelier indicator replaces the dot; redacted thinking still gets `Thought for Ns`. Agree the look first. **M**
 - [ ] **Codex history shows edits as raw `exec` source.** An apply_patch, `write_stdin` or `web__run` call reloads as an untranslated `exec` row, not `FileChanges`; the activity parses edits client-side, but other opened calls show source text. Translate it in the Codex adapter. [Map](maps/tool-activity-stream.md). **S**
 - [ ] **A turn that edited files ends with a changed-files card.** Codex, Cursor and T3 Code each close an editing turn with the files touched, their `+N −M` counts and a Review action; CLIde has none. After tool-activity phase 4. [UI standards](maps/ui-standards.md#tool-activity-rows). **M**
 - [~] **Rewind via the transcript.** Phase A (conversation-only) shipped and live-verified 2026-07-22 (`daea812`…`845ed24`), ADR 0007. `enableFileCheckpointing` is on so checkpoints accumulate for Phase B — file-state rewind — which is the remaining half. **L**

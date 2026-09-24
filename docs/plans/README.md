@@ -15,7 +15,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Merged to `main` 2026-09-15; editing a waiting message is [the edit model](message-edit-model.md) |
-| [Provider Tools page](provider-tools-page.md) | 3/4 | Phase 4: restart `cloudcli`, then check Engineering and GitHub on the phone |
+| [Provider Tools page](provider-tools-page.md) | complete | Accepted on the phone 2026-09-23; controls are [a TODO item](../TODO.md) |
 | [`/btw` side questions](side-questions.md) | complete | Accepted on the phone for Claude and Codex 2026-09-23 |
 | [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 6/6 | A live limit stop on either provider is the remaining check |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
@@ -39,7 +39,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main` |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
-| [Chat activities, not raw tool calls](tool-activity-display.md) | 10/10 | See a Codex command running 30 s on a phone |
+| [Chat activities, not raw tool calls](tool-activity-display.md) | complete | Codex running rows accepted on the phone 2026-09-23 |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.

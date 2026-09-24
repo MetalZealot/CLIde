@@ -1,7 +1,7 @@
 # Chat shows activities, not raw tool calls
 
-- Status: 10/10
-- Next: See a Codex command running 30 s on a phone (Done when)
+- Status: complete
+- Next: none — Codex running rows accepted on the phone 2026-09-23
 - Context: measured provider fields and transcript shape in the
   [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
