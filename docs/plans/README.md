@@ -26,6 +26,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
+| [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
 | [Turn liveness and usage warnings](turn-liveness-and-usage-warnings.md) | complete | Accepted in daily use 2026-09-23; Phase 3 dropped |
 | [Subagent visibility](subagent-visibility.md) | 3/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
 | [Workspace surfaces](workspace-surfaces.md) | not started | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |

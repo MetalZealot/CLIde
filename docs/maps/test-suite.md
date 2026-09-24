@@ -30,7 +30,7 @@ ending of a task.
 | Client logic, store, hook | its test file(s), `typecheck:client`, `build:client` |
 | One backend module | that module's tests, `build:server` (type-checks it too) |
 | Session ids, providers, auth, database, protocol | `npm test` — contracts span modules |
-| Dependency bump, upstream rebase, pre-merge | `npm test`, `typecheck`, `lint`, `build` |
+| Dependency bump, upstream cherry-pick, pre-merge | `npm test`, `typecheck`, `lint`, `build` |
 
 One file: `npm run test:client:one <path>` / `test:server:one <path>`. A bare
 `--test` fails on the `@/` alias, and a directory argument fails even with the

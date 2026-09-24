@@ -191,7 +191,7 @@ are pending.
   already open sees nothing live; CLIde fans the run out to every listening
   client. The two implementations occupy the same paths
   (`server/modules/scheduled-messages/`, `scheduled-messages.db.ts`,
-  a composer popover and hook), so the next rebase conflicts there: **keep this
+  a composer popover and hook), so a cherry-pick of that work conflicts there: **keep this
   fork's files and delete upstream's four.** Placement diverges too: upstream
   stacks its scheduled list, queued card and edit banner above the composer and
   schedules from a toolbar button, where CLIde schedules by long-pressing send and

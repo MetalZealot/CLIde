@@ -128,7 +128,7 @@ inside narrative that condensing removes anyway — so these rules target length
 - **State the invariant, not the incident.**  No "used to", "this replaced", "before
   the fix" — git holds that.  Describe what must stay true, not what went wrong.
 - **Never cite a file path, commit hash, or date unless the comment is useless without
-  it.**  Paths move, hashes rewrite on every upstream rebase.  A date is legitimate
+  it.**  Paths move, and `git blame` already links a line to its commit.  A date is legitimate
   only on a *measurement* (`decoded from the CLI binary, 2026-07-26`), never on
   narrative.
 - **Default to one line.**  A multi-line block must earn it: a concurrency invariant, a
@@ -165,9 +165,9 @@ inside narrative that condensing removes anyway — so these rules target length
 ## Git, backlog, and upstream workflow
 
 - `main` is the long-lived CLIde branch and tracks `origin/main` on the user's
-  `MetalZealot/CLIde` fork.  `upstream/main` is the clean `siteboon/claudecodeui` line;
-  a separate local upstream mirror is unnecessary.  Rebasing rewrites hashes, so
-  publishing `main` afterwards needs `--force-with-lease`.
+  `MetalZealot/CLIde` fork; `upstream/main` is `siteboon/claudecodeui`.  **Upstream
+  work is cherry-picked or reimplemented, never rebased or merged** — see
+  [the upstream sync map](docs/maps/upstream-sync.md).
 - Conventional commits are enforced by commitlint; eslint runs on staged files.
   **Commit verified work in the same turn, unasked**, staging only the files you
   changed.
@@ -191,7 +191,7 @@ inside narrative that condensing removes anyway — so these rules target length
 - When a document and reality diverge, **edit the document**.  Never append a
   correction or audit section to preserve the wrong text — git holds the old version,
   and that habit grew the v1.37 integration document to 79 KB, mostly audits.
-- **Git's conflict set is an anti-signal when merging upstream.**  In the v1.37
+- **Git's conflict set is an anti-signal when taking upstream work.**  In the v1.37
   merge every genuine defect was in a file that merged cleanly.  Diff the
   *contract* surfaces — runtime options, gateway addressing, provider context —
   and write one test per contract driving every provider with the ids

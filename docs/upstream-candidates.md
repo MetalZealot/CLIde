@@ -75,7 +75,7 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   expiry teardown / "session expired" LoginForm copy). The *first* half — `checkAuthStatus`
   clearing the token on any non-OK `/api/auth/user`, not just 401/403 — is **not** in #980
   and looks like a clean standalone PR. Decide: PR the standalone half, or wait and see if
-  #980 lands and rebase onto it.
+  #980 lands and cherry-pick it.
 - [ ] **Skill-content leak + synthetic-notice/compact-summary rendering** (see
   `todo-done.md`, 2026-07-23) — the skill-injection filter directly fixes **open upstream issue
   siteboon/claudecodeui#1009** ("skill content rendered as user input in web UI",
@@ -203,12 +203,12 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
 - [x] ~~**Settings information-architecture restructure**~~ (`19d078a`…P6, branch
   `feat/settings-ia`) — **deliberately fork-only; not a PR candidate.** Recorded here
   because it is the largest divergence this fork has taken in an upstream-heavy subtree,
-  and a future rebase will meet it as conflicts rather than as a feature. What changed:
+  and a cherry-pick from upstream will meet it as conflicts rather than as a feature. What changed:
   the ten-tab pill bar became a registry-driven drill-down (root list → screen →
   sub-screen, max depth 2, desktop rail + detail), `src/components/settings/view/tabs/`
   is gone in favour of `view/screens/` + `view/primitives/`, the QuickSettings edge panel
   was deleted outright ([ADR 0019](decisions/0019-quicksettings-removal.md)), and
-  providers were promoted to root. Rebase guidance: upstream changes to a *tab* file
+  providers were promoted to root. Cherry-pick guidance: upstream changes to a *tab* file
   usually have to be re-sited by hand into the matching screen; upstream changes to
   `src/components/mcp/`, `src/components/plugins/` and the `api-settings/sections/` are
   still ported nearly verbatim, since those were re-parented rather than rewritten. The
