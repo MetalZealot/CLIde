@@ -13,7 +13,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Chat history performance](chat-history-performance.md) | 7/14 | Phase 7: count commits per step, then cut the per-page cost of scrolling up |
 | [Phone chat text selection](mobile-chat-page-scroll.md) | complete | Merged to `main` 2026-09-16; iPhone keyboard behaviour untested |
 | [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
-| [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
+| [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Composer message recall; the other two builds shipped |
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Merged to `main` 2026-09-15; editing a waiting message is [the edit model](message-edit-model.md) |
 | [Provider Tools page](provider-tools-page.md) | complete | Accepted on the phone 2026-09-23; controls are [a TODO item](../TODO.md) |
 | [`/btw` side questions](side-questions.md) | complete | Accepted on the phone for Claude and Codex 2026-09-23 |

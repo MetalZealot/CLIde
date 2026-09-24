@@ -1,7 +1,7 @@
 # Harvest the capabilities CLIde lacks from upstream
 
 - Status: 1/4
-- Next: Grayson ranks the three "build" verdicts, then each gets a design
+- Next: composer message recall; scheduled messages and session-id copy have shipped
   agreed before code
 - Context: [upstream sync map](../maps/upstream-sync.md) holds the buckets and
   the ledger; [provider capability map](../maps/clide-provider-capability-map.md)

@@ -246,3 +246,6 @@ Short records: what/why, commit, classification, verification. Detail lives in t
 - [x] **Composer controls:** split Permissions and Build/Plan pickers on desktop, one access icon on mobile, Shift+Tab mode cycling, effort dots that snap. Accepted on desktop and mobile 2026-09-23. **S**
 - [x] **Chat renders activities, not raw tool calls.** [Plan](plans/tool-activity-display.md), [map](maps/tool-activity-stream.md). Codex running rows accepted on the phone 2026-09-23. **L**
 - [x] **Turn status is the chat's last row; Activity messages retired** (`da6948ef`). Accepted by Grayson 2026-09-23. **M**
+- [x] **Copy either session id from the sidebar row menu** (upstream `#1040`, `c62a838a`). Done by Grayson 2026-09-23. **S**
+- [x] **Does usage tracking count subagent tokens?** Closed 2026-09-23 with no UI: plan-window % includes them, the session ring skips sidechains by design. **S**
+- [x] **The activity indicator's changed state isn't legible.** Closed 2026-09-23: superseded by `da6948ef`, which names the real stage in the last row. **M**
