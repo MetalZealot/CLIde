@@ -1,6 +1,5 @@
 import type { CodexAppServerCommand } from '@/modules/providers/list/codex/codex-app-server.client.js';
 import {
-  isCodexAppServerChatEnabled,
   markCodexAppServerReady,
   markCodexAppServerStarting,
   markCodexAppServerStopped,
@@ -220,8 +219,6 @@ export async function withCodexAppServerStartupFallback<T>(
     return sdkFallback(error);
   }
 }
-
-export { isCodexAppServerChatEnabled };
 
 function toExternalRequestId(id: CodexRequestId): string {
   return `codex:${typeof id === 'number' ? 'n' : 's'}:${String(id)}`;

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test, { beforeEach, describe } from 'node:test';
 
-import { clearRepositoryLocationCache, readCheckoutIdentity } from '@/modules/projects/services/repository-identity.service.js';
+import { clearRepositoryLocationCache } from '@/shared/git-checkout.js';
+import { readCheckoutIdentity } from '@/modules/projects/services/repository-identity.service.js';
 import { discoverUnregisteredCheckouts, listRepositoryWorktrees, parseWorktreeListPorcelain } from '@/modules/projects/services/worktree-inventory.service.js';
 import {
   assertValidBaseRef,

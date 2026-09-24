@@ -1,7 +1,6 @@
 import path from 'node:path';
 
 import {
-  clearRepositoryLocationCache,
   defaultGitRunner,
   forgetCheckoutLocation,
   resolveRepositoryLocation,
@@ -92,5 +91,3 @@ export async function readCheckoutIdentity(
 function isCheckoutRoot(projectPath: string, location: RepositoryLocation): boolean {
   return path.resolve(projectPath) === location.topLevel;
 }
-
-export { clearRepositoryLocationCache };

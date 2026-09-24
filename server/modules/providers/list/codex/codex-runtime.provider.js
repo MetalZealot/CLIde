@@ -22,12 +22,12 @@ import { providerUpdateCoordinator } from '@/modules/providers/services/provider
 import {
   abortCodexAppServerSession,
   askCodexAppServerSideQuestion,
-  isCodexAppServerChatEnabled,
   isCodexAppServerSessionActive,
   queryCodexAppServer,
   steerCodexAppServerSession,
   withCodexAppServerStartupFallback,
 } from '@/modules/providers/list/codex/codex-app-server-chat.transport.js';
+import { isCodexAppServerChatEnabled } from '@/modules/providers/list/codex/codex-chat-transport-state.js';
 import { resolveSelectedCodexRuntime } from '@/modules/providers/list/codex/codex-native-runtime.provider.js';
 import {
   appendFilesInputTag,
