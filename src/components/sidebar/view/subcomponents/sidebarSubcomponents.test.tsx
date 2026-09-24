@@ -667,6 +667,18 @@ describe('SidebarContextMenu', () => {
 
     assert.equal(closeCount, 0);
   });
+
+  test('an item with a detail shows it as a second line under its label', async () => {
+    await renderMenu(
+      [{ key: 'id-app', label: 'CLIde', detail: '3f2a91c0', icon: Archive, onSelect: () => {} }],
+      () => {},
+    );
+
+    const item = document.querySelector<HTMLButtonElement>('[role="menuitem"]');
+    assert.ok(item);
+    assert.match(item.textContent ?? '', /CLIde/);
+    assert.ok(item.querySelector('.font-mono')?.textContent === '3f2a91c0');
+  });
 });
 
 

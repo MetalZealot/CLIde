@@ -101,7 +101,9 @@
     "account": "Account",
     "accountMenu": "Account menu",
     "logOut": "Log out",
-    "select": "Select…"
+    "select": "Select…",
+    "copySessionId": "Copy session ID",
+    "sessionIdCopied": "Copied"
   },
   "status": {
     "active": "Active",

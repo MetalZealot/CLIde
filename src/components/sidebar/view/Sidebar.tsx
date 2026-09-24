@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, ListChecks, ListFilter, MessageSquarePlus, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
+import { Archive, ChevronLeft, Copy, ListChecks, ListFilter, MessageSquarePlus, Palette, Pencil, Pin, Trash2, TreeDeciduous } from 'lucide-react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
@@ -18,6 +18,7 @@ import type {
   SessionWithProvider,
 } from '../types/types';
 import type { ContextMenuAnchor } from '../../../shared/view/ui';
+import { copyTextToClipboard } from '../../../utils/clipboard';
 import { getSessionName } from '../utils/utils';
 import { readProjectAccentColor, type ProjectAccentColor } from '../utils/accentColors';
 
@@ -196,11 +197,14 @@ function Sidebar({
 
   type SidebarMenuState =
     // The scope is absent where the visible mode owns no batch-selectable list.
-    | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor; selectionScope: SessionSelectionScope | null }
+    // `showIds` swaps the actions for the session's ids in the same overlay.
+    | { kind: 'session'; session: SessionWithProvider; anchor: ContextMenuAnchor; selectionScope: SessionSelectionScope | null; showIds?: boolean }
     // The row's own actions: repository-scoped, plus the way into the worktree
     // manager. Not a worktree picker.
     | { kind: 'repository'; entry: RepositoryEntry; anchor: ContextMenuAnchor };
   const [contextMenu, setContextMenu] = useState<SidebarMenuState | null>(null);
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+  const copiedTimerRef = useRef<number | null>(null);
   const [worktreeManager, setWorktreeManager] = useState<{ entry: RepositoryEntry } | null>(null);
   const [viewMenu, setViewMenu] = useState<
     { entry: RepositoryEntry; anchor: ContextMenuAnchor } | null
@@ -269,6 +273,39 @@ function Sidebar({
     setContextMenu({ kind: 'session', session, anchor, selectionScope: selectionScope ?? null });
   };
 
+  // Shows "Copied" on the tapped row long enough to read, then closes the menu.
+  const copySessionIdAndClose = (value: string) => {
+    void copyTextToClipboard(value).then((ok) => {
+      if (!ok) {
+        return;
+      }
+      setCopiedSessionId(value);
+      if (copiedTimerRef.current !== null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+      copiedTimerRef.current = window.setTimeout(() => {
+        copiedTimerRef.current = null;
+        setCopiedSessionId(null);
+        setContextMenu(null);
+      }, 700);
+    });
+  };
+
+  useEffect(() => () => {
+    if (copiedTimerRef.current !== null) {
+      window.clearTimeout(copiedTimerRef.current);
+    }
+  }, []);
+
+  const closeContextMenu = () => {
+    if (copiedTimerRef.current !== null) {
+      window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = null;
+    }
+    setCopiedSessionId(null);
+    setContextMenu(null);
+  };
+
   const handleProjectActionsMenu = (entry: RepositoryEntry, anchor: ContextMenuAnchor) => {
     setContextMenu({ kind: 'repository', entry, anchor });
   };
@@ -334,6 +371,39 @@ function Sidebar({
       const { session } = contextMenu;
       const isStarred = Boolean(session.isStarred);
       const sessionName = getSessionName(session, t);
+      const provider = session.__provider ?? session.provider;
+      const providerLabel = provider
+        ? t(`actions.providerNames.${provider}`, { defaultValue: provider })
+        : '';
+      // One id when the provider's is unknown or is the app id.
+      const idEntries = session.providerSessionId && session.providerSessionId !== session.id
+        ? [
+            { key: 'id-app', label: 'CLIde', value: session.id },
+            { key: 'id-provider', label: providerLabel, value: session.providerSessionId },
+          ]
+        : [{ key: 'id-app', label: session.providerSessionId ? `CLIde · ${providerLabel}` : 'CLIde', value: session.id }];
+      const toIdItem = (entry: (typeof idEntries)[number]): SidebarContextMenuItem => ({
+        key: entry.key,
+        label: entry.label,
+        detail: copiedSessionId === entry.value ? t('actions.sessionIdCopied', 'Copied') : entry.value,
+        icon: Copy,
+        keepOpen: true,
+        onSelect: () => copySessionIdAndClose(entry.value),
+      });
+
+      if (contextMenu.showIds) {
+        return [
+          {
+            key: 'ids-back',
+            label: t('actions.copySessionId', 'Copy session ID'),
+            icon: ChevronLeft,
+            keepOpen: true,
+            onSelect: () => setContextMenu({ ...contextMenu, showIds: false }),
+          },
+          ...idEntries.map((entry, index) => ({ ...toIdItem(entry), showDividerBefore: index === 0 })),
+        ];
+      }
+
       return [
         {
           key: 'star',
@@ -350,6 +420,17 @@ function Sidebar({
             setEditingSessionName(sessionName);
           },
         },
+        // PWA has no URL bar, so this is the only way to see or share an id. A
+        // lone id needs no second step.
+        idEntries.length === 1
+          ? { ...toIdItem(idEntries[0]), label: t('actions.copySessionId', 'Copy session ID') }
+          : {
+              key: 'copy-id',
+              label: t('actions.copySessionId', 'Copy session ID'),
+              icon: Copy,
+              keepOpen: true,
+              onSelect: () => setContextMenu({ ...contextMenu, showIds: true }),
+            },
         // Opens with this row ticked, so one gesture selects rather than two.
         ...(contextMenu.selectionScope
           ? [{
@@ -456,7 +537,7 @@ function Sidebar({
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextMenu, onNewSession, t]);
+  }, [contextMenu, copiedSessionId, onNewSession, t]);
 
   const projectListProps: SidebarProjectListProps = {
     projects,
@@ -524,7 +605,7 @@ function Sidebar({
             anchor={contextMenu.anchor}
             items={contextMenuItems}
             ariaLabel={contextMenuAriaLabel}
-            onClose={() => setContextMenu(null)}
+            onClose={closeContextMenu}
           />
         )}
 

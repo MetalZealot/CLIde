@@ -9,6 +9,8 @@ type SidebarContextMenuItemBase = {
   label: string;
   icon: LucideIcon;
   isDanger?: boolean;
+  /** A value shown under the label in monospace, truncated to the menu's width. */
+  detail?: string;
   /** Separates a group above from this item (same convention as ActionMenu). */
   showDividerBefore?: boolean;
 };
@@ -44,7 +46,7 @@ export default function SidebarContextMenu({ anchor, items, onClose, ariaLabel }
       onDismiss={onClose}
       ariaLabel={ariaLabel}
       className="sidebar-context-menu min-w-44 max-w-64 overflow-hidden rounded-xl py-1"
-      measureKey={items.length}
+      measureKey={items.map((item) => item.key).join('|')}
     >
       {items.map((item) => {
         const Icon = item.icon;
@@ -58,7 +60,14 @@ export default function SidebarContextMenu({ anchor, items, onClose, ariaLabel }
         const content = (
           <>
             <Icon className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate">{item.label}</span>
+            {item.detail !== undefined ? (
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate">{item.label}</span>
+                <span className="truncate font-mono text-xs text-muted-foreground">{item.detail}</span>
+              </span>
+            ) : (
+              <span className="truncate">{item.label}</span>
+            )}
           </>
         );
 
