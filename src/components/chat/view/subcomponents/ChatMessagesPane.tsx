@@ -119,8 +119,12 @@ function ChatMessagesPane({
     [pendingPermissionRequests],
   );
   const groupedVisibleMessages = useMemo(
-    () => groupToolActivities(visibleMessages, { showThinking: Boolean(showThinking), pendingToolIds }),
-    [visibleMessages, showThinking, pendingToolIds],
+    () => groupToolActivities(visibleMessages, {
+      showThinking: Boolean(showThinking),
+      pendingToolIds,
+      holdTrailingThinking: isProcessing,
+    }),
+    [visibleMessages, showThinking, pendingToolIds, isProcessing],
   );
   const liveActivity = useMemo(() => {
     if (!isProcessing) return null;

@@ -505,6 +505,8 @@ describe('tool activity boundaries', () => {
     assert.ok(isToolActivityItem(hidden));
     assert.deepEqual(hidden.messages, [read, failed]);
     assert.deepEqual(groupToolActivities([read, thought, prose]).slice(1), [thought, prose], 'trailing thinking belongs to what follows');
+    assert.equal(groupToolActivities([read, thought], { holdTrailingThinking: true }).length, 1, 'a live trailing thought waits');
+    assert.deepEqual(groupToolActivities([read, thought]).slice(1), [thought], 'a finished turn shows it');
   });
 
   test('questions, to-do lists, subagents, compaction, turns and pending permissions cut one', () => {

@@ -15,6 +15,8 @@ export interface GroupToolActivitiesOptions {
   showThinking?: boolean;
   /** Calls waiting on a permission prompt; each is its own row until answered. */
   pendingToolIds?: ReadonlySet<string>;
+  /** Turn still running: a thought trailing an activity waits to learn whether it joins it. */
+  holdTrailingThinking?: boolean;
 }
 
 export function isToolActivityItem(item: MessageListItem): item is ToolActivityItem {
@@ -46,7 +48,7 @@ function toActivity(members: ChatMessage[]): ToolActivityItem {
  */
 export function groupToolActivities(
   messages: ChatMessage[],
-  { showThinking = true, pendingToolIds }: GroupToolActivitiesOptions = {},
+  { showThinking = true, pendingToolIds, holdTrailingThinking = false }: GroupToolActivitiesOptions = {},
 ): MessageListItem[] {
   const items: MessageListItem[] = [];
   let index = 0;
@@ -89,7 +91,8 @@ export function groupToolActivities(
       nextIndex += 1;
     }
 
-    items.push(toActivity(members), ...heldThinking);
+    const undecided = holdTrailingThinking && nextIndex >= messages.length;
+    items.push(toActivity(members), ...(undecided ? [] : heldThinking));
     index = nextIndex;
   }
 
