@@ -24,7 +24,7 @@ function describeWhen(message: ScheduledMessage, t: TFunction<'chat'>): string {
     return t('input.schedule.paused', { defaultValue: 'Paused — not sending until you resume it' });
   }
   return message.trigger === 'usage-reset'
-    ? t('input.schedule.whenUsageResets', { defaultValue: 'Sending when usage resets' })
+    ? t('input.schedule.waitingForUsageReset', { defaultValue: 'Waiting for usage reset' })
     : t('input.schedule.whenAt', {
       defaultValue: 'Sending at {{time}}',
       time: message.scheduledFor ? formatClockTimeWithDay(message.scheduledFor) : '',

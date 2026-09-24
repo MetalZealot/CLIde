@@ -7,12 +7,12 @@ import type { ChatMessage } from '../types/types';
 /**
  * How far back a limit stop is still the end of the conversation. A stop is
  * the last thing that happened or it is history; scanning the whole transcript
- * would resurrect a switch from weeks ago.
+ * would resurrect an offer from weeks ago.
  */
 const LOOKBACK = 12;
 
 /**
- * The limit notice that carries the Auto-Continue switch, or null: the turn
+ * The limit notice that can offer Auto-Continue, or null: the turn
  * ended on a usage limit that lifts on its own and the user has not moved on
  * since.
  *

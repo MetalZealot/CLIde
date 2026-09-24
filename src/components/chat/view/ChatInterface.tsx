@@ -580,8 +580,8 @@ function ChatInterface({
   const liveLimitStop = useLiveLimitStop(chatMessages, canScheduleOnUsageReset);
   const autoContinue = useSessionAutoContinue(selectedSession?.id, projects, selectedSession?.autoContinue);
   const setAutoContinueEnabled = autoContinue.setEnabled;
-  // Whatever waits on the reset is what goes, whether the mode queued it or the user did.
-  const resetMessageText = scheduledMessages.find((message) => message.trigger === 'usage-reset')?.content ?? null;
+  // Count paused and edited messages too, even while their bubble is hidden.
+  const hasResetMessage = scheduledMessages.some((message) => message.trigger === 'usage-reset');
   const handleSetAutoContinue = useCallback(
     (next: boolean) => setAutoContinueEnabled(next, liveLimitStop !== null),
     [liveLimitStop, setAutoContinueEnabled],
@@ -957,7 +957,7 @@ function ChatInterface({
           rewindEditTargetUuid={pendingRewind?.anchorMessageId ?? null}
           liveLimitStopMessage={liveLimitStop}
           autoContinueEnabled={autoContinue.enabled}
-          resetMessageText={resetMessageText}
+          hasResetMessage={hasResetMessage}
           onSetAutoContinue={handleSetAutoContinue}
           scheduledMessages={visibleScheduledMessages}
           {...scheduledBubbleHandlers}

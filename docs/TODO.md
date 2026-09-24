@@ -112,7 +112,7 @@ new work.
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
 - [ ] **Workspace tabs like the desktop apps** — Terminal for Shell; Tasks, Agents. [Plan](plans/workspace-surfaces.md). **M/L**
-- [~] **Auto-Continue offered, remembered, and defaulted.** Every way of asking for a `usage-reset` message that is not long-pressing send: the switch on the limit notice, its editable message in Settings, the standing mode, its new-session default and Codex's one-row limit stop are merged; a real stop armed and sent 2026-09-24, the switch awaits one. [Plan](plans/auto-continue.md). **M**
+- [~] **Auto-Continue offered, remembered, and defaulted.** Session mode stays in the kebab; a live limit offers enabling only when off with no reset message waiting. The scheduled bubble owns the waiting status. Compact presentation verified in component tests and Browser examples; real-stop acceptance remains. [Plan](plans/auto-continue.md). **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live; 3–4 move the banners onto the messages and cover editing a turn the provider already took. [Plan](plans/message-edit-model.md). **M/L**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)

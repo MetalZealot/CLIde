@@ -320,3 +320,16 @@ You do not need to understand a diff to catch these. If a proposed change would:
 
 — then say so. Being able to name the rule is enough; you don't have to be able to prove
 the violation. Asking is cheap, and every one of these is expensive to find later.
+
+## 15. Auto-Continue is a session setting; its waiting message is one action
+
+Settings supplies the message and the preference for new chats. Each existing chat
+keeps its own Auto-Continue mode in the header menu.
+
+**The rule:** the limit notice offers enabling only when the mode is off and no
+reset message is waiting. The waiting bubble says what will be sent. Canceling
+that message skips one continuation; turning the session mode off also stops
+future automatic continuations.
+
+**What breaks:** repeating the setting beside its queued message makes canceling
+one send and disabling the whole mode look like the same action.

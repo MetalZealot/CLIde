@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Compact Auto-Continue chat controls** (2026-09-24). Kebab names the session mode; the limit notice offers enabling only when off with no reset message waiting. The waiting bubble owns its status. Verified: 84 component tests, client typecheck/build, Browser component examples at 320/412/1280 px. Full-app and real-stop acceptance remain in the [plan](plans/auto-continue.md). Fork-only. **S**
+
 - [x] **Builds identify the source and dependency state that produced them** (2026-09-23). Builds stamp `.generated/release/`; Pi Ops judges installed dependencies from npm's own `node_modules/.package-lock.json`, so `npm audit fix` and similar no longer leave them reading stale (Pi Ops `17e646f`). Verified: Pi Ops release-state tests, and its status CLI reports deps current against live main. Fork-only. **S**
 
 - [x] **`/btw` side questions for Claude and Codex** (2026-09-23, `3a128854`, `e321fcc7`). Asked beside a running conversation with no transcript row; per-session history survives closing the sheet; Fork opens `btw: <question>` with the exchange appended. Accepted on the phone for both providers. [Plan](plans/side-questions.md).

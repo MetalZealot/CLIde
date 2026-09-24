@@ -97,7 +97,7 @@ export interface ChatMessage {
   compactBoundary?: CompactBoundaryInfo;
   /** CLI-fabricated notice rows (usage limits, API errors) — muted banner, not a Claude bubble. */
   isSystemNotice?: boolean;
-  /** Set when the provider stopped the turn on a usage limit; carries the Auto-Continue switch. */
+  /** Set when the provider stopped the turn on a usage limit; allows the Auto-Continue offer. */
   usageLimit?: UsageLimitStop;
   /** Set when the history page omitted this tool's heavy payload; see useHistoryDetail. */
   elidedDetail?: { bytes: number; resultLines?: number };

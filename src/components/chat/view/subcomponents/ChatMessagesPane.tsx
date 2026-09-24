@@ -53,11 +53,11 @@ interface ChatMessagesPaneProps {
   canEditMessage?: boolean;
   /** Base transcript uuid of the message loaded in the rewind-edit composer. */
   rewindEditTargetUuid?: string | null;
-  /** The limit notice carrying the Auto-Continue switch, by identity in `chatMessages`. */
+  /** The limit notice offering Auto-Continue, by identity in `chatMessages`. */
   liveLimitStopMessage?: ChatMessage | null;
   autoContinueEnabled?: boolean;
-  /** What is waiting on the reset, if anything. */
-  resetMessageText?: string | null;
+  /** Includes a reset message paused or held for editing. */
+  hasResetMessage?: boolean;
   onSetAutoContinue?: (next: boolean) => void;
   /** Waiting to send, drawn after the last message; excludes one this client has open for editing. */
   scheduledMessages: ScheduledMessage[];
@@ -98,7 +98,7 @@ function ChatMessagesPane({
   rewindEditTargetUuid = null,
   liveLimitStopMessage = null,
   autoContinueEnabled = false,
-  resetMessageText = null,
+  hasResetMessage = false,
   onSetAutoContinue,
   scheduledMessages,
   onSendScheduledNow,
@@ -319,7 +319,7 @@ function ChatMessagesPane({
                     getTranscriptMessageUuid(item.id) === rewindEditTargetUuid
                   }
                   {...(item === liveLimitStopMessage && onSetAutoContinue
-                    ? { autoContinueEnabled, resetMessageText, onSetAutoContinue }
+                    ? { autoContinueEnabled, hasResetMessage, onSetAutoContinue }
                     : {})}
                 />
               );

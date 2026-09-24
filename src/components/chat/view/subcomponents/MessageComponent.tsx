@@ -19,7 +19,7 @@ import {
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { isChatFindConversationMessage } from '../../hooks/useChatFind';
 import type { Project } from '../../../../types/app';
-import SettingsToggle from '../../../settings/view/SettingsToggle';
+import { formatMessageTimestamp, useClockFormat } from '../../../../utils/formatTime';
 import { ToolRenderer, ToolErrorDisplay, getToolConfig, shouldHideToolResult } from '../../tools';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
 import { thinkingDurationMs } from '../../utils/toolActivity';
@@ -32,7 +32,6 @@ import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
-import { formatClockTimeWithDay, formatMessageTimestamp, useClockFormat } from '../../../../utils/formatTime';
 
 type DiffLine = {
   type: string;
@@ -59,16 +58,16 @@ type MessageComponentProps = {
   canEditMessage?: boolean;
   /** This message is the one currently loaded in the rewind-edit composer. */
   isRewindEditTarget?: boolean;
-  /** Set only on the live limit notice, which carries the Auto-Continue switch. */
+  /** Set only on the live limit notice, which can offer Auto-Continue. */
   onSetAutoContinue?: (next: boolean) => void;
   autoContinueEnabled?: boolean;
-  /** What is waiting on the reset, if anything. */
-  resetMessageText?: string | null;
+  /** Includes a reset message paused or held for editing. */
+  hasResetMessage?: boolean;
 };
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, resetMessageText = null }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -131,11 +130,6 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
   const formattedTime = useMemo(
     () => (void clockFormat, formatMessageTimestamp(message.timestamp)),
     [message.timestamp, clockFormat],
-  );
-  const resetsAt = message.usageLimit?.resetsAt;
-  const resetTime = useMemo(
-    () => (void clockFormat, resetsAt ? formatClockTimeWithDay(resetsAt) : ''),
-    [resetsAt, clockFormat],
   );
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
   const thinkingMs = message.isThinking ? thinkingDurationMs(prevMessage, message) : null;
@@ -248,25 +242,14 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
             <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
             <div className="min-w-0 flex-1">
               <span className="whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">{formattedMessageContent}</span>
-              {onSetAutoContinue && (
-                <div className="mt-1.5 flex select-none items-center gap-2.5">
-                  <SettingsToggle
-                    checked={autoContinueEnabled}
-                    onChange={onSetAutoContinue}
-                    ariaLabel={t('autoContinue.switchLabel', { defaultValue: 'Auto-Continue' })}
-                  />
-                  <span className="text-xs text-foreground/90">
-                    {autoContinueEnabled
-                      ? t('autoContinue.onLine', {
-                        defaultValue: 'Auto-Continue on — {{what}} when limits reset{{when}}',
-                        what: resetMessageText
-                          ? t('autoContinue.sends', { defaultValue: 'sends “{{text}}”', text: resetMessageText })
-                          : t('autoContinue.continues', { defaultValue: 'continues' }),
-                        when: resetTime ? ` (≈ ${resetTime})` : '',
-                      })
-                      : t('autoContinue.offLine', { defaultValue: 'Auto-Continue off' })}
-                  </span>
-                </div>
+              {onSetAutoContinue && !autoContinueEnabled && !hasResetMessage && (
+                <button
+                  type="button"
+                  onClick={() => onSetAutoContinue(true)}
+                  className="mt-1.5 block rounded-md border border-border px-2 py-1 text-xs text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {t('autoContinue.enableForChat', { defaultValue: 'Enable Auto-Continue for this chat' })}
+                </button>
               )}
             </div>
           </div>

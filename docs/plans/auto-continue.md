@@ -1,7 +1,7 @@
 # Auto-Continue offered, remembered, and defaulted
 
 - Status: 6/6
-- Next: none — a live limit stop on either provider after these fixes is the remaining check
+- Next: accept the compact presentation at a real limit stop
 - Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
@@ -88,22 +88,25 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       where CLIde mints the row (a new chat, a fork), never to a transcript the
       watcher indexes off disk, which would otherwise turn the whole session
       backlog on at once
-- [~] 6. The one-tap button is replaced by a switch on the live limit notice
-      showing the session's mode: "Auto-Continue on — sends "Continue" when
-      limits reset (≈ time)" or "Auto-Continue off" — decided with Grayson
-      2026-09-24, after a real stop armed and sent correctly while the button
-      still showed. The switch and the kebab entry are one per-session state;
-      turning it on with the stop live queues the continue at once, off cancels
-      a waiting continue (matched by its text) but never the user's own reset
-      message, and neither counts toward the cap. Unit-tested; awaiting a real
-      limit stop
+- [~] 6. Compact chat controls: the header kebab names the session mode as
+      "Auto-Continue: On / Off". A live limit notice offers "Enable Auto-Continue
+      for this chat" only when the mode is off and no reset message is waiting,
+      including a paused message or one held for editing. Enabling queues the
+      continue immediately. The scheduled bubble owns its editable text and
+      "Waiting for usage reset" status; the notice alone names the reset time.
+      Canceling that bubble skips one message without disabling the session mode;
+      disabling the mode from the kebab also cancels its waiting continue.
+      Settings still owns the message and new-session preference. Verified: 84
+      component tests, client typecheck/build, and isolated component examples in
+      Browser at 320, 412, and 1280 px, including RTL. The test account is at
+      onboarding, so full-app interaction and real-stop acceptance remain. A real
+      stop armed and sent correctly before this presentation change on 2026-09-24.
 
 ## Done when
 
-- Hitting the limit shows the session's mode on the notice, and the switch
-  there queues or cancels the continue, with the same bubble and sidebar clock
-  a long-press schedule produces
-- The switch is absent on Cursor and OpenCode
+- Hitting the limit offers enabling only when off with no reset message waiting;
+  queued messages retain their bubble actions and sidebar clock
+- The offer is absent on Cursor and OpenCode
 - A session set to Auto-Continue resumes after a reset with no client connected
 - Two consecutive limit stops do not produce an unbounded chain of retries
 

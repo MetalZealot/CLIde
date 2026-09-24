@@ -133,7 +133,7 @@ describe('chatSubcomponents', () => {
     ), '', 'hidden thinking must remain hidden');
   });
 
-  test('the Auto-Continue switch sits on the live limit notice and says what will happen', async () => {
+  test('the live limit notice offers Auto-Continue only when off with no reset message', async () => {
     const hooks = registerHooks({
       resolve(specifier, context, nextResolve) {
         return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -155,21 +155,34 @@ describe('chatSubcomponents', () => {
       return container;
     };
 
-    const on = render({ onSetAutoContinue: () => {}, autoContinueEnabled: true, resetMessageText: 'Continue' });
-    const toggle = on.querySelector('button[role="switch"]');
-    assert.equal(toggle?.getAttribute('aria-checked'), 'true', on.innerHTML);
-    assert.ok(on.textContent?.includes('Auto-Continue on — sends “Continue” when limits reset'), on.textContent ?? '');
-    assert.ok(on.textContent?.includes('Claude usage limit reached.'), 'the notice keeps its own text');
-
+    for (const hasResetMessage of [false, true]) {
+      const on = render({ onSetAutoContinue: () => {}, autoContinueEnabled: true, hasResetMessage });
+      assert.equal(on.querySelector('button'), null, 'enabled mode needs no repeated control');
+      assert.equal(on.textContent, 'Claude usage limit reached.');
+    }
     const off = render({ onSetAutoContinue: () => {}, autoContinueEnabled: false });
-    assert.equal(off.querySelector('button[role="switch"]')?.getAttribute('aria-checked'), 'false');
-    assert.ok(off.textContent?.includes('Auto-Continue off'));
+    assert.equal(off.querySelector('button')?.textContent, 'Enable Auto-Continue for this chat');
+    assert.equal(off.querySelector('[role="switch"]'), null);
+    assert.equal(render({ onSetAutoContinue: () => {}, hasResetMessage: true }).querySelector('button'), null,
+      'a reset message, including one paused or held for editing, suppresses the offer');
+    assert.equal(render({ autoContinueEnabled: false }).querySelector('button'), null,
+      'historical notices and unsupported providers have no action');
 
-    // Every other notice, live or reloaded, stays a plain muted row.
-    assert.equal(render({ autoContinueEnabled: true }).querySelector('button'), null);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const changes: boolean[] = [];
+    try {
+      await React.act(async () => root.render(
+        <MessageComponent message={notice} prevMessage={null} provider="claude"
+          createDiff={() => []} onSetAutoContinue={(next) => changes.push(next)} />,
+      ));
+      await React.act(async () => host.querySelector('button')!.click());
+      assert.deepEqual(changes, [true], 'the offer enables the standing session mode');
+    } finally {
+      await React.act(async () => root.unmount());
+    }
 
-    // Codex's limit stop is an error row classified by field; it draws as the
-    // same muted notice, with no "Error" header, and carries the same switch.
+    // Codex's classified stop offers the same action without a red error row.
     const drawError = (usageLimit?: { resumes: boolean }) => {
       const container = document.createElement('div');
       container.innerHTML = renderToStaticMarkup(
@@ -181,7 +194,7 @@ describe('chatSubcomponents', () => {
       return container;
     };
     const codexStop = drawError({ resumes: true });
-    assert.ok(codexStop.querySelector('button[role="switch"]'), codexStop.innerHTML);
+    assert.equal(codexStop.querySelector('button')?.textContent, 'Enable Auto-Continue for this chat');
     assert.equal(codexStop.querySelector('.bg-red-600'), null, codexStop.innerHTML);
     assert.ok(drawError().querySelector('.bg-red-600'), 'an unclassified error keeps its red row');
   });
@@ -843,7 +856,7 @@ describe('chatSubcomponents', () => {
         await React.act(async () => render(false));
         assert.ok(bubbles()[0].querySelector('.h-28'), 'a waiting image is drawn, not counted');
         assert.deepEqual(bubbles().map((bubble) => bubble.textContent), [
-          'Attached imageContinueSending when usage resets',
+          'Attached imageContinueWaiting for usage reset',
           'Being editedPaused — not sending until you resume it',
         ], 'oldest first, each saying when it goes');
         assert.deepEqual(actions(bubbles()[0]), [
