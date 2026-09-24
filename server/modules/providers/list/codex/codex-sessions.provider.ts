@@ -663,17 +663,15 @@ async function getCodexSessionMessages(
                 .join('\n')
             : '';
 
-          if (summaryText.trim()) {
-            messages.push({
-              type: 'thinking',
-              uuid: typeof entry.payload.id === 'string' ? entry.payload.id : undefined,
-              timestamp: entry.timestamp,
-              message: {
-                role: 'assistant',
-                content: summaryText,
-              },
-            });
-          }
+          messages.push({
+            type: 'thinking',
+            uuid: typeof entry.payload.id === 'string' ? entry.payload.id : undefined,
+            timestamp: entry.timestamp,
+            message: {
+              role: 'assistant',
+              content: summaryText,
+            },
+          });
         }
 
         if (entry.type === 'response_item' && entry.payload?.type === 'agent_message') {
@@ -1098,9 +1096,6 @@ export class CodexSessionsProvider implements IProviderSessions {
       const thinkingContent = typeof raw.message?.content === 'string'
         ? raw.message.content
         : '';
-      if (!thinkingContent.trim()) {
-        return [];
-      }
       return [createNormalizedMessage({
         id: baseId,
         sessionId,

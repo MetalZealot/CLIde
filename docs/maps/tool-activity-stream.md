@@ -82,13 +82,17 @@ Thinking is not a boundary. Over 1,040 calls in 5 Claude sessions, cutting on
 shown thinking took 197 activities to 219 and single-call ones from 37 to 47;
 608 of 631 thinking blocks were empty (measured 2026-09-21).
 
-## Codex has no reasoning summaries here
+## Codex reasoning in Activity
 
-3,010 reasoning rows across 40 rollouts carry an empty `summary` array and
-`encrypted_content` instead, under `gpt-5.6-sol` with no
-`model_reasoning_summary` configured. The live transport does map
-`reasoning.summary` into a `thinking` message, so a differently configured
-model could populate it — nothing in CLIde may depend on it.
+Chat requests `model_reasoning_summary: auto` per thread. App Server
+`item/started` shows Thinking until `item/completed` turns the item into one
+thought row; nonempty summaries expand, while an empty summary still leaves a
+marker. Persisted reasoning items restore the same row on reload. Summary text
+depends on the model and runtime; the token count remains tied to App Server
+usage updates.
+
+Before this configuration, 3,010 reasoning rows across 40 rollouts under
+`gpt-5.6-sol` carried an empty `summary` array and `encrypted_content`.
 
 ## Existing seams
 

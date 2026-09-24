@@ -6,6 +6,10 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Codex Activity shows live thinking and completed thought rows** (2026-09-24). Chat requests automatic reasoning summaries per thread; started items show Thinking, completed items leave one expandable summary or an empty marker, and history restores both. Verified: 57 focused provider tests, server typecheck/build, targeted lint, docs check, and Grayson's live acceptance after restart; full client suite has one Find test failure that passes alone. [Map](maps/tool-activity-stream.md#codex-reasoning-in-activity). Fork-only. **S**
+
+- [x] **Codex Activity shows output tokens for the current turn** (2026-09-24). App Server usage updates feed the existing Claude-style status row; cumulative thread usage counts later requests without carrying tokens into the next turn. Verified: `npm test`, server build, targeted lint, docs check. Fork-only. **S**
+
 - [x] **Compact Auto-Continue chat controls** (2026-09-24). Kebab names the session mode; the limit notice offers enabling only when off with no reset message waiting. The waiting bubble owns its status. Verified: 84 component tests, client typecheck/build, Browser component examples at 320/412/1280 px. Full-app and real-stop acceptance remain in the [plan](plans/auto-continue.md). Fork-only. **S**
 
 - [x] **Builds identify the source and dependency state that produced them** (2026-09-23). Builds stamp `.generated/release/`; Pi Ops judges installed dependencies from npm's own `node_modules/.package-lock.json`, so `npm audit fix` and similar no longer leave them reading stale (Pi Ops `17e646f`). Verified: Pi Ops release-state tests, and its status CLI reports deps current against live main. Fork-only. **S**

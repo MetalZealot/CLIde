@@ -177,9 +177,14 @@ type ActiveTurn = {
   errorEmitted: boolean;
   /** Retries reported since the turn last made progress; 0 when not retrying. */
   retryAttempt: number;
+  /** Lifetime usage is cumulative; Activity counts only output from this turn. */
+  lastTotalOutputTokens: number | null;
+  turnOutputTokens: number;
   fileChanges: Map<string, unknown>;
   /** Tool items already sent as running rows; their completion arrives as a result. */
   runningTools: Set<string>;
+  reasoningItemIds: Set<string>;
+  completedReasoningIds: Set<string>;
   userId: string | number | null;
   sessionName: string | null;
 };
@@ -379,13 +384,11 @@ function completedItemMessages(item: CodexThreadItem, threadId: string, turnId?:
         : [];
     case 'reasoning': {
       const content = [...item.summary, ...item.content].filter(Boolean).join('\n');
-      return content.trim()
-        ? [createNormalizedMessage({
-            ...common,
-            kind: 'thinking',
-            content,
-          })]
-        : [];
+      return [createNormalizedMessage({
+        ...common,
+        kind: 'thinking',
+        content,
+      })];
     }
     case 'commandExecution': {
       const unsuccessful = UNSUCCESSFUL_STATUSES.has(item.status);
@@ -703,6 +706,7 @@ export class CodexAppServerChatTransport {
 
     try {
       const browserConfig = await codexChatBrowserConfig(workingDirectory, options.sessionId);
+      const chatConfig = { ...browserConfig, model_reasoning_summary: 'auto' };
       let browserInstructions: { developerInstructions?: string } = {};
       if (Object.keys(browserConfig).length) {
         // Preserve native project/user guidance when adding the app's Browser context.
@@ -727,7 +731,7 @@ export class CodexAppServerChatTransport {
           approvalPolicy: permissions.approvalPolicy,
           approvalsReviewer: 'user',
           sandbox: permissions.sandboxMode,
-          ...(Object.keys(browserConfig).length ? { config: browserConfig } : {}),
+          config: chatConfig,
           ...browserInstructions,
         });
       } else if (resumeThreadId) {
@@ -738,7 +742,7 @@ export class CodexAppServerChatTransport {
           approvalPolicy: permissions.approvalPolicy,
           approvalsReviewer: 'user',
           sandbox: permissions.sandboxMode,
-          ...(Object.keys(browserConfig).length ? { config: browserConfig } : {}),
+          config: chatConfig,
           ...browserInstructions,
         });
       } else {
@@ -748,7 +752,7 @@ export class CodexAppServerChatTransport {
           approvalPolicy: permissions.approvalPolicy,
           approvalsReviewer: 'user',
           sandbox: permissions.sandboxMode,
-          ...(Object.keys(browserConfig).length ? { config: browserConfig } : {}),
+          config: chatConfig,
           ...browserInstructions,
         });
       }
@@ -781,8 +785,12 @@ export class CodexAppServerChatTransport {
         aborted: false,
         errorEmitted: false,
         retryAttempt: 0,
+        lastTotalOutputTokens: null,
+        turnOutputTokens: 0,
         fileChanges: new Map(),
         runningTools: new Set(),
+        reasoningItemIds: new Set(),
+        completedReasoningIds: new Set(),
         userId: writer.userId ?? null,
         sessionName: readNonEmptyString(options.sessionSummary),
       };
@@ -1235,6 +1243,15 @@ export class CodexAppServerChatTransport {
     switch (method as CodexNotification['method']) {
       case 'item/started': {
         const item = readObjectRecord(params.item);
+        if (active && !active.terminal && item?.type === 'reasoning' && typeof item.id === 'string'
+          && (!active.turnId || params.turnId === active.turnId)
+          && !active.completedReasoningIds.has(item.id) && !active.reasoningItemIds.has(item.id)) {
+          if (active.reasoningItemIds.size === 0) {
+            this.sendStage(active, { name: 'thinking' });
+          }
+          active.reasoningItemIds.add(item.id);
+          return;
+        }
         if (active && item?.type === 'fileChange' && typeof item.id === 'string') {
           active.fileChanges.set(item.id, item.changes);
         }
@@ -1257,6 +1274,16 @@ export class CodexAppServerChatTransport {
         if (!item || typeof item !== 'object' || typeof item.type !== 'string' || typeof item.id !== 'string') {
           return;
         }
+        if (item.type === 'reasoning') {
+          if ((active.turnId && params.turnId !== active.turnId)
+            || active.completedReasoningIds.has(item.id)) {
+            return;
+          }
+          active.completedReasoningIds.add(item.id);
+          if (active.reasoningItemIds.delete(item.id) && active.reasoningItemIds.size === 0) {
+            this.sendStage(active, null);
+          }
+        }
         if (item.type === 'fileChange') {
           active.fileChanges.set(item.id, item.changes);
         }
@@ -1272,6 +1299,9 @@ export class CodexAppServerChatTransport {
         if (!active || active.terminal) {
           return;
         }
+        if (active.turnId && params.turnId !== active.turnId) {
+          return;
+        }
         const tokenUsage = params.tokenUsage as CodexTokenUsage;
         if (!tokenUsage?.last) {
           return;
@@ -1283,6 +1313,29 @@ export class CodexAppServerChatTransport {
           sessionId: threadId,
           provider: PROVIDER,
         }));
+        const totalOutputTokens = tokenUsage.total?.outputTokens;
+        const lastOutputTokens = tokenUsage.last.outputTokens;
+        if (!Number.isSafeInteger(totalOutputTokens) || totalOutputTokens < 0
+          || !Number.isSafeInteger(lastOutputTokens) || lastOutputTokens < 0
+          || totalOutputTokens < lastOutputTokens
+          || (active.lastTotalOutputTokens !== null && totalOutputTokens < active.lastTotalOutputTokens)) {
+          return;
+        }
+        // The first update belongs to this turn; later updates use lifetime deltas.
+        const addedOutputTokens = active.lastTotalOutputTokens === null
+          ? lastOutputTokens
+          : totalOutputTokens - active.lastTotalOutputTokens;
+        active.lastTotalOutputTokens = totalOutputTokens;
+        if (addedOutputTokens > 0) {
+          active.turnOutputTokens += addedOutputTokens;
+          active.writer.send(createNormalizedMessage({
+            kind: 'status',
+            text: 'turn_tokens',
+            outputTokens: active.turnOutputTokens,
+            sessionId: threadId,
+            provider: PROVIDER,
+          }));
+        }
         return;
       }
       case 'turn/completed': {

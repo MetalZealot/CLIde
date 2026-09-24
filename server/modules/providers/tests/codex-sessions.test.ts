@@ -585,6 +585,11 @@ describe('codex-sessions', () => {
         },
       }),
       JSON.stringify({
+        timestamp: '2026-07-25T12:00:00.500Z',
+        type: 'response_item',
+        payload: { type: 'reasoning', id: 'reasoning-item-2', summary: [], encrypted_content: 'opaque' },
+      }),
+      JSON.stringify({
         timestamp: '2026-07-25T12:00:01.000Z',
         type: 'response_item',
         payload: {
@@ -612,6 +617,10 @@ describe('codex-sessions', () => {
         assert.equal(
           history.messages.find((message) => message.kind === 'thinking')?.id,
           'reasoning-item-1',
+        );
+        assert.equal(
+          history.messages.find((message) => message.id === 'reasoning-item-2')?.content,
+          '',
         );
         assert.equal(
           history.messages.find((message) => message.role === 'assistant')?.id,

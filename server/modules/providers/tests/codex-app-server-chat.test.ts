@@ -136,6 +136,16 @@ for await (const line of lines) {
     const turnId = 'turn-' + threadNumber;
     const capture = { thread: pendingThread, turn: message.params };
     send({ id: message.id, result: { turn: { id: turnId, status: 'inProgress', error: null } } });
+    const reasoning = { type: 'reasoning', id: 'reasoning-' + turnId,
+      summary: ['Checked the request.'], content: [] };
+    send({ method: 'item/started', params: { threadId: pendingThread.id, turnId, item: reasoning } });
+    send({ method: 'item/started', params: { threadId: pendingThread.id, turnId, item: reasoning } });
+    send({ method: 'item/completed', params: { threadId: pendingThread.id, turnId, item: reasoning } });
+    send({ method: 'item/completed', params: { threadId: pendingThread.id, turnId, item: reasoning } });
+    const emptyReasoning = { type: 'reasoning', id: 'empty-reasoning-' + turnId,
+      summary: [], content: [] };
+    send({ method: 'item/started', params: { threadId: pendingThread.id, turnId, item: emptyReasoning } });
+    send({ method: 'item/completed', params: { threadId: pendingThread.id, turnId, item: emptyReasoning } });
     send({ method: 'item/completed', params: {
       threadId: pendingThread.id, turnId, completedAtMs: Date.now(),
       item: {
@@ -168,11 +178,23 @@ for await (const line of lines) {
     send({ method: 'thread/tokenUsage/updated', params: {
       threadId: pendingThread.id, turnId,
       tokenUsage: {
-        total: { totalTokens: 99, inputTokens: 80, cachedInputTokens: 10, cacheWriteInputTokens: 2, outputTokens: 19, reasoningOutputTokens: 2 },
-        last: { totalTokens: 23, inputTokens: 20, cachedInputTokens: 4, cacheWriteInputTokens: 1, outputTokens: 3, reasoningOutputTokens: 1 },
+        total: { totalTokens: threadNumber === 1 ? 99 : 112, inputTokens: 80, cachedInputTokens: 10, cacheWriteInputTokens: 2, outputTokens: threadNumber === 1 ? 19 : 32, reasoningOutputTokens: 2 },
+        last: { totalTokens: threadNumber === 1 ? 23 : 24, inputTokens: 20, cachedInputTokens: 4, cacheWriteInputTokens: 1, outputTokens: threadNumber === 1 ? 3 : 4, reasoningOutputTokens: 1 },
         modelContextWindow: 1000
       }
     } });
+    if (threadNumber === 1) {
+      const update = { method: 'thread/tokenUsage/updated', params: {
+        threadId: pendingThread.id, turnId,
+        tokenUsage: {
+          total: { totalTokens: 108, inputTokens: 80, cachedInputTokens: 10, cacheWriteInputTokens: 2, outputTokens: 28, reasoningOutputTokens: 3 },
+          last: { totalTokens: 32, inputTokens: 23, cachedInputTokens: 4, cacheWriteInputTokens: 1, outputTokens: 9, reasoningOutputTokens: 2 },
+          modelContextWindow: 1000
+        }
+      } };
+      send(update);
+      send(update);
+    }
     send({ method: 'turn/completed', params: {
       threadId: pendingThread.id, turn: { id: turnId, status: 'completed', error: null }
     } });
@@ -219,6 +241,7 @@ test('Browser guidance reaches new, resumed, and forked Codex chats without repl
       assert.match(capture.thread.params.developerInstructions, /same cloudcli-browser session/);
       assert.match(capture.thread.params.developerInstructions, /secret names that the browser_type description lists/);
       assert.match(capture.thread.params.config['mcp_servers.cloudcli-browser.url'], /chatSessionId=app-chat/);
+      assert.equal(capture.thread.params.config.model_reasoning_summary, 'auto');
       assert.equal(capture.turn.input[0].text, 'Open example.com in Browser');
       assert.equal(capture.turn.collaborationMode.settings.developer_instructions, null);
     }
@@ -263,6 +286,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     assert.equal(firstCapture.thread.method, 'thread/start');
     assert.equal(firstCapture.thread.params.model, 'gpt-test');
     assert.equal(firstCapture.thread.params.developerInstructions, undefined);
+    assert.equal(firstCapture.thread.params.config.model_reasoning_summary, 'auto');
     assert.equal(firstCapture.thread.params.approvalPolicy, 'never');
     assert.equal(firstCapture.turn.approvalPolicy, 'never');
     assert.deepEqual(firstCapture.turn.input, [
@@ -296,7 +320,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     assert.ok(first.messages.some((message) => message.kind === 'tool_use' && message.toolName === 'FileChanges'));
     assert.ok(first.messages.some((message) => message.kind === 'tool_use' && message.toolName === 'lookup'));
     assert.ok(first.messages.some((message) => message.kind === 'tool_use' && message.toolName === 'WebSearch'));
-    const budget = first.messages.find((message) => message.kind === 'status');
+    const budget = first.messages.find((message) => message.kind === 'status' && message.tokenBudget);
     assert.deepEqual(budget?.tokenBudget, {
       used: 23,
       total: 1000,
@@ -304,6 +328,14 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
       outputTokens: 3,
       breakdown: { input: 20, output: 3 },
     });
+    assert.deepEqual(first.messages.filter((message) => message.text === 'turn_tokens').map((message) => message.outputTokens), [3, 12]);
+    assert.deepEqual(first.messages.filter((message) => message.kind === 'thinking').map((message) => [message.id, message.content]), [
+      ['reasoning-turn-1', 'Checked the request.'],
+      ['empty-reasoning-turn-1', ''],
+    ]);
+    assert.deepEqual(first.messages.filter((message) => message.kind === 'status' && message.stage !== undefined).map((message) => message.stage), [
+      { name: 'thinking' }, null, { name: 'thinking' }, null,
+    ]);
     assert.equal(first.messages.filter((message) => message.kind === 'complete').length, 1);
 
     // The app-facing id and the Codex thread id are deliberately different:
@@ -321,6 +353,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     const resumedCapture = JSON.parse(String(resumedCaptureMessage?.content).slice(8));
     assert.equal(resumedCapture.thread.method, 'thread/resume');
     assert.equal(resumedCapture.thread.params.threadId, 'stable-thread');
+    assert.equal(resumedCapture.thread.params.config.model_reasoning_summary, 'auto');
     assert.equal(resumedCapture.turn.approvalPolicy, 'never');
     assert.deepEqual(resumedCapture.turn.collaborationMode, {
       mode: 'default',
@@ -330,7 +363,20 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
         developer_instructions: null,
       },
     });
+    assert.deepEqual(resumed.messages.filter((message) => message.text === 'turn_tokens').map((message) => message.outputTokens), [4]);
+    assert.deepEqual(resumed.messages.filter((message) => message.kind === 'thinking').map((message) => message.content), [
+      'Checked the request.', '',
+    ]);
     assert.equal(resumed.messages.filter((message) => message.kind === 'complete').length, 1);
+
+    const nextTurn = createWriter();
+    await transport.query('Continue the original thread', {
+      sessionId: 'app-original',
+      providerSessionId: 'thread-1',
+      cwd: fake.root,
+      permissionMode: 'acceptEdits',
+    }, nextTurn);
+    assert.deepEqual(nextTurn.messages.filter((message) => message.text === 'turn_tokens').map((message) => message.outputTokens), [4]);
   } finally {
     await fake.cleanup();
   }
@@ -520,6 +566,7 @@ test('Codex rewind forks before the selected turn and remaps the writer to the c
     assert.equal(capture.thread.method, 'thread/fork');
     assert.equal(capture.thread.params.threadId, 'source-thread');
     assert.equal(capture.thread.params.beforeTurnId, 'turn-b');
+    assert.equal(capture.thread.params.config.model_reasoning_summary, 'auto');
     assert.equal(capture.thread.params.lastTurnId, undefined);
     assert.equal(capture.turn.threadId, 'fork-1');
   } finally {
