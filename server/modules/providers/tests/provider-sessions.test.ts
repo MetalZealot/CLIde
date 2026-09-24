@@ -67,6 +67,55 @@ describe('provider-sessions', () => {
       assert.deepEqual(persisted, []);
     });
 
+    test('claude: a side-question fork copies the transcript and appends the exchange as a normal turn', { concurrency: false }, async () => {
+      const home = await mkdtemp(path.join(tmpdir(), 'claude-btw-fork-'));
+      const projectPath = path.join(home, 'project');
+      const projectDir = path.join(home, '.claude', 'projects', encodeClaudeProjectDir(projectPath));
+      const sourceId = '6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b';
+      await mkdir(projectDir, { recursive: true });
+      const base = { sessionId: sourceId, cwd: projectPath, userType: 'external', entrypoint: 'sdk-ts', version: '2.1.280', isSidechain: false };
+      await writeFile(path.join(projectDir, `${sourceId}.jsonl`), [
+        { ...base, type: 'user', uuid: 'aaaaaaaa-0000-4000-8000-000000000001', parentUuid: null, timestamp: '2026-09-23T12:00:00.000Z', message: { role: 'user', content: 'Main question' } },
+        { ...base, type: 'assistant', uuid: 'aaaaaaaa-0000-4000-8000-000000000002', parentUuid: 'aaaaaaaa-0000-4000-8000-000000000001', timestamp: '2026-09-23T12:00:01.000Z', message: { role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'Main answer' }], usage: { input_tokens: 10, output_tokens: 2 } } },
+      ].map((row) => JSON.stringify(row)).join('\n') + '\n');
+
+      const originalHomedir = os.homedir;
+      const previousConfigDir = process.env.CLAUDE_CONFIG_DIR;
+      (os as any).homedir = () => home;
+      process.env.CLAUDE_CONFIG_DIR = path.join(home, '.claude');
+      try {
+        const provider = new ClaudeSessionsProvider();
+        const fork = await provider.forkSession(sourceId, {
+          projectPath,
+          title: 'btw: which file?',
+          appendExchange: { question: 'Which file?', response: 'server/index.ts' },
+        });
+        assert.notEqual(fork.providerSessionId, sourceId);
+        const rows = (await readFile(fork.jsonlPath as string, 'utf8')).trim().split('\n').map((line) => JSON.parse(line));
+        const turns = rows.filter((row) => row.type === 'user' || row.type === 'assistant');
+        const [question, answer] = turns.slice(-2);
+        assert.equal(turns.length, 4, 'the main conversation is copied, then the exchange');
+        assert.equal(question.message.content, 'Which file?');
+        assert.equal(question.parentUuid, turns[1].uuid);
+        assert.equal(answer.parentUuid, question.uuid);
+        assert.equal(answer.sessionId, fork.providerSessionId);
+        assert.equal(answer.message.usage.input_tokens, 0, 'zero usage keeps it out of the context ring');
+        assert.ok(rows.some((row) => row.type === 'custom-title' && row.customTitle === 'btw: which file?'));
+
+        const [rendered] = provider.normalizeMessage(answer, SESSION_ID);
+        assert.equal(rendered.content, 'server/index.ts');
+        assert.equal(rendered.isSystemNotice, undefined, 'renders as a reply, not a muted notice');
+      } finally {
+        (os as any).homedir = originalHomedir;
+        if (previousConfigDir === undefined) {
+          delete process.env.CLAUDE_CONFIG_DIR;
+        } else {
+          process.env.CLAUDE_CONFIG_DIR = previousConfigDir;
+        }
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+
     test('claude: the Skill tool result itself still reaches the UI', () => {
       const provider = new ClaudeSessionsProvider();
 

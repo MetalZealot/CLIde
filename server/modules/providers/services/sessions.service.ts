@@ -11,6 +11,7 @@ import type {
   FetchHistoryResult,
   LLMProvider,
   NormalizedMessage,
+  SideQuestionExchange,
 } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
@@ -276,6 +277,8 @@ export const sessionsService = {
       model?: string;
       permissionMode?: string;
       lastTurnId?: string;
+      title?: string;
+      appendExchange?: SideQuestionExchange;
     } = {},
   ): Promise<ForkAppSessionResult> {
     const source = sessionsDb.getSessionById(sourceSessionId);
@@ -313,6 +316,8 @@ export const sessionsService = {
       model: options.model,
       permissionMode: options.permissionMode,
       lastTurnId: options.lastTurnId,
+      title: options.title,
+      appendExchange: options.appendExchange,
     });
     const projectPath = fork.projectPath?.trim() || source.project_path?.trim() || '';
     if (!projectPath) {
@@ -323,7 +328,8 @@ export const sessionsService = {
     }
 
     const sessionId = randomUUID();
-    const summary = `Fork: ${source.custom_name?.trim() || 'Untitled Codex Session'}`;
+    const summary = options.title?.trim()
+      || `Fork: ${source.custom_name?.trim() || 'Untitled Codex Session'}`;
     sessionsDb.createAppSession(sessionId, provider, projectPath);
     sessionsDb.assignProviderSessionId(sessionId, fork.providerSessionId);
     sessionsDb.createSession(

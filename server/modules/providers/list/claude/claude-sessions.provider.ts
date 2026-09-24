@@ -1,8 +1,11 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
+
+import { forkSession as forkClaudeSession } from '@anthropic-ai/claude-agent-sdk';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import {
@@ -19,6 +22,7 @@ import type {
   HistorySourceRevision,
   HistorySourceTarget,
   NormalizedMessage,
+  SideQuestionExchange,
   UsageLimitStop,
 } from '@/shared/types.js';
 import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
@@ -297,6 +301,79 @@ function resolveClaudeTranscriptPath(
     `${providerSessionId}.jsonl`,
   );
   return fs.existsSync(candidate) ? candidate : null;
+}
+
+/**
+ * Appends a question and its answer as the transcript's last turn, as Claude
+ * Code's `/btw` fork does. The answer's `<side-question>` model is skipped by
+ * model resolution, and its zero usage by every token-usage path; unlike
+ * `<synthetic>` it renders as a normal reply.
+ */
+async function appendClaudeExchange(
+  jsonlPath: string,
+  sessionId: string,
+  exchange: SideQuestionExchange,
+): Promise<void> {
+  const rows = (await fsp.readFile(jsonlPath, 'utf8')).split('\n');
+  let last: AnyRecord | null = null;
+  for (let index = rows.length - 1; index >= 0 && !last; index -= 1) {
+    try {
+      const row = JSON.parse(rows[index]) as AnyRecord;
+      if ((row.type === 'user' || row.type === 'assistant') && !row.isSidechain && row.uuid) {
+        last = row;
+      }
+    } catch {
+      // Blank or partial line.
+    }
+  }
+  if (!last) {
+    throw new Error('The forked transcript has no conversation to extend.');
+  }
+
+  const inherited = {
+    isSidechain: false,
+    cwd: last.cwd,
+    userType: last.userType,
+    entrypoint: last.entrypoint,
+    version: last.version,
+    gitBranch: last.gitBranch,
+    sessionId,
+  };
+  const questionUuid = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  const question = {
+    parentUuid: last.uuid,
+    ...inherited,
+    type: 'user',
+    message: { role: 'user', content: exchange.question },
+    uuid: questionUuid,
+    timestamp,
+  };
+  const answer = {
+    parentUuid: questionUuid,
+    ...inherited,
+    type: 'assistant',
+    message: {
+      id: crypto.randomUUID(),
+      container: null,
+      model: '<side-question>',
+      role: 'assistant',
+      stop_reason: 'stop_sequence',
+      stop_sequence: '',
+      type: 'message',
+      usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+      content: [{ type: 'text', text: exchange.response }],
+    },
+    uuid: crypto.randomUUID(),
+    timestamp,
+  };
+  const separator = rows[rows.length - 1] === '' ? '' : '\n';
+  await fsp.appendFile(jsonlPath, `${separator}${JSON.stringify(question)}\n${JSON.stringify(answer)}\n`);
 }
 
 const SUBAGENT_TOOL_NAMES = new Set(['Agent', 'Task']);
@@ -1350,5 +1427,24 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       limit: normalizedLimit,
       tokenUsage: extractHistoryTokenUsage(rawMessages),
     };
+  }
+
+  /** Copies the transcript under a new id; `appendExchange` becomes its last turn. */
+  async forkSession(
+    providerSessionId: string,
+    options: { projectPath?: string; title?: string; appendExchange?: SideQuestionExchange } = {},
+  ): Promise<{ providerSessionId: string; projectPath?: string; jsonlPath?: string | null }> {
+    const { sessionId: forkedId } = await forkClaudeSession(providerSessionId, {
+      ...(options.projectPath ? { dir: options.projectPath } : {}),
+      ...(options.title ? { title: options.title } : {}),
+    });
+    const jsonlPath = resolveClaudeTranscriptPath(options.projectPath, forkedId);
+    if (!jsonlPath) {
+      throw new Error('Claude wrote the fork somewhere CLIde cannot find.');
+    }
+    if (options.appendExchange) {
+      await appendClaudeExchange(jsonlPath, forkedId, options.appendExchange);
+    }
+    return { providerSessionId: forkedId, projectPath: options.projectPath, jsonlPath };
   }
 }

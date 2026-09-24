@@ -161,6 +161,42 @@ describe('codex-sessions', () => {
     });
   });
 
+  test('Codex history shows an injected side exchange but not out-of-turn startup context', { concurrency: false }, async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-injected-history-'));
+    const transcriptPath = path.join(tempRoot, 'rollout-injected.jsonl');
+    const userItem = (text: string) => ({
+      type: 'response_item',
+      payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
+    });
+    const assistantItem = (text: string) => ({
+      type: 'response_item',
+      payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] },
+    });
+    await writeFile(transcriptPath, [
+      { type: 'session_meta', payload: { id: 'thread-injected', cwd: tempRoot } },
+      userItem('Stray out-of-turn row with no reply'),
+      userItem('<environment_context>cwd</environment_context>'),
+      userItem('Which file?'),
+      assistantItem('server/index.ts'),
+      { type: 'turn_context', payload: { turn_id: 'turn-1' } },
+      userItem('Carry on from there'),
+      assistantItem('Done.'),
+    ].map((row) => JSON.stringify({ timestamp: '2026-09-23T12:00:00.000Z', ...row })).join('\n') + '\n', 'utf8');
+
+    try {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createSession('thread-injected', 'codex', tempRoot, undefined, undefined, undefined, transcriptPath);
+        const history = await new CodexSessionsProvider().fetchHistory('thread-injected');
+        assert.deepEqual(
+          history.messages.filter((message) => message.kind === 'text').map((message) => `${message.role}: ${message.content}`),
+          ['user: Which file?', 'assistant: server/index.ts', 'user: Carry on from there', 'assistant: Done.'],
+        );
+      });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   test('Codex async questions discard malformed titles and choices', () => {
     assert.deepEqual(normalizeCodexAsyncQuestions([
       { title: ' Which environment? ', options: [' Staging ', '', 42] },

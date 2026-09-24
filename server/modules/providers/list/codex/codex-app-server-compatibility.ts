@@ -28,6 +28,7 @@ const REQUIRED_PROTOCOL_PATTERNS = new Map<string, RequiredProtocolPattern[]>([
     required('method turn/steer', /"method": "turn\/steer"/),
     required('method turn/interrupt', /"method": "turn\/interrupt"/),
     required('method thread/unsubscribe', /"method": "thread\/unsubscribe"/),
+    required('method thread/inject_items', /"method": "thread\/inject_items"/),
     required('method model/list', /"method": "model\/list"/),
   ]],
   ['ServerRequest.ts', [

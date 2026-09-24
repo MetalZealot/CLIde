@@ -126,7 +126,7 @@ new work.
 - [ ] **Workspace tabs like the desktop apps** — Terminal for Shell; Tasks, Agents. [Plan](plans/workspace-surfaces.md). **M/L**
 - [~] **Auto-Continue offered, remembered, and defaulted.** Every way of asking for a `usage-reset` message that is not long-pressing send: the offer on the limit notice, its editable message in Settings, the standing mode, its new-session default and Codex's one-row limit stop are merged; verified only by unit tests until the next real limit stop. [Plan](plans/auto-continue.md). **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live; 3–4 move the banners onto the messages. [Plan](plans/message-edit-model.md). **M/L**
-- [~] **`/btw` side questions.** Asked beside the conversation — no transcript row, main run untouched — with a per-session history that survives closing the sheet, like Claude Code's. Claude and Codex done; fork and phone check left. [Plan](plans/side-questions.md). **M**
+- [~] **`/btw` side questions.** Asked beside the conversation — no transcript row, main run untouched — with a per-session history that survives closing the sheet, like Claude Code's. Claude, Codex and fork done; phone check left. [Plan](plans/side-questions.md). **M**
 - [ ] **Context ring to the header?** Session state glanced at more than tapped, so it fits; costs reach for its breakdown and title width. [Reasons](maps/ui-standards.md). **S — decision**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)

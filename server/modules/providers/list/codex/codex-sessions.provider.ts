@@ -18,6 +18,7 @@ import type {
   FetchHistoryResult,
   HistorySourceRevision,
   NormalizedMessage,
+  SideQuestionExchange,
 } from '@/shared/types.js';
 import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
@@ -453,12 +454,17 @@ async function getCodexSessionMessages(
       timestamp?: string;
       rawMessage: AnyRecord;
     } | null = null;
+    // Out-of-turn user row, shown only if an assistant row follows at once:
+    // that pair is an exchange appended with `thread/inject_items`.
+    let outOfTurnUser: AnyRecord | null = null;
     // A rewound or forked Codex session lives across several rollouts; the one
     // on the row holds only what came after the fork.
     const segments = await buildCodexTranscriptChain(sessionFilePath);
 
     for await (const entry of streamCodexTranscriptRows(segments, requireCompleteRead)) {
       try {
+        const heldOutOfTurnUser = outOfTurnUser;
+        outOfTurnUser = null;
         if (
           (entry.type === 'turn_context' || entry.type === 'event_msg')
           && typeof entry.payload?.turn_id === 'string'
@@ -577,6 +583,19 @@ async function getCodexSessionMessages(
             pendingTurnId = null;
             canonicalUserTurnId = null;
           }
+        } else if (
+          entry.type === 'response_item'
+          && entry.payload?.type === 'message'
+          && entry.payload.role === 'user'
+        ) {
+          const textContent = extractCodexTextContent(entry.payload.content);
+          if (textContent.trim() && !isCodexInjectedUserText(textContent)) {
+            outOfTurnUser = {
+              type: 'user',
+              timestamp: entry.timestamp,
+              message: { role: 'user', content: textContent },
+            };
+          }
         }
 
         if (
@@ -585,6 +604,9 @@ async function getCodexSessionMessages(
           entry.payload.role === 'assistant'
         ) {
           const textContent = extractCodexTextContent(entry.payload.content);
+          if (heldOutOfTurnUser) {
+            messages.push(heldOutOfTurnUser);
+          }
           if (textContent.trim()) {
             messages.push({
               type: 'assistant',
@@ -1028,6 +1050,7 @@ export class CodexSessionsProvider implements IProviderSessions {
       model?: string;
       permissionMode?: string;
       lastTurnId?: string;
+      appendExchange?: SideQuestionExchange;
     } = {},
   ): Promise<{
     providerSessionId: string;
@@ -1041,7 +1064,7 @@ export class CodexSessionsProvider implements IProviderSessions {
     // Keep the history/indexing adapter free of an eager transport dependency:
     // the transport resolves provider model services, which in turn load the
     // provider registry containing this class.
-    const { forkCodexAppServerThread } = await import(
+    const { appendCodexAppServerExchange, forkCodexAppServerThread } = await import(
       '@/modules/providers/list/codex/codex-app-server-chat.transport.js'
     );
     const thread = await forkCodexAppServerThread(providerSessionId, {
@@ -1050,6 +1073,9 @@ export class CodexSessionsProvider implements IProviderSessions {
       permissionMode: options.permissionMode,
       lastTurnId: options.lastTurnId,
     });
+    if (options.appendExchange) {
+      await appendCodexAppServerExchange(thread.id, options.appendExchange);
+    }
 
     return {
       providerSessionId: thread.id,

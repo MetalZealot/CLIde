@@ -25,6 +25,7 @@ import type {
   ProviderRuntimePermissionGateway,
   ProviderRuntimeWriter,
   SideQuestionAnswer,
+  SideQuestionExchange,
   SideQuestionRequest,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
@@ -261,6 +262,10 @@ export interface IProviderSessions {
       permissionMode?: string;
       /** Provider-native completed turn through which history is copied. */
       lastTurnId?: string;
+      /** Name the provider stores for the fork, where it keeps one. */
+      title?: string;
+      /** A side exchange appended after the copied history, with no turn run. */
+      appendExchange?: SideQuestionExchange;
     },
   ): Promise<{
     providerSessionId: string;

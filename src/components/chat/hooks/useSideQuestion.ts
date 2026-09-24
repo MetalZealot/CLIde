@@ -13,6 +13,13 @@ export type SideQuestionEntry = {
   askedAt: string;
 };
 
+/** The session a forked side question became. */
+export type SideQuestionFork = {
+  sessionId: string;
+  provider?: LLMProvider;
+  summary?: string | null;
+};
+
 type SideQuestionTarget = {
   provider: LLMProvider;
   sessionId: string | null;
@@ -160,7 +167,21 @@ export function useSideQuestion({ provider, sessionId, cwd }: SideQuestionTarget
 
   const close = useCallback(() => setOpen(false), []);
 
+  const fork = useCallback(async (entryId: string): Promise<SideQuestionFork> => {
+    if (!endpoint) {
+      throw new Error('Start the conversation before forking a side question.');
+    }
+    const response = await authenticatedFetch(`${endpoint}/${encodeURIComponent(entryId)}/fork`, {
+      method: 'POST',
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.data?.sessionId) {
+      throw new Error(payload?.error?.message || payload?.error || 'That side question could not be forked.');
+    }
+    return payload.data as SideQuestionFork;
+  }, [endpoint]);
+
   const entries = useMemo(() => mergeSideQuestionEntries(serverEntries, sending), [sending, serverEntries]);
 
-  return { open, entries, ask, openSheet, close, clear };
+  return { open, entries, ask, openSheet, close, clear, fork };
 }

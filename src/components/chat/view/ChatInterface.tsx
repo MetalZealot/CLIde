@@ -297,6 +297,7 @@ function ChatInterface({
     askSideQuestion,
     closeSideQuestion,
     clearSideQuestions,
+    forkSideQuestion,
     forkFromMessage,
     handleVoiceTranscript,
     handleInputChange,
@@ -1197,6 +1198,7 @@ function ChatInterface({
         onAsk={(question) => void askSideQuestion(question)}
         onClose={closeSideQuestion}
         onClear={() => void clearSideQuestions()}
+        onFork={forkSideQuestion}
       />
 
       <CommandResultModal

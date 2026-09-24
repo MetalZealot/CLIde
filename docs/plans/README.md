@@ -16,7 +16,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Nine verdicts recorded; Grayson ranks the three builds |
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Merged to `main` 2026-09-15; editing a waiting message is [the edit model](message-edit-model.md) |
 | [Provider Tools page](provider-tools-page.md) | 3/4 | Phase 4: restart `cloudcli`, then check Engineering and GitHub on the phone |
-| [`/btw` side questions](side-questions.md) | 6/7 | Phase 6 — fork a side conversation into a session |
+| [`/btw` side questions](side-questions.md) | 7/8 | Phase 7 — acceptance on the phone |
 | [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 4/6 | Phase 5 — the default new sessions take for the standing mode |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |

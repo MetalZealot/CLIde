@@ -1,7 +1,7 @@
 # /btw — side questions beside a running conversation
 
-- Status: 6/7
-- Next: phase 6 — fork a side conversation into a real session
+- Status: 7/8
+- Next: phase 7 — acceptance on the phone
 - Context: Claude Code ships `/btw` and Codex ships `/side`. CLIde matches
   Claude Code's behaviour; the mechanism is per provider
 
@@ -79,8 +79,13 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
       discard the fork. Flag flips true for Codex. Driven end to end against
       real Codex 0.156.0 mid-run (answer, follow-up, cancel); not yet seen in
       the app.
-- [ ] 6. **Fork a side conversation into a real session.** Starts a new session
-      seeded with the side exchanges, the way Claude Code's `f` does.
+- [x] 6. **Fork a side conversation into a real session.** Each answer's
+      Fork starts a session named `btw: <question>`: a copy of the main
+      conversation with that one exchange appended as its last turn, no turn
+      run — Claude Code's `f`. Claude uses the SDK's `forkSession`; Codex
+      forks and appends with `thread/inject_items`. Refused while the main
+      turn runs. A real fork of each read back correctly; not yet seen in the
+      app.
 - [ ] 7. **Acceptance on the phone.** Installed PWA against production: ask
       during a long run, close the sheet before it answers, reopen with `/btw`,
       ask a follow-up, and confirm the chat is unchanged throughout.

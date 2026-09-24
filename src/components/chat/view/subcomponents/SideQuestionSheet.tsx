@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckIcon, CopyIcon, MessageCircleQuestionIcon, SendHorizontalIcon } from 'lucide-react';
+import { CheckIcon, CopyIcon, GitForkIcon, MessageCircleQuestionIcon, SendHorizontalIcon } from 'lucide-react';
 
 import { Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
 import type { SideQuestionEntry } from '../../hooks/useSideQuestion';
@@ -13,6 +13,8 @@ type SideQuestionSheetProps = {
   onAsk: (question: string) => void;
   onClose: () => void;
   onClear: () => void;
+  /** Rejects with the reason the fork failed. */
+  onFork: (entryId: string) => Promise<void>;
 };
 
 function CopyAnswerButton({ text }: { text: string }) {
@@ -35,11 +37,42 @@ function CopyAnswerButton({ text }: { text: string }) {
   );
 }
 
+/** Starts a new session: the main conversation, then this exchange as its last turn. */
+function ForkAnswerButton({ onFork }: { onFork: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await onFork();
+          } catch (forkError) {
+            setError(forkError instanceof Error ? forkError.message : 'That side question could not be forked.');
+          } finally {
+            setBusy(false);
+          }
+        }}
+        aria-label="Fork into a new session"
+        className="mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+      >
+        <GitForkIcon className="h-3.5 w-3.5" />
+        {busy ? 'Forking…' : 'Fork'}
+      </button>
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+    </>
+  );
+}
+
 /**
  * Bottom sheet for `/btw`. The conversation stays visible behind it and keeps
  * running. Closing only hides the history; Clear is the discard.
  */
-export default function SideQuestionSheet({ open, entries, onAsk, onClose, onClear }: SideQuestionSheetProps) {
+export default function SideQuestionSheet({ open, entries, onAsk, onClose, onClear, onFork }: SideQuestionSheetProps) {
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -60,7 +93,7 @@ export default function SideQuestionSheet({ open, entries, onAsk, onClose, onCle
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="bottom-0 left-1/2 top-auto max-h-[80dvh] w-full max-w-2xl -translate-x-1/2 translate-y-0 flex flex-col overflow-hidden rounded-b-none rounded-t-3xl border-border/80 bg-popover p-0 pb-[env(safe-area-inset-bottom)] shadow-2xl">
+      <DialogContent className="bottom-0 left-1/2 top-auto flex max-h-[80dvh] w-full max-w-2xl -translate-x-1/2 translate-y-0 flex-col overflow-hidden rounded-b-none rounded-t-3xl border-border/80 bg-popover p-0 pb-[env(safe-area-inset-bottom)] shadow-2xl">
         <DialogTitle className="sr-only">Side question</DialogTitle>
 
         <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
@@ -107,7 +140,10 @@ export default function SideQuestionSheet({ open, entries, onAsk, onClose, onCle
                     {entry.fallbackNotice && (
                       <p className="mt-1 text-xs text-muted-foreground">{entry.fallbackNotice}</p>
                     )}
-                    <CopyAnswerButton text={entry.answer || ''} />
+                    <div className="flex flex-wrap items-center gap-1">
+                      <CopyAnswerButton text={entry.answer || ''} />
+                      <ForkAnswerButton onFork={() => onFork(entry.id)} />
+                    </div>
                   </>
                 )}
               </div>

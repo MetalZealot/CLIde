@@ -502,6 +502,7 @@ export function useChatComposerState({
     openSheet: openSideQuestions,
     close: closeSideQuestion,
     clear: clearSideQuestions,
+    fork: requestSideQuestionFork,
   } = useSideQuestion({
     provider,
     sessionId: currentSessionId || selectedSession?.id || null,
@@ -684,6 +685,20 @@ export function useChatComposerState({
     selectedProject,
     selectedSession?.id,
   ]);
+
+  // Throws on failure so the sheet can show the reason beside the answer.
+  const forkSideQuestion = useCallback(async (entryId: string) => {
+    if (!selectedProject) {
+      throw new Error('Open a project before forking a side question.');
+    }
+    const fork = await requestSideQuestionFork(entryId);
+    closeSideQuestion();
+    onSessionEstablished?.(fork.sessionId, {
+      provider: fork.provider || provider,
+      project: selectedProject,
+      summary: fork.summary || null,
+    });
+  }, [closeSideQuestion, onSessionEstablished, provider, requestSideQuestionFork, selectedProject]);
 
   const executeCommand = useCallback(
     async (command: SlashCommand, rawInput?: string, options?: { preserveInput?: boolean }) => {
@@ -1873,6 +1888,7 @@ export function useChatComposerState({
     askSideQuestion,
     closeSideQuestion,
     clearSideQuestions,
+    forkSideQuestion,
     forkFromMessage,
     handleVoiceTranscript,
     handleInputChange,

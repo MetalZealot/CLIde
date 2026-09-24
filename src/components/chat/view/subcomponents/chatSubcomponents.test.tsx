@@ -2819,7 +2819,7 @@ describe('side question sheet', () => {
     document.body.appendChild(container);
     const root = createRoot(container);
     await React.act(async () => root.render(
-      <SideQuestionSheet open entries={entries} onAsk={() => {}} onClose={() => {}} onClear={() => {}} />,
+      <SideQuestionSheet open entries={entries} onAsk={() => {}} onClose={() => {}} onClear={() => {}} onFork={async () => {}} />,
     ));
     const text = document.body.textContent ?? '';
     await React.act(async () => root.unmount());
@@ -2840,6 +2840,7 @@ describe('side question sheet', () => {
     assert.match(text, /Not added to the conversation/);
     assert.match(text, /Clear/, 'history can be discarded');
     assert.match(text, /Copy/, 'an answer can be copied');
+    assert.equal(text.match(/Fork/g)?.length, 1, 'only the answered question can be forked');
   });
 
   test('a failed question names the failure instead of an empty answer', async () => {

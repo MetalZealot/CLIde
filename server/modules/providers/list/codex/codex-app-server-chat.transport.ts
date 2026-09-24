@@ -1067,6 +1067,20 @@ export class CodexAppServerChatTransport {
     ));
   }
 
+  /** Appends one exchange to a thread's model-visible history without a turn. */
+  async appendExchange(threadId: string, exchange: SideQuestionExchange): Promise<void> {
+    return this.withRuntimeOperation(async () => {
+      const client = await this.ensureClient();
+      await client.request('thread/inject_items', {
+        threadId,
+        items: [
+          { type: 'message', role: 'user', content: [{ type: 'input_text', text: exchange.question }] },
+          { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: exchange.response }] },
+        ],
+      });
+    });
+  }
+
   isActive(sessionId: string): boolean {
     const active = this.findActiveTurn(sessionId);
     return Boolean(active && !active.terminal);
@@ -1726,6 +1740,13 @@ export function askCodexAppServerSideQuestion(
   options: SideQuestionOptions,
 ): Promise<string> {
   return sharedTransport.askSideQuestion(threadId, options);
+}
+
+export function appendCodexAppServerExchange(
+  threadId: string,
+  exchange: SideQuestionExchange,
+): Promise<void> {
+  return sharedTransport.appendExchange(threadId, exchange);
 }
 
 export function isCodexAppServerSessionActive(threadId: string): boolean {

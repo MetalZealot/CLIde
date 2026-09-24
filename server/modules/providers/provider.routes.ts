@@ -609,6 +609,17 @@ router.post(
   }),
 );
 
+router.post(
+  '/:provider/sessions/:sessionId/side-questions/:entryId/fork',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const sessionId = parseSessionId(req.params.sessionId);
+    assertSideQuestionsSupported(provider);
+    const result = await sideQuestionsService.fork(sessionId, String(req.params.entryId));
+    res.status(201).json(createApiSuccessResponse(result));
+  }),
+);
+
 router.delete(
   '/:provider/sessions/:sessionId/side-questions',
   asyncHandler(async (req: Request, res: Response) => {

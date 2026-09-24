@@ -742,6 +742,31 @@ describe('side-questions history', () => {
     assert.equal(entries.length, 50);
     assert.equal(entries[0].question, 'q5');
   });
+
+  test('fork seeds a new session with only the chosen answered exchange, named like Claude Code', async () => {
+    const forks: Array<{ sessionId: string; options: unknown }> = [];
+    const service = createSideQuestionsService({
+      ask: async (_provider, _sessionId, request) => ({ answer: `re: ${request.question}` }),
+      fork: async (sessionId, options) => {
+        forks.push({ sessionId, options });
+        return { sessionId: 'forked', provider: 'claude', projectPath: '/p', summary: options.title };
+      },
+      now: () => new Date('2026-09-23T12:00:00.000Z'),
+      createId: () => `f${++ids}`,
+    });
+    await service.ask('claude', 's1', 'first?', null);
+    const second = await service.ask('claude', 's1', `long ${'x'.repeat(100)}`, null);
+
+    const result = await service.fork('s1', second!.id);
+    assert.equal(result.sessionId, 'forked');
+    const options = forks[0].options as { title: string; appendExchange: unknown };
+    assert.equal(forks[0].sessionId, 's1');
+    assert.equal(options.title.length, 80);
+    assert.match(options.title, /^btw: long x+…$/);
+    assert.deepEqual(options.appendExchange, { question: second!.question, response: second!.answer });
+
+    await assert.rejects(service.fork('s1', 'missing'), /Only an answered side question/);
+  });
 });
 
 describe('claude-runtime error results', () => {
