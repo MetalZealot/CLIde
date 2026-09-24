@@ -10,7 +10,7 @@ import type { ChatMessage } from '../types/types';
 
 import { buildOperationDetail } from './operationDetail';
 import { summarizeActivity } from './toolActivity';
-import { assignActivityKeys, groupToolActivities, isToolActivityItem } from './toolGrouping';
+import { assignActivityKeys, groupToolActivities, isToolActivityItem, revealStartForBudget } from './toolGrouping';
 import {
   extractInternalMemoryCitation,
   formatDuration,
@@ -464,6 +464,19 @@ test('tool activities reuse unchanged groups and update changed members or membe
   assert.notEqual(updated[0], initial[0]);
   assert.ok(isToolActivityItem(updated[0]));
   assert.equal(updated[0].messages[1].toolResult?.content, 'finished');
+});
+
+test('older rows are revealed within a mount-cost budget, a tool run counting once', () => {
+  const call = (id: string): ChatMessage => ({ id, timestamp: '2026-09-24T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash' });
+  const text = (id: string, length: number): ChatMessage => ({ id, timestamp: '2026-09-24T00:00:00Z', type: 'assistant', content: 'x'.repeat(length) });
+  const shortRows = Array.from({ length: 10 }, (_, index) => text(`t${index}`, 0));
+  assert.equal(revealStartForBudget(shortRows, 10, 20, 20), 5, 'five 4 ms rows fit 20 ms');
+  assert.equal(revealStartForBudget(shortRows, 10, 3, 20), 7, 'the message cap still applies');
+  const burst = [text('a', 0), ...Array.from({ length: 30 }, (_, index) => call(`c${index}`)), text('b', 0)];
+  assert.equal(revealStartForBudget(burst, burst.length, 100, 10), 0, 'thirty calls cost one run');
+  const long = [text('small', 0), text('huge', 10_000)];
+  assert.equal(revealStartForBudget(long, 2, 20, 20), 1, 'one row always reveals, even over budget');
+  assert.equal(revealStartForBudget(long, 0, 20, 20), 0);
 });
 
 test('an activity keeps its key while calls join it from above or below', () => {

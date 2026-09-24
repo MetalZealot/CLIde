@@ -124,3 +124,37 @@ export function assignActivityKeys(
   }
   return { keys, byMessage };
 }
+
+// Mount cost of a history row in CLIde Browser on the Pi, fitted over the
+// reference session (2026-09-24): text ~4 ms + 8.5 ms per 1,000 characters, a tool run ~1.5 ms.
+const TEXT_ROW_MS = 4;
+const TEXT_MS_PER_CHAR = 0.0085;
+const TOOL_RUN_MS = 1.5;
+
+/**
+ * Oldest index to reveal above `start`: at most `maxMessages` messages whose
+ * estimated mount cost fits `budgetMs`, and always at least one row.
+ */
+export function revealStartForBudget(
+  messages: readonly ChatMessage[],
+  start: number,
+  maxMessages: number,
+  budgetMs: number,
+): number {
+  const floor = Math.max(0, start - maxMessages);
+  let spent = 0;
+  let inRun = false;
+  let index = start;
+  while (index > floor) {
+    const message = messages[index - 1];
+    const call = isToolActivityCall(message);
+    if (!(call && inRun)) {
+      const cost = call ? TOOL_RUN_MS : TEXT_ROW_MS + (message.content?.length ?? 0) * TEXT_MS_PER_CHAR;
+      if (index < start && spent + cost > budgetMs) break;
+      spent += cost;
+    }
+    inRun = call;
+    index -= 1;
+  }
+  return index;
+}

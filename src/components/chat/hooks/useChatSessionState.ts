@@ -10,6 +10,7 @@ import type { ChatMessage } from '../types/types';
 import { createCachedDiffCalculator, type DiffCalculator } from '../utils/messageTransforms';
 import { getChatViewportRect, isPageScrollHost, scrollEventTarget } from '../utils/chatScrollHost';
 import { chatFindEntriesForRecord, locateSearchTarget } from '../utils/chatFindIndex';
+import { revealStartForBudget } from '../utils/toolGrouping';
 
 import type { ChatJumpTarget } from './useChatFind';
 import { normalizedToChatMessages } from './useChatMessages';
@@ -17,6 +18,8 @@ import { normalizedToChatMessages } from './useChatMessages';
 export const MESSAGES_PER_PAGE = 20;
 /** A chain of loads that each added too little height doubles its page up to this. */
 const MAX_CHAINED_PAGE = 160;
+/** Estimated row mount time one older-history commit may spend, leaving room for layout. */
+const REVEAL_BUDGET_MS = 30;
 const INITIAL_VISIBLE_MESSAGES = 100;
 const TOP_LOAD_THRESHOLD_PX = 100;
 const TOP_LOAD_REARM_MARGIN_PX = 40;
@@ -463,7 +466,14 @@ export function useChatSessionState({
       const previousSlot = sessionStore.getSlot(selectedSession.id);
       const previousOffset = previousSlot.offset;
       const previousServerMessageCount = previousSlot.serverMessages.length;
+      const previousMessageCount = chatMessagesRef.current.length;
+      const previousFirstId = chatMessagesRef.current[windowStartRef.current]?.id ?? null;
       let restoreWasArmed = false;
+
+      const holdWindowStart = () => {
+        if (viewRangeRef.current) setViewRange((range) => range && { ...range, startId: previousFirstId });
+        else setVisibleMessageCount((prev) => Math.min(prev, previousMessageCount));
+      };
 
       try {
         const slot = await sessionStore.fetchMore(selectedSession.id, {
@@ -473,18 +483,13 @@ export function useChatSessionState({
               updatedSlot.offset > previousOffset
               || updatedSlot.serverMessages.length > previousServerMessageCount;
 
-            // The store notification and these local updates are automatically
-            // batched by React 18. Older DOM rows, the larger visible window,
-            // and the pending anchor therefore arrive in one commit, allowing
-            // the layout effect to restore position before the browser paints.
+            // The page lands above the rendered window; the restore effect's
+            // chain then reveals it a row budget per frame, keeping each commit short.
             restoreWasArmed = true;
             pendingScrollRestoreRef.current = scrollRestore;
             capturedScrollRestoreRef.current = null;
             setScrollRestoreTick((tick) => tick + 1);
-            if (madeProgress) {
-              if (viewRangeRef.current) setViewRange((range) => range && { ...range, startId: null });
-              else setVisibleMessageCount((prev) => prev + limit);
-            }
+            if (madeProgress) holdWindowStart();
             if (!updatedSlot.hasMore) {
               setAllMessagesLoaded(true);
             }
@@ -507,8 +512,7 @@ export function useChatSessionState({
           pendingScrollRestoreRef.current = scrollRestore;
           capturedScrollRestoreRef.current = null;
           setScrollRestoreTick((tick) => tick + 1);
-          if (viewRangeRef.current) setViewRange((range) => range && { ...range, startId: null });
-          else setVisibleMessageCount((prev) => prev + limit);
+          holdWindowStart();
           if (!slot.hasMore) {
             setAllMessagesLoaded(true);
           }
@@ -529,14 +533,14 @@ export function useChatSessionState({
   const revealOlderRows = useCallback((container: HTMLElement, count = MESSAGES_PER_PAGE): boolean => {
     const start = windowStartRef.current;
     if (start <= 0) return false;
+    const nextStart = revealStartForBudget(chatMessagesRef.current, start, count, REVEAL_BUDGET_MS);
     pendingScrollRestoreRef.current = captureScrollRestore(container);
     setScrollRestoreTick((tick) => tick + 1);
     if (viewRangeRef.current) {
-      const nextStart = Math.max(0, start - count);
       const id = chatMessagesRef.current[nextStart]?.id;
       setViewRange((range) => range && { ...range, startId: nextStart === 0 || !id ? null : id });
     } else {
-      setVisibleMessageCount((visible) => visible + count);
+      setVisibleMessageCount((visible) => visible + start - nextStart);
     }
     return true;
   }, []);
