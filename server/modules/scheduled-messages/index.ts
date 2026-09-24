@@ -24,6 +24,7 @@ export {
 export {
   AUTO_CONTINUE_MAX_CONSECUTIVE,
   armAutoContinueAfterLimitStop,
+  setSessionAutoContinueMode,
   type AutoContinueOutcome,
 } from './services/auto-continue.service.js';
 export {

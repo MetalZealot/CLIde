@@ -88,13 +88,22 @@ early resets are read from usage: [code anchors](../maps/code-anchors.md).
       where CLIde mints the row (a new chat, a fork), never to a transcript the
       watcher indexes off disk, which would otherwise turn the whole session
       backlog on at once
+- [~] 6. The one-tap button is replaced by a switch on the live limit notice
+      showing the session's mode: "Auto-Continue on — sends "Continue" when
+      limits reset (≈ time)" or "Auto-Continue off" — decided with Grayson
+      2026-09-24, after a real stop armed and sent correctly while the button
+      still showed. The switch and the kebab entry are one per-session state;
+      turning it on with the stop live queues the continue at once, off cancels
+      a waiting continue (matched by its text) but never the user's own reset
+      message, and neither counts toward the cap. Unit-tested; awaiting a real
+      limit stop
 
 ## Done when
 
-- Hitting the limit shows an offer on the notice that, tapped, produces the same
-  scheduled bubble and sidebar clock a long-press schedule produces
-- The offer is absent on a session that already has a pending `usage-reset` row
-- The offer is absent on Cursor and OpenCode
+- Hitting the limit shows the session's mode on the notice, and the switch
+  there queues or cancels the continue, with the same bubble and sidebar clock
+  a long-press schedule produces
+- The switch is absent on Cursor and OpenCode
 - A session set to Auto-Continue resumes after a reset with no client connected
 - Two consecutive limit stops do not produce an unbounded chain of retries
 

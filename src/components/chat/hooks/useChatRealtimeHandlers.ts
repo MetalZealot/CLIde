@@ -10,6 +10,7 @@ import type { PendingPermissionRequest } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 import { readTurnStage } from '../../../stores/useSessionStore';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
+import { setAutoContinueOverride } from './useAutoContinue';
 
 const isActionablePermissionRequest = (request: { toolName?: unknown } | null | undefined): boolean => {
   return request?.toolName !== 'ExitPlanMode' && request?.toolName !== 'exit_plan_mode';
@@ -229,6 +230,7 @@ export function useChatRealtimeHandlers({
         // the state afterwards.
         case 'auto_continue_capped': {
           if (sid) {
+            setAutoContinueOverride(sid, false);
             sessionStore.appendRealtime(sid, {
               id: `auto_continue_capped_${Date.now()}`,
               sessionId: sid,
@@ -238,7 +240,7 @@ export function useChatRealtimeHandlers({
               role: 'assistant',
               isSystemNotice: true,
               content: i18n.t('chat:autoContinue.capped', {
-                defaultValue: 'Auto-Continue ran {{times}} times without you, so it is off for this session.',
+                defaultValue: 'Auto-Continue turned off after {{times}} limit stops in a row.',
                 times: Number(msg.limit) || 0,
               }),
             } as NormalizedMessage);

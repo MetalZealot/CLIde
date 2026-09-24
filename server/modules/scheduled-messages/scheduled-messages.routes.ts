@@ -7,6 +7,7 @@ import {
   readAutoContinueMessage,
   writeAutoContinueMessage,
 } from '@/modules/scheduled-messages/services/auto-continue-message.service.js';
+import { setSessionAutoContinueMode } from '@/modules/scheduled-messages/services/auto-continue.service.js';
 import {
   cancelScheduledMessage,
   createScheduledMessage,
@@ -64,6 +65,27 @@ router.put('/auto-continue-default', (req, res) => {
     return;
   }
   res.json({ enabled: sessionsDb.setAutoContinueDefault(req.body.enabled) });
+});
+
+/**
+ * Sets one session's standing mode. `limitStopLive` says the chat is sitting on
+ * a limit stop, so turning the mode on queues the continue immediately.
+ */
+router.put('/session/:sessionId/auto-continue', (req, res) => {
+  if (typeof req.body?.enabled !== 'boolean') {
+    res.status(400).json({ error: 'enabled must be a boolean.' });
+    return;
+  }
+  const enabled = setSessionAutoContinueMode(
+    req.params.sessionId,
+    req.body.enabled,
+    req.body.limitStopLive === true,
+  );
+  if (enabled === null) {
+    res.status(404).json({ error: 'Session not found.' });
+    return;
+  }
+  res.json({ enabled });
 });
 
 /** The sidebar's timer column: which sessions are waiting on something. */

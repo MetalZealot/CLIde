@@ -269,9 +269,12 @@ export const api = {
     authenticatedFetch(`/api/providers/sessions/${sessionId}/star`, {
       method: 'POST',
     }),
-  toggleSessionAutoContinue: (sessionId) =>
-    authenticatedFetch(`/api/providers/sessions/${sessionId}/auto-continue`, {
-      method: 'POST',
+  // Sets one session's standing Auto-Continue mode; `limitStopLive` queues the
+  // continue at once when the chat is sitting on a limit stop.
+  setSessionAutoContinue: (sessionId, enabled, limitStopLive) =>
+    authenticatedFetch(`/api/scheduled-messages/session/${sessionId}/auto-continue`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled, limitStopLive }),
     }),
   // `hardDelete` => server `?force=true` (remove DB row + Claude *.jsonl + sessions rows for path).
   deleteProject: (projectId, hardDelete = false) => {

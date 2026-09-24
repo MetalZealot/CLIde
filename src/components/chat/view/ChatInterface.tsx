@@ -15,7 +15,7 @@ import { safeLocalStorage } from '../utils/chatStorage';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useChatFind } from '../hooks/useChatFind';
-import { useAutoContinueOffer } from '../hooks/useAutoContinueOffer';
+import { useLiveLimitStop, useSessionAutoContinue } from '../hooks/useAutoContinue';
 import {
   useScheduledMessages,
   type ScheduledMessage,
@@ -24,7 +24,6 @@ import {
 import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
-import { fetchAutoContinueMessage } from '../../../utils/autoContinue';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
@@ -574,10 +573,14 @@ function ChatInterface({
   scheduledEditRef.current = scheduledEdit;
   const providerCapabilities = useProviderCapabilities();
   const canScheduleOnUsageReset = providerCapabilities?.[provider]?.supportsUsageResetAlerts === true;
-  const autoContinueOffer = useAutoContinueOffer(
-    chatMessages,
-    scheduledMessages,
-    canScheduleOnUsageReset,
+  const liveLimitStop = useLiveLimitStop(chatMessages, canScheduleOnUsageReset);
+  const autoContinue = useSessionAutoContinue(selectedSession?.id, projects, selectedSession?.autoContinue);
+  const setAutoContinueEnabled = autoContinue.setEnabled;
+  // Whatever waits on the reset is what goes, whether the mode queued it or the user did.
+  const resetMessageText = scheduledMessages.find((message) => message.trigger === 'usage-reset')?.content ?? null;
+  const handleSetAutoContinue = useCallback(
+    (next: boolean) => setAutoContinueEnabled(next, liveLimitStop !== null),
+    [liveLimitStop, setAutoContinueEnabled],
   );
 
   // Files an edit put back in the composer, mapped to the stored descriptor
@@ -607,10 +610,8 @@ function ChatInterface({
   // die with this page, so the stored row has to carry durable descriptors —
   // the same reason the queued-draft path uploads before it waits.
   const handleScheduleMessage = useCallback(
-    async (trigger: ScheduledMessageTrigger, scheduledFor: string | null, override?: string) => {
-      // The Auto-Continue offer supplies its own text: nobody typed this one,
-      // so the composer is empty and the normal path would bail.
-      const content = (override ?? input).trim();
+    async (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => {
+      const content = input.trim();
       if (!content) return;
 
       let attachments: unknown[] = [];
@@ -624,7 +625,7 @@ function ChatInterface({
       }
 
       // An open edit saves into the message it holds, keeping its trigger.
-      if (scheduledEdit && override === undefined) {
+      if (scheduledEdit) {
         const options = { ...buildSendOptions(content), attachments } as Record<string, unknown>;
         const outcome = await saveScheduledEdit(content, options);
         if (outcome === 'saved') {
@@ -657,12 +658,9 @@ function ChatInterface({
       if (!sessionId) return;
 
       const options = { ...buildSendOptions(content), attachments } as Record<string, unknown>;
-      // An offer is not the composer's turn: it must not adopt an armed rewind,
-      // and it has no draft or attachments of its own to clear.
-      if (override !== undefined) delete options.rewindToMessageId;
 
       const scheduled = await scheduleMessage({ content, trigger, scheduledFor, options }, sessionId);
-      if (scheduled && override === undefined) {
+      if (scheduled) {
         setInput('');
         setAttachedFiles([]);
       }
@@ -684,16 +682,6 @@ function ChatInterface({
       t,
     ],
   );
-
-  // The offer lives on the limit notice, so accepting it drops the scheduled
-  // bubble immediately beneath the row that was tapped.
-  const handleAcceptAutoContinue = useCallback(() => {
-    // Read at tap time, so a message edited in Settings on another device is
-    // the one that goes.
-    void fetchAutoContinueMessage().then(
-      (message) => handleScheduleMessage('usage-reset', null, message),
-    );
-  }, [handleScheduleMessage]);
 
   // Every way of sending saves into an open edit instead, or the paused
   // original would still be waiting after its replacement went out.
@@ -909,6 +897,8 @@ function ChatInterface({
     loadAllMessages,
     onOpenFind: chatFind.open,
     findHeaderContent: chatFindHeader,
+    autoContinue,
+    limitStopLive: liveLimitStop !== null,
   });
 
   const browser = useChatBrowser(selectedSession?.id || currentSessionId || null, isVisible && Boolean(onOpenBrowser));
@@ -945,8 +935,10 @@ function ChatInterface({
           onEditMessage={beginRewindEdit}
           canEditMessage={getSupportsRewindForProvider(provider) && !isProcessing}
           rewindEditTargetUuid={pendingRewind?.anchorMessageId ?? null}
-          autoContinueOfferMessage={autoContinueOffer}
-          onAcceptAutoContinue={handleAcceptAutoContinue}
+          liveLimitStopMessage={liveLimitStop}
+          autoContinueEnabled={autoContinue.enabled}
+          resetMessageText={resetMessageText}
+          onSetAutoContinue={handleSetAutoContinue}
           scheduledMessages={visibleScheduledMessages}
           {...scheduledBubbleHandlers}
         />

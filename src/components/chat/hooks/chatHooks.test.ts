@@ -28,7 +28,7 @@ import {
   resolveUsagePopoverView,
   selectPastedAttachments,
 } from './useChatComposerState';
-import { resolveAutoContinueOffer } from './useAutoContinueOffer';
+import { resolveLiveLimitStop } from './useAutoContinue';
 import { normalizedToChatMessages } from './useChatMessages';
 import { resolveHistoryNavigation, type HistoryNav } from './useInputHistory';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
@@ -1064,7 +1064,7 @@ test('browser polling cannot carry another chat into the preview and stops while
   }
 });
 
-test('Auto-Continue is offered on the limit notice itself, not an earlier one', () => {
+test('the Auto-Continue switch sits on the limit notice itself, not an earlier one', () => {
   const now = Date.parse('2026-09-09T23:00:00.000Z');
   const stop = { resumes: true, resetsAt: '2026-09-10T04:20:00.000Z', windowId: 'five_hour' };
   const older = { type: 'assistant', content: 'earlier limit', isSystemNotice: true, usageLimit: stop };
@@ -1075,37 +1075,36 @@ test('Auto-Continue is offered on the limit notice itself, not an earlier one', 
     notice,
   ] as unknown as ChatMessage[];
 
-  // The button is drawn by identity, so the offer has to name the live row.
-  assert.equal(resolveAutoContinueOffer(messages, [], true, now), notice);
+  // The switch is drawn by identity, so this has to name the live row.
+  assert.equal(resolveLiveLimitStop(messages, true, now), notice);
 });
 
-test('Auto-Continue is withheld when nothing will reset, or already has', () => {
+test('the Auto-Continue switch is withheld when nothing will reset, or already has', () => {
   const now = Date.parse('2026-09-09T23:00:00.000Z');
   const withStop = (usageLimit: unknown) => ([
     { type: 'assistant', content: 'stopped', usageLimit },
   ] as unknown as ChatMessage[]);
 
   // A spent balance wants payment, not a wait.
-  assert.equal(resolveAutoContinueOffer(withStop({ resumes: false }), [], true, now), null);
+  assert.equal(resolveLiveLimitStop(withStop({ resumes: false }), true, now), null);
   // An old conversation whose reset came and went has nothing left to offer.
   assert.equal(
-    resolveAutoContinueOffer(withStop({ resumes: true, resetsAt: '2026-09-09T22:00:00.000Z' }), [], true, now),
+    resolveLiveLimitStop(withStop({ resumes: true, resetsAt: '2026-09-09T22:00:00.000Z' }), true, now),
     null,
   );
   // Cursor and OpenCode have no usage reset to wait on.
-  assert.equal(resolveAutoContinueOffer(withStop({ resumes: true }), [], false, now), null);
+  assert.equal(resolveLiveLimitStop(withStop({ resumes: true }), false, now), null);
 });
 
-test('Auto-Continue steps aside for a message already waiting, and for a user who moved on', () => {
+test('the Auto-Continue switch stays while a message waits, and leaves once the user moves on', () => {
   const now = Date.parse('2026-09-09T23:00:00.000Z');
   const stopped = [
     { type: 'assistant', content: 'stopped', usageLimit: { resumes: true } },
   ] as unknown as ChatMessage[];
-  const waiting = [{ id: 's1', trigger: 'usage-reset' }] as unknown as Parameters<typeof resolveAutoContinueOffer>[1];
 
-  assert.equal(resolveAutoContinueOffer(stopped, waiting, true, now), null);
+  assert.equal(resolveLiveLimitStop(stopped, true, now), stopped[0]);
   assert.equal(
-    resolveAutoContinueOffer([...stopped, { type: 'user', content: 'carry on' }] as unknown as ChatMessage[], [], true, now),
+    resolveLiveLimitStop([...stopped, { type: 'user', content: 'carry on' }] as unknown as ChatMessage[], true, now),
     null,
   );
 });

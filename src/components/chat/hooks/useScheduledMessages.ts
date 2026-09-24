@@ -89,6 +89,13 @@ export function useScheduledMessages(
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  // A phone asleep when the change frame went out never hears it; waking re-reads.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refresh]);
+
   // A message that fires, or changes on another device, would otherwise leave
   // a stale bubble. The change frame names no message, so any change re-reads.
   useEffect(() => {

@@ -133,7 +133,7 @@ describe('chatSubcomponents', () => {
     ), '', 'hidden thinking must remain hidden');
   });
 
-  test('the Auto-Continue offer is a button on the limit notice, drawn only for the live one', async () => {
+  test('the Auto-Continue switch sits on the live limit notice and says what will happen', async () => {
     const hooks = registerHooks({
       resolve(specifier, context, nextResolve) {
         return nextResolve(specifier === 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -155,31 +155,33 @@ describe('chatSubcomponents', () => {
       return container;
     };
 
-    const offered = render({ showAutoContinueOffer: true, onAcceptAutoContinue: () => {} });
-    const button = offered.querySelector('button');
-    assert.ok(button, `the offer is a button on the notice row: ${offered.innerHTML}`);
-    assert.equal(button?.textContent, 'Continue when usage resets');
-    assert.ok(offered.textContent?.includes('Claude usage limit reached.'),
-      'the notice keeps its own text above the button');
+    const on = render({ onSetAutoContinue: () => {}, autoContinueEnabled: true, resetMessageText: 'Continue' });
+    const toggle = on.querySelector('button[role="switch"]');
+    assert.equal(toggle?.getAttribute('aria-checked'), 'true', on.innerHTML);
+    assert.ok(on.textContent?.includes('Auto-Continue on — sends “Continue” when limits reset'), on.textContent ?? '');
+    assert.ok(on.textContent?.includes('Claude usage limit reached.'), 'the notice keeps its own text');
+
+    const off = render({ onSetAutoContinue: () => {}, autoContinueEnabled: false });
+    assert.equal(off.querySelector('button[role="switch"]')?.getAttribute('aria-checked'), 'false');
+    assert.ok(off.textContent?.includes('Auto-Continue off'));
 
     // Every other notice, live or reloaded, stays a plain muted row.
-    assert.equal(render({ onAcceptAutoContinue: () => {} }).querySelector('button'), null);
-    assert.equal(render({ showAutoContinueOffer: true }).querySelector('button'), null);
+    assert.equal(render({ autoContinueEnabled: true }).querySelector('button'), null);
 
     // Codex's limit stop is an error row classified by field; it draws as the
-    // same muted notice, with no "Error" header, and carries the same offer.
+    // same muted notice, with no "Error" header, and carries the same switch.
     const drawError = (usageLimit?: { resumes: boolean }) => {
       const container = document.createElement('div');
       container.innerHTML = renderToStaticMarkup(
         <MessageComponent
           message={{ type: 'error', content: "You've hit your usage limit.", timestamp: notice.timestamp, usageLimit }}
           prevMessage={null} provider="codex" createDiff={() => []} showThinking={false}
-          showAutoContinueOffer onAcceptAutoContinue={() => {}} />,
+          onSetAutoContinue={() => {}} />,
       );
       return container;
     };
     const codexStop = drawError({ resumes: true });
-    assert.equal(codexStop.querySelector('button')?.textContent, 'Continue when usage resets');
+    assert.ok(codexStop.querySelector('button[role="switch"]'), codexStop.innerHTML);
     assert.equal(codexStop.querySelector('.bg-red-600'), null, codexStop.innerHTML);
     assert.ok(drawError().querySelector('.bg-red-600'), 'an unclassified error keeps its red row');
   });

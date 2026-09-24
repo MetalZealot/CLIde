@@ -15,6 +15,7 @@ import {
   AUTO_CONTINUE_MAX_CONSECUTIVE,
   DEFAULT_AUTO_CONTINUE_MESSAGE,
   armAutoContinueAfterLimitStop,
+  setSessionAutoContinueMode,
   cancelScheduledMessage,
   createScheduledMessage,
   createScheduledMessageDispatcher,
@@ -673,6 +674,35 @@ describe('scheduled-messages', () => {
       assert.equal(sessionsDb.getSessionAutoContinue('session-auto')?.streak, 1);
       sessionsDb.resetAutoContinueStreak('session-auto');
       assert.equal(sessionsDb.getSessionAutoContinue('session-auto')?.streak, 0);
+    });
+  });
+
+  test('the switch on a limit stop queues the continue, and turning it off cancels only that', async () => {
+    await withIsolatedDatabase(() => {
+      seedSession('session-switch');
+      const waiting = () => listScheduledMessagesForSession('session-switch')
+        .filter((row) => row.state === 'pending' || row.state === 'paused');
+
+      assert.equal(setSessionAutoContinueMode('missing', true, true), null);
+
+      // On with no live stop: the mode only, nothing to wait on yet.
+      assert.equal(setSessionAutoContinueMode('session-switch', true, false), true);
+      assert.equal(waiting().length, 0);
+
+      // On while stopped: the continue is queued now, once, without counting.
+      setSessionAutoContinueMode('session-switch', true, true);
+      setSessionAutoContinueMode('session-switch', true, true);
+      assert.equal(waiting().length, 1);
+      assert.equal(waiting()[0]?.content, readAutoContinueMessage());
+      assert.equal(sessionsDb.getSessionAutoContinue('session-switch')?.streak, 0);
+
+      // Off cancels the continue but leaves a message the user wrote.
+      createScheduledMessage({
+        sessionId: 'session-switch', provider: 'claude', content: 'my own note', trigger: 'usage-reset', scheduledFor: null,
+      });
+      assert.equal(setSessionAutoContinueMode('session-switch', false, true), false);
+      assert.equal(sessionsDb.getSessionAutoContinue('session-switch')?.enabled, false);
+      assert.deepEqual(waiting().map((row) => row.content), ['my own note']);
     });
   });
 

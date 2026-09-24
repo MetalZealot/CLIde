@@ -10,7 +10,7 @@ import { scheduledMessagesDb, sessionsDb } from '@/modules/database/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 
 import { readAutoContinueMessage } from './auto-continue-message.service.js';
-import { createScheduledMessage } from './scheduled-message-runtime.service.js';
+import { cancelScheduledMessage, createScheduledMessage } from './scheduled-message-runtime.service.js';
 
 /**
  * How many limit stops in a row the mode may answer while the user says
@@ -61,4 +61,40 @@ export function armAutoContinueAfterLimitStop(sessionId: string): AutoContinueOu
   });
   sessionsDb.countAutoContinueFiring(sessionId);
   return 'armed';
+}
+
+/**
+ * Sets a session's standing mode from a user action. On, with a limit stop
+ * still live, queues the continue now rather than at the next stop; off
+ * cancels a waiting continue but never a message the user wrote themselves.
+ * Neither counts toward the cap — the user is present.
+ */
+export function setSessionAutoContinueMode(
+  sessionId: string,
+  enabled: boolean,
+  limitStopLive: boolean,
+): boolean | null {
+  const session = sessionsDb.getSessionById(sessionId);
+  if (!session) return null;
+  sessionsDb.setSessionAutoContinue(sessionId, enabled);
+
+  const waiting = scheduledMessagesDb.listBySession(sessionId)
+    .filter((row) => row.trigger_kind === 'usage-reset' && (row.state === 'pending' || row.state === 'paused'));
+
+  if (enabled && limitStopLive && waiting.length === 0) {
+    createScheduledMessage({
+      sessionId,
+      provider: session.provider as LLMProvider,
+      content: readAutoContinueMessage(),
+      trigger: 'usage-reset',
+      scheduledFor: null,
+    });
+  } else if (!enabled) {
+    // Identified by its text: the row carries no origin of its own.
+    const continueText = readAutoContinueMessage();
+    for (const row of waiting) {
+      if (row.state === 'pending' && row.content === continueText) cancelScheduledMessage(row.id);
+    }
+  }
+  return enabled;
 }

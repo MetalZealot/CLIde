@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PencilIcon, PlayIcon } from 'lucide-react';
+import { PencilIcon } from 'lucide-react';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type {
@@ -19,6 +19,7 @@ import {
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { isChatFindConversationMessage } from '../../hooks/useChatFind';
 import type { Project } from '../../../../types/app';
+import SettingsToggle from '../../../settings/view/SettingsToggle';
 import { ToolRenderer, ToolErrorDisplay, getToolConfig, shouldHideToolResult } from '../../tools';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
 import { thinkingDurationMs } from '../../utils/toolActivity';
@@ -31,7 +32,7 @@ import ChatMessageFiles from './ChatMessageFiles';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
-import { formatMessageTimestamp, useClockFormat } from '../../../../utils/formatTime';
+import { formatClockTimeWithDay, formatMessageTimestamp, useClockFormat } from '../../../../utils/formatTime';
 
 type DiffLine = {
   type: string;
@@ -58,14 +59,16 @@ type MessageComponentProps = {
   canEditMessage?: boolean;
   /** This message is the one currently loaded in the rewind-edit composer. */
   isRewindEditTarget?: boolean;
-  /** This limit notice is the live one: it carries the Auto-Continue button. */
-  showAutoContinueOffer?: boolean;
-  onAcceptAutoContinue?: () => void;
+  /** Set only on the live limit notice, which carries the Auto-Continue switch. */
+  onSetAutoContinue?: (next: boolean) => void;
+  autoContinueEnabled?: boolean;
+  /** What is waiting on the reset, if anything. */
+  resetMessageText?: string | null;
 };
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, showAutoContinueOffer = false, onAcceptAutoContinue }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, resetMessageText = null }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -128,6 +131,11 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
   const formattedTime = useMemo(
     () => (void clockFormat, formatMessageTimestamp(message.timestamp)),
     [message.timestamp, clockFormat],
+  );
+  const resetsAt = message.usageLimit?.resetsAt;
+  const resetTime = useMemo(
+    () => (void clockFormat, resetsAt ? formatClockTimeWithDay(resetsAt) : ''),
+    [resetsAt, clockFormat],
   );
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
   const thinkingMs = message.isThinking ? thinkingDurationMs(prevMessage, message) : null;
@@ -240,16 +248,24 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
             <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
             <div className="min-w-0 flex-1">
               <span className="whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">{formattedMessageContent}</span>
-              {showAutoContinueOffer && onAcceptAutoContinue && (
-                <div className="mt-1.5 select-none">
-                  <button
-                    type="button"
-                    onClick={onAcceptAutoContinue}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-accent"
-                  >
-                    <PlayIcon className="h-3 w-3 shrink-0 text-primary" aria-hidden />
-                    {t('input.autoContinue.offer', { defaultValue: 'Continue when usage resets' })}
-                  </button>
+              {onSetAutoContinue && (
+                <div className="mt-1.5 flex select-none items-center gap-2.5">
+                  <SettingsToggle
+                    checked={autoContinueEnabled}
+                    onChange={onSetAutoContinue}
+                    ariaLabel={t('autoContinue.switchLabel', { defaultValue: 'Auto-Continue' })}
+                  />
+                  <span className="text-xs text-foreground/90">
+                    {autoContinueEnabled
+                      ? t('autoContinue.onLine', {
+                        defaultValue: 'Auto-Continue on — {{what}} when limits reset{{when}}',
+                        what: resetMessageText
+                          ? t('autoContinue.sends', { defaultValue: 'sends “{{text}}”', text: resetMessageText })
+                          : t('autoContinue.continues', { defaultValue: 'continues' }),
+                        when: resetTime ? ` (≈ ${resetTime})` : '',
+                      })
+                      : t('autoContinue.offLine', { defaultValue: 'Auto-Continue off' })}
+                  </span>
                 </div>
               )}
             </div>

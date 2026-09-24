@@ -586,23 +586,4 @@ export const sessionsService = {
     sessionsDb.updateSessionIsStarred(sessionId, nextIsStarred);
     return { sessionId, isStarred: nextIsStarred };
   },
-
-  /**
-   * Toggles the session's standing Auto-Continue mode. Turning it on or off
-   * clears the firing count, so an earlier run of continues never counts
-   * against the next one.
-   */
-  toggleSessionAutoContinueById(sessionId: string): { sessionId: string; autoContinue: boolean } {
-    const current = sessionsDb.getSessionAutoContinue(sessionId);
-    if (!current) {
-      throw new AppError(`Session "${sessionId}" was not found.`, {
-        code: 'SESSION_NOT_FOUND',
-        statusCode: 404,
-      });
-    }
-
-    const nextAutoContinue = !current.enabled;
-    sessionsDb.setSessionAutoContinue(sessionId, nextAutoContinue);
-    return { sessionId, autoContinue: nextAutoContinue };
-  },
 };
