@@ -24,6 +24,7 @@ import {
 } from '../utils/chatStorage';
 import type {
   ChatAttachment,
+  ChatImage,
   ChatMessage,
   CollaborationMode,
   PendingPermissionRequest,
@@ -263,6 +264,8 @@ export type PendingRewind = {
   snippet: string;
   /** Composer text stashed when entering edit mode, restored on cancel. */
   priorDraft: string;
+  /** Composer files stashed alongside `priorDraft`. */
+  priorFiles: File[];
 };
 
 const REWIND_SNIPPET_LENGTH = 80;
@@ -312,6 +315,29 @@ const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 export const isImageAttachment = (attachment: ChatAttachment) => {
   if (attachment.mimeType?.startsWith('image/')) return true;
   return /\.(gif|jpe?g|png|svg|webp)$/i.test(attachment.path || attachment.name || '');
+};
+
+/** Rebuilds a sent or stored attachment as a File, so an edit can put it back in the composer. */
+export const fetchAttachmentFile = async (attachment: ChatImage): Promise<File | null> => {
+  const storedName = attachment.path?.split(/[\\/]/).pop();
+  try {
+    let blob: Blob;
+    if (attachment.data) {
+      blob = await (await fetch(attachment.data)).blob();
+    } else {
+      const url = attachment.url ?? (storedName ? `/api/assets/files/${encodeURIComponent(storedName)}` : null);
+      if (!url) return null;
+      const response = await authenticatedFetch(url);
+      if (!response.ok) return null;
+      blob = await response.blob();
+    }
+    const type = attachment.mimeType || blob.type;
+    const name = attachment.name || storedName || `image.${type.split('/')[1] || 'png'}`;
+    return new File([blob], name, { type });
+  } catch (error) {
+    console.error('Could not restore an attachment:', error);
+    return null;
+  }
 };
 
 /** Also used when scheduling: a message sent later still needs durable descriptors. */
@@ -487,6 +513,7 @@ export function useChatComposerState({
   // Rewind edit mode: set when the user picked a prior message to edit; the
   // next send carries the anchor and resumes the session from that point.
   const [pendingRewind, setPendingRewind] = useState<PendingRewind | null>(null);
+  const rewindFilesTokenRef = useRef(0);
   const rewindReconcileSessionRef = useRef<string | null>(null);
   // The /rewind command's prior-message picker.
   const [showRewindPicker, setShowRewindPicker] = useState(false);
@@ -1456,23 +1483,38 @@ export function useChatComposerState({
           ? `${normalizedSnippet.slice(0, REWIND_SNIPPET_LENGTH - 3)}...`
           : normalizedSnippet,
       priorDraft: prev ? prev.priorDraft : inputValueRef.current,
+      priorFiles: prev ? prev.priorFiles : attachedFiles,
     }));
     setInput(content);
     inputValueRef.current = content;
+    setAttachedFiles([]);
     textareaRef.current?.focus();
-  }, [isLoading, setInput]);
+
+    // Files arrive after the text; a later edit, cancel, or switch discards them.
+    const loadToken = ++rewindFilesTokenRef.current;
+    const descriptors = [...(message.images ?? []), ...(message.files ?? [])];
+    if (descriptors.length === 0) return;
+    void Promise.all(descriptors.map(fetchAttachmentFile)).then((files) => {
+      if (rewindFilesTokenRef.current !== loadToken) return;
+      const restored = files.filter((file): file is File => file !== null);
+      setAttachedFiles((previous) => [...restored, ...previous]);
+    });
+  }, [attachedFiles, isLoading, setInput]);
 
   const cancelRewindEdit = useCallback(() => {
     if (!pendingRewind) {
       return;
     }
+    rewindFilesTokenRef.current += 1;
     setInput(pendingRewind.priorDraft);
     inputValueRef.current = pendingRewind.priorDraft;
+    setAttachedFiles(pendingRewind.priorFiles);
     setPendingRewind(null);
   }, [pendingRewind, setInput]);
 
   // Branch pickers and rewind edit mode never survive a session switch.
   useEffect(() => {
+    rewindFilesTokenRef.current += 1;
     setPendingRewind(null);
     setShowRewindPicker(false);
     setShowForkPicker(false);

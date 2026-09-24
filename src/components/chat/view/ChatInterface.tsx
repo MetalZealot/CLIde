@@ -11,9 +11,8 @@ import type { LLMProvider, ProviderModelOption } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
-import { isImageAttachment, uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
+import { fetchAttachmentFile, isImageAttachment, uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
 import { safeLocalStorage } from '../utils/chatStorage';
-import { authenticatedFetch } from '../../../utils/api';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useChatFind } from '../hooks/useChatFind';
@@ -716,21 +715,9 @@ function ChatInterface({
       const paused = await beginScheduledEdit(message);
       if (!paused) return;
       const files = await Promise.all((paused.message.attachments ?? []).map(async (descriptor) => {
-        const storedName = descriptor.path.split(/[\\/]/).pop();
-        if (!storedName) return null;
-        try {
-          const response = await authenticatedFetch(`/api/assets/files/${encodeURIComponent(storedName)}`);
-          if (!response.ok) return null;
-          const blob = await response.blob();
-          const file = new File([blob], descriptor.name || storedName, {
-            type: descriptor.mimeType || blob.type,
-          });
-          restoredAttachmentsRef.current.set(file, descriptor);
-          return file;
-        } catch (error) {
-          console.error('Could not restore a scheduled attachment:', error);
-          return null;
-        }
+        const file = await fetchAttachmentFile(descriptor);
+        if (file) restoredAttachmentsRef.current.set(file, descriptor);
+        return file;
       }));
       paused.open();
       setInput(paused.message.content);
