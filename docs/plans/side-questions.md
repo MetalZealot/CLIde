@@ -1,7 +1,7 @@
 # /btw — side questions beside a running conversation
 
-- Status: 7/8
-- Next: phase 7 — acceptance on the phone
+- Status: complete
+- Next: none
 - Context: Claude Code ships `/btw` and Codex ships `/side`. CLIde matches
   Claude Code's behaviour; the mechanism is per provider
 
@@ -86,9 +86,10 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
       forks and appends with `thread/inject_items`. Refused while the main
       turn runs. A real fork of each read back correctly; a Claude fork was
       opened and used in the app 2026-09-23, Codex not yet.
-- [ ] 7. **Acceptance on the phone.** Installed PWA against production: ask
+- [x] 7. **Acceptance on the phone.** Installed PWA against production: ask
       during a long run, close the sheet before it answers, reopen with `/btw`,
-      ask a follow-up, and confirm the chat is unchanged throughout.
+      ask a follow-up, and confirm the chat is unchanged throughout. Passed
+      for Claude and Codex 2026-09-23, forks included.
 
 ## Done when
 

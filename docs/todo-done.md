@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **`/btw` side questions for Claude and Codex** (2026-09-23, `3a128854`, `e321fcc7`). Asked beside a running conversation with no transcript row; per-session history survives closing the sheet; Fork opens `btw: <question>` with the exchange appended. Accepted on the phone for both providers. [Plan](plans/side-questions.md).
+
 - [x] **Browser captures fit the tab by default** (2026-09-22). The whole screenshot stays between the address and activity bars at desktop and phone sizes; Fullscreen retains Fit, Fill, and 1:1. Verified: client build and Browser measurements on 3002 using a temporary phone capture at 412×839 and 1280×800. Fork-only, client-only. **S**
 
 - [x] **Follow installed Claude/Codex CLIs; update from New Session** (2026-09-22). Automatic Codex compatibility checks replace manual version promotion; explicit native updates wait for this server's active work. Verified: full tests, typecheck, build, lint, real-process updater harness, and simulated Browser states. Production restart and a real CLI upgrade remain unexercised. Fork-only. [Decision](decisions/0061-follow-installed-provider-clis.md). **L**
