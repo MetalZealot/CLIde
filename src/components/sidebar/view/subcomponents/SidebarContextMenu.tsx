@@ -9,7 +9,7 @@ type SidebarContextMenuItemBase = {
   label: string;
   icon: LucideIcon;
   isDanger?: boolean;
-  /** A value shown under the label in monospace, truncated to the menu's width. */
+  /** A value shown under the label in monospace; never widens the menu. */
   detail?: string;
   /** Separates a group above from this item (same convention as ActionMenu). */
   showDividerBefore?: boolean;
@@ -61,9 +61,10 @@ export default function SidebarContextMenu({ anchor, items, onClose, ariaLabel }
           <>
             <Icon className="h-4 w-4 flex-shrink-0" />
             {item.detail !== undefined ? (
-              <span className="flex min-w-0 flex-col">
+              <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate">{item.label}</span>
-                <span className="truncate font-mono text-xs text-muted-foreground">{item.detail}</span>
+                {/* Zero intrinsic width: labels set the menu's width and the detail truncates to it. */}
+                <span className="w-0 min-w-full truncate font-mono text-xs text-muted-foreground">{item.detail}</span>
               </span>
             ) : (
               <span className="truncate">{item.label}</span>
