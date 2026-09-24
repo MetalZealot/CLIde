@@ -27,7 +27,15 @@ import { JSDOM } from 'jsdom';
 // import time rather than at assertion time.
 const ASSET_EXTENSIONS = /\.(css|scss|sass|less|svg|png|jpe?g|gif|webp|woff2?)(\?.*)?$/;
 
+// Node needs the CommonJS theme entry; Vite resolves the ESM entry in the app.
+const PRISM_THEMES_ESM = 'react-syntax-highlighter/dist/esm/styles/prism';
+
 registerHooks({
+  resolve(specifier, context, nextResolve) {
+    return nextResolve(specifier === PRISM_THEMES_ESM
+      ? 'react-syntax-highlighter/dist/cjs/styles/prism/index.js'
+      : specifier, context);
+  },
   load(url, context, nextLoad) {
     if (ASSET_EXTENSIONS.test(url)) {
       return { format: 'module', source: 'export default {};', shortCircuit: true };

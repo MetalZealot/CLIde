@@ -80,7 +80,9 @@ boundary and not as a title.
 
 Thinking is not a boundary. Over 1,040 calls in 5 Claude sessions, cutting on
 shown thinking took 197 activities to 219 and single-call ones from 37 to 47;
-608 of 631 thinking blocks were empty (measured 2026-09-21).
+608 of 631 thinking blocks were empty (measured 2026-09-21). Thinking either
+side of an activity joins it, so only a thought with no call beside it is its
+own chat row; opened thoughts render Markdown.
 
 ## Codex reasoning in Activity
 

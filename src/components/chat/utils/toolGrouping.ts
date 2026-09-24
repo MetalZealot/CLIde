@@ -4,7 +4,7 @@ import { isStandaloneTool } from './toolActivity';
 
 export interface ToolActivityItem {
   _isGroup: true;
-  /** Tool calls in order, with any shown thinking that fell between two of them. */
+  /** Tool calls in order, with any shown thinking between, before or after them. */
   messages: ChatMessage[];
   timestamp: ChatMessage['timestamp'];
 }
@@ -15,7 +15,7 @@ export interface GroupToolActivitiesOptions {
   showThinking?: boolean;
   /** Calls waiting on a permission prompt; each is its own row until answered. */
   pendingToolIds?: ReadonlySet<string>;
-  /** Turn still running: a thought trailing an activity waits to learn whether it joins it. */
+  /** Turn still running: thinking at the end, outside an activity, waits to learn whether a call follows. */
   holdTrailingThinking?: boolean;
 }
 
@@ -42,9 +42,12 @@ function toActivity(members: ChatMessage[]): ToolActivityItem {
   return activity;
 }
 
+const otherTurn = (a: ChatMessage, b: ChatMessage): boolean =>
+  Boolean(a.turnId && b.turnId && a.turnId !== b.turnId);
+
 /**
- * An activity is every tool call between two rendered non-tool rows. Thinking never ends one;
- * a different Codex `turnId` does.
+ * An activity is every tool call between two rendered non-tool rows, plus the thinking
+ * either side of them. Thinking never ends one; a different Codex `turnId` does.
  */
 export function groupToolActivities(
   messages: ChatMessage[],
@@ -54,45 +57,39 @@ export function groupToolActivities(
   let index = 0;
 
   while (index < messages.length) {
-    const message = messages[index];
+    let openerIndex = index;
+    while (openerIndex < messages.length && messages[openerIndex].isThinking) openerIndex += 1;
+    const leading = messages.slice(index, openerIndex);
+    const opener: ChatMessage | undefined = messages[openerIndex];
 
-    if (!isActivityMember(message, pendingToolIds)) {
+    if (!opener || !isActivityMember(opener, pendingToolIds)) {
+      // Thinking no call follows stands alone; while live, a later call may still claim it.
+      if (opener || !holdTrailingThinking) items.push(...leading);
       // A call waiting on its prompt is a one-call activity of its own until answered.
-      items.push(isToolActivityCall(message) ? toActivity([message]) : message);
-      index += 1;
+      if (opener) items.push(isToolActivityCall(opener) ? toActivity([opener]) : opener);
+      index = openerIndex + 1;
       continue;
     }
 
-    const members: ChatMessage[] = [message];
-    let lastCall = message;
-    // Shown thinking joins only once a later call proves it sits inside the activity.
-    let heldThinking: ChatMessage[] = [];
-    let nextIndex = index + 1;
+    const members: ChatMessage[] = [...(showThinking ? leading : []), opener];
+    let lastCall = opener;
+    let nextIndex = openerIndex + 1;
 
     while (nextIndex < messages.length) {
       const candidate = messages[nextIndex];
-
+      if (otherTurn(lastCall, candidate)) break;
       if (candidate.isThinking) {
-        if (showThinking) heldThinking.push(candidate);
-        nextIndex += 1;
-        continue;
-      }
-
-      if (
-        !isActivityMember(candidate, pendingToolIds)
-        || (lastCall.turnId && candidate.turnId && lastCall.turnId !== candidate.turnId)
-      ) {
+        if (showThinking) members.push(candidate);
+      } else if (isActivityMember(candidate, pendingToolIds)) {
+        members.push(candidate);
+        lastCall = candidate;
+      } else {
         break;
       }
-
-      members.push(...heldThinking, candidate);
-      heldThinking = [];
-      lastCall = candidate;
       nextIndex += 1;
     }
 
-    const undecided = holdTrailingThinking && nextIndex >= messages.length;
-    items.push(toActivity(members), ...(undecided ? [] : heldThinking));
+    items.push(toActivity(members));
     index = nextIndex;
   }
 

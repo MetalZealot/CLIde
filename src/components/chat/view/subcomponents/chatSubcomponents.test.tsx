@@ -291,12 +291,15 @@ describe('chatSubcomponents', () => {
     });
 
     test('an opened activity shows one line per call, and a call opens flat with nothing left to expand', async () => {
+      const asked: ChatMessage = { id: 'u', timestamp: '2026-09-20T23:59:50Z', type: 'user', content: 'Test it' };
       const burst: ChatMessage[] = [
+        { id: 't0', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isThinking: true },
         {
           id: 'b1', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash',
           toolInput: JSON.stringify({ command: 'npm test', description: 'Run client tests' }),
           toolResult: { content: 'ok\n2 passed', isError: false, timestamp: '2026-09-21T00:00:03Z' },
         },
+        { id: 't1', timestamp: '2026-09-21T00:00:04Z', type: 'assistant', content: '**Checking**\n**Editing**', isThinking: true },
         {
           id: 'e1', timestamp: '2026-09-21T00:00:04Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Edit',
           toolInput: JSON.stringify({ file_path: '/src/x.ts', old_string: 'a', new_string: 'b' }),
@@ -308,18 +311,21 @@ describe('chatSubcomponents', () => {
       root = createRoot(container);
       await React.act(async () => root?.render(
         <I18nextProvider i18n={i18next}>
-          <ToolActivity activity={{ _isGroup: true, messages: burst, timestamp: burst[0].timestamp }} getMessageKey={(message) => String(message.id)} />
+          <ToolActivity activity={{ _isGroup: true, messages: burst, timestamp: burst[0].timestamp }} previous={asked} getMessageKey={(message) => String(message.id)} />
         </I18nextProvider>,
       ));
       const activityRow = container.querySelector('button[aria-expanded]') as HTMLButtonElement;
       assert.equal(activityRow.textContent, 'Ran 1 command, edited 1 file +1 \u22121');
       await React.act(async () => activityRow.click());
       const lines = [...container.querySelectorAll('button[aria-expanded]')].slice(1) as HTMLButtonElement[];
-      assert.deepEqual(lines.map((line) => line.textContent), ['Run client tests3s', 'Edited x.ts+1 \u22121']);
+      assert.deepEqual(lines.map((line) => line.textContent), ['Run client tests3s', 'Thought: Checking', 'Edited x.ts+1 \u22121']);
+      assert.match(container.textContent || '', /^Ran .*Thought for 10s/, 'an opening thought times from the row above the activity');
       await React.act(async () => lines[0].click());
       assert.match(container.textContent || '', /\$ npm test/);
       assert.match(container.textContent || '', /2 passed/);
-      assert.equal(container.querySelectorAll('button[aria-expanded]').length, 3, 'the detail adds no disclosure of its own');
+      await React.act(async () => lines[1].click());
+      assert.deepEqual([...container.querySelectorAll('strong')].map((node) => node.textContent), ['Checking', 'Editing'], 'opened thoughts render Markdown');
+      assert.equal(container.querySelectorAll('button[aria-expanded]').length, 4, 'the detail adds no disclosure of its own');
     });
 
     test('a thinking row times from the row before it and mounts its text only once opened', async () => {

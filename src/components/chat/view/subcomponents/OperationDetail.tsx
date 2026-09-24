@@ -6,6 +6,8 @@ import { useHistoryDetail } from '../../hooks/useHistoryDetail';
 import { buildOperationDetail, type DetailLine } from '../../utils/operationDetail';
 
 import { DetailPanel } from './DetailPanel';
+import { DISCLOSED_TEXT_CLASS } from './DisclosureRow';
+import { Markdown } from './Markdown';
 
 /** Lines each block shows before "Show all". */
 export const DETAIL_LINE_CAP = 12;
@@ -79,7 +81,7 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen, hea
       {heading && <div className={`mb-1.5 font-sans ${CORNER}`}>{heading}</div>}
       {detail.blocks.map((block, index) => (
         <div key={index} className={`${index > 0 ? 'mt-1.5' : ''} ${index === 0 && !heading && block.type !== 'lines' ? CORNER : ''}`}>
-          {block.type === 'prose' && <div className={`${wrapClass} text-muted-foreground`}>{block.text}</div>}
+          {block.type === 'prose' && <Markdown className={DISCLOSED_TEXT_CLASS}>{block.text}</Markdown>}
           {block.type === 'files' && cap(block.paths).map((path) => (
             <button
               key={path}

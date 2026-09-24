@@ -269,12 +269,14 @@ function ChatMessagesPane({
 
             return groupedVisibleMessages.map((item) => {
               if (isToolActivityItem(item)) {
+                const activityPrevMessage = prevMessage;
                 prevMessage = item.messages[item.messages.length - 1] || prevMessage;
 
                 return (
                   <ToolActivity
                     key={activityKeys.keys.get(item)}
                     activity={item}
+                    previous={activityPrevMessage}
                     isLive={item === liveActivity}
                     isWaiting={item.messages.length === 1 && Boolean(item.messages[0].toolId && pendingToolIds.has(item.messages[0].toolId))}
                     getMessageKey={getMessageKey}

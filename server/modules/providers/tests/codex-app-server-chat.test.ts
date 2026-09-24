@@ -137,7 +137,7 @@ for await (const line of lines) {
     const capture = { thread: pendingThread, turn: message.params };
     send({ id: message.id, result: { turn: { id: turnId, status: 'inProgress', error: null } } });
     const reasoning = { type: 'reasoning', id: 'reasoning-' + turnId,
-      summary: ['Checked the request.'], content: [] };
+      summary: ['**Checked**', 'the request.'], content: [] };
     send({ method: 'item/started', params: { threadId: pendingThread.id, turnId, item: reasoning } });
     send({ method: 'item/started', params: { threadId: pendingThread.id, turnId, item: reasoning } });
     send({ method: 'item/completed', params: { threadId: pendingThread.id, turnId, item: reasoning } });
@@ -330,7 +330,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     });
     assert.deepEqual(first.messages.filter((message) => message.text === 'turn_tokens').map((message) => message.outputTokens), [3, 12]);
     assert.deepEqual(first.messages.filter((message) => message.kind === 'thinking').map((message) => [message.id, message.content]), [
-      ['reasoning-turn-1', 'Checked the request.'],
+      ['reasoning-turn-1', '**Checked**\n\nthe request.'],
       ['empty-reasoning-turn-1', ''],
     ]);
     assert.deepEqual(first.messages.filter((message) => message.kind === 'status' && message.stage !== undefined).map((message) => message.stage), [
@@ -365,7 +365,7 @@ test('App Server initializes before work and maps new/resumed turns, Plan, input
     });
     assert.deepEqual(resumed.messages.filter((message) => message.text === 'turn_tokens').map((message) => message.outputTokens), [4]);
     assert.deepEqual(resumed.messages.filter((message) => message.kind === 'thinking').map((message) => message.content), [
-      'Checked the request.', '',
+      '**Checked**\n\nthe request.', '',
     ]);
     assert.equal(resumed.messages.filter((message) => message.kind === 'complete').length, 1);
 

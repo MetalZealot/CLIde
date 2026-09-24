@@ -660,7 +660,7 @@ async function getCodexSessionMessages(
             ? entry.payload.summary
                 .map((item: AnyRecord) => item?.text)
                 .filter(Boolean)
-                .join('\n')
+                .join('\n\n')
             : '';
 
           messages.push({

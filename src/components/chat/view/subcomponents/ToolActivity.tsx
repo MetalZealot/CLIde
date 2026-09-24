@@ -20,6 +20,8 @@ import OperationDetail from './OperationDetail';
 
 interface ToolActivityProps {
   activity: ToolActivityItem;
+  /** The row above the activity, which times a thought that opens it. */
+  previous?: ChatMessage | null;
   /** The newest activity of a run still in flight: it may name a running call. */
   isLive?: boolean;
   /** Its one call is waiting on a permission prompt. */
@@ -30,6 +32,8 @@ interface ToolActivityProps {
 
 const firstLine = (text: unknown): string =>
   String(text ?? '').split('\n').map((line) => line.trim()).find(Boolean) || '';
+/** A thought's first line without its Markdown heading and emphasis marks. */
+const plainFirstLine = (text: unknown): string => firstLine(text).replace(/^#+\s*/, '').replace(/\*\*|__/g, '');
 
 /** An operation line inside an open activity or agent. */
 export const operationRowClass = 'flex min-h-6 w-full min-w-0 items-center gap-2 text-left text-[13px] leading-5 text-muted-foreground transition-colors hover:text-foreground sm:min-h-7 sm:text-sm';
@@ -63,7 +67,7 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
   if (message.isThinking) {
     return (
       <button type="button" className={operationRowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
-        <span className="min-w-0 flex-1 truncate italic">{t('activity.thought', { text: firstLine(message.content) })}</span>
+        <span className="min-w-0 flex-1 truncate italic">{t('activity.thought', { text: plainFirstLine(message.content) })}</span>
       </button>
     );
   }
@@ -90,6 +94,7 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
 
 const ToolActivity = memo(function ToolActivity({
   activity,
+  previous,
   isLive = false,
   isWaiting = false,
   getMessageKey,
@@ -144,7 +149,7 @@ const ToolActivity = memo(function ToolActivity({
                   isOpen={isOpen}
                   isLive={isLive}
                   onToggle={toggleOperation}
-                  previous={activity.messages[index - 1]}
+                  previous={index > 0 ? activity.messages[index - 1] : previous ?? undefined}
                 />
                 {isOpen && <OperationDetail message={message} onFileOpen={onFileOpen} />}
               </div>

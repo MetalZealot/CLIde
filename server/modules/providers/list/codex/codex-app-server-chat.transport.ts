@@ -383,7 +383,7 @@ function completedItemMessages(item: CodexThreadItem, threadId: string, turnId?:
           })]
         : [];
     case 'reasoning': {
-      const content = [...item.summary, ...item.content].filter(Boolean).join('\n');
+      const content = [...item.summary, ...item.content].filter(Boolean).join('\n\n');
       return [createNormalizedMessage({
         ...common,
         kind: 'thinking',

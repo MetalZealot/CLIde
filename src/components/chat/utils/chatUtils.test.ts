@@ -504,9 +504,22 @@ describe('tool activity boundaries', () => {
     const [hidden] = groupToolActivities([read, thought, failed], { showThinking: false });
     assert.ok(isToolActivityItem(hidden));
     assert.deepEqual(hidden.messages, [read, failed]);
-    assert.deepEqual(groupToolActivities([read, thought, prose]).slice(1), [thought, prose], 'trailing thinking belongs to what follows');
-    assert.equal(groupToolActivities([read, thought], { holdTrailingThinking: true }).length, 1, 'a live trailing thought waits');
-    assert.deepEqual(groupToolActivities([read, thought]).slice(1), [thought], 'a finished turn shows it');
+  });
+
+  test('thinking either side of an activity joins it; thinking with no call stays a row', () => {
+    const [trailing, after] = groupToolActivities([read, thought, prose]);
+    assert.ok(isToolActivityItem(trailing));
+    assert.deepEqual(trailing.messages, [read, thought]);
+    assert.equal(after, prose);
+    const [leading] = groupToolActivities([prose, thought, read]).slice(1);
+    assert.ok(isToolActivityItem(leading));
+    assert.deepEqual(leading.messages, [thought, read]);
+    assert.deepEqual(groupToolActivities([thought, prose]), [thought, prose]);
+    assert.deepEqual(groupToolActivities([prose, thought], { holdTrailingThinking: true }), [prose], 'a live thought waits for a call');
+    assert.deepEqual(groupToolActivities([prose, thought]), [prose, thought], 'a finished turn shows it');
+    const [hidden] = groupToolActivities([prose, thought, read], { showThinking: false }).slice(1);
+    assert.ok(isToolActivityItem(hidden));
+    assert.deepEqual(hidden.messages, [read]);
   });
 
   test('questions, to-do lists, subagents, compaction, turns and pending permissions cut one', () => {

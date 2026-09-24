@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Thought rows sit inside the command groups beside them** (2026-09-24). Only a thought with no call beside it stays a chat row; opened thoughts render Markdown, labels drop `**`, Codex summary parts are separate paragraphs. Verified: 124 client + 57 provider tests, typecheck, lint, build. Live check pending. Fork-only. **S**
+
 - [x] **Codex Activity shows live thinking and completed thought rows** (2026-09-24). Chat requests automatic reasoning summaries per thread; started items show Thinking, completed items leave one expandable summary or an empty marker, and history restores both. Verified: 57 focused provider tests, server typecheck/build, targeted lint, docs check, and Grayson's live acceptance after restart; full client suite has one Find test failure that passes alone. [Map](maps/tool-activity-stream.md#codex-reasoning-in-activity). Fork-only. **S**
 
 - [x] **Codex Activity shows output tokens for the current turn** (2026-09-24). App Server usage updates feed the existing Claude-style status row; cumulative thread usage counts later requests without carrying tokens into the next turn. Verified: `npm test`, server build, targeted lint, docs check. Fork-only. **S**
