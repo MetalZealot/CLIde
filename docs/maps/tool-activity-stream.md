@@ -27,6 +27,9 @@ clusterer), `utils/toolActivity.ts` (what each call counts as),
 - **Sent but unused:** Codex exact tool, thought and turn durations; Claude's
   exact thinking-token count per step and turn cost; OpenCode tool timings,
   titles and cost; Codex's per-command action and path.
+- **Settings CLIde never turns on** decide some of this — above all, Claude
+  thoughts are empty because CLIde never asks for summaries. See
+  [Settings that decide what is sent](#settings-that-decide-what-is-sent).
 - **Defects found:** Codex history never flags a failed command; Cursor
   `ApplyPatch` edits count 0/0; OpenCode live tool rows read fields its history
   nests under `state` (unverified); Claude's live `tool_use_result` is dropped.
@@ -39,8 +42,8 @@ clusterer), `utils/toolActivity.ts` (what each call counts as),
 | | Claude | Codex | Cursor | OpenCode |
 |---|---|---|---|---|
 | Tool names | real (`Read`, `Bash`, `Edit`) | one `exec`, unwrapped to `Bash`/`Edit` | raw; only `ApplyPatch` renamed `Edit` | raw lowercase, so every tool falls to the default |
-| Thought text | Shown; 24 of 450 have text, the rest empty | Shown; summaries in 59 of 66 after the setting, 0 of 275 before | R only | Shown |
-| Thought streamed while written | not requested | Unused (`summaryTextDelta`) | ? | ? |
+| Thought text | Shown; 24 of 450 have text, the rest empty — summaries not requested | Shown; summaries in 59 of 66 after the setting, 0 of 275 before | R only | Shown |
+| Thought streamed while written | not requested (`includePartialMessages`) | Unused (`summaryTextDelta`) | ? | ? |
 | "Thinking now" | Shown (`thinking_tokens` event) | Shown (reasoning `item/started`) | — | — |
 | Thought duration | guessed from row gap; exact thinking tokens per step Unused | guessed; exact start/end Unused, L and R (median 2.6 s) | guessed from made-up timestamps | guessed; `time.start/end` Unused (R) |
 | Reply text | whole blocks; streaming not requested | whole; `agentMessage/delta` Unused | per event, delta or whole ? | ? |
@@ -83,6 +86,35 @@ row whose input is source text calling `tools.apply_patch("*** Begin Patch…")`
 `write_stdin`, `web__run` and `view_image` arrive the same way.
 `toolActivity.ts` reads the nested tool name and the patch text. The rollout's
 own `FileChange` item, keyed `{ [path]: { unified_diff } }`, is not read.
+
+## Settings that decide what is sent
+
+What a provider sends depends partly on options CLIde passes when it starts a
+run. CLIde's **Show Thinking** and **Show Raw Parameters** are not among them:
+both are browser-only display toggles that never reach the server, so neither
+blocks data. Raw Parameters only adds a JSON view to standalone tool cards, not
+to Activity rows.
+
+**Claude** (SDK 0.3.258 options; CLIde passes only `effort` of these):
+
+| Option | What it changes | Evidence |
+|---|---|---|
+| `thinking.display: 'summarized'` | Thoughts carry summary text. Without it they come back empty: 0 characters by default, 137 with it, on `claude-opus-5` | measured 2026-09-24, one probe |
+| `includePartialMessages` | Reply and thought text stream in pieces (28 on one short answer) | measured, same probe |
+| `forwardSubagentText` | Subagent text and thoughts arrive live, not only tool calls | SDK docs |
+| `agentProgressSummaries` | A subagent gets a present-tense status line about every 30 s, at small cost | SDK docs |
+| `includeHookEvents` | Hook runs arrive as events | SDK docs |
+
+**Codex** (App Server 0.156.1 thread config):
+
+| Setting | What it changes | Evidence |
+|---|---|---|
+| `model_reasoning_summary` | `auto` (CLIde's since 2026-09-24), `concise`, `detailed`, `none`; `detailed` untested | schema |
+| `model_verbosity` | Reply length; the maintainer's `config.toml` sets `low`, which CLIde does not override | config |
+| `show_raw_agent_reasoning`, `hide_agent_reasoning`, `experimentalRawEvents` | Present in the binary, absent from the App Server schema; effect unverified. No raw reasoning text in 341 measured items | binary strings, measured |
+
+Codex needs no opt-in for streaming: `summaryTextDelta`, `agentMessage/delta`
+and `outputDelta` are always sent, and CLIde ignores them.
 
 ## What CLIde keeps and drops
 
