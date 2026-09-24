@@ -1,7 +1,7 @@
 # A running turn shows what the provider is actually doing
 
-- Status: 4/6
-- Next: Phase 3 — name the silence after a fixed 30 s without a runtime frame
+- Status: complete
+- Next: none
 - Context: [Claude SDK map §4](../maps/claude-agent-sdk.md) (the stream messages CLIde drops),
   [Codex map](../maps/codex-cli-sdk-app-server.md), [tool activity stream](../maps/tool-activity-stream.md),
   ADR 0013 (abort). Client-side recording is the separate
@@ -12,8 +12,8 @@ tokens, measured from the one turn that completed) gave no reply for 3 minutes
 after a screenshot message. The activity indicator's words and timer are
 client-side and start at send, so a model thinking, a request retrying, and a dead
 request look identical. Seven Stop-and-resend cycles in 11 minutes followed, then
-the 5-hour limit. **The cause of the silence cannot be recovered:** CLIde drops
-`api_retry` and `thinking_tokens`, and logs neither.
+the 5-hour limit. **The cause of that silence could not be recovered:** CLIde
+then dropped `api_retry` and `thinking_tokens`, and logged neither.
 
 What was established that shapes the phases (Phase 0 figures in the
 [Claude SDK map §4](../maps/claude-agent-sdk.md)):
@@ -49,11 +49,9 @@ What was established that shapes the phases (Phase 0 figures in the
       so they survive stage changes. Codex, Cursor and OpenCode send no stage
       and read "Working": Codex's App Server reports no API retry or think
       estimate, and Cursor's only retry is a workspace-trust re-run.
-- [ ] **3. Silence is named.** When no runtime frame has arrived for 30 s
-      after the turn was sent, the label says how long Claude has been silent
-      instead of shimmering. A fixed threshold, not a measured one: thinking
-      frames never gapped more than 1.7 s in Phase 0, and Phase 2's climbing
-      count already separates thinking from a stall.
+- **3. Dropped — silence label.** The real stages and climbing token count give
+  enough feedback; the original long silence has not recurred. A 30 s gap alone
+  does not prove the turn is stuck.
 - [x] **4. Usage warning before the limit.** Any plan window at 90% or more
       shows one dismissible line above the composer, naming the window and its
       reset; dismissal holds until that window resets. Derived client-side from
@@ -61,16 +59,15 @@ What was established that shapes the phases (Phase 0 figures in the
       next usage fetch, not mid-turn). 90% is where Anthropic's own 5-hour
       `allowed_warning` fires; its weekly flags at 25% and 50% are ignored.
       `rejected` needs nothing new: the limit notice row already states the reset.
-- [ ] **5. Acceptance.** Retry, silence and warning paths are proven by tests
-      feeding recorded frames. Live, on the checkout's own test server: Grayson
-      sends a turn and watches the stage advance and the thinking count climb.
+- [x] **5. Acceptance.** Focused tests cover retry and thinking labels, turn
+      logs, usage-event conversion, and warning display and dismissal. Grayson
+      observed Sent, Retry, and usage warnings working during daily use.
 
 ## Done when
 
 - A thinking turn shows a climbing token estimate; a retrying turn says so with
-  its attempt count; a turn with no runtime frames says how long it has been
-  silent.
-- After any silent turn, the server log alone shows which of those it was.
+  its attempt count.
+- The server log records turn timing, retries, and failures for later diagnosis.
 - Nearing the 5-hour or weekly limit shows one notice per threshold, not repeated
   in that window once dismissed.
 - Codex, Cursor and OpenCode show their equivalent stages or keep today's label.

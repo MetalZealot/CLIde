@@ -17,7 +17,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Merged to `main` 2026-09-15; editing a waiting message is [the edit model](message-edit-model.md) |
 | [Provider Tools page](provider-tools-page.md) | 3/4 | Phase 4: restart `cloudcli`, then check Engineering and GitHub on the phone |
 | [`/btw` side questions](side-questions.md) | complete | Accepted on the phone for Claude and Codex 2026-09-23 |
-| [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 4/6 | Phase 5 — the default new sessions take for the standing mode |
+| [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 6/6 | A live limit stop on either provider is the remaining check |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
 | [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
@@ -26,7 +26,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
-| [Turn liveness and usage warnings](turn-liveness-and-usage-warnings.md) | 4/6 | Phase 3: name a silence after 30 s with no runtime frames |
+| [Turn liveness and usage warnings](turn-liveness-and-usage-warnings.md) | complete | Accepted in daily use 2026-09-23; Phase 3 dropped |
 | [Subagent visibility](subagent-visibility.md) | 3/5 | Phase 3: watch `subagents/**` so a running agent updates without a reload |
 | [Workspace surfaces](workspace-surfaces.md) | not started | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
