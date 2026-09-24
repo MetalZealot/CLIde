@@ -834,13 +834,14 @@ describe('chatSubcomponents', () => {
         </I18nextProvider>,
       );
       const bubbles = () => [...container.querySelectorAll<HTMLElement>('.chat-message')];
-      const actions = (bubble: HTMLElement) => [...bubble.querySelectorAll('button')]
+      const actions = (bubble: HTMLElement) => [...bubble.firstElementChild!.lastElementChild!.querySelectorAll('button')]
         .map((button) => `${button.getAttribute('aria-label')}${button.disabled ? ' (disabled)' : ''}`);
 
       try {
         await React.act(async () => render(false));
+        assert.ok(bubbles()[0].querySelector('.h-28'), 'a waiting image is drawn, not counted');
         assert.deepEqual(bubbles().map((bubble) => bubble.textContent), [
-          'ContinueSending when usage resets· 1 file',
+          'Attached imageContinueSending when usage resets',
           'Being editedPaused — not sending until you resume it',
         ], 'oldest first, each saying when it goes');
         assert.deepEqual(actions(bubbles()[0]), [
@@ -855,7 +856,7 @@ describe('chatSubcomponents', () => {
         ], 'a paused message offers Resume instead of Send now');
 
         await React.act(async () => render(true));
-        for (const button of bubbles()[0].querySelectorAll('button')) {
+        for (const button of bubbles()[0].firstElementChild!.lastElementChild!.querySelectorAll('button')) {
           await React.act(async () => button.click());
         }
         await React.act(async () => bubbles()[1].querySelectorAll('button')[1].click());

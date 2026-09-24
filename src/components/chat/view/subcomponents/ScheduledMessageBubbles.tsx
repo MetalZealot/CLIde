@@ -3,7 +3,11 @@ import type { TFunction } from 'i18next';
 import { ClockIcon, PauseIcon, PencilIcon, PlayIcon, SendIcon, XIcon } from 'lucide-react';
 
 import { formatClockTimeWithDay, useClockFormat } from '../../../../utils/formatTime';
+import { isImageAttachment } from '../../hooks/useChatComposerState';
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
+
+import ChatMessageFiles from './ChatMessageFiles';
+import ChatMessageImages from './ChatMessageImages';
 
 interface ScheduledMessageBubblesProps {
   messages: ScheduledMessage[];
@@ -47,7 +51,9 @@ export default function ScheduledMessageBubbles({
     <>
       {[...messages].reverse().map((message) => {
         const isPaused = message.state === 'paused';
-        const attachmentCount = message.attachments?.length ?? 0;
+        const attachments = message.attachments ?? [];
+        const images = attachments.filter(isImageAttachment);
+        const files = attachments.filter((attachment) => !isImageAttachment(attachment));
         const StatusIcon = isPaused ? PauseIcon : ClockIcon;
         const sendNowLabel = canSendNow
           ? t('input.schedule.sendNow', { defaultValue: 'Send now' })
@@ -55,6 +61,8 @@ export default function ScheduledMessageBubbles({
         return (
           <div key={message.id} className="chat-message flex justify-end px-1 sm:px-0">
             <div className="flex max-w-[85%] flex-col items-end gap-1 md:max-w-md lg:max-w-lg xl:max-w-xl">
+              {images.length > 0 && <ChatMessageImages images={images} />}
+              {files.length > 0 && <ChatMessageFiles files={files} />}
               <div className="max-w-full rounded-2xl border border-dashed border-blue-600/50 bg-blue-600/[0.08] px-3 py-2 text-foreground dark:border-blue-400/50 dark:bg-blue-400/10 sm:px-4">
                 <p dir="auto" className="chat-reading line-clamp-6 whitespace-pre-wrap break-words">
                   {message.content}
@@ -106,14 +114,6 @@ export default function ScheduledMessageBubbles({
                 <span className="flex items-center gap-1 pr-1.5">
                   <StatusIcon className="h-3 w-3 shrink-0" aria-hidden />
                   <span>{describeWhen(message, t)}</span>
-                  {attachmentCount > 0 && (
-                    <span>
-                      · {t('input.schedule.attachmentCount', {
-                        count: attachmentCount,
-                        defaultValue: attachmentCount === 1 ? '{{count}} file' : '{{count}} files',
-                      })}
-                    </span>
-                  )}
                 </span>
               </div>
             </div>
