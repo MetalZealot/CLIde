@@ -1,8 +1,9 @@
-import { type ReactNode } from 'react';
-import { Archive, Folder, MessageSquare, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { type ReactNode, useRef } from 'react';
+import { Archive, Folder, MessageSquare, RefreshCw, RotateCcw, Search, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ScrollArea } from '../../../../shared/view/ui';
+import { usePullToRefresh } from '../../../../hooks/usePullToRefresh';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
 import type { ConversationSearchResults, SearchProgress } from '../../hooks/useSidebarController';
 import type {
@@ -156,6 +157,8 @@ type SidebarContentProps = {
   onShowVersionModal: () => void;
   onShowSettings: (screenId?: string) => void;
   onShowUsage: () => void;
+  /** Mobile pull-to-refresh: refetches the project list and archive. */
+  onPullRefresh: () => Promise<unknown>;
   /** Desktop width in px, owned by the sidebar and dragged from its right edge. */
   sidebarWidth: number;
   onSidebarWidthChange: (width: number) => void;
@@ -202,6 +205,7 @@ export default function SidebarContent({
   onShowVersionModal,
   onShowSettings,
   onShowUsage,
+  onPullRefresh,
   sidebarWidth,
   onSidebarWidthChange,
   onSidebarWidthReset,
@@ -211,6 +215,14 @@ export default function SidebarContent({
 }: SidebarContentProps) {
   const showConversationSearch = searchMode === 'conversations' && searchFilter.trim().length >= 2;
   const hasPartialResults = conversationResults && conversationResults.results.length > 0;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pullIndicatorRef = useRef<HTMLDivElement>(null);
+  const { isRefreshing } = usePullToRefresh({
+    enabled: isMobile,
+    scrollRef,
+    indicatorRef: pullIndicatorRef,
+    onRefresh: onPullRefresh,
+  });
   const groupedArchivedSessions = groupArchivedSessionsByProject(archivedSessions);
   const visibleArchivedItemsCount = archivedProjects.length + archivedSessions.length;
   const isRenamingOnMobile = isMobile && Boolean(
@@ -248,7 +260,17 @@ export default function SidebarContent({
         t={t}
       />
 
-      <ScrollArea className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-2 md:px-1.5 md:pb-2">
+      <ScrollArea ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-2 md:px-1.5 md:pb-2">
+        {isMobile && (
+          <div
+            ref={pullIndicatorRef}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-0 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-md"
+            style={{ transform: 'translate(-50%, -36px)', opacity: 0 }}
+          >
+            <RefreshCw className={`h-4 w-4${isRefreshing ? ' animate-spin' : ''}`} />
+          </div>
+        )}
         {showConversationSearch ? (
           isSearching && !hasPartialResults ? (
             <div className="px-4 py-12 text-center md:py-8">

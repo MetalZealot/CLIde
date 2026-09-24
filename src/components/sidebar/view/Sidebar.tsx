@@ -145,6 +145,7 @@ function Sidebar({
     openArchivedSession,
     restoreArchivedProject,
     restoreArchivedSession,
+    refreshSidebar,
     updateSessionSummary,
     collapseSidebar: handleCollapseSidebar,
     expandSidebar: handleExpandSidebar,
@@ -699,6 +700,7 @@ function Sidebar({
             onShowVersionModal={() => setShowVersionModal(true)}
             onShowSettings={onShowSettings}
             onShowUsage={onShowUsage}
+            onPullRefresh={refreshSidebar}
             sidebarWidth={sidebarWidth}
             onSidebarWidthChange={setSidebarWidth}
             onSidebarWidthReset={resetSidebarWidth}

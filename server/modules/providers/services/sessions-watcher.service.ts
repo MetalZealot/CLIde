@@ -64,6 +64,7 @@ let pendingWatcherUpdateStartedAt: number | null = null;
 let pendingWatcherFlushTimer: ReturnType<typeof setTimeout> | null = null;
 let watcherRefreshInFlight = false;
 let watcherRescheduleAfterRefresh = false;
+let projectsChangedTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Filters watcher events to provider-specific session artifact file types.
@@ -224,6 +225,27 @@ async function flushPendingWatcherUpdate(): Promise<void> {
 }
 
 /**
+ * A transcript vanished from disk. Rows are removed elsewhere (the delete API,
+ * or a cleanup run straight against the database), so clients refetch the list
+ * rather than trust a per-session delta.
+ */
+function scheduleProjectsChangedBroadcast(): void {
+  if (projectsChangedTimer) {
+    clearTimeout(projectsChangedTimer);
+  }
+
+  projectsChangedTimer = setTimeout(() => {
+    projectsChangedTimer = null;
+    const event = JSON.stringify({ kind: 'projects_changed', timestamp: new Date().toISOString() });
+    connectedClients.forEach(client => {
+      if (client.readyState === WS_OPEN_STATE) {
+        client.send(event);
+      }
+    });
+  }, PROJECTS_UPDATE_DEBOUNCE_MS);
+}
+
+/**
  * Handles file watcher updates and triggers provider file-level synchronization.
  */
 async function onUpdate(
@@ -290,6 +312,14 @@ export async function initializeSessionsWatcher(): Promise<void> {
         .on('change', (filePath: string) => {
           void onUpdate('change', filePath, provider);
         })
+        .on('unlink', (filePath: string) => {
+          if (isWatcherTargetFile(provider, filePath)) {
+            scheduleProjectsChangedBroadcast();
+          }
+        })
+        .on('unlinkDir', () => {
+          scheduleProjectsChangedBroadcast();
+        })
         .on('error', (error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
           console.error(`Session watcher error for provider "${provider}"`, { error: message });
@@ -311,6 +341,10 @@ export async function initializeSessionsWatcher(): Promise<void> {
  */
 export async function closeSessionsWatcher(): Promise<void> {
   clearPendingWatcherFlushTimer();
+  if (projectsChangedTimer) {
+    clearTimeout(projectsChangedTimer);
+    projectsChangedTimer = null;
+  }
 
   await Promise.all(
     watchers.map(async (watcher) => {

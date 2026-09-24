@@ -185,6 +185,26 @@ const mergeSessionProviderLists = (baseSessions: ProjectSession[], additionalSes
   return merged;
 };
 
+const sessionActivityMs = (session: ProjectSession): number => {
+  const parsed = Date.parse(String(session.lastActivity ?? ''));
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+/** The server's page order: starred, then newest activity, then id descending. */
+const compareSessionPageOrder = (a: ProjectSession, b: ProjectSession): number => {
+  const starred = Number(Boolean(b.isStarred)) - Number(Boolean(a.isStarred));
+  if (starred !== 0) {
+    return starred;
+  }
+  const activity = sessionActivityMs(b) - sessionActivityMs(a);
+  if (activity !== 0) {
+    return activity;
+  }
+  const idA = String(a.id);
+  const idB = String(b.id);
+  return idA === idB ? 0 : (idA < idB ? 1 : -1);
+};
+
 const mergeExpandedSessionPages = (previousProjects: Project[], incomingProjects: Project[]): Project[] => {
   if (previousProjects.length === 0) {
     return incomingProjects;
@@ -204,9 +224,20 @@ const mergeExpandedSessionPages = (previousProjects: Project[], incomingProjects
       return incomingProject;
     }
 
+    // Keep only earlier "load more" pages. A kept session that sorts inside the
+    // fresh first page would have been in it, so it no longer exists.
+    const incomingSessions = incomingProject.sessions ?? [];
+    const lastIncoming = incomingSessions[incomingSessions.length - 1];
+    const laterPageSessions = incomingProject.sessionMeta?.hasMore && lastIncoming
+      ? (previousProject.sessions ?? []).filter((session) => compareSessionPageOrder(session, lastIncoming) > 0)
+      : [];
+    if (laterPageSessions.length === 0) {
+      return incomingProject;
+    }
+
     const mergedProject: Project = {
       ...incomingProject,
-      sessions: mergeSessionProviderLists(incomingProject.sessions ?? [], previousProject.sessions ?? []),
+      sessions: mergeSessionProviderLists(incomingSessions, laterPageSessions),
     };
 
     const totalSessions = Number(incomingProject.sessionMeta?.total ?? previousLoadedCount);
@@ -942,6 +973,12 @@ export function useProjectsState({
       if (event.kind === 'websocket_reconnected') {
         void refreshProjectsSilently();
         void refreshScheduledSessions();
+        return;
+      }
+
+      // Something was deleted on disk; deltas cannot express a removal.
+      if (event.kind === 'projects_changed') {
+        void refreshProjectsSilently();
         return;
       }
 

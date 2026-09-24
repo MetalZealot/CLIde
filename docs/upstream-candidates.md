@@ -11,6 +11,8 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+- [ ] **Deleted sessions and projects linger in an open sidebar. Upstreamable.** The session watcher ignored `unlink`, and a refetch copied expanded "load more" pages back in, deleted sessions included. The watcher now broadcasts `projects_changed` and the merge keeps only sessions that sort past the fresh first page. Both confirmed on `upstream/main` (read from source); `gh` not searched. Mobile pull-to-refresh is fork UI.
+
 - [ ] **Provider-id backfill re-runs on every start. Upstreamable.** `addProviderSessionIdMapping` stamps any unrun app session with its own id, so its first run resumes a conversation that never existed. Same code in `upstream/main` (read from source); `gh` not searched. Fixed in `5b164e36`.
 
 - [x] **Follow installed CLIs and offer native updates in New Session. Fork-only policy.** Replaces CLIde's manual Codex runtime promotion with automatic compatibility checks and an explicit, idle-safe update action for Claude/Codex. [Decision](decisions/0061-follow-installed-provider-clis.md). No upstream defect or PR claimed.

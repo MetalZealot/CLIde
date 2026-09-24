@@ -297,6 +297,11 @@ export function useSidebarController({
     void fetchArchivedSessions();
   }, [fetchArchivedSessions]);
 
+  const refreshSidebar = useCallback(
+    () => Promise.all([Promise.resolve(onRefresh()), fetchArchivedSessions()]),
+    [fetchArchivedSessions, onRefresh],
+  );
+
   useEffect(() => {
     if (searchMode !== 'archived') {
       return;
@@ -1247,6 +1252,7 @@ export function useSidebarController({
   }, [setSidebarVisible]);
 
   return {
+    refreshSidebar,
     isSidebarCollapsed,
     expandedProjects,
     editingProject,
