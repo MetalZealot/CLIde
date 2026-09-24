@@ -1054,16 +1054,17 @@ export function useChatSessionState({
 
   // Scrolled up, new content lands below the viewport and the position holds on
   // its own; older messages arriving above are the scroll-restore path's job.
+  // Reads the ref, not state: re-entering the bottom band mid-drag must not snap.
   useEffect(() => {
     if (!scrollContainerRef.current || chatMessages.length === 0) return;
     if (isLoadingMoreRef.current || isLoadingMoreMessages || pendingScrollRestoreRef.current) return;
     if (searchScrollActiveRef.current) return;
-    if (isUserScrolledUp || isViewDetachedRef.current) return;
+    if (isUserScrolledUpRef.current || isViewDetachedRef.current) return;
 
     setTimeout(() => {
       if (!hasChatSelectionRef.current) scrollToBottom();
     }, 50);
-  }, [chatMessages.length, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
+  }, [chatMessages.length, isLoadingMoreMessages, scrollToBottom]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
