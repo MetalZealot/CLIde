@@ -84,8 +84,8 @@ Measured 2026-09-14 against Claude Code 2.1.270 / Agent SDK 0.3.258 and Codex
       conversation with that one exchange appended as its last turn, no turn
       run — Claude Code's `f`. Claude uses the SDK's `forkSession`; Codex
       forks and appends with `thread/inject_items`. Refused while the main
-      turn runs. A real fork of each read back correctly; not yet seen in the
-      app.
+      turn runs. A real fork of each read back correctly; a Claude fork was
+      opened and used in the app 2026-09-23, Codex not yet.
 - [ ] 7. **Acceptance on the phone.** Installed PWA against production: ask
       during a long run, close the sheet before it answers, reopen with `/btw`,
       ask a follow-up, and confirm the chat is unchanged throughout.
