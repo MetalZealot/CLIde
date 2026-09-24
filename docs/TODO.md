@@ -12,8 +12,6 @@ main checkout only).
 ## Operations
 
 
-- [~] **Builds identify the source and dependency state that produced them.** Installs and builds write stamps to `.generated/release/`. Gap found 2026-09-23: `npm audit fix` changed the lockfile without refreshing the dependency stamp, so it reads stale though the installed packages match. **S**
-
 ## Provider maintenance
 
 - [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows [the finished Tools plan](plans/provider-tools-page.md). **L — design first**
