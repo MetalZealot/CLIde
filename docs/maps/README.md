@@ -23,7 +23,7 @@ CLIde or its provider runtimes change.
 | [Codex CLI, SDK, and App Server map](codex-cli-sdk-app-server.md) | Codex-native current surface and CLIde destinations | Installed-launcher tracking and explicit native updates, 2026-09-22; protocol/model snapshot 0.153.4 |
 | [Codex upgrade ledger](codex-upgrade-ledger.md) | Compact release decisions and verification history | Current through 0.153.4, 2026-09-07 |
 | [Chat browser activity](chat-browser-activity.md) | Chat-to-browser association, activity states, preview selection, and provider coverage | Ordinary Browser request accepted on the preview; dense phone acceptance pending |
-| [Tool activity stream](tool-activity-stream.md) | What each provider reports about its own tool calls, what CLIde drops, and the measured shape of a real transcript | Measured 2026-08-23; Cursor/OpenCode rows are source inspection only |
+| [Tool activity stream](tool-activity-stream.md) | What each provider sends for Activity (thought, timing, tokens, tools), whether CLIde uses it, and the measured shape of a real transcript | Claude/Codex measured 2026-09-24; Cursor/OpenCode are CLIde source only |
 | [Peer tool activity](peer-tool-activity-anatomy.md) | How the Claude app, Codex app, Cursor and T3 Code show tool activity, part by part | Read from 20 desktop screenshots, 2026-09-21; no phones |
 | [Codex integration conformance](codex-integration-conformance.md) | Executable cross-layer regression matrix and live acceptance rows | Automated gate and full isolated live matrix passed at 0.153.4, 2026-09-08 |
 

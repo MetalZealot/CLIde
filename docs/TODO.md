@@ -31,6 +31,10 @@ main checkout only).
 
 ## Bugs
 
+- [ ] **Codex history never flags a failed command.** Reloaded `exec` results never set `isError`; 18 failed commands in one sample came back unflagged. The rollout's `CommandExecution` records carry exit code and duration. [Map](maps/tool-activity-stream.md). **S**
+- [ ] **Cursor `ApplyPatch` edits show 0/0 line counts.** It is renamed `Edit` but only `patch` is filled. Source only; no Cursor session to test. [Map](maps/tool-activity-stream.md). **S**
+- [ ] **OpenCode live tool rows may be empty.** Live parsing reads top-level `tool`/`input`/`output`; history nests them under `state`. Unverified — needs one real OpenCode run. [Map](maps/tool-activity-stream.md). **S/?**
+- [ ] **Claude's live stream drops `tool_use_result`.** The SDK sends snake_case; `normalizeMessage` reads camelCase, so search counts and diffs appear only after reload. Source only. [Map](maps/tool-activity-stream.md). **S**
 - [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — `spawnCursor` never reads `permissionMode`. See [the permission map](maps/provider-permission-modes.md). **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**

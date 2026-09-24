@@ -1,30 +1,76 @@
 # Tool activity stream
 
-What each provider reports about its own tool calls, what CLIde keeps, and what
-the shape of a real transcript is. Measured 2026-08-23 against one 295-call
-Claude session and 60 Codex rollouts on the maintainer's machine; Cursor and
-OpenCode rows are source inspection only, as neither has local data.
+What each provider sends that the Activity line could show, what CLIde does with
+it, and the measured shape of a real transcript.
+
+**Evidence (2026-09-24).** Nothing was captured live. Live cells are read from
+CLIde's adapters, the Claude SDK types (0.3.258) and the Codex App Server schema
+(`codex app-server generate-ts`, 0.156.1). History cells for Claude and Codex
+are counted in real transcripts: 6 Claude sessions (1,233 assistant rows, 649
+tool calls; all 53 for rare tools) and 5 Codex rollouts (15 turns), 38 for
+September-wide counts. Cursor and OpenCode are **CLIde source only**: neither
+is installed and no session of either exists here, so their cells say what the
+adapter expects, not what the tool sends.
 
 Renderer entry points: `src/components/chat/utils/toolGrouping.ts` (the
 clusterer), `utils/toolActivity.ts` (what each call counts as),
 `view/subcomponents/ToolActivity.tsx`, `tools/ToolRenderer.tsx`,
 `tools/configs/toolConfigs.ts`.
 
-## Per-provider fields
+## In short
+
+- **Every provider gives:** tool name, input and result; reply text; an error
+  row. Design the Activity line on these.
+- **Only some give:** thought text, a running state, exact durations, a
+  per-call description, per-turn tokens. Show them where sent; leave a clean
+  gap where not.
+- **Sent but unused:** Codex exact tool, thought and turn durations; Claude's
+  exact thinking-token count per step and turn cost; OpenCode tool timings,
+  titles and cost; Codex's per-command action and path.
+- **Defects found:** Codex history never flags a failed command; Cursor
+  `ApplyPatch` edits count 0/0; OpenCode live tool rows read fields its history
+  nests under `state` (unverified); Claude's live `tool_use_result` is dropped.
+
+## What each provider sends
+
+**Shown** = sent and used. **Unused** = sent, CLIde ignores it. **—** = not sent.
+**?** = unknown. L = live, R = after reload.
 
 | | Claude | Codex | Cursor | OpenCode |
 |---|---|---|---|---|
-| Tool identity | real names (`Read`, `Bash`, `Edit`) | everything is one `exec` call, unwrapped to `Bash`/`Edit` by the adapter | renamed to Claude's names | raw lowercase (`read`, `bash`) |
-| Per-call description | **always** (103/103) | none | none | none |
-| Structured result | `toolUseResult` (`numFiles`, `filenames`, `numLines`, `structuredPatch`, `stdout`) on transcript reload only | `exitCode`, `status`, aggregated output | `toolUseResult` for high-level calls | `state.output`/`state.error` |
-| Cluster key from provider | none | `turnId` on every item, live and on disk; CLIde keeps it on tool rows | none | none |
-| Running state | yes — `tool_use` arrives before its result | commands, file changes and MCP calls: `item/started` sends the row, completion a `tool_result` | n/a | `state.status` |
-| Edit line counts | `old_string`/`new_string` in the Edit input (measured: all 67 Edits in 4 sessions), diffed by `calculateDiff` | live: `changes[].diff` on `FileChanges` (source only); history: see below | not checked | not checked |
+| Tool names | real (`Read`, `Bash`, `Edit`) | one `exec`, unwrapped to `Bash`/`Edit` | raw; only `ApplyPatch` renamed `Edit` | raw lowercase, so every tool falls to the default |
+| Thought text | Shown; 24 of 450 have text, the rest empty | Shown; summaries in 59 of 66 after the setting, 0 of 275 before | R only | Shown |
+| Thought streamed while written | not requested | Unused (`summaryTextDelta`) | ? | ? |
+| "Thinking now" | Shown (`thinking_tokens` event) | Shown (reasoning `item/started`) | — | — |
+| Thought duration | guessed from row gap; exact thinking tokens per step Unused | guessed; exact start/end Unused, L and R (median 2.6 s) | guessed from made-up timestamps | guessed; `time.start/end` Unused (R) |
+| Reply text | whole blocks; streaming not requested | whole; `agentMessage/delta` Unused | per event, delta or whole ? | ? |
+| Tool running state | Shown | Shown for commands, edits, MCP; web search only on completion | — tools appear only after the reply ends | ? L; `state.status` R |
+| Tool duration | from timestamps; live `tool_progress` elapsed Unused | from arrival times; exact `durationMs` Unused, L and R | — | `state.time` Unused (R) |
+| Command output while running | — | Unused (`outputDelta`) | — | — |
+| Per-call description | Shown, 2,771 of 2,772 Bash | no text; action + path/query (`commandActions`) Unused | — | `state.title` Unused |
+| Edit line counts | Shown L and R; `structuredPatch` Unused | Shown L; R rebuilt from patch text, `FileChange` records Unused | Edit/Write Shown; `ApplyPatch` 0/0 | — |
+| Failed call | Shown (`is_error`; no exit-code field) | Shown L; **never flagged R** | R only | Shown |
+| Approval tied to its call | Shown | `itemId` sent, not forwarded | — no prompts | — no prompts |
+| Turn id | `promptId` on disk, Unused | Shown (`turnId`) | — | stream end only |
+| Turn duration | live `duration_ms` logged, not sent | `durationMs` Unused, L and R | — | `time.completed` Unused |
+| Output tokens this turn | Shown | Shown, ~21 updates a turn | — | total at run end |
+| Context use | Shown | Shown | — | Shown R |
+| Cost | `total_cost_usd` Unused | — | — | Unused |
+| Subagents | Shown R; dropped L | Task row R; dropped L | ? | empty container |
+| To-do / plan | handled; 0 real calls to test | text L; hidden R on purpose | ? | ? name mismatch |
+| Web / MCP | Shown; MCP server name stripped | Shown L; R from exec text | generic | generic |
+| Compaction | Shown | dropped (16 in September) | — | — |
+| Errors, limits | Shown | Shown; live/history duplicates removed | stderr as text | Shown, no limit handling |
 
-Both Claude paths (live SDK and transcript reload) run through the same
-`normalizeMessage`, so the live stream carries no `toolUseResult`;
-`parseSearchResult` in `toolConfigs.ts` exists to reconstruct counts from raw
-output until a reload fills it in.
+Claude's live stream sends each result's details as snake_case
+`tool_use_result`; `normalizeMessage` reads only camelCase `toolUseResult`, so
+live rows lack them until a reload, and `parseSearchResult` in `toolConfigs.ts`
+reconstructs counts from raw output meanwhile (source only). Codex live gets one
+App Server item per inner command where history has one `exec` per script (307
+commands, 43 MCP calls, 23 file changes against 265 `exec` in the sample), so
+the same work can render as different rows before and after reload (inferred).
+Cursor live shows prose only: thoughts and tools appear when the finished run
+triggers a refetch.
 
 One Codex `Bash` row can hold several shell commands: the adapter joins the
 commands nested inside an `exec` payload with newlines
@@ -93,8 +139,9 @@ marker. Persisted reasoning items restore the same row on reload. Summary text
 depends on the model and runtime; the token count remains tied to App Server
 usage updates.
 
-Before this configuration, 3,010 reasoning rows across 40 rollouts under
-`gpt-5.6-sol` carried an empty `summary` array and `encrypted_content`.
+Before this configuration every reasoning item carried an empty `summary` and
+only `encrypted_content`; after it, 59 of 66 carried text (measured
+2026-09-24). Summaries arrive whole on `item/completed`.
 
 ## Existing seams
 
