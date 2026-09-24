@@ -83,7 +83,11 @@ export function useAsyncQuestions({
   void revision;
   const handled = sessionId ? readHandledAsyncQuestions(sessionId) : [];
   const pending = collectPendingAsyncQuestions(messages, handled);
-  const queued = sessionId ? readQueuedAsyncAnswers(sessionId) : [];
+  // Same contents keep the same array, so the memoized composer skips re-rendering.
+  const readQueued = sessionId ? readQueuedAsyncAnswers(sessionId) : [];
+  const queuedRef = useRef(readQueued);
+  if (JSON.stringify(queuedRef.current) !== JSON.stringify(readQueued)) queuedRef.current = readQueued;
+  const queued = queuedRef.current;
 
   useEffect(() => {
     const handleQueueChanged = () => setRevision((value) => value + 1);

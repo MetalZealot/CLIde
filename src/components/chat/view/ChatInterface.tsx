@@ -37,6 +37,7 @@ import ChatPageScrollbar from './subcomponents/ChatPageScrollbar';
 
 /** How long the Stop button stays armed after the first Escape/tap before it resets. */
 const STOP_ARM_TIMEOUT_MS = 4000;
+const NO_FREQUENT_COMMANDS: never[] = [];
 
 /**
  * How long after a scheduled message fires the transcript is re-read, so its
@@ -419,10 +420,13 @@ function ChatInterface({
   // the first turn there is no cached prefix to lose, so setting up a chat says
   // nothing.
   const [settingsChangeNotice, setSettingsChangeNotice] = useState(false);
+  // A ref, so loading older history does not rebuild the composer's model handlers.
+  const hasChatMessagesRef = useRef(false);
+  hasChatMessagesRef.current = chatMessages.length > 0;
   const showSettingsChangeNotice = useCallback(() => {
-    if (!(currentSessionId || selectedSession?.id) || chatMessages.length === 0) return;
+    if (!(currentSessionId || selectedSession?.id) || !hasChatMessagesRef.current) return;
     setSettingsChangeNotice(true);
-  }, [chatMessages.length, currentSessionId, selectedSession?.id]);
+  }, [currentSessionId, selectedSession?.id]);
   useEffect(() => {
     if (!settingsChangeNotice) return undefined;
     const timer = window.setTimeout(() => setSettingsChangeNotice(false), 8000);
@@ -749,6 +753,22 @@ function ChatInterface({
     restoreDraftAfterEdit();
   }, [restoreDraftAfterEdit, resumeScheduledMessage, scheduledEdit]);
 
+  const handleComposerScheduleMessage = useCallback(
+    (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => {
+      void handleScheduleMessage(trigger, scheduledFor);
+    },
+    [handleScheduleMessage],
+  );
+  const handleSelectPermissionMode = useCallback(
+    (mode: string) => selectPermissionMode(mode as PermissionMode),
+    [selectPermissionMode],
+  );
+  const handleRemoveAttachment = useCallback(
+    (index: number) =>
+      setAttachedFiles((previous) => previous.filter((_, currentIndex) => currentIndex !== index)),
+    [setAttachedFiles],
+  );
+
   useChatRealtimeHandlers({
     subscribe,
     provider,
@@ -1056,7 +1076,7 @@ function ChatInterface({
             isVisible={isVisible}
             permissionMode={permissionMode}
             availablePermissionModes={availablePermissionModes}
-            onSelectPermissionMode={(mode) => selectPermissionMode(mode as PermissionMode)}
+            onSelectPermissionMode={handleSelectPermissionMode}
             collaborationMode={collaborationMode}
             availableCollaborationModes={availableCollaborationModes}
             onSelectCollaborationMode={selectCollaborationMode}
@@ -1092,16 +1112,12 @@ function ChatInterface({
             onRemoveQueuedAnswer={asyncQuestions.removeQueued}
             editingSchedule={scheduledEdit}
             onCancelScheduleEdit={handleCancelScheduleEdit}
-            onScheduleMessage={(trigger, scheduledFor) => {
-              void handleScheduleMessage(trigger, scheduledFor);
-            }}
+            onScheduleMessage={handleComposerScheduleMessage}
             canScheduleOnUsageReset={canScheduleOnUsageReset}
             pendingRewind={pendingRewind}
             onCancelRewindEdit={cancelRewindEdit}
             attachedFiles={attachedFiles}
-            onRemoveAttachment={(index) =>
-              setAttachedFiles((previous) => previous.filter((_, currentIndex) => currentIndex !== index))
-            }
+            onRemoveAttachment={handleRemoveAttachment}
             uploadingFiles={uploadingFiles}
             fileErrors={fileErrors}
             attachmentRejections={attachmentRejections}
@@ -1115,7 +1131,7 @@ function ChatInterface({
             onCommandSelect={handleCommandSelect}
             onCloseCommandMenu={resetCommandMenuState}
             isCommandMenuOpen={showCommandMenu}
-            frequentCommands={commandQuery ? [] : frequentCommands}
+            frequentCommands={commandQuery ? NO_FREQUENT_COMMANDS : frequentCommands}
             slashCommands={slashCommands}
             getRootProps={getRootProps as (...args: unknown[]) => Record<string, unknown>}
             getInputProps={getInputProps as (...args: unknown[]) => Record<string, unknown>}

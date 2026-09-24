@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type {
   ChangeEvent,
@@ -171,7 +171,7 @@ interface ChatComposerProps {
   isTextareaExpanded: boolean;
 }
 
-export default function ChatComposer({
+function ChatComposer({
   disabled = false,
   pendingPermissionRequests,
   handlePermissionDecision,
@@ -712,3 +712,5 @@ export default function ChatComposer({
     </div>
   );
 }
+
+export default memo(ChatComposer);

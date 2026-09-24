@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
 - Status: 7/14
-- Next: Phase 7 — count commits per step, then cut the ~50 ms fixed cost of each; phone check
+- Next: Phase 7 — cap rows mounted per commit so no step blocks over 100 ms; phone check
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -43,9 +43,10 @@ Each scroll-up step blocks the main thread longer as rows accumulate: 67 ms at
 ([measurement](../maps/chat-history-performance.md#what-the-reader-experiences)).
 Done: pickers scan only when open, restoration reads before writing, the
 list uses `gap`, restores keep the reader's scroll, laid-out rows skip
-rendering off-screen, chained pages double (walk 6.7 → 1.2 s blocked). Left:
-each commit re-renders ChatInterface's whole tree (~50 ms even at 14 rows),
-so 4 of 13 steps still exceed 100 ms; the phone check.
+rendering off-screen, chained pages double (walk 6.7 → 1.2 s blocked), the
+composer skips history commits (components rendered per walk 5,108 → 3,123).
+Left: a new row costs ~6.5 ms to mount, mostly Markdown, and one commit can
+add 38, so 7 of 13 steps still exceed 100 ms; the phone check.
 
 Count before cutting: timings on the Pi vary run to run and can hide a small
 win. Record React commits and rows re-rendered per scroll-up step in the

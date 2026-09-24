@@ -493,11 +493,12 @@ export function useChatComposerState({
   // project has been picked yet, so the current text belongs to no draft key.
   const lastRestoredProjectIdRef = useRef(selectedProjectId);
 
+  const setInputFromHistory = useCallback((value: string) => {
+    setInput(value);
+    inputValueRef.current = value;
+  }, []);
   const { recordSentMessage, handleHistoryKeyDown } = useInputHistory({
-    setInput: (value) => {
-      setInput(value);
-      inputValueRef.current = value;
-    },
+    setInput: setInputFromHistory,
     textareaRef,
     scope: selectedProjectId ?? null,
   });
