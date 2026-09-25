@@ -561,10 +561,10 @@ export default function TokenUsageSummary({
         }}
         className={inHeader
           ? cn(
-            'inline-flex h-11 min-w-8 shrink-0 touch-manipulation items-center justify-center gap-1 rounded-lg px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'touch-menu-trigger inline-flex h-11 min-w-8 shrink-0 touch-manipulation items-center justify-center gap-1 rounded-lg px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             isOpen && 'bg-accent/60 text-foreground',
           )
-          : 'inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'}
+          : 'touch-menu-trigger inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'}
         title={accessibleTitle}
         aria-label={creditMarkerVisible
           ? t('usagePopover.showUsageWithCredits', { defaultValue: 'Show usage; credits available' })

@@ -41,7 +41,7 @@ export default function ComposerSplitControl({
         type="button"
         onClick={onMainClick}
         className={cn(
-          'flex h-8 max-w-28 shrink-0 items-center gap-1 rounded-l-md px-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+          'touch-menu-trigger flex h-8 max-w-28 shrink-0 items-center gap-1 rounded-l-md px-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
           mainOpensMenu && menuOpen && 'bg-muted text-foreground',
           mainButtonClassName,
         )}
@@ -59,7 +59,7 @@ export default function ComposerSplitControl({
         onPointerDown={(event) => event.stopPropagation()}
         onClick={onMenuClick}
         className={cn(
-          'flex h-8 w-6 shrink-0 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+          'touch-menu-trigger flex h-8 w-6 shrink-0 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
           menuOpen && 'bg-muted text-foreground',
           menuButtonClassName,
         )}

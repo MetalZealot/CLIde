@@ -56,7 +56,7 @@ export default function RowActionsTrigger({
   };
 
   const triggerClassName = cn(
-    'flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded',
+    'touch-menu-trigger flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded',
     'text-muted-foreground transition-all duration-200',
     'hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
     'touch:opacity-100 opacity-0 group-hover:opacity-100 focus-visible:opacity-100',

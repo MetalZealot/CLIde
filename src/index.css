@@ -906,6 +906,41 @@ html.chat-page-scroll:not(.samsung-browser) body::-webkit-scrollbar {
     opacity: 1 !important;
   }
 
+  /* Menu taps settle after release, including Samsung's sticky hover state. */
+  @media (hover: none) {
+    .touch-menu-trigger {
+      transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+                  color 150ms cubic-bezier(0.2, 0, 0, 1),
+                  transform 150ms cubic-bezier(0.2, 0, 0, 1);
+    }
+    .touch-menu-trigger:not(:active) {
+      background-color: transparent;
+      color: hsl(var(--muted-foreground));
+      transform: scale(1);
+    }
+    .touch-menu-trigger:active {
+      background-color: hsl(var(--accent) / 0.6);
+      color: hsl(var(--foreground));
+      transform: scale(0.96);
+    }
+  }
+
+  .samsung-browser .touch-menu-trigger {
+    transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1),
+                color 150ms cubic-bezier(0.2, 0, 0, 1),
+                transform 150ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  .samsung-browser .touch-menu-trigger:not(:active) {
+    background-color: transparent;
+    color: hsl(var(--muted-foreground));
+    transform: scale(1);
+  }
+  .samsung-browser .touch-menu-trigger:active {
+    background-color: hsl(var(--accent) / 0.6);
+    color: hsl(var(--foreground));
+    transform: scale(0.96);
+  }
+
 @layer components {
   /* Safe area support for iOS devices */
   .ios-bottom-safe {
