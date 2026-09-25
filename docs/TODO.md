@@ -33,7 +33,7 @@ main checkout only).
 ## Browser
 
 - [~] **Save the displayed Browser screenshot.** The session menu downloads its current JPEG; client typecheck, lint, docs check and isolated build pass. Live Browser acceptance and the production client build remain. [Browser map](maps/chat-browser-activity.md). **S**
-- [ ] **Record short Browser clips an agent can inspect and you can download.** Start/stop within one turn, frames for the agent via ffmpeg, download from the Browser tab. [Plan](plans/browser-video-clips.md). **M — Phase 0 proof first**
+- [ ] **Record short Browser clips an agent can inspect.** Start/stop within one turn, frames for the agent via ffmpeg; no timer or download in the first version. [Plan](plans/browser-video-clips.md). **M — Phase 0 proof first**
 
 ## Bugs
 
