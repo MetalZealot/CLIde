@@ -858,6 +858,7 @@
     "runtime": {
       "playwright": "Playwright: {{state}}",
       "chromium": "Chromium: {{state}}",
+      "playwrightMcp": "Playwright MCP: {{state}}",
       "status": "Status: {{state}}",
       "checking": "checking...",
       "installed": "installed",

@@ -1525,6 +1525,7 @@ describe('ExtensionsBrowserScreen', () => {
           data: {
             enabled: true, available: true, playwrightInstalled: true,
             chromiumInstalled: true, installInProgress: false, message: 'ready',
+            versions: { playwright: '1.63.0', playwrightMcp: null, chromium: '153.0.8010.12' },
           },
         }), { status: 200 });
       }
@@ -1564,6 +1565,14 @@ describe('ExtensionsBrowserScreen', () => {
   };
 
   const selects = () => [...(container?.querySelectorAll('select') ?? [])];
+
+  test('runtime chips show installed versions and mark a package without one missing', async () => {
+    const text = (await render()).textContent || '';
+
+    assert.match(text, /Playwright: 1\.63\.0/);
+    assert.match(text, /Chromium: 153\.0\.8010\.12/);
+    assert.match(text, /Playwright MCP: missing/);
+  });
 
   test('each preset offers only the devices that belong to it, plus a custom size', async () => {
     await render();

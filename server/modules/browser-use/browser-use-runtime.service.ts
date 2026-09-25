@@ -201,6 +201,43 @@ function withOrientation(
   return { ...contextOptions, viewport: { width: viewport.height, height: viewport.width } };
 }
 
+export type BrowserRuntimeVersions = {
+  playwright: string | null;
+  playwrightMcp: string | null;
+  chromium: string | null;
+};
+
+let runtimeVersions: BrowserRuntimeVersions | null = null;
+
+function readPackageVersion(fromRequire: NodeRequire, name: string): string | null {
+  try {
+    return JSON.parse(fs.readFileSync(fromRequire.resolve(`${name}/package.json`), 'utf8')).version || null;
+  } catch {
+    return null;
+  }
+}
+
+// Read once: the loaded packages cannot change without a restart. Chromium's
+// version comes from the build playwright-core pins, which is the one it launches.
+export function readRuntimeVersions(): BrowserRuntimeVersions {
+  if (runtimeVersions) return runtimeVersions;
+  let chromium: string | null = null;
+  try {
+    const playwrightRequire = createRequire(require.resolve('playwright/package.json'));
+    const coreDir = path.dirname(playwrightRequire.resolve('playwright-core/package.json'));
+    const browsers = JSON.parse(fs.readFileSync(path.join(coreDir, 'browsers.json'), 'utf8')).browsers;
+    chromium = browsers.find((browser: { name?: string }) => browser.name === 'chromium')?.browserVersion || null;
+  } catch {
+    chromium = null;
+  }
+  runtimeVersions = {
+    playwright: readPackageVersion(require, 'playwright'),
+    playwrightMcp: readPackageVersion(require, '@playwright/mcp'),
+    chromium,
+  };
+  return runtimeVersions;
+}
+
 function loadPlaywrightPackage(): PlaywrightLike | null {
   try {
     return require('playwright');

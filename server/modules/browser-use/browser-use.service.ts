@@ -20,6 +20,7 @@ import {
   MIN_MAX_SESSIONS,
   MIN_VIEWPORT_EDGE,
   RECOMMENDED_MAX_VIEWPORT_EDGE,
+  readRuntimeVersions,
   type BrowserContextLease,
   type BrowserDevicePreset,
   type BrowserOrientation,
@@ -395,6 +396,7 @@ export const browserUseService = {
       available,
       playwrightInstalled: readiness.playwrightInstalled,
       chromiumInstalled: readiness.chromiumInstalled,
+      versions: readRuntimeVersions(),
       installInProgress: readiness.installInProgress,
       sessionCount: sessions.size,
       message: available

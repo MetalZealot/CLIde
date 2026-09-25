@@ -21,6 +21,11 @@ type BrowserUseStatus = {
   available: boolean;
   playwrightInstalled: boolean;
   chromiumInstalled: boolean;
+  versions?: {
+    playwright: string | null;
+    playwrightMcp: string | null;
+    chromium: string | null;
+  };
   installInProgress: boolean;
   message: string;
 };
@@ -116,11 +121,13 @@ export default function ExtensionsBrowserScreen() {
 
   const browserEnabled = settings?.enabled === true;
   const needsBrowserBinaries = Boolean(browserEnabled && status && (!status.playwrightInstalled || !status.chromiumInstalled));
-  const runtimeLabel = (installed?: boolean) => {
+  // An installed package shows its version in place of the word "installed".
+  const runtimeLabel = (installed?: boolean, version?: string | null) => {
     if (isStatusLoading && !status) {
       return t('browserSettings.runtime.checking');
     }
-    return t(installed ? 'browserSettings.runtime.installed' : 'browserSettings.runtime.missing');
+    if (!installed) return t('browserSettings.runtime.missing');
+    return version || t('browserSettings.runtime.installed');
   };
 
   const statusLabel = () => {
@@ -151,10 +158,13 @@ export default function ExtensionsBrowserScreen() {
         <div className="space-y-4 px-4 py-4">
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span className="rounded-md border border-border px-2 py-1">
-              {t('browserSettings.runtime.playwright', { state: runtimeLabel(status?.playwrightInstalled) })}
+              {t('browserSettings.runtime.playwright', { state: runtimeLabel(status?.playwrightInstalled, status?.versions?.playwright) })}
             </span>
             <span className="rounded-md border border-border px-2 py-1">
-              {t('browserSettings.runtime.chromium', { state: runtimeLabel(status?.chromiumInstalled) })}
+              {t('browserSettings.runtime.playwrightMcp', { state: runtimeLabel(Boolean(status?.versions?.playwrightMcp), status?.versions?.playwrightMcp) })}
+            </span>
+            <span className="rounded-md border border-border px-2 py-1">
+              {t('browserSettings.runtime.chromium', { state: runtimeLabel(status?.chromiumInstalled, status?.versions?.chromium) })}
             </span>
             <span className="rounded-md border border-border px-2 py-1">
               {t('browserSettings.runtime.status', { state: statusLabel() })}
