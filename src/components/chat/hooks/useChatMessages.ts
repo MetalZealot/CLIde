@@ -3,7 +3,7 @@
  * Converts NormalizedMessage[] from the session store into ChatMessage[] for the UI.
  */
 
-import type { NormalizedMessage } from '../../../stores/useSessionStore';
+import type { AgentStatusInfo, NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage, SubagentChildTool } from '../types/types';
 import { isSubagentTool } from '../tools/subagentTools';
 import {
@@ -27,6 +27,7 @@ type ParsedTaskNotification = {
   status: string;
   summary: string;
   result: string;
+  toolUseId: string | null;
 };
 
 function formatAssistantText(content: string) {
@@ -52,6 +53,7 @@ function parseTaskNotification(content: string): ParsedTaskNotification | null {
 
   const statusMatch = /<status>([\s\S]*?)<\/status>/.exec(content);
   const summaryMatch = /<summary>([\s\S]*?)<\/summary>/.exec(content);
+  const toolUseIdMatch = /<tool-use-id>([\s\S]*?)<\/tool-use-id>/.exec(content);
 
   let result = '';
   const resultOpen = content.indexOf('<result>');
@@ -68,12 +70,73 @@ function parseTaskNotification(content: string): ParsedTaskNotification | null {
     status: statusMatch?.[1]?.trim() || 'completed',
     summary: summaryMatch?.[1]?.trim() || 'Background task finished',
     result,
+    toolUseId: toolUseIdMatch?.[1]?.trim() || null,
+  };
+}
+
+type AgentFacts = {
+  /** Live calls a subagent made, by the agent call that launched it. */
+  children: Map<string, NormalizedMessage[]>;
+  /** Latest known status, by the agent call that launched it. */
+  statuses: Map<string, AgentStatusInfo>;
+};
+
+const NOTIFIED_STATES: Record<string, AgentStatusInfo['state']> = { failed: 'failed', stopped: 'stopped', killed: 'stopped' };
+
+/** What live rows and task notifications say about each agent call, in arrival order. */
+function collectAgentFacts(messages: NormalizedMessage[]): AgentFacts {
+  const children = new Map<string, NormalizedMessage[]>();
+  const statuses = new Map<string, AgentStatusInfo>();
+  const toolByTask = new Map<string, string>();
+  for (const msg of messages) {
+    if (msg.parentToolUseId) {
+      if (msg.kind !== 'tool_use' || !msg.toolId) continue;
+      const list = children.get(msg.parentToolUseId);
+      if (list) list.push(msg);
+      else children.set(msg.parentToolUseId, [msg]);
+    } else if (msg.kind === 'agent_status' && msg.agentStatus) {
+      const status = msg.agentStatus;
+      const toolId = status.toolId ?? toolByTask.get(status.taskId);
+      if (!toolId) continue;
+      toolByTask.set(status.taskId, toolId);
+      // Update events carry no counters, so earlier ones persist.
+      statuses.set(toolId, { ...statuses.get(toolId), ...status, toolId });
+    } else if (msg.kind === 'text' && msg.role === 'user' && msg.content) {
+      const notification = parseTaskNotification(msg.content);
+      if (!notification?.toolUseId) continue;
+      const previous = statuses.get(notification.toolUseId);
+      statuses.set(notification.toolUseId, {
+        ...previous,
+        taskId: previous?.taskId ?? '',
+        toolId: notification.toolUseId,
+        state: NOTIFIED_STATES[notification.status] ?? 'completed',
+      });
+    }
+  }
+  return { children, statuses };
+}
+
+/** A background agent's call returns at launch, so its result says nothing about the agent. */
+function isBackgroundLaunch(toolUseResult: unknown): boolean {
+  const record = toolUseResult as { status?: unknown; isAsync?: unknown } | null | undefined;
+  return record?.status === 'async_launched' || record?.isAsync === true;
+}
+
+function toToolResult(result: NormalizedMessage | NormalizedMessage['toolResult'] | undefined) {
+  if (!result) return null;
+  return {
+    content: formatToolResultContent(result.content),
+    isError: Boolean(result.isError),
+    toolUseResult: result.toolUseResult,
+    timestamp: result.timestamp,
   };
 }
 
 // Store records are immutable; weak keys release projections when history is evicted.
 const displayCache = new WeakMap<NormalizedMessage, {
   result: NormalizedMessage | undefined;
+  /** Agent calls only: what the live rows said when this projection was made. */
+  agentKey?: string;
   messages: ChatMessage[];
 }>();
 
@@ -100,12 +163,20 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       toolResultMap.set(msg.toolId, msg);
     }
   }
+  const agentFacts = collectAgentFacts(messages);
 
   for (const msg of messages) {
+    // A subagent's own rows render inside its agent call, never as the session's.
+    if (msg.parentToolUseId) continue;
     const result = msg.kind === 'tool_use' && !msg.toolResult && msg.toolId
       ? toolResultMap.get(msg.toolId) : undefined;
+    const liveChildren = msg.kind === 'tool_use' && msg.toolId ? agentFacts.children.get(msg.toolId) : undefined;
+    const agentStatus = msg.kind === 'tool_use' && msg.toolId ? agentFacts.statuses.get(msg.toolId) : undefined;
+    const agentKey = liveChildren || agentStatus
+      ? `${(liveChildren ?? []).map((child) => `${child.toolId}${toolResultMap.has(child.toolId!) ? '+' : ''}`).join(',')}|${JSON.stringify(agentStatus ?? null)}`
+      : undefined;
     const cached = displayCache.get(msg);
-    if (cached && cached.result === result) {
+    if (cached && cached.result === result && cached.agentKey === agentKey) {
       converted.push(...cached.messages);
       continue;
     }
@@ -207,15 +278,25 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             });
           }
         }
+        if (isSubagentContainer && liveChildren) {
+          const recorded = new Set(childTools.map((child) => child.toolId));
+          for (const child of liveChildren) {
+            if (recorded.has(child.toolId!)) continue;
+            childTools.push({
+              toolId: child.toolId!,
+              toolName: child.toolName || 'Unknown',
+              toolInput: child.toolInput,
+              toolResult: toToolResult(child.toolResult ?? toolResultMap.get(child.toolId!)),
+              timestamp: new Date(child.timestamp || Date.now()),
+            });
+          }
+        }
 
-        const toolResult = tr
-          ? {
-              content: formatToolResultContent(tr.content),
-              isError: Boolean(tr.isError),
-              toolUseResult: (tr as any).toolUseResult,
-              timestamp: tr.timestamp,
-            }
-          : null;
+        const toolResult = toToolResult(tr ?? undefined);
+        const resolvedAgentStatus: AgentStatusInfo | undefined = agentStatus
+          ?? (isSubagentContainer && msg.toolId && isBackgroundLaunch(toolResult?.toolUseResult)
+            ? { taskId: '', toolId: msg.toolId, state: 'running' }
+            : undefined);
 
         converted.push({
           type: 'assistant',
@@ -232,7 +313,8 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             ? {
                 childTools,
                 currentToolIndex: childTools.length > 0 ? childTools.length - 1 : -1,
-                isComplete: Boolean(toolResult),
+                isComplete: resolvedAgentStatus ? resolvedAgentStatus.state !== 'running' : Boolean(toolResult),
+                agentStatus: resolvedAgentStatus,
               }
             : undefined,
           ...sharedMetadata,
@@ -315,6 +397,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       case 'permission_request':
       case 'permission_cancelled':
       case 'session_created':
+      case 'agent_status':
         // Skip — these are handled by useChatRealtimeHandlers
         break;
 
@@ -351,7 +434,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       default:
         break;
     }
-    displayCache.set(msg, { result, messages: converted.slice(outputStart) });
+    displayCache.set(msg, { result, agentKey, messages: converted.slice(outputStart) });
   }
 
   return converted;

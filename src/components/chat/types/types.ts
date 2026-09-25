@@ -3,7 +3,7 @@ import type {
   CreateWorktreeOptions,
   CreateWorktreeOutcome,
 } from '../../sidebar/types/types';
-import type { CompactBoundaryInfo, UsageLimitStop } from '../../../stores/useSessionStore';
+import type { AgentStatusInfo, CompactBoundaryInfo, UsageLimitStop } from '../../../stores/useSessionStore';
 import type {
   MarkSessionIdle,
   MarkSessionProcessing,
@@ -110,6 +110,8 @@ export interface ChatMessage {
     childTools: SubagentChildTool[];
     currentToolIndex: number;
     isComplete: boolean;
+    /** Live or recorded status; a background agent's call returns before the agent finishes. */
+    agentStatus?: AgentStatusInfo;
   };
   [key: string]: unknown;
 }

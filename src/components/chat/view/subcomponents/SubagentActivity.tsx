@@ -96,9 +96,13 @@ const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFil
   const type = String(input?.subagent_type || '').trim() || t('activity.agent.defaultType');
   const description = String(input?.description || '').trim();
   const label = description ? `${type} · ${description}` : type;
-  const isRunning = isLive && operation.status === 'running';
-  const failure = operation.status === 'error' || operation.status === 'denied' ? operation.status : null;
-  const callCount = message.subagentState?.childTools.length ?? 0;
+  const agent = message.subagentState?.agentStatus;
+  const isRunning = isLive && (agent ? agent.state === 'running' : operation.status === 'running');
+  const failure = agent?.state === 'failed' || agent?.state === 'stopped'
+    ? agent.state
+    : operation.status === 'error' || operation.status === 'denied' ? operation.status : null;
+  const callCount = Math.max(message.subagentState?.childTools.length ?? 0, agent?.toolUses ?? 0);
+  const durationMs = agent?.durationMs ?? operation.durationMs;
 
   const prompt = String(parseToolInput(full.toolInput)?.prompt || '').trim();
   const children = useMemo(() => (full.subagentState?.childTools ?? []).map(toChildMessage), [full.subagentState]);
@@ -106,7 +110,7 @@ const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFil
 
   const details = [
     callCount > 0 ? t('activity.agent.calls', { count: callCount }) : '',
-    !isRunning && operation.durationMs !== null && operation.durationMs >= 1000 ? formatDuration(operation.durationMs) : '',
+    !isRunning && durationMs != null && durationMs >= 1000 ? formatDuration(durationMs) : '',
   ].filter(Boolean);
 
   return (

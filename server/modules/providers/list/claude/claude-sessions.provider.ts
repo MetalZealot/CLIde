@@ -15,6 +15,7 @@ import {
 import { parseFilesInputTag } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type {
+  AgentStatusInfo,
   AnyRecord,
   CompactBoundaryInfo,
   FetchHistoryOptions,
@@ -820,6 +821,40 @@ export function readClaudeCompactBoundary(rawMessage: unknown): CompactBoundaryI
   };
 }
 
+const TASK_UPDATE_STATES: Record<string, AgentStatusInfo['state']> = {
+  pending: 'running',
+  running: 'running',
+  paused: 'running',
+  completed: 'completed',
+  failed: 'failed',
+  killed: 'stopped',
+};
+
+/**
+ * Where one agent stands, read from the SDK's live `task_*` system events.
+ * Null for any other row, and for housekeeping tasks the CLI marks ambient.
+ */
+function readClaudeAgentStatus(raw: AnyRecord): AgentStatusInfo | null {
+  if (raw.type !== 'system' || typeof raw.task_id !== 'string') return null;
+  if (raw.ambient === true || raw.skip_transcript === true) return null;
+
+  let state: AgentStatusInfo['state'] | undefined;
+  if (raw.subtype === 'task_started' || raw.subtype === 'task_progress') state = 'running';
+  else if (raw.subtype === 'task_notification') {
+    state = raw.status === 'failed' || raw.status === 'stopped' ? raw.status : 'completed';
+  } else if (raw.subtype === 'task_updated') state = TASK_UPDATE_STATES[String(raw.patch?.status)];
+  if (!state) return null;
+
+  const status: AgentStatusInfo = { taskId: raw.task_id, state };
+  if (typeof raw.tool_use_id === 'string') status.toolId = raw.tool_use_id;
+  const usage = readObjectRecord(raw.usage);
+  if (typeof usage?.tool_uses === 'number') status.toolUses = usage.tool_uses;
+  if (typeof usage?.total_tokens === 'number') status.tokens = usage.total_tokens;
+  if (typeof usage?.duration_ms === 'number') status.durationMs = usage.duration_ms;
+  if (typeof raw.last_tool_name === 'string') status.lastToolName = raw.last_tool_name;
+  return status;
+}
+
 export function collectCompactReferencesByRowId(rawMessages: AnyRecord[]): Map<string, string[]> {
   const referencesByRowId = new Map<string, string[]>();
 
@@ -952,6 +987,19 @@ export class ClaudeSessionsProvider implements IProviderSessions {
         provider: PROVIDER,
         kind: 'compact_boundary',
         compactBoundary,
+      })];
+    }
+
+    const agentStatus = readClaudeAgentStatus(raw);
+    if (agentStatus) {
+      return [createNormalizedMessage({
+        id: typeof raw.uuid === 'string' ? raw.uuid : undefined,
+        sessionId,
+        timestamp: raw.timestamp || new Date().toISOString(),
+        provider: PROVIDER,
+        kind: 'agent_status',
+        toolId: agentStatus.toolId,
+        agentStatus,
       })];
     }
 

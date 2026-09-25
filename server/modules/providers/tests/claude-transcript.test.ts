@@ -188,6 +188,27 @@ describe('claude-harness-rows', () => {
     assert.equal(messages[0].isCompactSummary, true);
   });
 
+  test('claude live stream: task events become agent status rows keyed to the launching call', () => {
+    const provider = new ClaudeSessionsProvider();
+    const read = (event: Record<string, unknown>) =>
+      provider.normalizeMessage({ type: 'system', uuid: 'u', session_id: 'p', task_id: 'k', ...event }, SESSION_ID);
+
+    const progress = read({
+      subtype: 'task_progress', tool_use_id: 'ta', description: 'Explore',
+      usage: { total_tokens: 900, tool_uses: 4, duration_ms: 5000 }, last_tool_name: 'Grep',
+    });
+    assert.equal(progress.length, 1);
+    assert.equal(progress[0].kind, 'agent_status');
+    assert.deepEqual(progress[0].agentStatus, {
+      taskId: 'k', toolId: 'ta', state: 'running', toolUses: 4, tokens: 900, durationMs: 5000, lastToolName: 'Grep',
+    });
+    assert.deepEqual(read({ subtype: 'task_updated', patch: { status: 'killed' } })[0].agentStatus, { taskId: 'k', state: 'stopped' });
+    assert.equal(read({ subtype: 'task_notification', tool_use_id: 'ta', status: 'failed', summary: 's', output_file: 'f' })[0].agentStatus?.state, 'failed');
+    // Housekeeping tasks and unrelated system rows stay out of the chat.
+    assert.deepEqual(read({ subtype: 'task_started', ambient: true }), []);
+    assert.deepEqual(read({ subtype: 'task_updated', patch: { description: 'x' } }), []);
+  });
+
   test('claude: a redacted thinking block still yields an empty thinking row', () => {
     const provider = new ClaudeSessionsProvider();
     const entry = {

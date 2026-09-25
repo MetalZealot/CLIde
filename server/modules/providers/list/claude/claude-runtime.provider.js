@@ -487,6 +487,10 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
   if (!sdkMessage || typeof sdkMessage !== 'object') {
     return null;
   }
+  // A subagent's frames measure its own context, not the session's.
+  if (sdkMessage.parent_tool_use_id) {
+    return null;
+  }
 
   const messageUsage = sdkMessage.message?.usage || sdkMessage.usage;
   if (messageUsage && typeof messageUsage === 'object') {

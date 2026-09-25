@@ -39,7 +39,19 @@ export type MessageKind =
   | 'session_created'
   | 'interactive_prompt'
   | 'task_notification'
-  | 'compact_boundary';
+  | 'compact_boundary'
+  | 'agent_status';
+
+/** Where a background or forked agent stands, from live task events — see server types. */
+export type AgentStatusInfo = {
+  taskId: string;
+  toolId?: string;
+  state: 'running' | 'completed' | 'failed' | 'stopped';
+  toolUses?: number;
+  tokens?: number;
+  durationMs?: number;
+  lastToolName?: string;
+};
 
 /** Where a compaction cut the conversation, and what it cost — see server types. */
 export type CompactBoundaryInfo = {
@@ -159,7 +171,9 @@ export interface NormalizedMessage {
   exitCode?: number;
   actualSessionId?: string;
   parentToolUseId?: string;
+  agentStatus?: AgentStatusInfo;
   subagentTools?: unknown[];
+  toolUseResult?: unknown;
   isFinal?: boolean;
   // Cursor-specific ordering
   sequence?: number;

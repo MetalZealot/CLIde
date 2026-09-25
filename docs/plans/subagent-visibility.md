@@ -1,7 +1,7 @@
 # Subagents are visible while they run and readable after they die
 
-- Status: 3/5
-- Next: Phase 3 — watch `subagents/**` so a running agent updates without a reload
+- Status: 4/5
+- Next: Phase 5 — the row opens the agent's whole transcript
 - Context: transcript shape and the id rules in
   [code anchors](../maps/code-anchors.md); detail-surface rule in
   [ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md); this
@@ -31,12 +31,12 @@ constraint holds for every phase below.
   A forked skill also leaves the session row unindexed for its whole run —
   only the agent file changes, and the watcher ignores it — so history derives
   the transcript path rather than returning empty.
-- [ ] 3. **A running agent updates without a reload.** A watch on
-  `subagents/**` — currently in `WATCHER_IGNORED_PATTERNS` — emits an agent
-  event keyed to the parent `session_id`, on its own channel, never through
-  `session_upserted`. The client drops the server's `parentToolUseId` stamp
-  today, so live child tools only reach the container on refresh; that lands
-  here too.
+- [x] 3. **A running agent updates without a reload.** Live rows stamped
+  `parentToolUseId` fold into their agent call instead of rendering as the
+  session's, and the SDK's `task_*` events become `agent_status` rows, so a
+  background agent — whose call returns at launch — reads running until its
+  task ends. No `subagents/**` watch: runs CLIde starts already stream every
+  agent call, and it would only serve sessions run outside CLIde.
 - [x] 4. **One row per agent at its launch point.** Agent type and task, tool
   count and elapsed time, a shimmer while running and red when it failed — the
   activity row's shape, no dot. Identical for inline `Task`, background, and

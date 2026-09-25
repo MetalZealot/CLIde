@@ -118,7 +118,9 @@
     "failed_other": "{{count}} failed",
     "status": {
       "error": "failed",
-      "denied": "denied"
+      "denied": "denied",
+      "failed": "failed",
+      "stopped": "stopped"
     },
     "thought": "Thought: {{text}}",
     "thoughtFor": "Thought for {{duration}}",

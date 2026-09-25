@@ -1,6 +1,6 @@
 # The workspace tabs offer what the desktop agent apps' side panels offer
 
-- Status: not started
+- Status: 1/5
 - Next: Phase 1 — a plain Terminal tab takes Shell's place, and Shell view moves to the chat kebab
 - Context: [subagent visibility](subagent-visibility.md) (phases 3 and 5 feed
   this); detail-surface rule in
@@ -31,7 +31,7 @@ tabs get the same set.
   the list as it stands now. The surface shows the latest state: each item
   pending, in progress, or done. It reads from the chat's own messages, so it
   needs no subagent work; Cursor and OpenCode show the empty state.
-- [ ] 3. **A running subagent updates without a reload.** This is
+- [x] 3. **A running subagent updates without a reload.** This is
   [subagent visibility](subagent-visibility.md) phase 3; build it there. An
   Agents tab without it shows a snapshot that goes stale.
 - [ ] 4. **An Agents surface lists the open chat's agents.** This chat only,

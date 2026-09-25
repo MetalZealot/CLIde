@@ -310,6 +310,9 @@ export function useChatRealtimeHandlers({
         return;
       }
 
+      // A subagent's prose never renders live; keeping it would evict the session's own rows from the buffer.
+      if (msg.parentToolUseId && msg.kind !== 'tool_use' && msg.kind !== 'tool_result') return;
+
       // --- All other messages: route to store ---
       const shouldPersist =
         msg.kind !== 'complete'

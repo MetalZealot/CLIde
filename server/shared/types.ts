@@ -418,7 +418,27 @@ export type MessageKind =
   | 'session_created'
   | 'interactive_prompt'
   | 'task_notification'
-  | 'compact_boundary';
+  | 'compact_boundary'
+  | 'agent_status';
+
+/**
+ * Where a background or forked agent stands, from the provider's live task
+ * events. Carried on `agent_status` rows, which are never rendered themselves:
+ * the client folds the latest one into the agent call they belong to.
+ *
+ * `taskId` always identifies the agent; `toolId` is the call that launched it
+ * and is absent on events that only carry the task id, so a client resolves
+ * those through an earlier event for the same task.
+ */
+export type AgentStatusInfo = {
+  taskId: string;
+  toolId?: string;
+  state: 'running' | 'completed' | 'failed' | 'stopped';
+  toolUses?: number;
+  tokens?: number;
+  durationMs?: number;
+  lastToolName?: string;
+};
 
 /**
  * Event kinds added by the chat gateway layer on top of provider message kinds.
@@ -640,6 +660,10 @@ export type NormalizedMessage = {
   status?: string;
   summary?: string;
   tokenBudget?: unknown;
+  /** The agent call a live row belongs to; set on everything a subagent streams. */
+  parentToolUseId?: string;
+  /** Only set on `agent_status` rows. */
+  agentStatus?: AgentStatusInfo;
   subagentTools?: unknown;
   toolUseResult?: unknown;
   sequence?: number;

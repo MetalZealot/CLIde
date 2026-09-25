@@ -1012,6 +1012,60 @@ test('an Agent tool call becomes a subagent container with its child tools', () 
   assert.equal(messages[0].subagentState?.isComplete, true);
 });
 
+test('a running subagent\'s live rows fold into its agent call, not the chat', () => {
+  const live = (fields: Parameters<typeof transcriptRow>[0]) => transcriptRow({ parentToolUseId: 'ta', ...fields });
+  const messages = normalizedToChatMessages([
+    transcriptRow({ id: 'a1', kind: 'tool_use', toolId: 'ta', toolName: 'Agent', toolInput: { subagent_type: 'Explore' } }),
+    transcriptRow({
+      id: 'a1r', kind: 'tool_result', toolId: 'ta', content: 'Async agent launched',
+      toolUseResult: { isAsync: true, status: 'async_launched', agentId: 'x' },
+    }),
+    live({ id: 'p', kind: 'text', role: 'user', content: 'Find the TODOs' }),
+    live({ id: 'c1', kind: 'tool_use', toolId: 'c1', toolName: 'Grep', toolInput: { pattern: 'TODO' } }),
+    live({ id: 'c1r', kind: 'tool_result', toolId: 'c1', content: '3 matches' }),
+    live({ id: 'c2', kind: 'tool_use', toolId: 'c2', toolName: 'Read', toolInput: { file_path: 'a.ts' } }),
+    live({ id: 'say', kind: 'text', role: 'assistant', content: 'Looking further' }),
+    transcriptRow({ id: 'main', kind: 'text', role: 'assistant', content: 'Waiting on the agent' }),
+  ]);
+
+  assert.deepEqual(messages.map((message) => message.id), ['a1', 'main']);
+  const state = messages[0].subagentState!;
+  assert.deepEqual(state.childTools.map((tool) => [tool.toolName, tool.toolResult?.content ?? null]), [['Grep', '3 matches'], ['Read', null]]);
+  // The call returned at launch; the agent itself is still working.
+  assert.equal(state.agentStatus?.state, 'running');
+  assert.equal(state.isComplete, false);
+});
+
+test('task events and notifications decide a background agent\'s status', () => {
+  const agent = [
+    transcriptRow({ id: 'a1', kind: 'tool_use', toolId: 'ta', toolName: 'Agent', toolInput: {} }),
+    transcriptRow({ id: 'a1r', kind: 'tool_result', toolId: 'ta', content: 'launched', toolUseResult: { status: 'async_launched' } }),
+  ];
+  const status = (id: string, agentStatus: Record<string, unknown>) =>
+    transcriptRow({ id, kind: 'agent_status', agentStatus: { taskId: 'k', ...agentStatus } as never });
+
+  const progressed = normalizedToChatMessages([
+    ...agent,
+    status('s1', { toolId: 'ta', state: 'running', toolUses: 4, tokens: 900, durationMs: 5000 }),
+    // Update events name only the task.
+    status('s2', { state: 'failed' }),
+  ]);
+  assert.equal(progressed.length, 1);
+  assert.deepEqual(progressed[0].subagentState?.agentStatus, {
+    taskId: 'k', toolId: 'ta', state: 'failed', toolUses: 4, tokens: 900, durationMs: 5000,
+  });
+  assert.equal(progressed[0].subagentState?.isComplete, true);
+
+  const reloaded = normalizedToChatMessages([
+    ...agent,
+    transcriptRow({
+      id: 'n', kind: 'text', role: 'user',
+      content: '<task-notification>\n<task-id>k</task-id>\n<tool-use-id>ta</tool-use-id>\n<status>completed</status>\n<summary>Agent finished</summary>\n</task-notification>',
+    }),
+  ]);
+  assert.equal(reloaded[0].subagentState?.agentStatus?.state, 'completed');
+});
+
 test('the former Task name still opens a subagent container', () => {
   const messages = normalizedToChatMessages([
     transcriptRow({ id: 'tu2', kind: 'tool_use', toolId: 't2', toolName: 'Task', toolInput: {} }),

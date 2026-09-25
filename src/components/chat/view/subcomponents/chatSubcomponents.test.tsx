@@ -405,6 +405,18 @@ describe('chatSubcomponents', () => {
       await React.act(async () => row.click());
       const lines = [...container.querySelectorAll('button[aria-expanded]')].slice(1).map((line) => line.textContent);
       assert.deepEqual(lines, ['Asked: Find every caller', 'Searched for caller', 'Reported: Found 3 callers']);
+
+      // A background agent's status, not its launch result, decides the row.
+      const withStatus = (agentStatus: NonNullable<ChatMessage['subagentState']>['agentStatus']) => (
+        <I18nextProvider i18n={i18next}>
+          <SubagentActivity message={{ ...agent, subagentState: { ...agent.subagentState!, agentStatus } }} isLive />
+        </I18nextProvider>
+      );
+      const header = () => container!.querySelector('button[aria-expanded]')!.textContent;
+      await React.act(async () => root?.render(withStatus({ taskId: 'k', state: 'running', toolUses: 7 })));
+      assert.equal(header(), 'Explore · Find call sites· 7 calls');
+      await React.act(async () => root?.render(withStatus({ taskId: 'k', state: 'stopped', toolUses: 7, durationMs: 90_000 })));
+      assert.equal(header(), 'Explore · Find call sites· 7 calls · 1m 30s· stopped');
     });
 
     test('a plan waiting for a decision stays open with Build and Revise; a decided one is a closed row', async () => {
