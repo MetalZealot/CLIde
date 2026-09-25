@@ -147,13 +147,14 @@ export function revealStartForBudget(
   let index = start;
   while (index > floor) {
     const message = messages[index - 1];
-    const call = isToolActivityCall(message);
-    if (!(call && inRun)) {
-      const cost = call ? TOOL_RUN_MS : TEXT_ROW_MS + (message.content?.length ?? 0) * TEXT_MS_PER_CHAR;
+    // Thinking beside calls folds into their activity; elsewhere it is its own row.
+    const joinsRun: boolean = isToolActivityCall(message) || (inRun && Boolean(message.isThinking));
+    if (!(joinsRun && inRun)) {
+      const cost = joinsRun ? TOOL_RUN_MS : TEXT_ROW_MS + (message.content?.length ?? 0) * TEXT_MS_PER_CHAR;
       if (index < start && spent + cost > budgetMs) break;
       spent += cost;
     }
-    inRun = call;
+    inRun = joinsRun;
     index -= 1;
   }
   return index;

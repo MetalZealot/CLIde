@@ -7,7 +7,9 @@ the [performance plan](../plans/chat-history-performance.md).
 ## What the reader experiences
 
 Opening fetches the newest 20 records; scrolling within 1.5 screens of the top
-reveals loaded rows, then fetches 20 more. Rendered rows only accumulate until
+reveals loaded rows, then fetches 20 more. A fetched page is revealed a frame
+at a time within an estimated 30 ms of row mounting (text ~4 ms + 8.5 ms per
+1,000 characters, tool run ~1.5 ms; fitted on the Pi, 2026-09-24). Rendered rows only accumulate until
 the session changes or ↓ rejoins the tail. Collapsed activities fold many
 records into one row, so a page can add little height and the pane chains
 further requests. Find and jumps use the detached window below.
@@ -25,26 +27,24 @@ Measured 2026-09-23 in CLIde Browser on a branch-test server serving `main`,
 | DOM change per step | ~17 nodes added; no existing row remounted |
 | First request, server cache cold | 1.9 s |
 
-Cost per step grows with rows already mounted while the DOM change stays
-small. Profiled causes, largest first:
+What keeps a step cheap (measured on the reference session):
 
-- Style recalculation forced by scroll restoration once per commit, ~70 ms
-  at 40–66 rows; a step makes ~4 commits (chained fetches). A fresh copy of
-  the list restyles 5–6× faster, for an unidentified reason. Rows now skip
-  rendering off-screen (`content-visibility`), which cuts it ~5×.
-- Tailwind `space-y`'s sibling selector restyled every row on a top insert
-  (130 vs 9 ms on a fresh list); the list uses `gap`.
-- Closed rewind/fork pickers re-filtered the conversation twice per render
-  (~13 ms each); they now scan only when open.
-- Scroll restoration read `scrollHeight` after writing `scrollTop`, a second
-  forced layout per commit; reads now precede the write.
-- The top activity remounted, with all its rows, on each prepend that
-  extended it; it now keeps its key.
+- Off-screen rows skip rendering (`content-visibility`): restoration's
+  forced restyle costs ~5× less.
+- The list spaces rows with `gap`: `space-y`'s sibling selector restyled
+  every row on a top insert (130 vs 9 ms).
+- Pickers scan only when open; restoration reads before writing; the top
+  activity keeps its key; the composer skips history commits.
 
-A walk to the top blocked 6.7 s before these fixes, 4.1 s without
-`content-visibility`, 1.9 s with it, 1.2 s once chained pages double
-(41 requests, was 52). A step is now one 50–125 ms render that
-grows with rows added, not mounted; 4 of 13 exceed 100 ms.
+A walk to the top blocked 6.7 s before these, 1.2 s after chaining; the
+production build's worst frame per step is now 116 ms (was 282; 4 of 38
+steps over 100 ms, was 8 of 14). What remains is ~50 ms per frame whatever
+the rows, ~40% of it layout forced by scroll restoration.
+
+Counting method: a stub `__REACT_DEVTOOLS_GLOBAL_HOOK__` in a same-origin
+iframe counts commits and rendered components; a build aliasing `react-dom` to
+`react-dom/profiling` adds per-component time; Long Animation Frame entries give
+frame and forced-layout time. Counts repeat exactly; timings do not.
 
 A row may skip only after a real layout records its size: one skipped
 before that holds the 150 px guess and jumps the reader when reached.

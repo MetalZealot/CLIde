@@ -474,6 +474,9 @@ test('older rows are revealed within a mount-cost budget, a tool run counting on
   assert.equal(revealStartForBudget(shortRows, 10, 3, 20), 7, 'the message cap still applies');
   const burst = [text('a', 0), ...Array.from({ length: 30 }, (_, index) => call(`c${index}`)), text('b', 0)];
   assert.equal(revealStartForBudget(burst, burst.length, 100, 10), 0, 'thirty calls cost one run');
+  const thought = (id: string): ChatMessage => ({ ...text(id, 5_000), isThinking: true });
+  const thinkingRun = [text('c', 0), call('d'), thought('e'), call('f')];
+  assert.equal(revealStartForBudget(thinkingRun, 4, 20, 6), 0, 'thinking between calls joins their run');
   const long = [text('small', 0), text('huge', 10_000)];
   assert.equal(revealStartForBudget(long, 2, 20, 20), 1, 'one row always reveals, even over budget');
   assert.equal(revealStartForBudget(long, 0, 20, 20), 0);
