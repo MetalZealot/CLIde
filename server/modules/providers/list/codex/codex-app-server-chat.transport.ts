@@ -55,6 +55,7 @@ import {
 } from '@/shared/image-attachments.js';
 import { normalizeCodexAsyncQuestions } from '@/modules/providers/list/codex/codex-async-questions.js';
 import { buildCodexSideQuestionPrompt } from '@/modules/providers/list/codex/codex-side-question.js';
+import { humanizeCodexToolName } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 import type {
   AnyRecord,
   InteractiveRequestDecision,
@@ -186,6 +187,15 @@ type ActiveTurn = {
   completedReasoningIds: Set<string>;
   userId: string | number | null;
   sessionName: string | null;
+};
+
+/** A subagent's own thread; App Server streams it on the parent's connection. */
+type AgentThread = {
+  parent: ActiveTurn;
+  /** The spawn call's id, which the parent's history keys the agent row by. */
+  toolId: string;
+  startedAt: number;
+  toolUses: number;
 };
 
 const STARTUP_TIMEOUT_MS = 10_000;
@@ -649,6 +659,7 @@ export class CodexAppServerChatTransport {
   private startup: Promise<JsonlRpcClient> | null = null;
   private readonly activeTurns = new Map<string, ActiveTurn>();
   private readonly sideTurns = new Map<string, SideTurn>();
+  private readonly agentThreads = new Map<string, AgentThread>();
   private activeOperations = 0;
   private updatePending = false;
   private readonly unsubscribeRuntimeChanges: (() => void) | null;
@@ -1098,6 +1109,7 @@ export class CodexAppServerChatTransport {
     this.startup = null;
     this.activeTurns.clear();
     this.sideTurns.clear();
+    this.agentThreads.clear();
     this.activeOperations = 0;
     this.updatePending = false;
   }
@@ -1229,6 +1241,12 @@ export class CodexAppServerChatTransport {
       return;
     }
 
+    const agentThread = this.agentThreads.get(threadId);
+    if (agentThread) {
+      this.forwardAgentThreadItem(agentThread, method, params);
+      return;
+    }
+
     const active = this.activeTurns.get(threadId);
 
     // Any item after a retry means it worked; the indicator drops the retry label.
@@ -1285,6 +1303,10 @@ export class CodexAppServerChatTransport {
           active.fileChanges.set(item.id, item.changes);
         }
         const turnId = readNonEmptyString(params.turnId) ?? undefined;
+        if ((item as { type: string }).type === 'subAgentActivity') {
+          this.trackSubagent(active, item as unknown as AnyRecord, turnId);
+          return;
+        }
         for (const message of completedItemMessages(item, threadId, turnId)) {
           active.writer.send(message.kind === 'tool_use' && active.runningTools.delete(item.id)
             ? runningToolResult(message)
@@ -1667,6 +1689,9 @@ export class CodexAppServerChatTransport {
       return;
     }
     active.terminal = true;
+    for (const [agentThreadId, agent] of this.agentThreads) {
+      if (agent.parent === active) this.agentThreads.delete(agentThreadId);
+    }
 
     const failed = turn?.status === 'failed';
     if (failed && turn.error?.message && !active.errorEmitted) {
@@ -1702,6 +1727,69 @@ export class CodexAppServerChatTransport {
       }
     }
     active.resolveDone();
+  }
+
+  /**
+   * Opens an agent row when the parent reports a subagent started, keyed by the
+   * spawn call id so history replaces it, and closes it with an `agent_status`.
+   */
+  private trackSubagent(active: ActiveTurn, item: AnyRecord, turnId?: string): void {
+    const agentThreadId = readNonEmptyString(item.agentThreadId);
+    if (!agentThreadId || typeof item.id !== 'string') return;
+    if (item.kind === 'started') {
+      const taskName = readNonEmptyString(item.agentPath)?.split('/').filter(Boolean).pop() || 'agent';
+      this.agentThreads.set(agentThreadId, { parent: active, toolId: item.id, startedAt: Date.now(), toolUses: 0 });
+      active.writer.send(createNormalizedMessage({
+        id: item.id,
+        sessionId: active.threadId,
+        provider: PROVIDER,
+        kind: 'tool_use',
+        ...(turnId ? { turnId } : {}),
+        toolName: 'Task',
+        toolId: item.id,
+        toolInput: { subagent_type: 'Codex', description: humanizeCodexToolName(taskName) },
+      }));
+      return;
+    }
+    const agent = this.agentThreads.get(agentThreadId);
+    if (!agent || (item.kind !== 'completed' && item.kind !== 'interrupted')) return;
+    this.agentThreads.delete(agentThreadId);
+    active.writer.send(createNormalizedMessage({
+      sessionId: active.threadId,
+      provider: PROVIDER,
+      kind: 'agent_status',
+      toolId: agent.toolId,
+      agentStatus: {
+        taskId: agentThreadId,
+        toolId: agent.toolId,
+        state: item.kind === 'completed' ? 'completed' : 'stopped',
+        toolUses: agent.toolUses,
+        durationMs: Date.now() - agent.startedAt,
+      },
+    }));
+  }
+
+  /** A subagent's tool calls, sent into its parent's chat stamped with the agent row they belong to. */
+  private forwardAgentThreadItem(agent: AgentThread, method: string, params: AnyRecord): void {
+    const { parent } = agent;
+    if (parent.terminal || (method !== 'item/started' && method !== 'item/completed')) return;
+    const item = readObjectRecord(params.item);
+    if (!item || typeof item.id !== 'string') return;
+    const started = method === 'item/started';
+    if (started && !RUNNING_TOOL_TYPES.has(String(item.type))) return;
+    for (const message of completedItemMessages(item as unknown as CodexThreadItem, parent.threadId)) {
+      if (message.kind !== 'tool_use') continue;
+      const child = { ...message, parentToolUseId: agent.toolId };
+      if (started) {
+        parent.runningTools.add(item.id);
+        parent.writer.send({ ...child, toolResult: undefined });
+        continue;
+      }
+      agent.toolUses += 1;
+      parent.writer.send(parent.runningTools.delete(item.id)
+        ? { ...runningToolResult(child), parentToolUseId: agent.toolId }
+        : child);
+    }
   }
 
   private sendStage(active: ActiveTurn, stage: TurnStage | null): void {

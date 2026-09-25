@@ -381,7 +381,8 @@ function isHiddenCodexExecControl(input: unknown): boolean {
     && nestedToolNames.every((toolName) => CODEX_HIDDEN_EXEC_CONTROL_TOOLS.has(toolName));
 }
 
-function humanizeCodexToolName(toolName: string): string {
+/** Used by the App Server transport so a live agent row carries the name history gives it. */
+export function humanizeCodexToolName(toolName: string): string {
   return toolName
     .replace(/__/g, ' ')
     .replace(/_/g, ' ')

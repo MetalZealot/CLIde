@@ -640,7 +640,7 @@ test('Codex first-message rewind forks before the first turn and explicit fork s
   }
 });
 
-test('A Codex tool shows running from item/started and finishes with a result for that row', async () => {
+test('A Codex tool shows running from item/started and finishes with a result for that row; a subagent\'s calls join its row', async () => {
   const completedCommand = "    send({ method: 'item/completed', params: {\n      threadId: pendingThread.id, turnId, completedAtMs: Date.now(),\n      item: { type: 'commandExecution',";
   assert.ok(BASIC_SERVER.includes(completedCommand));
   const fake = await createFakeServer(BASIC_SERVER.replace(completedCommand, `
@@ -651,6 +651,17 @@ test('A Codex tool shows running from item/started and finishes with a result fo
       item: { type: 'commandExecution', id: 'denied', command: 'rm x', cwd: '/', status: 'inProgress', aggregatedOutput: null, exitCode: null } } });
     send({ method: 'item/completed', params: { threadId: pendingThread.id, turnId, completedAtMs: Date.now(),
       item: { type: 'commandExecution', id: 'denied', command: 'rm x', cwd: '/', status: 'declined', aggregatedOutput: null, exitCode: null } } });
+    send({ method: 'item/completed', params: { threadId: pendingThread.id, turnId,
+      item: { type: 'subAgentActivity', id: 'spawn-1', kind: 'started', agentThreadId: 'agent-thread', agentPath: '/root/git_check' } } });
+    send({ method: 'item/started', params: { threadId: 'agent-thread', turnId: 'agent-turn',
+      item: { type: 'commandExecution', id: 'agent-cmd', command: 'git status', cwd: '/', status: 'inProgress', aggregatedOutput: null, exitCode: null } } });
+    send({ method: 'item/completed', params: { threadId: 'agent-thread', turnId: 'agent-turn',
+      item: { type: 'agentMessage', id: 'agent-say', text: 'clean' } } });
+    send({ method: 'item/completed', params: { threadId: 'agent-thread', turnId: 'agent-turn',
+      item: { type: 'commandExecution', id: 'agent-cmd', command: 'git status', cwd: '/', status: 'completed', aggregatedOutput: 'clean', exitCode: 0 } } });
+    send({ method: 'turn/completed', params: { threadId: 'agent-thread', turn: { id: 'agent-turn', status: 'completed', error: null } } });
+    send({ method: 'item/completed', params: { threadId: pendingThread.id, turnId,
+      item: { type: 'subAgentActivity', id: 'subagent-completed-agent-thread', kind: 'completed', agentThreadId: 'agent-thread', agentPath: '/root/git_check' } } });
 ${completedCommand}`));
   const transport = new CodexAppServerChatTransport({ command: fake.command });
   transports.push(transport);
@@ -669,6 +680,19 @@ ${completedCommand}`));
     // An item never seen starting still arrives whole, carrying its turn.
     const file = writer.messages.find((message) => message.toolId === 'file-turn-1');
     assert.deepEqual([file?.kind, file?.turnId, file?.toolResult], ['tool_use', 'turn-1', { content: 'completed', isError: false }]);
+
+    // The agent row is keyed by the spawn id history uses; its thread's calls carry that id, its prose does not reach the chat.
+    const agentRows = writer.messages.filter((message) => message.toolId === 'spawn-1' || message.parentToolUseId === 'spawn-1');
+    assert.deepEqual(agentRows.map((message) => [message.kind, message.toolId]), [
+      ['tool_use', 'spawn-1'], ['tool_use', 'agent-cmd'], ['tool_result', 'agent-cmd'], ['agent_status', 'spawn-1'],
+    ]);
+    assert.deepEqual([agentRows[0].toolName, agentRows[0].toolInput], ['Task', { subagent_type: 'Codex', description: 'Git Check' }]);
+    assert.equal(agentRows[2].content, 'clean');
+    const agentStatus = agentRows[3].agentStatus as { state?: string; toolUses?: number };
+    assert.deepEqual([agentStatus.state, agentStatus.toolUses], ['completed', 1]);
+    assert.ok(!writer.messages.some((message) => message.content === 'clean' && message.kind === 'text'));
+    // The agent's own turn ending does not end the chat's.
+    assert.equal(writer.messages.filter((message) => message.kind === 'complete').length, 1);
   } finally {
     await fake.cleanup();
   }

@@ -35,8 +35,10 @@ constraint holds for every phase below.
   `parentToolUseId` fold into their agent call instead of rendering as the
   session's, and the SDK's `task_*` events become `agent_status` rows, so a
   background agent — whose call returns at launch — reads running until its
-  task ends. No `subagents/**` watch: runs CLIde starts already stream every
-  agent call, and it would only serve sessions run outside CLIde.
+  task ends. Codex's App Server does the same through `subAgentActivity`
+  items and the agent threads it streams on the parent's connection. No
+  `subagents/**` watch: runs CLIde starts already stream every agent call, and
+  it would only serve sessions run outside CLIde.
 - [x] 4. **One row per agent at its launch point.** Agent type and task, tool
   count and elapsed time, a shimmer while running and red when it failed — the
   activity row's shape, no dot. Identical for inline `Task`, background, and
