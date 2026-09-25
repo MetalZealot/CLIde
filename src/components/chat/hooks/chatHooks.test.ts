@@ -1064,6 +1064,13 @@ test('task events and notifications decide a background agent\'s status', () => 
     }),
   ]);
   assert.equal(reloaded[0].subagentState?.agentStatus?.state, 'completed');
+  // Its notice is folded into the row; one for a call not on screen still shows.
+  assert.equal(reloaded.length, 1);
+  const orphan = normalizedToChatMessages([transcriptRow({
+    id: 'n2', kind: 'text', role: 'user',
+    content: '<task-notification>\n<tool-use-id>gone</tool-use-id>\n<status>completed</status>\n<summary>Agent finished</summary>\n</task-notification>',
+  })]);
+  assert.equal(orphan[0].isTaskNotification, true);
 });
 
 test('the former Task name still opens a subagent container', () => {

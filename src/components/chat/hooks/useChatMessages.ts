@@ -154,9 +154,11 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
   // First pass: collect tool results for attachment
   const toolResultMap = new Map<string, NormalizedMessage>();
   const toolUseIds = new Set<string>();
+  const agentCallIds = new Set<string>();
   for (const msg of messages) {
     if (msg.kind === 'tool_use' && msg.toolId) {
       toolUseIds.add(msg.toolId);
+      if (isSubagentTool(msg.toolName)) agentCallIds.add(msg.toolId);
     }
 
     if (msg.kind === 'tool_result' && msg.toolId) {
@@ -210,6 +212,11 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         if (msg.role === 'user') {
           // Parse task notifications
           const taskNotif = parseTaskNotification(content);
+          // The agent's own row already shows how it ended.
+          if (taskNotif?.toolUseId && agentCallIds.has(taskNotif.toolUseId)) {
+            displayCache.set(msg, { result: undefined, messages: [] });
+            continue;
+          }
           if (taskNotif) {
             converted.push({
               type: 'assistant',
