@@ -45,6 +45,7 @@ export type UseShellRuntimeOptions = {
   autoConnect: boolean;
   isRestarting: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
+  onSessionAssigned?: ((sessionId: string) => void) | null;
   onOutputRef?: MutableRefObject<(() => void) | null>;
 };
 

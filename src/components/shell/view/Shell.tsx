@@ -31,6 +31,7 @@ type ShellProps = {
   initialCommand?: string | null;
   isPlainShell?: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
+  onSessionAssigned?: ((sessionId: string) => void) | null;
   minimal?: boolean;
   autoConnect?: boolean;
   isActive?: boolean;
@@ -42,6 +43,7 @@ export default function Shell({
   initialCommand = null,
   isPlainShell = false,
   onProcessComplete = null,
+  onSessionAssigned = null,
   minimal = false,
   autoConnect = false,
   isActive = true,
@@ -72,6 +74,7 @@ export default function Shell({
     autoConnect,
     isRestarting,
     onProcessComplete,
+    onSessionAssigned,
     onOutputRef,
   });
 

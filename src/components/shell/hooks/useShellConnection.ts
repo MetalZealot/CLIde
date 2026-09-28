@@ -20,6 +20,7 @@ type UseShellConnectionOptions = {
   initialCommandRef: MutableRefObject<string | null | undefined>;
   isPlainShellRef: MutableRefObject<boolean>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
+  onSessionAssignedRef: MutableRefObject<((sessionId: string) => void) | null | undefined>;
   isInitialized: boolean;
   autoConnect: boolean;
   closeSocket: () => void;
@@ -44,6 +45,7 @@ export function useShellConnection({
   initialCommandRef,
   isPlainShellRef,
   onProcessCompleteRef,
+  onSessionAssignedRef,
   isInitialized,
   autoConnect,
   closeSocket,
@@ -98,8 +100,15 @@ export function useShellConnection({
         return;
       }
 
+      if (message.type === 'session-assigned') {
+        if (typeof message.sessionId === 'string' && message.sessionId) {
+          onSessionAssignedRef.current?.(message.sessionId);
+        }
+        return;
+      }
+
     },
-    [handleProcessCompletion, onOutputRef, terminalRef],
+    [handleProcessCompletion, onOutputRef, onSessionAssignedRef, terminalRef],
   );
 
   const connectWebSocket = useCallback(

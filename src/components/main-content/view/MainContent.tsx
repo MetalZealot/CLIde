@@ -151,6 +151,16 @@ function MainContent({
     }
   }, [shouldShowBrowserTab, activeTab, setActiveTab]);
 
+  // A new Claude shell runs under an id the server minted; adopt it so the
+  // sidebar row and later Shell visits reach the same running CLI.
+  const handleShellSessionAssigned = useCallback((sessionId: string) => {
+    if (!selectedProject) {
+      return;
+    }
+    onSessionEstablished(sessionId, { provider: 'claude', project: selectedProject });
+    onNavigateToSession(sessionId, { replace: true });
+  }, [onNavigateToSession, onSessionEstablished, selectedProject]);
+
   usePaletteOpsRegister({
     openFile: (filePath: string) => {
       setActiveTab('files');
@@ -258,6 +268,7 @@ function MainContent({
                 session={selectedSession}
                 showHeader={false}
                 isActive={activeTab === 'shell'}
+                onSessionAssigned={handleShellSessionAssigned}
               />
             </div>
           )}

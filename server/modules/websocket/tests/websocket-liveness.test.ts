@@ -410,4 +410,70 @@ describe('shell-websocket.service', () => {
     ]);
     pty.emitExit();
   });
+
+  test('a new Claude Shell runs under a minted id that later visits reattach to', async () => {
+    const pty = createFakePty();
+    const spawnCalls: string[][] = [];
+    const dependencies = {
+      resolveProviderSessionId: () => null,
+      spawnPty: (_shell: string, args: string | string[]) => {
+        spawnCalls.push(typeof args === 'string' ? [args] : args);
+        return pty as never;
+      },
+    };
+
+    const socket = createFakeSocket();
+    handleShellConnection(socket as never, dependencies);
+    socket.emit('message', JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: null,
+      hasSession: false,
+      provider: 'claude',
+    }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const frames = socket.frames.map((frame) => JSON.parse(frame) as Record<string, unknown>);
+    const assigned = frames.find((frame) => frame.type === 'session-assigned');
+    assert.ok(assigned && typeof assigned.sessionId === 'string');
+    assert.match(assigned.sessionId as string, /^[0-9a-f-]{36}$/);
+    assert.deepEqual(spawnCalls, [['-c', `claude --session-id "${assigned.sessionId}"`]]);
+
+    // Opening the sidebar row the watcher creates for that id reaches the same CLI.
+    const revisit = createFakeSocket();
+    handleShellConnection(revisit as never, dependencies);
+    revisit.emit('message', JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: assigned.sessionId,
+      hasSession: true,
+      provider: 'claude',
+    }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(spawnCalls.length, 1);
+    assert.match(revisit.frames[0], /Reconnected to existing session/);
+    pty.emitExit();
+  });
+
+  test('a new Shell for a provider that cannot take an id is not assigned one', async () => {
+    const pty = createFakePty();
+    const socket = createFakeSocket();
+    handleShellConnection(socket as never, {
+      resolveProviderSessionId: () => null,
+      spawnPty: () => pty as never,
+    });
+    socket.emit('message', JSON.stringify({
+      type: 'init',
+      projectPath: process.cwd(),
+      sessionId: null,
+      hasSession: false,
+      provider: 'cursor',
+    }));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const frames = socket.frames.map((frame) => JSON.parse(frame) as Record<string, unknown>);
+    assert.equal(frames.some((frame) => frame.type === 'session-assigned'), false);
+    pty.emitExit();
+  });
 });

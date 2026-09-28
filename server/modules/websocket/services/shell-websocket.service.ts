@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -179,7 +180,8 @@ function resolveResumeSessionId(
  */
 async function buildShellCommand(
   message: ShellIncomingMessage,
-  dependencies: ShellWebSocketDependencies
+  dependencies: ShellWebSocketDependencies,
+  assignedSessionId: string | null = null,
 ): Promise<string> {
   const hasSession = readBoolean(message.hasSession);
   const initialCommand = readString(message.initialCommand);
@@ -213,6 +215,10 @@ async function buildShellCommand(
       return `opencode --session "${resumeSessionId}"`;
     }
     return initialCommand || 'opencode';
+  }
+
+  if (assignedSessionId) {
+    return `claude --session-id "${assignedSessionId}"`;
   }
 
   const command = initialCommand || 'claude';
@@ -305,7 +311,7 @@ export function handleShellConnection(
 
       if (data.type === 'init') {
         const projectPath = readString(data.projectPath, process.cwd());
-        const sessionId = readString(data.sessionId) || null;
+        let sessionId = readString(data.sessionId) || null;
         const hasSession = readBoolean(data.hasSession);
         const provider = readString(data.provider, 'claude');
         const initialCommand = readString(data.initialCommand);
@@ -328,6 +334,13 @@ export function handleShellConnection(
           isPlainShell && initialCommand
             ? `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`
             : '';
+        // A new Claude shell is started under an id minted here, so the PTY, the
+        // transcript file and the sidebar row the watcher creates all share it.
+        const assignedSessionId =
+          provider === 'claude' && !isPlainShell && !hasSession && !sessionId ? randomUUID() : null;
+        if (assignedSessionId) {
+          sessionId = assignedSessionId;
+        }
         ptySessionKey = `${projectPath}_${sessionId ?? 'default'}${commandSuffix}`;
 
         if (isLoginCommand || forceRestart) {
@@ -389,7 +402,7 @@ export function handleShellConnection(
           return;
         }
 
-        const shellCommand = await buildShellCommand(data, dependencies);
+        const shellCommand = await buildShellCommand(data, dependencies, assignedSessionId);
         const resumeSessionId = resolveResumeSessionId(data, dependencies);
         const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
         const shellArgs =
@@ -427,6 +440,10 @@ export function handleShellConnection(
           projectPath,
           sessionId,
         });
+
+        if (assignedSessionId) {
+          ws.send(JSON.stringify({ type: 'session-assigned', sessionId: assignedSessionId, provider }));
+        }
 
         shellProcess.onData((chunk) => {
           if (!ptySessionKey) {

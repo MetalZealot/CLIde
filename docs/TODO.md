@@ -85,6 +85,7 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 
 ## Shell sync
 
+- [ ] **A new Codex, Cursor or OpenCode Shell still detaches from its sidebar row.** They cannot be handed an id at launch, so the PTY stays filed under no session; only Claude gets the minted id (`shell-websocket.service.ts`). **M**
 - [ ] **Shell shows a stale transcript snapshot; Disconnect/Restart don't reliably refresh it.** The Shell tab is a separate `claude --resume <id>` CLI in a server-side PTY: it renders the transcript as of process start and never live-tails web-chat turns, so *some* staleness is inherent. Two real defects sit behind that — separate them before fixing. Observed 2026-07-16. **M**
 
 ## Theming

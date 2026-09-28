@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **A new Claude Shell stays one session with its sidebar row** (2026-09-28). The server mints the id and runs `claude --session-id`, so the PTY, transcript and row share it and the row's Shell reattaches instead of spawning a second `--resume` CLI. Fork-only. Verified on 3002: one process after reload, Chat shows the Shell's turn.
+
 - [x] **Touch menu taps release their highlight** (2026-09-24). Sidebar and header kebabs, Permissions, and the usage ring show brief press feedback, then return to rest while their menu stays open; long-press row state remains separate. Verified: Browser phone and desktop checks, simulated Samsung hover path, 20 sidebar tests, temporary client build. Fork-only. **S**
 
 - [x] **Thought rows sit inside the command groups beside them** (2026-09-24). Only a thought with no call beside it stays a chat row; opened thoughts render Markdown, labels drop `**`, Codex summary parts are separate paragraphs. Verified: 124 client + 57 provider tests, typecheck, lint, build. Live check pending. Fork-only. **S**
