@@ -15,6 +15,12 @@ The **reference session** is the largest local Claude transcript (17 MB, 115
 rendered rows): real tool bursts, images and subagents. Synthetic fixtures
 are prose-heavy and missed the per-page growth phase 7 targets.
 
+**Every change is checked for position, not just speed, in pane and phone
+page-scroll mode** ([how](../maps/chat-history-performance.md#what-the-reader-experiences)):
+the session opens at the bottom, and a walk up that pauses between swipes
+moves nothing the reader did not scroll. Speed-only checks shipped a fault
+that opened sessions 629 px up and jumped the view 1,338 px (`61440326`).
+
 ## Effort sizes
 
 **M:** bounded work with focused checks. **L:** several connected changes with
@@ -46,13 +52,14 @@ list uses `gap`, restores keep the reader's scroll, laid-out rows skip
 rendering off-screen, chained pages double (walk 6.7 → 1.2 s blocked), the
 composer skips history commits (components rendered per walk 5,108 → 3,123).
 older pages reveal within a 30 ms estimated mount budget per frame (worst
-frame 282 → 116 ms, production build). Left: 4 of 38 steps still exceed
+frame 282 → 116 ms, production build); rows opt in to skipping with their
+measured height, so restores stop drifting (`61440326`). Left: 4 of 38 steps still exceed
 100 ms, on a ~50 ms fixed frame cost that is ~40% forced layout; the phone check.
 
 Count before cutting: timings on the Pi vary run to run and can hide a small
 win. Record React commits and rows re-rendered per scroll-up step in the
 reference session. Those counts repeat exactly. Confirm once that lowering them
-lowers blocked time, then work against the counts. Phase 10 turns them into
+lowers blocked time, then work against the counts. Phase 9 turns them into
 the failing check.
 
 **Exit:** in the reference session no scroll-up step blocks over 100 ms in
@@ -61,7 +68,17 @@ CLIde Browser, and cost no longer grows with rows already mounted.
 - [x] **8. Activity identity survives older pages — M.** An activity keeps
   the key any of its calls had; it stays open and in place. `445ef15d`
 
-- [ ] **9. Load ahead instead of on demand — L.**
+- [ ] **9. Tests match real sessions, sustained use and position — M.**
+
+Before more speed work: the gate that would have caught `61440326`'s fault.
+A tool-heavy fixture with long bursts. Walk to the top and back, stream while
+reading old text, expand output mid-walk; assert phase 7's commit and
+row-render counts per prepend, and the position rule above in both modes.
+
+**Exit:** the benchmark fails when per-page cost grows with mounted rows, and
+when reverting `61440326` moves the view.
+
+- [ ] **10. Load ahead instead of on demand — L.**
 
 After open, fetch the viewed session's remaining slim history in the
 background in bounded pages; scrolling reveals rows from memory. Evict other
@@ -74,24 +91,20 @@ tool-activity phase 6 (loading by activities).
 and waits on no request on a normal connection; export leaves the view as it
 was.
 
-- [ ] **10. Tests match real sessions and sustained use — M.**
-
-A tool-heavy fixture with long bursts. Walk to the top and back, stream while
-reading old text, expand output mid-walk; assert phase 7's commit and row-render counts per
-prepend.
-
-**Exit:** the benchmark fails when per-page cost grows with mounted rows.
-
 - [ ] **11. One rendered-window model — L; XL if bounding is needed.**
 
 The tail count, the jump range and the selection hold become one range over
-loaded records. The prompt list and jumps work with Find closed. Re-measure
+loaded records. The prompt list and jumps work with Find closed. One owner
+sets scroll position, in two modes: follow the bottom, or hold a row still.
+About 15 sites set it today (grep, 2026-09-27); loads, reveals, resizes and
+jumps all go through the owner. Re-measure
 long sessions: only if freezes remain, render near-viewport rows with reserved
 space, keeping selection, focus, editing, Find highlights, expansion and phone
 page scrolling intact. Otherwise record the evidence and close.
 
 **Exit:** any user prompt is reachable directly without rendering what lies
-between; scrolling from a jump pages both ways and rejoins the tail.
+between; scrolling from a jump pages both ways and rejoins the tail; only
+the owner writes scroll position.
 
 - [ ] **12. Close cold-load and Find-preparation gaps — M–XL.**
 
@@ -125,6 +138,8 @@ phone app. Update the map and orientation as rules change.
 
 - The reference session scrolls bottom to top with no Load button and no step
   blocking over 100 ms in CLIde Browser, and without visible stalls on the phone.
+- A session opens at the bottom and nothing moves that the reader did not
+  scroll, in pane and phone mode; a maintained check fails otherwise.
 - An expanded activity stays expanded while older history loads.
 - Any user prompt can be reached directly; old text is findable.
 - Maintained tests fail when per-page cost grows with mounted rows.

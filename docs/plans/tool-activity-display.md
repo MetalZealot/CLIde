@@ -65,7 +65,7 @@ empty.
   blocks stop at 12 lines behind "Show all"; the old tool card and code-editor
   overlay are not used ([ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md)).
 - [x] 6. **Loading advances a useful number of activities.** Moved to the
-  [history plan](chat-history-performance.md), phase 9: the viewed session's
+  [history plan](chat-history-performance.md), phase 10: the viewed session's
   history loads ahead, so page size no longer decides visible progress.
 - [x] 7. **Thinking and answered questions use the activity row and panel.**
   Thinking reads `Thought for 23s ›`, timed from the row before it, and opens to
