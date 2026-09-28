@@ -17,7 +17,15 @@ export type CodeEditorFile = {
   // unsaved buffer. Optional: callers that don't mint one fall back to the
   // path, which is the pre-rebind behavior.
   documentId?: string;
+  // Outside the project root, where the server refuses writes.
+  readOnly?: boolean;
   [key: string]: unknown;
+};
+
+export type FileOpenOptions = {
+  readOnly?: boolean;
+  // Display name when the on-disk name differs (e.g. a stored upload).
+  name?: string;
 };
 
 export type CodeEditorSettingsState = {

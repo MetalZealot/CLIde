@@ -1,6 +1,6 @@
 import { EditorView } from '@codemirror/view';
 import { unifiedMergeView } from '@codemirror/merge';
-import type { Extension } from '@codemirror/state';
+import { EditorState, type Extension } from '@codemirror/state';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -154,10 +154,15 @@ export default function CodeEditor({
       allExtensions.push(EditorView.lineWrapping);
     }
 
+    if (file.readOnly) {
+      allExtensions.push(EditorState.readOnly.of(true));
+    }
+
     return allExtensions;
   }, [
     file.diffInfo,
     file.name,
+    file.readOnly,
     minimapExtension,
     scrollToFirstChunkExtension,
     showDiff,

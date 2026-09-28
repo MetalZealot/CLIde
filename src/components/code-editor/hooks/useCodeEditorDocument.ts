@@ -33,6 +33,7 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
   const fileProjectId = file.projectId ?? projectPath;
   const filePath = file.path;
   const fileName = file.name;
+  const isReadOnly = Boolean(file.readOnly);
   const fileDiffNewString = file.diffInfo?.new_string;
   const fileDiffOldString = file.diffInfo?.old_string;
   const hasDiffInfo = Boolean(file.diffInfo);
@@ -108,7 +109,7 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
   const handleSave = useCallback(async () => {
     // Preview-only and binary files have no editable text buffer; never write
     // them back (e.g. via Cmd/Ctrl+S) or we'd corrupt the file on disk.
-    if (previewKind || isBinaryFile(fileName)) {
+    if (previewKind || isBinaryFile(fileName) || isReadOnly) {
       return;
     }
 
@@ -145,7 +146,7 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
     } finally {
       setSaving(false);
     }
-  }, [content, filePath, fileProjectId, previewKind, fileName]);
+  }, [content, filePath, fileProjectId, previewKind, fileName, isReadOnly]);
 
   const handleDownload = useCallback(() => {
     const blob = new Blob([content], { type: 'text/plain' });

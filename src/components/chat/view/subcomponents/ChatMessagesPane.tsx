@@ -6,6 +6,7 @@ import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 import type { ChatMessage, PendingPermissionRequest } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
+import type { FileOpenOptions } from '../../../code-editor/types/types';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { assignActivityKeys, groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
 import { computeTurnDurations } from '../../utils/turnDuration';
@@ -39,7 +40,7 @@ interface ChatMessagesPaneProps {
   loadAllMessages: () => Promise<ChatMessage[] | null>;
   isLoadingAllMessages: boolean;
   createDiff: any;
-  onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
+  onFileOpen?: (filePath: string, diffInfo?: unknown, options?: FileOpenOptions) => void;
   onShowSettings?: () => void;
   onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => {
     success: boolean;

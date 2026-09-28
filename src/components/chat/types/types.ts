@@ -1,4 +1,5 @@
 import type { Project, ProjectSession, LLMProvider, SessionActions } from '../../../types/app';
+import type { FileOpenOptions } from '../../code-editor/types/types';
 import type {
   CreateWorktreeOptions,
   CreateWorktreeOutcome,
@@ -190,7 +191,7 @@ export interface ChatInterfaceProps {
   selectedSession: ProjectSession | null;
   ws: WebSocket | null;
   sendMessage: (message: unknown) => boolean;
-  onFileOpen?: (filePath: string, diffInfo?: any) => void;
+  onFileOpen?: (filePath: string, diffInfo?: any, options?: FileOpenOptions) => void;
   onInputFocusChange?: (focused: boolean) => void;
   /** Reports whether a permission prompt is waiting, so other views can flag the chat. */
   onPermissionAttentionChange?: (hasPending: boolean) => void;

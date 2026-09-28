@@ -33,6 +33,7 @@ import MessageCopyControl from './MessageCopyControl';
 import ActivityIndicator from './ActivityIndicator';
 import { ChatExportOptions } from './ChatExportMenu';
 import ChatFindBar from './ChatFindBar';
+import ChatMessageFiles from './ChatMessageFiles';
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
 import { ComposerAttachmentGallery } from './ComposerAttachment';
@@ -956,6 +957,30 @@ describe('chatSubcomponents', () => {
           document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         });
         assert.equal(document.querySelector('[role="dialog"]'), null);
+      } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+      }
+    });
+
+    test('opens a text attachment read-only in the editor and leaves archives as downloads', async () => {
+      const opened: Array<{ path: string; options: unknown }> = [];
+      const { container, root } = await mount(
+        <ChatMessageFiles
+          files={[
+            { name: 'notes.md', path: '/assets/1-2-notes.md' },
+            { name: 'bundle.zip', path: '/assets/1-2-bundle.zip' },
+          ]}
+          onFileOpen={(path, _diffInfo, options) => opened.push({ path, options })}
+        />,
+      );
+
+      try {
+        const textFile = container.querySelector<HTMLButtonElement>('[aria-label="Open notes.md"]');
+        assert.ok(textFile);
+        await React.act(async () => textFile.click());
+        assert.deepEqual(opened, [{ path: '/assets/1-2-notes.md', options: { readOnly: true, name: 'notes.md' } }]);
+        assert.ok(container.querySelector('[aria-label="Download bundle.zip"]'));
       } finally {
         await React.act(async () => root.unmount());
         container.remove();

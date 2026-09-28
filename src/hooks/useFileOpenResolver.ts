@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import { api } from '../utils/api';
 import type { Project } from '../types/app';
+import type { FileOpenOptions } from '../components/code-editor/types/types';
 
-type OnFileOpen = (filePath: string, diffInfo?: any) => void;
+type OnFileOpen = (filePath: string, diffInfo?: any, options?: FileOpenOptions) => void;
 
 export type FileOpenResolutionIssue = {
   kind: 'ambiguous' | 'error';
@@ -38,11 +39,11 @@ export function useFileOpenResolver(
     activeRequestRef.current = null;
   }, [projectId]);
 
-  return useCallback((filePath: string, diffInfo?: any) => {
+  return useCallback((filePath: string, diffInfo?: any, options?: FileOpenOptions) => {
     const reference = filePath.replace(/\\/g, '/').trim();
     if (!reference) return;
     if (!projectId) {
-      onFileOpen(filePath, diffInfo);
+      onFileOpen(filePath, diffInfo, options);
       return;
     }
     const key = `${projectId}\u0000${reference}`;
@@ -60,11 +61,11 @@ export function useFileOpenResolver(
         if (controller.signal.aborted || activeRequestRef.current?.generation !== generation) return;
         if (!response.ok) throw new Error(resolution.error || 'Could not resolve file reference');
         if (resolution.status === 'resolved') {
-          onFileOpen(resolution.match.path, diffInfo);
+          onFileOpen(resolution.match.path, diffInfo, options);
           return;
         }
         if (resolution.status === 'not-found') {
-          onFileOpen(filePath, diffInfo);
+          onFileOpen(filePath, diffInfo, options);
           return;
         }
         if (resolution.status === 'ambiguous') {

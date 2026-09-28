@@ -19,6 +19,7 @@ import {
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { isChatFindConversationMessage } from '../../hooks/useChatFind';
 import type { Project } from '../../../../types/app';
+import type { FileOpenOptions } from '../../../code-editor/types/types';
 import { formatMessageTimestamp, useClockFormat } from '../../../../utils/formatTime';
 import { ToolRenderer, ToolErrorDisplay, getToolConfig, shouldHideToolResult } from '../../tools';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
@@ -45,7 +46,7 @@ type MessageComponentProps = {
   /** Set only on the last reply of a finished turn. */
   turnDurationMs?: number;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
-  onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
+  onFileOpen?: (filePath: string, diffInfo?: unknown, options?: FileOpenOptions) => void;
   onShowSettings?: () => void;
   onGrantToolPermission?: (suggestion: ClaudePermissionSuggestion) => PermissionGrantResult | null | undefined;
   showRawParameters?: boolean;
@@ -171,7 +172,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
               />
             )}
             {message.files && message.files.length > 0 && (
-              <ChatMessageFiles files={message.files} />
+              <ChatMessageFiles files={message.files} onFileOpen={onFileOpen} />
             )}
             {userCopyContent.trim().length > 0 || (!message.images?.length && !message.files?.length) ? (
               <>

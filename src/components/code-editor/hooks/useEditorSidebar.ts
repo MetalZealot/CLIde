@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { FilePathChange, Project } from '../../../types/app';
 import { fileNameFromPath, remapChangedPath } from '../../../utils/filePathChange';
-import type { CodeEditorDiffInfo, CodeEditorFile } from '../types/types';
+import type { CodeEditorDiffInfo, CodeEditorFile, FileOpenOptions } from '../types/types';
 
 // Monotonic per-tab counter; only ever compared for equality, never persisted.
 let nextDocumentId = 0;
@@ -27,14 +27,15 @@ export const useEditorSidebar = ({
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
 
   const handleFileOpen = useCallback(
-    (filePath: string, diffInfo: CodeEditorDiffInfo | null = null) => {
+    (filePath: string, diffInfo: CodeEditorDiffInfo | null = null, options: FileOpenOptions = {}) => {
       setEditingFile({
-        name: fileNameFromPath(filePath),
+        name: options.name ?? fileNameFromPath(filePath),
         path: filePath,
         // DB projectId is forwarded to the editor so it can read/save files
         // via `/api/file-tree/projects/:projectId/file` endpoints.
         projectId: selectedProject?.projectId,
         diffInfo,
+        readOnly: options.readOnly,
         // A fresh id every open: this is a different document, so the editor
         // should load it. Moves and renames reuse the id (see below).
         documentId: mintDocumentId(),
