@@ -1261,6 +1261,49 @@ test('history performance target: Find keeps the rendered window bounded', async
 });
 
 
+test('arrivals while scrolled up keep the rows above the reader', async () => {
+  const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
+  let messages = clientHistory(200);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{}', { status: 200 });
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  const slot = { hasMore: false, status: 'idle' };
+  const store = {
+    getMessages: () => messages, getSessionSlot: () => slot, setActiveSession: () => undefined,
+    isStale: () => false, fetchSessionSettings: () => undefined, fetchFromServer: async () => slot,
+  } as unknown as SessionStore;
+  const args: Parameters<typeof useChatSessionState>[0] = {
+    selectedProject: { projectId: 'p', displayName: 'fixture', fullPath: '/tmp', path: '/tmp' },
+    selectedSession: { id: 'fixture-client', __provider: 'claude' },
+    ws: null, sendMessage: () => true, resetStreamingState: () => undefined,
+    statusCheckSentAtRef: { current: new Map() }, getReplayProgress: () => null, sessionStore: store,
+  };
+  let state!: ReturnType<typeof useChatSessionState>;
+  function Harness() {
+    state = useChatSessionState(args);
+    return React.createElement('div', { ref: state.scrollContainerRef },
+      React.createElement('div', { ref: state.messagesContentRef }, state.visibleMessages.map((message) =>
+        React.createElement('div', { key: message.id, className: 'chat-message' }, message.content))));
+  }
+  try {
+    await React.act(async () => root.render(React.createElement(Harness)));
+    const top = state.visibleMessages[0].id;
+    await React.act(async () => state.setIsUserScrolledUp(true));
+    messages = clientHistory(203);
+    await React.act(async () => root.render(React.createElement(Harness)));
+    assert.equal(state.chatMessages.length, 203);
+    assert.equal(state.visibleMessages[0].id, top, 'trimming above the reader moves what they are reading');
+    await React.act(async () => state.setIsUserScrolledUp(false));
+    assert.equal(state.visibleMessages.length, 100, 'back at the bottom, the tail window applies again');
+  } finally {
+    await React.act(async () => root.unmount());
+    host.remove();
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('display reuse follows tool-result, subagent and streaming changes without touching other rows', async () => {
   const { clientHistory } = await import('../../../../scripts/chat-history/fixtures');
   const plain = clientHistory(1)[0];

@@ -95,12 +95,9 @@ export function applyScrollRestore(container: HTMLElement, restore: ScrollRestor
   restore.top = container.scrollTop;
 }
 
+/** The reader's scroll re-picks what a restore holds: the row now at the top, not the one at capture. */
 function updateScrollRestoreTarget(container: HTMLElement, restore: ScrollRestoreState): void {
-  if (restore.anchor?.isConnected) {
-    restore.anchorOffset = restore.anchor.getBoundingClientRect().top - getChatViewportRect(container).top;
-  }
-  restore.height = container.scrollHeight;
-  restore.top = container.scrollTop;
+  Object.assign(restore, captureScrollRestore(container));
 }
 
 /* ------------------------------------------------------------------ */
@@ -213,6 +210,7 @@ export function useChatSessionState({
   // Render-time mirrors of the rendered window, for scroll handlers and jumps.
   const viewRangeRef = useRef<typeof viewRange>(null);
   const windowStartRef = useRef(0);
+  const readingStartIdRef = useRef<string | null>(null);
   const windowEndRef = useRef(0);
   const isViewDetachedRef = useRef(false);
   const chatMessagesRef = useRef<ChatMessage[]>([]);
@@ -540,7 +538,8 @@ export function useChatSessionState({
       const id = chatMessagesRef.current[nextStart]?.id;
       setViewRange((range) => range && { ...range, startId: nextStart === 0 || !id ? null : id });
     } else {
-      setVisibleMessageCount((visible) => visible + start - nextStart);
+      // From the length, not the count: a held start can sit above the tail count's start.
+      setVisibleMessageCount(chatMessagesRef.current.length - nextStart);
     }
     return true;
   }, []);
@@ -997,7 +996,14 @@ export function useChatSessionState({
     if (viewRange && !viewBounds) setViewRange(null);
   }, [viewBounds, viewRange]);
 
-  const windowStart = viewBounds ? viewBounds.start : Math.max(0, chatMessages.length - visibleMessageCount);
+  // Scrolled up, arrivals must not trim rows above the reader: the rendered start holds by id.
+  const tailStart = Math.max(0, chatMessages.length - visibleMessageCount);
+  const heldId = isUserScrolledUp ? readingStartIdRef.current : null;
+  const heldStart = heldId === null ? -1
+    : chatMessages[windowStartRef.current]?.id === heldId ? windowStartRef.current
+      : chatMessages.findIndex((message) => message.id === heldId);
+  const windowStart = viewBounds ? viewBounds.start : heldStart >= 0 ? Math.min(tailStart, heldStart) : tailStart;
+  readingStartIdRef.current = chatMessages[windowStart]?.id ?? null;
   const windowEnd = viewBounds ? viewBounds.end : chatMessages.length;
   const isViewDetached = viewBounds !== null || Boolean(activeSessionSlot?.hasNewer);
   viewRangeRef.current = viewBounds ? viewRange : null;
@@ -1227,7 +1233,7 @@ export function useChatSessionState({
     tokenBudget,
     setTokenBudget,
     // Rows loaded but not rendered above count as hidden, as in the tail window.
-    visibleMessageCount: viewBounds ? chatMessages.length - viewBounds.start : visibleMessageCount,
+    visibleMessageCount: viewBounds || heldStart >= 0 ? chatMessages.length - windowStart : visibleMessageCount,
     visibleMessages,
     loadedRecords: storeMessages,
     isViewDetached,
