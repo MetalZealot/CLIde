@@ -300,6 +300,21 @@ Session offers an Update action; checking for an update never installs one.
 switching a running process can interrupt work. An incompatible update must say
 so rather than silently choosing an older copy. [Decision](../decisions/0061-follow-installed-provider-clis.md).
 
+## 19. Nothing moves the chat that you did not scroll
+
+Older messages load above you, replies stream in below, and rows open while you
+read. The app puts your place back by hand after each, because the browser's own
+place-keeping fights the loading.
+
+**The rule:** a session opens at the bottom. While you are scrolled up, new messages
+never remove rows above you, and the row held still is the one at the top of your
+screen now. Every change to loading or scrolling is walked in phone and desktop mode,
+pausing between swipes, before it ships.
+
+**What breaks:** the view jumps by a message's height while you read, or a chat opens
+partway up. Speed-only checks let exactly that ship once
+([history map](chat-history-performance.md#position-and-per-step-walk)).
+
 ## When to stop and ask
 
 You do not need to understand a diff to catch these. If a proposed change would:

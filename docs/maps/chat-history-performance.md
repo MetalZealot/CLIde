@@ -10,7 +10,8 @@ Opening fetches the newest 20 records; scrolling within 1.5 screens of the top
 reveals loaded rows, then fetches 20 more. A fetched page is revealed a frame
 at a time within an estimated 30 ms of row mounting (text ~4 ms + 8.5 ms per
 1,000 characters, tool run ~1.5 ms; fitted on the Pi, 2026-09-24). Rendered rows only accumulate until
-the session changes or ↓ rejoins the tail. Collapsed activities fold many
+the session changes or ↓ rejoins the tail; at the bottom an arrival trims the
+oldest row, scrolled up the first rendered row holds by id. Collapsed activities fold many
 records into one row, so a page can add little height and the pane chains
 further requests. Find and jumps use the detached window below.
 
@@ -48,8 +49,10 @@ frame and forced-layout time. Counts repeat exactly; timings do not.
 
 A row skips only after a real layout, its measured height as placeholder:
 restores read it until the browser rechecks visibility. A restore keeps
-the reader's scroll. Check both scroll modes, pausing between swipes;
-continuous steps hid a 1,338 px jump.
+the reader's scroll, and each scroll re-picks the row it holds as the one at
+the top of the view, so a row expanded during the 2 s settle is not pushed
+off-screen. Check both scroll modes, pausing between swipes; continuous steps
+hid a 1,338 px jump.
 
 ## Repeatable phase-1 baseline
 
@@ -95,47 +98,25 @@ phone evidence never establishes real-device or installed-PWA acceptance.
 
 ### Recorded measurements (2026-09-19)
 
-[Server report](../../scripts/chat-history/baselines/2026-09-19-server.json):
-five samples per workload, Node 24 on Linux ARM64. No competing build/test was
-started during the measurements; background services were not suspended.
-Values below are median / observed p95 in milliseconds.
+Phase-1 baselines, superseded by later phases: the
+[server report](../../scripts/chat-history/baselines/2026-09-19-server.json)
+(warm 10,000-message reads 232 ms Claude / 302 ms Codex median, heavy-tool pages
+~724 KB) and the [Browser report](../../scripts/chat-history/baselines/2026-09-19-browser.json)
+(Find 24.7 s and a live append 10.4 s median at 1,000 records, every row
+rerendered). Baselines, not production latency or touch smoothness.
 
-| Provider / plain messages | Cold reader | Warm reader | Warm HTTP | Warm bytes read |
-|---|---:|---:|---:|---:|
-| Claude / 200 | 16 / 32 | 10 / 12 | 15 / 24 | 0.12 MiB |
-| Claude / 2,000 | 67 / 71 | 56 / 87 | 58 / 69 | 1.25 MiB |
-| Claude / 10,000 | 233 / 310 | 232 / 274 | 225 / 273 | 6.25 MiB |
-| Codex / 200 | 19 / 34 | 11 / 15 | 14 / 19 | 0.19 MiB |
-| Codex / 2,000 | 83 / 91 | 68 / 75 | 77 / 88 | 1.35 MiB |
-| Codex / 10,000 | 329 / 343 | 302 / 328 | 291 / 301 | 6.53 MiB |
+### Position and per-step walk
 
-All six warm-read targets fail. Plain 20-message pages are about 13 KB, while
-heavy-tool pages reach 723,743 bytes (Claude) and 727,572 bytes (Codex): both fail
-the page budget. Retained server heap growth per sample stayed below 1 MiB;
-this does not measure peak parsing allocations or a future cache's steady state.
-
-[Browser report](../../scripts/chat-history/baselines/2026-09-19-browser.json):
-three reloads per mixed-history size, CLIde Browser desktop preset, 1280×720,
-Chromium 153 running on the same host. The user-agent reports Windows because it
-is an emulation preset; the runner is Linux ARM64. No console errors in the final
-run. Values are median / observed p95 milliseconds.
-
-| Operation | 200 fixture records | 1,000 fixture records |
-|---|---:|---:|
-| Open newest page | 850 / 930 | 1,000 / 1,451 |
-| Load one older page | 867 / 968 | 865 / 1,320 |
-| Find oldest authored text | 4,096 / 4,366 | 24,656 / 25,958 |
-| Append one live message after closing Find | 2,115 / 2,150 | 10,363 / 11,018 |
-
-Find transfers 440,494 / 2,204,564 decoded response bytes and mounts 180 / 900
-chat rows. The next append makes no history request but rerenders all 181 / 901
-rows and their Markdown. Median longest append tasks are 2,083 / 10,212 ms;
-median append frame p95 is 2,083 / 10,250 ms. Find's longest individual task
-reaches 24,771 ms in the larger fixture. Tool-result/hidden records explain why
-fixture record counts, converted messages and mounted rows differ.
-
-Reader and rendering costs grew independently. This is a baseline, not proof of
-production latency or touch smoothness.
+`await window.historyBench.walk(2, 'pane' | 'page')`, reloading between runs,
+walks the 1,000-record `bursts` fixture (17 tool calls per prompt). `page` is
+the phone mode; run it at a 412 px viewport, `pane` at 1280. It fails unless the
+session opens at the bottom, nothing painted moves that the walk did not scroll
+(swipes of 200-400 px with 3-20 frame pauses, an activity expanded on the way,
+a reply streamed while reading mid-history, the walk back), the expanded
+activity stays open, and each older page re-renders at most 2 existing rows in
+at most 12 commits ([budgets](../../scripts/chat-history/budgets.ts)). It went
+red with `61440326`, the arrival hold or the restore re-pick undone
+(2026-09-27).
 
 ## Phase 2 server cache
 

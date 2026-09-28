@@ -1,6 +1,6 @@
 # Fast, stable chat history and navigation
 
-- Status: 7/14
+- Status: 8/14
 - Next: Phase 7 — cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
@@ -59,8 +59,8 @@ measured height, so restores stop drifting (`61440326`). Left: 4 of 38 steps sti
 Count before cutting: timings on the Pi vary run to run and can hide a small
 win. Record React commits and rows re-rendered per scroll-up step in the
 reference session. Those counts repeat exactly. Confirm once that lowering them
-lowers blocked time, then work against the counts. Phase 9 turns them into
-the failing check.
+lowers blocked time, then work against the counts; the phase-9 walk fails
+when they grow.
 
 **Exit:** in the reference session no scroll-up step blocks over 100 ms in
 CLIde Browser, and cost no longer grows with rows already mounted.
@@ -68,15 +68,10 @@ CLIde Browser, and cost no longer grows with rows already mounted.
 - [x] **8. Activity identity survives older pages — M.** An activity keeps
   the key any of its calls had; it stays open and in place. `445ef15d`
 
-- [ ] **9. Tests match real sessions, sustained use and position — M.**
-
-Before more speed work: the gate that would have caught `61440326`'s fault.
-A tool-heavy fixture with long bursts. Walk to the top and back, stream while
-reading old text, expand output mid-walk; assert phase 7's commit and
-row-render counts per prepend, and the position rule above in both modes.
-
-**Exit:** the benchmark fails when per-page cost grows with mounted rows, and
-when reverting `61440326` moves the view.
+- [x] **9. Tests match real sessions, sustained use and position — M.**
+  `historyBench.walk` on a tool-burst fixture, both scroll modes; it found
+  arrivals trimming rows above a scrolled-up reader and a stale settle anchor
+  (`3a83002a`). Red with `61440326` undone. `1ace705a`
 
 - [ ] **10. Load ahead instead of on demand — L.**
 
