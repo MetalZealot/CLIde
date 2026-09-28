@@ -13,6 +13,10 @@ export const historyBudgets = {
   browserFindP95Ms: 500,
   frameP95Ms: 32,
   maxLongTaskMs: 200,
+  walkJumpPx: 2,
+  // Per older-history step on the bursts fixture, both scroll modes: at most 1 and 9 measured (2026-09-27).
+  rerenderedRowsPerStep: 2,
+  commitsPerStep: 12,
   serverHeapGrowthBytes: 64 * 1024 * 1024,
   browserHeapGrowthBytes: 128 * 1024 * 1024,
 } as const;

@@ -13,7 +13,7 @@ import enCommon from '../../src/i18n/locales/en/common.json';
 import '../../src/index.css';
 
 await i18next.use(initReactI18next).init({ lng: 'en', resources: { en: { chat: enChat, common: enCommon } }, interpolation: { escapeValue: false } });
-const fixtures: Array<{ id: string; count: number }> = await fetch('/fixtures').then((r) => r.json());
+const fixtures: Array<{ id: string; count: number; profile: string }> = await fetch('/fixtures').then((r) => r.json());
 const project = { projectId: 'fixture-project', displayName: 'Synthetic history', path: '/fixture', fullPath: '/fixture' };
 const noop = () => undefined;
 const grant = () => ({ success: false });
@@ -38,19 +38,20 @@ let state: ReturnType<typeof useChatSessionState>;
 let find: ReturnType<typeof useChatFind>;
 let store: ReturnType<typeof useSessionStore>;
 let selectedId = fixtures[0].id;
+let pageScroll = false;
 function Harness() {
   store = useSessionStore();
   const [session] = useState({ id: selectedId, __provider: 'claude' as const });
   const status = useRef(new Map<string, number>());
   state = useChatSessionState({ selectedProject: project, selectedSession: session, ws: null,
     sendMessage: send, resetStreamingState: noop, statusCheckSentAtRef: status,
-    getReplayProgress: replay, sessionStore: store });
+    getReplayProgress: replay, sessionStore: store, pageScroll });
   find = useChatFind({ isVisible: true, sessionId: session.id, sessionStore: store, loadedRecords: state.loadedRecords,
     renderedMessages: state.visibleMessages, jumpToMessage: state.jumpToMessage,
     scrollContainerRef: state.scrollContainerRef, messagesContentRef: state.messagesContentRef });
   useEffect(() => { document.title = `History fixture: ${session.id}`; }, [session.id]);
-  return <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-    <ChatMessagesPane {...state} selectedProject={project} selectedSession={session}
+  return <div style={{ [pageScroll ? 'minHeight' : 'height']: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <ChatMessagesPane {...state} selectedProject={project} selectedSession={session} pageScroll={pageScroll}
       provider="claude"
       onGrantToolPermission={grant} showThinking={false} scheduledMessages={[]}
       onSendScheduledNow={noop} onEditScheduledMessage={noop} onCancelScheduledMessage={noop}
@@ -90,8 +91,178 @@ const measure = async (operation: () => Promise<void>) => {
       historyRequestMs: http.map((r) => r.duration) };
   } finally { measuring = false; }
 };
+
+const nextFrame = () => new Promise<number>(requestAnimationFrame);
+const distanceToBottom = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight;
+/** Waits until nothing loads and the scroll geometry holds for 20 frames. */
+const settled = async (el: HTMLElement) => {
+  const end = performance.now() + 30_000;
+  let still = 0, last = '';
+  while (still < 20) {
+    if (performance.now() > end) throw new Error('History did not settle');
+    await nextFrame();
+    const now = `${el.scrollTop}/${el.scrollHeight}`;
+    still = now === last && !state.isLoadingMoreMessages && !state.isLoadingSessionMessages ? still + 1 : 0;
+    last = now;
+  }
+};
+/**
+ * Moves the view a frame at a time and reports every painted frame in which a
+ * visible row moved by anything other than the scroll this driver made.
+ */
+const positionDriver = (el: HTMLElement, pageMode: boolean) => {
+  const jumps: Array<{ frame: number; shift: number; phase: string; scrollTop: number; scrollHeight: number; anchor: string }> = [];
+  let anchor: Element | undefined, prevTop = 0, owed = 0, frame = 0, phase = '';
+  const viewportTop = () => pageMode ? 0 : el.getBoundingClientRect().top;
+  const pick = () => {
+    const top = viewportTop();
+    anchor = Array.from(document.querySelectorAll('.chat-rows > .chat-message')).find((row) => {
+      const rect = row.getBoundingClientRect();
+      return rect.bottom > top + 80 && rect.top < top + el.clientHeight;
+    });
+    prevTop = anchor?.getBoundingClientRect().top ?? 0;
+    owed = 0;
+  };
+  const scrollBy = (dy: number) => {
+    const before = el.scrollTop;
+    el.scrollTop = before + dy;
+    owed += before - el.scrollTop;
+  };
+  // A task posted from a frame callback runs after that frame paints: what the reader saw.
+  const afterPaint = (callback: () => void) => requestAnimationFrame(() => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = callback;
+    channel.port2.postMessage(null);
+  });
+  /** Runs `step` once per painted frame until it returns true; `step` may scroll with `scrollBy`. */
+  const drive = (name: string, step: (frame: number) => boolean, ignore = () => false) => new Promise<void>((resolve, reject) => {
+    phase = name;
+    const end = performance.now() + 240_000;
+    pick();
+    const tick = () => {
+      frame += 1;
+      if (anchor?.isConnected && !ignore()) {
+        const shift = Math.round(anchor.getBoundingClientRect().top - prevTop - owed);
+        if (Math.abs(shift) > historyBudgets.walkJumpPx) {
+          jumps.push({ frame, shift, phase, scrollTop: Math.round(el.scrollTop), scrollHeight: el.scrollHeight,
+            anchor: `${anchor.className.slice(0, 40)} ${anchor.textContent?.slice(0, 40)}` });
+        }
+      }
+      pick();
+      if (performance.now() > end) { reject(new Error(`Walk phase ${name} timed out`)); return; }
+      if (step(frame)) { resolve(); return; }
+      afterPaint(tick);
+    };
+    afterPaint(tick);
+  });
+  /** Holds `row` still across the next frame: rows below something expanding move, it must not. */
+  const watch = (row: Element) => { anchor = row; prevTop = row.getBoundingClientRect().top; owed = 0; };
+  return { jumps, drive, scrollBy, watch };
+};
 (window as any).historyBench = {
   fixtures, snapshot,
+
+  /**
+   * Position and per-step work in `pane` or phone `page` scroll mode: open at the
+   * bottom, walk to the top pausing between swipes, expand an activity on the way,
+   * stream while reading old text, walk back and follow new messages.
+   */
+  async walk(index: number, mode: 'pane' | 'page') {
+    const fixture = fixtures[index];
+    if (!fixture) throw new Error('Unknown fixture');
+    if (ran) throw new Error('Reload the fixture page before each sample');
+    ran = true;
+    selectedId = fixture.id;
+    pageScroll = mode === 'page';
+    root.render(<AppearancePreferencesProvider><Harness /></AppearancePreferencesProvider>);
+    await until(() => !!state && state.currentSessionId === fixture.id && !state.isLoadingSessionMessages && state.chatMessages.length > 0);
+    const el = state.scrollContainerRef.current!;
+    await settled(el);
+    const openDistancePx = Math.round(distanceToBottom(el));
+    const { jumps, drive, scrollBy, watch } = positionDriver(el, pageScroll);
+    const mounted = () => document.querySelectorAll('.chat-rows > .chat-message').length;
+    const atTop = () => el.scrollTop <= 0 && !state.hasMoreMessages && !state.isLoadingMoreMessages
+      && state.visibleMessages.length === state.chatMessages.length;
+
+    // Swipe sizes and pauses vary; a pause lets a restore land between swipes.
+    const swipes = [[200, 8], [400, 20], [300, 3]];
+    const steps: Array<{ mountedBefore: number; newRows: number; rowsRendered: number; commits: number }> = [];
+    let swipe = 0, wait = 0, still = 0, stepStart: { mounted: number; rows: number; commits: number } | null = null;
+    let expanded: Element | null = null;
+    const closeStep = () => {
+      const c = counters();
+      if (stepStart && mounted() > stepStart.mounted) {
+        steps.push({ mountedBefore: stepStart.mounted, newRows: mounted() - stepStart.mounted,
+          rowsRendered: c.rows - stepStart.rows, commits: (c.commits ?? 0) - stepStart.commits });
+      }
+      stepStart = { mounted: mounted(), rows: c.rows, commits: c.commits ?? 0 };
+    };
+    await drive('up', () => {
+      if (wait > 0) { wait -= 1; return false; }
+      if (atTop()) { still += 1; if (still > 30) { closeStep(); return true; } return false; }
+      still = 0;
+      closeStep();
+      if (swipe >= 10 && !expanded) {
+        const viewTop = pageScroll ? 0 : el.getBoundingClientRect().top;
+        const row = Array.from(document.querySelectorAll('.chat-rows > .chat-message.tool')).find((candidate) => {
+          const rect = candidate.getBoundingClientRect();
+          return rect.top > viewTop && rect.top < viewTop + el.clientHeight - 40;
+        });
+        const toggle = row?.querySelector<HTMLButtonElement>('button[aria-expanded="false"]');
+        if (row && toggle) { watch(row); toggle.click(); expanded = row; wait = 20; return false; }
+      }
+      const [dy, pauseFrames] = swipes[swipe % swipes.length];
+      swipe += 1;
+      scrollBy(-dy);
+      wait = pauseFrames;
+      return false;
+    });
+    const expandFound = !!expanded;
+    const expandedKept = !!expanded && (expanded as Element).isConnected
+      && !!(expanded as Element).querySelector('button[aria-expanded="true"]');
+
+    // Reading old text while a reply streams below must not move the view.
+    el.scrollTop = Math.round(el.scrollHeight / 2);
+    await settled(el);
+    let chunk = 0;
+    const streamText = (n: number) => Array.from({ length: n }, (_, i) => `Streamed sentence ${i}.`).join(' ');
+    await drive('stream', () => {
+      chunk += 1;
+      if (chunk <= 40) store.updateStreaming(fixture.id, streamText(chunk * 5), 'claude');
+      return chunk > 60;
+    });
+    const readingDistancePx = Math.round(distanceToBottom(el));
+
+    // Back down; the bottom band may snap the last few pixels, which is rejoining, not a jump.
+    let down = 0;
+    await drive('down', () => {
+      if (distanceToBottom(el) <= 1) { down += 1; return down > 30; }
+      scrollBy(400);
+      return false;
+    }, () => distanceToBottom(el) < 60);
+    store.appendRealtime(fixture.id, { id: 'fixture-walk-live', sessionId: fixture.id, provider: 'claude',
+      kind: 'text', role: 'assistant', content: 'A new live message after the walk.', timestamp: '2025-01-01T00:00:00Z' });
+    await settled(el);
+    const followDistancePx = Math.round(distanceToBottom(el));
+
+    const worst = (pick: (step: typeof steps[number]) => number) => Math.max(0, ...steps.map(pick));
+    const walkTargets = {
+      opensAtBottom: openDistancePx <= historyBudgets.walkJumpPx,
+      noUnscrolledMovement: jumps.length === 0,
+      expandedKept,
+      readingHeld: readingDistancePx > el.clientHeight,
+      followsAtBottom: followDistancePx <= historyBudgets.walkJumpPx,
+      rerenderBounded: worst((step) => step.rowsRendered - step.newRows) <= historyBudgets.rerenderedRowsPerStep,
+      commitsBounded: worst((step) => step.commits) <= historyBudgets.commitsPerStep,
+    };
+    const result = { fixture, mode, userAgent: navigator.userAgent, viewport: [innerWidth, innerHeight],
+      openDistancePx, readingDistancePx, followDistancePx, expandFound, expandedConnected: !!expanded && (expanded as Element).isConnected, jumps, steps, walkTargets };
+    const saved = await fetch('/results', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(result) });
+    if (!saved.ok) throw new Error('Could not save walk result');
+    const failed = Object.entries(walkTargets).filter(([, passed]) => !passed).map(([name]) => name);
+    if (failed.length) throw new Error(`Walk target failed: ${failed.join(', ')}; see saved report`);
+    return result;
+  },
   async run(index: number) {
     const fixture = fixtures[index];
     if (!fixture) throw new Error('Unknown fixture');

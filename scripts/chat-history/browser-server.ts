@@ -28,8 +28,9 @@ try {
   });
   if (historySourceState().sourceSha256 !== source.sourceSha256) throw new Error('Runtime source changed during fixture build; rerun for a consistent baseline');
   fixture = await createHistoryFixture();
-  const fixtures: Array<{ id: string; count: number }> = [];
-  for (const count of [200, 1000]) fixtures.push({ id: await fixture.add('claude', count, 'mixed'), count });
+  const fixtures: Array<{ id: string; count: number; profile: string }> = [];
+  for (const count of [200, 1000]) fixtures.push({ id: await fixture.add('claude', count, 'mixed'), count, profile: 'mixed' });
+  fixtures.push({ id: await fixture.add('claude', 1000, 'bursts'), count: 1000, profile: 'bursts' });
   const allowed = new Set(fixtures.map((f) => f.id));
   const app = express();
   const reports: unknown[] = [];
