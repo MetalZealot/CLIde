@@ -46,10 +46,10 @@ iframe counts commits and rendered components; a build aliasing `react-dom` to
 `react-dom/profiling` adds per-component time; Long Animation Frame entries give
 frame and forced-layout time. Counts repeat exactly; timings do not.
 
-A row may skip only after a real layout records its size: one skipped
-before that holds the 150 px guess and jumps the reader when reached.
-Scrolling up 120 px at a time, 0 of 274 steps jump; a restore also keeps
-scroll the reader made since capture.
+A row skips only after a real layout, its measured height as placeholder:
+restores read it until the browser rechecks visibility. A restore keeps
+the reader's scroll. Check both scroll modes, pausing between swipes;
+continuous steps hid a 1,338 px jump.
 
 ## Repeatable phase-1 baseline
 

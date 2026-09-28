@@ -558,6 +558,12 @@ describe('chatSubcomponents', () => {
       for (const rule of rules) assert.match(rule, /\[data-laid-out\]\s*\{/, 'a row skipped before layout holds a guessed height');
       const paneSource = readFileSync(new URL('./ChatMessagesPane.tsx', import.meta.url), 'utf8');
       assert.match(paneSource, /setAttribute\('data-laid-out'/);
+      // Opting in lays a row out at its placeholder until the next rendering step.
+      assert.match(
+        paneSource,
+        /containIntrinsicHeight = `auto \$\{heights\[index\]\}px`;\s*row\.setAttribute\('data-laid-out'/,
+        'a row opts in with its measured height as the placeholder',
+      );
     });
 
     test('the status row lives in the conversation, not above the composer', () => {

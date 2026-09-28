@@ -179,16 +179,25 @@ function ChatMessagesPane({
     committedActivityKeysRef.current = activityKeys.byMessage;
   }, [activityKeys]);
 
-  // Two frames: the first lays new rows out and records their size, then they may skip rendering.
+  // Two frames: the first lays new rows out, then they may skip rendering. Until the
+  // browser next decides what is on screen, an opted-in row lays out at its
+  // placeholder, so that is its measured height: scroll restore reads in that gap.
   const laidOutMarkPendingRef = useRef(false);
   useLayoutEffect(() => {
     if (laidOutMarkPendingRef.current) return;
     laidOutMarkPendingRef.current = true;
     requestAnimationFrame(() => requestAnimationFrame(() => {
       laidOutMarkPendingRef.current = false;
-      for (const row of messagesContentRef.current?.children ?? []) {
-        if (row.classList.contains('chat-message') && !row.hasAttribute('data-laid-out')) row.setAttribute('data-laid-out', '');
-      }
+      const rows = Array.from(messagesContentRef.current?.children ?? []).filter(
+        (row): row is HTMLElement => row instanceof HTMLElement
+          && row.classList.contains('chat-message') && !row.hasAttribute('data-laid-out'),
+      );
+      // Every read precedes the writes: interleaving them lays the list out once per row.
+      const heights = rows.map((row) => row.offsetHeight);
+      rows.forEach((row, index) => {
+        row.style.containIntrinsicHeight = `auto ${heights[index]}px`;
+        row.setAttribute('data-laid-out', '');
+      });
     }));
   }, [groupedVisibleMessages, messagesContentRef]);
 
