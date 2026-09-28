@@ -18,7 +18,7 @@ Before changing code:
    preserve unrelated user changes.
 2. Read the relevant open item in `docs/TODO.md`.  It is the tracked backlog.  Items
    are one line and point elsewhere; follow the pointer only for the item you are
-   working on.  Read the section you need, not the whole file — it is 23 KB.
+   working on.  Read the section you need, not the whole file — it runs past 20 KB.
 3. Read relevant ADRs in `docs/decisions/` — especially before "fixing" anything that
    looks odd but deliberate.
 4. Load the task-specific context below.
