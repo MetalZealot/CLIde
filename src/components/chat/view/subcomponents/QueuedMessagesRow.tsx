@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PencilIcon, XIcon } from 'lucide-react';
+import { ArrowUpIcon, Loader2Icon, PencilIcon, XIcon } from 'lucide-react';
 
 import type { QueuedAsyncAnswer } from '../../utils/asyncQuestionState';
 
@@ -11,6 +11,12 @@ interface QueuedMessagesRowProps {
   answers: QueuedAsyncAnswer[];
   onEditDraft: () => void;
   onDeleteDraft: () => void;
+  /** Delivers the draft into the running turn; absent when the turn cannot take it. */
+  onSendDraftNow?: () => void;
+  /** The draft is on its way into the turn; its actions wait for the answer. */
+  isSendingDraftNow?: boolean;
+  /** Why the last *Send now* did not land. */
+  sendNowError?: string | null;
   onRemoveAnswer: (answerId: string) => void;
 }
 
@@ -26,6 +32,9 @@ export default function QueuedMessagesRow({
   answers,
   onEditDraft,
   onDeleteDraft,
+  onSendDraftNow,
+  isSendingDraftNow = false,
+  sendNowError = null,
   onRemoveAnswer,
 }: QueuedMessagesRowProps) {
   const { t } = useTranslation('chat');
@@ -76,10 +85,38 @@ export default function QueuedMessagesRow({
     };
   }, [isExpanded]);
 
-  if (!next) return null;
+  const errorLine = sendNowError ? (
+    <p role="status" className="mt-1 px-3 text-xs text-muted-foreground">{sendNowError}</p>
+  ) : null;
 
-  const actionsFor = (item: QueuedItem) => (item.kind === 'draft' ? (
+  if (!next) {
+    return errorLine && <div className="mx-auto mb-2 max-w-[54.25rem]">{errorLine}</div>;
+  }
+
+  const actionsFor = (item: QueuedItem) => (item.kind === 'draft' && isSendingDraftNow ? (
+    <span
+      role="status"
+      aria-label={t('input.queue.sendingNow', { defaultValue: 'Sending into the running reply' })}
+      className={`${iconButton} text-primary`}
+    >
+      <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden />
+    </span>
+  ) : item.kind === 'draft' ? (
     <>
+      {onSendDraftNow && (
+        <button
+          type="button"
+          onClick={() => {
+            setIsExpanded(false);
+            onSendDraftNow();
+          }}
+          aria-label={t('input.queue.sendNow', { defaultValue: 'Send now, into the running reply' })}
+          title={t('input.queue.sendNow', { defaultValue: 'Send now, into the running reply' })}
+          className={`${iconButton} text-primary hover:bg-primary/10`}
+        >
+          <ArrowUpIcon className="h-4 w-4" aria-hidden />
+        </button>
+      )}
       <button
         type="button"
         onClick={() => {
@@ -123,6 +160,7 @@ export default function QueuedMessagesRow({
   return (
     // Reversed so the list sits above the row but follows it in tab order.
     <div ref={rootRef} className="settings-content-enter mx-auto mb-2 flex max-w-[54.25rem] flex-col-reverse">
+      {errorLine}
       <div className="flex w-full items-center gap-2 rounded-xl border border-dashed border-primary/25 bg-primary/[0.04] py-1 pl-3 pr-1">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" aria-hidden />
         <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide text-primary/70">

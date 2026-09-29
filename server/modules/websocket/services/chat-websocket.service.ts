@@ -197,7 +197,7 @@ async function handleChatSteer(
   }
 
   if (!dependencies.runtime.steer || !(await dependencies.runtime.steer(provider, sessionId, content))) {
-    reject('STEER_REJECTED', 'The provider did not accept the answer into the active turn.');
+    reject('STEER_REJECTED', 'The provider did not accept the message into the active turn.');
     return;
   }
 

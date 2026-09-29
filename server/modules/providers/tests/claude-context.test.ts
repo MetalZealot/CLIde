@@ -1029,3 +1029,23 @@ describe('claude live usage-limit notice', () => {
     assert.equal(withLiveQuotaLimits(text, rejected), text);
   });
 });
+
+describe('claude turn input stream', () => {
+  test('takes text while the turn is open and refuses it once closed', async () => {
+    const { createClaudeInputChannel } = await import('@/modules/providers/list/claude/claude-runtime.provider.js');
+    const channel = createClaudeInputChannel([{ type: 'text', text: 'start' }]);
+    const iterator = channel.stream[Symbol.asyncIterator]();
+
+    const first = await iterator.next();
+    assert.deepEqual(first.value?.message, { role: 'user', content: [{ type: 'text', text: 'start' }] });
+
+    const waiting = iterator.next();
+    assert.equal(channel.push('also this'), true);
+    assert.deepEqual((await waiting).value?.message.content, [{ type: 'text', text: 'also this' }]);
+
+    channel.close();
+    assert.equal(channel.isOpen, false);
+    assert.equal(channel.push('too late'), false);
+    assert.equal((await iterator.next()).done, true);
+  });
+});

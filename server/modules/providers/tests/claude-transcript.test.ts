@@ -153,6 +153,29 @@ describe('claude-harness-rows', () => {
   // the isHiddenUserRow guard has to exempt isCompactSummary or the summary
   // vanishes from chat entirely.
 
+  test('claude history: text sent into a running turn surfaces as a user message', () => {
+    const provider = new ClaudeSessionsProvider();
+    const queued = (attachment: Record<string, unknown>, extra: Record<string, unknown> = {}) => provider.normalizeMessage({
+      type: 'attachment',
+      uuid: 'q1',
+      timestamp: '2026-09-29T00:21:42.568Z',
+      attachment: { type: 'queued_command', commandMode: 'prompt', ...attachment },
+      ...extra,
+    }, SESSION_ID);
+
+    const [message, ...rest] = queued({ prompt: 'Also: end with PINEAPPLE.' });
+    assert.equal(rest.length, 0);
+    assert.equal(message.role, 'user');
+    assert.equal(message.kind, 'text');
+    assert.equal(message.content, 'Also: end with PINEAPPLE.');
+    assert.equal(message.id, 'q1');
+
+    assert.equal(queued({ prompt: [{ type: 'text', text: 'as blocks' }] })[0]?.content, 'as blocks');
+    assert.deepEqual(queued({ prompt: 'ls', commandMode: 'bash' }), []);
+    assert.deepEqual(queued({ prompt: '   ' }), []);
+    assert.deepEqual(queued({ prompt: 'hidden' }, { isMeta: true }), []);
+  });
+
   test('claude history: transcript compact summary surfaces as an assistant summary', () => {
     const provider = new ClaudeSessionsProvider();
     const entry = {

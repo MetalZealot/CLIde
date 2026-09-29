@@ -799,14 +799,19 @@ describe('chatSubcomponents', () => {
         provider: 'codex' as const,
         queuedAt: '2026-09-07T12:00:00.000Z',
       });
-      const render = (draft: { content: string; attachmentCount: number } | null) => root.render(
+      const render = (
+        draft: { content: string; attachmentCount: number } | null,
+        sendNow: Partial<React.ComponentProps<typeof QueuedMessagesRow>> = {},
+        answers = [answer('answer-1', 'Which environment?'), answer('answer-2', 'Which region?')],
+      ) => root.render(
         <I18nextProvider i18n={questionI18n} defaultNS="chat">
           <QueuedMessagesRow
             draft={draft}
-            answers={[answer('answer-1', 'Which environment?'), answer('answer-2', 'Which region?')]}
+            answers={answers}
             onEditDraft={() => calls.push('edit')}
             onDeleteDraft={() => calls.push('delete')}
             onRemoveAnswer={(id) => calls.push(`remove ${id}`)}
+            {...sendNow}
           />
         </I18nextProvider>,
       );
@@ -839,6 +844,30 @@ describe('chatSubcomponents', () => {
         assert.match(container.textContent ?? '', /QueuedWhich environment\? — Staging\+1 more/);
         assert.ok(container.querySelector('[aria-label="Remove queued answer to Which environment?"]'));
         assert.equal(container.querySelector('[aria-label="Edit queued message"]'), null);
+
+        // Send now shows only when offered, and a message in flight trades its actions for a spinner.
+        const sendNowLabel = '[aria-label="Send now, into the running reply"]';
+        await React.act(async () => render({ content: 'Also check lint', attachmentCount: 0 }));
+        assert.equal(container.querySelector(sendNowLabel), null);
+        await React.act(async () => render(
+          { content: 'Also check lint', attachmentCount: 0 },
+          { onSendDraftNow: () => calls.push('send now') },
+        ));
+        const sendNow = container.querySelector<HTMLButtonElement>(sendNowLabel);
+        assert.ok(sendNow);
+        await React.act(async () => sendNow.click());
+        assert.equal(calls.at(-1), 'send now');
+        await React.act(async () => render(
+          { content: 'Also check lint', attachmentCount: 0 },
+          { onSendDraftNow: () => calls.push('send now'), isSendingDraftNow: true },
+        ));
+        assert.ok(container.querySelector('[aria-label="Sending into the running reply"]'));
+        assert.equal(container.querySelector(sendNowLabel), null);
+        assert.equal(container.querySelector('[aria-label="Edit queued message"]'), null);
+
+        // A reason outlives the row it came from.
+        await React.act(async () => render(null, { sendNowError: 'Could not confirm it was sent.' }, []));
+        assert.equal(container.querySelector('[role="status"]')?.textContent, 'Could not confirm it was sent.');
       } finally {
         await React.act(async () => root.unmount());
         container.remove();

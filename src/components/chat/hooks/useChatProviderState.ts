@@ -316,6 +316,10 @@ export function useChatProviderState({
     return providerCapabilities?.[targetProvider]?.supportsRewind === true;
   }, [providerCapabilities]);
 
+  const getSupportsActiveTurnSteeringForProvider = useCallback((targetProvider: LLMProvider): boolean => (
+    providerCapabilities?.[targetProvider]?.supportsActiveTurnSteering === true
+  ), [providerCapabilities]);
+
   const getSupportsForkForProvider = useCallback((targetProvider: LLMProvider): boolean => {
     // Like rewind, this stays hidden until the backend confirms the active
     // runtime can honor it.
@@ -822,6 +826,7 @@ export function useChatProviderState({
     modelOffersEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
+    getSupportsActiveTurnSteeringForProvider,
     getSupportsForkForProvider,
     getSupportsCompactCommandForProvider,
     getSupportsSideQuestionForProvider,
