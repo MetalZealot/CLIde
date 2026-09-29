@@ -28,7 +28,15 @@ export type ShellInputMessage = {
   data: string;
 };
 
-export type ShellOutgoingMessage = ShellInitMessage | ShellResizeMessage | ShellInputMessage;
+export type ShellTerminateMessage = {
+  type: 'terminate';
+};
+
+export type ShellOutgoingMessage =
+  | ShellInitMessage
+  | ShellResizeMessage
+  | ShellInputMessage
+  | ShellTerminateMessage;
 
 export type ShellIncomingMessage =
   | { type: 'output'; data: string }
@@ -68,5 +76,5 @@ export type UseShellRuntimeResult = {
   isInitialized: boolean;
   isConnecting: boolean;
   connectToShell: (options?: { forceRestart?: boolean }) => void;
-  disconnectFromShell: (options?: { suppressAutoConnect?: boolean }) => void;
+  disconnectFromShell: (options?: { suppressAutoConnect?: boolean; endProcess?: boolean }) => void;
 };

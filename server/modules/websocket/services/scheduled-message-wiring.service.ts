@@ -10,6 +10,7 @@ import {
 } from '@/modules/scheduled-messages/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { buildChatRuntimeOptions } from '@/modules/websocket/services/chat-websocket.service.js';
+import { isSessionOpenInShell } from '@/modules/websocket/services/shell-websocket.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import { sessionsDb } from '@/modules/database/index.js';
 import type { AnyRecord, LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
@@ -106,6 +107,7 @@ export function initializeScheduledMessages(): void {
       provider: input.provider as LLMProvider,
       broadcast: true,
     }),
+    isSessionOpenInShell,
     runTurn: async ({ row, run, provider, options }) => {
       const session = sessionsDb.getSessionById(row.session_id);
       announceScheduledSend(row);

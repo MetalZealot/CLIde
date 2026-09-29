@@ -5,6 +5,7 @@ import type { WebSocket } from 'ws';
 import { sessionsDb } from '@/modules/database/index.js';
 import { getProviderSessionEffort, providerCapabilitiesService } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
+import { isSessionOpenInShell } from '@/modules/websocket/services/shell-websocket.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import {
   getGlobalImageAssetsDir,
@@ -339,6 +340,17 @@ async function handleChatSend(
       ws,
       'REWIND_UNSUPPORTED',
       `Provider "${provider}" does not support rewinding to an earlier message.`,
+      sessionId
+    );
+    return;
+  }
+
+  // One writer per conversation: a Shell's CLI never sees what Chat appends.
+  if (isSessionOpenInShell(sessionId)) {
+    sendProtocolError(
+      ws,
+      'SESSION_OPEN_IN_SHELL',
+      'This session is open in the Shell. Open the Shell and choose Disconnect first.',
       sessionId
     );
     return;

@@ -20,6 +20,8 @@ export type ScheduledMessageSendDependencies<TRun> = {
     connection: RealtimeClientConnection;
     userId: string | number | null;
   }): TRun | null;
+  /** A Shell's CLI holds the conversation in memory; a send beside it forks the transcript. */
+  isSessionOpenInShell?(appSessionId: string): boolean;
   /** Owns the run it is handed, including completing it however the turn ends. */
   runTurn(input: {
     row: ScheduledMessageRow;
@@ -51,6 +53,10 @@ export function createScheduledMessageSender<TRun>(
     const session = sessionsDb.getSessionById(row.session_id);
     if (!session) {
       return { ok: false, reason: `Session "${row.session_id}" no longer exists.` };
+    }
+
+    if (dependencies.isSessionOpenInShell?.(row.session_id)) {
+      return { ok: false, reason: 'The session was open in the Shell.' };
     }
 
     // A run already in flight owns the session; the message waits for the next

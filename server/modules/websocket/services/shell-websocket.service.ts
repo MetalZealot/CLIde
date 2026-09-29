@@ -8,6 +8,7 @@ import { WebSocket, type RawData } from 'ws';
 
 import { parseIncomingJsonObject } from '@/shared/utils.js';
 import { providerUpdateCoordinator } from '@/modules/providers/index.js';
+import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -30,9 +31,23 @@ type PtySessionEntry = {
   timeoutId: NodeJS.Timeout | null;
   projectPath: string;
   sessionId: string | null;
+  isPlainShell: boolean;
 };
 
 const ptySessionsMap = new Map<string, PtySessionEntry>();
+
+/**
+ * True while a provider CLI runs in a Shell on this app session, attached or not.
+ * That CLI holds the conversation in memory, so any other writer forks the transcript.
+ */
+export function isSessionOpenInShell(sessionId: string): boolean {
+  for (const entry of ptySessionsMap.values()) {
+    if (!entry.isPlainShell && entry.sessionId === sessionId) {
+      return true;
+    }
+  }
+  return false;
+}
 const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
 const ANSI_ESCAPE_SEQUENCE_REGEX = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\))/g;
@@ -402,6 +417,16 @@ export function handleShellConnection(
           return;
         }
 
+        if (!isPlainShell && sessionId && chatRunRegistry.isProcessing(sessionId)) {
+          ws.send(
+            JSON.stringify({
+              type: 'output',
+              data: '\x1b[33mChat is replying in this session. Open the Shell again once it finishes.\x1b[0m\r\n',
+            })
+          );
+          return;
+        }
+
         const shellCommand = await buildShellCommand(data, dependencies, assignedSessionId);
         const resumeSessionId = resolveResumeSessionId(data, dependencies);
         const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
@@ -439,6 +464,7 @@ export function handleShellConnection(
           timeoutId: null,
           projectPath,
           sessionId,
+          isPlainShell,
         });
 
         if (assignedSessionId) {
@@ -579,6 +605,20 @@ export function handleShellConnection(
         if (shellProcess) {
           shellProcess.write(readString(data.data));
         }
+        return;
+      }
+
+      // An explicit Disconnect ends the process; a dropped socket only detaches it.
+      if (data.type === 'terminate') {
+        const session = ptySessionKey ? ptySessionsMap.get(ptySessionKey) : undefined;
+        if (session && session.ws === ws) {
+          if (session.timeoutId) {
+            clearTimeout(session.timeoutId);
+          }
+          ptySessionsMap.delete(ptySessionKey as string);
+          session.pty.kill();
+        }
+        shellProcess = null;
         return;
       }
 

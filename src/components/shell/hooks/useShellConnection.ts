@@ -33,7 +33,7 @@ type UseShellConnectionResult = {
   isConnecting: boolean;
   closeSocket: () => void;
   connectToShell: (options?: { forceRestart?: boolean }) => void;
-  disconnectFromShell: (options?: { suppressAutoConnect?: boolean }) => void;
+  disconnectFromShell: (options?: { suppressAutoConnect?: boolean; endProcess?: boolean }) => void;
 };
 
 export function useShellConnection({
@@ -213,9 +213,12 @@ export function useShellConnection({
     connectWebSocket(true);
   }, [connectWebSocket, isConnected, isConnecting, isInitialized]);
 
-  const disconnectFromShell = useCallback((options?: { suppressAutoConnect?: boolean }) => {
+  const disconnectFromShell = useCallback((options?: { suppressAutoConnect?: boolean; endProcess?: boolean }) => {
     if (options?.suppressAutoConnect) {
       suppressAutoConnectRef.current = true;
+    }
+    if (options?.endProcess) {
+      sendSocketMessage(wsRef.current, { type: 'terminate' });
     }
 
     closeSocket();
@@ -224,7 +227,7 @@ export function useShellConnection({
     setIsConnecting(false);
     connectingRef.current = false;
     forceRestartOnInitRef.current = false;
-  }, [clearTerminalScreen, closeSocket]);
+  }, [clearTerminalScreen, closeSocket, wsRef]);
 
   useEffect(() => {
     if (

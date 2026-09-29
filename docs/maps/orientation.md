@@ -315,6 +315,19 @@ pausing between swipes, before it ships.
 partway up. Speed-only checks let exactly that ship once
 ([history map](chat-history-performance.md#position-and-per-step-walk)).
 
+## 20. A conversation has one writer: Chat or the Shell, never both
+
+**The assumption:** the Shell runs its own copy of the provider's CLI, which reads
+the conversation once and then works from memory. It never sees what Chat adds.
+
+**The rule:** while a Shell has a CLI running on a session, Chat refuses to send
+to it; while Chat is replying, the Shell refuses to start on it. Disconnect ends the
+Shell's CLI and releases the session. Closing the tab or losing signal does not —
+that CLI stays up for 30 minutes so you can reattach.
+
+**What breaks:** both write, the conversation forks, and whichever wrote last wins —
+the other side's messages drop out of view though they stay in the file.
+
 ## When to stop and ask
 
 You do not need to understand a diff to catch these. If a proposed change would:

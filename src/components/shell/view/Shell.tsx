@@ -214,7 +214,7 @@ export default function Shell({
       restartTimerRef.current = null;
     }
     setIsRestarting(false);
-    disconnectFromShell({ suppressAutoConnect: true });
+    disconnectFromShell({ suppressAutoConnect: true, endProcess: true });
   }, [disconnectFromShell]);
 
   useEffect(() => {

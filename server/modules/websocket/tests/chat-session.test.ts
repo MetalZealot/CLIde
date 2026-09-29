@@ -9,6 +9,7 @@ import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/datab
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { filterAttachmentsToUploadStore, filterImagesToUploadStore, handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
+import { handleShellConnection, isSessionOpenInShell } from '@/modules/websocket/services/shell-websocket.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
 import { getGlobalImageAssetsDir } from '@/shared/image-attachments.js';
 import type { AuthenticatedWebSocketRequest, NormalizedMessage, RealtimeClientConnection } from '@/shared/types.js';
@@ -426,6 +427,84 @@ describe('chat-session-addressing', () => {
       await flush();
 
       assert.deepEqual(efforts, [undefined], 'nothing recorded means the provider default applies');
+    });
+  });
+  // One writer per conversation: a Shell's CLI never sees what Chat appends, so
+  // the two must never both be able to write the same session.
+  test('Chat and Shell refuse to write a session the other holds, for every provider', async () => {
+    await withIsolatedDatabase(async () => {
+      for (const provider of ['claude', 'cursor', 'codex', 'opencode'] as const) {
+        const appSessionId = `app-single-writer-${provider}`;
+        sessionsDb.createAppSession(appSessionId, provider, '/workspace/demo');
+        let runs = 0;
+        let releaseRun = (): void => {};
+        const dependencies: ChatDependencies = {
+          runtime: {
+            hasRuntime: () => true,
+            run: async () => {
+              runs += 1;
+              await new Promise<void>((resolve) => {
+                releaseRun = resolve;
+              });
+            },
+            abort: async () => true,
+            resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+            getPendingApprovalsForSession: () => [],
+          },
+        };
+        const pty = { killed: false, onData: () => undefined, onExit: () => undefined, write() {}, resize() {},
+          kill() { this.killed = true; } };
+        let spawns = 0;
+        const shellDependencies = {
+          resolveProviderSessionId: () => null,
+          buildCodexCommand: async () => 'codex',
+          spawnPty: () => {
+            spawns += 1;
+            return pty as never;
+          },
+        };
+        const openShell = async (): Promise<FakeConnection> => {
+          const shell = new FakeConnection();
+          handleShellConnection(shell as never, shellDependencies);
+          shell.emit('message', JSON.stringify({
+            type: 'init', projectPath: process.cwd(), sessionId: appSessionId, hasSession: true, provider,
+          }));
+          await flush();
+          return shell;
+        };
+        const chat = new FakeConnection();
+        handleChatConnection(chat as never, {} as AuthenticatedWebSocketRequest, dependencies);
+        const send = async (): Promise<void> => {
+          chat.emit('message', JSON.stringify({ type: 'chat.send', sessionId: appSessionId, content: 'go' }));
+          await flush();
+        };
+
+        // Chat replying: the Shell does not start a second CLI on the conversation.
+        await send();
+        assert.equal(runs, 1, provider);
+        await openShell();
+        assert.equal(spawns, 0, provider);
+        releaseRun();
+        await flush();
+
+        // Shell open: Chat refuses to send, attached or not, until Disconnect ends it.
+        const shell = await openShell();
+        assert.equal(spawns, 1, provider);
+        assert.equal(isSessionOpenInShell(appSessionId), true, provider);
+        chat.frames.length = 0;
+        await send();
+        assert.equal(runs, 1, provider);
+        assert.equal(chat.frames.find((frame) => frame.kind === 'protocol_error')?.code, 'SESSION_OPEN_IN_SHELL');
+
+        shell.emit('message', JSON.stringify({ type: 'terminate' }));
+        await flush();
+        assert.equal(pty.killed, true, provider);
+        assert.equal(isSessionOpenInShell(appSessionId), false, provider);
+        await send();
+        assert.equal(runs, 2, provider);
+        releaseRun();
+        await flush();
+      }
     });
   });
 });
