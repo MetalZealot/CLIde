@@ -45,6 +45,7 @@ export default function ConversationBranchPickerModal({
           typeof message.content === 'string' &&
           message.content.trim().length > 0 &&
           !message.isLocalCommand &&
+          !message.isMidTurnInput &&
           !message.isCompactSummary &&
           getTranscriptMessageUuid(message.id) !== null,
       )

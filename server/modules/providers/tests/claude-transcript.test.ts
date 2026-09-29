@@ -169,6 +169,7 @@ describe('claude-harness-rows', () => {
     assert.equal(message.kind, 'text');
     assert.equal(message.content, 'Also: end with PINEAPPLE.');
     assert.equal(message.id, 'q1');
+    assert.equal(message.isMidTurnInput, true, 'a mid-turn row cannot anchor a rewind');
 
     assert.equal(queued({ prompt: [{ type: 'text', text: 'as blocks' }] })[0]?.content, 'as blocks');
     assert.deepEqual(queued({ prompt: 'ls', commandMode: 'bash' }), []);

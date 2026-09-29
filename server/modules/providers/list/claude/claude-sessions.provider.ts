@@ -1032,6 +1032,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
         kind: 'text',
         role: 'user',
         content: queuedPrompt,
+        isMidTurnInput: true,
       })];
     }
 

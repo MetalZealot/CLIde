@@ -116,6 +116,7 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
     message.type === 'user' &&
     userCopyContent.trim().length > 0 &&
     !message.isLocalCommand &&
+    !message.isMidTurnInput &&
     !message.isCompactSummary &&
     getTranscriptMessageUuid(message.id) !== null;
 
