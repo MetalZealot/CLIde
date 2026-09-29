@@ -3,7 +3,7 @@
 - Status: 3/5
 - Next: phase 3 — the banners go, and all three edits mark the original instead
 - Merged to `main` 2026-09-15; phases 0 and 1 are live
-- Context: [Auto-Continue](auto-continue.md) puts its offer on the scheduled bubble
+- Context: [Auto-Continue](archive/2026-09-29-auto-continue.md) offers on the scheduled bubble
   this plan introduces; placement reasons in [UI standards](../maps/ui-standards.md);
   rewind semantics are ADRs 0012 and 0013
 

@@ -1,7 +1,7 @@
 # TTS pronunciation: what's actually broken
 
 - Status: complete
-- Next: none — findings only; acted on in tts-speech-front-end.md
+- Next: none — findings only; acted on in archive/2026-09-29-tts-speech-front-end.md
 
 Investigation 2026-08-24, merging independent Claude and Codex passes, with the
 disagreements resolved by measurement.

@@ -2,7 +2,7 @@
 
 - Status: 4/4
 - Next: nothing — verified end to end in a browser
-- Context: [gap inventory](../maps/upstream-sync.md) holds the verdict and why
+- Context: [gap inventory](../../maps/upstream-sync.md) holds the verdict and why
   upstream's `#1239` interrupt behaviour is not wanted here; ADR 0031 governs
   the sidebar status visuals phase 4 touches
 

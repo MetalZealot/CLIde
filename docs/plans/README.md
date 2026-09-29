@@ -11,24 +11,14 @@ Current active work comes first, followed by the queue Grayson ordered on
 | Plan | Status | Next |
 |---|---|---|
 | [Chat history performance](chat-history-performance.md) | 8/14 | Phase 7: cut the ~50 ms fixed frame cost of scroll restoration; phone check |
-| [Phone chat text selection](mobile-chat-page-scroll.md) | complete | Merged to `main` 2026-09-16; iPhone keyboard behaviour untested |
-| [Upstream v1.37.3 sync](upstream-1373-sync.md) | complete | none — the capability harvest picks up from here |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Composer message recall; the other two builds shipped |
-| [Scheduled messages and Auto-Continue](scheduled-messages.md) | complete | Merged to `main` 2026-09-15; editing a waiting message is [the edit model](message-edit-model.md) |
-| [Provider Tools page](provider-tools-page.md) | complete | Accepted on the phone 2026-09-23; controls are [a TODO item](../TODO.md) |
-| [`/btw` side questions](side-questions.md) | complete | Accepted on the phone for Claude and Codex 2026-09-23 |
-| [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 6/6 | A live limit stop on either provider is the remaining check |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
 | [Send a queued message into the running turn](send-queued-now.md) | 3/4 | Phase 3: Codex live once its limit resets; Claude accepted on the phone |
-| [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
-| [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
-| [Context-correct skills settings](skills-settings-discovery-scope.md) | complete | none — accepted live 2026-09-09 |
 | [Source Control truthfulness](source-control-truthfulness.md) | 1/4 | Phase 0: make server-side Git failures visible in the UI |
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
 | [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
-| [Turn liveness and usage warnings](turn-liveness-and-usage-warnings.md) | complete | Accepted in daily use 2026-09-23; Phase 3 dropped |
 | [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript |
 | [Workspace surfaces](workspace-surfaces.md) | 1/5 | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
@@ -41,7 +31,6 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main` |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
-| [Chat activities, not raw tool calls](tool-activity-display.md) | complete | Codex running rows accepted on the phone 2026-09-23 |
 | [Browser video clips](browser-video-clips.md) | not started | Phase 0: live recording proof on a branch-test slot, with CPU and clip-size numbers |
 
 Read this table before opening anything. Seeing where every piece of work

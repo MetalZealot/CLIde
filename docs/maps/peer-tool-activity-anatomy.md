@@ -3,7 +3,7 @@
 The anatomy of tool activity in four desktop agent apps — the Claude app, the
 Codex app, Cursor and T3 Code — read from 20 screenshots taken 2026-09-21. It
 records what each one shows, not how it is built; none of it comes from their
-source. What CLIde takes from it is [the tool activity plan](../plans/tool-activity-display.md)
+source. What CLIde takes from it is [the tool activity plan](../plans/archive/2026-09-29-tool-activity-display.md)
 and [ADR 0059](../decisions/0059-activity-operations-expand-inline-on-every-screen.md);
 which parts are convention and which are taste is in
 [UI standards](ui-standards.md#tool-activity-rows).

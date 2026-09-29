@@ -4,6 +4,17 @@ Nothing here is read by default. Completed plans are frozen; current behavior be
 
 | Plan | Archived | Current authority |
 |---|---|---|
+| [Auto-Continue offered, remembered, and defaulted](2026-09-29-auto-continue.md) | 2026-09-29 | [Code anchors](../../maps/code-anchors.md) and Auto-Continue source/tests; live limit stops accepted on Claude and Codex |
+| [Chat shows activities, not raw tool calls](2026-09-29-tool-activity-display.md) | 2026-09-29 | [ADR 0059](../../decisions/0059-activity-operations-expand-inline-on-every-screen.md), [ADR 0060](../../decisions/0060-a-calls-detail-opens-flat-in-place.md), [tool activity map](../../maps/tool-activity-stream.md) |
+| [A running turn shows what the provider is actually doing](2026-09-29-turn-liveness-and-usage-warnings.md) | 2026-09-29 | [Tool activity map](../../maps/tool-activity-stream.md), [Claude SDK](../../maps/claude-agent-sdk.md) and [Codex surface](../../maps/codex-cli-sdk-app-server.md) maps |
+| [Context-correct skills settings](2026-09-29-skills-settings-discovery-scope.md) | 2026-09-29 | [ADR 0018](../../decisions/0018-settings-drill-down-one-scroll-container.md), [ADR 0040](../../decisions/0040-settings-root-owns-back-gesture.md), and source/tests |
+| [Self-hosted dictation and read-aloud](2026-09-29-self-hosted-voice.md) | 2026-09-29 | [ADR 0050](../../decisions/0050-voice-runtime-owns-shared-settings.md), [ADR 0051](../../decisions/0051-voice-studio-is-a-standalone-personal-tool.md), and the voice shim README |
+| [Auditable text-to-speech preparation](2026-09-29-tts-speech-front-end.md) | 2026-09-29 | Speech front-end source and tests; [pronunciation findings](../tts-pronunciation-findings.md) |
+| [`/btw` side questions](2026-09-29-side-questions.md) | 2026-09-29 | Side-question source and focused tests |
+| [One Tools page per provider](2026-09-29-provider-tools-page.md) | 2026-09-29 | [ADR 0018](../../decisions/0018-settings-drill-down-one-scroll-container.md) and source/tests; controls are a [TODO item](../../TODO.md) |
+| [Scheduled messages and Auto-Continue](2026-09-29-scheduled-messages.md) | 2026-09-29 | [Upstream sync map](../../maps/upstream-sync.md), [the edit model plan](../message-edit-model.md), and source/tests |
+| [Upstream v1.37.3 sync](2026-09-29-upstream-1373-sync.md) | 2026-09-29 | [Upstream sync map](../../maps/upstream-sync.md) |
+| [Phone chat text selection](2026-09-29-mobile-chat-page-scroll.md) | 2026-09-29 | [ADR 0056](../../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md) and source/tests |
 | [Codex usage-limit resets](2026-09-13-codex-usage-limit-resets.md) | 2026-09-13 | [Provider capability map](../../maps/clide-provider-capability-map.md), Codex provider source and focused tests |
 | [Mobile bottom navigation](2026-09-13-mobile-bottom-navigation.md) | 2026-09-13 | [ADR 0048](../../decisions/0048-mobile-navbar-five-roles-plugin-overflow.md), UI source and focused client tests |
 | [Find text in the open Chat](2026-09-11-find-in-chat.md) | 2026-09-11 | Find-in-Chat source and focused client tests |

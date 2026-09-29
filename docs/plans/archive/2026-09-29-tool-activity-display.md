@@ -3,9 +3,9 @@
 - Status: complete
 - Next: none — Codex running rows accepted on the phone 2026-09-23
 - Context: measured provider fields and transcript shape in the
-  [tool activity stream map](../maps/tool-activity-stream.md); what peer apps
+  [tool activity stream map](../../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
-  [UI standards](../maps/ui-standards.md#tool-activity-rows); the originating
+  [UI standards](../../maps/ui-standards.md#tool-activity-rows); the originating
   brief is `docs/CLIde_Tool_Activity_Display_Investigation.md`, which this plan
   supersedes where they disagree.
 
@@ -57,13 +57,13 @@ empty.
   edit, status, and duration once it reached 1 s; a Claude command row reads
   as its description, and shown thinking as a `Thought:` line. Raw output
   opens the level below rather than rendering in place
-  ([ADR 0059](../decisions/0059-activity-operations-expand-inline-on-every-screen.md)).
+  ([ADR 0059](../../decisions/0059-activity-operations-expand-inline-on-every-screen.md)).
 - [x] 5. **A call opens flat, in place, on every screen.** Tapping an
   operation row shows its full input and output under it in one new panel —
   command then output, changed lines only for an edit, matched files for a
   search — with no header, badge, strip or second disclosure. Lines wrap;
   blocks stop at 12 lines behind "Show all"; the old tool card and code-editor
-  overlay are not used ([ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md)).
+  overlay are not used ([ADR 0060](../../decisions/0060-a-calls-detail-opens-flat-in-place.md)).
 - [x] 6. **Loading advances a useful number of activities.** Moved to the
   [history plan](chat-history-performance.md), phase 10: the viewed session's
   history loads ahead, so page size no longer decides visible progress.
@@ -113,7 +113,7 @@ empty.
   lowercase names that fall through to the `Default` config today, so it needs
   a case-insensitive lookup first. Both are additive once Phases 2–4 exist.
 - **A bottom sheet**, on any screen
-  ([ADR 0059](../decisions/0059-activity-operations-expand-inline-on-every-screen.md)).
+  ([ADR 0059](../../decisions/0059-activity-operations-expand-inline-on-every-screen.md)).
 - **Collapsing a whole turn** to `Worked for 2m`, as the Codex app does: it
   hides the prose that bounds activities.
 - **A changed-files card at the end of a turn** — its own item in

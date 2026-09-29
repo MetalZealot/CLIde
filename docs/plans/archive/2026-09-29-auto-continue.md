@@ -2,7 +2,7 @@
 
 - Status: 6/6
 - Next: accept the compact presentation at a real limit stop
-- Context: [Scheduled messages and Auto-Continue](scheduled-messages.md) built
+- Context: [Scheduled messages and Auto-Continue](2026-09-29-scheduled-messages.md) built
   everything below this; that plan's "one message, one firing" choice
   (2026-09-08) is what phase 4 reverses
 
@@ -29,7 +29,7 @@ way of asking for one that is not long-pressing the send button and typing
 By the provider's own fields, never the notice's wording — Claude's `quotaLimits`
 and Codex's `codex_error_info`, both carried as the shared `usageLimit` since
 phase 2. Field names, the spent-balance case, the SDK's duplicate throw, and why
-early resets are read from usage: [code anchors](../maps/code-anchors.md).
+early resets are read from usage: [code anchors](../../maps/code-anchors.md).
 
 ## Phases
 

@@ -2,8 +2,8 @@
 
 - Status: complete
 - Next: none
-- Context: [Claude SDK map §4](../maps/claude-agent-sdk.md) (the stream messages CLIde drops),
-  [Codex map](../maps/codex-cli-sdk-app-server.md), [tool activity stream](../maps/tool-activity-stream.md),
+- Context: [Claude SDK map §4](../../maps/claude-agent-sdk.md) (the stream messages CLIde drops),
+  [Codex map](../../maps/codex-cli-sdk-app-server.md), [tool activity stream](../../maps/tool-activity-stream.md),
   ADR 0013 (abort). Client-side recording is the separate
   [diagnostics flight recorder](diagnostics-flight-recorder.md).
 
@@ -16,7 +16,7 @@ the 5-hour limit. **The cause of that silence could not be recovered:** CLIde
 then dropped `api_retry` and `thinking_tokens`, and logged neither.
 
 What was established that shapes the phases (Phase 0 figures in the
-[Claude SDK map §4](../maps/claude-agent-sdk.md)):
+[Claude SDK map §4](../../maps/claude-agent-sdk.md)):
 
 - **No phase needs `includePartialMessages`.** `thinking_tokens` (about one frame
   per 1.2 s while thinking) and `api_retry` both arrive without it. Only
@@ -26,7 +26,7 @@ What was established that shapes the phases (Phase 0 figures in the
   "starting" is a real stage, not a flash.
 - Streaming *reply text* is where the risk sits — placeholder finalisation, the
   unreachable `content_block_delta` branch, Cursor never sending `stream_end`
-  ([Claude SDK map](../maps/claude-agent-sdk.md)). Counters and stages avoid it.
+  ([Claude SDK map](../../maps/claude-agent-sdk.md)). Counters and stages avoid it.
 - `rate_limit_event` carries `status: allowed_warning` with `surpassedThreshold`
   and both windows in `unifiedWindows`: Anthropic decides when a warning is due,
   CLIde only has to show it. Below the threshold the frame omits `utilization`.

@@ -2,10 +2,10 @@
 
 - Status: complete
 - Next: none — accepted on the phone 2026-09-23
-- Context: [provider skills contract](../../server/modules/providers/README.md),
-  [context-correct skills](skills-settings-discovery-scope.md),
-  [Settings navigation](../decisions/0018-settings-drill-down-one-scroll-container.md),
-  [UI standards](../maps/ui-standards.md),
+- Context: [provider skills contract](../../../server/modules/providers/README.md),
+  [context-correct skills](2026-09-29-skills-settings-discovery-scope.md),
+  [Settings navigation](../../decisions/0018-settings-drill-down-one-scroll-container.md),
+  [UI standards](../../maps/ui-standards.md),
   [Claude's unified directory](https://support.claude.com/en/articles/14328846-browse-skills-connectors-and-plugins-in-one-directory),
   [Codex plugins](https://help.openai.com/en/articles/20001256-plugins-in-chatgpt-and-codex)
 

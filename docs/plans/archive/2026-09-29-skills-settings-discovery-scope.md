@@ -6,10 +6,10 @@
 - Note: the screen matches probe variant C, verified from the real component via
   `harness/` (untracked) at 320, 390 and 900 px, Global and worktree, collapsed
   and expanded — not from a drawing.
-- Context: [provider skills contract](../../server/modules/providers/README.md),
-  [Settings navigation](../decisions/0018-settings-drill-down-one-scroll-container.md),
-  [mobile Back ownership](../decisions/0040-settings-root-owns-back-gesture.md),
-  [UI standards](../maps/ui-standards.md),
+- Context: [provider skills contract](../../../server/modules/providers/README.md),
+  [Settings navigation](../../decisions/0018-settings-drill-down-one-scroll-container.md),
+  [mobile Back ownership](../../decisions/0040-settings-root-owns-back-gesture.md),
+  [UI standards](../../maps/ui-standards.md),
   [Codex skills](https://learn.chatgpt.com/docs/build-skills),
   [Claude Code skills](https://code.claude.com/docs/en/slash-commands),
   [Cursor skills](https://cursor.com/docs/skills), and

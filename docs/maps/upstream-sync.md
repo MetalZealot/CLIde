@@ -197,7 +197,7 @@ are pending.
   schedules from a toolbar button, where CLIde schedules by long-pressing send and
   is moving unsent messages out of that strip
   ([edit model](../plans/message-edit-model.md)). Design and phases:
-  [the plan](../plans/scheduled-messages.md).
+  [the plan](../plans/archive/2026-09-29-scheduled-messages.md).
 - **Considered, not taken — fork has diverged by choice:** `#1041` and `#1157`
   recent-conversation rows, against CLIde's own sidebar with starring and its
   action menus; `#1229` collapsible model groups, against a picker that shows

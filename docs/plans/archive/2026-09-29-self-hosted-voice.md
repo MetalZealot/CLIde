@@ -2,12 +2,12 @@
 
 - Status: complete
 - Next: none; retain push-to-talk until a local streaming engine is proven.
-- Context: [server voice module](../../server/modules/voice/voice.module.ts),
-  [voice service contract](../../server/modules/voice/voice.service.ts),
-  [client voice API](../../src/lib/voiceApi.ts),
-  [shared voice settings decision](../decisions/0050-voice-runtime-owns-shared-settings.md),
-  [standalone Studio decision](../decisions/0051-voice-studio-is-a-standalone-personal-tool.md),
-  [UI standards](../maps/ui-standards.md), and the host-local voice README, which
+- Context: [server voice module](../../../server/modules/voice/voice.module.ts),
+  [voice service contract](../../../server/modules/voice/voice.service.ts),
+  [client voice API](../../../src/lib/voiceApi.ts),
+  [shared voice settings decision](../../decisions/0050-voice-runtime-owns-shared-settings.md),
+  [standalone Studio decision](../../decisions/0051-voice-studio-is-a-standalone-personal-tool.md),
+  [UI standards](../../maps/ui-standards.md), and the host-local voice README, which
   owns runtime, model, catalog, benchmark, and deployment facts
 
 ## Phases
@@ -23,7 +23,7 @@
 - [x] **4. CLIde wiring and installed-PWA acceptance.** Phone acceptance covers
       editable dictation, read-aloud controls/cancellation, background playback,
       notification state, and earbud pause. The auditable
-      [speech front end](tts-speech-front-end.md) owns listening behavior.
+      [speech front end](2026-09-29-tts-speech-front-end.md) owns listening behavior.
 - [x] **5. Bounded catalog in Settings.** The agreed male/female, low/medium/
       size/locale/bonus catalog is implemented. Grayson accepted all eight paths,
       replaced Spike with US-medium Kusal, and saved final pacing in Studio.

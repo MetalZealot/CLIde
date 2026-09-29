@@ -5,7 +5,7 @@
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
-  [tool activities](tool-activity-display.md)
+  [tool activities](archive/2026-09-29-tool-activity-display.md)
 
 Long conversations open promptly, scroll back without a Load button or a
 freeze that grows with length, keep their place and open state, and let any

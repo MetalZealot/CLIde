@@ -15,7 +15,7 @@ main checkout only).
 ## Provider maintenance
 
 - [ ] **The last six backend JavaScript files become TypeScript.** Four provider runtimes, the notification orchestrator and Codex token usage; `checkJs` is off, so `typecheck` reads none of them. Codex first, Claude last. [Plan](plans/server-typescript-conversion.md). **L**
-- [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows [the finished Tools plan](plans/provider-tools-page.md). **L — design first**
+- [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows [the finished Tools plan](plans/archive/2026-09-29-provider-tools-page.md). **L — design first**
 - [ ] **Multiple Codex clients can claim the same native thread.** Add App Server-native Chat compaction and cross-process single-writer coordination so Shell, another CLIde service, or an external client cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**
 - [ ] **Claude, Cursor and OpenCode MCP edits still erase native keys CLIde does not model.** Codex was fixed in `2a4a727`; the shared base now hands `buildServerConfig` the existing record, so each remaining adapter needs the same merge plus its own owned-key list. **S each**
 - [ ] **Split [the Claude SDK map](maps/claude-agent-sdk.md)** — 29 KB against a 24 KB cap, and its "Current CLIde mapping" section alone is 13 KB. Split native surface from CLIde mapping, then drop its entry from `SIZE_EXCEPTIONS` in `scripts/check-docs.mjs`. Its 2026-07-19 delta section was already folded into [the ledger](maps/claude-upgrade-ledger.md) on 2026-08-06. **S/M**
@@ -32,7 +32,6 @@ main checkout only).
 
 ## Browser
 
-- [~] **Save the displayed Browser screenshot.** The session menu downloads its current JPEG; client typecheck, lint, docs check and isolated build pass. Live Browser acceptance and the production client build remain. [Browser map](maps/chat-browser-activity.md). **S**
 - [ ] **Record short Browser clips an agent can inspect.** Start/stop within one turn, frames for the agent via ffmpeg; no timer or download in the first version. [Plan](plans/browser-video-clips.md). **M — Phase 0 proof first**
 
 ## Bugs
@@ -123,7 +122,6 @@ new work.
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
 - [ ] **Workspace tabs like the desktop apps** — Terminal for Shell; Tasks, Agents. [Plan](plans/workspace-surfaces.md). **M/L**
-- [~] **Auto-Continue offered, remembered, and defaulted.** Session mode stays in the kebab; a live limit offers enabling only when off with no reset message waiting. The scheduled bubble owns the waiting status. Compact presentation verified in component tests and Browser examples; real-stop acceptance remains. [Plan](plans/auto-continue.md). **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live; 3–4 move the banners onto the messages and cover editing a turn the provider already took. [Plan](plans/message-edit-model.md). **M/L**
 - [~] **Send a queued message into the running turn.** *Send now* on the queued row steers the active Claude or Codex turn instead of waiting for it to end; Enter still queues. [Plan](plans/send-queued-now.md). **M**
 

@@ -1,8 +1,8 @@
 # Auditable text-to-speech preparation
 
 - Status: complete
-- Next: none — resume [self-hosted voice](self-hosted-voice.md) Phase 4
-- Context: [self-hosted voice plan](self-hosted-voice.md),
+- Next: none — resume [self-hosted voice](2026-09-29-self-hosted-voice.md) Phase 4
+- Context: [self-hosted voice plan](2026-09-29-self-hosted-voice.md),
   [Piper CLI](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md),
   [eSpeak NG dictionaries](https://github.com/espeak-ng/espeak-ng/blob/master/docs/dictionary.md),
   and the host-local voice README, which owns runtime and deployment facts
