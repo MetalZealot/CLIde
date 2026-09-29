@@ -601,6 +601,8 @@ export type NormalizedMessage = {
   commandArgs?: string;
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
+  /** Sent into a running turn; it sits mid-turn, so it cannot anchor a rewind. */
+  isMidTurnInput?: boolean;
   isCompactSummary?: boolean;
   /**
    * Display paths of the files a compaction carried across the boundary, in

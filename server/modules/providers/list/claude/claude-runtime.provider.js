@@ -386,13 +386,15 @@ function mapCliOptionsToSDK(options = {}) {
  * @param {string} sessionId - Session identifier
  * @param {Object} queryInstance - SDK query instance
  * @param {Object} writer - WebSocket writer for reconnect support
+ * @param {Object|null} input - The run's input stream, for steering
  */
-function addSession(sessionId, queryInstance, writer = null) {
+function addSession(sessionId, queryInstance, writer = null, input = null) {
   activeSessions.set(sessionId, {
     instance: queryInstance,
     startTime: Date.now(),
     status: 'active',
-    writer
+    writer,
+    input
   });
 }
 
@@ -572,37 +574,71 @@ function extractTokenBudget(sdkMessage, ceiling = null) {
 }
 
 /**
- * Builds the SDK `prompt` payload for one turn.
- *
- * Plain text turns pass the string through unchanged. Turns with image
- * attachments use the SDK's streaming-input mode: a single SDKUserMessage
- * whose content carries the prompt text plus one base64 `image` block per
- * attachment (read from the global `~/.cloudcli/assets` folder).
+ * Builds the first user message's content for one turn: the prompt as a text
+ * block, plus one base64 `image` block per image attachment (read from the
+ * global `~/.cloudcli/assets` folder).
  *
  * @param {string} command - User prompt
  * @param {Array} images - Image descriptors ({ path, name?, mimeType? })
  * @param {Array} files - Non-image attachment descriptors
  * @param {string} cwd - Project working directory attachment paths resolve against
- * @returns {Promise<string|AsyncIterable>} SDK prompt payload
+ * @returns {Promise<Array>} Message content blocks
  */
-async function buildPromptPayload(command, images, files, cwd) {
+async function buildPromptContent(command, images, files, cwd) {
   const promptWithFiles = appendFilesInputTag(command, files);
   if (normalizeImageDescriptors(images).length === 0) {
-    return promptWithFiles;
+    return [{ type: 'text', text: promptWithFiles }];
   }
+  return buildClaudeUserContent(promptWithFiles, images, cwd);
+}
 
-  const content = await buildClaudeUserContent(promptWithFiles, images, cwd);
-  return (async function* () {
-    yield {
-      type: 'user',
-      message: {
-        role: 'user',
-        content
-      },
-      parent_tool_use_id: null,
-      timestamp: new Date().toISOString()
-    };
-  })();
+function createUserInput(content) {
+  return {
+    type: 'user',
+    session_id: '',
+    message: { role: 'user', content },
+    parent_tool_use_id: null,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * The run's prompt: an input stream the SDK reads for the whole turn, so text
+ * pushed while tools run reaches the model within the same turn. Closed on the
+ * turn's first result; input the CLI already holds then runs as a follow-up
+ * turn inside the same run, so a push is never lost, only refused once closed.
+ */
+export function createClaudeInputChannel(firstContent) {
+  const pending = [createUserInput(firstContent)];
+  let wake = null;
+  let closed = false;
+  const notify = () => {
+    const resolve = wake;
+    wake = null;
+    resolve?.();
+  };
+  return {
+    stream: (async function* () {
+      while (true) {
+        while (pending.length > 0) yield pending.shift();
+        if (closed) return;
+        await new Promise((resolve) => { wake = resolve; });
+      }
+    })(),
+    push(text) {
+      if (closed) return false;
+      pending.push(createUserInput([{ type: 'text', text }]));
+      notify();
+      return true;
+    },
+    close() {
+      closed = true;
+      notify();
+    },
+    get isOpen() {
+      return !closed;
+    },
+  };
 }
 
 /**
@@ -777,6 +813,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let outputStarted = false;
   const turnTokens = createTurnTokenCounter();
   let sentOutputTokens = 0;
+  // The prompt stream `steer()` writes into; see createClaudeInputChannel.
+  let inputChannel = null;
 
   const emitNotification = (event) => {
     notifyUserIfEnabled({
@@ -810,10 +848,14 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       sdkOptions.mcpServers = scopeClaudeChatBrowser(mcpServers, sessionId);
     }
 
-    // Turns with image attachments switch to streaming input so the images
-    // ride along as real content blocks. Built per query attempt because an
-    // async generator cannot be replayed once consumed.
-    const createPrompt = () => buildPromptPayload(command, options.images, options.files, options.cwd);
+    // Built per query attempt because an async generator cannot be replayed once consumed.
+    const createPrompt = async () => {
+      inputChannel?.close();
+      inputChannel = createClaudeInputChannel(
+        await buildPromptContent(command, options.images, options.files, options.cwd),
+      );
+      return inputChannel.stream;
+    };
 
     sdkOptions.hooks = {
       Notification: [{
@@ -942,7 +984,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
     // Track the query instance for abort capability
     if (sessionKey()) {
-      addSession(sessionKey(), queryInstance, ws);
+      addSession(sessionKey(), queryInstance, ws, inputChannel);
     }
 
     // Frames resolve their ceiling from memory only, which a restart empties
@@ -987,7 +1029,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
-        addSession(sessionKey(), queryInstance, ws);
+        addSession(sessionKey(), queryInstance, ws, inputChannel);
 
         // Set session ID on writer
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
@@ -1004,7 +1046,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         // (e.g. a forked resume). Re-key abort tracking; the writer remaps it.
         removeSession(capturedSessionId);
         capturedSessionId = message.session_id;
-        addSession(capturedSessionId, queryInstance, ws);
+        addSession(capturedSessionId, queryInstance, ws, inputChannel);
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
           ws.setSessionId(capturedSessionId);
         }
@@ -1061,6 +1103,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       }
       if (message?.type === 'result') {
         turnTokens.result(message.usage?.output_tokens);
+        inputChannel?.close();
       }
 
       const turnOutputTokens = turnTokens.total();
@@ -1182,6 +1225,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     }
 
     // Clean up session on completion
+    inputChannel?.close();
     if (sessionKey()) {
       removeSession(sessionKey());
     }
@@ -1226,6 +1270,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     }
 
     // Clean up session on error
+    inputChannel?.close();
     if (sessionKey()) {
       removeSession(sessionKey());
     }
@@ -1260,6 +1305,22 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 }
 
 /**
+ * Adds user text to the session's running turn. False once the turn's result
+ * has arrived — the caller keeps the message queued for the next turn.
+ * @param {string} sessionId - App session id
+ * @param {string} content - Text to deliver
+ * @returns {boolean} Whether the turn accepted it
+ */
+function steerClaudeSDKSession(sessionId, content) {
+  const text = typeof content === 'string' ? content.trim() : '';
+  const session = getSession(sessionId);
+  if (!text || !session || session.status !== 'active' || !session.input) {
+    return false;
+  }
+  return session.input.push(text);
+}
+
+/**
  * Aborts an active SDK session
  * @param {string} sessionId - Session identifier
  * @returns {boolean} True if session was aborted, false if not found
@@ -1284,6 +1345,7 @@ async function abortClaudeSDKSession(sessionId) {
 
     // Update session status
     session.status = 'aborted';
+    session.input?.close();
 
     // Clean up session
     removeSession(sessionId);
@@ -1462,6 +1524,7 @@ async function refreshClaudeContextUsage(providerSessionId) {
 export const claudeRuntime = {
   run: queryClaudeSDK,
   abort: abortClaudeSDKSession,
+  steer: steerClaudeSDKSession,
   askSideQuestion: askClaudeSideQuestion,
   permissions: {
     resolve: resolveToolApproval,
@@ -1473,6 +1536,7 @@ export const claudeRuntime = {
 export {
   queryClaudeSDK,
   abortClaudeSDKSession,
+  steerClaudeSDKSession,
   askClaudeSideQuestion,
   runSideQuestion,
   isClaudeSDKSessionActive,

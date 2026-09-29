@@ -89,6 +89,8 @@ export interface ChatMessage {
   commandArgs?: string;
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
+  /** Sent into a running turn; it sits mid-turn, so it cannot anchor a rewind. */
+  isMidTurnInput?: boolean;
   isCompactSummary?: boolean;
   /** Files a compaction carried across the boundary; rendered like memory citations. */
   compactReferences?: string[];

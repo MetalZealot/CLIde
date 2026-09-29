@@ -84,7 +84,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsImages: true,
     supportsFiles: true,
     supportsAbort: true,
-    supportsActiveTurnSteering: false,
+    supportsActiveTurnSteering: true,
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,

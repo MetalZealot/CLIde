@@ -855,6 +855,20 @@ function readClaudeAgentStatus(raw: AnyRecord): AgentStatusInfo | null {
   return status;
 }
 
+/** The text of a `queued_command` prompt attachment; null for any other row. */
+export function readQueuedPromptText(raw: AnyRecord): string | null {
+  if (raw.type !== 'attachment' || raw.isMeta === true) return null;
+  const attachment = readObjectRecord(raw.attachment);
+  if (attachment?.type !== 'queued_command' || attachment.commandMode !== 'prompt') return null;
+  const prompt = attachment.prompt;
+  const text = typeof prompt === 'string'
+    ? prompt
+    : Array.isArray(prompt)
+      ? prompt.map((part) => (part?.type === 'text' && typeof part.text === 'string' ? part.text : '')).join('')
+      : '';
+  return text.trim() ? text : null;
+}
+
 export function collectCompactReferencesByRowId(rawMessages: AnyRecord[]): Map<string, string[]> {
   const referencesByRowId = new Map<string, string[]>();
 
@@ -1006,6 +1020,21 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const messages: NormalizedMessage[] = [];
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId('claude');
+
+    // Text sent into a running turn is written as an attachment, not a user row.
+    const queuedPrompt = readQueuedPromptText(raw);
+    if (queuedPrompt !== null) {
+      return [createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'text',
+        role: 'user',
+        content: queuedPrompt,
+        isMidTurnInput: true,
+      })];
+    }
 
     /**
      * A `system` row keeps its payload at the top level rather than under

@@ -13,6 +13,7 @@ import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { fetchAttachmentFile, isImageAttachment, uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
 import { safeLocalStorage } from '../utils/chatStorage';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
+import { useSendQueuedNow } from '../hooks/useSendQueuedNow';
 import { useChatHeaderMenu } from '../hooks/useChatHeaderMenu';
 import { useChatFind } from '../hooks/useChatFind';
 import { useLiveLimitStop, useSessionAutoContinue } from '../hooks/useAutoContinue';
@@ -151,6 +152,7 @@ function ChatInterface({
     reconcileStoredEffort,
     resolvePermissionModeForProvider,
     getSupportsRewindForProvider,
+    getSupportsActiveTurnSteeringForProvider,
     getSupportsForkForProvider,
     getSupportsCompactCommandForProvider,
     getSupportsSideQuestionForProvider,
@@ -281,6 +283,8 @@ function ChatInterface({
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
+    requeueQueuedDraft,
+    returnDraftToInput,
     pendingRewind,
     beginRewindEdit,
     cancelRewindEdit,
@@ -367,6 +371,20 @@ function ChatInterface({
     provider,
     resolvePermissionModeForProvider,
   ]);
+  const sendQueuedNow = useSendQueuedNow({
+    sessionId: selectedSession?.id || currentSessionId || null,
+    provider,
+    queuedDraft,
+    canSteer: getSupportsActiveTurnSteeringForProvider(provider),
+    isProcessing,
+    sendMessage,
+    subscribe,
+    sessionStore,
+    deleteQueuedDraft,
+    requeueQueuedDraft,
+    returnDraftToInput,
+  });
+
   const asyncQuestions = useAsyncQuestions({
     sessionId: currentSessionId || selectedSession?.id || null,
     provider,
@@ -1108,6 +1126,9 @@ function ChatInterface({
             queuedDraft={queuedDraft}
             onEditQueuedDraft={editQueuedDraft}
             onDeleteQueuedDraft={deleteQueuedDraft}
+            onSendQueuedDraftNow={sendQueuedNow.sendNow}
+            sendingQueuedDraftNow={sendQueuedNow.sendingContent}
+            sendQueuedDraftNowError={sendQueuedNow.error}
             queuedAnswers={asyncQuestions.queued}
             onRemoveQueuedAnswer={asyncQuestions.removeQueued}
             editingSchedule={scheduledEdit}

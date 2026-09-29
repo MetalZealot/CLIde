@@ -1552,6 +1552,27 @@ export function useChatComposerState({
     setQueuedDraft(null);
   }, []);
 
+  /** Puts back a draft that *Send now* took out, in whichever session it came from. */
+  const requeueQueuedDraft = useCallback((targetSessionKey: string, draft: QueuedDraft) => {
+    if (targetSessionKey === queuedDraftSessionRef.current) {
+      setQueuedDraft(draft);
+      return;
+    }
+    writeQueuedMessage(targetSessionKey, {
+      content: draft.content,
+      options: draft.options,
+      attachments: draft.uploadedAttachments,
+    });
+  }, []);
+
+  /** An unconfirmed *Send now* may have landed, so the text returns to the input, never the queue. */
+  const returnDraftToInput = useCallback((content: string) => {
+    const base = inputValueRef.current.trim();
+    const next = base ? `${base}\n\n${content}` : content;
+    setInput(next);
+    inputValueRef.current = next;
+  }, [setInput]);
+
   // A voice transcript either fills the input (to edit before sending) or, when the
   // user tapped "stop and send", is submitted straight away. Mirror the value into
   // inputValueRef synchronously so handleSubmit reads the new text, not the stale state.
@@ -1919,6 +1940,8 @@ export function useChatComposerState({
     queuedDraft,
     editQueuedDraft,
     deleteQueuedDraft,
+    requeueQueuedDraft,
+    returnDraftToInput,
     pendingRewind,
     beginRewindEdit,
     cancelRewindEdit,

@@ -1,7 +1,7 @@
 # Send a queued message into the running turn
 
-- Status: not started
-- Next: phase 0 — probe what the Claude CLI does with input written mid-turn
+- Status: 1/4
+- Next: phase 3 — Codex live once its 30-day limit resets (Oct 25)
 - Context: the queued row belongs to [the edit model](message-edit-model.md);
   Codex already steers its question answers through `chat.steer`
   (`handleChatSteer`, `steer()` on the runtime interface); provider parity rules
@@ -27,21 +27,24 @@ nothing about today's queue changes unless the button is used.
 
 ## Phases
 
-- [ ] 0. A throwaway script against the real SDK shows, for a message written into
-      an open input stream: that one written during a tool call is read in the same
-      turn; what happens to one written while the final reply streams (a second
-      turn, lost, or refused); and that the transcript records it once. The
-      answer sets phase 2's cut-off
-- [ ] 1. The queued row offers *Send now* beside *Edit* and *Delete* while a reply
+- [x] 0. Probed against the real SDK 2026-09-28: text written during a tool call
+      is read in the same turn, one result, and the transcript stores it as a
+      `queued_command` attachment, not a user row. Text written while the final
+      reply streams runs as a second turn in the same run, even with input closed
+      at the first result — never lost. So the cut-off is the first result
+- [~] 1. The queued row offers *Send now* beside *Edit* and *Delete* while a reply
       runs and the provider reports steering. Accepted, the message leaves the
       queue and appears in the thread; refused, it stays queued with a one-line
       reason and still sends when the turn ends. Text only — a queued message
-      with attachments shows no *Send now*. Codex first, since its path exists
-- [ ] 2. The Claude adapter runs every turn on an input stream it owns, closed on
-      the turn's result; `steer()` writes into it and refuses past the cut-off
-      phase 0 found. Claude reports steering
-- [ ] 3. Both providers verified live on a branch-test slot, and accepted on the
-      phone
+      with attachments shows no *Send now*. An unconfirmed send returns the text
+      to the input, never the queue, so it cannot go twice. Built, tests pass
+- [~] 2. The Claude adapter runs every turn on an input stream it owns, closed on
+      the turn's first result; `steer()` writes into it until then, Claude reports
+      steering, and history reads `queued_command` rows as user messages. Built,
+      tests pass
+- [~] 3. Claude verified live on branch-test slot A 2026-09-28: sent mid-command,
+      answered in the same turn, kept its place after reload. Codex blocked by its
+      usage limit. Claude accepted on the phone 2026-09-28
 
 ## Done when
 

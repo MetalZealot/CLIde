@@ -124,6 +124,11 @@ interface ChatComposerProps {
   queuedDraft: QueuedDraft | null;
   onEditQueuedDraft: () => void;
   onDeleteQueuedDraft: () => void;
+  /** Present only while the running turn can take the queued draft. */
+  onSendQueuedDraftNow?: () => void;
+  /** The draft's text while *Send now* awaits the turn's answer. */
+  sendingQueuedDraftNow?: string | null;
+  sendQueuedDraftNowError?: string | null;
   /** Codex answers waiting for later turns; they share the queued draft's row. */
   queuedAnswers: QueuedAsyncAnswer[];
   onRemoveQueuedAnswer: (answerId: string) => void;
@@ -215,6 +220,9 @@ function ChatComposer({
   queuedDraft,
   onEditQueuedDraft,
   onDeleteQueuedDraft,
+  onSendQueuedDraftNow,
+  sendingQueuedDraftNow = null,
+  sendQueuedDraftNowError = null,
   queuedAnswers,
   onRemoveQueuedAnswer,
   editingSchedule,
@@ -387,13 +395,17 @@ function ChatComposer({
       )}
 
       <QueuedMessagesRow
-        draft={queuedDraft && {
-          content: queuedDraft.content,
-          attachmentCount: queuedDraft.attachments.length,
-        }}
+        draft={queuedDraft
+          ? { content: queuedDraft.content, attachmentCount: queuedDraft.attachments.length }
+          : sendingQueuedDraftNow !== null
+            ? { content: sendingQueuedDraftNow, attachmentCount: 0 }
+            : null}
         answers={queuedAnswers}
         onEditDraft={onEditQueuedDraft}
         onDeleteDraft={onDeleteQueuedDraft}
+        onSendDraftNow={onSendQueuedDraftNow}
+        isSendingDraftNow={!queuedDraft && sendingQueuedDraftNow !== null}
+        sendNowError={sendQueuedDraftNowError}
         onRemoveAnswer={onRemoveQueuedAnswer}
       />
 
