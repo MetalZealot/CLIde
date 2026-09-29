@@ -1,6 +1,6 @@
 # Send a queued message into the running turn
 
-- Status: 1/4
+- Status: 3/4
 - Next: phase 3 — Codex live once its 30-day limit resets (Oct 25)
 - Context: the queued row belongs to [the edit model](message-edit-model.md);
   Codex already steers its question answers through `chat.steer`
@@ -32,16 +32,15 @@ nothing about today's queue changes unless the button is used.
       `queued_command` attachment, not a user row. Text written while the final
       reply streams runs as a second turn in the same run, even with input closed
       at the first result — never lost. So the cut-off is the first result
-- [~] 1. The queued row offers *Send now* beside *Edit* and *Delete* while a reply
+- [x] 1. The queued row offers *Send now* beside *Edit* and *Delete* while a reply
       runs and the provider reports steering. Accepted, the message leaves the
       queue and appears in the thread; refused, it stays queued with a one-line
       reason and still sends when the turn ends. Text only — a queued message
       with attachments shows no *Send now*. An unconfirmed send returns the text
-      to the input, never the queue, so it cannot go twice. Built, tests pass
-- [~] 2. The Claude adapter runs every turn on an input stream it owns, closed on
+      to the input, never the queue, so it cannot go twice
+- [x] 2. The Claude adapter runs every turn on an input stream it owns, closed on
       the turn's first result; `steer()` writes into it until then, Claude reports
-      steering, and history reads `queued_command` rows as user messages. Built,
-      tests pass
+      steering, and history reads `queued_command` rows as user messages
 - [~] 3. Claude verified live on branch-test slot A 2026-09-28: sent mid-command,
       answered in the same turn, kept its place after reload. Codex blocked by its
       usage limit. Claude accepted on the phone 2026-09-28
