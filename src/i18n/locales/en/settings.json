@@ -198,6 +198,10 @@
   "chat": {
     "messageDisplay": {
       "title": "Message display",
+      "wrapToolOutput": {
+        "label": "Wrap command output",
+        "description": "Wrap long lines in command rows instead of scrolling sideways. The wrap button on a row flips it for that row."
+      },
       "copyFormat": {
         "label": "Copy format",
         "description": "Which format the copy button uses for agent messages.",

@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Copy, Check } from 'lucide-react';
+import { ChevronRight, Copy, Check, WrapText } from 'lucide-react';
 
 import { cn } from '../../../../lib/utils';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
+import { useUiPreference } from '../../../../hooks/useUiPreferences';
+
 import { ToolStatusBadge } from './ToolStatusBadge';
 import type { ToolStatus } from './ToolStatusBadge';
 
@@ -41,6 +43,11 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   const isRunning = status === 'running';
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  // The row button inverts the setting for this row only; it is never saved.
+  const wrapSetting = useUiPreference('wrapToolOutput');
+  const [wrapFlipped, setWrapFlipped] = useState(false);
+  const wrap = wrapSetting !== wrapFlipped;
+  const wrapClass = wrap ? 'whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre';
 
   // The header is a summary: one truncated line, never a scroll surface — a
   // 16px row is impossible to drag, and its retained scrollLeft would clip the
@@ -114,7 +121,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         )}
       >
         {isRunning ? (
-          <span className="mt-[3px] h-2.5 w-2.5 flex-shrink-0 self-start animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
+          <span className="mt-[3px] h-2.5 w-2.5 flex-shrink-0 animate-spin self-start rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
         ) : (
           <ChevronRight
             className={cn(
@@ -124,7 +131,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
             )}
           />
         )}
-        <span className="flex-shrink-0 self-start select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
+        <span className="flex-shrink-0 select-none self-start font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
           $
         </span>
         {/* The header is the call's identity, so it carries the same truncated
@@ -136,6 +143,25 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         </span>
 
         {status && status !== 'running' && <ToolStatusBadge status={status} className="flex-shrink-0" />}
+
+        {open && (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              setWrapFlipped((prev) => !prev);
+            }}
+            onKeyDown={(event) => event.stopPropagation()}
+            className={cn(
+              'touch:opacity-100 flex-shrink-0 rounded p-0.5 opacity-0 transition-all hover:bg-foreground/10 hover:text-foreground focus:opacity-100 group-hover/cmd:opacity-100',
+              wrap ? 'bg-foreground/10 text-foreground' : 'text-muted-foreground/60',
+            )}
+            title={wrap ? 'Scroll long lines' : 'Wrap long lines'}
+            aria-label="Wrap long lines"
+            aria-pressed={wrap}
+          >
+            <WrapText className="h-3.5 w-3.5" />
+          </button>
+        )}
 
         <button
           onClick={handleCopy}
@@ -171,7 +197,7 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
       {/* Expanded command — full width, capped so a long heredoc scrolls in
           place instead of pushing the conversation off screen. */}
       {open && (
-        <pre className="settings-content-enter max-h-72 overflow-auto border-t border-border/50 px-3 py-2 font-mono text-xs leading-relaxed text-foreground whitespace-pre">
+        <pre className={cn('settings-content-enter max-h-72 overflow-auto border-t border-border/50 px-3 py-2 font-mono text-xs leading-relaxed text-foreground', wrapClass)}>
           {command}
         </pre>
       )}
@@ -181,7 +207,8 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         <div className="settings-content-enter border-t border-border/50 bg-background/50">
           <pre
             className={cn(
-              'max-h-80 overflow-auto whitespace-pre px-3 py-2 font-mono text-xs leading-relaxed',
+              'max-h-80 overflow-auto px-3 py-2 font-mono text-xs leading-relaxed',
+              wrapClass,
               isError ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
             )}
           >

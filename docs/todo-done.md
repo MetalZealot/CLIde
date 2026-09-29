@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Wrap command output** (2026-09-29). A Chat setting picks wrap or sideways scroll for Bash rows; a row's wrap button inverts it for that row, unsaved. Fork-only. Verified: client tests.
+
 - [x] **Save the displayed Browser screenshot** (2026-09-29). The session menu downloads the current JPEG. Verified: accepted live by Grayson. [Browser map](maps/chat-browser-activity.md).
 
 - [x] **Auto-Continue offered, remembered, and defaulted** (2026-09-29). Session mode in the kebab; a live limit offers enabling; the scheduled bubble owns the waiting status. Verified: real limit stops on Claude and Codex, accepted by Grayson. [Plan](plans/archive/2026-09-29-auto-continue.md).

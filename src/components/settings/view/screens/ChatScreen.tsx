@@ -53,6 +53,16 @@ export default function ChatScreen({ onOpenScreen }: ChatScreenProps) {
           />
         </SettingsRow>
         <SettingsRow
+          label={t('chat.messageDisplay.wrapToolOutput.label')}
+          description={t('chat.messageDisplay.wrapToolOutput.description')}
+        >
+          <SettingsToggle
+            checked={preferences.wrapToolOutput}
+            onChange={(value) => setPreference('wrapToolOutput', value)}
+            ariaLabel={t('chat.messageDisplay.wrapToolOutput.label')}
+          />
+        </SettingsRow>
+        <SettingsRow
           stacked
           label={t('chat.messageDisplay.copyFormat.label')}
           description={t('chat.messageDisplay.copyFormat.description')}

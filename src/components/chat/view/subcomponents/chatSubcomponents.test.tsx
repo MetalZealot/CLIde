@@ -46,6 +46,7 @@ import ScheduledMessageBubbles from './ScheduledMessageBubbles';
 import ComposerAddMenu from './ComposerAddMenu';
 import TokenUsageSummary from './TokenUsageSummary';
 import ProviderUpdateNotice from './ProviderUpdateNotice';
+import { BashCommandDisplay } from '../../tools/components/BashCommandDisplay';
 
 describe('chatSubcomponents', () => {
   test('provider update notice checks without installing and updates only on explicit click', async () => {
@@ -230,6 +231,38 @@ describe('chatSubcomponents', () => {
     }
     assert.equal(formatMessageTimestamp(at(8, 17, 7), now), '7:05 AM');
     assert.equal(formatClockTime(at(8, 17, 17), { format: '24h' }), '17:05');
+  });
+
+  test('a command row wraps per the setting, and its wrap button inverts that for the row alone', async () => {
+    const setWrapSetting = (value: boolean) => {
+      localStorage.setItem('uiPreferences', JSON.stringify({ wrapToolOutput: value }));
+      window.dispatchEvent(new CustomEvent('ui-preferences:sync', { detail: { storageKey: 'uiPreferences', sourceId: 'test' } }));
+    };
+    const originalResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const wraps = () => [...host.querySelectorAll('pre')].map((pre) => pre.className.includes('whitespace-pre-wrap'));
+    const wrapButton = () => host.querySelector('button[aria-label="Wrap long lines"]') as HTMLButtonElement | null;
+    try {
+      localStorage.setItem('uiPreferences', JSON.stringify({ wrapToolOutput: false }));
+      await React.act(async () => root.render(<BashCommandDisplay command="ls" output="a long line" defaultOpen />));
+      assert.deepEqual(wraps(), [false, false]);
+      assert.equal(wrapButton()?.getAttribute('aria-pressed'), 'false');
+
+      await React.act(async () => wrapButton()!.click());
+      assert.deepEqual(wraps(), [true, true]);
+      // The flip is relative: turning the setting on makes this row scroll.
+      await React.act(async () => setWrapSetting(true));
+      assert.deepEqual(wraps(), [false, false]);
+      await React.act(async () => wrapButton()!.click());
+      assert.deepEqual(wraps(), [true, true]);
+      assert.equal(JSON.parse(localStorage.getItem('uiPreferences')!).wrapToolOutput, true);
+    } finally {
+      await React.act(async () => root.unmount());
+      localStorage.removeItem('uiPreferences');
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
   });
 
   describe('activity messages', () => {

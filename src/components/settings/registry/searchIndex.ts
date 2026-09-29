@@ -86,6 +86,7 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
 
   { screenId: 'chat', labelKey: 'quickSettings.showRawParameters', keywords: 'tool parameters json' },
   { screenId: 'chat', labelKey: 'quickSettings.showThinking', keywords: 'reasoning' },
+  { screenId: 'chat', labelKey: 'chat.messageDisplay.wrapToolOutput.label', keywords: 'bash terminal line wrap horizontal scroll' },
   { screenId: 'chat', labelKey: 'quickSettings.enterToSend', keywords: 'keyboard return newline' },
   { screenId: 'chat', labelKey: 'quickSettings.sendByCtrlEnter', keywords: 'keyboard ime' },
   { screenId: 'chat', labelKey: 'voiceSettings.enableTts', keywords: 'voice speak read aloud tts speaker' },

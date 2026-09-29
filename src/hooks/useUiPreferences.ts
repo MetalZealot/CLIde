@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 
 export const COPY_MESSAGE_FORMATS = ['markdown', 'text'] as const;
 export type CopyMessageFormat = (typeof COPY_MESSAGE_FORMATS)[number];
@@ -12,6 +12,7 @@ type UiPreferences = {
   ttsEnabled: boolean;
   sttEnabled: boolean;
   copyMessageFormat: CopyMessageFormat;
+  wrapToolOutput: boolean;
 };
 
 type UiPreferenceKey = keyof UiPreferences;
@@ -46,6 +47,7 @@ const DEFAULTS: UiPreferences = {
   ttsEnabled: false,
   sttEnabled: false,
   copyMessageFormat: 'markdown',
+  wrapToolOutput: false,
 };
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
@@ -190,6 +192,41 @@ function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferenc
     default:
       return state;
   }
+}
+
+/**
+ * Read-only view of one preference for components rendered once per message:
+ * no localStorage write or sync broadcast on mount, unlike useUiPreferences.
+ */
+export function useUiPreference<K extends UiPreferenceKey>(
+  key: K,
+  storageKey = 'uiPreferences',
+): UiPreferences[K] {
+  const [value, setValue] = useState(() => readInitialPreferences(storageKey)[key]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const refresh = () => setValue(readInitialPreferences(storageKey)[key]);
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === storageKey) refresh();
+    };
+    const handleSyncEvent = (event: Event) => {
+      if ((event as CustomEvent<SyncEventDetail>).detail?.storageKey === storageKey) refresh();
+    };
+
+    refresh();
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+    };
+  }, [key, storageKey]);
+
+  return value;
 }
 
 export function useUiPreferences(storageKey = 'uiPreferences') {
