@@ -8,7 +8,7 @@ import test, { describe } from 'node:test';
 
 import { projectsDb } from '@/modules/database/index.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
-import { removeJsonlFilesAndPruneEmptyDirs } from '@/modules/projects/services/project-delete.service.js';
+import { removeJsonlFilesAndPruneEmptyDirs, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { createProject } from '@/modules/projects/services/project-management.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { mapSessionRowToSummary } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
@@ -388,6 +388,63 @@ describe('project-delete.service', () => {
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }
+  });
+
+  describe('restoreArchivedProject', () => {
+    const MAIN = '/tmp/clide-restore-repo';
+    const PORCELAIN = [
+      `worktree ${MAIN}`, 'HEAD a1', 'branch refs/heads/main', '',
+      `worktree ${MAIN}-wt-live`, 'HEAD b2', 'branch refs/heads/live', '',
+      `worktree ${MAIN}-wt-kept`, 'HEAD c3', 'branch refs/heads/kept', '',
+      `worktree ${MAIN}-wt-deleted`, 'HEAD d4', 'branch refs/heads/deleted', '',
+      `worktree ${MAIN}-wt-prunable`, 'HEAD e5', 'branch refs/heads/prunable', 'prunable gitdir missing', '',
+    ].join('\n');
+
+    /** Stubs the project rows by path; `archived` marks which start archived. */
+    async function restoreWith(targetPath: string, archived: string[]) {
+      const rows = new Map(
+        [MAIN, `${MAIN}-wt-live`, `${MAIN}-wt-kept`, `${MAIN}-wt-deleted`, `${MAIN}-wt-prunable`].map((p) => [
+          p,
+          { project_id: `id:${p}`, project_path: p, custom_project_name: null, isStarred: 0, isArchived: archived.includes(p) ? 1 : 0, accent_color: null },
+        ]),
+      );
+      const original = {
+        getProjectById: projectsDb.getProjectById,
+        getProjectPath: projectsDb.getProjectPath,
+        updateProjectIsArchivedById: projectsDb.updateProjectIsArchivedById,
+      };
+      const unarchived: string[] = [];
+      try {
+        projectsDb.getProjectById = (id: string) => [...rows.values()].find((row) => row.project_id === id) ?? null;
+        projectsDb.getProjectPath = (p: string) => rows.get(p) ?? null;
+        projectsDb.updateProjectIsArchivedById = (id: string, isArchived: boolean) => {
+          assert.equal(isArchived, false);
+          unarchived.push(id);
+        };
+        const restored = await restoreArchivedProject(`id:${targetPath}`, {
+          runGit: async () => ({ stdout: PORCELAIN, stderr: '', ok: true }),
+          pathExists: async (p: string) => !p.endsWith('-wt-deleted'),
+        });
+        return { restored, unarchived };
+      } finally {
+        Object.assign(projectsDb, original);
+      }
+    }
+
+    test('restoring the main checkout brings back its archived worktrees still on disk', async () => {
+      const everyPath = [MAIN, `${MAIN}-wt-live`, `${MAIN}-wt-deleted`, `${MAIN}-wt-prunable`];
+      const { restored, unarchived } = await restoreWith(MAIN, everyPath);
+
+      // wt-kept was never archived; wt-deleted and wt-prunable are gone from disk.
+      assert.deepEqual(restored, [`id:${MAIN}`, `id:${MAIN}-wt-live`]);
+      assert.deepEqual(unarchived, restored);
+    });
+
+    test('restoring a linked worktree restores only that worktree', async () => {
+      const { restored } = await restoreWith(`${MAIN}-wt-live`, [MAIN, `${MAIN}-wt-live`]);
+
+      assert.deepEqual(restored, [`id:${MAIN}-wt-live`]);
+    });
   });
 });
 

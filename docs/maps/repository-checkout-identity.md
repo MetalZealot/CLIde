@@ -76,9 +76,10 @@ session's `project_path`.
 - **Non-Git projects stay ordinary projects.** Grouping enriches Git roots; it is
   not a precondition for using CLIde.
 - A worktree registers as an ordinary project row and is absorbed into its
-  repository's row by the grouping layer. Rename and archive apply to the
-  individual checkout; delete covers the repository, because the row *is* the
-  repository.
+  repository's row by the grouping layer. Rename applies to the individual
+  checkout; archive and delete cover the repository, because the row *is* the
+  repository. Restoring the main checkout also restores its archived worktrees
+  still on disk.
 
 ## What is already strong
 

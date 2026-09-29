@@ -324,8 +324,8 @@ router.post(
   '/:projectId/restore',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    restoreArchivedProject(projectId);
-    res.json(createApiSuccessResponse({ projectId, isArchived: false }));
+    const restoredProjectIds = await restoreArchivedProject(projectId);
+    res.json(createApiSuccessResponse({ projectId, isArchived: false, restoredProjectIds }));
   }),
 );
 

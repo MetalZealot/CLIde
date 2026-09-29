@@ -2,7 +2,11 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
-import { AppError } from '@/shared/utils.js';
+import {
+  listRepositoryWorktrees,
+  type WorktreeInventoryDependencies,
+} from '@/modules/projects/services/worktree-inventory.service.js';
+import { AppError, normalizeProjectPath } from '@/shared/utils.js';
 
 function uniqueJsonlPathsFromSessions(
   sessions: Array<{ jsonl_path: string | null }>,
@@ -107,9 +111,14 @@ export async function deleteOrArchiveProject(projectId: string, force: boolean):
 }
 
 /**
- * Restores one archived project row back into the active project list.
+ * Restores an archived project row. Restoring a repository's main checkout also
+ * restores its archived worktrees still on disk, since the repository row's
+ * Archive covers every checkout. Returns every restored project id.
  */
-export function restoreArchivedProject(projectId: string): void {
+export async function restoreArchivedProject(
+  projectId: string,
+  dependencies?: WorktreeInventoryDependencies,
+): Promise<string[]> {
   const row = projectsDb.getProjectById(projectId);
   if (!row) {
     throw new AppError(`Unknown projectId: ${projectId}`, {
@@ -119,4 +128,33 @@ export function restoreArchivedProject(projectId: string): void {
   }
 
   projectsDb.updateProjectIsArchivedById(projectId, false);
+  const restored = [projectId];
+
+  const pathExists = dependencies?.pathExists ?? directoryExists;
+  const [mainWorktree, ...linkedWorktrees] = await listRepositoryWorktrees(row.project_path, dependencies);
+  if (!mainWorktree || mainWorktree.path !== normalizeProjectPath(row.project_path)) {
+    return restored;
+  }
+
+  for (const worktree of linkedWorktrees) {
+    if (worktree.isPrunable || !(await pathExists(worktree.path))) {
+      continue;
+    }
+    const sibling = projectsDb.getProjectPath(worktree.path);
+    if (sibling?.isArchived) {
+      projectsDb.updateProjectIsArchivedById(sibling.project_id, false);
+      restored.push(sibling.project_id);
+    }
+  }
+
+  return restored;
+}
+
+async function directoryExists(candidatePath: string): Promise<boolean> {
+  try {
+    await fs.access(candidatePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
