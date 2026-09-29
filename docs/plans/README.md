@@ -19,6 +19,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [`/btw` side questions](side-questions.md) | complete | Accepted on the phone for Claude and Codex 2026-09-23 |
 | [Auto-Continue offered, remembered, and defaulted](auto-continue.md) | 6/6 | A live limit stop on either provider is the remaining check |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
+| [Send a queued message into the running turn](send-queued-now.md) | not started | Phase 0: probe what the Claude CLI does with input written mid-turn |
 | [Auditable TTS speech preparation](tts-speech-front-end.md) | complete | Accepted by listening 2026-08-24; three faults found by ear and fixed |
 | [Self-hosted dictation and read-aloud](self-hosted-voice.md) | complete | Keep push-to-talk until a streaming local engine is proven on this Pi |
 | [Context-correct skills settings](skills-settings-discovery-scope.md) | complete | none — accepted live 2026-09-09 |

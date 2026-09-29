@@ -125,6 +125,7 @@ new work.
 - [ ] **Workspace tabs like the desktop apps** — Terminal for Shell; Tasks, Agents. [Plan](plans/workspace-surfaces.md). **M/L**
 - [~] **Auto-Continue offered, remembered, and defaulted.** Session mode stays in the kebab; a live limit offers enabling only when off with no reset message waiting. The scheduled bubble owns the waiting status. Compact presentation verified in component tests and Browser examples; real-stop acceptance remains. [Plan](plans/auto-continue.md). **M**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live; 3–4 move the banners onto the messages and cover editing a turn the provider already took. [Plan](plans/message-edit-model.md). **M/L**
+- [ ] **Send a queued message into the running turn.** *Send now* on the queued row steers the active Claude or Codex turn instead of waiting for it to end; Enter still queues. [Plan](plans/send-queued-now.md). **M**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
 
