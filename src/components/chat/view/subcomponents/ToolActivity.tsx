@@ -15,7 +15,7 @@ import {
 import { formatDuration } from '../../utils/chatFormatting';
 import { Shimmer } from '../../../../shared/view/ui/Shimmer';
 
-import { DisclosureRow, StaticRow } from './DisclosureRow';
+import { DisclosureRow, StaticRow, rowLabelClass } from './DisclosureRow';
 import OperationDetail from './OperationDetail';
 
 interface ToolActivityProps {
@@ -37,7 +37,7 @@ const plainFirstLine = (text: unknown): string => firstLine(text).replace(/^#+\s
 
 /** An operation line inside an open activity or agent. */
 export const operationRowClass = 'flex min-h-6 w-full min-w-0 items-center gap-2 text-left text-[13px] leading-5 text-muted-foreground transition-colors hover:text-foreground sm:min-h-7 sm:text-sm';
-const shimmerClass = 'min-w-0 flex-1 truncate motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-muted-foreground';
+const shimmerClass = 'flex-1 motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-muted-foreground';
 
 interface OperationRowProps {
   message: ChatMessage;
@@ -67,7 +67,7 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
   if (message.isThinking) {
     return (
       <button type="button" className={operationRowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
-        <span className="min-w-0 flex-1 truncate italic">{t('activity.thought', { text: plainFirstLine(message.content) })}</span>
+        <span className={`${rowLabelClass(isOpen)} flex-1 italic`}>{t('activity.thought', { text: plainFirstLine(message.content) })}</span>
       </button>
     );
   }
@@ -82,7 +82,9 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
 
   return (
     <button type="button" className={operationRowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
-      {isRunning ? <Shimmer className={shimmerClass}>{label}</Shimmer> : <span className="min-w-0 flex-1 truncate">{label}</span>}
+      {isRunning
+        ? <Shimmer className={`${rowLabelClass(isOpen)} ${shimmerClass}`}>{label}</Shimmer>
+        : <span className={`${rowLabelClass(isOpen)} flex-1`}>{label}</span>}
       {hasCounts && <span className="flex-shrink-0 tabular-nums">{formatLineCounts(operation.added, operation.removed)}</span>}
       {failure && <span className="flex-shrink-0 text-red-600 dark:text-red-400">{t(`activity.status.${failure}`)}</span>}
       {operation.durationMs !== null && operation.durationMs >= 1000 && (

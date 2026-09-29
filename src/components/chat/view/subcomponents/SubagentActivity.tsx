@@ -7,7 +7,7 @@ import { describeOperation, parseToolInput } from '../../utils/toolActivity';
 import { formatDuration } from '../../utils/chatFormatting';
 
 import { DetailPanel } from './DetailPanel';
-import { DISCLOSED_TEXT_CLASS, DisclosureRow } from './DisclosureRow';
+import { DISCLOSED_TEXT_CLASS, DisclosureRow, rowLabelClass } from './DisclosureRow';
 import { Markdown } from './Markdown';
 import OperationDetail from './OperationDetail';
 import { OperationRow, operationRowClass } from './ToolActivity';
@@ -65,7 +65,7 @@ function TextLine({ label, text, isOpen, onToggle }: { label: string; text: stri
   return (
     <>
       <button type="button" className={operationRowClass} onClick={onToggle} aria-expanded={isOpen}>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className={`${rowLabelClass(isOpen)} flex-1`}>{label}</span>
       </button>
       {isOpen && (
         <DetailPanel copyText={text}>

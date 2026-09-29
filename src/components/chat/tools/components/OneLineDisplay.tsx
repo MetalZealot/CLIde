@@ -177,7 +177,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
       {(icon || label || toolName) && (
         <span className="text-[10px] text-muted-foreground/40">/</span>
       )}
-      <span className={`font-mono text-xs ${wrapText ? 'overflow-x-auto whitespace-pre' : 'truncate'} min-w-0 flex-1 ${colorScheme.primary}`}>
+      <span className={`font-mono text-xs ${wrapText ? 'overflow-x-auto whitespace-pre' : '[overflow-wrap:anywhere]'} min-w-0 flex-1 ${colorScheme.primary}`}>
         {value}
       </span>
       {secondary && (

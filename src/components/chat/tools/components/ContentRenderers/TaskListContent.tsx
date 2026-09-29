@@ -110,7 +110,7 @@ export const TaskListContent: React.FC<TaskListContentProps> = ({ content }) => 
               <span className="flex-shrink-0 font-mono text-[11px] text-gray-400 dark:text-gray-500">
                 #{task.id}
               </span>
-              <span className={`flex-1 truncate text-xs ${config.textClass}`}>
+              <span className={`min-w-0 flex-1 text-xs [overflow-wrap:anywhere] ${config.textClass}`}>
                 {task.subject}
               </span>
               <span className={`flex-shrink-0 rounded border px-1 py-px text-[10px] ${config.badgeClass}`}>

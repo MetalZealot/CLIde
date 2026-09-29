@@ -8,6 +8,9 @@ import { DetailPanel } from './DetailPanel';
 // Muted markdown in a detail panel; the first block clears the copy button.
 export const DISCLOSED_TEXT_CLASS = 'prose prose-sm max-w-none font-prose text-[13px] leading-5 text-muted-foreground dark:prose-invert prose-headings:mb-1 prose-headings:mt-3 prose-headings:text-[13px] prose-headings:font-semibold [&>*:first-child]:mt-0 [&>*:first-child]:pr-6';
 
+/** One truncated line while closed; the whole label wraps once opened. */
+export const rowLabelClass = (isOpen: boolean): string => (isOpen ? 'min-w-0 [overflow-wrap:anywhere]' : 'min-w-0 truncate');
+
 interface DisclosureRowProps {
   label: string;
   isOpen: boolean;
@@ -27,11 +30,11 @@ export function DisclosureRow({ label, isOpen, onToggle, isRunning = false, trai
       aria-expanded={isOpen}
     >
       {isRunning ? (
-        <Shimmer className="min-w-0 truncate motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-muted-foreground">
+        <Shimmer className={`${rowLabelClass(isOpen)} motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-muted-foreground`}>
           {label}
         </Shimmer>
       ) : (
-        <span className="min-w-0 truncate">{label}</span>
+        <span className={rowLabelClass(isOpen)}>{label}</span>
       )}
       {trailing}
       <ChevronRight className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden />
