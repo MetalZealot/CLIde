@@ -1,7 +1,7 @@
 # Send a queued message into the running turn
 
 - Status: 1/4
-- Next: phase 3 — send now on both providers on branch-test slot A, then on the phone
+- Next: phase 3 — Claude on the phone; Codex live once its 30-day limit resets (Oct 25)
 - Context: the queued row belongs to [the edit model](message-edit-model.md);
   Codex already steers its question answers through `chat.steer`
   (`handleChatSteer`, `steer()` on the runtime interface); provider parity rules
@@ -42,8 +42,9 @@ nothing about today's queue changes unless the button is used.
       the turn's first result; `steer()` writes into it until then, Claude reports
       steering, and history reads `queued_command` rows as user messages. Built,
       tests pass
-- [ ] 3. Both providers verified live on a branch-test slot, and accepted on the
-      phone
+- [~] 3. Claude verified live on branch-test slot A 2026-09-28: sent mid-command,
+      answered in the same turn, kept its place after reload. Codex blocked by its
+      usage limit. Phone acceptance outstanding
 
 ## Done when
 
