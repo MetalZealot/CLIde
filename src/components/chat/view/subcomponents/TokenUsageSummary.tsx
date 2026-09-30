@@ -296,43 +296,86 @@ function PopoverRow({
   );
 }
 
-/** A card per plan window; the card keeps each bar's end legible beside its neighbour. */
-function PlanWindowTile({
+const windowDurationMinutes = (window: ProviderUsageWindow): number | null => {
+  if (window.durationMinutes) return window.durationMinutes;
+  if (window.id === 'five_hour') return 300;
+  if (window.id.startsWith('seven_day')) return 10_080;
+  return null;
+};
+
+/** Share of the window already elapsed, 0-100; null when the reset time or length is unknown. */
+const windowElapsedPercent = (window: ProviderUsageWindow, now: number): number | null => {
+  const duration = windowDurationMinutes(window);
+  const resetsAt = window.resetsAt ? Date.parse(window.resetsAt) : NaN;
+  if (!duration || !Number.isFinite(resetsAt)) return null;
+  const elapsed = 1 - (resetsAt - now) / (duration * 60_000);
+  return Math.round(Math.min(1, Math.max(0, elapsed)) * 100);
+};
+
+/** One open column per plan window; the tick marks how much of the window has elapsed. */
+function PlanWindowColumn({
   window,
+  now,
   onViewUsage,
 }: {
   window: ProviderUsageWindow;
+  now: number;
   onViewUsage?: () => void;
 }) {
   const { t } = useTranslation('common');
   const remaining = formatResetsIn(window.resetsAt);
   const utilization = Math.min(100, Math.max(0, window.utilization));
   const label = formatWindowLabel(window, t);
+  const elapsed = windowElapsedPercent(window, now);
+  const ahead = elapsed === null ? 0 : Math.round(utilization) - elapsed;
+  const paceNote = elapsed === null
+    ? null
+    : Math.abs(ahead) < 5
+      ? t('usagePopover.paceOn', { defaultValue: 'on pace' })
+      : ahead > 0
+        ? t('usagePopover.paceAhead', { defaultValue: '{{percent}}% ahead of pace', percent: ahead })
+        : t('usagePopover.paceUnder', { defaultValue: '{{percent}}% under pace', percent: -ahead });
+  // Amber only when running ahead with most of the limit already spent.
+  const paceWarns = ahead >= 5 && utilization >= 60;
   const content = (
     <>
       <span className="flex items-center gap-1 text-[11.5px] text-muted-foreground">
         <span className="min-w-0 flex-1 truncate text-left">{label}</span>
         {onViewUsage && <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />}
       </span>
-      <span className={cn('mb-1.5 mt-0.5 block text-left text-xl font-semibold leading-tight tabular-nums', planToneFor(utilization))}>
+      <span className={cn('mb-1.5 mt-px block text-left text-xl font-semibold leading-tight tabular-nums', planToneFor(utilization))}>
         {Math.round(utilization)}%
       </span>
-      <UsageBar utilization={utilization} thin />
+      <span className="relative block">
+        <UsageBar utilization={utilization} thin />
+        {elapsed !== null && (
+          <span
+            className="absolute -bottom-1 -top-1 w-0.5 -translate-x-1/2 rounded-full bg-foreground/85"
+            style={{ left: `${elapsed}%` }}
+            aria-hidden
+          />
+        )}
+      </span>
       {remaining && (
         <span className="mt-1.5 block truncate text-left text-[11px] tabular-nums text-muted-foreground">
           {t('usagePopover.resetsIn', { defaultValue: 'resets in {{time}}', time: remaining })}
         </span>
       )}
+      {paceNote && (
+        <span className={cn('mt-0.5 block truncate text-left text-[11px] tabular-nums', paceWarns ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
+          {paceNote}
+        </span>
+      )}
     </>
   );
-  const className = 'block min-w-0 rounded-lg bg-muted/50 px-2.5 pb-2.5 pt-2';
+  const className = 'block min-w-0';
 
   return onViewUsage ? (
     <button
       type="button"
       onClick={onViewUsage}
       aria-label={t('usagePopover.viewWindowUsage', { defaultValue: 'View {{window}} usage', window: label })}
-      className={cn(className, 'transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+      className={cn(className, 'rounded-md transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
     >
       {content}
     </button>
@@ -361,7 +404,7 @@ function PopoverAction({
       onClick={onClick}
       title={title}
       aria-label={ariaLabel}
-      className="flex min-h-10 min-w-0 flex-1 items-center gap-1 rounded-lg bg-muted py-1.5 pl-2.5 pr-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-10 min-w-0 flex-1 items-center gap-1 rounded-lg bg-muted/60 py-1.5 pl-2.5 pr-2 text-left transition-colors hover:bg-muted dark:bg-muted dark:hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[11px] leading-tight text-muted-foreground">{caption}</span>
@@ -857,11 +900,12 @@ export default function TokenUsageSummary({
                     {t('usagePopover.planLimits', { defaultValue: 'Plan limits' })}
                   </div>
                   {planWindows.length > 0 && (
-                    <div className={cn('grid gap-1.5', planWindows.length > 1 && 'grid-cols-2')}>
+                    <div className={cn('grid gap-x-5 gap-y-3', planWindows.length > 1 && 'grid-cols-2')}>
                       {planWindows.map((window) => (
-                        <PlanWindowTile
+                        <PlanWindowColumn
                           key={window.id}
                           window={window}
+                          now={now}
                           onViewUsage={window.id === activityWindowId
                             ? () => setView('activity')
                             : undefined}

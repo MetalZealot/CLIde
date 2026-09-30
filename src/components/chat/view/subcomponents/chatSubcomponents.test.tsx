@@ -1661,6 +1661,9 @@ describe('chatSubcomponents', () => {
       // One tile per window; the percentage carries the warning tint.
       assert.match(text, /5-hour limit75%resets in \d+h \d+m/);
       assert.match(text, /Weekly25%resets in \d+d \d+h/);
+      // Each window reads against its elapsed time: 75% used 3.5h into 5h is on pace or just ahead.
+      assert.match(text, /5-hour limit75%resets in \d+h \d+m(on pace|\d+% ahead of pace)Weekly/);
+      assert.equal(dialog.querySelectorAll('span.absolute.bg-foreground\\/85').length, 2);
       const tinted = [...dialog.querySelectorAll('span')].find((span) => span.textContent === '75%');
       assert.match(tinted?.className || '', /amber/);
       assert.doesNotMatch([...dialog.querySelectorAll('span')].find((span) => span.textContent === '25%')?.className || '', /amber|red/);

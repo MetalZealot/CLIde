@@ -446,6 +446,9 @@
     "breakdownCaption": "Context",
     "breakdownAction": "Breakdown",
     "planLimits": "Plan limits",
-    "sessionTokens": "{{used}} tokens in context"
+    "sessionTokens": "{{used}} tokens in context",
+    "paceOn": "on pace",
+    "paceAhead": "{{percent}}% ahead of pace",
+    "paceUnder": "{{percent}}% under pace"
   }
 }
