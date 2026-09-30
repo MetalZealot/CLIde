@@ -561,30 +561,10 @@ describe('provider-token-usage.service', () => {
     const sessionFilePath = path.join(tempDirectory, 'provider-session.jsonl');
 
     try {
-      // Rows as Claude Code writes them: the earlier reply wrote the 1-hour cache, the
-      // last one only read it, and an attachment row lands mid-reply.
       await writeFile(sessionFilePath, [
         JSON.stringify({
           type: 'assistant',
-          timestamp: '2026-01-01T00:00:05.000Z',
           message: {
-            id: 'msg-earlier',
-            usage: {
-              input_tokens: 90,
-              cache_creation_input_tokens: 10,
-              cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 10 },
-              output_tokens: 3,
-            },
-          },
-        }),
-        JSON.stringify({ type: 'user', timestamp: '2026-01-01T00:01:00.000Z' }),
-        JSON.stringify({ type: 'attachment', timestamp: '2026-01-01T00:01:30.000Z' }),
-        JSON.stringify({ type: 'subagent', isSidechain: true, timestamp: '2026-01-01T00:01:40.000Z' }),
-        JSON.stringify({
-          type: 'assistant',
-          timestamp: '2026-01-01T00:02:00.000Z',
-          message: {
-            id: 'msg-last',
             usage: {
               input_tokens: 100,
               cache_read_input_tokens: 20,
@@ -613,7 +593,6 @@ describe('provider-token-usage.service', () => {
         cacheReadTokens: 20,
         cacheCreationTokens: 5,
         cacheTokens: 25,
-        promptCache: { ttlSeconds: 3600, refreshedAt: '2026-01-01T00:01:00.000Z' },
         autoCompactThreshold: undefined,
         isAutoCompactEnabled: undefined,
         ceilingSource: 'auto',

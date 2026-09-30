@@ -1467,7 +1467,6 @@ describe('chatSubcomponents', () => {
     let container: HTMLDivElement | null = null;
     const originalFetch = globalThis.fetch;
     let claudeCreditSpend = 0;
-    let promptCacheFixture: { ttlSeconds: number; refreshedAt: string } | null = null;
     const providerUsageRequests: string[] = [];
 
     /** Reset labels are countdowns, so fixtures must sit in the future at run time. */
@@ -1546,12 +1545,6 @@ describe('chatSubcomponents', () => {
 
       globalThis.fetch = (async (input: RequestInfo | URL) => {
         providerUsageRequests.push(String(input));
-        if (String(input).includes('/token-usage')) {
-          return new Response(JSON.stringify({ success: true, data: { promptCache: promptCacheFixture } }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
         if (String(input).includes('/context-ceiling')) {
           return new Response(JSON.stringify({
             success: true,
@@ -1654,10 +1647,7 @@ describe('chatSubcomponents', () => {
       assert.equal(trigger.getAttribute('aria-label'), 'Show usage; credits available');
       assert.match(text, /Context & Usage/);
       assert.match(trigger.textContent || '', /\$/);
-      assert.match(text, /Session118k \/ 934k13%/);
-      assert.match(text, /Auto-compactAt 934k/);
-      // No session id, so there is no transcript to time the cache from.
-      assert.doesNotMatch(text, /Prompt cache/);
+      assert.match(text, /Session118k \/ 934k · Auto13%/);
       // Label, reset and percentage on one line.
       assert.match(text, /5-hour limitResets in \d+h \d+m75%/);
       assert.match(text, /WeeklyResets in \d+d \d+h25%/);
@@ -1678,12 +1668,13 @@ describe('chatSubcomponents', () => {
       // Plan management lives on the provider's Agent settings page.
       assert.equal(dialog.querySelector('a'), null);
 
-      const breakdown = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
-        .find((button) => button.textContent === 'Context breakdown');
+      const breakdown = dialog.querySelector<HTMLButtonElement>(
+        'button[aria-label="Session breakdown"]',
+      );
       assert.ok(breakdown);
       await React.act(async () => breakdown.click());
       assert.equal(breakdownOpens, 1);
-      assert.match(document.querySelector('[role="dialog"]')?.textContent || '', /Loading context breakdown/);
+      assert.match(document.querySelector('[role="dialog"]')?.textContent || '', /Loading session breakdown/);
 
       await React.act(async () => root?.render(
         <TokenUsageSummary
@@ -1728,72 +1719,13 @@ describe('chatSubcomponents', () => {
           canRefreshBreakdown={false}
         />,
       ));
-      const breakdownDialog = document.querySelector<HTMLElement>('[role="dialog"]');
-      assert.ok(breakdownDialog);
-      const breakdownText = breakdownDialog.textContent || '';
-      // One total: the buffer is reserved, not in use, so the headline matches the ring.
-      assert.match(breakdownText, /118k in use/);
-      assert.match(breakdownText, /Messages97\.7k83%/);
-      assert.match(breakdownText, /System prompt20k17%/);
-      assert.match(breakdownText, /Also reserved: 33k autocompact buffer/);
-      assert.doesNotMatch(breakdownText, /Free space|5-hour limit/);
-
-      const messagesRow = [...breakdownDialog.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')]
-        .find((button) => button.textContent?.startsWith('Messages'));
-      assert.ok(messagesRow);
-      await React.act(async () => messagesRow.click());
-      assert.match(breakdownDialog.textContent || '', /Your messages47\.7k/);
-
-      const back = [...breakdownDialog.querySelectorAll<HTMLButtonElement>('button')]
-        .find((button) => button.textContent === 'Context breakdown');
-      assert.ok(back);
-      await React.act(async () => back.click());
-      assert.match(document.querySelector('[role="dialog"]')?.textContent || '', /5-hour limit/);
-    });
-
-    test('the prompt cache counts down from the last request and warns before it goes cold', async () => {
-      const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
-      const props = {
-        provider: 'claude',
-        sessionKey: 'app-session',
-        usage: { used: 117_721, total: 967_000, autoCompactThreshold: 934_000, isAutoCompactEnabled: true },
-        request: { id: 0, view: 'summary' as const },
-        onRequestBreakdown: () => {},
-        onRefreshBreakdown: () => {},
-        isRefreshingBreakdown: false,
-        canRefreshBreakdown: false,
-      };
-      const readCacheRow = async (fixture: typeof promptCacheFixture) => {
-        promptCacheFixture = fixture;
-        const host = await mount(<TokenUsageSummary {...props} />);
-        const { dialog } = await openPopover(host);
-        await React.act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
-        const text = dialog.textContent || '';
-        const row = [...dialog.querySelectorAll<HTMLElement>('div[title]')]
-          .find((node) => node.textContent?.startsWith('Prompt cache'));
-        await React.act(async () => root?.unmount());
-        container?.remove();
-        return { text, row };
-      };
-
-      try {
-        const warm = await readCacheRow({ ttlSeconds: 3600, refreshedAt: minutesAgo(18) });
-        assert.match(warm.text, /Prompt cacheWarm · 41 min left/);
-        assert.match(warm.row?.title || '', /Lifetime: 1 hour/);
-        assert.doesNotMatch(warm.row?.innerHTML || '', /amber/);
-
-        const ending = await readCacheRow({ ttlSeconds: 300, refreshedAt: minutesAgo(4.5) });
-        assert.match(ending.text, /Prompt cacheWarm · <1 min left/);
-        assert.match(ending.row?.innerHTML || '', /amber/);
-
-        const cold = await readCacheRow({ ttlSeconds: 3600, refreshedAt: minutesAgo(61) });
-        assert.match(cold.text, /Prompt cacheCold · rewrites 118k/);
-
-        const unknown = await readCacheRow(null);
-        assert.doesNotMatch(unknown.text, /Prompt cache/);
-      } finally {
-        promptCacheFixture = null;
-      }
+      const breakdownText = document.querySelector('[role="dialog"]')?.textContent || '';
+      assert.match(breakdownText, /What is in the window/);
+      assert.match(breakdownText, /Messages97,721/);
+      // Expanded in place, so the session line it explains and the plan windows
+      // stay on screen beside it rather than being swapped out.
+      assert.match(breakdownText, /118k \/ 934k13%/);
+      assert.match(breakdownText, /5-hour limit|Weekly/);
     });
 
     test('a session with no live frame derives its ceiling, and never lends it to another provider', async () => {
@@ -1811,8 +1743,7 @@ describe('chatSubcomponents', () => {
 
       // Nothing has streamed, so the numbers come from the model and settings.json
       // rather than reading as a bare "0 tokens".
-      assert.match(dialog.textContent || '', /Session0 \/ 167k0%/);
-      assert.match(dialog.textContent || '', /Auto-compactAt 167k · Custom/);
+      assert.match(dialog.textContent || '', /Session0 \/ 167k · Custom0%/);
 
       // The composer survives a session switch; the Claude ceiling must not.
       await React.act(async () => {
@@ -1847,10 +1778,10 @@ describe('chatSubcomponents', () => {
       const { dialog } = await openPopover(host);
       const text = dialog.textContent || '';
 
-      assert.match(text, /114k \/ 167k/);
-      assert.match(text, /Auto-compactAt 167k · Custom/);
+      assert.match(text, /114k \/ 167k · Custom/);
       // The cap belongs to the breakdown, so no row gains a second line here.
       assert.doesNotMatch(text, /capped at/);
+      assert.doesNotMatch(text, /· Auto/);
       // The source word is the way in to the setting that produced it.
       assert.ok(dialog.querySelector('button[title^="Auto-compact"]'));
     });
@@ -1877,9 +1808,8 @@ describe('chatSubcomponents', () => {
       const { dialog } = await openPopover(host);
       const text = dialog.textContent || '';
 
-      assert.match(text, /123k \/ 967k/);
-      assert.match(text, /Auto-compactAt 967k/);
-      assert.doesNotMatch(text, /capped at|Custom|Env/);
+      assert.match(text, /123k \/ 967k · Auto/);
+      assert.doesNotMatch(text, /capped at/);
     });
 
     test('Codex omits breakdown and links weekly usage to account activity', async () => {
@@ -1908,7 +1838,7 @@ describe('chatSubcomponents', () => {
 
       assert.match(text, /Context & Usage/);
       assert.match(text, /Session42k \/ 258k16%/);
-      assert.doesNotMatch(text, /Context breakdown|Prompt cache|Auto-compact/);
+      assert.equal(dialog.querySelector('button[aria-label="Session breakdown"]'), null);
       assert.match(text, /WeeklyResets in \d+d \d+h52%/);
       // The per-window usage link is a chevron now, so it is named, not labelled.
       const labels = [...dialog.querySelectorAll('[aria-label]')]
@@ -1990,7 +1920,7 @@ describe('chatSubcomponents', () => {
       assert.ok(document.querySelector('[role="dialog"]'));
     });
 
-    test('an open breakdown does not carry one session\'s reading into the next', async () => {
+    test('an expanded breakdown does not carry one session\'s reading into the next', async () => {
       const summary = (sessionKey: string, requestId = 1) => (
         <TokenUsageSummary
           provider="claude"
@@ -2023,8 +1953,10 @@ describe('chatSubcomponents', () => {
       const switched = document.querySelector('[role="dialog"]');
       assert.ok(switched);
       assert.doesNotMatch(switched.textContent || '', /Session A memory/);
-      // Back on the summary, not an empty breakdown for the new session.
-      assert.match(switched.textContent || '', /Context & Usage/);
+      assert.equal(
+        switched.querySelector('button[aria-label="Session breakdown"]')?.getAttribute('aria-expanded'),
+        'false',
+      );
     });
   });
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ActivityIcon, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ActivityIcon, ChevronDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
@@ -21,7 +21,7 @@ import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
 import { authenticatedFetch } from '../../../../utils/api';
 import { agentScreenId } from '../../../settings/registry/registry';
 import { useComposerMenuAnchor, type ComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
-import { formatCompactTokens, formatTokenCount } from '../../utils/chatFormatting';
+import { formatTokenCount } from '../../utils/chatFormatting';
 import type {
   ContextCommandData,
   UsagePopoverRequest,
@@ -59,23 +59,15 @@ const PROVIDER_DEFAULT_CONTEXT_WINDOW: Record<string, number> = {
   codex: 200_000,
 };
 
-type PromptCache = { ttlSeconds: number; refreshedAt: string };
+// The session row carries three numbers plus a status word; full digits push the
+// label out of the row. The breakdown prints them in full.
+const formatCompactTokens = (value: number): string => {
+  const trim = (scaled: number, decimals: number): string =>
+    scaled.toFixed(decimals).replace(/\.0+$/, '');
 
-const readPromptCache = (value: unknown): PromptCache | null => {
-  if (!value || typeof value !== 'object') return null;
-  const { ttlSeconds, refreshedAt } = value as Record<string, unknown>;
-  return typeof ttlSeconds === 'number' && typeof refreshedAt === 'string' && Number.isFinite(Date.parse(refreshedAt))
-    ? { ttlSeconds, refreshedAt }
-    : null;
-};
-
-const formatUpdatedAge = (fetchedAt: string | undefined, now: number, t: TFunction): string | null => {
-  const at = fetchedAt ? Date.parse(fetchedAt) : NaN;
-  if (!Number.isFinite(at)) return null;
-  const minutes = Math.floor((now - at) / 60_000);
-  if (minutes < 1) return t('usagePopover.updatedJustNow', { defaultValue: 'Updated just now' });
-  if (minutes < 60) return t('usagePopover.updatedMinutesAgo', { defaultValue: 'Updated {{count}} min ago', count: minutes });
-  return t('usagePopover.updatedHoursAgo', { defaultValue: 'Updated {{count}} h ago', count: Math.floor(minutes / 60) });
+  if (value >= 1_000_000) return `${trim(value / 1_000_000, 1)}M`;
+  if (value >= 1_000) return `${trim(value / 1_000, value < 100_000 ? 1 : 0)}k`;
+  return String(Math.round(value));
 };
 
 // Deliberately shorter than the usage dashboard's wording: this row shares one
@@ -295,45 +287,6 @@ function PlanWindowRow({
   );
 }
 
-/** A label/value line under the session meter; a button when it leads somewhere. */
-function SessionDetailRow({
-  label,
-  value,
-  valueClassName,
-  title,
-  onClick,
-}: {
-  label: string;
-  value?: string | null;
-  valueClassName?: string;
-  title?: string;
-  onClick?: () => void;
-}) {
-  const content = (
-    <>
-      <span className="min-w-0 truncate text-left text-muted-foreground">{label}</span>
-      <span className="flex shrink-0 items-center gap-1">
-        {value && <span className={cn('text-foreground', valueClassName)}>{value}</span>}
-        {onClick && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />}
-      </span>
-    </>
-  );
-  const className = 'flex min-h-8 w-full items-center justify-between gap-3 text-xs';
-
-  return onClick ? (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={cn(className, 'rounded-md transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
-    >
-      {content}
-    </button>
-  ) : (
-    <div className={className} title={title}>{content}</div>
-  );
-}
-
 /** Header placement uses the header menu's surface and anchoring so the two popovers match. */
 function UsagePopoverSurface({
   id,
@@ -403,9 +356,10 @@ export default function TokenUsageSummary({
   const { t } = useTranslation('common');
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<UsagePopoverView>('summary');
+  // The breakdown expands in place rather than replacing the panel, so the
+  // session line it explains stays on screen beside it.
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [contextData, setContextData] = useState<ContextCommandData | null>(null);
-  const [promptCache, setPromptCache] = useState<PromptCache | null>(null);
-  const [now, setNow] = useState(() => Date.now());
   const [derivedCeiling, setDerivedCeiling] = useState<Record<string, unknown> | null>(null);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   // Seeded, not 0: the ring remounts on moving between header and composer and must not replay a served request.
@@ -432,17 +386,19 @@ export default function TokenUsageSummary({
     const previousKey = sessionKeyRef.current;
     sessionKeyRef.current = sessionKey;
     if (previousKey === null || previousKey === sessionKey) return;
-    setView((current) => (current === 'breakdown' ? 'summary' : current));
+    setBreakdownOpen(false);
     setContextData(null);
     setBreakdownLoading(false);
-    setPromptCache(null);
   }, [sessionKey]);
 
   useEffect(() => {
     if (request.id <= handledRequestId.current) return;
 
     handledRequestId.current = request.id;
-    setView(request.view);
+    // `/context` asks for the breakdown; it opens the panel with the section
+    // already expanded rather than on a view of its own.
+    setView(request.view === 'breakdown' ? 'summary' : request.view);
+    setBreakdownOpen(request.view === 'breakdown');
     if (request.view === 'breakdown') {
       setContextData(request.context ?? null);
       setBreakdownLoading(request.context === undefined);
@@ -461,32 +417,6 @@ export default function TokenUsageSummary({
   const outputTokens = readUsageNumber(usage?.outputTokens ?? breakdown?.output);
   const usedTokens = readUsageNumber(usage?.used) || inputTokens + outputTokens;
   const usageHasCeiling = readUsageNumber(usage?.total) > 0;
-
-  // Live frames carry no cache timing, so the transcript is read on open. A new ring
-  // count means a request just ran and refreshed the cache, so it reads again.
-  useEffect(() => {
-    if (!isOpen || provider !== 'claude' || !sessionKey) {
-      setPromptCache(null);
-      return undefined;
-    }
-
-    let cancelled = false;
-    authenticatedFetch(`/api/providers/sessions/${encodeURIComponent(sessionKey)}/token-usage`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        if (!cancelled) setPromptCache(readPromptCache(payload?.data?.promptCache));
-      })
-      .catch(() => undefined);
-
-    return () => { cancelled = true; };
-  }, [isOpen, provider, sessionKey, usedTokens]);
-
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, [isOpen]);
   // A session that has never streamed reports no usage at all, and a bare "0
   // tokens" says nothing about the window it will run in or where compaction
   // will fire. The server derives both from the model and settings.json.
@@ -571,63 +501,12 @@ export default function TokenUsageSummary({
   };
   const ceilingSourceLabel = ceilingSource ? CEILING_SOURCE_LABELS[ceilingSource] : undefined;
   const autoCompactIsOff = provider === 'claude' && usage?.isAutoCompactEnabled === false;
-  const customCeilingLabel = ceilingSource && ceilingSource !== 'auto' && ceilingSourceLabel
-    ? t(ceilingSourceLabel.key, { defaultValue: ceilingSourceLabel.defaultValue })
-    : null;
   const autoCompactStatus = provider !== 'claude' || !hasMeasuredCeiling
     ? null
     : autoCompactIsOff
       ? t('usagePopover.autoCompactOff', { defaultValue: 'Off' })
-      : compactsAutomatically
-        ? [
-            t('usagePopover.autoCompactAt', {
-              defaultValue: 'At {{threshold}}',
-              threshold: formatCompactTokens(autoCompactThreshold),
-            }),
-            customCeilingLabel,
-          ].filter(Boolean).join(' · ')
-        : customCeilingLabel ?? t('usagePopover.autoCompactOn', { defaultValue: 'On' });
-
-  // Amber once little of the lifetime is left: the last 5 minutes of an hour, the last minute of 5.
-  const cacheExpiresAt = promptCache
-    ? Date.parse(promptCache.refreshedAt) + promptCache.ttlSeconds * 1000
-    : null;
-  const cacheRemainingMs = cacheExpiresAt === null ? null : cacheExpiresAt - now;
-  const cacheIsCold = cacheRemainingMs !== null && cacheRemainingMs <= 0;
-  const cacheIsEnding = cacheRemainingMs !== null
-    && !cacheIsCold
-    && cacheRemainingMs <= Math.min(300, promptCache!.ttlSeconds * 0.2) * 1000;
-  const cacheMinutesLeft = cacheRemainingMs === null ? 0 : Math.floor(cacheRemainingMs / 60_000);
-  const cacheStatus = cacheRemainingMs === null
-    ? null
-    : cacheIsCold
-      ? t('usagePopover.cacheCold', {
-          defaultValue: 'Cold · rewrites {{tokens}}',
-          tokens: formatCompactTokens(usedTokens),
-        })
-      : cacheMinutesLeft < 1
-        ? t('usagePopover.cacheUnderMinute', { defaultValue: 'Warm · <1 min left' })
-        : t('usagePopover.cacheMinutesLeft', { defaultValue: 'Warm · {{count}} min left', count: cacheMinutesLeft });
-  const cacheHint = promptCache
-    ? t('usagePopover.cacheHint', {
-        defaultValue: 'A reply while the cache is warm re-reads this conversation at a fraction of the input price. Once it goes cold, the next message writes it all again at more than the full price. Lifetime: {{lifetime}} from the last request.',
-        lifetime: promptCache.ttlSeconds >= 3600
-          ? t('usagePopover.cacheLifetimeHour', { defaultValue: '1 hour' })
-          : t('usagePopover.cacheLifetimeMinutes', { defaultValue: '{{count}} minutes', count: Math.round(promptCache.ttlSeconds / 60) }),
-      })
-    : undefined;
-  const updatedAge = formatUpdatedAge(providerUsage?.fetchedAt, now, t);
-  const hasPlanSection = planWindows.length > 0
-    || Boolean(providerUsage?.credits)
-    || (providerUsage?.resetCredits?.availableCount ?? 0) > 0
-    || Boolean(providerUsage?.stale)
-    || (!providerUsage && (planUsage.loading || Boolean(planUsage.error)));
-  const openBreakdown = () => {
-    setContextData(null);
-    setBreakdownLoading(true);
-    setView('breakdown');
-    onRequestBreakdown();
-  };
+      : (ceilingSourceLabel && t(ceilingSourceLabel.key, { defaultValue: ceilingSourceLabel.defaultValue }))
+        ?? null;
 
   const title =
     fraction === null || !hasMeasuredCeiling
@@ -715,39 +594,36 @@ export default function TokenUsageSummary({
           trigger={triggerRef.current}
           menuRef={menuRef}
           onDismiss={close}
-          measureKey={`${view}:${breakdownLoading}:${planUsage.loading}:${Boolean(cacheStatus)}`}
+          measureKey={`${view}:${breakdownOpen}:${breakdownLoading}:${planUsage.loading}`}
           ariaLabel={view === 'summary'
             ? t('usagePopover.summaryLabel', { defaultValue: 'Session and plan usage' })
-            : view === 'breakdown'
-              ? t('contextBreakdown.title', { defaultValue: 'Context breakdown' })
-              : t('usagePopover.activity', { defaultValue: 'Usage activity' })}
+            : t('usagePopover.activity', { defaultValue: 'Usage activity' })}
         >
-          {view !== 'breakdown' && (
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {t('usagePopover.heading', { defaultValue: 'Context & Usage' })}
-              </span>
-              <span className="flex items-center gap-1">
-                {updatedAge && <span className="text-[11px] text-muted-foreground">{updatedAge}</span>}
-                <button
-                  type="button"
-                  onClick={refreshPlanUsage}
-                  disabled={!usageProvider || planUsage.loading}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                  aria-label={t('buttons.refresh', { defaultValue: 'Refresh' })}
-                  title={t('buttons.refresh', { defaultValue: 'Refresh' })}
-                >
-                  <RefreshCw
-                    className={cn('h-3.5 w-3.5', planUsage.loading && 'animate-spin')}
-                    aria-hidden
-                  />
-                </button>
-              </span>
-            </div>
-          )}
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              {t('usagePopover.heading', { defaultValue: 'Context & Usage' })}
+            </span>
+            {view !== 'breakdown' && (
+              <button
+                type="button"
+                onClick={refreshPlanUsage}
+                disabled={!usageProvider || planUsage.loading}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                aria-label={t('buttons.refresh', { defaultValue: 'Refresh' })}
+                title={t('buttons.refresh', { defaultValue: 'Refresh' })}
+              >
+                <RefreshCw
+                  className={cn('h-3.5 w-3.5', planUsage.loading && 'animate-spin')}
+                  aria-hidden
+                />
+              </button>
+            )}
+          </div>
           {view === 'summary' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <section className="space-y-1.5">
+                {/* Tokens sit beside the percentage, as the reset time does on a
+                    plan row, so the meter reads directly under its own numbers. */}
                 <div className="flex items-baseline justify-between gap-2 text-sm">
                   <span className="shrink-0 font-medium text-foreground">
                     {t('usagePopover.session', { defaultValue: 'Session' })}
@@ -760,139 +636,144 @@ export default function TokenUsageSummary({
                             defaultValue: '{{used}} tokens',
                             used: formatCompactTokens(usedTokens),
                           })}
+                      {autoCompactStatus && (
+                        <>
+                          {' · '}
+                          <button
+                            type="button"
+                            onClick={openAutoCompactSettings}
+                            title={autoCompactIsOff
+                              ? t('usagePopover.autoCompactOffHint', {
+                                  defaultValue: 'Auto-compact is off: this session stops at the context limit instead of being summarised. Tap to change.',
+                                })
+                              : t('usagePopover.autoCompactOnHint', {
+                                  defaultValue: 'Auto-compact rewrites the conversation at the compact point. Tap to change.',
+                                })}
+                            className="underline underline-offset-2 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {autoCompactStatus}
+                          </button>
+                        </>
+                      )}
                     </span>
                     <span className="text-muted-foreground">
                       {percentUsed === null ? '—' : `${percentUsed}%`}
                     </span>
+                    {provider === 'claude' && (
+                      <button
+                        type="button"
+                        aria-expanded={breakdownOpen}
+                        aria-label={t('contextBreakdown.title', { defaultValue: 'Session breakdown' })}
+                        title={t('contextBreakdown.title', { defaultValue: 'Session breakdown' })}
+                        onClick={() => {
+                          if (breakdownOpen) {
+                            setBreakdownOpen(false);
+                            return;
+                          }
+                          setContextData(null);
+                          setBreakdownLoading(true);
+                          setBreakdownOpen(true);
+                          onRequestBreakdown();
+                        }}
+                        className="inline-flex shrink-0 items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <ChevronDown
+                          className={cn('h-3.5 w-3.5 transition-transform', breakdownOpen && 'rotate-180')}
+                          aria-hidden
+                        />
+                      </button>
+                    )}
                   </span>
                 </div>
                 {percentUsed !== null && <UsageBar utilization={percentUsed} />}
+                {breakdownOpen && provider === 'claude' && (
+                  <ContextBreakdownView
+                    data={contextData}
+                    loading={breakdownLoading}
+                    cap={isCapped ? { cap: ceilingCap, modelWindow: modelContextWindow } : undefined}
+                    onRefresh={onRefreshBreakdown}
+                    isRefreshing={isRefreshingBreakdown}
+                    canRefresh={canRefreshBreakdown}
+                  />
+                )}
               </section>
 
-              {(autoCompactStatus || cacheStatus || provider === 'claude') && (
-                <div className="-my-0.5">
-                  {autoCompactStatus && (
-                    <SessionDetailRow
-                      label={t('usagePopover.autoCompact', { defaultValue: 'Auto-compact' })}
-                      value={autoCompactIsOff
-                        ? t('usagePopover.autoCompactOffDetail', { defaultValue: 'Off · stops at the limit' })
-                        : autoCompactStatus}
-                      title={autoCompactIsOff
-                        ? t('usagePopover.autoCompactOffHint', {
-                            defaultValue: 'Auto-compact is off: this session stops at the context limit instead of being summarised. Tap to change.',
-                          })
-                        : t('usagePopover.autoCompactOnHint', {
-                            defaultValue: 'Auto-compact rewrites the conversation at the compact point. Tap to change.',
-                          })}
-                      onClick={openAutoCompactSettings}
-                    />
-                  )}
-                  {cacheStatus && (
-                    <SessionDetailRow
-                      label={t('usagePopover.promptCache', { defaultValue: 'Prompt cache' })}
-                      value={cacheStatus}
-                      valueClassName={cacheIsCold || cacheIsEnding ? 'text-amber-600 dark:text-amber-400' : undefined}
-                      title={cacheHint}
-                    />
-                  )}
-                  {provider === 'claude' && (
-                    <SessionDetailRow
-                      label={t('contextBreakdown.title', { defaultValue: 'Context breakdown' })}
-                      onClick={openBreakdown}
-                    />
-                  )}
-                </div>
+              {planWindows.map((window) => {
+                return (
+                  <PlanWindowRow
+                    key={window.id}
+                    window={window}
+                    onViewUsage={window.id === activityWindowId
+                      ? () => setView('activity')
+                      : undefined}
+                  />
+                );
+              })}
+
+              {providerUsage?.credits && (
+                <section className="space-y-1">
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="font-medium text-foreground">
+                      {t('usagePopover.creditsTokens', { defaultValue: 'Credits/Tokens' })}
+                    </span>
+                    <span
+                      className="shrink-0 text-muted-foreground"
+                      title={providerUsage.credits.kind === 'spend'
+                        ? t('usagePopover.creditSpendHint', { defaultValue: 'Usage-credit spend this period' })
+                        : t('planUsage.creditBalance', { defaultValue: 'Credit balance' })}
+                    >
+                      {formatCreditValue(providerUsage.credits, t)}
+                    </span>
+                  </div>
+                </section>
               )}
 
-              {hasPlanSection && (
-                <div className="space-y-4 border-t border-border/60 pt-3">
-                  {planWindows.map((window) => (
-                    <PlanWindowRow
-                      key={window.id}
-                      window={window}
-                      onViewUsage={window.id === activityWindowId
-                        ? () => setView('activity')
-                        : undefined}
-                    />
-                  ))}
-
-                  {providerUsage?.credits && (
-                    <section className="space-y-1">
-                      <div className="flex items-baseline justify-between gap-3 text-sm">
-                        <span className="font-medium text-foreground">
-                          {t('usagePopover.creditsTokens', { defaultValue: 'Credits/Tokens' })}
-                        </span>
-                        <span
-                          className="shrink-0 text-muted-foreground"
-                          title={providerUsage.credits.kind === 'spend'
-                            ? t('usagePopover.creditSpendHint', { defaultValue: 'Usage-credit spend this period' })
-                            : t('planUsage.creditBalance', { defaultValue: 'Credit balance' })}
-                        >
-                          {formatCreditValue(providerUsage.credits, t)}
-                        </span>
-                      </div>
-                    </section>
-                  )}
-
-                  {(providerUsage?.resetCredits?.availableCount ?? 0) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        close();
-                        openUsage();
-                      }}
-                      className="flex min-h-9 w-full items-center justify-between gap-3 rounded-md text-left text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span>
-                        {providerUsage?.resetCredits?.availableCount === 1
-                          ? t('usagePopover.oneResetAvailable', { defaultValue: '1 usage reset available' })
-                          : t('usagePopover.resetsAvailable', {
-                            defaultValue: '{{count}} usage resets available',
-                            count: providerUsage?.resetCredits?.availableCount,
-                          })}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                        {t('usagePopover.viewUsage', { defaultValue: 'View usage' })}
-                        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                      </span>
-                    </button>
-                  )}
-
-                  {providerUsage?.stale && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      {t('planUsage.stale', {
-                        defaultValue: 'Showing cached data — the last refresh failed.',
+              {(providerUsage?.resetCredits?.availableCount ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    openUsage();
+                  }}
+                  className="flex min-h-9 w-full items-center justify-between gap-3 rounded-md text-left text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span>
+                    {providerUsage?.resetCredits?.availableCount === 1
+                      ? t('usagePopover.oneResetAvailable', { defaultValue: '1 usage reset available' })
+                      : t('usagePopover.resetsAvailable', {
+                        defaultValue: '{{count}} usage resets available',
+                        count: providerUsage?.resetCredits?.availableCount,
                       })}
-                    </p>
-                  )}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                    {t('usagePopover.viewUsage', { defaultValue: 'View usage' })}
+                    <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                </button>
+              )}
 
-                  {!providerUsage && planUsage.loading && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('planUsage.loading', { defaultValue: 'Loading plan usage…' })}
-                    </p>
-                  )}
+              {providerUsage?.stale && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {t('planUsage.stale', {
+                    defaultValue: 'Showing cached data — the last refresh failed.',
+                  })}
+                </p>
+              )}
 
-                  {!providerUsage && !planUsage.loading && planUsage.error && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('planUsage.loadError', { defaultValue: "Couldn't load plan usage." })}
-                    </p>
-                  )}
-                </div>
+              {!providerUsage && planUsage.loading && (
+                <p className="text-xs text-muted-foreground">
+                  {t('planUsage.loading', { defaultValue: 'Loading plan usage…' })}
+                </p>
+              )}
+
+              {!providerUsage && !planUsage.loading && planUsage.error && (
+                <p className="text-xs text-muted-foreground">
+                  {t('planUsage.loadError', { defaultValue: "Couldn't load plan usage." })}
+                </p>
               )}
             </div>
           )}
 
-          {view === 'breakdown' && (
-            <ContextBreakdownView
-              data={contextData}
-              loading={breakdownLoading}
-              cap={isCapped ? { cap: ceilingCap, modelWindow: modelContextWindow } : undefined}
-              onBack={() => setView('summary')}
-              onRefresh={onRefreshBreakdown}
-              isRefreshing={isRefreshingBreakdown}
-              canRefresh={canRefreshBreakdown}
-            />
-          )}
           {view === 'activity' && (
             <div className="space-y-3">
               <button
