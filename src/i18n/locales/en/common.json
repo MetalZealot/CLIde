@@ -404,8 +404,6 @@
     "summaryLabel": "Session and plan usage",
     "activity": "Usage activity",
     "noActivity": "No usage activity is reported for this account.",
-    "session": "Session",
-    "sessionTokens": "{{used}} tokens",
     "creditsTokens": "Credits/Tokens",
     "creditSpendHint": "Usage-credit spend this period",
     "oneResetAvailable": "1 usage reset available",
@@ -436,14 +434,18 @@
     "autoCompact": "Auto-compact",
     "autoCompactAt": "At {{threshold}}",
     "autoCompactOn": "On",
-    "autoCompactOffDetail": "Off · stops at the limit",
-    "promptCache": "Prompt cache",
-    "cacheCold": "Cold · rewrites {{tokens}}",
-    "cacheUnderMinute": "Warm · <1 min left",
-    "cacheMinutesLeft": "Warm · {{count}} min left",
+    "cacheCold": "Cache cold · rewrites {{tokens}}",
+    "cacheUnderMinute": "Cache warm · <1m",
+    "cacheMinutesLeft": "Cache warm · {{count}}m",
     "cacheHint": "A reply while the cache is warm re-reads this conversation at a fraction of the input price. Once it goes cold, the next message writes it all again at more than the full price. Lifetime: {{lifetime}} from the last request.",
     "cacheLifetimeHour": "1 hour",
     "cacheLifetimeMinutes": "{{count}} minutes",
-    "resetsIn": "resets in {{time}}"
+    "resetsIn": "resets in {{time}}",
+    "sessionOfCeiling": "{{used}} of {{ceiling}} context",
+    "sessionInContext": "tokens in context",
+    "breakdownCaption": "Context",
+    "breakdownAction": "Breakdown",
+    "planLimits": "Plan limits",
+    "sessionTokens": "{{used}} tokens in context"
   }
 }

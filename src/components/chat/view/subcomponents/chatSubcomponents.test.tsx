@@ -1654,16 +1654,16 @@ describe('chatSubcomponents', () => {
       assert.equal(trigger.getAttribute('aria-label'), 'Show usage; credits available');
       assert.match(text, /Context & Usage/);
       assert.match(trigger.textContent || '', /\$/);
-      assert.match(text, /Session118k \/ 934k13%/);
+      assert.match(text, /13%118k of 934k context/);
       assert.match(text, /Auto-compactAt 934k/);
       // No session id, so there is no transcript to time the cache from.
-      assert.doesNotMatch(text, /Prompt cache/);
-      // One row per window, no bar: the percentage carries the warning tint.
-      assert.match(text, /5-hour limit75% · resets in \d+h \d+m/);
-      assert.match(text, /Weekly25% · resets in \d+d \d+h/);
+      assert.doesNotMatch(text, /Cache (warm|cold)/);
+      // One tile per window; the percentage carries the warning tint.
+      assert.match(text, /5-hour limit75%resets in \d+h \d+m/);
+      assert.match(text, /Weekly25%resets in \d+d \d+h/);
       const tinted = [...dialog.querySelectorAll('span')].find((span) => span.textContent === '75%');
       assert.match(tinted?.className || '', /amber/);
-      assert.equal([...dialog.querySelectorAll('span')].find((span) => span.textContent === '25%')?.className, '');
+      assert.doesNotMatch([...dialog.querySelectorAll('span')].find((span) => span.textContent === '25%')?.className || '', /amber|red/);
       assert.ok(text.indexOf('5-hour limit') < text.indexOf('Weekly'));
       assert.match(text, /Credits\/Tokens\$0\.00/);
       assert.doesNotMatch(text, /Plan usage limits|Full usage|Refresh/);
@@ -1681,8 +1681,7 @@ describe('chatSubcomponents', () => {
       // Plan management lives on the provider's Agent settings page.
       assert.equal(dialog.querySelector('a'), null);
 
-      const breakdown = [...dialog.querySelectorAll<HTMLButtonElement>('button')]
-        .find((button) => button.textContent === 'Context breakdown');
+      const breakdown = dialog.querySelector<HTMLButtonElement>('button[aria-label="Context breakdown"]');
       assert.ok(breakdown);
       await React.act(async () => breakdown.click());
       assert.equal(breakdownOpens, 1);
@@ -1772,8 +1771,8 @@ describe('chatSubcomponents', () => {
         const { dialog } = await openPopover(host);
         await React.act(async () => { await new Promise((resolve) => window.setTimeout(resolve, 0)); });
         const text = dialog.textContent || '';
-        const row = [...dialog.querySelectorAll<HTMLElement>('div[title]')]
-          .find((node) => node.textContent?.startsWith('Prompt cache'));
+        const row = [...dialog.querySelectorAll<HTMLElement>('span[title]')]
+          .find((node) => node.textContent?.startsWith('Cache'));
         await React.act(async () => root?.unmount());
         container?.remove();
         return { text, row };
@@ -1781,19 +1780,19 @@ describe('chatSubcomponents', () => {
 
       try {
         const warm = await readCacheRow({ ttlSeconds: 3600, refreshedAt: minutesAgo(18) });
-        assert.match(warm.text, /Prompt cacheWarm · 41 min left/);
+        assert.match(warm.text, /Cache warm · 41m/);
         assert.match(warm.row?.title || '', /Lifetime: 1 hour/);
-        assert.doesNotMatch(warm.row?.innerHTML || '', /amber/);
+        assert.doesNotMatch(warm.row?.className || '', /amber/);
 
         const ending = await readCacheRow({ ttlSeconds: 300, refreshedAt: minutesAgo(4.5) });
-        assert.match(ending.text, /Prompt cacheWarm · <1 min left/);
-        assert.match(ending.row?.innerHTML || '', /amber/);
+        assert.match(ending.text, /Cache warm · <1m/);
+        assert.match(ending.row?.className || '', /amber/);
 
         const cold = await readCacheRow({ ttlSeconds: 3600, refreshedAt: minutesAgo(61) });
-        assert.match(cold.text, /Prompt cacheCold · rewrites 118k/);
+        assert.match(cold.text, /Cache cold · rewrites 118k/);
 
         const unknown = await readCacheRow(null);
-        assert.doesNotMatch(unknown.text, /Prompt cache/);
+        assert.doesNotMatch(unknown.text, /Cache (warm|cold)/);
       } finally {
         promptCacheFixture = null;
       }
@@ -1814,7 +1813,7 @@ describe('chatSubcomponents', () => {
 
       // Nothing has streamed, so the numbers come from the model and settings.json
       // rather than reading as a bare "0 tokens".
-      assert.match(dialog.textContent || '', /Session0 \/ 167k0%/);
+      assert.match(dialog.textContent || '', /0%0 of 167k context/);
       assert.match(dialog.textContent || '', /Auto-compactAt 167k · Custom/);
 
       // The composer survives a session switch; the Claude ceiling must not.
@@ -1823,7 +1822,7 @@ describe('chatSubcomponents', () => {
         await new Promise((resolve) => window.setTimeout(resolve, 0));
       });
       const codexText = document.querySelector('[role="dialog"]')?.textContent || '';
-      assert.match(codexText, /Session0 tokens0%/);
+      assert.match(codexText, /0%0 tokens in context/);
       assert.doesNotMatch(codexText, /167k|Custom/);
     });
 
@@ -1850,7 +1849,7 @@ describe('chatSubcomponents', () => {
       const { dialog } = await openPopover(host);
       const text = dialog.textContent || '';
 
-      assert.match(text, /114k \/ 167k/);
+      assert.match(text, /114k of 167k context/);
       assert.match(text, /Auto-compactAt 167k · Custom/);
       // The cap belongs to the breakdown, so no row gains a second line here.
       assert.doesNotMatch(text, /capped at/);
@@ -1880,7 +1879,7 @@ describe('chatSubcomponents', () => {
       const { dialog } = await openPopover(host);
       const text = dialog.textContent || '';
 
-      assert.match(text, /123k \/ 967k/);
+      assert.match(text, /123k of 967k context/);
       assert.match(text, /Auto-compactAt 967k/);
       assert.doesNotMatch(text, /capped at|Custom|Env/);
     });
@@ -1910,9 +1909,9 @@ describe('chatSubcomponents', () => {
       const text = dialog.textContent || '';
 
       assert.match(text, /Context & Usage/);
-      assert.match(text, /Session42k \/ 258k16%/);
-      assert.doesNotMatch(text, /Context breakdown|Prompt cache|Auto-compact/);
-      assert.match(text, /Weekly52% · resets in \d+d \d+h/);
+      assert.match(text, /16%42k of 258k context/);
+      assert.doesNotMatch(text, /Breakdown|Cache (warm|cold)|Auto-compact/);
+      assert.match(text, /Weekly52%resets in \d+d \d+h/);
       // The per-window usage link is a chevron now, so it is named, not labelled.
       const labels = [...dialog.querySelectorAll('[aria-label]')]
         .map((node) => node.getAttribute('aria-label'));
@@ -1940,7 +1939,7 @@ describe('chatSubcomponents', () => {
       assert.match(activityText, /Usage activity/);
       assert.match(activityText, /Lifetime tokens1\.25M/);
       assert.match(activityText, /Recent daily activity/);
-      assert.doesNotMatch(activityText, /Session16%|Weekly52%|Credits\/Tokens/);
+      assert.doesNotMatch(activityText, /16%42k|Weekly52%|Credits\/Tokens/);
     });
 
     test('Claude does not claim exhausted spend credits are available', async () => {
