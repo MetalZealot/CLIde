@@ -9,7 +9,7 @@ import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import type { FileOpenOptions } from '../../../code-editor/types/types';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
 import { assignActivityKeys, groupToolActivities, isToolActivityItem } from '../../utils/toolGrouping';
-import { computeTurnDurations } from '../../utils/turnDuration';
+import { computeTurnSummaries } from '../../utils/turnDuration';
 
 import ActivityIndicator from './ActivityIndicator';
 import MessageComponent from './MessageComponent';
@@ -131,8 +131,8 @@ function ChatMessagesPane({
     return null;
   }, [groupedVisibleMessages, isProcessing]);
   // All loaded messages, so a turn whose prompt sits above the visible window still resolves.
-  const turnDurations = useMemo(
-    () => computeTurnDurations(chatMessages, isProcessing, turnStartedAt),
+  const turnSummaries = useMemo(
+    () => computeTurnSummaries(chatMessages, isProcessing, turnStartedAt),
     [chatMessages, isProcessing, turnStartedAt],
   );
 
@@ -316,7 +316,7 @@ function ChatMessagesPane({
                   key={getMessageKey(item)}
                   message={item}
                   prevMessage={messagePrevMessage}
-                  turnDurationMs={turnDurations.get(item)}
+                  turnSummary={turnSummaries.get(item)}
                   createDiff={createDiff}
                   onFileOpen={onFileOpen}
                   onShowSettings={onShowSettings}

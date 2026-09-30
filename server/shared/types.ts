@@ -651,7 +651,7 @@ export type NormalizedMessage = {
   text?: string;
   tokens?: number;
   stage?: TurnStage | null;
-  /** Output tokens the running turn has produced so far; thinking is an estimate. */
+  /** On `turn_tokens`, the running turn's output so far (thinking estimated); on a history row, output the transcript records for it. */
   outputTokens?: number;
   canInterrupt?: boolean;
   requestId?: string;

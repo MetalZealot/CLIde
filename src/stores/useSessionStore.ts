@@ -142,6 +142,8 @@ export interface NormalizedMessage {
   isSystemNotice?: boolean;
   /** Set when the provider stopped the turn on a usage limit — see server types. */
   usageLimit?: UsageLimitStop;
+  /** Output tokens — see server types. */
+  outputTokens?: number;
   /**
    * On an aborted `complete`: false when the run was cancelled before the
    * provider emitted anything, meaning the user's turn never reached it and

@@ -26,7 +26,7 @@ import type {
   SideQuestionExchange,
   UsageLimitStop,
 } from '@/shared/types.js';
-import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, creditOutputTokens, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 
 import {
   resolveClaudeCeilingProvenance,
@@ -1444,12 +1444,26 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     }
 
     const normalizedWithEchoes: NormalizedMessage[] = [];
+    // Each row of one model step repeats that step's usage, so a step is credited once.
+    const creditedStepIds = new Set<string>();
+    let owedOutputTokens = 0;
     for (const [index, raw] of rawMessages.entries()) {
-      normalizedWithEchoes.push(...this.normalizeMessage({
+      const batch = this.normalizeMessage({
         ...raw,
         uuid: raw.uuid || `history-claude-${options.providerSessionId ?? sessionId}-${index}`,
         timestamp: raw.timestamp || '1970-01-01T00:00:00.000Z',
-      }, sessionId));
+      }, sessionId);
+      const stepId = raw.message?.role === 'assistant' && !raw.isSidechain ? raw.message.id : undefined;
+      if (typeof stepId === 'string' && !creditedStepIds.has(stepId)) {
+        creditedStepIds.add(stepId);
+        const output = raw.message.usage?.output_tokens;
+        if (Number.isSafeInteger(output) && output > 0) owedOutputTokens += output;
+      }
+      // Never carried past a prompt into the next turn.
+      owedOutputTokens = batch.some((msg) => msg.kind === 'text' && msg.role === 'user')
+        ? 0
+        : creditOutputTokens(batch, owedOutputTokens);
+      normalizedWithEchoes.push(...batch);
     }
     const normalized = dropDuplicateLocalCommandEchoes(normalizedWithEchoes);
 

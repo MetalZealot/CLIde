@@ -102,6 +102,8 @@ export interface ChatMessage {
   isSystemNotice?: boolean;
   /** Set when the provider stopped the turn on a usage limit; allows the Auto-Continue offer. */
   usageLimit?: UsageLimitStop;
+  /** Output tokens the provider recorded for this row's model step; history rows only. */
+  outputTokens?: number;
   /** Set when the history page omitted this tool's heavy payload; see useHistoryDetail. */
   elidedDetail?: { bytes: number; resultLines?: number };
   /** App session id the elided detail is fetched from. */

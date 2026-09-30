@@ -119,16 +119,15 @@ describe('chatSubcomponents', () => {
           prevMessage?.type === 'assistant', 'timestamp visibility must preserve grouping');
       }
     }
-    const withDuration = document.createElement('div');
-    withDuration.innerHTML = renderToStaticMarkup(
-      <MessageComponent message={message} prevMessage={null} turnDurationMs={72_000} provider="claude"
-        createDiff={() => []} showThinking={false} />,
+    const withSummary = document.createElement('div');
+    withSummary.innerHTML = renderToStaticMarkup(
+      <MessageComponent message={message} prevMessage={null} turnSummary={{ durationMs: 72_000, outputTokens: 1_234 }}
+        provider="claude" createDiff={() => []} showThinking={false} />,
     );
-    // No i18n instance here, so the default string arrives uninterpolated.
-    const timeLine = [...withDuration.querySelectorAll('div')].find((node) =>
+    const timeLine = [...withSummary.querySelectorAll('div')].find((node) =>
       node.firstElementChild?.tagName === 'SPAN' && node.firstElementChild.textContent === expectedTime);
-    assert.ok(timeLine?.nextElementSibling?.textContent?.startsWith('Worked for'),
-      `turn duration sits on its own line under the reply timestamp: ${withDuration.innerHTML}`);
+    assert.equal(timeLine?.parentElement?.nextElementSibling?.textContent, '1m 12s · 1,234 tokens',
+      `the turn summary is its own row under the reply footer: ${withSummary.innerHTML}`);
     assert.equal(renderToStaticMarkup(
       <MessageComponent message={{ ...message, isThinking: true }} prevMessage={null}
         provider="codex" createDiff={() => []} showThinking={false} />,

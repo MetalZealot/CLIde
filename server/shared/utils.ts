@@ -346,6 +346,21 @@ export function createNormalizedMessage(fields: NormalizedMessageInput): Normali
 }
 
 /**
+ * Adds `owed` output tokens to the first row in `batch` the chat renders as its own
+ * row, so a turn's total survives the client dropping empty rows. Returns what is
+ * still owed when the batch has no such row.
+ */
+export function creditOutputTokens(batch: NormalizedMessage[], owed: number): number {
+  if (owed <= 0) return 0;
+  const target = batch.find((msg) => msg.kind === 'thinking'
+    || msg.kind === 'tool_use'
+    || (msg.kind === 'text' && msg.role === 'assistant' && Boolean(msg.content?.trim())));
+  if (!target) return owed;
+  target.outputTokens = (target.outputTokens ?? 0) + owed;
+  return 0;
+}
+
+/**
  * Build the unified terminal `complete` lifecycle message.
  *
  * Contract: every provider run ends with exactly one `complete` (the

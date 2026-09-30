@@ -15,26 +15,38 @@ const isReplyText = (message: ChatMessage): boolean =>
 
 const readTime = (timestamp: ChatMessage['timestamp']): number => new Date(timestamp).getTime();
 
+export type TurnSummary = {
+  durationMs?: number;
+  /** Absent when the provider records none or the turn's prompt is not loaded. */
+  outputTokens?: number;
+};
+
 /**
- * Wall-clock time from each prompt to the last reply text of its turn, keyed by that reply.
- * Timestamps, not provider timers: Claude does not persist one, and this ran under 3s short
- * of Claude's and Codex's recorded durations (measured 2026-09-14).
+ * Each finished turn's duration and output tokens, keyed by its last reply.
+ * Duration is wall-clock from the prompt: Claude does not persist a timer, and this ran
+ * under 3s short of Claude's and Codex's recorded durations (measured 2026-09-14).
  */
-export function computeTurnDurations(
+export function computeTurnSummaries(
   messages: ChatMessage[],
   isProcessing: boolean,
   /** Prompt time for the messages before the first loaded prompt, when that prompt is not loaded. */
   leadingTurnStartedAt: string | null = null,
-): WeakMap<ChatMessage, number> {
-  const durations = new WeakMap<ChatMessage, number>();
+): WeakMap<ChatMessage, TurnSummary> {
+  const summaries = new WeakMap<ChatMessage, TurnSummary>();
   let turnStart: number | null = leadingTurnStartedAt ? readTime(leadingTurnStartedAt) : null;
+  // A turn opened mid-page is missing its earlier steps, so its count would be short.
+  let countsTokens = false;
+  let outputTokens = 0;
   let lastReply: ChatMessage | null = null;
 
   const closeTurn = () => {
     if (turnStart === null || !lastReply) return;
     const durationMs = readTime(lastReply.timestamp) - turnStart;
-    if (Number.isFinite(durationMs) && durationMs >= 1000) {
-      durations.set(lastReply, durationMs);
+    const summary: TurnSummary = {};
+    if (Number.isFinite(durationMs) && durationMs >= 1000) summary.durationMs = durationMs;
+    if (countsTokens && outputTokens > 0) summary.outputTokens = outputTokens;
+    if (summary.durationMs !== undefined || summary.outputTokens !== undefined) {
+      summaries.set(lastReply, summary);
     }
   };
 
@@ -42,13 +54,16 @@ export function computeTurnDurations(
     if (isTurnStart(message)) {
       closeTurn();
       turnStart = readTime(message.timestamp);
+      countsTokens = true;
+      outputTokens = 0;
       lastReply = null;
     } else if (isReplyText(message)) {
       lastReply = message;
     }
+    outputTokens += message.outputTokens ?? 0;
   }
   // A running turn has no final reply yet.
   if (!isProcessing) closeTurn();
 
-  return durations;
+  return summaries;
 }

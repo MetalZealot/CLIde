@@ -20,7 +20,7 @@ import type {
   NormalizedMessage,
   SideQuestionExchange,
 } from '@/shared/types.js';
-import { createNormalizedMessage, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, creditOutputTokens, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 
 const PROVIDER = 'codex';
@@ -439,6 +439,7 @@ async function getCodexSessionMessages(
       secretQuestionIds: Set<string>;
     }>();
     let tokenUsage: AnyRecord | null = null;
+    let lastTotalOutputTokens: number | null = null;
     let pendingTurnId: string | null = null;
     let currentTurnId: string | null = null;
     const ignoredToolCallIds = new Set<string>();
@@ -484,6 +485,20 @@ async function getCodexSessionMessages(
         if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
           const info = entry.payload.info as AnyRecord;
           tokenUsage = extractCodexContextTokenUsage(info) as AnyRecord | null;
+          // Lifetime deltas, as live: Codex repeats a token_count without new output.
+          const total = info.total_token_usage?.output_tokens;
+          const last = info.last_token_usage?.output_tokens;
+          if (Number.isSafeInteger(total) && Number.isSafeInteger(last)) {
+            const added = lastTotalOutputTokens === null || total < lastTotalOutputTokens
+              ? last
+              : total - lastTotalOutputTokens;
+            lastTotalOutputTokens = total;
+            // A tool's output folds into its call, so it cannot carry the count.
+            let ownerIndex = messages.length - 1;
+            while (ownerIndex >= 0 && messages[ownerIndex].type === 'tool_result') ownerIndex -= 1;
+            const owner = messages[ownerIndex];
+            if (owner && added > 0) owner.outputTokens = (owner.outputTokens ?? 0) + added;
+          }
         }
 
         // A turn that ends on a usage limit or transport failure is only
@@ -1386,12 +1401,16 @@ export class CodexSessionsProvider implements IProviderSessions {
     const tokenUsage = Array.isArray(result) ? undefined : result.tokenUsage;
 
     const normalized: NormalizedMessage[] = [];
+    let owedOutputTokens = 0;
     for (const [index, raw] of rawMessages.entries()) {
-      normalized.push(...this.normalizeHistoryEntry({
+      const batch = this.normalizeHistoryEntry({
         ...raw,
         uuid: raw.uuid || `history-codex-${options.providerSessionId ?? sessionId}-${index}`,
         timestamp: raw.timestamp || '1970-01-01T00:00:00.000Z',
-      }, sessionId));
+      }, sessionId);
+      if (batch.some((msg) => msg.kind === 'text' && msg.role === 'user')) owedOutputTokens = 0;
+      owedOutputTokens = creditOutputTokens(batch, owedOutputTokens + (raw.outputTokens ?? 0));
+      normalized.push(...batch);
     }
 
     const toolResultMap = new Map<string, NormalizedMessage>();

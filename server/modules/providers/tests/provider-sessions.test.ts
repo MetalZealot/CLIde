@@ -972,6 +972,46 @@ describe('claude-subagent-history', () => {
     }
   });
 
+  test('each model step\'s output tokens land once, on a row the chat renders', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'claude-output-tokens-'));
+    const transcriptPath = path.join(tempRoot, `${PROVIDER_SESSION_ID}.jsonl`);
+    const row = (uuid: string, message: Record<string, unknown>) => JSON.stringify({
+      uuid, sessionId: PROVIDER_SESSION_ID, timestamp: '2026-09-29T10:00:00.000Z', type: message.role, message,
+    });
+    const step = (id: string, output: number, content: unknown[]) => ({
+      role: 'assistant', id, content, usage: { input_tokens: 10, output_tokens: output },
+    });
+    await writeFile(transcriptPath, [
+      row('u1', { role: 'user', content: 'Check it' }),
+      // One step split across rows, each repeating the step's usage.
+      row('a1', step('msg_1', 120, [{ type: 'thinking', thinking: '' }])),
+      row('a2', step('msg_1', 120, [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: {} }])),
+      row('u2', { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] }),
+      row('a3', step('msg_2', 30, [{ type: 'text', text: 'Fine.' }])),
+    ].join('\n') + '\n', 'utf8');
+
+    try {
+      await withIsolatedDatabase(async () => {
+        sessionsDb.createSession(
+          PROVIDER_SESSION_ID,
+          'claude',
+          path.join(tempRoot, 'workspace'),
+          undefined,
+          undefined,
+          undefined,
+          transcriptPath,
+        );
+        const history = await new ClaudeSessionsProvider().fetchHistory(PROVIDER_SESSION_ID);
+        assert.deepEqual(
+          history.messages.filter((message) => message.outputTokens).map((message) => [message.kind, message.outputTokens]),
+          [['thinking', 120], ['text', 30]],
+        );
+      });
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
   test('an Agent call still awaiting its result is resolved, not duplicated', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'claude-subagent-pending-'));
     const transcriptPath = path.join(tempRoot, `${PROVIDER_SESSION_ID}.jsonl`);

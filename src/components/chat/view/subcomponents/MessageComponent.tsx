@@ -24,9 +24,11 @@ import { formatMessageTimestamp, useClockFormat } from '../../../../utils/format
 import { ToolRenderer, ToolErrorDisplay, getToolConfig, shouldHideToolResult } from '../../tools';
 import { useHistoryDetail } from '../../hooks/useHistoryDetail';
 import { thinkingDurationMs } from '../../utils/toolActivity';
+import type { TurnSummary } from '../../utils/turnDuration';
 
 import ChatMessageImages from './ChatMessageImages';
 import CompactBoundaryDivider from './CompactBoundaryDivider';
+import TurnSummaryRow from './TurnSummaryRow';
 import { DISCLOSED_TEXT_CLASS, StaticRow, TextDisclosure } from './DisclosureRow';
 import FollowUpQuestions from './FollowUpQuestions';
 import ChatMessageFiles from './ChatMessageFiles';
@@ -44,7 +46,7 @@ type MessageComponentProps = {
   message: ChatMessage;
   prevMessage: ChatMessage | null;
   /** Set only on the last reply of a finished turn. */
-  turnDurationMs?: number;
+  turnSummary?: TurnSummary;
   createDiff: (oldStr: string, newStr: string) => DiffLine[];
   onFileOpen?: (filePath: string, diffInfo?: unknown, options?: FileOpenOptions) => void;
   onShowSettings?: () => void;
@@ -68,7 +70,7 @@ type MessageComponentProps = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -564,16 +566,9 @@ const MessageComponent = memo(({ message, prevMessage, turnDurationMs, createDif
                     <MessageSpeakControl content={assistantCopyContent} />
                   )}
                 </div>
-                {turnDurationMs !== undefined && (
-                  <div className="tabular-nums">
-                    {t('turnDuration.workedFor', {
-                      duration: formatDuration(turnDurationMs),
-                      defaultValue: 'Worked for {{duration}}',
-                    })}
-                  </div>
-                )}
               </div>
             )}
+            {turnSummary && <TurnSummaryRow summary={turnSummary} />}
           </div>
         </div>
       )}
