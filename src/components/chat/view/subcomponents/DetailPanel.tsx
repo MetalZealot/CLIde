@@ -4,6 +4,9 @@ import { Check, Copy, WrapText } from 'lucide-react';
 
 import { copyTextToClipboard } from '../../../../utils/clipboard';
 
+// Solid and bordered, so a button reads the same over the panel, a tinted diff row, or scrolled text.
+const BUTTON = 'flex h-6 w-6 items-center justify-center rounded-md border border-border/70 transition-colors hover:text-foreground';
+
 interface DetailPanelProps {
   /** What the corner button copies; no button when empty. */
   copyText?: string;
@@ -30,7 +33,7 @@ export const DetailPanel = memo(function DetailPanel({ copyText, wrap, className
       {wrap && (
         <button
           type="button"
-          className={`flex h-6 w-6 items-center justify-center rounded transition-colors hover:text-foreground ${wrap.on ? 'bg-foreground/10 text-foreground' : 'text-muted-foreground/70'}`}
+          className={`${BUTTON} ${wrap.on ? 'bg-muted text-foreground' : 'bg-background text-muted-foreground'}`}
           onClick={wrap.toggle}
           aria-label={t('activity.detail.wrap')}
           aria-pressed={wrap.on}
@@ -41,7 +44,7 @@ export const DetailPanel = memo(function DetailPanel({ copyText, wrap, className
       {copyText && (
         <button
           type="button"
-          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/70 transition-colors hover:text-foreground"
+          className={`${BUTTON} bg-background text-muted-foreground`}
           onClick={copy}
           aria-label={copied ? t('activity.detail.copied') : t('activity.detail.copy')}
         >
@@ -54,13 +57,11 @@ export const DetailPanel = memo(function DetailPanel({ copyText, wrap, className
   return (
     <div className={`relative mb-1.5 mt-0.5 flow-root rounded-md bg-muted/60 px-2.5 py-2 dark:bg-muted/40 ${className}`}>
       {(copyText || wrap) && (wrap?.on === false ? (
-        // Unwrapped lines can't flow around the corner, so they slide under an opaque, panel-coloured backing.
-        <div className="absolute right-1 top-1 z-10 rounded bg-background">
-          <div className="flex rounded bg-muted/60 dark:bg-muted/40">{buttons}</div>
-        </div>
+        // Unwrapped lines can't flow around the corner, so they slide under the buttons.
+        <div className="absolute right-1 top-1 z-10 flex gap-1">{buttons}</div>
       ) : (
         // Floated so only the rows beside the buttons wrap short; -mb-1 keeps the float off the second row.
-        <div className="float-right -mb-1 -mr-1.5 -mt-1 ml-2 flex">{buttons}</div>
+        <div className="float-right -mb-1 -mr-1.5 -mt-1 ml-2 flex gap-1">{buttons}</div>
       ))}
       {children}
     </div>
