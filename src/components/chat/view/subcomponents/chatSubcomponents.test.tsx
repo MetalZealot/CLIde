@@ -294,37 +294,45 @@ describe('chatSubcomponents', () => {
 
     });
 
-    test('a command panel wraps per the setting, and its wrap button inverts that for the panel alone', async () => {
+    test('every tool panel wraps per the setting, its wrap button inverts that for the panel, and buttons float only while wrapping', async () => {
       const setWrapSetting = (value: boolean) => {
         localStorage.setItem('uiPreferences', JSON.stringify({ wrapToolOutput: value }));
         window.dispatchEvent(new CustomEvent('ui-preferences:sync', { detail: { storageKey: 'uiPreferences', sourceId: 'test' } }));
       };
-      const bash: ChatMessage = {
-        id: 'b', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash',
-        toolInput: JSON.stringify({ command: 'ls' }), toolResult: { content: 'a long line', isError: false },
-      };
+      const call = (toolName: string, input: unknown, content = 'a long line'): ChatMessage => ({
+        id: toolName, timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName,
+        toolInput: JSON.stringify(input), toolResult: { content, isError: false },
+      });
       container = document.createElement('div');
       root = createRoot(container);
-      const lines = () => [...container!.querySelectorAll('.whitespace-pre, .whitespace-pre-wrap')];
-      const wraps = () => lines().map((line) => line.classList.contains('whitespace-pre-wrap'));
-      const wrapButton = () => container!.querySelector('button[aria-label="Wrap long lines"]') as HTMLButtonElement;
+      const wraps = () => [...container!.querySelectorAll('.whitespace-pre, .whitespace-pre-wrap')].map((line) => line.classList.contains('whitespace-pre-wrap'));
+      const wrapButton = () => container!.querySelector('button[aria-label="Wrap long lines"]') as HTMLButtonElement | null;
+      const buttonsFloat = () => wrapButton()!.parentElement!.classList.contains('float-right');
 
       setWrapSetting(false);
-      await React.act(async () => root!.render(<OperationDetail message={bash} />));
-      assert.deepEqual(wraps(), [false, false]);
-      assert.ok(container.querySelector('.overflow-x-auto'), 'unwrapped lines scroll sideways');
-      assert.equal(wrapButton().getAttribute('aria-pressed'), 'false');
+      for (const message of [
+        call('Bash', { command: 'ls' }),
+        call('Read', { file_path: '/a.ts' }),
+        call('Edit', { file_path: '/a.ts', old_string: 'a', new_string: 'b' }),
+        call('mcp__cloudcli-browser__browser_click', { target: 'e1' }),
+      ]) {
+        await React.act(async () => root!.render(<OperationDetail key={message.id} message={message} />));
+        assert.ok(wrapButton(), `${message.toolName} offers the toggle`);
+        assert.ok(wraps().length > 0 && wraps().every((wrapped) => !wrapped), `${message.toolName} scrolls`);
+        assert.ok(container.querySelector('.overflow-x-auto'), `${message.toolName} scrolls sideways`);
+        assert.equal(buttonsFloat(), false, 'scrolling lines pass under overlaid buttons');
+      }
 
-      await React.act(async () => wrapButton().click());
-      assert.deepEqual(wraps(), [true, true]);
+      await React.act(async () => wrapButton()!.click());
+      assert.ok(wraps().every(Boolean));
+      assert.equal(buttonsFloat(), true, 'wrapping text flows around floated buttons');
       // The flip is relative: turning the setting on makes this panel scroll.
       await React.act(async () => setWrapSetting(true));
-      assert.deepEqual(wraps(), [false, false]);
-      await React.act(async () => wrapButton().click());
-      assert.deepEqual(wraps(), [true, true]);
+      assert.ok(wraps().every((wrapped) => !wrapped));
 
-      await React.act(async () => root!.render(<OperationDetail message={{ ...bash, id: 'r', toolName: 'Read', toolInput: JSON.stringify({ file_path: '/a.ts' }) }} />));
-      assert.equal(wrapButton(), null, 'only command panels offer the toggle');
+      const thinking: ChatMessage = { id: 't', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: 'Hmm', isThinking: true };
+      await React.act(async () => root!.render(<OperationDetail message={thinking} />));
+      assert.equal(wrapButton(), null, 'prose offers no toggle');
     });
 
     test('an opened activity shows one line per call, and a call opens flat with nothing left to expand', async () => {

@@ -27,25 +27,32 @@ const SIGN: Partial<Record<DetailLine['tone'], string>> = { added: '+', removed:
 const wrapClass = 'min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]';
 const scrollClass = 'max-w-none whitespace-pre';
 
-// The panel's first line leaves room for the corner buttons.
-const CORNER = 'pr-6';
-const CORNER_TWO = 'pr-11';
-
-function DetailLineRow({ line, isFirstCommand, reserveCorner, wrap = true }: { line: DetailLine; isFirstCommand: boolean; reserveCorner: string; wrap?: boolean }) {
+function DetailLineRow({ line, isFirstCommand, wrap }: { line: DetailLine; isFirstCommand: boolean; wrap: boolean }) {
   const sign = SIGN[line.tone];
   if (sign !== undefined) {
     return (
-      // `max-w-none` lets the tint bleed past the chat's 100% max-width rule to the panel edge.
-      <div className={`-mx-2.5 flex max-w-none pl-2.5 ${reserveCorner ? 'pr-8' : 'pr-2.5'} ${TONE_CLASS[line.tone]}`}>
-        <span className="w-3.5 flex-shrink-0 select-none opacity-70" aria-hidden>{sign}</span>
-        <span className={wrap ? wrapClass : scrollClass}>{line.text || ' '}</span>
+      // `max-w-none` lets the tint bleed past the chat's 100% max-width rule to the panel edge. Plain
+      // block, not flex, so its first row can flow beside the floated buttons; the sign hangs in the padding.
+      <div className={`-mx-2.5 max-w-none pl-6 pr-2.5 ${wrap ? wrapClass : scrollClass} ${TONE_CLASS[line.tone]}`}>
+        <span className="-ml-3.5 inline-block w-3.5 select-none opacity-70" aria-hidden>{sign}</span>
+        {line.text || ' '}
       </div>
     );
   }
   return (
-    <div className={`${wrap ? wrapClass : scrollClass} ${TONE_CLASS[line.tone]} ${reserveCorner}`}>
+    <div className={`${wrap ? wrapClass : scrollClass} ${TONE_CLASS[line.tone]}`}>
       {isFirstCommand && <span className="select-none text-muted-foreground/70">$ </span>}
       {line.text || ' '}
+    </div>
+  );
+}
+
+/** Unwrapped, a block scrolls sideways as one, every row as wide as its longest. */
+function CodeBlockScroll({ wrap, children }: { wrap: boolean; children: ReactNode }) {
+  if (wrap) return <>{children}</>;
+  return (
+    <div className="-mx-2.5 max-w-none overflow-x-auto px-2.5">
+      <div className="w-max min-w-full max-w-none">{children}</div>
     </div>
   );
 }
@@ -53,7 +60,7 @@ function DetailLineRow({ line, isFirstCommand, reserveCorner, wrap = true }: { l
 interface OperationDetailProps {
   message: ChatMessage;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
-  /** Leads the panel and takes the copy button's corner. */
+  /** Leads the panel, above the call's lines. */
   heading?: ReactNode;
   /** Closes the panel, after "Show all" and "Open file". */
   footer?: ReactNode;
@@ -65,11 +72,6 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen, hea
   const history = useHistoryDetail(message, true);
   const detail = useMemo(() => buildOperationDetail(history.message), [history.message]);
   const [showAll, setShowAll] = useState(false);
-  // The panel's toggle inverts the setting for this call only; it is never saved.
-  const wrapSetting = useUiPreference('wrapToolOutput');
-  const [wrapFlipped, setWrapFlipped] = useState(false);
-  const wrap = !detail.wrapToggle || wrapSetting !== wrapFlipped;
-  const corner = detail.wrapToggle ? CORNER_TWO : CORNER;
 
   const cappedLines = detail.blocks.reduce(
     (hidden, block) => hidden + (block.type === 'lines' ? Math.max(0, block.lines.length - DETAIL_LINE_CAP)
@@ -82,49 +84,55 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen, hea
   );
   const cap = <T,>(items: T[]): T[] => (showAll ? items : items.slice(0, DETAIL_LINE_CAP));
   const isProse = detail.blocks.length > 0 && detail.blocks.every((block) => block.type === 'prose');
+  // The panel's toggle inverts the setting for this call only; it is never saved.
+  const wrapSetting = useUiPreference('wrapToolOutput');
+  const [wrapFlipped, setWrapFlipped] = useState(false);
+  const hasCode = detail.blocks.some((block) => block.type !== 'prose');
+  const wrap = !hasCode || wrapSetting !== wrapFlipped;
 
   return (
     <DetailPanel
       copyText={detail.copyText}
-      wrap={detail.wrapToggle ? { on: wrap, toggle: () => setWrapFlipped((flipped) => !flipped) } : undefined}
+      wrap={hasCode ? { on: wrap, toggle: () => setWrapFlipped((flipped) => !flipped) } : undefined}
       className={isProse ? 'text-[13px] leading-5' : 'font-mono text-xs leading-[18px]'}>
-      {heading && <div className={`mb-1.5 font-sans ${corner}`}>{heading}</div>}
-      {/* Unwrapped lines scroll sideways together, sized to the longest. */}
-      <div className={wrap ? '' : 'overflow-x-auto'}>
-      <div className={wrap ? '' : 'w-max min-w-full max-w-none'}>
+      {/* Wrapping text flows around the floated buttons; the overlay needs the heading kept clear. */}
+      {heading && <div className={`mb-1.5 font-sans ${wrap ? '' : 'pr-14'}`}>{heading}</div>}
       {detail.blocks.map((block, index) => (
-        <div key={index} className={`${index > 0 ? 'mt-1.5' : ''} ${index === 0 && !heading && block.type !== 'lines' ? corner : ''}`}>
+        <div key={index} className={index > 0 ? 'mt-1.5' : ''}>
           {block.type === 'prose' && <Markdown className={DISCLOSED_TEXT_CLASS}>{block.text}</Markdown>}
-          {block.type === 'files' && cap(block.paths).map((path) => (
-            <button
-              key={path}
-              type="button"
-              className={`block w-full text-left text-muted-foreground underline-offset-2 hover:text-foreground hover:underline ${wrapClass}`}
-              onClick={() => onFileOpen?.(path)}
-            >
-              {path}
-            </button>
-          ))}
+          {block.type === 'files' && (
+            <CodeBlockScroll wrap={wrap}>
+              {cap(block.paths).map((path) => (
+                <button
+                  key={path}
+                  type="button"
+                  className={`block w-full text-left text-muted-foreground underline-offset-2 hover:text-foreground hover:underline ${wrap ? wrapClass : scrollClass}`}
+                  onClick={() => onFileOpen?.(path)}
+                >
+                  {path}
+                </button>
+              ))}
+            </CodeBlockScroll>
+          )}
           {block.type === 'lines' && (
             <>
               {block.heading && (
-                <div className={`font-sans text-[11px] text-muted-foreground ${index === 0 && !heading ? corner : ''}`}>{block.heading}</div>
+                <div className={`font-sans text-[11px] text-muted-foreground ${index === 0 && !heading && !wrap ? 'pr-14' : ''}`}>{block.heading}</div>
               )}
-              {cap(block.lines).map((line, lineIndex) => (
-                <DetailLineRow
-                  key={lineIndex}
-                  line={line}
-                  isFirstCommand={line.tone === 'command' && lineIndex === 0 && !block.heading}
-                  reserveCorner={index === 0 && lineIndex === 0 && !block.heading && !heading ? corner : ''}
-                  wrap={wrap}
-                />
-              ))}
+              <CodeBlockScroll wrap={wrap}>
+                {cap(block.lines).map((line, lineIndex) => (
+                  <DetailLineRow
+                    key={lineIndex}
+                    line={line}
+                    isFirstCommand={line.tone === 'command' && lineIndex === 0 && !block.heading}
+                    wrap={wrap}
+                  />
+                ))}
+              </CodeBlockScroll>
             </>
           )}
         </div>
       ))}
-      </div>
-      </div>
 
       {history.status === 'loading' && (
         <div className="mt-1.5 font-sans text-xs text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
