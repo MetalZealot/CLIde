@@ -6,7 +6,7 @@ import type { ServerEvent } from '../../../contexts/WebSocketContext';
 import { showCompletionTitleIndicator } from '../../../utils/pageTitleNotification';
 import { playChatCompletionSound, playNotificationSound } from '../../../utils/notificationSound';
 import type { MarkSessionIdle, MarkSessionProcessing } from '../../../hooks/useSessionProtection';
-import type { PendingPermissionRequest } from '../types/types';
+import type { PendingPermissionRequest, TurnEnd } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 import { readTurnStage } from '../../../stores/useSessionStore';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
@@ -70,6 +70,8 @@ interface UseChatRealtimeHandlersArgs {
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
   onSessionProcessing?: MarkSessionProcessing;
   onSessionIdle?: MarkSessionIdle;
+  /** The viewed conversation's run ended; the status row plays its ending from this. */
+  onTurnEnded?: (sessionId: string, outcome: TurnEnd['outcome']) => void;
   onWebSocketReconnect?: () => void;
   /**
    * A run was cancelled before the provider received it; its retracted text is
@@ -121,6 +123,7 @@ export function useChatRealtimeHandlers({
   statusCheckSentAtRef,
   onSessionProcessing,
   onSessionIdle,
+  onTurnEnded,
   onWebSocketReconnect,
   onUndeliveredTurnRetracted,
   sessionStore,
@@ -346,6 +349,7 @@ export function useChatRealtimeHandlers({
           if (sid === activeViewSessionId) {
             pendingPermissionRequestsRef.current = [];
             setPendingPermissionRequests([]);
+            if (sid) onTurnEnded?.(sid, msg.aborted ? 'stopped' : msg.success === false ? 'failed' : 'done');
           }
 
           if (msg.aborted) {
@@ -476,6 +480,7 @@ export function useChatRealtimeHandlers({
     statusCheckSentAtRef,
     onSessionProcessing,
     onSessionIdle,
+    onTurnEnded,
     onWebSocketReconnect,
     onUndeliveredTurnRetracted,
     sessionStore,

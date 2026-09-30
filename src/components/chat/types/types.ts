@@ -177,6 +177,13 @@ export interface Question {
   isSecret?: boolean;
 }
 
+/** How a run ended, from its `complete` event; `endedAt` is the client clock. */
+export type TurnEnd = {
+  sessionId: string;
+  outcome: 'done' | 'failed' | 'stopped';
+  endedAt: number;
+};
+
 export type SessionNavigationOptions = {
   replace?: boolean;
 };

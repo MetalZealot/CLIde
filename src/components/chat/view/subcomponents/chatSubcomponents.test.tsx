@@ -583,6 +583,31 @@ describe('chatSubcomponents', () => {
       });
       assert.match(container.textContent ?? '', /Retrying · overloaded · 3 of 10/);
       assert.doesNotMatch(container.textContent ?? '', /tokens/);
+      assert.equal(container.querySelector('[data-state]')?.getAttribute('data-state'), 'retrying');
+
+      // An open prompt outranks the stage: the turn is paused on the user.
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <ActivityIndicator activity={{ statusText: null, stage: { name: 'thinking' }, canInterrupt: true, startedAt }} awaitingInput />
+        </I18nextProvider>,
+      ));
+      assert.match(container.textContent ?? '', /Waiting for you…/);
+      assert.equal(container.querySelector('[data-state]')?.getAttribute('data-state'), 'waiting');
+
+      // A turn that ends plays its outcome before the row leaves; a stop, or an ending older than the turn, does not.
+      const endWith = async (turnEnd: React.ComponentProps<typeof ActivityIndicator>['turnEnd']) => {
+        await render({ statusText: null, canInterrupt: true, startedAt });
+        await React.act(async () => root?.render(
+          <I18nextProvider i18n={i18next}><ActivityIndicator activity={null} turnEnd={turnEnd} /></I18nextProvider>,
+        ));
+        return container?.querySelector('[data-state]')?.getAttribute('data-state');
+      };
+      assert.equal(await endWith({ sessionId: 's', outcome: 'done', endedAt: Date.now() }), 'done');
+      assert.equal(container.querySelector('[role="status"]')?.textContent, '4s ·Done');
+      assert.equal(await endWith({ sessionId: 's', outcome: 'failed', endedAt: Date.now() }), 'failed');
+      assert.equal(await endWith({ sessionId: 's', outcome: 'stopped', endedAt: Date.now() }), 'working');
+      assert.ok(container.querySelector('.chat-activity-exit'));
+      assert.equal(await endWith({ sessionId: 's', outcome: 'done', endedAt: startedAt - 1 }), 'working');
     });
 
     test('rows skip rendering off-screen only after a real layout', () => {
@@ -603,7 +628,7 @@ describe('chatSubcomponents', () => {
     test('the status row lives in the conversation, not above the composer', () => {
       const paneSource = readFileSync(new URL('./ChatMessagesPane.tsx', import.meta.url), 'utf8');
       const composerSource = readFileSync(new URL('./ChatComposer.tsx', import.meta.url), 'utf8');
-      assert.ok(paneSource.indexOf('<ActivityIndicator activity={activity} />') < paneSource.indexOf('<ScheduledMessageBubbles'));
+      assert.ok(paneSource.indexOf('<ActivityIndicator') < paneSource.indexOf('<ScheduledMessageBubbles'));
       assert.doesNotMatch(composerSource, /ActivityIndicator/);
     });
   });

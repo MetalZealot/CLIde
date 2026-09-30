@@ -5,7 +5,7 @@ import { ArrowDownIcon, XIcon } from 'lucide-react';
 import { ChatBrowserPreview, useChatBrowser } from '../../browser-use';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
-import type { ChatInterfaceProps, PermissionMode } from '../types/types';
+import type { ChatInterfaceProps, PermissionMode, TurnEnd } from '../types/types';
 import type { LLMProvider, ProviderModelOption } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
@@ -787,6 +787,13 @@ function ChatInterface({
     [setAttachedFiles],
   );
 
+  const [turnEnd, setTurnEnd] = useState<TurnEnd | null>(null);
+  const handleTurnEnded = useCallback((sessionId: string, outcome: TurnEnd['outcome']) => {
+    setTurnEnd({ sessionId, outcome, endedAt: Date.now() });
+  }, []);
+  const viewedSessionId = selectedSession?.id || currentSessionId;
+  const viewedTurnEnd = turnEnd && turnEnd.sessionId === viewedSessionId ? turnEnd : null;
+
   useChatRealtimeHandlers({
     subscribe,
     provider,
@@ -800,6 +807,7 @@ function ChatInterface({
     statusCheckSentAtRef,
     onSessionProcessing,
     onSessionIdle,
+    onTurnEnded: handleTurnEnded,
     onWebSocketReconnect: handleWebSocketReconnect,
     onUndeliveredTurnRetracted: handleUndeliveredTurnRetracted,
     sessionStore,
@@ -951,6 +959,7 @@ function ChatInterface({
           isLoadingSessionMessages={isLoadingSessionMessages}
           isProcessing={isProcessing}
           activity={sessionActivity}
+          turnEnd={viewedTurnEnd}
           chatMessages={chatMessages}
           selectedSession={selectedSession}
           currentSessionId={currentSessionId}

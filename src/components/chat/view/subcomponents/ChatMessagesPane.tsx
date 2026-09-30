@@ -3,7 +3,7 @@ import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
-import type { ChatMessage, PendingPermissionRequest } from '../../types/types';
+import type { ChatMessage, PendingPermissionRequest, TurnEnd } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import type { FileOpenOptions } from '../../../code-editor/types/types';
@@ -27,6 +27,7 @@ interface ChatMessagesPaneProps {
   isProcessing?: boolean;
   /** The running turn's status, drawn as the conversation's last row. */
   activity?: SessionActivity | null;
+  turnEnd?: TurnEnd | null;
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
@@ -75,6 +76,7 @@ function ChatMessagesPane({
   isLoadingSessionMessages,
   isProcessing = false,
   activity = null,
+  turnEnd = null,
   chatMessages,
   selectedSession,
   currentSessionId,
@@ -339,7 +341,13 @@ function ChatMessagesPane({
           })()}
         </>
       )}
-      {!isLoadingSessionMessages && <ActivityIndicator activity={activity} />}
+      {!isLoadingSessionMessages && (
+        <ActivityIndicator
+          activity={activity}
+          awaitingInput={(pendingPermissionRequests?.length ?? 0) > 0}
+          turnEnd={turnEnd}
+        />
+      )}
       {!isLoadingSessionMessages && (
         <ScheduledMessageBubbles
           messages={scheduledMessages}

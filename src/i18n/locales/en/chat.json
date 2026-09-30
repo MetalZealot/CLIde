@@ -502,6 +502,11 @@
       "retryingOpenEnded": "Retrying · attempt {{attempt}} · {{reason}}",
       "retryReasonFallback": "API error",
       "compacting": "Compacting"
+    },
+    "waiting": "Waiting for you",
+    "finished": {
+      "done": "Done",
+      "failed": "Failed"
     }
   },
   "tasks": {

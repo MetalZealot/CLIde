@@ -89,6 +89,8 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 
 ## Theming
 
+- [x] **The status row's pulsing dot becomes three dots that move between states.** Starting, Thinking, Working, Waiting for you, Retrying, Compacting, then Done or Failed as the turn ends; reduced motion shows still frames. `ActivityDots.tsx`. Awaiting a trial on the phone. **S**
+- [ ] **Try the CLIde logo as the activity indicator.** Light runs along the logo's own band (round-3 probe, family H); liked, "with a few tweaks", after living with the dots. Reuses the dots' state-to-state blending. **S/M**
 - [ ] **Colour theming overhaul** — OKLCH tokens, monochrome/accent/full-colour presets with derived light and dark, a corner-radius dial, and provider accents. Supersedes the old accent-picker and provider-branding items. Cost is Phase 0: 2,335 hardcoded palette classes across 118 files bypass the token layer. [Plan](plans/colour-theming-system.md). **L**
 - [ ] **Custom project icon**, second half of Customize after the colour strip. Pick an image from the project (or upload) via a modal reusing `useFileTreeData` + `isImageFile`, not a Files-tab detour — the tab has no pick mode and the cross-tab return trip is the real cost. Store a downscaled data URI on the project row, path as provenance only: a file in the repo breaks on worktrees. **M**
 

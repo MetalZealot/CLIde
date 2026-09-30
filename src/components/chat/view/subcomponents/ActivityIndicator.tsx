@@ -3,20 +3,48 @@ import { useTranslation } from 'react-i18next';
 
 import { Shimmer } from '../../../../shared/view/ui';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
+import type { TurnEnd } from '../../types/types';
+
+import ActivityDots, { type ActivityDotState } from './ActivityDots';
 
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
+  /** A permission prompt or question is open for this conversation. */
+  awaitingInput?: boolean;
+  /** How the viewed conversation's last turn ended; plays its ending before the row leaves. */
+  turnEnd?: TurnEnd | null;
 };
 
 const EXIT_ANIMATION_MS = 220;
+// Long enough for the dots to settle into their ending.
+const FINISH_HOLD_MS = 1400;
+
+type Finish = 'done' | 'failed';
+
+const dotStateFor = (activity: SessionActivity, awaitingInput: boolean, finish: Finish | null): ActivityDotState => {
+  if (finish) return finish;
+  if (awaitingInput) return 'waiting';
+  switch (activity.stage?.name) {
+    case 'starting':
+    case 'sent':
+      return 'starting';
+    case 'thinking':
+    case 'retrying':
+    case 'compacting':
+      return activity.stage.name;
+    default:
+      return 'working';
+  }
+};
 
 /**
  * The running turn's status as the conversation's last row: elapsed time, output
  * tokens, then what the provider reports it is doing, or "Working" when it reports nothing.
  */
-export default function ActivityIndicator({ activity }: ActivityIndicatorProps) {
+export default function ActivityIndicator({ activity, awaitingInput = false, turnEnd = null }: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');
   const [renderedActivity, setRenderedActivity] = useState<SessionActivity | null>(activity);
+  const [finish, setFinish] = useState<Finish | null>(null);
   const [isExiting, setIsExiting] = useState(false);
   const startedAt = renderedActivity?.startedAt ?? null;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -24,28 +52,40 @@ export default function ActivityIndicator({ activity }: ActivityIndicatorProps) 
   useEffect(() => {
     if (activity) {
       setRenderedActivity(activity);
+      setFinish(null);
       setIsExiting(false);
-      return;
+      return undefined;
     }
 
-    if (!renderedActivity) return;
+    if (!renderedActivity) return undefined;
 
-    setIsExiting(true);
-    const timer = setTimeout(() => {
+    // Only an ending reported after this turn began belongs to it; a stop has no ending.
+    const ending = turnEnd && turnEnd.endedAt >= renderedActivity.startedAt && turnEnd.outcome !== 'stopped'
+      ? turnEnd.outcome
+      : null;
+    setFinish(ending);
+    const holdMs = ending ? FINISH_HOLD_MS : 0;
+    if (!ending) setIsExiting(true);
+    const exitTimer = ending ? setTimeout(() => setIsExiting(true), holdMs) : undefined;
+    const removeTimer = setTimeout(() => {
       setRenderedActivity(null);
+      setFinish(null);
       setIsExiting(false);
-    }, EXIT_ANIMATION_MS);
+    }, holdMs + EXIT_ANIMATION_MS);
 
-    return () => clearTimeout(timer);
-  }, [activity, renderedActivity]);
+    return () => {
+      clearTimeout(exitTimer);
+      clearTimeout(removeTimer);
+    };
+  }, [activity, renderedActivity, turnEnd]);
 
   useEffect(() => {
-    if (startedAt === null) return;
+    if (startedAt === null || finish) return undefined;
     const update = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     update();
     const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
-  }, [startedAt]);
+  }, [startedAt, finish]);
 
   if (!renderedActivity) return null;
 
@@ -73,11 +113,17 @@ export default function ActivityIndicator({ activity }: ActivityIndicatorProps) 
                 defaultValue: 'Retrying · attempt {{attempt}} · {{reason}}',
               }))
             : t('claudeStatus.stage.compacting', { defaultValue: 'Compacting' });
-  const label = (
-    stageLabel
+  const liveLabel = (
+    (awaitingInput ? t('claudeStatus.waiting', { defaultValue: 'Waiting for you' }) : null)
+    || stageLabel
     || renderedActivity.statusText
     || t('claudeStatus.actions.working', { defaultValue: 'Working' })
   ).replace(/\.+$/, '');
+  const label = finish === 'done'
+    ? t('claudeStatus.finished.done', { defaultValue: 'Done' })
+    : finish === 'failed'
+      ? t('claudeStatus.finished.failed', { defaultValue: 'Failed' })
+      : liveLabel;
 
   const outputTokens = renderedActivity.outputTokens ?? 0;
   const minutes = Math.floor(elapsedSeconds / 60);
@@ -101,10 +147,12 @@ export default function ActivityIndicator({ activity }: ActivityIndicatorProps) 
       role="status"
     >
       <div className="flex min-h-6 min-w-0 items-center gap-2 text-[13px] leading-5 text-muted-foreground sm:min-h-7 sm:text-sm">
-        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
+        <ActivityDots state={dotStateFor(renderedActivity, awaitingInput, finish)} />
         <span className="shrink-0 whitespace-nowrap tabular-nums">{metrics} ·</span>
         <span className="min-w-0 flex-1 overflow-hidden" title={label}>
-          <Shimmer className="block truncate">{`${label}…`}</Shimmer>
+          {finish
+            ? <span className="block truncate">{label}</span>
+            : <Shimmer className="block truncate">{`${label}…`}</Shimmer>}
         </span>
       </div>
     </div>
