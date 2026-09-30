@@ -67,7 +67,8 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
   if (message.isThinking) {
     return (
       <button type="button" className={operationRowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
-        <span className={`${rowLabelClass(isOpen)} flex-1 italic`}>{t('activity.thought', { text: plainFirstLine(message.content) })}</span>
+        {/* Stays one line when open: the panel below already holds the whole thought. */}
+        <span className={`${rowLabelClass(false)} flex-1 italic`}>{t('activity.thought', { text: plainFirstLine(message.content) })}</span>
       </button>
     );
   }
