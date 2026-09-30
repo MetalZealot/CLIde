@@ -46,7 +46,7 @@ import ScheduledMessageBubbles from './ScheduledMessageBubbles';
 import ComposerAddMenu from './ComposerAddMenu';
 import TokenUsageSummary from './TokenUsageSummary';
 import ProviderUpdateNotice from './ProviderUpdateNotice';
-import { BashCommandDisplay } from '../../tools/components/BashCommandDisplay';
+import OperationDetail from './OperationDetail';
 
 describe('chatSubcomponents', () => {
   test('provider update notice checks without installing and updates only on explicit click', async () => {
@@ -235,38 +235,6 @@ describe('chatSubcomponents', () => {
     assert.equal(formatClockTime(at(8, 17, 17), { format: '24h' }), '17:05');
   });
 
-  test('a command row wraps per the setting, and its wrap button inverts that for the row alone', async () => {
-    const setWrapSetting = (value: boolean) => {
-      localStorage.setItem('uiPreferences', JSON.stringify({ wrapToolOutput: value }));
-      window.dispatchEvent(new CustomEvent('ui-preferences:sync', { detail: { storageKey: 'uiPreferences', sourceId: 'test' } }));
-    };
-    const originalResizeObserver = globalThis.ResizeObserver;
-    globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
-    const host = document.createElement('div');
-    const root = createRoot(host);
-    const wraps = () => [...host.querySelectorAll('pre')].map((pre) => pre.className.includes('whitespace-pre-wrap'));
-    const wrapButton = () => host.querySelector('button[aria-label="Wrap long lines"]') as HTMLButtonElement | null;
-    try {
-      localStorage.setItem('uiPreferences', JSON.stringify({ wrapToolOutput: false }));
-      await React.act(async () => root.render(<BashCommandDisplay command="ls" output="a long line" defaultOpen />));
-      assert.deepEqual(wraps(), [false, false]);
-      assert.equal(wrapButton()?.getAttribute('aria-pressed'), 'false');
-
-      await React.act(async () => wrapButton()!.click());
-      assert.deepEqual(wraps(), [true, true]);
-      // The flip is relative: turning the setting on makes this row scroll.
-      await React.act(async () => setWrapSetting(true));
-      assert.deepEqual(wraps(), [false, false]);
-      await React.act(async () => wrapButton()!.click());
-      assert.deepEqual(wraps(), [true, true]);
-      assert.equal(JSON.parse(localStorage.getItem('uiPreferences')!).wrapToolOutput, true);
-    } finally {
-      await React.act(async () => root.unmount());
-      localStorage.removeItem('uiPreferences');
-      globalThis.ResizeObserver = originalResizeObserver;
-    }
-  });
-
   describe('activity messages', () => {
     let root: Root | null = null;
     let container: HTMLDivElement | null = null;
@@ -324,6 +292,39 @@ describe('chatSubcomponents', () => {
       assert.equal(label([twoFiles]), 'Edited 2 files +1 \u22121');
       assert.equal(t('activity.failed', { count: 1 }), '1 failed');
 
+    });
+
+    test('a command panel wraps per the setting, and its wrap button inverts that for the panel alone', async () => {
+      const setWrapSetting = (value: boolean) => {
+        localStorage.setItem('uiPreferences', JSON.stringify({ wrapToolOutput: value }));
+        window.dispatchEvent(new CustomEvent('ui-preferences:sync', { detail: { storageKey: 'uiPreferences', sourceId: 'test' } }));
+      };
+      const bash: ChatMessage = {
+        id: 'b', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash',
+        toolInput: JSON.stringify({ command: 'ls' }), toolResult: { content: 'a long line', isError: false },
+      };
+      container = document.createElement('div');
+      root = createRoot(container);
+      const lines = () => [...container!.querySelectorAll('.whitespace-pre, .whitespace-pre-wrap')];
+      const wraps = () => lines().map((line) => line.classList.contains('whitespace-pre-wrap'));
+      const wrapButton = () => container!.querySelector('button[aria-label="Wrap long lines"]') as HTMLButtonElement;
+
+      setWrapSetting(false);
+      await React.act(async () => root!.render(<OperationDetail message={bash} />));
+      assert.deepEqual(wraps(), [false, false]);
+      assert.ok(container.querySelector('.overflow-x-auto'), 'unwrapped lines scroll sideways');
+      assert.equal(wrapButton().getAttribute('aria-pressed'), 'false');
+
+      await React.act(async () => wrapButton().click());
+      assert.deepEqual(wraps(), [true, true]);
+      // The flip is relative: turning the setting on makes this panel scroll.
+      await React.act(async () => setWrapSetting(true));
+      assert.deepEqual(wraps(), [false, false]);
+      await React.act(async () => wrapButton().click());
+      assert.deepEqual(wraps(), [true, true]);
+
+      await React.act(async () => root!.render(<OperationDetail message={{ ...bash, id: 'r', toolName: 'Read', toolInput: JSON.stringify({ file_path: '/a.ts' }) }} />));
+      assert.equal(wrapButton(), null, 'only command panels offer the toggle');
     });
 
     test('an opened activity shows one line per call, and a call opens flat with nothing left to expand', async () => {

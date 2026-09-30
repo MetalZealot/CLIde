@@ -22,6 +22,8 @@ export interface OperationDetail {
   copyText: string;
   /** A file the detail can open in the editor. */
   openPath?: string;
+  /** Long lines follow the wrap setting and the panel's wrap toggle instead of always wrapping. */
+  wrapToggle?: boolean;
 }
 
 const splitLines = (text: unknown): string[] => {
@@ -118,6 +120,7 @@ export function buildOperationDetail(message: ChatMessage): OperationDetail {
       return {
         blocks: nonEmpty([{ type: 'lines', lines: toLines(command, 'command') }, { type: 'lines', lines: output }]),
         copyText: command,
+        wrapToggle: true,
       };
     }
     case 'poll':

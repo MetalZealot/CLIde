@@ -6,7 +6,7 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
-- [x] **Wrap command output** (2026-09-29). A Chat setting picks wrap or sideways scroll for Bash rows; a row's wrap button inverts it for that row, unsaved. Fork-only. Verified: client tests.
+- [x] **Wrap command output** (2026-09-29). A Chat setting picks wrap or sideways scroll for opened command panels; the panel's wrap button inverts it for that call, unsaved. Fork-only. Verified: client tests, Browser on a test slot.
 
 - [x] **Save the displayed Browser screenshot** (2026-09-29). The session menu downloads the current JPEG. Verified: accepted live by Grayson. [Browser map](maps/chat-browser-activity.md).
 

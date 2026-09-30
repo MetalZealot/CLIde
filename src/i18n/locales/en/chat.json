@@ -140,6 +140,7 @@
     "detail": {
       "copy": "Copy",
       "copied": "Copied",
+      "wrap": "Wrap long lines",
       "openFile": "Open file",
       "showAll_one": "Show all {{count}} line",
       "showAll_other": "Show all {{count}} lines",
