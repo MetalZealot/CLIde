@@ -67,8 +67,6 @@ only once an index says it is the one you need; never read a directory to find o
   the equivalent behaviour and design the integration point so each can plug in or
   explicitly no-op.  Add capability flags or clean degradation rather than leaking
   Claude-only concepts into shared code; purely Claude-specific files are exempt.
-- **Runtimes are addressed by the app id, never the provider one** (glossary above;
-  commits and details in `docs/maps/code-anchors.md`).
 - The user database is SQLite, outside the repo, so working-tree changes cannot destroy
   it.  Back it up before any schema/auth/data write.  Treat live-session tests as
   stateful: clean any test data from the filesystem before its database rows, so the
@@ -97,8 +95,7 @@ behaviour stays behind adapter interfaces.
   `build:client` then refresh.  Only `dist-server/` changes need a restart.
 - **Verify on the server that actually serves the checkout you edited.**  The main
   checkout's server does not serve a worktree's `dist/`, so worktree work is never
-  verified there — use that worktree's own test server.  Never tell the user to refresh
-  the main app for a change that only exists on a topic branch.
+  verified there — use that worktree's own test server.
 - Do not restart the production service from an agent session unless the user
   explicitly asks and the environment permits it.
 - Test logins use Playwright's saved state or the secret names Browser's typing tools
@@ -169,8 +166,10 @@ inside narrative that condensing removes anyway — so these rules target length
   work is cherry-picked or reimplemented, never rebased or merged** — see
   [the upstream sync map](docs/maps/upstream-sync.md).
 - Conventional commits are enforced by commitlint; eslint runs on staged files.
-  **Commit verified work in the same turn, unasked**, staging only the files you
-  changed.
+  **Commit verified work in the same turn, unasked**, by path
+  (`git commit -- <paths>`): another agent may share the checkout, so never `stash`,
+  `reset`, `checkout --`, `add -A`, or `commit -a`.  A file already holding edits you
+  did not make cannot be split between two commits — stop and say so.
 - Work on `main` by default.  Create a worktree/topic branch only for genuinely
   parallel or risky work, and only when the maintainer asks or agrees.  **Never switch
   branches in the main checkout** while a service or dev server runs from it.
