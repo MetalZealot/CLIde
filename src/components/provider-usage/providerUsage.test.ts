@@ -338,6 +338,40 @@ describe('useProviderUsage', () => {
   });
 });
 
+describe('useProviderUsage reset timer', () => {
+  test('a window resetting beyond the setTimeout ceiling does not refetch in a loop', async () => {
+    const originalFetch = globalThis.fetch;
+    let requests = 0;
+    const resetsAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return new Response(JSON.stringify({
+        success: true,
+        data: { provider: 'cursor', supported: true, windows: [{ id: 'monthly', utilization: 10, resetsAt }] },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const Harness = () => {
+      const { usage } = useProviderUsage('cursor');
+      return React.createElement('span', null, String(usage?.windows?.length ?? 'loading'));
+    };
+
+    try {
+      await React.act(async () => {
+        root?.render(React.createElement(Harness));
+        await new Promise((resolve) => window.setTimeout(resolve, 50));
+      });
+      assert.equal(container.textContent, '1');
+      assert.equal(requests, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
 describe('UsageLimitNotice', () => {
   test('shows the window past the warning line and stays dismissed until it resets', async () => {
     const originalFetch = globalThis.fetch;

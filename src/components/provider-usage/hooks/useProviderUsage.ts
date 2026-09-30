@@ -33,6 +33,8 @@ type UsageFetchState = {
 const CLIENT_CACHE_TTL_MS = 60_000;
 /** Settling time after a window's reset before asking the server for it. */
 const RESET_REFRESH_GRACE_MS = 30_000;
+/** setTimeout's ceiling (~24.8 days). */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 const usageCache = new Map<LLMProvider, { data: ProviderUsageStatus; lastSuccessAtMs: number }>();
 const usageInFlight = new Map<LLMProvider, Promise<ProviderUsageStatus>>();
 
@@ -223,9 +225,10 @@ export function useProviderUsage(
     );
     if (!Number.isFinite(nextResetAtMs)) return undefined;
 
+    // Capped: a longer delay (Codex's monthly window) overflows and fires at once, refetching in a loop.
     const timer = window.setTimeout(
       () => { void load(true); },
-      nextResetAtMs - Date.now() + RESET_REFRESH_GRACE_MS,
+      Math.min(nextResetAtMs - Date.now() + RESET_REFRESH_GRACE_MS, MAX_TIMEOUT_MS),
     );
     return () => window.clearTimeout(timer);
   }, [enabled, load, provider, state.usage]);
