@@ -34,9 +34,12 @@ table mirrors the SDK's embedded model registry (no runtime accessor exists), so
 **refresh it on every SDK bump** — and note its arithmetic is calibrated against
 measurements in `scripts/verify-context-usage-sdk.ts`, not decoded. See ADR 0014.
 
-`TokenUsageSummary` owns the composer summary and its provider-specific drill-ins:
-Claude opens the saved per-category reading in-place, while Codex exposes account
-activity only when `account/usage/read` returned it. `/context`, `/usage`, and the
+`TokenUsageSummary` owns the header ring's popover and its provider-specific views:
+Claude swaps the summary for the saved per-category reading (`ContextBreakdownView`),
+while Codex exposes account activity only when `account/usage/read` returned it.
+The summary's prompt-cache countdown reads `promptCache` (TTL and request start) from
+the `/token-usage` scan only — live `token_budget` frames carry no cache timing, so
+the popover re-fetches on open and whenever the ring's count changes. `/context`, `/usage`, and the
 near-compaction warning route into that popover through `UsagePopoverRequest`;
 `CommandResultModal` no longer owns Context or Usage views.
 

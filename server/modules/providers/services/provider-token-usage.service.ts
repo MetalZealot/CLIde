@@ -48,6 +48,7 @@ type TokenUsageResult = {
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   cacheTokens?: number;
+  promptCache?: ClaudePromptCache | null;
   breakdown: {
     input: number;
     output: number;
@@ -163,7 +164,65 @@ type ClaudeTranscriptUsage = {
   model: string | null;
   /** Timestamp of that turn, compared against a stored pick for recency. */
   timestamp: string | undefined;
+  promptCache: ClaudePromptCache | null;
 };
+
+/** When the last request refreshed the prompt cache, and the lifetime it was written with. */
+type ClaudePromptCache = {
+  ttlSeconds: number;
+  refreshedAt: string;
+};
+
+// The lifetime is whichever TTL wrote more tokens on the latest request that wrote any;
+// reads refresh an entry without saying which TTL it holds.
+function readCacheTtlSeconds(usage: AnyRecord): number | null {
+  const creation = usage.cache_creation;
+  if (!creation || typeof creation !== 'object') return null;
+  const oneHour = readUsageNumber(creation.ephemeral_1h_input_tokens);
+  const fiveMinutes = readUsageNumber(creation.ephemeral_5m_input_tokens);
+  if (oneHour <= 0 && fiveMinutes <= 0) return null;
+  return oneHour >= fiveMinutes ? 3600 : 300;
+}
+
+// The cache lifetime runs from the start of the request, not its reply. The last user
+// row before the reply (the prompt or a tool result) marks that start; attachment rows
+// are skipped because some are written mid-reply.
+function readRequestStartedAt(lines: string[], replyIndex: number, messageId: unknown): string | undefined {
+  let fallback: string | undefined;
+  for (let index = replyIndex; index >= 0; index -= 1) {
+    try {
+      const entry = JSON.parse(lines[index]) as AnyRecord;
+      const timestamp = typeof entry.timestamp === 'string' ? entry.timestamp : undefined;
+      if (entry.type === 'assistant' && messageId && entry.message?.id === messageId) {
+        fallback = timestamp ?? fallback;
+        continue;
+      }
+      if (timestamp && !entry.isSidechain && (entry.type === 'user' || entry.type === 'assistant')) {
+        return timestamp;
+      }
+    } catch {
+      // Malformed line: keep walking.
+    }
+  }
+  return fallback;
+}
+
+function readClaudePromptCache(lines: string[], replyIndex: number, reply: AnyRecord): ClaudePromptCache | null {
+  const refreshedAt = readRequestStartedAt(lines, replyIndex, reply.message?.id);
+  if (!refreshedAt) return null;
+
+  for (let index = replyIndex; index >= 0; index -= 1) {
+    try {
+      const entry = JSON.parse(lines[index]) as AnyRecord;
+      if (entry.isSidechain || entry.type !== 'assistant' || !entry.message?.usage) continue;
+      const ttlSeconds = readCacheTtlSeconds(entry.message.usage);
+      if (ttlSeconds) return { ttlSeconds, refreshedAt };
+    } catch {
+      // Malformed line: keep walking.
+    }
+  }
+  return null;
+}
 
 /**
  * Finds the latest assistant message carrying *real* usage data.
@@ -214,6 +273,7 @@ function readClaudeTranscriptUsage(fileContent: string): ClaudeTranscriptUsage {
         cacheCreationTokens,
         model: typeof entry.message?.model === 'string' ? entry.message.model : null,
         timestamp: typeof entry.timestamp === 'string' ? entry.timestamp : undefined,
+        promptCache: readClaudePromptCache(lines, index, entry),
       };
     } catch {
       // Skip malformed lines without discarding usage from earlier messages.
@@ -227,6 +287,7 @@ function readClaudeTranscriptUsage(fileContent: string): ClaudeTranscriptUsage {
     cacheCreationTokens: 0,
     model: null,
     timestamp: undefined,
+    promptCache: null,
   };
 }
 
@@ -448,6 +509,7 @@ export function createProviderTokenUsageService(
         cacheReadTokens: usage.cacheReadTokens,
         cacheCreationTokens: usage.cacheCreationTokens,
         cacheTokens: usage.cacheReadTokens + usage.cacheCreationTokens,
+        promptCache: usage.promptCache,
         autoCompactThreshold: sdkCeiling?.autoCompactThreshold ?? derived?.autoCompactThreshold,
         isAutoCompactEnabled: sdkCeiling?.isAutoCompactEnabled ?? derived?.isAutoCompactEnabled,
         ...toCeilingProvenanceFields(dependencies.readClaudeCeilingProvenance({ model: ceilingModel })),
