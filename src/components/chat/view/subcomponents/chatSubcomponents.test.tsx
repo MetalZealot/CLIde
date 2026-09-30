@@ -1658,9 +1658,12 @@ describe('chatSubcomponents', () => {
       assert.match(text, /Auto-compactAt 934k/);
       // No session id, so there is no transcript to time the cache from.
       assert.doesNotMatch(text, /Prompt cache/);
-      // Label, reset and percentage on one line.
-      assert.match(text, /5-hour limitResets in \d+h \d+m75%/);
-      assert.match(text, /WeeklyResets in \d+d \d+h25%/);
+      // One row per window, no bar: the percentage carries the warning tint.
+      assert.match(text, /5-hour limit75% · resets in \d+h \d+m/);
+      assert.match(text, /Weekly25% · resets in \d+d \d+h/);
+      const tinted = [...dialog.querySelectorAll('span')].find((span) => span.textContent === '75%');
+      assert.match(tinted?.className || '', /amber/);
+      assert.equal([...dialog.querySelectorAll('span')].find((span) => span.textContent === '25%')?.className, '');
       assert.ok(text.indexOf('5-hour limit') < text.indexOf('Weekly'));
       assert.match(text, /Credits\/Tokens\$0\.00/);
       assert.doesNotMatch(text, /Plan usage limits|Full usage|Refresh/);
@@ -1909,7 +1912,7 @@ describe('chatSubcomponents', () => {
       assert.match(text, /Context & Usage/);
       assert.match(text, /Session42k \/ 258k16%/);
       assert.doesNotMatch(text, /Context breakdown|Prompt cache|Auto-compact/);
-      assert.match(text, /WeeklyResets in \d+d \d+h52%/);
+      assert.match(text, /Weekly52% · resets in \d+d \d+h/);
       // The per-window usage link is a chevron now, so it is named, not labelled.
       const labels = [...dialog.querySelectorAll('[aria-label]')]
         .map((node) => node.getAttribute('aria-label'));

@@ -80,7 +80,7 @@ const named = (entries: ContextNamedTokens[] | undefined, prefix: string): Detai
 
 function DetailList({ entries }: { entries: DetailEntry[] }) {
   return (
-    <div className="space-y-1 pb-1 pl-5">
+    <div className="space-y-1 pb-2 pl-[1.125rem]">
       {entries.map((entry) => (
         <div key={entry.key} className="flex items-baseline justify-between gap-3">
           <div className="min-w-0">
@@ -125,7 +125,7 @@ function CategoryRow({
         aria-hidden
       />
       <span className="min-w-0 flex-1 truncate text-left text-sm text-foreground">{label}</span>
-      <span className="shrink-0 text-sm tabular-nums text-foreground">{formatCompactTokens(tokens)}</span>
+      <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{formatCompactTokens(tokens)}</span>
       {/* Fixed-width columns so shares and chevrons align across rows. */}
       <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{share}</span>
       <span className="grid w-3.5 shrink-0 place-items-center text-muted-foreground">

@@ -126,13 +126,6 @@ const formatWindowLabel = (window: ProviderUsageWindow, t: TFunction): string =>
   return window.label ? `${window.label} · ${baseLabel}` : baseLabel;
 };
 
-const formatResetAt = (window: ProviderUsageWindow, t: TFunction): string | null => {
-  const remaining = formatResetsIn(window.resetsAt);
-  return remaining
-    ? t('planUsage.resetsIn', { defaultValue: 'Resets in {{time}}', time: remaining })
-    : null;
-};
-
 const formatMoney = (amount: number, currency: string): string => {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
@@ -255,6 +248,57 @@ function UsageBar({ utilization }: { utilization: number }) {
   );
 }
 
+const planToneFor = (utilization: number): string | undefined => {
+  if (utilization >= 90) return 'text-red-600 dark:text-red-400';
+  if (utilization >= 75) return 'text-amber-600 dark:text-amber-400';
+  return undefined;
+};
+
+/**
+ * Every line below the session meter: one height, white label, grey value, and a
+ * chevron column reserved on every row so values share one right edge.
+ */
+function PopoverRow({
+  label,
+  value,
+  title,
+  ariaLabel,
+  onClick,
+}: {
+  label: string;
+  value?: React.ReactNode;
+  title?: string;
+  ariaLabel?: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className="min-w-0 flex-1 truncate text-left text-foreground">{label}</span>
+      {value !== undefined && value !== null && (
+        <span className="shrink-0 tabular-nums text-muted-foreground">{value}</span>
+      )}
+      <span className="grid w-3.5 shrink-0 place-items-center text-muted-foreground">
+        {onClick && <ChevronRight className="h-3.5 w-3.5" aria-hidden />}
+      </span>
+    </>
+  );
+  const className = 'flex min-h-9 w-full items-center gap-2 text-sm';
+
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={ariaLabel}
+      className={cn(className, 'rounded-md transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={className} title={title}>{content}</div>
+  );
+}
+
 function PlanWindowRow({
   window,
   onViewUsage,
@@ -263,74 +307,25 @@ function PlanWindowRow({
   onViewUsage?: () => void;
 }) {
   const { t } = useTranslation('common');
-  const resetLabel = formatResetAt(window, t);
+  const remaining = formatResetsIn(window.resetsAt);
   const utilization = Math.min(100, Math.max(0, window.utilization));
+  const label = formatWindowLabel(window, t);
 
-  // Label, reset and percentage share one line: three stacked lines per window
-  // pushed the panel past a phone's popover height once there were three.
+  // No bar here: the tint on the percentage carries the warning the bar's colour did.
   return (
-    <section className="space-y-1">
-      <div className="flex items-baseline justify-between gap-2 text-sm">
-        <span className="min-w-0 truncate font-medium text-foreground">{formatWindowLabel(window, t)}</span>
-        <span className="flex shrink-0 items-baseline gap-2">
-          {resetLabel && <span className="text-xs text-muted-foreground">{resetLabel}</span>}
-          <span className="text-muted-foreground">{Math.round(utilization)}%</span>
-          {onViewUsage && (
-            <button
-              type="button"
-              onClick={onViewUsage}
-              aria-label={t('usagePopover.viewWindowUsage', {
-                defaultValue: 'View {{window}} usage',
-                window: formatWindowLabel(window, t),
-              })}
-              className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          )}
-        </span>
-      </div>
-      <UsageBar utilization={utilization} />
-    </section>
-  );
-}
-
-/** A label/value line under the session meter; a button when it leads somewhere. */
-function SessionDetailRow({
-  label,
-  value,
-  valueClassName,
-  title,
-  onClick,
-}: {
-  label: string;
-  value?: string | null;
-  valueClassName?: string;
-  title?: string;
-  onClick?: () => void;
-}) {
-  const content = (
-    <>
-      <span className="min-w-0 truncate text-left text-muted-foreground">{label}</span>
-      <span className="flex shrink-0 items-center gap-1">
-        {value && <span className={cn('text-foreground', valueClassName)}>{value}</span>}
-        {onClick && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />}
-      </span>
-    </>
-  );
-  const className = 'flex min-h-8 w-full items-center justify-between gap-3 text-xs';
-
-  return onClick ? (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={cn(className, 'rounded-md transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}
-    >
-      {content}
-    </button>
-  ) : (
-    <div className={className} title={title}>{content}</div>
+    <PopoverRow
+      label={label}
+      value={(
+        <>
+          <span className={planToneFor(utilization)}>{Math.round(utilization)}%</span>
+          {remaining && ` · ${t('usagePopover.resetsIn', { defaultValue: 'resets in {{time}}', time: remaining })}`}
+        </>
+      )}
+      ariaLabel={onViewUsage
+        ? t('usagePopover.viewWindowUsage', { defaultValue: 'View {{window}} usage', window: label })
+        : undefined}
+      onClick={onViewUsage}
+    />
   );
 }
 
@@ -723,7 +718,7 @@ export default function TokenUsageSummary({
               : t('usagePopover.activity', { defaultValue: 'Usage activity' })}
         >
           {view !== 'breakdown' && (
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
               <span className="text-[11px] font-medium text-muted-foreground">
                 {t('usagePopover.heading', { defaultValue: 'Context & Usage' })}
               </span>
@@ -746,33 +741,32 @@ export default function TokenUsageSummary({
             </div>
           )}
           {view === 'summary' && (
-            <div className="space-y-3">
+            <div>
               <section className="space-y-1.5">
-                <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="shrink-0 font-medium text-foreground">
+                <div className="flex items-baseline gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground">
                     {t('usagePopover.session', { defaultValue: 'Session' })}
                   </span>
-                  <span className="flex min-w-0 items-baseline gap-2">
-                    <span className="truncate text-xs text-muted-foreground">
-                      {effectiveCeiling > 0 && hasMeasuredCeiling
-                        ? `${formatCompactTokens(usedTokens)} / ${formatCompactTokens(effectiveCeiling)}`
-                        : t('usagePopover.sessionTokens', {
-                            defaultValue: '{{used}} tokens',
-                            used: formatCompactTokens(usedTokens),
-                          })}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {percentUsed === null ? '—' : `${percentUsed}%`}
-                    </span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {effectiveCeiling > 0 && hasMeasuredCeiling
+                      ? `${formatCompactTokens(usedTokens)} / ${formatCompactTokens(effectiveCeiling)}`
+                      : t('usagePopover.sessionTokens', {
+                          defaultValue: '{{used}} tokens',
+                          used: formatCompactTokens(usedTokens),
+                        })}
                   </span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {percentUsed === null ? '—' : `${percentUsed}%`}
+                  </span>
+                  <span className="w-3.5 shrink-0" aria-hidden />
                 </div>
                 {percentUsed !== null && <UsageBar utilization={percentUsed} />}
               </section>
 
               {(autoCompactStatus || cacheStatus || provider === 'claude') && (
-                <div className="-my-0.5">
+                <div className="mt-1">
                   {autoCompactStatus && (
-                    <SessionDetailRow
+                    <PopoverRow
                       label={t('usagePopover.autoCompact', { defaultValue: 'Auto-compact' })}
                       value={autoCompactIsOff
                         ? t('usagePopover.autoCompactOffDetail', { defaultValue: 'Off · stops at the limit' })
@@ -788,15 +782,16 @@ export default function TokenUsageSummary({
                     />
                   )}
                   {cacheStatus && (
-                    <SessionDetailRow
+                    <PopoverRow
                       label={t('usagePopover.promptCache', { defaultValue: 'Prompt cache' })}
-                      value={cacheStatus}
-                      valueClassName={cacheIsCold || cacheIsEnding ? 'text-amber-600 dark:text-amber-400' : undefined}
+                      value={cacheIsCold || cacheIsEnding
+                        ? <span className="text-amber-600 dark:text-amber-400">{cacheStatus}</span>
+                        : cacheStatus}
                       title={cacheHint}
                     />
                   )}
                   {provider === 'claude' && (
-                    <SessionDetailRow
+                    <PopoverRow
                       label={t('contextBreakdown.title', { defaultValue: 'Context breakdown' })}
                       onClick={openBreakdown}
                     />
@@ -805,7 +800,7 @@ export default function TokenUsageSummary({
               )}
 
               {hasPlanSection && (
-                <div className="space-y-4 border-t border-border/60 pt-3">
+                <div className="mt-1.5 border-t border-border/60 pt-1.5">
                   {planWindows.map((window) => (
                     <PlanWindowRow
                       key={window.id}
@@ -817,49 +812,33 @@ export default function TokenUsageSummary({
                   ))}
 
                   {providerUsage?.credits && (
-                    <section className="space-y-1">
-                      <div className="flex items-baseline justify-between gap-3 text-sm">
-                        <span className="font-medium text-foreground">
-                          {t('usagePopover.creditsTokens', { defaultValue: 'Credits/Tokens' })}
-                        </span>
-                        <span
-                          className="shrink-0 text-muted-foreground"
-                          title={providerUsage.credits.kind === 'spend'
-                            ? t('usagePopover.creditSpendHint', { defaultValue: 'Usage-credit spend this period' })
-                            : t('planUsage.creditBalance', { defaultValue: 'Credit balance' })}
-                        >
-                          {formatCreditValue(providerUsage.credits, t)}
-                        </span>
-                      </div>
-                    </section>
+                    <PopoverRow
+                      label={t('usagePopover.creditsTokens', { defaultValue: 'Credits/Tokens' })}
+                      value={formatCreditValue(providerUsage.credits, t)}
+                      title={providerUsage.credits.kind === 'spend'
+                        ? t('usagePopover.creditSpendHint', { defaultValue: 'Usage-credit spend this period' })
+                        : t('planUsage.creditBalance', { defaultValue: 'Credit balance' })}
+                    />
                   )}
 
                   {(providerUsage?.resetCredits?.availableCount ?? 0) > 0 && (
-                    <button
-                      type="button"
+                    <PopoverRow
+                      label={providerUsage?.resetCredits?.availableCount === 1
+                        ? t('usagePopover.oneResetAvailable', { defaultValue: '1 usage reset available' })
+                        : t('usagePopover.resetsAvailable', {
+                          defaultValue: '{{count}} usage resets available',
+                          count: providerUsage?.resetCredits?.availableCount,
+                        })}
+                      value={t('usagePopover.viewUsage', { defaultValue: 'View usage' })}
                       onClick={() => {
                         close();
                         openUsage();
                       }}
-                      className="flex min-h-9 w-full items-center justify-between gap-3 rounded-md text-left text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span>
-                        {providerUsage?.resetCredits?.availableCount === 1
-                          ? t('usagePopover.oneResetAvailable', { defaultValue: '1 usage reset available' })
-                          : t('usagePopover.resetsAvailable', {
-                            defaultValue: '{{count}} usage resets available',
-                            count: providerUsage?.resetCredits?.availableCount,
-                          })}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                        {t('usagePopover.viewUsage', { defaultValue: 'View usage' })}
-                        <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                      </span>
-                    </button>
+                    />
                   )}
 
                   {providerUsage?.stale && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                    <p className="py-2 text-xs text-amber-600 dark:text-amber-400">
                       {t('planUsage.stale', {
                         defaultValue: 'Showing cached data — the last refresh failed.',
                       })}
@@ -867,13 +846,13 @@ export default function TokenUsageSummary({
                   )}
 
                   {!providerUsage && planUsage.loading && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="py-2 text-xs text-muted-foreground">
                       {t('planUsage.loading', { defaultValue: 'Loading plan usage…' })}
                     </p>
                   )}
 
                   {!providerUsage && !planUsage.loading && planUsage.error && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="py-2 text-xs text-muted-foreground">
                       {t('planUsage.loadError', { defaultValue: "Couldn't load plan usage." })}
                     </p>
                   )}

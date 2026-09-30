@@ -443,6 +443,7 @@
     "cacheMinutesLeft": "Warm · {{count}} min left",
     "cacheHint": "A reply while the cache is warm re-reads this conversation at a fraction of the input price. Once it goes cold, the next message writes it all again at more than the full price. Lifetime: {{lifetime}} from the last request.",
     "cacheLifetimeHour": "1 hour",
-    "cacheLifetimeMinutes": "{{count}} minutes"
+    "cacheLifetimeMinutes": "{{count}} minutes",
+    "resetsIn": "resets in {{time}}"
   }
 }
