@@ -95,7 +95,7 @@ export default function PermissionRequestsBanner({
   }
 
   return (
-    <div className="mb-3 space-y-2">
+    <div className="space-y-2">
       {filteredRequests.map((request) => {
         const CustomPanel = getPermissionPanel(request.toolName);
         if (CustomPanel) {

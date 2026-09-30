@@ -25,7 +25,7 @@ export default function ChatBrowserPreview({ session, unavailable, compact, onOp
         onClick={() => onOpen(session.id)}
         aria-label={`${label}: ${site}. Open in Browser`}
         className={cn(
-          'mx-auto flex w-full max-w-[54.25rem] items-center gap-2 rounded-lg border border-border bg-card text-left text-xs text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          'mx-auto flex w-full max-w-[54.25rem] items-center gap-2 rounded-xl border border-border bg-card text-left text-xs text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           compact ? 'min-h-7 px-2 py-1' : 'p-1.5',
         )}
       >

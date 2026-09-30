@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownIcon, XIcon } from 'lucide-react';
+import { ArrowDownIcon } from 'lucide-react';
 
 import { ChatBrowserPreview, useChatBrowser } from '../../browser-use';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
@@ -445,6 +445,7 @@ function ChatInterface({
     if (!(currentSessionId || selectedSession?.id) || !hasChatMessagesRef.current) return;
     setSettingsChangeNotice(true);
   }, [currentSessionId, selectedSession?.id]);
+  const dismissSettingsChangeNotice = useCallback(() => setSettingsChangeNotice(false), []);
   useEffect(() => {
     if (!settingsChangeNotice) return undefined;
     const timer = window.setTimeout(() => setSettingsChangeNotice(false), 8000);
@@ -1028,30 +1029,8 @@ function ChatInterface({
             </div>
           )}
 
-          {settingsChangeNotice && (
-            <div className="px-3 pb-1" role="status">
-              <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/40 px-2.5 py-1.5 text-xs leading-4 text-muted-foreground">
-                <span className="min-w-0 flex-1">
-                  {t('composer.settingsChangeCacheNotice', {
-                    defaultValue: 'Changing model or effort re-sends the conversation on the next turn — one turn at full input price, then caching resumes.',
-                  })}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSettingsChangeNotice(false)}
-                  aria-label={t('composer.dismissNotice', { defaultValue: 'Dismiss' })}
-                  className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <XIcon className="h-3 w-3" aria-hidden />
-                </button>
-              </div>
-            </div>
-          )}
-
           {isNewSession && (
             <NewSessionLauncher
-              provider={provider}
-              onProviderUpdated={refreshProviderModels}
               projects={projects}
               selectedProject={selectedProject}
               onTargetSelect={onNewSessionTarget}
@@ -1146,6 +1125,10 @@ function ChatInterface({
             canScheduleOnUsageReset={canScheduleOnUsageReset}
             pendingRewind={pendingRewind}
             onCancelRewindEdit={cancelRewindEdit}
+            showProviderUpdate={isNewSession}
+            onProviderUpdated={refreshProviderModels}
+            showSettingsChangeNotice={settingsChangeNotice}
+            onDismissSettingsChangeNotice={dismissSettingsChangeNotice}
             attachedFiles={attachedFiles}
             onRemoveAttachment={handleRemoveAttachment}
             uploadingFiles={uploadingFiles}

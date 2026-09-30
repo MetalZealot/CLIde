@@ -1,7 +1,7 @@
-import { XIcon } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { ComposerNotice } from '../../shared/view/ui';
 import type { LLMProvider } from '../../types/app';
 import { formatClockTimeWithDay } from '../../utils/formatTime';
 
@@ -57,31 +57,22 @@ export default function UsageLimitNotice({ provider }: { provider: LLMProvider }
   const resets = warning.window.resetsAt ? formatClockTimeWithDay(warning.window.resetsAt) : '';
 
   return (
-    <div className="mx-auto mb-2 max-w-[54.25rem]" role="status">
-      <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/40 px-2.5 py-1.5 text-xs leading-4 text-muted-foreground">
-        <span className="min-w-0 flex-1">
-          {resets
-            ? t('planUsage.warning', {
-              defaultValue: '{{window}}: {{percent}}% used · resets {{time}}',
-              window: label,
-              percent,
-              time: resets,
-            })
-            : t('planUsage.warningNoReset', {
-              defaultValue: '{{window}}: {{percent}}% used',
-              window: label,
-              percent,
-            })}
-        </span>
-        <button
-          type="button"
-          onClick={dismiss}
-          aria-label={t('planUsage.dismissWarning', { defaultValue: 'Dismiss' })}
-          className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <XIcon className="h-3 w-3" aria-hidden />
-        </button>
-      </div>
-    </div>
+    <ComposerNotice
+      onDismiss={dismiss}
+      dismissLabel={t('planUsage.dismissWarning', { defaultValue: 'Dismiss' })}
+    >
+      {resets
+        ? t('planUsage.warning', {
+          defaultValue: '{{window}}: {{percent}}% used · resets {{time}}',
+          window: label,
+          percent,
+          time: resets,
+        })
+        : t('planUsage.warningNoReset', {
+          defaultValue: '{{window}}: {{percent}}% used',
+          window: label,
+          percent,
+        })}
+    </ComposerNotice>
   );
 }

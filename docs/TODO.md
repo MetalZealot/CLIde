@@ -55,7 +55,7 @@ main checkout only).
 
 ## Mobile UX polish
 
-
+- [~] **Context & Usage popover redesign, with a Claude prompt-cache countdown.** Summary rows (auto-compact, cache, breakdown) and a separate breakdown view with one total and a stacked bar. Tests pass; awaiting phone check after a server restart. **M**
 
 - [ ] **Consider floating New Session above the sidebar footer instead of inside it.** `--app-footer-height` is 60px, accepted with the bottom nav; ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if the button misfires near the gesture strip. **S — on trial, don't act unprompted**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**

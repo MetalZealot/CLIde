@@ -17,11 +17,8 @@ import { resolveLauncherCheckoutSelection, resolvePrimaryCheckout } from '../../
 import ProjectCreationWizard from '../../../project-creation-wizard';
 import WorktreeManagerModal from '../../../sidebar/view/subcomponents/WorktreeManagerModal';
 
-import ProviderUpdateNotice from './ProviderUpdateNotice';
 
 type NewSessionLauncherProps = {
-  provider: string;
-  onProviderUpdated?: () => void;
   projects: Project[];
   selectedProject: Project | null;
   onTargetSelect: (project: Project) => void;
@@ -36,8 +33,6 @@ const menuItemClassName =
   'flex min-h-11 w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-accent active:bg-accent';
 
 export default function NewSessionLauncher({
-  provider,
-  onProviderUpdated,
   projects,
   selectedProject,
   onTargetSelect,
@@ -134,7 +129,6 @@ export default function NewSessionLauncher({
 
   return (
     <>
-      <ProviderUpdateNotice key={provider} provider={provider} onUpdated={onProviderUpdated} />
       <div className="px-2 pb-1 sm:px-4">
         {/* One centred group, not two half-width cells, so the pair reads as a
             single control. Triggers size to their labels and only truncate once

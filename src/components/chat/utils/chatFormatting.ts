@@ -73,6 +73,16 @@ export const formatTokenCount = (value: number) => {
   return value.toLocaleString();
 };
 
+/** Lower-case token count for the usage popover ("89.3k", "1M"); one decimal below 100k. */
+export const formatCompactTokens = (value: number): string => {
+  const trim = (scaled: number, decimals: number): string =>
+    scaled.toFixed(decimals).replace(/\.0+$/, '');
+
+  if (value >= 1_000_000) return `${trim(value / 1_000_000, 1)}M`;
+  if (value >= 1_000) return `${trim(value / 1_000, value < 100_000 ? 1 : 0)}k`;
+  return String(Math.round(value));
+};
+
 /** Compact elapsed time for a one-line label ("42s", "3m 5s", "1h 12m"). */
 export const formatDuration = (durationMs: number): string => {
   const totalSeconds = Math.round(durationMs / 1000);

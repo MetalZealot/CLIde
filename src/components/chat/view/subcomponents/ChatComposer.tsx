@@ -29,6 +29,7 @@ import type {
 import type { CollaborationMode, PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
 import {
+  ComposerNotice,
   PROMPT_INPUT_TEXT_LAYOUT,
   PromptInput,
   PromptInputHeader,
@@ -51,6 +52,7 @@ import TokenUsageSummary from './TokenUsageSummary';
 import QueuedMessagesRow from './QueuedMessagesRow';
 import ScheduleSendMenu from './ScheduleSendMenu';
 import RewindEditCard from './RewindEditCard';
+import ProviderUpdateNotice from './ProviderUpdateNotice';
 import ComposerAddMenu from './ComposerAddMenu';
 import ComposerModelMenu from './ComposerModelMenu';
 import ComposerPermissionMenu from './ComposerPermissionMenu';
@@ -141,6 +143,11 @@ interface ChatComposerProps {
   canScheduleOnUsageReset: boolean;
   pendingRewind: PendingRewind | null;
   onCancelRewindEdit: () => void;
+  /** New Session only: offer a provider CLI update. */
+  showProviderUpdate: boolean;
+  onProviderUpdated: () => void;
+  showSettingsChangeNotice: boolean;
+  onDismissSettingsChangeNotice: () => void;
   attachedFiles: File[];
   onRemoveAttachment: (index: number) => void;
   uploadingFiles: Map<string, number>;
@@ -231,6 +238,10 @@ function ChatComposer({
   canScheduleOnUsageReset,
   pendingRewind,
   onCancelRewindEdit,
+  showProviderUpdate,
+  onProviderUpdated,
+  showSettingsChangeNotice,
+  onDismissSettingsChangeNotice,
   attachedFiles,
   onRemoveAttachment,
   uploadingFiles,
@@ -442,6 +453,21 @@ function ChatComposer({
             {t('input.schedule.discardEdit', { defaultValue: 'Discard edit' })}
           </button>
         </div>
+      )}
+
+      {showProviderUpdate && (
+        <ProviderUpdateNotice key={provider} provider={provider} onUpdated={onProviderUpdated} />
+      )}
+
+      {showSettingsChangeNotice && (
+        <ComposerNotice
+          onDismiss={onDismissSettingsChangeNotice}
+          dismissLabel={t('composer.dismissNotice', { defaultValue: 'Dismiss' })}
+        >
+          {t('composer.settingsChangeCacheNotice', {
+            defaultValue: 'Changing model or effort re-sends the conversation on the next turn — one turn at full input price, then caching resumes.',
+          })}
+        </ComposerNotice>
       )}
 
       <UsageLimitNotice provider={provider} />

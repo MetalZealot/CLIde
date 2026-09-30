@@ -13,7 +13,7 @@ export default function QuestionPanelFrame({ waitingLabel, heading, children, ac
   const contentId = useId();
 
   return (
-    <div className="relative flex max-h-[calc((100dvh-var(--keyboard-height,0px))*0.5)] min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lg">
+    <div className="relative flex max-h-[calc((100dvh-var(--keyboard-height,0px))*0.5)] min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-lg">
       <button
         type="button"
         aria-expanded={!isCollapsed}
