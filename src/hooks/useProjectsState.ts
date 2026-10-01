@@ -944,6 +944,27 @@ export function useProjectsState({
         return updated === previousProject ? previousProject : updated;
       });
 
+      // Title only, so the header picks up a generated or remote rename without a
+      // new object on every transcript write; search hints are dropped as in a rename.
+      const upsertSummary = typeof upsert.session.summary === 'string' ? upsert.session.summary : null;
+      const upsertName = typeof upsert.session.name === 'string' ? upsert.session.name : null;
+      setSelectedSession((previousSession) => {
+        if (
+          previousSession?.id !== upsert.sessionId
+          || ((!upsertSummary || upsertSummary === previousSession.summary)
+            && (!upsertName || upsertName === previousSession.name))
+        ) {
+          return previousSession;
+        }
+        return {
+          ...previousSession,
+          ...(upsertSummary ? { summary: upsertSummary } : {}),
+          ...(upsertName ? { name: upsertName } : {}),
+          __searchTargetSnippet: undefined,
+          __searchTargetTimestamp: undefined,
+        };
+      });
+
       const aliasedSelectedSessionId =
         typeof upsert.providerSessionId === 'string' && upsert.providerSessionId !== upsert.sessionId
           ? upsert.providerSessionId
