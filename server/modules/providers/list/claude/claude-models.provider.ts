@@ -54,27 +54,27 @@ const CLAUDE_CURRENT_FALLBACK_MODELS: ProviderModelOption[] = [
     value: 'fable',
     resolvedModel: 'claude-fable-5-1',
     label: 'Fable 5.1',
-    description: 'Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
+    description: 'For your toughest challenges',
     effort: CLAUDE_EFFORT_LEVELS,
   },
   {
     value: 'opus',
     resolvedModel: 'claude-opus-5-5',
     label: 'Opus 5.5',
-    description: 'Best for everyday, complex tasks · $5/$25 per Mtok',
+    description: 'For complex work and everyday tasks',
     effort: CLAUDE_EFFORT_LEVELS,
   },
   {
     value: 'sonnet',
-    resolvedModel: 'claude-sonnet-5',
-    label: 'Sonnet 5',
-    description: 'Best for everyday tasks · $3/$15 per Mtok',
+    resolvedModel: 'claude-sonnet-5-5',
+    label: 'Sonnet 5.5',
+    description: 'Most efficient for simpler tasks',
     effort: CLAUDE_EFFORT_LEVELS,
   },
   {
     value: 'haiku',
     label: 'Haiku 4.5',
-    description: 'Fastest for quick answers · $1/$5 per Mtok',
+    description: 'Fastest for quick answers',
   },
 ];
 

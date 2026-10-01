@@ -430,7 +430,7 @@ describe('claude-context-window', () => {
 
   test('the [1m] suffix lifts a 200K model to the long-context window', () => {
     assert.deepEqual(normalizeClaudeModelId('sonnet[1m]'), {
-      id: 'claude-sonnet-5',
+      id: 'claude-sonnet-5-5',
       wantsLongContext: true,
     });
     // claude-sonnet-4-5 declares supports_1m_beta/suffix, so the suffix applies
