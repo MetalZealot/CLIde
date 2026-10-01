@@ -55,80 +55,19 @@ live behavior take precedence over documentation. See the map's evidence policy.
 
 ## Living-map refresh — 2026-07-30
 
-- **From/to:** repository pin unchanged at `^0.3.165` (lockfile 0.3.165). The
-  SDK's bundled runtime is Claude Code 2.1.165; the standalone runtime CLIde
-  actually spawns advanced to 2.1.220 on this host.
-- **Sources:** installed `sdk.d.ts` and `sdk.mjs`, the bundled
-  `@anthropic-ai/claude-agent-sdk-linux-arm64` binary, `claude --help` and
-  subcommand help for 2.1.220, and the full Claude adapter under
-  `server/modules/providers/list/claude/claude-runtime.provider.js` plus `server/modules/providers/list/claude/`.
-- **Measured surface:** 62 top-level `Options` members, 23 `Query` control
-  methods, 32 `SDKMessage` types, 30 `HookEvent` values, 6 `PermissionMode`
-  values, and 17 top-level exported functions. CLIde binds 19, 2, 2, 1, 5, and 1
-  respectively.
-- **CLIde-side changes since the baseline:** conversation rewind via
-  `resumeSessionAt` (ADR 0007), `enableFileCheckpointing`, authoritative context
-  readings via `getContextUsage()` (ADR 0014), signal-first abort via
-  `abortController` (ADR 0013), `persistSession: false` for ephemeral runs, and
-  compaction-row handling (ADR 0023).
+- **From/to:** pin `^0.3.165`; runtime on `PATH` 2.1.220. Measured 62 `Options`,
+  23 `Query` methods, 32 `SDKMessage` types; CLIde bound 19, 2 and 2.
 - **Disposition:** integrate `rate_limit_event`, `status`/`api_retry`,
-  `supportedCommands()`, the read-only settings cascade, a `PreToolUse` hook for
-  interactive tools in `auto`/`bypassPermissions`, and `rewindFiles()` — the
-  checkpoints it needs are already being written. Defer thinking config, prompt
-  suggestions, plugins, agents, sandbox, and worktrees.
-- **Compatibility watches opened:** unpinned SDK/runtime pair with no diagnostic;
-  mirrored model-registry provenance cites 0.3.220 while the pin is 0.3.165;
-  CLIde-owned plan-mode allow-list; hand-read MCP config duplicating the CLI's
-  resolution; unmapped `dontAsk` and `manual` access modes.
-- **Verification:** documentation-only audit. No CLIde code changed, so no tests
-  were required; every count above was read from the installed artifacts named in
-  the sources line.
+  `supportedCommands()`, the read-only settings cascade and `rewindFiles()`;
+  defer thinking config, prompt suggestions, plugins, agents, sandbox, worktrees.
 
 ## Runtime sweep 2.1.220 → 2.1.232 — 2026-08-14
 
-- **From/to:** repository pin unchanged at `^0.3.165` (lockfile 0.3.165), so the
-  SDK wrapper and its bundled 2.1.165 runtime are untouched. The runtime CLIde
-  actually spawns advanced 2.1.220 → 2.1.232 without anyone asking: the native
-  installer self-updates by repointing `~/.local/bin/claude` at
-  `~/.local/share/claude/versions/<version>`. `autoUpdates: false` in
-  `~/.claude.json` governs only the npm updater, not this.
-- **Sources:** the published changelog for 2.1.221–2.1.232 (2.1.220 and 2.1.226
-  carry no itemised entries); a `--help` diff of the installed 2.1.226 and
-  2.1.232 binaries; `grep -a` over the 2.1.232 binary for the project-path
-  encoder; the Claude adapter under `server/modules/providers/list/claude/`.
-- **CLI surface:** top-level `--help` is byte-identical between 2.1.226 and
-  2.1.232 (242 lines each); 2.1.220–2.1.225 could not be diffed because those
-  binaries are no longer on disk. New subcommands landed in that gap
-  (`self-hosted-runner`, `remote-control --continue`), so the subcommand surface
-  is not flag-identical across the whole window — but CLIde never invokes a
-  subcommand, it spawns the binary through the SDK's control protocol.
-  The SDK-side surface counts from the 2026-07-30 refresh were not re-measured;
-  the pin did not move, so its types are unchanged by construction.
-- **Transcript project-directory encoding changed (2.1.224).** The runtime now
-  truncates the encoded path and appends a hash once it exceeds 200 characters:
-  `s.replace(/[^a-zA-Z0-9]/g,'-')`, then `slice(0,200) + '-' + base36(hash(s))`.
-  `resolveClaudeTranscriptPath` implements only the plain-replacement branch, so
-  it derives a wrong directory for any workspace whose encoded path passes 200.
-  Not reachable today: that fallback runs only when the session row carries no
-  `jsonlPath`, and the longest encoded directory on this host is 72 characters.
-- **`CLAUDE_CODE_DISABLE_1M_CONTEXT` now holds every 1M model to 200K (2.1.223).**
-  `claude-context-window.ts` never reads it, so with that variable set the gauge
-  would report a 1M ceiling against a runtime using 200K. Unset on this host. The
-  same release kept unrecognised models inside the assumed window, which CLIde's
-  `FALLBACK_WINDOW` already matches.
-- **Subagent forking is on by default and forks inherit the whole conversation
-  (2.1.232).** Four `isSidechain` guards — token usage, both rewind walkers, and
-  the session list — assume subagent rows stay sidechain-marked. Unverified: the
-  four most recent transcripts contain no sidechain rows at all.
-- **No action:** `ultraplan` was removed and `crossSessionInbound` / `dialogExpiry`
-  were added; CLIde references none of them. The two new keys are cascade-viewer
-  input, not adapter work. The remainder of the window is Remote Control, plugin,
-  sandbox, and gateway work on surfaces CLIde does not bind.
-- **Disposition:** fix the 200-character encoder branch; leave the 1M env var and
-  the fork/sidechain question as watches until either can be reproduced.
-- **Verification:** read-only inspection; no CLIde code changed. Live evidence
-  that the pairing works — 25 Claude sessions in CLIde's database in the four days
-  to 2026-08-14, most recent 13:34, all on runtime 2.1.232 against SDK 0.3.165.
+- **From/to:** pin unchanged; the runtime self-updated by repointing
+  `~/.local/bin/claude`. `autoUpdates: false` governs only the npm updater.
+- **Findings, all closed by the 0.3.233 entry below:** the 200-character
+  project-directory hash (2.1.224), `CLAUDE_CODE_DISABLE_1M_CONTEXT` (2.1.223),
+  and forked subagents vs the `isSidechain` guards (2.1.232).
 
 ## SDK 0.3.165 → 0.3.233 — 2026-08-16
 
@@ -363,3 +302,42 @@ CLIde already spawns.
 - **Verification:** 565 server tests, 0 failures; typecheck clean. The registry
   and alias drift tests are the live evidence — they read the installed 2.1.258
   binary, and both failed before the change and pass after.
+
+## SDK 0.3.258 → 0.3.286, runtime 2.1.286 — 2026-10-01
+
+- **Version set:** pin `^0.3.258` → `^0.3.286`; bundled runtime 2.1.258 →
+  2.1.286; runtime on `PATH` already 2.1.286, self-updated. Span audited:
+  2.1.259–2.1.286, all 25 changelog entries.
+- **Sources:** the published `CHANGELOG.md`, the `sdk.d.ts` diff, the registry
+  in the installed binary, the live model list, and both `verify-*-sdk.ts` probes.
+- **The checker hid this diff.** `check:providers --types` printed "comments
+  only" for 329 changed signature lines: `diff` exits 1 on a difference and the
+  runner read that as failure. Fixed.
+- **Type surface:** nothing CLIde calls was removed. `Options` +4
+  (`projectConfigRoot`, `verbatimPrompts`, `permissionPrompts`, `pluginDelivery`),
+  `Query` +`reloadOutputStyles`, +`readMcpResource`, +`prewarm()`. Thirteen
+  settings keys classified; `maxEffortLevel` (caps effort) is the one the
+  picker should eventually honour.
+- **Sonnet 5.5 had already reached Chat (2.1.284).** The `sonnet` alias moved to
+  `claude-sonnet-5-5` (1M, 128K output) and the drift tests named it. **Adopted:**
+  spec added, alias repointed, fallback picker rows re-copied from the live
+  model list, which no longer quotes prices.
+- **To-do tools are gone on current models (2.1.268).** TodoWrite and the Task
+  tools are offered only to Claude 3.x, Opus ≤4.7, Sonnet ≤4.6 and Haiku 4.5, so
+  CLIde's to-do list never renders on Opus 5.5, Sonnet 5.5 or Fable.
+  `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` restores them. Not adopted — a product call.
+- **Watches.** With `autoCompactEnabled: false`, `getContextUsage()` reports
+  1,000,000 for Sonnet 5.5 where `resolveClaudeContextCeiling` derives 967,000;
+  only the pre-first-reply ring uses the derived figure. Background Bash now
+  stops at 30 min (2.1.285); a dangerous `rm` in auto mode auto-denies after
+  2 min (2.1.281). New uuid-less transcript rows `cost-state` and `atis-latch`
+  are ignored like the other metadata rows.
+- **Free fixes worth knowing:** `setModel` now applies the new model's output
+  limit and compact window (2.1.285); interrupt right after the first prompt is
+  honoured (2.1.261); `rewindFiles` no longer reports success when nothing was
+  restored (2.1.260); `settingSources` reaches spawned subagents (2.1.281).
+- **Verification:** typecheck, lint, `build:server`, 717 server tests, 0
+  failures. Live: the model list returned 12 models in 2.3 s through the new SDK;
+  `getContextUsage()` still answers at init and mid-stream but not at `result`;
+  `resumeSessionAt` still takes only assistant uuids, branches in place, and
+  keeps the session id.
