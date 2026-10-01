@@ -34,7 +34,6 @@ export type SettingsSearchEntry = {
  */
 const PERMISSION_ENTRY_KEYS: Record<AgentProviderId, string[]> = {
   claude: [
-    'permissions.skipPermissions.label',
     'permissions.allowedTools.title',
     'permissions.blockedTools.title',
   ],

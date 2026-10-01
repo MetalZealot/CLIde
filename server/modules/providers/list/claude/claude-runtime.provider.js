@@ -283,15 +283,11 @@ function mapCliOptionsToSDK(options = {}) {
     sdkOptions.permissionMode = permissionMode;
   }
 
+  // The picker's mode is the only bypass; a stored skip flag is ignored (ADR 0064).
   const settings = toolsSettings || {
     allowedTools: [],
-    disallowedTools: [],
-    skipPermissions: false
+    disallowedTools: []
   };
-
-  if (settings.skipPermissions && permissionMode !== 'plan') {
-    sdkOptions.permissionMode = 'bypassPermissions';
-  }
 
   let allowedTools = [...(settings.allowedTools || [])];
 

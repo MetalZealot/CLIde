@@ -101,3 +101,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0061 — Follow installed provider CLIs](0061-follow-installed-provider-clis.md)
 - [0062 — Chat activity and metadata text scale with the reading size](0062-chat-metadata-scales-with-reading-size.md)
 - [0063 — A chat's Default effort is Claude Code's own per-model setting](0063-effort-default-is-claude-codes-own-setting.md)
+- [0064 — Claude's bypass is the picker's mode only, never a standing toggle](0064-claude-bypass-is-the-pickers-mode-only.md)

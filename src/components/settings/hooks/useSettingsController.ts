@@ -98,7 +98,6 @@ const toResponseJson = async <T>(response: Response): Promise<T> => response.jso
 const createEmptyClaudePermissions = (): ClaudePermissionsState => ({
   allowedTools: [],
   disallowedTools: [],
-  skipPermissions: false,
 });
 
 const createEmptyCursorPermissions = (): CursorPermissionsState => ({
@@ -181,7 +180,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
       setClaudePermissions({
         allowedTools: savedClaudeSettings.allowedTools || [],
         disallowedTools: savedClaudeSettings.disallowedTools || [],
-        skipPermissions: Boolean(savedClaudeSettings.skipPermissions),
       });
 
       const savedCursorSettings = parseJson<CursorSettingsStorage>(
@@ -254,7 +252,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
         'claude-settings': {
           allowedTools: claudePermissions.allowedTools,
           disallowedTools: claudePermissions.disallowedTools,
-          skipPermissions: claudePermissions.skipPermissions,
           lastUpdated: now,
         },
         'cursor-tools-settings': {
@@ -282,7 +279,6 @@ export function useSettingsController({ isOpen }: UseSettingsControllerArgs) {
   }, [
     claudePermissions.allowedTools,
     claudePermissions.disallowedTools,
-    claudePermissions.skipPermissions,
     codexPermissionMode,
     cursorPermissions.allowedCommands,
     cursorPermissions.disallowedCommands,

@@ -340,7 +340,6 @@
     "title": "İzin Ayarları",
     "skipPermissions": {
       "label": "İzin istemlerini atla (dikkatli kullan)",
-      "claudeDescription": "--dangerously-skip-permissions bayrağının eşdeğeri",
       "cursorDescription": "Cursor CLI'daki -f bayrağının eşdeğeri"
     },
     "allowedTools": {

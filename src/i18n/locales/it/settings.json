@@ -339,7 +339,6 @@
     "title": "Impostazioni permessi",
     "skipPermissions": {
       "label": "Salta richieste di permesso (usa con cautela)",
-      "claudeDescription": "Equivalente al flag --dangerously-skip-permissions",
       "cursorDescription": "Equivalente al flag -f in Cursor CLI"
     },
     "allowedTools": {

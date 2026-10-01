@@ -339,7 +339,6 @@
     "title": "권한 설정",
     "skipPermissions": {
       "label": "권한 확인 건너뛰기 (주의해서 사용)",
-      "claudeDescription": "--dangerously-skip-permissions 플래그와 동일",
       "cursorDescription": "Cursor CLI의 -f 플래그와 동일"
     },
     "allowedTools": {

@@ -37,6 +37,8 @@ failing test does.
   mobile-push keys are candidates for Notifications. Then thinking mode,
   output style, memory, transcript retention, git attribution.
 - [ ] 5. The two permission systems reconciled, behind an ADR written first.
+  The skip toggle is already gone (ADR 0064). A setting that hides Bypass from
+  the picker writes Claude Code's `permissions.disableBypassPermissionsMode`.
 
 ## Done when
 

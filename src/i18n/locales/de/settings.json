@@ -339,7 +339,6 @@
     "title": "Berechtigungseinstellungen",
     "skipPermissions": {
       "label": "Berechtigungsaufforderungen überspringen (mit Vorsicht verwenden)",
-      "claudeDescription": "Entspricht dem Flag --dangerously-skip-permissions",
       "cursorDescription": "Entspricht dem Flag -f in der Cursor CLI"
     },
     "allowedTools": {

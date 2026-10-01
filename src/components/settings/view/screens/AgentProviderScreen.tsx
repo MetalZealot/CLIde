@@ -126,7 +126,7 @@ function usePermissionsSummary(
   }
   const state = provider === 'claude' ? permissions.claude : provider === 'cursor' ? permissions.cursor : null;
   if (!state) return null;
-  if (state.skipPermissions) return t('agents.subsystems.promptsSkipped');
+  if ('skipPermissions' in state && state.skipPermissions) return t('agents.subsystems.promptsSkipped');
   const allowed = 'allowedTools' in state ? state.allowedTools.length : state.allowedCommands.length;
   return allowed > 0
     ? t('agents.subsystems.allowedCount', { count: allowed })

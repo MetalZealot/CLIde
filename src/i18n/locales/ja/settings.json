@@ -339,7 +339,6 @@
     "title": "権限設定",
     "skipPermissions": {
       "label": "権限プロンプトをスキップ（注意して使用）",
-      "claudeDescription": "--dangerously-skip-permissions フラグに相当",
       "cursorDescription": "Cursor CLIの -f フラグに相当"
     },
     "allowedTools": {

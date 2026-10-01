@@ -240,12 +240,6 @@ function ClaudePermissions({ permissions, onChange }: ClaudePermissionsProps) {
 
   return (
     <>
-      <SkipPermissionsGroup
-        checked={permissions.skipPermissions}
-        onChange={(value) => onChange({ ...permissions, skipPermissions: value })}
-        description={t('permissions.skipPermissions.claudeDescription')}
-      />
-
       <PermissionListGroup
         title={t('permissions.allowedTools.title')}
         description={t('permissions.allowedTools.description')}

@@ -16,7 +16,6 @@ export type AuthStatus = ProviderAuthStatus;
 export type ClaudePermissionsState = {
   allowedTools: string[];
   disallowedTools: string[];
-  skipPermissions: boolean;
 };
 
 export type NotificationPreferencesState = {

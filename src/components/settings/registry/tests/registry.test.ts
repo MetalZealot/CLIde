@@ -427,12 +427,10 @@ describe('search', () => {
   });
 
   test('describeSearchResult names the ancestor and the matched row', () => {
-    const [permissions] = search('skip permission');
-    assert.ok(permissions);
-    assert.equal(
-      describeSearchResult(permissions, translate),
-      'Claude · Skip permission prompts (use with caution)',
-    );
+    // Only Cursor keeps a skip toggle; Claude's bypass is the picker's mode (ADR 0064).
+    const results = search('skip permission').map((result) => describeSearchResult(result, translate));
+    assert.ok(results.includes('Cursor · Skip permission prompts (use with caution)'), results.join(' | '));
+    assert.ok(!results.some((label) => label.startsWith('Claude ·')), results.join(' | '));
 
     const [editor] = search('minimap');
     assert.equal(describeSearchResult(editor, translate), 'Appearance · Show Minimap');

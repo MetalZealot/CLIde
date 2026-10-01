@@ -339,7 +339,6 @@
     "title": "Настройки разрешений",
     "skipPermissions": {
       "label": "Пропускать запросы разрешений (используйте с осторожностью)",
-      "claudeDescription": "Эквивалентно флагу --dangerously-skip-permissions",
       "cursorDescription": "Эквивалентно флагу -f в Cursor CLI"
     },
     "allowedTools": {
