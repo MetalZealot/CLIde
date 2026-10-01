@@ -100,6 +100,8 @@ interface ChatComposerProps {
   canSwitchProvider: boolean;
   effort: string;
   availableEffortOptions: NonNullable<ProviderModelOption['effort']>['values'];
+  /** The level Default runs at, when the provider can say. */
+  defaultEffort?: string | null;
   onSelectEffort: (effort: string) => void;
   fastMode: boolean;
   onSelectFastMode: (enabled: boolean) => void;
@@ -204,6 +206,7 @@ function ChatComposer({
   canSwitchProvider,
   effort,
   availableEffortOptions,
+  defaultEffort = null,
   onSelectEffort,
   fastMode,
   onSelectFastMode,
@@ -639,6 +642,7 @@ function ChatComposer({
             <ComposerModelMenu
               effort={effort}
               effortOptions={availableEffortOptions}
+              defaultEffort={defaultEffort}
               onSelectEffort={onSelectEffort}
               fastMode={fastMode}
               onSelectFastMode={onSelectFastMode}

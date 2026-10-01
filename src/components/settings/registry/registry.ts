@@ -30,6 +30,7 @@ export type SettingsIconName =
   | 'mcp'
   | 'skills'
   | 'defaultModel'
+  | 'defaultEffort'
   | 'autoCompact';
 
 export type SettingsGroupId = 'agents' | 'app' | 'extensions' | 'system';
@@ -72,7 +73,7 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
  */
 export type AgentProviderId = 'claude' | 'cursor' | 'codex' | 'opencode';
 
-export type AgentSubsystem = 'model' | 'autoCompact' | 'permissions' | 'tools' | 'mcp';
+export type AgentSubsystem = 'model' | 'effort' | 'autoCompact' | 'permissions' | 'tools' | 'mcp';
 
 type AgentProviderDescriptor = {
   id: AgentProviderId;
@@ -91,9 +92,9 @@ type AgentProviderDescriptor = {
 };
 
 export const AGENT_PROVIDERS: AgentProviderDescriptor[] = [
-  // Auto-compact is Claude's alone: it lives in Claude Code's settings file,
-  // which no other adapter reads.
-  { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'autoCompact', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
+  // Default effort and auto-compact are Claude's alone: they live in Claude
+  // Code's settings file, which no other adapter reads.
+  { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'effort', 'autoCompact', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
   { id: 'cursor', icon: 'providerCursor', subsystems: ['model', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
   { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
   { id: 'opencode', icon: 'providerOpenCode', subsystems: ['model', 'tools'], nested: ['mcp'], listsSkills: false },
@@ -106,6 +107,11 @@ const SUBSYSTEM_NODES: Record<AgentSubsystem, { labelKey: string; icon: Settings
     labelKey: 'tabs.defaultModel',
     icon: 'defaultModel',
     keywords: 'default model new session opus sonnet haiku fable legacy picker',
+  },
+  effort: {
+    labelKey: 'tabs.defaultEffort',
+    icon: 'defaultEffort',
+    keywords: 'default effort reasoning thinking low medium high xhigh',
   },
   autoCompact: {
     labelKey: 'tabs.autoCompact',

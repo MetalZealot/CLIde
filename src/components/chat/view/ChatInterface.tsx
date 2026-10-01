@@ -129,6 +129,7 @@ function ChatInterface({
     availableProviders,
     currentProviderEffort,
     currentProviderEffortOptions,
+    currentProviderDefaultEffort,
     currentProviderModel,
     currentProviderModelOptions,
     currentProviderFastMode,
@@ -1091,6 +1092,7 @@ function ChatInterface({
             canSwitchProvider={canSelectProvider}
             effort={currentProviderEffort}
             availableEffortOptions={currentProviderEffortOptions}
+            defaultEffort={currentProviderDefaultEffort}
             onSelectEffort={handleSelectComposerEffort}
             fastMode={currentProviderFastMode}
             onSelectFastMode={handleSelectComposerFastMode}

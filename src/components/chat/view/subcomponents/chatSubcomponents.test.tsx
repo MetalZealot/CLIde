@@ -2144,6 +2144,38 @@ describe('chatSubcomponents', () => {
       assert.deepEqual(effortSelections, ['low'], 'release commits exactly once');
     });
 
+    test('a known default folds Default into its level, and picking that level means no override', async () => {
+      const effortSelections: string[] = [];
+      const host = await mount(
+        <ComposerModelMenu
+          effort="default"
+          effortOptions={[{ value: 'low' }, { value: 'high' }, { value: 'xhigh' }]}
+          defaultEffort="xhigh"
+          onSelectEffort={(value) => effortSelections.push(value)}
+          model="model-a"
+          modelOptions={[{ value: 'model-a', label: 'Model A' }]}
+          onSelectModel={async () => {}}
+          modelsLoading={false}
+          openRequest={0}
+          provider="claude"
+          providerLabel="Claude"
+        />,
+      );
+
+      const trigger = host.querySelector('button');
+      assert.ok(trigger);
+      assert.match(trigger.textContent ?? '', /xhigh/, 'the composer names the level Default runs at');
+      await React.act(async () => trigger.click());
+
+      const stops = [...document.querySelectorAll<HTMLElement>('[role="radio"]')];
+      assert.deepEqual(stops.map((stop) => stop.getAttribute('aria-label')), ['low', 'high', 'xhigh (Default)']);
+      assert.equal(stops[2].getAttribute('aria-checked'), 'true');
+
+      await React.act(async () => stops[0].click());
+      await React.act(async () => stops[2].click());
+      assert.deepEqual(effortSelections, ['low', 'default']);
+    });
+
     test('tapping an effort stop snaps to that exact value once', async () => {
       const effortSelections: string[] = [];
       const host = await mount(

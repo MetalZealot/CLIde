@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -11,6 +11,11 @@ import {
   readClaudeDefaultModelEnv,
   resolveClaudeModelAlias,
 } from '@/modules/providers/list/claude/claude-models.provider.js';
+import {
+  readClaudeEffortSettings,
+  resolveClaudeDefaultEffort,
+  writeClaudeModelEffort,
+} from '@/modules/providers/list/claude/claude-effort.settings.js';
 import type { SessionModelPickStore } from '@/modules/providers/services/provider-session-model.service.js';
 
 const APP_SESSION_ID = '011a8bc9-ad89-42fd-96c2-c8ac5ef4f999';
@@ -387,7 +392,8 @@ test('claude catalog comes from the CLI, with superseded models under legacy', a
   assert.deepEqual(primary.map((option) => option.value), ['fable', 'opus', 'haiku']);
   assert.deepEqual(primary.map((option) => option.label), ['Fable 5.1', 'Opus 5.5', 'Haiku 4.5']);
   assert.equal(primary[1].description, 'Best for everyday, complex tasks');
-  assert.equal(primary[1].effort?.default, 'high');
+  assert.equal(primary[1].resolvedModel, 'claude-opus-5-5');
+  assert.equal(primary[1].effort?.default, undefined, 'no hardcoded default; it is resolved per request');
   assert.equal(primary[2].effort, undefined);
   assert.ok(primary[1].fastMode, 'fast mode follows the CLI flag');
   assert.equal(primary[0].fastMode, undefined);
@@ -422,4 +428,58 @@ test('claude catalog comes from the CLI, with superseded models under legacy', a
   await provider.getSupportedModels();
   await provider.getSupportedModels({ refresh: true });
   assert.equal(calls, 2);
+});
+
+test('each model carries the effort a send without one runs at', async () => {
+  await withTempDir(async (dir) => {
+    const settingsPath = path.join(dir, 'settings.json');
+    // Shape the CLI's effort slider writes: a per-model level beside a legacy top-level one.
+    await writeFile(settingsPath, JSON.stringify({
+      effortLevel: 'low',
+      modelSettings: { 'claude-opus-5-5': { effortLevel: 'xhigh' } },
+    }));
+    const provider = new ClaudeProviderModels({
+      claudeSettingsPath: settingsPath,
+      listCliModels: async () => CLI_MODELS.map((model) => ({
+        ...model,
+        supportedEffortLevels: 'supportedEffortLevels' in model ? [...model.supportedEffortLevels] : undefined,
+      })),
+    });
+    const options = (await provider.getSupportedModels()).OPTIONS;
+    const defaultOf = (value: string) => options.find((option) => option.value === value)?.effort?.resolvedDefault;
+
+    assert.equal(defaultOf('opus'), 'xhigh', 'a saved per-model level wins');
+    assert.equal(defaultOf('fable'), 'high', 'the built-in default beats the legacy top-level level');
+    assert.equal(defaultOf('claude-opus-4-6'), 'low', 'the legacy level applies where no built-in default exists');
+    assert.equal(defaultOf('haiku'), undefined, 'a model without effort has no default');
+  });
+});
+
+test('an unsupported saved level clamps the way the CLI downgrades it', () => {
+  const settings = { byModel: { 'claude-opus-4-6': 'xhigh' }, legacy: null, envOverride: null };
+  assert.equal(resolveClaudeDefaultEffort('claude-opus-4-6', settings, ['low', 'medium', 'high', 'max']), 'high');
+  assert.equal(resolveClaudeDefaultEffort('claude-opus-4-6-20260101', settings, ['low', 'medium', 'high', 'xhigh']), 'xhigh');
+});
+
+test('saving a default effort keeps every other setting and refuses max', async () => {
+  await withTempDir(async (dir) => {
+    const settingsPath = path.join(dir, 'settings.json');
+    await writeFile(settingsPath, JSON.stringify({
+      model: 'opus',
+      modelSettings: { 'claude-opus-5-5': { effortLevel: 'xhigh', other: 1 } },
+    }));
+
+    await writeClaudeModelEffort('claude-sonnet-5-5', 'low', settingsPath);
+    await writeClaudeModelEffort('claude-opus-5-5', 'medium', settingsPath);
+    const saved = await readClaudeEffortSettings(settingsPath);
+    assert.deepEqual(saved.byModel, { 'claude-opus-5-5': 'medium', 'claude-sonnet-5-5': 'low' });
+
+    const raw = JSON.parse(await readFile(settingsPath, 'utf8'));
+    assert.equal(raw.model, 'opus');
+    assert.equal(raw.modelSettings['claude-opus-5-5'].other, 1);
+    await assert.rejects(writeClaudeModelEffort('claude-opus-5-5', 'max', settingsPath));
+
+    await writeFile(settingsPath, '{ not json');
+    await assert.rejects(writeClaudeModelEffort('claude-opus-5-5', 'high', settingsPath));
+  });
 });

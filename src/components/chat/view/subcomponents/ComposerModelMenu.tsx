@@ -25,6 +25,11 @@ type MenuTab = LLMProvider | 'favorites';
 interface ComposerModelMenuProps {
   effort: string;
   effortOptions: EffortOption[];
+  /**
+   * The level Default runs at. When it is one of `effortOptions`, Default is that
+   * stop, badged, rather than a stop of its own.
+   */
+  defaultEffort?: string | null;
   onSelectEffort: (effort: string) => void;
   fastMode?: boolean;
   onSelectFastMode?: (enabled: boolean) => void;
@@ -50,6 +55,7 @@ interface ComposerModelMenuProps {
 export default function ComposerModelMenu({
   effort,
   effortOptions,
+  defaultEffort = null,
   onSelectEffort,
   fastMode = false,
   onSelectFastMode,
@@ -102,12 +108,23 @@ export default function ComposerModelMenu({
   }, [openRequest, updateAnchor]);
 
   const defaultEffortLabel = t('composer.effortDefault', { defaultValue: 'Default' });
+  const defaultStop = defaultEffort && effortOptions.some((option) => option.value === defaultEffort)
+    ? defaultEffort
+    : null;
   const resolvedEffortOptions = useMemo<EffortOption[]>(
-    () => (effortOptions.length > 0 ? [{ value: DEFAULT_EFFORT_VALUE }, ...effortOptions] : []),
-    [effortOptions],
+    () => (effortOptions.length > 0 && !defaultStop ? [{ value: DEFAULT_EFFORT_VALUE }, ...effortOptions] : effortOptions),
+    [defaultStop, effortOptions],
   );
   const displayedEffort = effortPreview ?? effort;
-  const effortLabel = displayedEffort === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : displayedEffort;
+  // The stop the thumb sits on; Default sits on the level it runs at.
+  const selectedStop = defaultStop && displayedEffort === DEFAULT_EFFORT_VALUE ? defaultStop : displayedEffort;
+  const isOnDefault = defaultStop ? selectedStop === defaultStop : displayedEffort === DEFAULT_EFFORT_VALUE;
+  const effortLabel = selectedStop === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : selectedStop;
+  // Picking the default level means "no override", so the chat keeps following it.
+  const toEffortChoice = useCallback(
+    (value: string) => (value === defaultStop ? DEFAULT_EFFORT_VALUE : value),
+    [defaultStop],
+  );
   const currentOption = modelOptions.find((option) => option.value === model);
   const modelLabel = currentOption?.label || model;
   // Offered only where the running model has a faster tier.
@@ -211,10 +228,11 @@ export default function ComposerModelMenu({
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    const nextEffort = effortValueAt(event.clientX) ?? effortPreview;
+    const nextStop = effortValueAt(event.clientX) ?? effortPreview;
     setEffortPreview(null);
+    const nextEffort = nextStop ? toEffortChoice(nextStop) : null;
     if (nextEffort && nextEffort !== effort) onSelectEffort(nextEffort);
-  }, [effort, effortPreview, effortValueAt, onSelectEffort]);
+  }, [effort, effortPreview, effortValueAt, onSelectEffort, toEffortChoice]);
 
   const handleEffortPointerCancel = useCallback(() => {
     effortDragRef.current.active = false;
@@ -459,7 +477,14 @@ export default function ComposerModelMenu({
                       <span className="text-muted-foreground">
                         {t('composer.effort', { defaultValue: 'Effort' })}
                       </span>
-                      <span className="font-medium capitalize text-foreground">{effortLabel}</span>
+                      <span className="flex items-baseline gap-1.5">
+                        <span className="font-medium capitalize text-foreground">{effortLabel}</span>
+                        {defaultStop && isOnDefault && (
+                          <span className="shrink-0 rounded border border-border px-1 text-[10px] font-medium leading-4 text-muted-foreground">
+                            {defaultEffortLabel}
+                          </span>
+                        )}
+                      </span>
                     </div>
                     <div
                       ref={effortTrackRef}
@@ -473,8 +498,11 @@ export default function ComposerModelMenu({
                       onPointerCancel={handleEffortPointerCancel}
                     >
                       {resolvedEffortOptions.map((option) => {
-                        const label = option.value === DEFAULT_EFFORT_VALUE ? defaultEffortLabel : option.value;
-                        const isSelected = option.value === displayedEffort;
+                        const isDefaultStop = option.value === defaultStop;
+                        const label = option.value === DEFAULT_EFFORT_VALUE
+                          ? defaultEffortLabel
+                          : isDefaultStop ? `${option.value} (${defaultEffortLabel})` : option.value;
+                        const isSelected = option.value === selectedStop;
                         return (
                           <button
                             key={option.value}
@@ -485,13 +513,16 @@ export default function ComposerModelMenu({
                             title={option.description || label}
                             onClick={(event) => {
                               // The track owns pointer choices; detail-less activation is keyboard or assistive tech.
-                              if (event.detail === 0) onSelectEffort(option.value);
+                              if (event.detail === 0) onSelectEffort(toEffortChoice(option.value));
                             }}
                             className="group flex min-w-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
+                            {/* An unselected default stop is a ring, so it stays findable. */}
                             <span className={isSelected
                               ? 'h-6 w-6 rounded-md border border-border bg-background shadow-sm'
-                              : 'h-1 w-1 rounded-full bg-muted-foreground/45 transition-colors group-hover:bg-muted-foreground'}
+                              : isDefaultStop
+                                ? 'h-2 w-2 rounded-full border border-muted-foreground/70 transition-colors group-hover:border-muted-foreground'
+                                : 'h-1 w-1 rounded-full bg-muted-foreground/45 transition-colors group-hover:bg-muted-foreground'}
                             />
                           </button>
                         );

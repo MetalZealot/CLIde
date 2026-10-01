@@ -21,12 +21,15 @@ import type {
 } from '@/shared/types.js';
 import { buildDefaultProviderCurrentActiveModel } from '@/shared/utils.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
+import {
+  readClaudeEffortSettings,
+  resolveClaudeDefaultEffort,
+} from '@/modules/providers/list/claude/claude-effort.settings.js';
 
 // Every effort-capable Claude model exposes the same five levels, so they share
 // one frozen block. The catalog is only ever serialised to JSON, so sharing the
-// reference is safe.
+// reference is safe; the per-machine default is layered on per request.
 const CLAUDE_EFFORT_LEVELS: ProviderModelOption['effort'] = Object.freeze({
-  default: 'high',
   values: Object.freeze([
     { value: 'low' },
     { value: 'medium' },
@@ -49,18 +52,21 @@ const CLAUDE_EFFORT_LEVELS: ProviderModelOption['effort'] = Object.freeze({
 const CLAUDE_CURRENT_FALLBACK_MODELS: ProviderModelOption[] = [
   {
     value: 'fable',
+    resolvedModel: 'claude-fable-5-1',
     label: 'Fable 5.1',
     description: 'Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
     effort: CLAUDE_EFFORT_LEVELS,
   },
   {
     value: 'opus',
+    resolvedModel: 'claude-opus-5-5',
     label: 'Opus 5.5',
     description: 'Best for everyday, complex tasks · $5/$25 per Mtok',
     effort: CLAUDE_EFFORT_LEVELS,
   },
   {
     value: 'sonnet',
+    resolvedModel: 'claude-sonnet-5',
     label: 'Sonnet 5',
     description: 'Best for everyday tasks · $3/$15 per Mtok',
     effort: CLAUDE_EFFORT_LEVELS,
@@ -193,10 +199,7 @@ const toClaudeEffort = (levels: ModelInfo['supportedEffortLevels']): ProviderMod
   if (!levels?.length) {
     return undefined;
   }
-  return {
-    default: levels.includes('high') ? 'high' : levels[0],
-    values: levels.map((value) => ({ value })),
-  };
+  return { values: levels.map((value) => ({ value })) };
 };
 
 /**
@@ -242,6 +245,7 @@ export const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModels
       value,
       label: hasVersionedHeadline ? headline : (model.displayName?.trim() || value),
       ...(description ? { description } : {}),
+      ...(model.resolvedModel ? { resolvedModel: model.resolvedModel.trim() } : {}),
       ...(effort ? { effort } : {}),
       ...(model.supportsFastMode ? { fastMode: CLAUDE_FAST_MODE } : {}),
       ...(isLegacy ? { group: 'legacy' as const } : {}),
@@ -533,6 +537,24 @@ export class ClaudeProviderModels implements IProviderModels {
 
   async getSupportedModels(options: { refresh?: boolean } = {}): Promise<ProviderModelsDefinition> {
     const catalog = await this.loadCatalog(options.refresh === true);
+    const effortSettings = await readClaudeEffortSettings(this.deps.claudeSettingsPath);
+    return this.withDefaultModel({
+      ...catalog,
+      OPTIONS: catalog.OPTIONS.map((option) => {
+        if (!option.effort) {
+          return option;
+        }
+        const resolvedDefault = resolveClaudeDefaultEffort(
+          option.resolvedModel ?? option.value,
+          effortSettings,
+          option.effort.values.map((level) => level.value),
+        );
+        return resolvedDefault ? { ...option, effort: { ...option.effort, resolvedDefault } } : option;
+      }),
+    });
+  }
+
+  private async withDefaultModel(catalog: ProviderModelsDefinition): Promise<ProviderModelsDefinition> {
     // No "Default" row exists: the catalog names the model that *is* the default
     // and flags it, so the picker badges a real option. The literal "default"
     // was never a working alias — Claude Code falls back to built-in Sonnet and

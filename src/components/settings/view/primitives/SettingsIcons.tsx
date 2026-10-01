@@ -4,6 +4,7 @@ import {
   CircleUser,
   Code2,
   FileCode2,
+  Gauge,
   GitBranch,
   Info,
   KeyRound,
@@ -66,5 +67,6 @@ export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?
   mcp: Server,
   skills: FileCode2,
   defaultModel: Brain,
+  defaultEffort: Gauge,
   autoCompact: Shrink,
 };

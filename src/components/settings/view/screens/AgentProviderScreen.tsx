@@ -200,6 +200,14 @@ export default function AgentProviderScreen({
 
   const values: Partial<Record<AgentSubsystem, string | null>> = {
     model: useDefaultModelLabel(provider),
+    // The level the default model runs at, as the composer shows it.
+    effort: useFetchedValue(
+      subsystems.includes('effort') ? '/api/providers/claude/effort-defaults' : null,
+      (data) => {
+        const rows = (data as { models?: { isDefault?: boolean; effort?: string | null }[] }).models ?? [];
+        return (rows.find((row) => row.isDefault) ?? rows[0])?.effort ?? null;
+      },
+    ),
     autoCompact: useFetchedValue(
       subsystems.includes('autoCompact') ? '/api/providers/claude/auto-compact' : null,
       (data) => ((data as { enabled?: boolean }).enabled ? t('agents.subsystems.on') : t('agents.subsystems.off')),

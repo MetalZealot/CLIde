@@ -8,6 +8,12 @@ import {
   writeClaudeAutoCompactSettings,
 } from '@/modules/providers/list/claude/claude-autocompact.settings.js';
 import {
+  CLAUDE_BUILTIN_DEFAULT_EFFORT,
+  CLAUDE_PERSISTABLE_EFFORT_LEVELS,
+  canonicalClaudeModelId,
+  writeClaudeModelEffort,
+} from '@/modules/providers/list/claude/claude-effort.settings.js';
+import {
   resolveClaudeCeilingProvenance,
   resolveClaudeDerivedCeiling,
   toCeilingProvenanceFields,
@@ -1109,6 +1115,53 @@ router.put(
     }
 
     res.json(createApiSuccessResponse(await writeClaudeAutoCompactSettings(update)));
+  }),
+);
+
+/**
+ * The effort each current Claude model runs at when a chat names none — the
+ * value Claude Code's own effort slider saves, so Shell and Chat share it.
+ */
+const readClaudeEffortDefaults = async () => {
+  const catalog = (await providerModelsService.getProviderModels('claude')).models;
+  return catalog.OPTIONS
+    .filter((option) => option.group !== 'legacy' && option.effort?.resolvedDefault)
+    .map((option) => {
+      const model = canonicalClaudeModelId(option.resolvedModel ?? option.value);
+      const offered = new Set(option.effort?.values.map((level) => level.value));
+      return {
+        value: option.value,
+        label: option.label,
+        isDefault: option.isDefault === true,
+        model,
+        effort: option.effort?.resolvedDefault ?? null,
+        builtIn: CLAUDE_BUILTIN_DEFAULT_EFFORT[model] ?? 'high',
+        levels: CLAUDE_PERSISTABLE_EFFORT_LEVELS.filter((level) => offered.has(level)),
+      };
+    });
+};
+
+router.get(
+  '/claude/effort-defaults',
+  asyncHandler(async (_req: Request, res: Response) => {
+    res.json(createApiSuccessResponse({ models: await readClaudeEffortDefaults() }));
+  }),
+);
+
+router.put(
+  '/claude/effort-defaults',
+  asyncHandler(async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const model = typeof body.model === 'string' ? body.model.trim() : '';
+    const effort = typeof body.effort === 'string' ? body.effort.trim() : '';
+    if (!model || !(CLAUDE_PERSISTABLE_EFFORT_LEVELS as readonly string[]).includes(effort)) {
+      throw new AppError(
+        `model is required and effort must be one of ${CLAUDE_PERSISTABLE_EFFORT_LEVELS.join(', ')}.`,
+        { code: 'INVALID_REQUEST_BODY', statusCode: 400 },
+      );
+    }
+    await writeClaudeModelEffort(model, effort);
+    res.json(createApiSuccessResponse({ models: await readClaudeEffortDefaults() }));
   }),
 );
 

@@ -100,3 +100,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0060 — A call's detail opens flat, in place, on every screen](0060-a-calls-detail-opens-flat-in-place.md)
 - [0061 — Follow installed provider CLIs](0061-follow-installed-provider-clis.md)
 - [0062 — Chat activity and metadata text scale with the reading size](0062-chat-metadata-scales-with-reading-size.md)
+- [0063 — A chat's Default effort is Claude Code's own per-model setting](0063-effort-default-is-claude-codes-own-setting.md)

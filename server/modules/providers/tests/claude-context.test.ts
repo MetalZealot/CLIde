@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import test, { describe } from 'node:test';
 
 import { readClaudeAutoCompactSettings, writeClaudeAutoCompactSettings } from '@/modules/providers/list/claude/claude-autocompact.settings.js';
+import { CLAUDE_BUILTIN_DEFAULT_EFFORT } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_SETTINGS_CATALOG } from '@/modules/providers/list/claude/claude-settings-catalog.js';
 import {
   captureClaudeContextUsage,
@@ -621,7 +622,11 @@ describe('claude-context-window', () => {
     }
   };
 
-  const readModelRegistry = (): { models: Record<string, RegistryEntry>; aliases: Record<string, string> } => {
+  const readModelRegistry = (): {
+    models: Record<string, RegistryEntry>;
+    aliases: Record<string, string>;
+    defaultEfforts: Record<string, string>;
+  } => {
     const executable = findClaudeExecutable();
     assert.ok(executable, 'no `claude` executable found; set CLAUDE_CLI_PATH');
     const bundle = readRegistrySource(executable);
@@ -641,6 +646,7 @@ describe('claude-context-window', () => {
     const modelsBlock = bundle.slice(modelsStart, aliasesStart);
     const ids = [...modelsBlock.matchAll(/id:"(claude-[a-z0-9.-]+)",family:"/g)];
     const models: Record<string, RegistryEntry> = {};
+    const defaultEfforts: Record<string, string> = {};
 
     ids.forEach((match, index) => {
       // Minified entries carry no separator of their own, so bound each at the next
@@ -650,6 +656,10 @@ describe('claude-context-window', () => {
       const window = context ? /window:([0-9e.+]+)/.exec(context)?.[1] : undefined;
       const maxOutputTokens = /max_output_tokens:\{default:([0-9]+)/.exec(entry)?.[1];
       assert.ok(maxOutputTokens, `no max_output_tokens parsed for ${match[1]}`);
+      const defaultEffort = /default_effort:"([a-z]+)"/.exec(entry)?.[1];
+      if (defaultEffort) {
+        defaultEfforts[match[1]] = defaultEffort;
+      }
 
       models[match[1]] = {
         window: window === undefined ? null : Number(window),
@@ -663,7 +673,11 @@ describe('claude-context-window', () => {
     const aliasEntries = [
       ...bundle.slice(aliasesStart, aliasesEnd).matchAll(/([a-z0-9_]+):\{default:"([^"]+)"/g),
     ];
-    return { models, aliases: Object.fromEntries(aliasEntries.map((m) => [m[1], m[2]])) };
+    return {
+      models,
+      aliases: Object.fromEntries(aliasEntries.map((m) => [m[1], m[2]])),
+      defaultEfforts,
+    };
   };
 
   test('CLAUDE_MODEL_CONTEXT_SPECS matches the installed runtime model registry', () => {
@@ -686,6 +700,12 @@ describe('claude-context-window', () => {
     // One diff covers drifted values, models added to the registry, and specs left
     // behind for models it has dropped.
     assert.deepEqual(recorded, models);
+  });
+
+  test('CLAUDE_BUILTIN_DEFAULT_EFFORT matches the registry', () => {
+    const { defaultEfforts } = readModelRegistry();
+    assert.ok(Object.keys(defaultEfforts).length > 0, 'parsed no default_effort fields');
+    assert.deepEqual({ ...CLAUDE_BUILTIN_DEFAULT_EFFORT }, defaultEfforts);
   });
 
   test('CLAUDE_MODEL_ID_ALIASES matches the registry aliases block', () => {

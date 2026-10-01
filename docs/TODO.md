@@ -77,6 +77,7 @@ Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md
 
 This section is the complete outstanding model-picker list (2026-07-13 and 2026-07-16 reviews).
 
+- [~] **Default effort follows Claude Code's per-model setting.** The picker shows the level Default runs at, badged, with no separate Default stop; new chats always start on it; Settings › Claude › Default Effort writes the key the CLI slider saves. Awaiting a phone check. [ADR 0063](decisions/0063-effort-default-is-claude-codes-own-setting.md). **M**
 - [~] **Fast mode switch in the model menu, per session, for Claude Opus and Codex.** Browser-checked on 3002; no live fast send yet (Claude needs usage credits). Stored in `sessions.fast_mode`. **M**
 - [ ] #2 — Shell `/model` stdout regex over-captures: a Default pick in the CLI's own picker shows the raw sentence "Default (recommended)" with no card highlight until the next turn. The `(.+?)\.?$` capture in `claude-models.provider.ts` takes too much. **S**
 - [ ] #4 — `getCurrentActiveModel` reads and parses the entire session JSONL (4.5 MB on a long session) on every `/models` open, even when a fresh pick wins anyway. Stat the file and skip when the pick is newer than mtime, or read only the tail. **S/M**

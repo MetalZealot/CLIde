@@ -7,6 +7,7 @@
     "tools": "Tools",
     "appearance": "Appearance",
     "defaultModel": "Default Model",
+    "defaultEffort": "Default Effort",
     "runtime": "Runtime",
     "autoCompact": "Auto-compact"
   },
@@ -976,6 +977,11 @@
       }
     },
     "license": "Licensed under AGPL-3.0"
+  },
+  "defaultEffort": {
+    "description": "The effort each model runs at unless you pick another level in a chat. Claude Code's own effort slider changes the same setting, so Shell and Chat always agree. Max can only be picked per chat.",
+    "builtIn": "{{level}} (Claude's default)",
+    "saveFailed": "Couldn't save the effort. Try again."
   },
   "defaultModel": {
     "label": "Default model",

@@ -174,8 +174,15 @@ export type ProviderModelOption = {
    * provider's id for that tier where it needs one; `description` is what it costs.
    */
   fastMode?: { serviceTier?: string; description?: string };
+  /** The full model id an alias row runs (`opus` → `claude-opus-5-5`). */
+  resolvedModel?: string;
   effort?: {
     default?: string;
+    /**
+     * The level a send with no effort runs at on this machine. Present only where
+     * the provider can resolve it; the picker then shows that level as Default.
+     */
+    resolvedDefault?: string;
     values: {
       value: string;
       description?: string;

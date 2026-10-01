@@ -141,9 +141,12 @@ export function useChatProviderState({
   const [codexModel, setCodexModel] = useState<string>(() => {
     return localStorage.getItem('codex-model') || FALLBACK_DEFAULT_MODEL.codex;
   });
+  // The effort a not-yet-created chat runs at. Never persisted: every new chat
+  // starts on the provider's default, and a pick belongs to the chat it was made in.
   const [providerEfforts, setProviderEfforts] = useState<Partial<Record<LLMProvider, string>>>(() => {
     return PROVIDERS.reduce<Partial<Record<LLMProvider, string>>>((acc, targetProvider) => {
-      acc[targetProvider] = localStorage.getItem(`${targetProvider}-effort`) || DEFAULT_EFFORT_VALUE;
+      localStorage.removeItem(`${targetProvider}-effort`);
+      acc[targetProvider] = DEFAULT_EFFORT_VALUE;
       return acc;
     }, {});
   });
@@ -212,7 +215,6 @@ export function useChatProviderState({
         ? previous
         : { ...previous, [targetProvider]: effort }
     ));
-    localStorage.setItem(`${targetProvider}-effort`, effort);
   }, []);
 
   // One load per mount; `refresh` re-reads every provider's CLI instead of the
@@ -485,7 +487,6 @@ export function useChatProviderState({
       }
 
       nextEfforts[targetProvider] = nextEffort;
-      localStorage.setItem(`${targetProvider}-effort`, nextEffort);
       hasUpdates = true;
     }
 
@@ -700,23 +701,23 @@ export function useChatProviderState({
   /**
    * Applies an effort choice.
    *
-   * Mirrors `selectProviderModel`: the value becomes the per-provider seed so
-   * the next new chat inherits it, and — when a session is open — is recorded
-   * against that session so it survives a reload and stays that session's
-   * alone. A provider without effort support reports it rather than throwing;
-   * its controls are hidden anyway.
+   * Without a session it sets the seed the chat being composed will start on.
+   * With one it is recorded against that session, so it survives a reload and
+   * stays that session's alone, and the seed returns to Default for the next
+   * new chat. A provider without effort support reports it rather than
+   * throwing; its controls are hidden anyway.
    */
   const selectProviderEffort = useCallback(async (
     targetProvider: LLMProvider,
     effort: string,
     sessionId?: string | null,
   ) => {
-    setStoredProviderEffort(targetProvider, effort);
-
     const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
     if (!normalizedSessionId) {
+      setStoredProviderEffort(targetProvider, effort);
       return { scope: 'default' as const, effort };
     }
+    setStoredProviderEffort(targetProvider, DEFAULT_EFFORT_VALUE);
 
     const response = await authenticatedFetch(
       `/api/providers/${targetProvider}/sessions/${encodeURIComponent(normalizedSessionId)}/effort`,
@@ -780,6 +781,7 @@ export function useChatProviderState({
       sessionEffort ?? providerEfforts[provider] ?? DEFAULT_EFFORT_VALUE,
     );
   }, [currentProviderModel, provider, providerEfforts, reconcileStoredEffort, sessionEffort]);
+  const currentProviderDefaultEffort = getModelOption(provider, currentProviderModel)?.effort?.resolvedDefault ?? null;
   const currentProviderModelOptions = useMemo(
     () => providerModelCatalog[provider]?.OPTIONS ?? [],
     [provider, providerModelCatalog],
@@ -799,6 +801,7 @@ export function useChatProviderState({
     setCodexModel,
     currentProviderEffort,
     currentProviderEffortOptions,
+    currentProviderDefaultEffort,
     currentProviderModel,
     currentProviderModelOptions,
     currentProviderFastMode,
