@@ -13,7 +13,7 @@ import { AUTH_TOKEN_STORAGE_KEY } from '../../auth/constants';
 import { AuthProvider } from '../../auth/context/AuthContext';
 import type { ProviderRuntimeVersions } from '../../provider-auth/types';
 import SidebarAccountActions from '../../sidebar/view/subcomponents/SidebarAccountActions';
-import type { AuthStatus, NotificationPreferencesState } from '../types/types';
+import type { AuthStatus } from '../types/types';
 
 import SettingsChoicePopover from './primitives/SettingsChoicePopover';
 import AccountScreen from './screens/AccountScreen';
@@ -823,20 +823,10 @@ describe('AccountScreen', () => {
 });
 
 describe('AgentAccountCard', () => {
-  /**
-   * Runtime cases render unauthenticated on purpose: that disables the
-   * plan-usage fetch and the reset toggle, so the card's one remaining request
-   * is the capability matrix and the row under test is the only thing that varies.
-   */
-
   let root: Root | null = null;
   let container: HTMLDivElement | null = null;
   const originalFetch = globalThis.fetch;
-
-  const preferences: NotificationPreferencesState = {
-    channels: { inApp: true, webPush: false, desktop: false, sound: false },
-    events: { actionRequired: true, stop: true, error: true, usageReset: {} },
-  };
+  let responses: Record<string, unknown> = {};
 
   const authStatus = (versions: ProviderRuntimeVersions | null): AuthStatus => ({
     authenticated: false,
@@ -845,6 +835,17 @@ describe('AgentAccountCard', () => {
     error: null,
     loading: false,
     versions,
+  });
+
+  const claudeVersions: ProviderRuntimeVersions = {
+    runtime: '2.1.286',
+    sdk: '0.3.258',
+    observedAt: new Date().toISOString(),
+  };
+
+  const cliStatus = (overrides: Record<string, unknown> = {}) => ({
+    provider: 'claude', installedVersion: '2.1.286', latestVersion: '2.1.286', updateAvailable: false,
+    canUpdate: true, state: 'idle', message: null, ...overrides,
   });
 
   before(async () => {
@@ -863,10 +864,14 @@ describe('AgentAccountCard', () => {
       resources: { en: { settings: settingsTranslations, common: commonTranslations } },
     });
 
-    globalThis.fetch = (async () => new Response(
-      JSON.stringify({ success: true, data: { providers: [] } }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    )) as typeof globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const key = Object.keys(responses).find((fragment) => url.includes(fragment));
+      return new Response(
+        JSON.stringify({ success: true, data: key ? responses[key] : { providers: [] } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as typeof globalThis.fetch;
   });
 
   after(() => {
@@ -878,9 +883,10 @@ describe('AgentAccountCard', () => {
     container?.remove();
     root = null;
     container = null;
+    responses = {};
   });
 
-  const render = async (versions: ProviderRuntimeVersions | null): Promise<HTMLElement> => {
+  const render = async (props: Partial<React.ComponentProps<typeof AgentAccountCard>> = {}): Promise<HTMLElement> => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -888,85 +894,72 @@ describe('AgentAccountCard', () => {
     await React.act(async () => {
       root?.render(React.createElement(AgentAccountCard, {
         provider: 'claude',
-        authStatus: authStatus(versions),
+        authStatus: authStatus(claudeVersions),
         onLogin: () => {},
-        notificationPreferences: preferences,
-        onNotificationPreferencesChange: () => {},
-        onOpenNotifications: () => {},
+        planUsage: null,
+        onOpenUsage: () => {},
+        ...props,
       }));
     });
+    await React.act(async () => new Promise((resolve) => window.setTimeout(resolve, 0)));
 
     return container;
   };
 
-  test('the reported pair shows as one Runtime row', async () => {
-    const host = await render({
-      runtime: '2.1.233',
-      sdk: '0.3.233',
-      observedAt: new Date().toISOString(),
-    });
+  test('a current Claude Code and SDK each read Latest, with nothing to act on', async () => {
+    responses = {
+      '/cli-update': cliStatus(),
+      '/sdk-release': { installedVersion: '0.3.286', latestVersion: '0.3.286', behind: false },
+    };
+    const host = await render();
 
-    assert.match(host.textContent ?? '', /Runtime/);
-    assert.match(host.textContent ?? '', /2\.1\.233 · SDK 0\.3\.233/);
-    // A pair that has never moved says nothing more than the two numbers.
-    assert.doesNotMatch(host.textContent ?? '', /moved/);
+    assert.match(host.textContent ?? '', /Claude Code2\.1\.286/);
+    assert.match(host.textContent ?? '', /Agent SDK0\.3\.286/);
+    assert.equal(host.textContent?.match(/Latest/g)?.length, 2);
+    assert.equal([...host.querySelectorAll('button')].some((button) => button.textContent === 'Update'), false);
   });
 
-  test('a recent move names the half that moved and how long ago it was seen', async () => {
-    const host = await render({
-      runtime: '2.1.233',
-      sdk: '0.3.233',
-      observedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      previous: {
-        runtime: '2.1.229',
-        sdk: '0.3.233',
-        observedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-    });
+  test('a newer CLI offers Update, and a newer SDK warns without one', async () => {
+    responses = {
+      '/cli-update': cliStatus({ latestVersion: '2.1.290', updateAvailable: true }),
+      '/sdk-release': { installedVersion: '0.3.258', latestVersion: '0.3.286', behind: true },
+    };
+    const host = await render();
 
-    assert.match(host.textContent ?? '', /Claude runtime moved 2\.1\.229 → 2\.1\.233/);
-    assert.match(host.textContent ?? '', /Seen 2h ago/);
-    // The SDK half did not move, so it must not be mentioned.
-    assert.doesNotMatch(host.textContent ?? '', /Agent SDK moved/);
+    assert.match(host.textContent ?? '', /2\.1\.290 available/);
+    assert.match(host.textContent ?? '', /0\.3\.286 available/);
+    assert.match(host.textContent ?? '', /Test the new version on a branch first/);
+    const updates = [...host.querySelectorAll('button')].filter((button) => button.textContent === 'Update');
+    assert.equal(updates.length, 1, 'only the CLI can be updated from here');
+    const changelog = [...host.querySelectorAll<HTMLAnchorElement>('a')].find((link) => link.textContent === 'Changelog');
+    assert.match(changelog?.href ?? '', /claude-agent-sdk-typescript/);
   });
 
   test('a provider that reports no versions gets no Runtime row', async () => {
-    const host = await render(null);
+    const host = await render({ provider: 'cursor', authStatus: authStatus(null) });
 
-    assert.doesNotMatch(host.textContent ?? '', /Runtime/);
+    assert.doesNotMatch(host.textContent ?? '', /Runtime|Agent SDK/);
   });
 
-  test('a signed-in plan ends its usage card with the plan management link', async () => {
-    const usageFetch = globalThis.fetch;
-    globalThis.fetch = (async (input: RequestInfo | URL) => new Response(
-      JSON.stringify(String(input).includes('/usage')
-        ? { success: true, data: { provider: 'claude', supported: true, windows: [], fetchedAt: new Date().toISOString() } }
-        : { success: true, data: { providers: [] } }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    )) as typeof globalThis.fetch;
+  test('a signed-in plan shows its most-used limit and opens the Usage page', async () => {
+    let opened = 0;
+    const host = await render({
+      authStatus: { ...authStatus(claudeVersions), authenticated: true, method: 'oauth' },
+      planUsage: {
+        provider: 'claude',
+        supported: true,
+        windows: [
+          { id: 'five_hour', utilization: 3, resetsAt: new Date(Date.now() + 3_600_000).toISOString() },
+          { id: 'seven_day', utilization: 48.4, resetsAt: new Date(Date.now() + 86_400_000).toISOString() },
+        ],
+      },
+      onOpenUsage: () => { opened += 1; },
+    });
 
-    try {
-      container = document.createElement('div');
-      document.body.appendChild(container);
-      root = createRoot(container);
-      await React.act(async () => {
-        root?.render(React.createElement(AgentAccountCard, {
-          provider: 'claude',
-          authStatus: { ...authStatus(null), authenticated: true, method: 'oauth' },
-          onLogin: () => {},
-          notificationPreferences: preferences,
-          onNotificationPreferencesChange: () => {},
-          onOpenNotifications: () => {},
-        }));
-      });
-      await React.act(async () => new Promise((resolve) => window.setTimeout(resolve, 0)));
-
-      const link = [...container.querySelectorAll<HTMLAnchorElement>('a')]
-        .find((anchor) => anchor.textContent?.includes('Manage Plan and Balance'));
-      assert.equal(link?.href, 'https://claude.ai/new#settings/usage');
-    } finally {
-      globalThis.fetch = usageFetch;
-    }
+    const usageRow = [...host.querySelectorAll('button')].find((row) => row.textContent?.includes('Plan usage'));
+    assert.match(usageRow?.textContent ?? '', /48% · Weekly limit/);
+    await React.act(async () => usageRow?.click());
+    assert.equal(opened, 1);
   });
 });
 
@@ -1476,6 +1469,7 @@ describe('AgentToolsScreen', () => {
         }}
         onNotificationPreferencesChange={() => {}}
         onOpenNotifications={() => {}}
+        onOpenUsage={() => {}}
       />,
     ));
 

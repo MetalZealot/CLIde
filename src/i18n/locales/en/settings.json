@@ -549,12 +549,10 @@
     },
     "error": "Error: {{error}}",
     "usage": {
-      "title": "Plan Usage",
-      "updatedAgo": "Updated {{time}}",
-      "refresh": "Refresh plan usage",
-      "refreshButton": "Refresh",
-      "managePlan": "Manage Plan and Balance",
-      "apiKeyUnavailable": "Plan usage is only available for subscription (OAuth) sign-in, not API-key auth."
+      "title": "Plan usage",
+      "peak": "{{percent}}% · {{window}}",
+      "resetAlert": "Usage reset alert",
+      "resetAlertChannelRequired": "Turn on Web Push or Desktop notifications to receive it."
     },
     "serviceStatus": {
       "label": "Service status",
@@ -571,10 +569,21 @@
     },
     "runtimeVersions": {
       "title": "Runtime",
-      "movedRuntime": "{{agent}} runtime moved {{from}} → {{to}}",
-      "movedSdk": "Agent SDK moved {{from}} → {{to}}",
-      "movedAge": "Seen {{age}}",
-      "unknown": "unknown"
+      "cli": {
+        "claude": "Claude Code",
+        "codex": "Codex"
+      },
+      "sdk": "Agent SDK",
+      "latest": "Latest",
+      "available": "{{version}} available",
+      "availableExternal": "{{version}} available · update with its original installer",
+      "update": "Update",
+      "cancel": "Cancel",
+      "retry": "Retry",
+      "updateFailed": "CLI update failed.",
+      "cancelFailed": "Could not cancel the update.",
+      "changelog": "Changelog",
+      "sdkBehind": "Bundled with CLIde, so it updates with a code change, not a button. Test the new version on a branch first."
     },
     "providers": {
       "claude": "Claude",
@@ -584,7 +593,12 @@
     },
     "subsystems": {
       "mcpCount": "{{count}} configured",
-      "toolsCount": "{{count}} skills"
+      "toolsCount": "{{count}} skills",
+      "on": "On",
+      "off": "Off",
+      "promptsSkipped": "Prompts skipped",
+      "asksFirst": "Asks first",
+      "allowedCount": "{{count}} allowed"
     },
     "codexTransport": {
       "title": "Chat transport",

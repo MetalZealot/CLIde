@@ -9,6 +9,7 @@ import { interactiveRequestRegistry } from '@/modules/providers/services/interac
 import { ProviderNativeRuntimeService } from '@/modules/providers/services/provider-native-runtime.service.js';
 import { createProviderRuntimeService } from '@/modules/providers/services/provider-runtime.service.js';
 import { ClaudePluginUpdatesService, PLUGIN_UPDATE_STALE_MS } from '@/modules/providers/services/claude-plugin-updates.service.js';
+import { ClaudeSdkReleaseService } from '@/modules/providers/services/claude-sdk-release.service.js';
 import { ProviderCliUpdatesService, runNativeCliUpdate } from '@/modules/providers/services/provider-cli-updates.service.js';
 import { ProviderUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
 import { createSideQuestionsService } from '@/modules/providers/services/side-questions.service.js';
@@ -401,6 +402,29 @@ describe('provider CLI updates', () => {
     assert.equal(done.updateAvailable, false);
     assert.equal(installs, 1);
     coordinator.acquire('codex')();
+  });
+
+  test('the SDK release check caches npm, compares against the installed SDK, and backs off on failure', async () => {
+    let now = 1000;
+    let checks = 0;
+    let fail = false;
+    let installed: string | null = '0.3.258';
+    const service = new ClaudeSdkReleaseService({
+      installed: () => installed,
+      latest: async () => { checks += 1; if (fail) throw new Error('offline'); return '0.3.286'; },
+      now: () => now,
+    });
+    assert.deepEqual(await service.getStatus(), { installedVersion: '0.3.258', latestVersion: '0.3.286', behind: true });
+    await Promise.all([service.getStatus(), service.getStatus()]);
+    assert.equal(checks, 1);
+    installed = '0.3.286';
+    assert.equal((await service.getStatus()).behind, false);
+    now += 7 * 60 * 60 * 1000;
+    fail = true;
+    const offline = await service.getStatus();
+    assert.equal(offline.latestVersion, '0.3.286', 'a failed check keeps the last known release');
+    await service.getStatus();
+    assert.equal(checks, 2, 'a failure waits before retrying');
   });
 
   test('incompatible updates report failure and release the execution gate', async () => {

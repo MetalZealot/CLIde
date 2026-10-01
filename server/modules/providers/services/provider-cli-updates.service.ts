@@ -25,7 +25,7 @@ const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const RETRY_INTERVAL_MS = 60 * 1000;
 
-const isNewer = (latest: string, installed: string): boolean => {
+export const isNewer = (latest: string, installed: string): boolean => {
   const left = latest.split('-')[0].split('.').map(Number);
   const right = installed.split('-')[0].split('.').map(Number);
   for (let index = 0; index < 3; index += 1) {

@@ -16,3 +16,10 @@ export type ClaudePluginUpdateStatus = {
   updatedPlugins: number;
   message: string | null;
 };
+
+/** The Agent SDK CLIde bundles against npm's latest; it updates by a code change, never from the UI. */
+export type ClaudeSdkReleaseStatus = {
+  installedVersion: string | null;
+  latestVersion: string | null;
+  behind: boolean;
+};

@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 
 import { claudePluginUpdatesService } from '@/modules/providers/services/claude-plugin-updates.service.js';
+import { claudeSdkReleaseService } from '@/modules/providers/services/claude-sdk-release.service.js';
 import { providerCliUpdatesService } from '@/modules/providers/services/provider-cli-updates.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
@@ -8,6 +9,7 @@ import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils
 export function createProviderCliUpdatesRouter(
   service: Pick<typeof providerCliUpdatesService, 'getStatus' | 'startUpdate' | 'cancelUpdate'> = providerCliUpdatesService,
   pluginService: Pick<typeof claudePluginUpdatesService, 'getStatus' | 'startUpdate'> = claudePluginUpdatesService,
+  sdkReleaseService: Pick<typeof claudeSdkReleaseService, 'getStatus'> = claudeSdkReleaseService,
 ): express.Router {
   const router = express.Router();
   const providerFrom = (req: Request): 'claude' | 'codex' => {
@@ -32,6 +34,9 @@ export function createProviderCliUpdatesRouter(
   router.post('/claude/plugin-update', asyncHandler(async (req: Request, res: Response) => {
     const ifStale = (req.body as { ifStale?: unknown } | undefined)?.ifStale === true;
     res.status(202).json(createApiSuccessResponse(await pluginService.startUpdate({ ifStale })));
+  }));
+  router.get('/claude/sdk-release', asyncHandler(async (_req: Request, res: Response) => {
+    res.json(createApiSuccessResponse(await sdkReleaseService.getStatus()));
   }));
   return router;
 }

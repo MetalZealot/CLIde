@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
@@ -43,6 +44,7 @@ type DesktopNotificationsState = {
 
 function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps) {
   const { t } = useTranslation('settings');
+  const navigate = useNavigate();
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const desktopNotificationsBridge = useMemo(() => (
     typeof window === 'undefined'
@@ -244,6 +246,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab }: SettingsProps)
               notificationPreferences={notificationPreferences}
               onNotificationPreferencesChange={setNotificationPreferences}
               onOpenNotifications={() => nav.jumpTo('notifications')}
+              onOpenUsage={() => { onClose(); navigate('/usage'); }}
+              permissions={{ claude: claudePermissions, cursor: cursorPermissions, codex: codexPermissionMode }}
             />
           );
       }
