@@ -23,7 +23,7 @@ export type ClaudeSettingTier =
 
 /** Controls that exist. */
 const EXPOSED: readonly string[] = [
-  'autoCompactEnabled', 'autoCompactWindow',
+  'autoCompactEnabled', 'autoCompactWindow', 'autoUpdatesChannel', 'minimumVersion',
 ];
 
 /** The build list. */
@@ -49,9 +49,9 @@ const ADAPT: readonly string[] = [
 const DISPLAY: readonly string[] = [
   'allowedMcpServers', 'availableModels', 'availableModelsMatch', 'claudeMd', 'claudeMdExcludes',
   'companyAnnouncements', 'deniedMcpServers', 'deniedModels', 'effortLevel',
-  'enforceAvailableModels', 'env', 'hooks', 'maxEffortLevel', 'minimumVersion', 'model',
+  'enforceAvailableModels', 'env', 'hooks', 'maxEffortLevel', 'model',
   'modelOverrides', 'modelSettings', 'requiredMaximumVersion', 'requiredMinimumVersion',
-  'sandbox', 'skipDangerousModePermissionPrompt', 'ultracode',
+  'sandbox', 'ultracode',
 ];
 
 /** Terminal-bound, or CLIde owns the equivalent. */
@@ -59,7 +59,7 @@ const TERMINAL: readonly string[] = [
   'autoScrollEnabled', 'defaultShell', 'defaultView', 'editorMode', 'emojiCompletionEnabled',
   'footerLinksRegexes', 'keybindingFlavor', 'maxProseWidth', 'preferredNotifChannel',
   'prefersReducedMotion', 'prUrlTemplate', 'respondToBashCommands', 'showMessageTimestamps',
-  'showTurnDuration', 'spellcheck', 'spinnerTipsEnabled', 'spinnerTipsOverride', 'spinnerVerbs',
+  'showTurnDuration', 'skipDangerousModePermissionPrompt', 'spellcheck', 'spinnerTipsEnabled', 'spinnerTipsOverride', 'spinnerVerbs',
   'statusLine', 'subagentStatusLine', 'syntaxHighlightingDisabled', 'teammateMode',
   'terminalProgressBarEnabled', 'terminalTitleFromRename', 'theme', 'timeFormat', 'timeZone',
   'tui', 'verbose', 'viewMode', 'vimInsertModeRemaps', 'voice', 'voiceEnabled',
@@ -71,7 +71,7 @@ const OUT_OF_SCOPE: readonly string[] = [
   'allowAllClaudeAiMcps', 'allowClaudeInChromeWithManagedMcp', 'allowedChannelPlugins',
   'allowedHttpHookUrls', 'allowedMarketplaces', 'allowedProviders', 'allowManagedHooksOnly',
   'allowManagedMcpServersOnly', 'allowManagedPermissionRulesOnly', 'apiKeyHelper',
-  'appendPlugins', 'autoUpdatesChannel', 'awsAuthRefresh', 'awsCredentialExport',
+  'appendPlugins', 'awsAuthRefresh', 'awsCredentialExport',
   'blockedMarketplaces', 'channelsEnabled', 'crossSessionInbound', 'daemonColdStart',
   'desktopSessionCleanupPeriodDays', 'disableAgentView', 'disableCommandPluginSources',
   'disableDeepLinkRegistration', 'disableRemoteControl', 'disableSideloadFlags', 'feedbackDrafts',
