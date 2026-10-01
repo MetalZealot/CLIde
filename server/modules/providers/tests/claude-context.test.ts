@@ -9,7 +9,7 @@ import test, { describe } from 'node:test';
 import { readClaudeAutoCompactSettings, writeClaudeAutoCompactSettings } from '@/modules/providers/list/claude/claude-autocompact.settings.js';
 import { CLAUDE_BUILTIN_DEFAULT_EFFORT } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_SETTINGS_CATALOG } from '@/modules/providers/list/claude/claude-settings-catalog.js';
-import { readClaudeSettingsCascade } from '@/modules/providers/list/claude/claude-settings-cascade.js';
+import { readClaudeSettingsCascade, writeClaudeSetting } from '@/modules/providers/list/claude/claude-settings-cascade.js';
 import { updateClaudeSettingsFile } from '@/modules/providers/list/claude/claude-settings-file.js';
 import { readClaudeUpdateChannel, writeClaudeUpdateChannel } from '@/modules/providers/list/claude/claude-update-channel.settings.js';
 import {
@@ -1108,7 +1108,48 @@ describe('claude-settings-catalog', () => {
       // No project: the project's files drop out instead of resolving against the server's cwd.
       const userOnly = await readClaudeSettingsCascade(null);
       assert.equal(userOnly.entries.find((entry) => entry.key === 'model')?.source, 'user');
-      assert.ok(!userOnly.entries.some((entry) => entry.key === 'permissions'));
+      assert.equal(userOnly.entries.find((entry) => entry.key === 'permissions')?.source, null);
+
+      // Unset editable keys are listed with a control generated from the SDK's types.
+      const retention = byKey.get('cleanupPeriodDays');
+      assert.deepEqual(
+        { source: retention?.source, control: retention?.control, inUserFile: retention?.inUserFile },
+        { source: null, control: { kind: 'number' }, inUserFile: false },
+      );
+      assert.match(retention?.description ?? '', /transcripts/);
+      assert.equal(byKey.get('permissions')?.control, undefined);
+      assert.deepEqual(byKey.get('promptCacheTtl')?.control, { kind: 'enum', options: ['5m', '1h'] });
+
+      const userFile = path.join(config, 'settings.json');
+      await writeClaudeSetting('cleanupPeriodDays', 90, userFile);
+      await writeClaudeSetting('alwaysThinkingEnabled', false, userFile);
+      await assert.rejects(writeClaudeSetting('cleanupPeriodDays', '90', userFile), /must be a number/);
+      await assert.rejects(writeClaudeSetting('promptCacheTtl', '2h', userFile), /5m \| 1h/);
+      await assert.rejects(writeClaudeSetting('theme', 'light', userFile), /not editable/);
+      await assert.rejects(writeClaudeSetting('permissions', {}, userFile), /not editable/);
+      const afterWrite = new Map((await readClaudeSettingsCascade(project)).entries.map((entry) => [entry.key, entry]));
+      assert.deepEqual(
+        { value: afterWrite.get('cleanupPeriodDays')?.value, source: afterWrite.get('cleanupPeriodDays')?.source },
+        { value: 90, source: 'user' },
+      );
+      assert.equal(afterWrite.get('alwaysThinkingEnabled')?.value, false);
+
+      // Reset removes the key so Claude Code's own default applies; the rest of the file stays.
+      await writeClaudeSetting('cleanupPeriodDays', undefined, userFile);
+      const saved = JSON.parse(readFileSync(userFile, 'utf8')) as Record<string, unknown>;
+      assert.equal('cleanupPeriodDays' in saved, false);
+      assert.equal(saved.theme, 'dark');
+
+      // A project rooted at home reads the user file as its project file too; that is not an override.
+      const home = path.join(root, 'home');
+      await fs.mkdir(path.join(home, '.claude'), { recursive: true });
+      await writeFile(path.join(home, '.claude', 'settings.json'), JSON.stringify({ language: 'english' }));
+      process.env.CLAUDE_CONFIG_DIR = path.join(home, '.claude');
+      const homeProject = (await readClaudeSettingsCascade(home)).entries.find((entry) => entry.key === 'language');
+      assert.deepEqual(
+        { source: homeProject?.source, alsoSetIn: homeProject?.alsoSetIn },
+        { source: 'user', alsoSetIn: [] },
+      );
     } finally {
       if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR;
       else process.env.CLAUDE_CONFIG_DIR = previous;

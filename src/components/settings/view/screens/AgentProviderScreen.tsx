@@ -218,7 +218,8 @@ export default function AgentProviderScreen({
     configuration: useFetchedValue(
       subsystems.includes('configuration') ? cascadeUrl(initialConfigurationProject(projects)) : null,
       (data) => t('agents.subsystems.settingsCount', {
-        count: ((data as { entries?: unknown[] }).entries ?? []).length,
+        count: ((data as { entries?: { source: string | null }[] }).entries ?? [])
+          .filter((entry) => entry.source).length,
       }),
     ),
   };

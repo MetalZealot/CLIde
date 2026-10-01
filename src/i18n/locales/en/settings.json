@@ -1047,10 +1047,9 @@
     "saveError": "Couldn't read or write Claude Code's settings file."
   },
   "configuration": {
-    "description": "What Claude Code's settings files resolve to for a session in the chosen project, and which file set each value. Read-only.",
+    "description": "What Claude Code's settings files resolve to for a session in the chosen project, and which file set each value. Changes save to your user settings file, the same one /config writes.",
     "project": "Project",
     "noProject": "No project (user and managed files only)",
-    "empty": "No settings are set in any file.",
     "loadError": "Couldn't resolve Claude Code's settings.",
     "alsoSetIn": "Also set in {{sources}}, which this overrides",
     "hiddenValues": "{{names}} (values hidden)",
@@ -1069,8 +1068,8 @@
         "description": "Change these from their own screen in Settings."
       },
       "adapt": {
-        "title": "No CLIde control yet",
-        "description": "In force in every session; a control is planned."
+        "title": "Claude Code settings",
+        "description": "Set here, or leave on Default to use Claude Code's own. Lists and nested settings are read-only for now."
       },
       "display": {
         "title": "Read-only",
@@ -1088,6 +1087,14 @@
         "title": "Not yet classified",
         "description": "Newer than CLIde's settings catalog."
       }
-    }
+    },
+    "notSet": "Not set",
+    "default": "Default",
+    "on": "On",
+    "off": "Off",
+    "reset": "Reset",
+    "overridden": "The {{source}} file sets this to {{value}} in this project, so your setting won't apply here.",
+    "saveError": "Couldn't save to Claude Code's settings file.",
+    "invalidNumber": "Enter a number."
   }
 }

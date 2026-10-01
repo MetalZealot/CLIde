@@ -15,7 +15,11 @@ import {
   canonicalClaudeModelId,
   writeClaudeModelEffort,
 } from '@/modules/providers/list/claude/claude-effort.settings.js';
-import { readClaudeSettingsCascade } from '@/modules/providers/list/claude/claude-settings-cascade.js';
+import {
+  ClaudeSettingWriteError,
+  readClaudeSettingsCascade,
+  writeClaudeSetting,
+} from '@/modules/providers/list/claude/claude-settings-cascade.js';
 import {
   resolveClaudeCeilingProvenance,
   resolveClaudeDerivedCeiling,
@@ -1135,6 +1139,27 @@ router.get(
     res.json(createApiSuccessResponse(await readClaudeSettingsCascade(workspacePath ?? null)));
   }),
 );
+
+/** One editable key in Claude Code's user settings file; DELETE resets it to Claude Code's default. */
+const writeClaudeSettingRoute = (clear: boolean) => asyncHandler(async (req: Request, res: Response) => {
+  const key = String(req.params.key ?? '');
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  if (!clear && !('value' in body)) {
+    throw new AppError('value is required.', { code: 'INVALID_REQUEST_BODY', statusCode: 400 });
+  }
+  try {
+    await writeClaudeSetting(key, clear ? undefined : body.value);
+  } catch (error) {
+    if (error instanceof ClaudeSettingWriteError) {
+      throw new AppError(error.message, { code: 'INVALID_REQUEST_BODY', statusCode: 400 });
+    }
+    throw error;
+  }
+  res.json(createApiSuccessResponse({ key }));
+});
+
+router.put('/claude/settings/:key', writeClaudeSettingRoute(false));
+router.delete('/claude/settings/:key', writeClaudeSettingRoute(true));
 
 /**
  * The effort each current Claude model runs at when a chat names none — the
