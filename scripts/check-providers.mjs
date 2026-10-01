@@ -25,7 +25,7 @@
 //
 // Exits 0 always: this reports, it does not gate. The gates are the drift tests.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -316,16 +316,24 @@ if (want('--types')) {
       say('  npm pack failed\n');
       continue;
     }
-    run('tar', ['xzf', path.join(OUT, tarball), '-C', OUT]);
+    const unpacked = path.join(OUT, tarball.replace(/\.tgz$/, ''));
+    run('mkdir', ['-p', unpacked]);
+    run('tar', ['xzf', path.join(OUT, tarball), '-C', unpacked]);
     for (const file of target.files) {
       const a = path.join(target.installedDir(), file);
-      const b = path.join(OUT, 'package', file);
+      const b = path.join(unpacked, 'package', file);
       if (!existsSync(a) || !existsSync(b)) {
         say(`  ${file}: ${existsSync(a) ? 'gone from the new package' : 'absent locally'} — a relocation, look before assuming`);
         continue;
       }
       // Doc comments dominate these diffs and carry no contract; strip them.
-      const raw = run('diff', ['-u', a, b]) ?? '';
+      // diff exits 1 when the files differ; only 2 is a failure.
+      const result = spawnSync('diff', ['-u', a, b], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+      if (result.status === 2 || result.error) {
+        say(`  ${file}: diff failed`);
+        continue;
+      }
+      const raw = result.stdout;
       const signatures = raw.split('\n')
         .filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))
         .filter((l) => !/^[+-]\s*(\*|\/\*|\*\/)/.test(l) && l.trim().length > 1);

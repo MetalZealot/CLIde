@@ -27,7 +27,7 @@ import path from 'node:path';
  *            LONG_CONTEXT_RESERVE — measured, not decoded)
  *
  * The model facts below are copied verbatim from the registry in the `claude`
- * binary, 2.1.280: `context.window`, `max_output_tokens.default`, and whether
+ * binary, 2.1.286: `context.window`, `max_output_tokens.default`, and whether
  * the entry declares 1M support. The SDK bundle carried the same registry until
  * 0.3.246 and no longer does, so the runtime is the only copy.
  * `claude-context.test.ts` re-parses it and fails on any divergence, so a
@@ -87,6 +87,7 @@ export const CLAUDE_MODEL_CONTEXT_SPECS: Readonly<Record<string, ClaudeModelCont
   'claude-sonnet-4-5': { window: 200_000, maxOutputTokens: 32_000, supportsLongContext: true },
   'claude-sonnet-4-6': { window: 200_000, maxOutputTokens: 32_000, supportsLongContext: true },
   'claude-sonnet-5': { window: LONG_CONTEXT_WINDOW, maxOutputTokens: 64_000, supportsLongContext: true },
+  'claude-sonnet-5-5': { window: LONG_CONTEXT_WINDOW, maxOutputTokens: 128_000, supportsLongContext: true },
   'claude-opus-4-0': { window: 200_000, maxOutputTokens: 32_000, supportsLongContext: true },
   'claude-opus-4-1': { window: 200_000, maxOutputTokens: 32_000, supportsLongContext: true },
   'claude-opus-4-5': { window: 200_000, maxOutputTokens: 32_000, supportsLongContext: true },
@@ -112,7 +113,7 @@ export const CLAUDE_MODEL_CONTEXT_SPECS: Readonly<Record<string, ClaudeModelCont
  */
 export const CLAUDE_MODEL_ID_ALIASES: Readonly<Record<string, string>> = {
   opus: 'claude-opus-5-5',
-  sonnet: 'claude-sonnet-5',
+  sonnet: 'claude-sonnet-5-5',
   haiku: 'claude-haiku-4-5',
   fable: 'claude-fable-5-1',
   mythos: 'claude-mythos-5-1',
