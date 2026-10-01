@@ -52,4 +52,6 @@ export type SettingsProps = {
   onClose: () => void;
   projects?: SettingsProject[];
   initialTab?: string;
+  /** Opens the Usage page; the caller also closes whatever hosts Settings. */
+  onOpenUsage: () => void;
 };

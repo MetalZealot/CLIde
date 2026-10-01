@@ -29,7 +29,8 @@ export type SettingsIconName =
   | 'permissions'
   | 'mcp'
   | 'skills'
-  | 'defaultModel';
+  | 'defaultModel'
+  | 'autoCompact';
 
 export type SettingsGroupId = 'agents' | 'app' | 'extensions' | 'system';
 
@@ -108,7 +109,7 @@ const SUBSYSTEM_NODES: Record<AgentSubsystem, { labelKey: string; icon: Settings
   },
   autoCompact: {
     labelKey: 'tabs.autoCompact',
-    icon: 'defaultModel',
+    icon: 'autoCompact',
     keywords: 'autocompact auto-compact compact context window cap threshold tokens summarise',
   },
   permissions: {

@@ -960,6 +960,9 @@ describe('AgentAccountCard', () => {
     assert.match(usageRow?.textContent ?? '', /48% · Weekly limit/);
     await React.act(async () => usageRow?.click());
     assert.equal(opened, 1);
+    const manage = [...host.querySelectorAll<HTMLAnchorElement>('a')]
+      .find((anchor) => anchor.textContent?.includes('Manage plan and balance'));
+    assert.equal(manage?.href, 'https://claude.ai/new#settings/usage');
   });
 });
 
@@ -1028,7 +1031,7 @@ describe('AgentServiceStatusRow', () => {
     assert.equal(link?.target, '_blank');
     assert.match(link?.textContent ?? '', /Service status/);
     assert.match(link?.textContent ?? '', /Partial outage/);
-    assert.equal(link?.classList.contains('min-h-14'), true);
+    assert.equal(link?.classList.contains('min-h-12'), true);
   });
 
   test('reports unavailable without losing the provider status-page link', async () => {

@@ -1,10 +1,11 @@
-import { AlertTriangle, Gauge, LogIn } from 'lucide-react';
+import { AlertTriangle, CreditCard, ExternalLink, Gauge, LogIn } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useProviderCapabilities } from '../../../../../hooks/useProviderCapabilities';
 import { Button } from '../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../llm-logo-provider/SessionProviderLogo';
 import { formatUsageWindowLabel, isUsageWindowResetPending } from '../../../../provider-usage/format';
+import { PROVIDER_USAGE_MANAGEMENT_URLS } from '../../../../provider-usage/types';
 import type { ProviderUsageStatus, ProviderUsageWindow } from '../../../../provider-usage/types';
 import {
   type CodexTransportDiagnostics,
@@ -81,6 +82,7 @@ export default function AgentAccountCard({
   const serviceStatusPageUrl = capabilities?.[provider]?.serviceStatusPageUrl ?? null;
   const showUsage = authStatus.authenticated && planUsage?.supported === true;
   const peak = showUsage ? peakUsageWindow(planUsage) : null;
+  const managementUrl = showUsage ? PROVIDER_USAGE_MANAGEMENT_URLS[provider] : undefined;
 
   return (
     <SettingsGroup divided>
@@ -190,6 +192,19 @@ export default function AgentAccountCard({
             }) : undefined}
             onClick={onOpenUsage}
           />
+        )}
+
+        {managementUrl && (
+          <a
+            href={managementUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="flex min-h-12 items-center gap-3 px-4 py-3 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            <CreditCard className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{t('agents.usage.managePlan')}</span>
+            <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden />
+          </a>
         )}
     </SettingsGroup>
   );

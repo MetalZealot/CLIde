@@ -20,6 +20,8 @@ type SidebarModalsProps = {
   showSettings: boolean;
   settingsInitialTab?: string;
   onCloseSettings: () => void;
+  /** Closes the sidebar as well, so the Usage page is not left behind it. */
+  onShowUsage: () => void;
   showNewProject: boolean;
   onCloseNewProject: () => void;
   onProjectCreated: () => void;
@@ -47,6 +49,7 @@ type TypedSettingsProps = {
   onClose: () => void;
   projects: SettingsProject[];
   initialTab?: string;
+  onOpenUsage: () => void;
 };
 
 const SettingsComponent = Settings as (props: TypedSettingsProps) => JSX.Element;
@@ -60,6 +63,7 @@ export default function SidebarModals({
   showSettings,
   settingsInitialTab,
   onCloseSettings,
+  onShowUsage,
   showNewProject,
   onCloseNewProject,
   onProjectCreated,
@@ -104,6 +108,7 @@ export default function SidebarModals({
             onClose={onCloseSettings}
             projects={settingsProjects}
             initialTab={settingsInitialTab}
+            onOpenUsage={onShowUsage}
           />,
           document.body,
         )}

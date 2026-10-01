@@ -159,11 +159,11 @@ export default function AgentServiceStatusRow({
         agent: providerName,
       })}
       className={cn(
-        'flex min-h-14 items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+        'flex min-h-12 items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
         details.rowClassName,
       )}
     >
-      <StatusIcon className={cn('h-4.5 w-4.5 flex-shrink-0', details.iconClassName)} />
+      <StatusIcon className={cn('h-4 w-4 flex-shrink-0', details.iconClassName)} />
       <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
         {t('agents.serviceStatus.label', { defaultValue: 'Service status' })}
       </span>

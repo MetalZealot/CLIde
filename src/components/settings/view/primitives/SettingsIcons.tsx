@@ -14,6 +14,7 @@ import {
   Puzzle,
   Server,
   ShieldCheck,
+  Shrink,
   TerminalSquare,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -65,4 +66,5 @@ export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?
   mcp: Server,
   skills: FileCode2,
   defaultModel: Brain,
+  autoCompact: Shrink,
 };
