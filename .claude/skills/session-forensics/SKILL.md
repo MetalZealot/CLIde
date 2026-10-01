@@ -5,7 +5,7 @@ description: Locate a CLIde session and establish which id space you hold. Use w
 
 # Session forensics
 
-Three stores hold session state. Confusing them, or the two id spaces, is the
+Five stores hold session state. Confusing them, or the two id spaces, is the
 recurring failure this skill exists to prevent. Read-only unless the user
 authorized a specific write.
 
@@ -19,16 +19,18 @@ authorized a specific write.
   announces its id mid-run, or equal to `session_id` for sessions the watcher
   discovered on disk.
 
-Before passing an id to a runtime, confirm which one you hold. Guessing here
-caused three v1.37 merge defects (ADRs 0008, 0012, 0013).
+Before passing an id to a runtime, confirm which one you hold. ADRs 0008, 0012
+and 0013 record what goes wrong when they are confused.
 
-## Three stores
+## Five stores
 
 | Store | Path | Holds |
 |---|---|---|
 | App database | `~/.cloudcli/auth.db` | `sessions`, `session_provider_aliases`, `projects` — all providers in one table |
 | Claude transcripts | `~/.claude/projects/<path-slug>/<provider_session_id>.jsonl` | One dir per project, slug = cwd with `/` → `-` |
 | Codex transcripts | `~/.codex/sessions/YYYY/MM/DD/rollout-<ISO>-<provider_session_id>.jsonl` | Date-partitioned, not project-partitioned |
+| Cursor transcripts | `~/.cursor/projects/**/<provider_session_id>.jsonl` | Workspace path recovered from the sibling `worker.log` |
+| OpenCode | `~/.local/share/opencode/opencode.db` | One shared SQLite database for every session; `sessions.jsonl_path` is null |
 
 Worktrees get their own Claude project dir, so one CLIde project can have
 sessions under several slugs.
@@ -74,7 +76,7 @@ it goes stale when a project moves.
 
 ## Reading a transcript
 
-They are large (the cloudcli project dir alone exceeds 126 MB). **Never bulk-read
+They are large (the cloudcli project dir alone exceeded 126 MB in Aug 2026). **Never bulk-read
 or `cat` one.** Extract with `jq`, write intermediates to `/tmp`, read back only
 aggregates. For the first user message — useful for identifying an orphan:
 
@@ -99,6 +101,8 @@ revert cannot restore it.
 
 1. Back up: `cp ~/.cloudcli/auth.db ~/.cloudcli/auth.db.bak-<label>`
 2. Delete **filesystem before database rows** — the watcher re-discovers a
-   transcript whose row you already removed, recreating the session.
+   transcript whose row you already removed, recreating the session. OpenCode
+   sessions have no per-session file: never delete or edit `opencode.db` to
+   remove one.
 3. Only touch the exact scope the user authorized. Never clean up "obviously
    stale" sessions unasked.
