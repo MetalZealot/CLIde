@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Claude SDK 0.3.258 → 0.3.286** (2026-10-01). Merged `6c945d27`; Sonnet 5.5 added to the model tables, 13 settings keys classified, the `check:providers` type diff fixed. Verified: 717 server tests, both SDK probes, live chat/model/rewind/approval on the branch-test slot, and Grayson confirmed SDK 0.3.286 in production. [Ledger](maps/claude-upgrade-ledger.md)
+
 - [x] **Wrap command output** (2026-09-29). A Chat setting picks wrap or sideways scroll for every opened tool panel; the wrap button beside Copy inverts it for that call, unsaved. Wrapped text flows around the corner buttons. Fork-only. Verified: client tests, Browser on a test slot.
 
 - [x] **Save the displayed Browser screenshot** (2026-09-29). The session menu downloads the current JPEG. Verified: accepted live by Grayson. [Browser map](maps/chat-browser-activity.md).
