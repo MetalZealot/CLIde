@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import express, { type Request, type Response } from 'express';
 
 import { sessionsDb } from '@/modules/database/index.js';
@@ -13,6 +15,7 @@ import {
   canonicalClaudeModelId,
   writeClaudeModelEffort,
 } from '@/modules/providers/list/claude/claude-effort.settings.js';
+import { readClaudeSettingsCascade } from '@/modules/providers/list/claude/claude-settings-cascade.js';
 import {
   resolveClaudeCeilingProvenance,
   resolveClaudeDerivedCeiling,
@@ -1115,6 +1118,21 @@ router.put(
     }
 
     res.json(createApiSuccessResponse(await writeClaudeAutoCompactSettings(update)));
+  }),
+);
+
+/** Claude Code's settings cascade, read-only, as a session in `workspacePath` would see it. */
+router.get(
+  '/claude/settings-cascade',
+  asyncHandler(async (req: Request, res: Response) => {
+    const workspacePath = readOptionalQueryString(req.query.workspacePath);
+    if (workspacePath && !path.isAbsolute(workspacePath)) {
+      throw new AppError('workspacePath must be absolute.', {
+        code: 'INVALID_QUERY_PARAMETER',
+        statusCode: 400,
+      });
+    }
+    res.json(createApiSuccessResponse(await readClaudeSettingsCascade(workspacePath ?? null)));
   }),
 );
 

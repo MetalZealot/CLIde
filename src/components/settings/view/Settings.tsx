@@ -15,6 +15,7 @@ import AboutScreen from './screens/AboutScreen';
 import AccountScreen from './screens/AccountScreen';
 import AgentMcpScreen from './screens/AgentMcpScreen';
 import AgentAutoCompactScreen from './screens/AgentAutoCompactScreen';
+import AgentConfigurationScreen from './screens/AgentConfigurationScreen';
 import AgentDefaultEffortScreen from './screens/AgentDefaultEffortScreen';
 import AgentDefaultModelScreen from './screens/AgentDefaultModelScreen';
 import AgentPermissionsScreen from './screens/AgentPermissionsScreen';
@@ -210,6 +211,9 @@ function Settings({ isOpen, onClose, projects = [], initialTab, onOpenUsage }: S
 
         case 'autoCompact':
           return <AgentAutoCompactScreen />;
+
+        case 'configuration':
+          return <AgentConfigurationScreen projects={projects} />;
 
         case 'permissions':
           return (

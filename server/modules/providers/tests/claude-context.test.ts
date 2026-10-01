@@ -9,6 +9,7 @@ import test, { describe } from 'node:test';
 import { readClaudeAutoCompactSettings, writeClaudeAutoCompactSettings } from '@/modules/providers/list/claude/claude-autocompact.settings.js';
 import { CLAUDE_BUILTIN_DEFAULT_EFFORT } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_SETTINGS_CATALOG } from '@/modules/providers/list/claude/claude-settings-catalog.js';
+import { readClaudeSettingsCascade } from '@/modules/providers/list/claude/claude-settings-cascade.js';
 import { readClaudeUpdateChannel, writeClaudeUpdateChannel } from '@/modules/providers/list/claude/claude-update-channel.settings.js';
 import {
   captureClaudeContextUsage,
@@ -1019,6 +1020,46 @@ describe('claude-settings-catalog', () => {
     Object.entries(CLAUDE_SETTINGS_CATALOG).forEach(([key, tier]) => {
       assert.ok(tiers.has(tier), `${key} carries unknown tier ${tier}`);
     });
+  });
+
+  test('the cascade names the winning file per key and never returns env values', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'claude-settings-cascade-test-'));
+    const previous = process.env.CLAUDE_CONFIG_DIR;
+    try {
+      const config = path.join(root, 'config');
+      const project = path.join(root, 'project');
+      await fs.mkdir(config, { recursive: true });
+      await fs.mkdir(path.join(project, '.claude'), { recursive: true });
+      await writeFile(path.join(config, 'settings.json'), JSON.stringify({
+        model: 'opus', env: { ANTHROPIC_API_KEY: 'sk-secret' }, theme: 'dark',
+      }));
+      await writeFile(path.join(project, '.claude', 'settings.json'), JSON.stringify({ model: 'sonnet' }));
+      await writeFile(path.join(project, '.claude', 'settings.local.json'), JSON.stringify({
+        permissions: { allow: ['Bash(ls)'] },
+      }));
+      process.env.CLAUDE_CONFIG_DIR = config;
+
+      const cascade = await readClaudeSettingsCascade(project);
+      const byKey = new Map(cascade.entries.map((entry) => [entry.key, entry]));
+
+      assert.deepEqual(
+        { source: byKey.get('model')?.source, alsoSetIn: byKey.get('model')?.alsoSetIn, value: byKey.get('model')?.value },
+        { source: 'project', alsoSetIn: ['user'], value: 'sonnet' },
+      );
+      assert.equal(byKey.get('permissions')?.source, 'local');
+      assert.equal(byKey.get('theme')?.tier, 'terminal');
+      assert.deepEqual(byKey.get('env')?.value, ['ANTHROPIC_API_KEY']);
+      assert.ok(!JSON.stringify(cascade).includes('sk-secret'));
+
+      // No project: the project's files drop out instead of resolving against the server's cwd.
+      const userOnly = await readClaudeSettingsCascade(null);
+      assert.equal(userOnly.entries.find((entry) => entry.key === 'model')?.source, 'user');
+      assert.ok(!userOnly.entries.some((entry) => entry.key === 'permissions'));
+    } finally {
+      if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = previous;
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

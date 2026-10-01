@@ -26,6 +26,7 @@ import type {
   NotificationPreferencesState,
   SettingsProject,
 } from '../../types/types';
+import { cascadeUrl, initialConfigurationProject } from '../../utils/claudeConfiguration';
 import { SETTINGS_ICONS, SettingsGroup, SettingsNavRow, SettingsRow, SettingsScreen, SettingsToggle } from '../primitives';
 import AgentAccountCard from '../sections/agent/AgentAccountCard';
 
@@ -213,6 +214,13 @@ export default function AgentProviderScreen({
       (data) => ((data as { enabled?: boolean }).enabled ? t('agents.subsystems.on') : t('agents.subsystems.off')),
     ),
     permissions: usePermissionsSummary(provider, permissions),
+    // Counted against the project the Configuration screen will open on.
+    configuration: useFetchedValue(
+      subsystems.includes('configuration') ? cascadeUrl(initialConfigurationProject(projects)) : null,
+      (data) => t('agents.subsystems.settingsCount', {
+        count: ((data as { entries?: unknown[] }).entries ?? []).length,
+      }),
+    ),
   };
 
   const setUsageResetEnabled = (enabled: boolean) => {

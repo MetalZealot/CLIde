@@ -1,7 +1,7 @@
 # Claude Code's settings cascade, reachable from CLIde
 
 - Status: 1/5
-- Next: Phase 2 — a read-only cascade screen, which is where the `@alpha` `resolveSettings()` risk gets taken
+- Next: Phase 2 live check on the production port, then Phase 3
 - Context: per-key tiers in [the settings audit](../maps/2026-07-28-claude-code-settings-surface-audit.md);
   destinations in [the command surface map](../maps/claude-command-surface.md);
   the release-to-release history in [the Claude ledger](../maps/claude-upgrade-ledger.md)
@@ -23,10 +23,12 @@ failing test does.
   `claude-settings-catalog.ts` as `exposed` (2), `adapt` (58), `display` (19),
   `terminal` (33) or `out-of-scope` (47); the drift test reports only the
   difference, so a release names its own keys.
-- [ ] 2. A read-only Claude configuration screen shows the effective cascade with
+- [~] 2. A read-only Claude configuration screen shows the effective cascade with
   a source badge per key. `resolveSettings()` supplies `effective`, `provenance`
   and per-source raw settings without spawning the CLI. Lands in the existing
-  `claude` provider slot, not a new tab.
+  `claude` provider slot, not a new tab. Built as Agents › Claude ›
+  Configuration with a project picker; `env` values never leave the server.
+  Tested and built, not yet seen live.
 - [ ] 3. One shared writer for `settings.json`, preserving comments and
   formatting. Today's only writer round-trips through `JSON.parse`, which keeps
   unknown keys but discards everything else in the file.

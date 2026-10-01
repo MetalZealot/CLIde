@@ -16,6 +16,7 @@ import {
   Server,
   ShieldCheck,
   Shrink,
+  SlidersHorizontal,
   TerminalSquare,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -69,4 +70,5 @@ export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?
   defaultModel: Brain,
   defaultEffort: Gauge,
   autoCompact: Shrink,
+  configuration: SlidersHorizontal,
 };
