@@ -36,6 +36,7 @@ main checkout only).
 
 ## Bugs
 
+- [ ] **Auto-Continue sends with no permission mode.** Its `usage-reset` row has no options, so the turn runs in `default` and approvals time out. Store the mode when arming. **S**
 - [ ] **Claude thoughts come back empty because CLIde never requests summaries.** Passing `thinking: { display: 'summarized' }` returned text where the current run returns 0 characters (probe, 2026-09-24). Check adaptive vs fixed-budget models first. [Map](maps/tool-activity-stream.md#settings-that-decide-what-is-sent). **S**
 - [ ] **Codex history never flags a failed command.** Reloaded `exec` results never set `isError`; 18 failed commands in one sample came back unflagged. The rollout's `CommandExecution` records carry exit code and duration. [Map](maps/tool-activity-stream.md). **S**
 - [ ] **Cursor `ApplyPatch` edits show 0/0 line counts.** It is renamed `Edit` but only `patch` is filled. Source only; no Cursor session to test. [Map](maps/tool-activity-stream.md). **S**
