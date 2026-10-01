@@ -1,30 +1,24 @@
 /**
  * Read and write Claude Code's auto-compact settings.
  *
- * The only file CLIde writes in `~/.claude/`. Two rules follow from that:
- * unknown keys are preserved verbatim, and `auto` is the ABSENCE of
- * `autoCompactWindow`, never a sentinel — that is what `/autocompact` writes,
- * and the two surfaces must agree.
+ * `auto` is the ABSENCE of `autoCompactWindow`, never a sentinel — that is
+ * what `/autocompact` writes, and the two surfaces must agree.
  *
  * `autoCompactWindow` caps the window; the runtime compacts below it. It is
  * global across every session, project and Shell.
  */
 
-import { promises as fs } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-
 import {
   CLAUDE_MODEL_CONTEXT_SPECS,
   resetClaudeContextWindowCache,
 } from '@/modules/providers/list/claude/claude-context-window.js';
+import {
+  readClaudeSettingsFileOrEmpty,
+  updateClaudeSettingsFile,
+} from '@/modules/providers/list/claude/claude-settings-file.js';
 
 /** Claude Code's own picker steps in 100K increments; matching it avoids a value it would not have offered. */
 const WINDOW_STEP = 100_000;
-
-const settingsFilePath = (settingsPath?: string): string => (
-  settingsPath ?? path.join(os.homedir(), '.claude', 'settings.json')
-);
 
 const readPositiveInteger = (value: unknown): number | undefined => {
   const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
@@ -52,23 +46,10 @@ const largestKnownWindow = (): number => Math.max(
   WINDOW_STEP,
 );
 
-const readSettingsFile = async (settingsPath?: string): Promise<Record<string, unknown>> => {
-  try {
-    const parsed: unknown = JSON.parse(await fs.readFile(settingsFilePath(settingsPath), 'utf8'));
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : {};
-  } catch {
-    // Missing or malformed: treated as "nothing configured", never overwritten
-    // blind — a write reads again and fails loudly if it still cannot parse.
-    return {};
-  }
-};
-
 export const readClaudeAutoCompactSettings = async (
   settingsPath?: string,
 ): Promise<ClaudeAutoCompactSettings> => {
-  const settings = await readSettingsFile(settingsPath);
+  const settings = await readClaudeSettingsFileOrEmpty(settingsPath);
   const maxWindow = largestKnownWindow();
   const options: number[] = [];
   for (let window = WINDOW_STEP; window <= maxWindow; window += WINDOW_STEP) {
@@ -95,23 +76,19 @@ export const writeClaudeAutoCompactSettings = async (
   update: ClaudeAutoCompactUpdate,
   settingsPath?: string,
 ): Promise<ClaudeAutoCompactSettings> => {
-  const filePath = settingsFilePath(settingsPath);
-  const settings = await readSettingsFile(settingsPath);
-
-  if (update.enabled !== undefined) {
-    settings.autoCompactEnabled = update.enabled;
-  }
-
-  if (update.window !== undefined) {
-    if (update.window === null) {
-      delete settings.autoCompactWindow;
-    } else {
-      settings.autoCompactWindow = update.window;
+  await updateClaudeSettingsFile((settings) => {
+    if (update.enabled !== undefined) {
+      settings.autoCompactEnabled = update.enabled;
     }
-  }
 
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+    if (update.window !== undefined) {
+      if (update.window === null) {
+        delete settings.autoCompactWindow;
+      } else {
+        settings.autoCompactWindow = update.window;
+      }
+    }
+  }, settingsPath);
   // The derived ceiling memoizes this file by mtime; a write in the same
   // millisecond would otherwise be served from the stale entry.
   resetClaudeContextWindowCache();

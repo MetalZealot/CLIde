@@ -10,6 +10,7 @@ import { readClaudeAutoCompactSettings, writeClaudeAutoCompactSettings } from '@
 import { CLAUDE_BUILTIN_DEFAULT_EFFORT } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_SETTINGS_CATALOG } from '@/modules/providers/list/claude/claude-settings-catalog.js';
 import { readClaudeSettingsCascade } from '@/modules/providers/list/claude/claude-settings-cascade.js';
+import { updateClaudeSettingsFile } from '@/modules/providers/list/claude/claude-settings-file.js';
 import { readClaudeUpdateChannel, writeClaudeUpdateChannel } from '@/modules/providers/list/claude/claude-update-channel.settings.js';
 import {
   captureClaudeContextUsage,
@@ -909,6 +910,59 @@ describe('claude-autocompact-settings', () => {
         if (saved === undefined) delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
         else process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = saved;
       }
+    });
+  });
+});
+
+describe('claude-settings-file', () => {
+  const withDirectory = async (run: (directory: string) => Promise<void>): Promise<void> => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'clide-settings-file-'));
+    try {
+      await run(directory);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  };
+
+  test('a malformed file is refused and left exactly as it was', async () => {
+    await withDirectory(async (directory) => {
+      const settingsPath = path.join(directory, 'settings.json');
+      await writeFile(settingsPath, '{"theme": "dark",', 'utf8');
+      await assert.rejects(writeClaudeAutoCompactSettings({ enabled: false }, settingsPath), /not valid JSON/);
+      assert.equal(readFileSync(settingsPath, 'utf8'), '{"theme": "dark",');
+    });
+  });
+
+  test('a symlinked file is written through, keeping the link and its mode', async () => {
+    await withDirectory(async (directory) => {
+      const real = path.join(directory, 'dotfiles-settings.json');
+      const link = path.join(directory, 'settings.json');
+      await writeFile(real, '{"theme":"dark"}', { encoding: 'utf8', mode: 0o600 });
+      await fs.chmod(real, 0o600);
+      await fs.symlink(real, link);
+
+      await updateClaudeSettingsFile((settings) => { settings.outputStyle = 'Concise'; }, link);
+
+      assert.ok((await fs.lstat(link)).isSymbolicLink());
+      assert.equal(statSync(real).mode & 0o777, 0o600);
+      assert.deepEqual(JSON.parse(readFileSync(real, 'utf8')), { theme: 'dark', outputStyle: 'Concise' });
+      assert.deepEqual((await fs.readdir(directory)).sort(), ['dotfiles-settings.json', 'settings.json']);
+    });
+  });
+
+  test('concurrent writes each land, and unknown keys survive them', async () => {
+    await withDirectory(async (directory) => {
+      const settingsPath = path.join(directory, 'settings.json');
+      await writeFile(settingsPath, '{"futureKey":{"nested":true}}', 'utf8');
+
+      await Promise.all(Array.from({ length: 8 }, (_, index) => updateClaudeSettingsFile(
+        (settings) => { settings[`key${index}`] = index; },
+        settingsPath,
+      )));
+
+      const saved = JSON.parse(readFileSync(settingsPath, 'utf8')) as Record<string, unknown>;
+      assert.deepEqual(saved.futureKey, { nested: true });
+      assert.equal(Object.keys(saved).filter((key) => key.startsWith('key')).length, 8);
     });
   });
 });

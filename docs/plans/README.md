@@ -24,7 +24,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Markdown-native project board](markdown-project-board.md) | not started | First observe the existing dashboard, then test the status contract across three projects |
-| [Claude settings surface](claude-settings-surface.md) | 2/5 | Phase 3: one shared `settings.json` writer that keeps comments |
+| [Claude settings surface](claude-settings-surface.md) | 3/6 | Phase 4: generated controls on Agents › Claude › Configuration |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |
 | [Cross-provider chat handoff](cross-provider-chat-handoff.md) | not started | Re-verify its four assumed contracts |

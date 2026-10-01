@@ -6,9 +6,11 @@
  * downgrades, and switching back to latest clears it.
  */
 
-import { promises as fs } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import {
+  claudeUserSettingsPath,
+  readClaudeSettingsFile,
+  updateClaudeSettingsFile,
+} from '@/modules/providers/list/claude/claude-settings-file.js';
 
 export type ClaudeUpdateChannel = 'latest' | 'stable';
 
@@ -22,27 +24,6 @@ export type ClaudeSettingsPaths = { user?: string; managed?: string };
 
 const MANAGED_SETTINGS_PATH = '/etc/claude-code/managed-settings.json';
 
-const userSettingsPath = (): string => path.join(
-  process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
-  'settings.json',
-);
-
-/** Missing reads as empty; malformed throws, so a write never replaces a file it could not parse. */
-const readJsonObject = async (filePath: string): Promise<Record<string, unknown>> => {
-  let text: string;
-  try {
-    text = await fs.readFile(filePath, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
-    throw error;
-  }
-  const parsed: unknown = JSON.parse(text);
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error(`${filePath} is not a JSON object.`);
-  }
-  return parsed as Record<string, unknown>;
-};
-
 const channelOf = (value: unknown): ClaudeUpdateChannel | null => (
   value === 'stable' || value === 'latest' ? value : null
 );
@@ -50,9 +31,9 @@ const channelOf = (value: unknown): ClaudeUpdateChannel | null => (
 export const readClaudeUpdateChannel = async (
   paths: ClaudeSettingsPaths = {},
 ): Promise<ClaudeUpdateChannelSettings> => {
-  const managed = channelOf((await readJsonObject(paths.managed ?? MANAGED_SETTINGS_PATH)).autoUpdatesChannel);
+  const managed = channelOf((await readClaudeSettingsFile(paths.managed ?? MANAGED_SETTINGS_PATH)).autoUpdatesChannel);
   if (managed) return { channel: managed, managed: true };
-  const user = await readJsonObject(paths.user ?? userSettingsPath());
+  const user = await readClaudeSettingsFile(paths.user ?? claudeUserSettingsPath());
   // Claude Code treats a missing key as latest.
   return { channel: channelOf(user.autoUpdatesChannel) ?? 'latest', managed: false };
 };
@@ -65,17 +46,13 @@ export const writeClaudeUpdateChannel = async (
   if ((await readClaudeUpdateChannel(paths)).managed) {
     throw new Error('The update channel is set by managed settings.');
   }
-  const filePath = paths.user ?? userSettingsPath();
-  const settings = await readJsonObject(filePath);
-
-  settings.autoUpdatesChannel = channel;
-  if (channel === 'stable') {
-    settings.minimumVersion = installedVersion;
-  } else {
-    delete settings.minimumVersion;
-  }
-
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  await updateClaudeSettingsFile((settings) => {
+    settings.autoUpdatesChannel = channel;
+    if (channel === 'stable') {
+      settings.minimumVersion = installedVersion;
+    } else {
+      delete settings.minimumVersion;
+    }
+  }, paths.user);
   return readClaudeUpdateChannel(paths);
 };

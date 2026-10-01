@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+
+import { claudeUserSettingsPath } from '@/modules/providers/list/claude/claude-settings-file.js';
 
 /**
  * Model-derived context ceiling for the Claude token ring.
@@ -191,7 +191,7 @@ type CachedSettings = {
 let settingsWindowCache: CachedSettings | null = null;
 
 const readAutoCompactSettings = (settingsPath?: string): { window?: number; enabled: boolean } => {
-  const filePath = settingsPath ?? path.join(os.homedir(), '.claude', 'settings.json');
+  const filePath = settingsPath ?? claudeUserSettingsPath();
   try {
     const { mtimeMs } = statSync(filePath);
     if (settingsWindowCache?.filePath === filePath && settingsWindowCache.mtimeMs === mtimeMs) {
