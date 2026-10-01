@@ -576,7 +576,7 @@
         "codex": "Codex"
       },
       "sdk": "Agent SDK",
-      "latest": "Latest",
+      "latest": "Up to date",
       "available": "{{version}} available",
       "availableExternal": "{{version}} available · update with its original installer",
       "update": "Update",
@@ -585,7 +585,15 @@
       "updateFailed": "CLI update failed.",
       "cancelFailed": "Could not cancel the update.",
       "changelog": "Changelog",
-      "sdkBehind": "Bundled with CLIde, so it updates with a code change, not a button. Test the new version on a branch first."
+      "sdkBehind": "Bundled with CLIde, so it updates with a code change, not a button. Test the new version on a branch first.",
+      "channel": {
+        "label": "Update channel",
+        "hint": "Stable is about a week behind and skips releases with major regressions.",
+        "managed": "Set by your organization's managed settings.",
+        "latest": "Latest",
+        "stable": "Stable",
+        "failed": "Could not change the update channel."
+      }
     },
     "providers": {
       "claude": "Claude",

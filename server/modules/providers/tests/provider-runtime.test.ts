@@ -458,6 +458,25 @@ describe('provider CLI updates', () => {
     assert.equal(installs, 0);
   });
 
+  test('a recheck refetches the cached release, so a changed channel shows at once', async () => {
+    let latest = '2.1.287';
+    let checks = 0;
+    const service = new ProviderCliUpdatesService({
+      inspect: async () => ({ launcher: '/fake/claude', version: '2.1.286', canUpdate: true }),
+      latest: async () => { checks += 1; return latest; },
+      install: async () => {}, verify: async () => {},
+      coordinator: new ProviderUpdateCoordinator(), now: () => 1000,
+    });
+    assert.equal((await service.getStatus('claude')).updateAvailable, true);
+    latest = '2.1.285';
+    assert.equal((await service.getStatus('claude')).updateAvailable, true, 'cached until rechecked');
+    service.recheck('claude');
+    const after = await service.getStatus('claude');
+    assert.equal(after.latestVersion, '2.1.285');
+    assert.equal(after.updateAvailable, false);
+    assert.equal(checks, 2);
+  });
+
   test('a waiting update can be cancelled without interrupting existing work', async () => {
     const coordinator = new ProviderUpdateCoordinator();
     const release = coordinator.acquire('claude');

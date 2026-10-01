@@ -22,6 +22,7 @@ export function useProviderCliUpdate(provider: string, messages: { updateFailed:
   const [status, setStatus] = useState<ProviderCliUpdateStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [revision, setRevision] = useState(0);
   const supported = supportsCliUpdate(provider);
   const busy = submitting || status?.state === 'waiting' || status?.state === 'updating';
 
@@ -42,7 +43,7 @@ export function useProviderCliUpdate(provider: string, messages: { updateFailed:
     };
     void refresh();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [provider, supported, submitting]);
+  }, [provider, supported, submitting, revision]);
 
   const { updateFailed, cancelFailed } = messages;
   const update = useCallback(async () => {
@@ -56,5 +57,8 @@ export function useProviderCliUpdate(provider: string, messages: { updateFailed:
   const cancel = useCallback(() => void readStatus(provider, 'DELETE').then(setStatus)
     .catch(() => setError(cancelFailed)), [provider, cancelFailed]);
 
-  return { supported, status, error, busy, update, cancel };
+  /** Re-reads now, e.g. after the release channel changed. */
+  const refresh = useCallback(() => setRevision((current) => current + 1), []);
+
+  return { supported, status, error, busy, update, cancel, refresh };
 }

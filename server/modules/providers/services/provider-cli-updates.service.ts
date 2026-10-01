@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
-import { access, readFile, realpath } from 'node:fs/promises';
+import { access, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { readClaudeUpdateChannel } from '@/modules/providers/list/claude/claude-update-channel.settings.js';
 import { codexNativeRuntimeService } from '@/modules/providers/list/codex/codex-native-runtime.provider.js';
 import { providerUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
 import { runProviderNativeRuntimeCommand } from '@/modules/providers/services/provider-native-runtime.service.js';
@@ -63,29 +64,10 @@ const inspectInstallation = async (provider: UpdateProvider): Promise<Installati
   return { launcher, version, canUpdate };
 };
 
-const readClaudeChannel = async (): Promise<'stable' | 'latest'> => {
-  let channel: 'stable' | 'latest' = 'latest';
-  const settingsFiles = [
-    path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'settings.json'),
-    '/etc/claude-code/managed-settings.json',
-  ];
-  for (const filename of settingsFiles) {
-    try {
-      const settings = JSON.parse(await readFile(filename, 'utf8'));
-      if (settings.autoUpdatesChannel === 'stable' || settings.autoUpdatesChannel === 'latest') {
-        channel = settings.autoUpdatesChannel;
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Cannot read the Claude update channel.');
-    }
-  }
-  return channel;
-};
-
 const latestVersion = async (provider: UpdateProvider): Promise<string> => {
   const url = provider === 'codex'
     ? 'https://releases.openai.com/codex/channels/latest'
-    : `https://downloads.claude.ai/claude-code-releases/${await readClaudeChannel()}`;
+    : `https://downloads.claude.ai/claude-code-releases/${(await readClaudeUpdateChannel()).channel}`;
   const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
   if (!response.ok) throw new Error('Release check failed.');
   const text = await response.text();
@@ -172,6 +154,11 @@ export class ProviderCliUpdatesService {
       status.message = 'Could not check CLI updates. Try again later.';
     }
     return { ...status };
+  }
+
+  /** Drops the cached release so the next check follows a changed channel. */
+  recheck(provider: UpdateProvider): void {
+    this.checkedUntil.delete(provider);
   }
 
   async startUpdate(provider: UpdateProvider): Promise<ProviderCliUpdateStatus> {

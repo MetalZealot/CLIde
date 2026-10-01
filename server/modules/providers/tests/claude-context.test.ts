@@ -9,6 +9,7 @@ import test, { describe } from 'node:test';
 import { readClaudeAutoCompactSettings, writeClaudeAutoCompactSettings } from '@/modules/providers/list/claude/claude-autocompact.settings.js';
 import { CLAUDE_BUILTIN_DEFAULT_EFFORT } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_SETTINGS_CATALOG } from '@/modules/providers/list/claude/claude-settings-catalog.js';
+import { readClaudeUpdateChannel, writeClaudeUpdateChannel } from '@/modules/providers/list/claude/claude-update-channel.settings.js';
 import {
   captureClaudeContextUsage,
   clearClaudeContextCeilings,
@@ -907,6 +908,54 @@ describe('claude-autocompact-settings', () => {
         if (saved === undefined) delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
         else process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = saved;
       }
+    });
+  });
+});
+
+describe('claude-update-channel-settings', () => {
+  const withSettings = async (
+    user: string | null,
+    managed: string | null,
+    run: (paths: { user: string; managed: string }) => Promise<void>,
+  ): Promise<void> => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'clide-update-channel-'));
+    const paths = { user: path.join(directory, 'settings.json'), managed: path.join(directory, 'managed.json') };
+    try {
+      if (user !== null) await fs.writeFile(paths.user, user, 'utf8');
+      if (managed !== null) await fs.writeFile(paths.managed, managed, 'utf8');
+      await run(paths);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  };
+  const readRaw = async (filePath: string) => JSON.parse(await fs.readFile(filePath, 'utf8')) as Record<string, unknown>;
+
+  test('a missing channel reads as latest, and stable floors at the installed build without a downgrade', async () => {
+    await withSettings('{"theme":"dark"}', null, async (paths) => {
+      assert.deepEqual(await readClaudeUpdateChannel(paths), { channel: 'latest', managed: false });
+
+      assert.equal((await writeClaudeUpdateChannel('stable', '2.1.286', paths)).channel, 'stable');
+      let raw = await readRaw(paths.user);
+      assert.equal(raw.autoUpdatesChannel, 'stable');
+      assert.equal(raw.minimumVersion, '2.1.286');
+      assert.equal(raw.theme, 'dark');
+
+      // Latest clears the floor, as `/config` does.
+      await writeClaudeUpdateChannel('latest', '2.1.286', paths);
+      raw = await readRaw(paths.user);
+      assert.equal(raw.autoUpdatesChannel, 'latest');
+      assert.equal('minimumVersion' in raw, false);
+    });
+  });
+
+  test('managed settings win and block writes; a malformed user file is never overwritten', async () => {
+    await withSettings('{"autoUpdatesChannel":"latest"}', '{"autoUpdatesChannel":"stable"}', async (paths) => {
+      assert.deepEqual(await readClaudeUpdateChannel(paths), { channel: 'stable', managed: true });
+      await assert.rejects(writeClaudeUpdateChannel('latest', '2.1.286', paths), /managed settings/);
+    });
+    await withSettings('{not json', null, async (paths) => {
+      await assert.rejects(writeClaudeUpdateChannel('stable', '2.1.286', paths));
+      assert.equal(await fs.readFile(paths.user, 'utf8'), '{not json');
     });
   });
 });

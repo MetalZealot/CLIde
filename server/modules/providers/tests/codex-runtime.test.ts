@@ -101,6 +101,7 @@ describe('codex-native-runtime-management', () => {
       getStatus: async (provider) => { calls.push(`get:${provider}`); return status(provider); },
       startUpdate: async (provider) => { calls.push(`update:${provider}`); return status(provider); },
       cancelUpdate: async (provider) => { calls.push(`cancel:${provider}`); return status(provider); },
+      recheck: (provider) => { calls.push(`recheck:${provider}`); },
     }));
     app.use((error: AppError, _req: Request, res: Response, _next: NextFunction) => {
       res.status(error.statusCode ?? 500).json({ error: error.message });
@@ -114,6 +115,10 @@ describe('codex-native-runtime-management', () => {
       assert.equal((await fetch(`${url}/claude/cli-update`, { method: 'POST' })).status, 202);
       assert.equal((await fetch(`${url}/claude/cli-update`, { method: 'DELETE' })).status, 200);
       assert.equal((await fetch(`${url}/cursor/cli-update`, { method: 'POST' })).status, 400);
+      const badChannel = await fetch(`${url}/claude/update-channel`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'rc' }),
+      });
+      assert.equal(badChannel.status, 400);
       assert.deepEqual(calls, ['get:codex', 'update:claude', 'cancel:claude']);
     } finally { await new Promise<void>((resolve) => server.close(() => resolve())); }
   });

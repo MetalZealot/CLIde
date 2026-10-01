@@ -906,16 +906,19 @@ describe('AgentAccountCard', () => {
     return container;
   };
 
-  test('a current Claude Code and SDK each read Latest, with nothing to act on', async () => {
+  test('a current Claude Code and SDK each read Up to date, with the update channel shown', async () => {
     responses = {
       '/cli-update': cliStatus(),
       '/sdk-release': { installedVersion: '0.3.286', latestVersion: '0.3.286', behind: false },
+      '/update-channel': { channel: 'stable', managed: false },
     };
     const host = await render();
 
     assert.match(host.textContent ?? '', /Claude Code2\.1\.286/);
     assert.match(host.textContent ?? '', /Agent SDK0\.3\.286/);
-    assert.equal(host.textContent?.match(/Latest/g)?.length, 2);
+    assert.equal(host.textContent?.match(/Up to date/g)?.length, 2);
+    const channel = host.querySelector('[role="radiogroup"][aria-label="Update channel"]');
+    assert.equal(channel?.querySelector('[aria-checked="true"]')?.textContent, 'Stable');
     assert.equal([...host.querySelectorAll('button')].some((button) => button.textContent === 'Update'), false);
   });
 

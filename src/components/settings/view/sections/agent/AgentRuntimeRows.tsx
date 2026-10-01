@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ExternalLink, Loader2, Package, SquareTerminal } from 'lucide-react';
+import { AlertTriangle, Check, ExternalLink, Loader2, Package, Radio, SquareTerminal } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,6 +6,7 @@ import type { ClaudeSdkReleaseStatus } from '../../../../../../shared/provider-u
 import { useProviderCliUpdate } from '../../../../../hooks/useProviderCliUpdate';
 import { Button } from '../../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../../utils/api';
+import { SettingsSegmentedControl } from '../../primitives';
 
 const SDK_CHANGELOG_URL = 'https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md';
 
@@ -61,7 +62,7 @@ export function AgentCliUpdateRow({
   quietWhenCurrent = false,
 }: { provider: 'claude' | 'codex'; fallbackVersion?: string | null; quietWhenCurrent?: boolean }) {
   const { t } = useTranslation('settings');
-  const { status, error, busy, update, cancel } = useProviderCliUpdate(provider, {
+  const { status, error, busy, update, cancel, refresh } = useProviderCliUpdate(provider, {
     updateFailed: t('agents.runtimeVersions.updateFailed'),
     cancelFailed: t('agents.runtimeVersions.cancelFailed'),
   });
@@ -100,13 +101,83 @@ export function AgentCliUpdateRow({
   if (quietWhenCurrent && !detail) return null;
 
   return (
-    <VersionRow
-      icon={<SquareTerminal className="h-4 w-4" />}
-      label={t(`agents.runtimeVersions.cli.${provider}`)}
-      version={status?.installedVersion ?? fallbackVersion}
-      detail={detail}
-      trailing={action ?? (status && !detail ? <Latest /> : null)}
-    />
+    <>
+      <VersionRow
+        icon={<SquareTerminal className="h-4 w-4" />}
+        label={t(`agents.runtimeVersions.cli.${provider}`)}
+        version={status?.installedVersion ?? fallbackVersion}
+        detail={detail}
+        trailing={action ?? (status && !detail ? <Latest /> : null)}
+      />
+      {provider === 'claude' && <ClaudeUpdateChannelRow disabled={busy} onChanged={refresh} />}
+    </>
+  );
+}
+
+type UpdateChannel = 'latest' | 'stable';
+type UpdateChannelSettings = { channel: UpdateChannel; managed: boolean };
+
+/** Claude Code's `autoUpdatesChannel`; the row above re-checks against whichever is picked. */
+function ClaudeUpdateChannelRow({ disabled, onChanged }: { disabled: boolean; onChanged: () => void }) {
+  const { t } = useTranslation('settings');
+  const [settings, setSettings] = useState<UpdateChannelSettings | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    authenticatedFetch('/api/providers/claude/update-channel')
+      .then((response) => response.json())
+      .then((body) => { if (!cancelled && body.success) setSettings(body.data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!settings) return null;
+
+  const choose = async (channel: UpdateChannel) => {
+    if (channel === settings.channel) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await authenticatedFetch('/api/providers/claude/update-channel', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || '');
+      setSettings(body.data);
+      onChanged();
+    } catch (failure) {
+      setError((failure instanceof Error && failure.message) || t('agents.runtimeVersions.channel.failed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-3 px-4 py-3">
+      <span className="mt-0.5 flex-shrink-0 text-muted-foreground"><Radio className="h-4 w-4" /></span>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-foreground">{t('agents.runtimeVersions.channel.label')}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">
+          {t(settings.managed ? 'agents.runtimeVersions.channel.managed' : 'agents.runtimeVersions.channel.hint')}
+        </div>
+        <SettingsSegmentedControl<UpdateChannel>
+          value={settings.channel}
+          className="mt-2 w-full"
+          ariaLabel={t('agents.runtimeVersions.channel.label')}
+          disabled={settings.managed || saving || disabled}
+          onChange={(channel) => void choose(channel)}
+          options={[
+            { value: 'latest', label: t('agents.runtimeVersions.channel.latest') },
+            { value: 'stable', label: t('agents.runtimeVersions.channel.stable') },
+          ]}
+        />
+        {error && <div className="mt-1.5 text-xs text-destructive">{error}</div>}
+      </div>
+    </div>
   );
 }
 
