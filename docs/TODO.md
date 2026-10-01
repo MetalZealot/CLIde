@@ -123,6 +123,7 @@ new work.
 - [ ] **Markdown-native cross-project dashboard and Kanban board.** A possible built-in or extension surface over authoritative project docs, with deterministic partial adoption, optional agent-assisted setup, and later constrained source edits—no task database or orchestration layer. [Plan](plans/markdown-project-board.md). **L — observe dashboard V1 first**
 - [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
 - [~] **Claude Code settings are almost entirely unreachable from CLIde** — all 159 cascade keys are now classified and drift-tested, but only 2 have controls. Phase 2 is the read-only cascade screen. [Plan](plans/claude-settings-surface.md). **L**
+- [ ] **Environments**: a second machine in the same app. [Plan](plans/environments.md). **L**
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
 - [~] **Subagents are invisible while they run and unreadable after.** Phases 1–4 landed (3 merged, not yet live-verified); next, open an agent's whole transcript in place. Never re-index them as sessions. [Plan](plans/subagent-visibility.md). **M/L**
 - [ ] `!` shell mode in the conversation window. **M**

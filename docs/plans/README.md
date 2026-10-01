@@ -32,6 +32,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main` |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
 | [Browser video clips](browser-video-clips.md) | not started | Phase 0: live recording proof on a branch-test slot, with CPU and clip-size numbers |
+| [Environments](environments.md) | not started | Phase 0: run CLIde on the laptop and use it from the phone directly |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.
