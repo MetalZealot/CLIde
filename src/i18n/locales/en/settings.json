@@ -588,10 +588,11 @@
       "sdkBehind": "Bundled with CLIde, so it updates with a code change, not a button. Test the new version on a branch first.",
       "channel": {
         "label": "Update channel",
-        "hint": "Stable is about a week behind and skips releases with major regressions.",
         "managed": "Set by your organization's managed settings.",
         "latest": "Latest",
+        "latestDetail": "Every release as soon as it ships.",
         "stable": "Stable",
+        "stableDetail": "About a week behind; skips releases with major regressions.",
         "failed": "Could not change the update channel."
       }
     },

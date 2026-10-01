@@ -6,7 +6,7 @@ import type { ClaudeSdkReleaseStatus } from '../../../../../../shared/provider-u
 import { useProviderCliUpdate } from '../../../../../hooks/useProviderCliUpdate';
 import { Button } from '../../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../../utils/api';
-import { SettingsSegmentedControl } from '../../primitives';
+import { SettingsChoicePopover } from '../../primitives';
 
 const SDK_CHANGELOG_URL = 'https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/CHANGELOG.md';
 
@@ -157,27 +157,27 @@ function ClaudeUpdateChannelRow({ disabled, onChanged }: { disabled: boolean; on
   };
 
   return (
-    <div className="flex gap-3 px-4 py-3">
-      <span className="mt-0.5 flex-shrink-0 text-muted-foreground"><Radio className="h-4 w-4" /></span>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-foreground">{t('agents.runtimeVersions.channel.label')}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {t(settings.managed ? 'agents.runtimeVersions.channel.managed' : 'agents.runtimeVersions.channel.hint')}
-        </div>
-        <SettingsSegmentedControl<UpdateChannel>
+    <VersionRow
+      icon={<Radio className="h-4 w-4" />}
+      label={t('agents.runtimeVersions.channel.label')}
+      version={null}
+      detail={error ? <span className="text-destructive">{error}</span>
+        : settings.managed ? <span className="text-muted-foreground">{t('agents.runtimeVersions.channel.managed')}</span>
+          : null}
+      trailing={(
+        <SettingsChoicePopover<UpdateChannel>
           value={settings.channel}
-          className="mt-2 w-full"
           ariaLabel={t('agents.runtimeVersions.channel.label')}
           disabled={settings.managed || saving || disabled}
+          showSelectedDetail={false}
           onChange={(channel) => void choose(channel)}
           options={[
-            { value: 'latest', label: t('agents.runtimeVersions.channel.latest') },
-            { value: 'stable', label: t('agents.runtimeVersions.channel.stable') },
+            { value: 'latest', label: t('agents.runtimeVersions.channel.latest'), detail: t('agents.runtimeVersions.channel.latestDetail') },
+            { value: 'stable', label: t('agents.runtimeVersions.channel.stable'), detail: t('agents.runtimeVersions.channel.stableDetail') },
           ]}
         />
-        {error && <div className="mt-1.5 text-xs text-destructive">{error}</div>}
-      </div>
-    </div>
+      )}
+    />
   );
 }
 

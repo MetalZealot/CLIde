@@ -917,8 +917,8 @@ describe('AgentAccountCard', () => {
     assert.match(host.textContent ?? '', /Claude Code2\.1\.286/);
     assert.match(host.textContent ?? '', /Agent SDK0\.3\.286/);
     assert.equal(host.textContent?.match(/Up to date/g)?.length, 2);
-    const channel = host.querySelector('[role="radiogroup"][aria-label="Update channel"]');
-    assert.equal(channel?.querySelector('[aria-checked="true"]')?.textContent, 'Stable');
+    const channel = host.querySelector('[role="combobox"][aria-label^="Update channel"]');
+    assert.match(channel?.textContent ?? '', /Stable/);
     assert.equal([...host.querySelectorAll('button')].some((button) => button.textContent === 'Update'), false);
   });
 
