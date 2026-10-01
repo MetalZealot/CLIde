@@ -170,6 +170,9 @@ function ClaudeUpdateChannelRow({ disabled, onChanged }: { disabled: boolean; on
           ariaLabel={t('agents.runtimeVersions.channel.label')}
           disabled={settings.managed || saving || disabled}
           showSelectedDetail={false}
+          stackedOptionDetails
+          wrapOptionDetails
+          className="min-w-28"
           onChange={(channel) => void choose(channel)}
           options={[
             { value: 'latest', label: t('agents.runtimeVersions.channel.latest'), detail: t('agents.runtimeVersions.channel.latestDetail') },

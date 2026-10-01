@@ -35,6 +35,8 @@ type SettingsChoicePopoverProps<T extends string> = {
   disabled?: boolean;
   showSelectedDetail?: boolean;
   stackedOptionDetails?: boolean;
+  /** Stacked details wrap instead of truncating; for sentences, not paths. */
+  wrapOptionDetails?: boolean;
 };
 
 type PopoverPosition = {
@@ -56,6 +58,7 @@ export default function SettingsChoicePopover<T extends string>({
   disabled = false,
   showSelectedDetail = true,
   stackedOptionDetails = false,
+  wrapOptionDetails = false,
 }: SettingsChoicePopoverProps<T>) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -418,7 +421,12 @@ export default function SettingsChoicePopover<T extends string>({
                             {option.label}
                           </span>
                           {stackedOptionDetails && option.detail && (
-                            <span className="mt-0.5 block truncate text-xs leading-4 text-muted-foreground">
+                            <span
+                              className={cn(
+                                "mt-0.5 block text-xs leading-4 text-muted-foreground",
+                                !wrapOptionDetails && "truncate",
+                              )}
+                            >
                               {option.detail}
                             </span>
                           )}
