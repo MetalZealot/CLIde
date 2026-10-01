@@ -34,12 +34,12 @@ function VersionRow({ icon, label, version, detail, trailing }: VersionRowProps)
   );
 }
 
-function Latest() {
+function Latest({ labelKey = 'agents.runtimeVersions.latest' }: { labelKey?: string }) {
   const { t } = useTranslation('settings');
   return (
     <span className="flex flex-shrink-0 items-center gap-1 text-xs text-muted-foreground">
       <Check className="h-3.5 w-3.5" aria-hidden />
-      {t('agents.runtimeVersions.latest')}
+      {t(labelKey)}
     </span>
   );
 }
@@ -181,7 +181,7 @@ function ClaudeUpdateChannelRow({ disabled, onChanged }: { disabled: boolean; on
   );
 }
 
-/** Read-only: the SDK ships inside CLIde, so being behind is a prompt to test, not a button. */
+/** Read-only: the SDK ships inside CLIde, so drift from the CLI is a prompt for a code change, not a button. */
 export function AgentSdkReleaseRow({ installedVersion }: { installedVersion: string | null }) {
   const { t } = useTranslation('settings');
   const [release, setRelease] = useState<ClaudeSdkReleaseStatus | null>(null);
@@ -195,7 +195,17 @@ export function AgentSdkReleaseRow({ installedVersion }: { installedVersion: str
     return () => { cancelled = true; };
   }, []);
 
-  const behind = release?.behind === true;
+  const drift = release?.drift ?? null;
+  const detail = drift === 'behind'
+    ? t('agents.runtimeVersions.sdkMatch', { version: release?.matchedVersion, cli: release?.cliVersion })
+    : drift === 'ahead'
+      ? t('agents.runtimeVersions.sdkBuiltFor', { cli: release?.builtForCliVersion })
+      : null;
+  const note = drift === 'behind'
+    ? t('agents.runtimeVersions.sdkBehind', { version: release?.matchedVersion })
+    : drift === 'ahead'
+      ? t('agents.runtimeVersions.sdkAhead', { cli: release?.cliVersion })
+      : null;
 
   // One wrapper, so a divided group draws no rule between the row and its note.
   return (
@@ -204,12 +214,8 @@ export function AgentSdkReleaseRow({ installedVersion }: { installedVersion: str
         icon={<Package className="h-4 w-4" />}
         label={t('agents.runtimeVersions.sdk')}
         version={release?.installedVersion ?? installedVersion}
-        detail={behind && (
-          <span className="tabular-nums text-warning">
-            {t('agents.runtimeVersions.available', { version: release.latestVersion })}
-          </span>
-        )}
-        trailing={behind ? (
+        detail={detail && <span className="tabular-nums text-warning">{detail}</span>}
+        trailing={drift === 'behind' ? (
           <a
             href={SDK_CHANGELOG_URL}
             target="_blank"
@@ -219,12 +225,12 @@ export function AgentSdkReleaseRow({ installedVersion }: { installedVersion: str
             {t('agents.runtimeVersions.changelog')}
             <ExternalLink className="h-3 w-3" aria-hidden />
           </a>
-        ) : release?.latestVersion ? <Latest /> : null}
+        ) : !drift && release?.matchedVersion ? <Latest labelKey="agents.runtimeVersions.sdkMatched" /> : null}
       />
-      {behind && (
+      {note && (
         <div className="mx-4 mb-3 flex items-start gap-2 rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
           <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-          <span>{t('agents.runtimeVersions.sdkBehind')}</span>
+          <span>{note}</span>
         </div>
       )}
     </div>

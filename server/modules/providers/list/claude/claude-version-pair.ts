@@ -35,16 +35,26 @@ export function parseClaudeRuntimeVersion(output: string): string | null {
   return output.match(/\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\b/)?.[0] ?? null;
 }
 
-export function readClaudeSdkVersion(): string | null {
+const readSdkManifest = (): Record<string, unknown> | null => {
   try {
     // The package exports neither ./package.json nor ./sdk.mjs, so resolve the
     // main entry and read the manifest beside it.
     const manifest = path.join(path.dirname(moduleRequire.resolve('@anthropic-ai/claude-agent-sdk')), 'package.json');
-    const version = JSON.parse(readFileSync(manifest, 'utf8')).version;
-    return typeof version === 'string' ? version : null;
+    return JSON.parse(readFileSync(manifest, 'utf8'));
   } catch {
     return null;
   }
+};
+
+export function readClaudeSdkVersion(): string | null {
+  const version = readSdkManifest()?.version;
+  return typeof version === 'string' ? version : null;
+}
+
+/** The Claude Code CLI version the installed SDK was built against (`claudeCodeVersion`). */
+export function readClaudeSdkBuiltForCliVersion(): string | null {
+  const version = readSdkManifest()?.claudeCodeVersion;
+  return typeof version === 'string' ? version : null;
 }
 
 const readRecord = (storePath: string): ClaudeVersionPairRecord | null => {

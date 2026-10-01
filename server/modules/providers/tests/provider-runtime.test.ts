@@ -404,25 +404,40 @@ describe('provider CLI updates', () => {
     coordinator.acquire('codex')();
   });
 
-  test('the SDK release check caches npm, compares against the installed SDK, and backs off on failure', async () => {
+  test('the SDK release check pairs the SDK with the installed CLI, caches npm, and backs off on failure', async () => {
     let now = 1000;
     let checks = 0;
     let fail = false;
-    let installed: string | null = '0.3.258';
+    let installed = { version: '0.3.284' as string | null, builtFor: '2.1.284' as string | null };
+    let cli = '2.1.286';
+    // 2.1.279 shipped no SDK of its own; 0.3.287 is ahead of the installed CLI.
+    const releases = ['278', '280', '284', '285', '286', '287'].map((n) => ({ sdk: `0.3.${n}`, cli: `2.1.${n}` }));
     const service = new ClaudeSdkReleaseService({
       installed: () => installed,
-      latest: async () => { checks += 1; if (fail) throw new Error('offline'); return '0.3.286'; },
+      cliVersion: async () => cli,
+      releases: async () => { checks += 1; if (fail) throw new Error('offline'); return releases; },
       now: () => now,
     });
-    assert.deepEqual(await service.getStatus(), { installedVersion: '0.3.258', latestVersion: '0.3.286', behind: true });
+    assert.deepEqual(await service.getStatus(), {
+      installedVersion: '0.3.284', builtForCliVersion: '2.1.284', cliVersion: '2.1.286',
+      matchedVersion: '0.3.286', drift: 'behind',
+    });
     await Promise.all([service.getStatus(), service.getStatus()]);
     assert.equal(checks, 1);
-    installed = '0.3.286';
-    assert.equal((await service.getStatus()).behind, false);
+
+    installed = { version: '0.3.286', builtFor: '2.1.286' };
+    assert.equal((await service.getStatus()).drift, null, 'a newer npm SDK is not drift');
+    cli = '2.1.285';
+    assert.equal((await service.getStatus()).drift, 'ahead');
+    cli = '2.1.279';
+    installed = { version: '0.3.278', builtFor: '2.1.278' };
+    assert.equal((await service.getStatus()).drift, null, 'a CLI with no SDK of its own pairs with the closest older one');
+
     now += 7 * 60 * 60 * 1000;
     fail = true;
+    cli = '2.1.286';
     const offline = await service.getStatus();
-    assert.equal(offline.latestVersion, '0.3.286', 'a failed check keeps the last known release');
+    assert.equal(offline.matchedVersion, '0.3.286', 'a failed check keeps the last known releases');
     await service.getStatus();
     assert.equal(checks, 2, 'a failure waits before retrying');
   });

@@ -585,7 +585,11 @@
       "updateFailed": "CLI update failed.",
       "cancelFailed": "Could not cancel the update.",
       "changelog": "Changelog",
-      "sdkBehind": "Bundled with CLIde, so it updates with a code change, not a button. Test the new version on a branch first.",
+      "sdkMatched": "Matches Claude Code",
+      "sdkMatch": "{{version}} matches Claude Code {{cli}}",
+      "sdkBuiltFor": "Built for Claude Code {{cli}}",
+      "sdkBehind": "Bundled with CLIde, so it moves with a code change, not a button. Ask an agent to move it to {{version}}.",
+      "sdkAhead": "Newer than your Claude Code {{cli}}. Update Claude Code above to match.",
       "channel": {
         "label": "Update channel",
         "managed": "Set by your organization's managed settings.",

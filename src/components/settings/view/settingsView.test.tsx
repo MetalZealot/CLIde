@@ -843,6 +843,10 @@ describe('AgentAccountCard', () => {
     observedAt: new Date().toISOString(),
   };
 
+  const sdkStatus = (overrides: Record<string, unknown> = {}) => ({
+    installedVersion: '0.3.286', builtForCliVersion: '2.1.286', cliVersion: '2.1.286',
+    matchedVersion: '0.3.286', drift: null, ...overrides,
+  });
   const cliStatus = (overrides: Record<string, unknown> = {}) => ({
     provider: 'claude', installedVersion: '2.1.286', latestVersion: '2.1.286', updateAvailable: false,
     canUpdate: true, state: 'idle', message: null, ...overrides,
@@ -909,29 +913,30 @@ describe('AgentAccountCard', () => {
   test('a current Claude Code and SDK each read Up to date, with the update channel shown', async () => {
     responses = {
       '/cli-update': cliStatus(),
-      '/sdk-release': { installedVersion: '0.3.286', latestVersion: '0.3.286', behind: false },
+      '/sdk-release': sdkStatus(),
       '/update-channel': { channel: 'stable', managed: false },
     };
     const host = await render();
 
     assert.match(host.textContent ?? '', /Claude Code2\.1\.286/);
     assert.match(host.textContent ?? '', /Agent SDK0\.3\.286/);
-    assert.equal(host.textContent?.match(/Up to date/g)?.length, 2);
+    assert.equal(host.textContent?.match(/Up to date/g)?.length, 1);
+    assert.match(host.textContent ?? '', /Matches Claude Code/);
     const channel = host.querySelector('[role="combobox"][aria-label^="Update channel"]');
     assert.match(channel?.textContent ?? '', /Stable/);
     assert.equal([...host.querySelectorAll('button')].some((button) => button.textContent === 'Update'), false);
   });
 
-  test('a newer CLI offers Update, and a newer SDK warns without one', async () => {
+  test('a newer CLI offers Update, and an SDK behind its CLI names the version to move to', async () => {
     responses = {
       '/cli-update': cliStatus({ latestVersion: '2.1.290', updateAvailable: true }),
-      '/sdk-release': { installedVersion: '0.3.258', latestVersion: '0.3.286', behind: true },
+      '/sdk-release': sdkStatus({ installedVersion: '0.3.258', builtForCliVersion: '2.1.258', drift: 'behind' }),
     };
     const host = await render();
 
     assert.match(host.textContent ?? '', /2\.1\.290 available/);
-    assert.match(host.textContent ?? '', /0\.3\.286 available/);
-    assert.match(host.textContent ?? '', /Test the new version on a branch first/);
+    assert.match(host.textContent ?? '', /0\.3\.286 matches Claude Code 2\.1\.286/);
+    assert.match(host.textContent ?? '', /Ask an agent to move it to 0\.3\.286/);
     const updates = [...host.querySelectorAll('button')].filter((button) => button.textContent === 'Update');
     assert.equal(updates.length, 1, 'only the CLI can be updated from here');
     const changelog = [...host.querySelectorAll<HTMLAnchorElement>('a')].find((link) => link.textContent === 'Changelog');
