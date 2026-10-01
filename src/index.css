@@ -43,6 +43,10 @@
     --chat-prose-line-height: calc(var(--chat-prose-base-line-height) + var(--chat-line-height-offset));
     --chat-paragraph-gap: 12px;
     --chat-code-size: 14px;
+    /* Non-message chat text: activity rows, then timestamps/notices/citations.
+       Offsets from the reading size so a preset moves all three together. */
+    --chat-activity-size: calc(var(--chat-prose-size) - 3px);
+    --chat-meta-size: calc(var(--chat-prose-size) - 4px);
     --background: 44 22% 96%;
     --foreground: 36 25% 4%;
     --card: 0 0% 100%;
@@ -156,6 +160,8 @@
       --chat-prose-size: 15px;
       --chat-prose-base-line-height: 24px;
       --chat-paragraph-gap: 8px;
+      --chat-activity-size: calc(var(--chat-prose-size) - 1px);
+      --chat-meta-size: calc(var(--chat-prose-size) - 3px);
     }
 
     :root[data-chat-reading-size="smallest"] {

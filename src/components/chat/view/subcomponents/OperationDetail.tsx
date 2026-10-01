@@ -94,7 +94,7 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen, hea
     <DetailPanel
       copyText={detail.copyText}
       wrap={hasCode ? { on: wrap, toggle: () => setWrapFlipped((flipped) => !flipped) } : undefined}
-      className={isProse ? 'text-[13px] leading-5' : 'font-mono text-xs leading-[18px]'}>
+      className={isProse ? 'text-chat-activity' : 'font-mono text-xs leading-[18px]'}>
       {/* Wrapping text flows around the floated buttons; the overlay needs the heading kept clear. */}
       {heading && <div className={`mb-1.5 font-sans ${wrap ? '' : 'pr-14'}`}>{heading}</div>}
       {detail.blocks.map((block, index) => (
@@ -117,7 +117,7 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen, hea
           {block.type === 'lines' && (
             <>
               {block.heading && (
-                <div className={`font-sans text-[11px] text-muted-foreground ${index === 0 && !heading && !wrap ? 'pr-14' : ''}`}>{block.heading}</div>
+                <div className={`font-sans text-chat-meta text-muted-foreground ${index === 0 && !heading && !wrap ? 'pr-14' : ''}`}>{block.heading}</div>
               )}
               <CodeBlockScroll wrap={wrap}>
                 {cap(block.lines).map((line, lineIndex) => (
@@ -135,21 +135,21 @@ const OperationDetail = memo(function OperationDetail({ message, onFileOpen, hea
       ))}
 
       {history.status === 'loading' && (
-        <div className="mt-1.5 font-sans text-xs text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
+        <div className="mt-1.5 font-sans text-chat-meta text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
       )}
       {history.status === 'error' && (
-        <div className="mt-1.5 flex gap-2 font-sans text-xs text-red-600 dark:text-red-400" role="alert">
+        <div className="mt-1.5 flex gap-2 font-sans text-chat-meta text-red-600 dark:text-red-400" role="alert">
           {t('tools.detailFailed')}
           <button type="button" className="underline" onClick={history.request}>{t('tools.retryDetail')}</button>
         </div>
       )}
 
       {detail.blocks.length === 0 && history.status !== 'loading' && (
-        <div className="font-sans text-xs text-muted-foreground">{t('activity.detail.empty')}</div>
+        <div className="font-sans text-chat-meta text-muted-foreground">{t('activity.detail.empty')}</div>
       )}
 
       {((cappedLines > 0 && !showAll) || (detail.openPath && onFileOpen)) && (
-        <div className="mt-1.5 flex gap-4 font-sans text-xs">
+        <div className="mt-1.5 flex gap-4 font-sans text-chat-meta">
           {cappedLines > 0 && !showAll && (
             <button type="button" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={() => setShowAll(true)}>
               {t('activity.detail.showAll', { count: totalLines })}

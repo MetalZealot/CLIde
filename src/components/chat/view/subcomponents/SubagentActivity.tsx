@@ -156,10 +156,10 @@ const SubagentActivity = memo(function SubagentActivity({ message, isLive, onFil
             />
           )}
           {history.status === 'loading' && (
-            <div className="text-xs leading-6 text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
+            <div className="text-chat-meta leading-6 text-muted-foreground" role="status">{t('tools.loadingDetail')}</div>
           )}
           {history.status === 'error' && (
-            <div className="flex gap-2 text-xs leading-6 text-red-600 dark:text-red-400" role="alert">
+            <div className="flex gap-2 text-chat-meta leading-6 text-red-600 dark:text-red-400" role="alert">
               {t('tools.detailFailed')}
               <button type="button" className="underline" onClick={history.request}>{t('tools.retryDetail')}</button>
             </div>

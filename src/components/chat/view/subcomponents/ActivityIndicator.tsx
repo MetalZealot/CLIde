@@ -146,7 +146,7 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
       className={`chat-message px-1 sm:px-0 ${isExiting ? 'chat-activity-exit' : 'chat-activity-enter'}`}
       role="status"
     >
-      <div className="flex min-h-6 min-w-0 items-center gap-2 text-[13px] leading-5 text-muted-foreground sm:min-h-7 sm:text-sm">
+      <div className="flex min-h-6 min-w-0 items-center gap-2 text-chat-activity text-muted-foreground sm:min-h-7">
         <ActivityDots state={dotStateFor(renderedActivity, awaitingInput, finish)} />
         <span className="shrink-0 whitespace-nowrap tabular-nums">{metrics} ·</span>
         <span className="min-w-0 flex-1 overflow-hidden" title={label}>

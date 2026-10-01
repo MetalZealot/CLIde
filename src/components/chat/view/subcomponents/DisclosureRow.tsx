@@ -6,7 +6,7 @@ import { Shimmer } from '../../../../shared/view/ui/Shimmer';
 import { DetailPanel } from './DetailPanel';
 
 // Muted markdown in a detail panel; the first block clears the copy button.
-export const DISCLOSED_TEXT_CLASS = 'prose prose-sm max-w-none font-prose text-[13px] leading-5 text-muted-foreground dark:prose-invert prose-headings:mb-1 prose-headings:mt-3 prose-headings:text-[13px] prose-headings:font-semibold [&>*:first-child]:mt-0 [&>*:first-child]:pr-6';
+export const DISCLOSED_TEXT_CLASS = 'prose prose-sm max-w-none font-prose text-chat-activity text-muted-foreground dark:prose-invert prose-headings:mb-1 prose-headings:mt-3 prose-headings:text-chat-activity prose-headings:font-semibold [&>*:first-child]:mt-0 [&>*:first-child]:pr-6';
 
 /** One truncated line while closed; the whole label wraps once opened. */
 export const rowLabelClass = (isOpen: boolean): string => (isOpen ? 'min-w-0 [overflow-wrap:anywhere]' : 'min-w-0 truncate');
@@ -25,7 +25,7 @@ export function DisclosureRow({ label, isOpen, onToggle, isRunning = false, trai
   return (
     <button
       type="button"
-      className="flex min-h-6 w-full items-center gap-1 text-left text-[13px] leading-5 text-muted-foreground transition-colors hover:text-foreground sm:min-h-7 sm:text-sm"
+      className="flex min-h-6 w-full items-center gap-1 text-left text-chat-activity text-muted-foreground transition-colors hover:text-foreground sm:min-h-7"
       onClick={onToggle}
       aria-expanded={isOpen}
     >
@@ -45,7 +45,7 @@ export function DisclosureRow({ label, isOpen, onToggle, isRunning = false, trai
 /** The activity row's shape with nothing to open: no chevron, not a button. */
 export function StaticRow({ label }: { label: string }) {
   return (
-    <p className="flex min-h-6 items-center text-[13px] leading-5 text-muted-foreground sm:min-h-7 sm:text-sm">
+    <p className="flex min-h-6 items-center text-chat-activity text-muted-foreground sm:min-h-7">
       <span className="min-w-0 truncate">{label}</span>
     </p>
   );

@@ -36,7 +36,7 @@ export default function FollowUpQuestions({ questions }: FollowUpQuestionsProps)
           )}
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">
+      <p className="text-chat-meta text-muted-foreground">
         {t('followUpQuestions.transcriptRecord', { defaultValue: 'Asked while the response continued.' })}
       </p>
     </section>

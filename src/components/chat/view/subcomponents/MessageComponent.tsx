@@ -198,14 +198,14 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                   </div>
                 </div>
                 {/* Copy + timestamp sit below the bubble, claude.ai-style */}
-                <div className="-mt-1 flex select-none items-center justify-end gap-1 px-1 text-xs text-gray-400 dark:text-gray-500">
+                <div className="-mt-1 flex select-none items-center justify-end gap-1 px-1 text-chat-meta text-muted-foreground">
                   {shouldShowUserEditControl && (
                     <button
                       type="button"
                       onClick={() => onEditMessage?.(message)}
                       aria-label={t('rewind.editMessage', { defaultValue: 'Edit & rewind from here' })}
                       title={t('rewind.editMessage', { defaultValue: 'Edit & rewind from here' })}
-                      className="rounded px-1 py-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                      className="rounded px-1 py-0.5 text-muted-foreground transition-colors hover:text-foreground"
                     >
                       <PencilIcon className="h-3 w-3" />
                     </button>
@@ -218,7 +218,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
               </>
             ) : (
               /* Attachment-only turn: no text bubble, but the timestamp still shows */
-              <div className="flex select-none items-center justify-end gap-1 text-xs text-muted-foreground">
+              <div className="flex select-none items-center justify-end gap-1 text-chat-meta text-muted-foreground">
                 <span>{formattedTime}</span>
               </div>
             )}
@@ -234,7 +234,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
         <div className="w-full">
           <div className="flex items-center gap-2 py-0.5">
             <span className={`inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full ${message.taskStatus === 'completed' ? 'bg-green-400 dark:bg-green-500' : 'bg-amber-400 dark:bg-amber-500'}`} />
-            <span className="text-xs text-gray-500 dark:text-gray-400">{message.content}</span>
+            <span className="text-chat-meta text-muted-foreground">{message.content}</span>
           </div>
         </div>
       ) : message.isSystemNotice || (message.type === 'error' && message.usageLimit) ? (
@@ -245,7 +245,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
           <div className="flex items-start gap-2 py-0.5">
             <span className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
             <div className="min-w-0 flex-1">
-              <span className="whitespace-pre-wrap break-words text-xs text-gray-500 dark:text-gray-400">{formattedMessageContent}</span>
+              <span className="whitespace-pre-wrap break-words text-chat-meta text-muted-foreground">{formattedMessageContent}</span>
               {onSetAutoContinue && !autoContinueEnabled && !hasResetMessage && (
                 <button
                   type="button"
@@ -276,7 +276,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                   <SessionProviderLogo provider={provider} className="h-full w-full" />
                 </div>
               )}
-              <div className="text-sm font-medium text-gray-900 dark:text-white">
+              <div className="text-sm font-medium text-foreground">
                 {message.type === 'error'
                   ? t('messageTypes.error')
                   : message.type === 'tool'
@@ -349,13 +349,13 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                   )
                 )}
                 {historyDetail.status === 'loading' && (
-                  <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
+                  <div className="mt-1 flex items-center gap-1.5 text-chat-meta text-muted-foreground" role="status">
                     <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" aria-hidden="true" />
                     {t('tools.loadingDetail')}
                   </div>
                 )}
                 {historyDetail.status === 'error' && (
-                  <div className="mt-1 flex items-center gap-2 text-xs text-red-600 dark:text-red-400" role="alert">
+                  <div className="mt-1 flex items-center gap-2 text-chat-meta text-red-600 dark:text-red-400" role="alert">
                     {t('tools.detailFailed')}
                     <button type="button" className="underline" onClick={historyDetail.request}>
                       {t('tools.retryDetail')}
@@ -516,7 +516,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
             {message.isCompactSummary
               && message.compactReferences
               && message.compactReferences.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10px] leading-4 text-gray-400 dark:text-gray-500">
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-chat-meta text-muted-foreground">
                 <span>{t('compactSummary.references', { defaultValue: 'Referenced:' })}</span>
                 {message.compactReferences.map((reference, index) => (
                   <span key={`${reference}-${index}`} className="contents">
@@ -524,7 +524,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                     <code
                       dir="ltr"
                       title={reference}
-                      className="break-all font-mono text-[10px] text-gray-500 dark:text-gray-400"
+                      className="break-all font-mono"
                     >
                       {reference}
                     </code>
@@ -534,7 +534,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
             )}
 
             {message.memoryCitations && message.memoryCitations.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10px] leading-4 text-gray-400 dark:text-gray-500">
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-chat-meta text-muted-foreground">
                 <span>
                   {message.memoryCitations.length === 1
                     ? t('memoryCitation.source', { defaultValue: 'Source:' })
@@ -546,7 +546,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                     <code
                       dir="ltr"
                       title={citation.note}
-                      className="break-all font-mono text-[10px] text-gray-500 dark:text-gray-400"
+                      className="break-all font-mono"
                     >
                       {formatMemoryCitationSource(citation.source)}
                     </code>
@@ -556,7 +556,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
             )}
 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 select-none text-[11px] text-gray-400 dark:text-gray-500">
+              <div className="mt-1 select-none text-chat-meta text-muted-foreground">
                 <div className="flex w-full items-center gap-2">
                   <span>{formattedTime}</span>
                   {shouldShowAssistantCopyControl && (

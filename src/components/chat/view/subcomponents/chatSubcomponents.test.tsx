@@ -675,6 +675,8 @@ describe('chatSubcomponents', () => {
       assert.match(globalStyles, /data-chat-line-spacing="condensed"[^}]+--chat-line-height-offset: -2px;/s);
       assert.match(globalStyles, /data-chat-line-spacing="relaxed"[^}]+--chat-line-height-offset: 2px;/s);
       assert.match(globalStyles, /data-chat-line-spacing="spacious"[^}]+--chat-line-height-offset: 4px;/s);
+      assert.match(globalStyles, /--chat-activity-size: calc\(var\(--chat-prose-size\) - 3px\);/);
+      assert.match(globalStyles, /--chat-meta-size: calc\(var\(--chat-prose-size\) - 4px\);/);
     });
   });
 

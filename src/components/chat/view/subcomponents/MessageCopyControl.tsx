@@ -75,7 +75,7 @@ const MessageCopyControl = ({
 
   // User copy control now sits below the bubble on the chat background, so it
   // uses the same muted tone as the assistant control rather than on-blue text.
-  const toneClass = 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300';
+  const toneClass = 'text-muted-foreground hover:text-foreground';
   const copyTitle = copied ? t('copyMessage.copied') : t('copyMessage.copy');
 
   return (

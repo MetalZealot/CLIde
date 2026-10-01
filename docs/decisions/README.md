@@ -80,7 +80,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0040 — Mobile Settings root owns the Back gesture](0040-settings-root-owns-back-gesture.md)
 - [0041 — A checkout is named by its folder, with its branch as state](0041-checkouts-are-named-by-place-and-state.md)
 - [0042 — Input type sets the row budget; hover is a reveal channel](0042-input-type-sets-the-sidebar-budget.md) *(superseded by 0044)*
-- [0043 — Reading size is content-scoped and device-local](0043-reading-size-is-content-scoped-and-device-local.md)
+- [0043 — Reading size is content-scoped and device-local](0043-reading-size-is-content-scoped-and-device-local.md) *(metadata sizing superseded by 0062)*
 - [0044 — Input capability sets targets; row shortcuts stay bounded](0044-input-capability-sets-targets-row-shortcuts-stay-bounded.md) *(target-size rule superseded by 0055)*
 - [0045 — HTML file preview is static and isolated](0045-html-file-preview-is-static-and-isolated.md)
 - [0046 — Tool detail leaves the chat column instead of nesting inside it](0046-tool-detail-leaves-the-chat-column.md) *(superseded by 0059 and 0060)*
@@ -99,3 +99,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0059 — An activity's operation list expands inline on every screen](0059-activity-operations-expand-inline-on-every-screen.md) *(phone raw detail superseded by 0060)*
 - [0060 — A call's detail opens flat, in place, on every screen](0060-a-calls-detail-opens-flat-in-place.md)
 - [0061 — Follow installed provider CLIs](0061-follow-installed-provider-clis.md)
+- [0062 — Chat activity and metadata text scale with the reading size](0062-chat-metadata-scales-with-reading-size.md)

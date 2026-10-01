@@ -43,7 +43,7 @@ const MessageSpeakControl = ({ content }: { content: string }) => {
         onClick={toggle}
         title={title}
         aria-label={title}
-        className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+        className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:text-foreground"
       >
         {state === 'playing' ? (
           <Pause className="h-3.5 w-3.5" />
@@ -52,7 +52,7 @@ const MessageSpeakControl = ({ content }: { content: string }) => {
         ) : state === 'loading' ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span className="text-[10px] tabular-nums">
+            <span className="tabular-nums">
               {t('voice.generating', { seconds: generationElapsedSeconds })}
             </span>
             <X className="h-3.5 w-3.5" />
@@ -68,12 +68,12 @@ const MessageSpeakControl = ({ content }: { content: string }) => {
             onClick={restart}
             title={t('voice.restartSpeaking')}
             aria-label={t('voice.restartSpeaking')}
-            className="inline-flex items-center rounded px-1 py-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+            className="inline-flex items-center rounded px-1 py-0.5 text-muted-foreground transition-colors hover:text-foreground"
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
           {duration > 0 && (
-            <span className="text-[10px] tabular-nums text-gray-400 dark:text-gray-500">
+            <span className="tabular-nums">
               {formatPlaybackTime(currentTime)} / {formatPlaybackTime(duration)}
             </span>
           )}

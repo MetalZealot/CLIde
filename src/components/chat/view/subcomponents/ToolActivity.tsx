@@ -36,7 +36,7 @@ const firstLine = (text: unknown): string =>
 const plainFirstLine = (text: unknown): string => firstLine(text).replace(/^#+\s*/, '').replace(/\*\*|__/g, '');
 
 /** An operation line inside an open activity or agent. */
-export const operationRowClass = 'flex min-h-6 w-full min-w-0 items-center gap-2 text-left text-[13px] leading-5 text-muted-foreground transition-colors hover:text-foreground sm:min-h-7 sm:text-sm';
+export const operationRowClass = 'flex min-h-6 w-full min-w-0 items-center gap-2 text-left text-chat-activity text-muted-foreground transition-colors hover:text-foreground sm:min-h-7';
 const shimmerClass = 'flex-1 motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-muted-foreground';
 
 interface OperationRowProps {

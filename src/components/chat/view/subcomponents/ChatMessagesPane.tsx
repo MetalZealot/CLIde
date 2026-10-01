@@ -232,7 +232,7 @@ function ChatMessagesPane({
         }`}
       >
       {(isLoadingSessionMessages || isProcessing) && chatMessages.length === 0 ? (
-        <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
+        <div className="mt-8 text-center text-muted-foreground">
           <div className="flex items-center justify-center space-x-2">
             <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-400" />
             <p>{t('session.loading.sessionMessages')}</p>
@@ -254,7 +254,7 @@ function ChatMessagesPane({
       ) : (
         <>
           {(hasMoreMessages || chatMessages.length > visibleMessageCount) && (
-            <div className="flex select-none items-center justify-center gap-2 border-b border-gray-200 py-2 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <div className="flex select-none items-center justify-center gap-2 border-b border-border py-2 text-center text-chat-meta text-muted-foreground">
               {(isLoadingMoreMessages || isLoadingAllMessages) && (
                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 dark:border-gray-600 dark:border-t-blue-400" />
               )}

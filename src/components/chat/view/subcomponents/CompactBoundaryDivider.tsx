@@ -29,7 +29,7 @@ export default function CompactBoundaryDivider({ boundary }: { boundary?: Compac
   }
 
   return (
-    <div className="flex items-center gap-3 py-1 text-[11px] text-muted-foreground/70">
+    <div className="flex items-center gap-3 py-1 text-chat-meta text-muted-foreground">
       <span className="h-px flex-1 bg-border" aria-hidden />
       <span className="shrink-0 tabular-nums">{parts.join(' · ')}</span>
       <span className="h-px flex-1 bg-border" aria-hidden />

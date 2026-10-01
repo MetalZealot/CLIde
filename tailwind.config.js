@@ -25,6 +25,10 @@ export default {
         prose: ['var(--font-prose)'],
         mono: ['var(--font-mono)'],
       },
+      fontSize: {
+        'chat-activity': ['var(--chat-activity-size)', '1.25rem'],
+        'chat-meta': ['var(--chat-meta-size)', 'calc(var(--chat-meta-size) + 4px)'],
+      },
       fontWeight: {
         normal: 'var(--font-weight-normal)',
         medium: 'var(--font-weight-medium)',

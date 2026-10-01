@@ -68,7 +68,7 @@ export default function ScheduledMessageBubbles({
                   {message.content}
                 </p>
               </div>
-              <div className="-mt-0.5 flex select-none flex-col items-end px-1 text-xs text-muted-foreground">
+              <div className="-mt-0.5 flex select-none flex-col items-end px-1 text-chat-meta text-muted-foreground">
                 <div className="flex items-center gap-x-0.5">
                   <button
                     type="button"
