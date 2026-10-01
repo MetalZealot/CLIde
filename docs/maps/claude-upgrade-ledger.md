@@ -322,10 +322,10 @@ CLIde already spawns.
   `claude-sonnet-5-5` (1M, 128K output) and the drift tests named it. **Adopted:**
   spec added, alias repointed, fallback picker rows re-copied from the live
   model list, which no longer quotes prices.
-- **To-do tools are gone on current models (2.1.268).** TodoWrite and the Task
-  tools are offered only to Claude 3.x, Opus ≤4.7, Sonnet ≤4.6 and Haiku 4.5, so
-  CLIde's to-do list never renders on Opus 5.5, Sonnet 5.5 or Fable.
-  `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` restores them. Not adopted — a product call.
+- **To-do tools: the changelog and the runtime disagree.** 2.1.268 says
+  TodoWrite and the Task tools are offered only to older models, but Opus 5.5
+  sessions on 2.1.286 still list `TaskCreate`/`Get`/`List`/`Update` as deferred
+  tools; only `TodoWrite` is absent. CLIde renders both families. No action.
 - **Watches.** With `autoCompactEnabled: false`, `getContextUsage()` reports
   1,000,000 for Sonnet 5.5 where `resolveClaudeContextCeiling` derives 967,000;
   only the pre-first-reply ring uses the derived figure. Background Bash now
