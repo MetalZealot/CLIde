@@ -36,6 +36,8 @@ interface ChatMessagesPaneProps {
   hasMoreMessages: boolean;
   /** Prompt time of the turn the oldest loaded message belongs to, when that prompt is not loaded. */
   turnStartedAt?: string | null;
+  /** That turn's output tokens from messages above the loaded ones. */
+  turnOutputTokens?: number | null;
   visibleMessageCount: number;
   visibleMessages: ChatMessage[];
   loadAllMessages: () => Promise<ChatMessage[] | null>;
@@ -84,6 +86,7 @@ function ChatMessagesPane({
   isLoadingMoreMessages,
   hasMoreMessages,
   turnStartedAt = null,
+  turnOutputTokens = null,
   visibleMessageCount,
   visibleMessages,
   loadAllMessages,
@@ -132,8 +135,8 @@ function ChatMessagesPane({
   }, [groupedVisibleMessages, isProcessing]);
   // All loaded messages, so a turn whose prompt sits above the visible window still resolves.
   const turnSummaries = useMemo(
-    () => computeTurnSummaries(chatMessages, isProcessing, turnStartedAt),
-    [chatMessages, isProcessing, turnStartedAt],
+    () => computeTurnSummaries(chatMessages, isProcessing, turnStartedAt, turnOutputTokens),
+    [chatMessages, isProcessing, turnStartedAt, turnOutputTokens],
   );
 
   // Stable, deterministic keys for the messages rendered this pass.

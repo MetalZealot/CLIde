@@ -26,7 +26,7 @@ import type {
   SideQuestionExchange,
   UsageLimitStop,
 } from '@/shared/types.js';
-import { createNormalizedMessage, creditOutputTokens, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, creditOutputTokens, generateMessageId, findLeadingTurn, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 
 import {
   resolveClaudeCeilingProvenance,
@@ -1513,7 +1513,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       messages: page,
       total,
       hasMore,
-      turnStartedAt: findTurnStartedAt(normalized, start),
+      ...findLeadingTurn(normalized, start),
       offset: normalizedOffset,
       limit: normalizedLimit,
       tokenUsage: extractHistoryTokenUsage(rawMessages),

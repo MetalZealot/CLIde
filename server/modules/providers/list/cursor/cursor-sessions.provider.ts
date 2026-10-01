@@ -9,7 +9,7 @@ import {
   createNormalizedMessage,
   readObjectRecord,
   sanitizeLeafDirectoryName,
-  findTurnStartedAt,
+  findLeadingTurn,
   sliceTailPage,
 } from '@/shared/utils.js';
 
@@ -420,7 +420,7 @@ export class CursorSessionsProvider implements IProviderSessions {
         messages: page,
         total,
         hasMore,
-        turnStartedAt: findTurnStartedAt(renderableMessages, start),
+        ...findLeadingTurn(renderableMessages, start),
         offset,
         limit,
       };

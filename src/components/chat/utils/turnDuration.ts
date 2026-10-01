@@ -31,12 +31,13 @@ export function computeTurnSummaries(
   isProcessing: boolean,
   /** Prompt time for the messages before the first loaded prompt, when that prompt is not loaded. */
   leadingTurnStartedAt: string | null = null,
+  /** That turn's output tokens from the messages not loaded; without it the count would be short. */
+  leadingTurnOutputTokens: number | null = null,
 ): WeakMap<ChatMessage, TurnSummary> {
   const summaries = new WeakMap<ChatMessage, TurnSummary>();
   let turnStart: number | null = leadingTurnStartedAt ? readTime(leadingTurnStartedAt) : null;
-  // A turn opened mid-page is missing its earlier steps, so its count would be short.
-  let countsTokens = false;
-  let outputTokens = 0;
+  let countsTokens = turnStart !== null && leadingTurnOutputTokens !== null;
+  let outputTokens = leadingTurnOutputTokens ?? 0;
   let lastReply: ChatMessage | null = null;
 
   const closeTurn = () => {

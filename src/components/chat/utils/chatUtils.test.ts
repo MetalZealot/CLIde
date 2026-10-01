@@ -97,6 +97,8 @@ describe('chatFormatting', () => {
       'a turn whose prompt is not loaded has no start');
     assert.deepEqual(computeTurnSummaries([tool, finalReply], false, at(2)).get(finalReply), { durationMs: 70_000 },
       'a page that opens mid-turn keeps its time but not a partial token count');
+    assert.deepEqual(computeTurnSummaries([tool, finalReply], false, at(2), 40).get(finalReply), { durationMs: 70_000, outputTokens: 1_240 },
+      'tokens from above the page complete the count');
   });
 
   test('formats a cited line range compactly for display', () => {

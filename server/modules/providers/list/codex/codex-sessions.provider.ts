@@ -20,7 +20,7 @@ import type {
   NormalizedMessage,
   SideQuestionExchange,
 } from '@/shared/types.js';
-import { createNormalizedMessage, creditOutputTokens, generateMessageId, findTurnStartedAt, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, creditOutputTokens, generateMessageId, findLeadingTurn, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { extractCodexContextTokenUsage } from '@/shared/codex-token-usage.js';
 
 const PROVIDER = 'codex';
@@ -1447,7 +1447,7 @@ export class CodexSessionsProvider implements IProviderSessions {
       messages: page,
       total,
       hasMore,
-      turnStartedAt: findTurnStartedAt(normalized, start),
+      ...findLeadingTurn(normalized, start),
       offset: normalizedOffset,
       limit: normalizedLimit,
       tokenUsage,

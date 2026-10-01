@@ -19,7 +19,7 @@ import {
   resolveImageMediaType,
   toImageAttachments,
 } from '@/shared/image-attachments.js';
-import { findTurnStartedAt, sliceTailPage } from '@/shared/utils.js';
+import { findLeadingTurn, sliceTailPage } from '@/shared/utils.js';
 
 describe('shared-helpers', () => {
   describe('claude-cli-path', () => {
@@ -88,20 +88,21 @@ describe('shared-helpers', () => {
       assert.equal(start, 3);
     });
 
-    test('findTurnStartedAt returns the prompt that opened the page\'s first turn', () => {
+    test('findLeadingTurn returns the prompt and prior output tokens of the page\'s first turn', () => {
       const row = (kind: string, extra: Record<string, unknown> = {}) =>
-        ({ kind, timestamp: `t-${kind}`, ...extra }) as unknown as Parameters<typeof findTurnStartedAt>[0][number];
+        ({ kind, timestamp: `t-${kind}`, ...extra }) as unknown as Parameters<typeof findLeadingTurn>[0][number];
       const messages = [
         row('text', { role: 'user', timestamp: 'prompt' }),
         row('text', { role: 'user', isCompactSummary: true }),
         row('text', { role: 'user', isLocalCommandStdout: true }),
-        row('tool_use'),
-        row('text', { role: 'assistant' }),
+        row('tool_use', { outputTokens: 30 }),
+        row('text', { role: 'assistant', outputTokens: 900 }),
       ];
-      assert.equal(findTurnStartedAt(messages, 4), 'prompt', 'summaries and command output do not open a turn');
-      assert.equal(findTurnStartedAt(messages, 0), null);
-      assert.equal(findTurnStartedAt([...messages, row('text', { role: 'user' })], 5), null, 'a prompt at the boundary starts its own turn');
-      assert.equal(findTurnStartedAt(messages, sliceTailPage(messages, null, 0).start), null);
+      assert.deepEqual(findLeadingTurn(messages, 4), { turnStartedAt: 'prompt', turnOutputTokens: 30 },
+        'summaries and command output do not open a turn; the page\'s own tokens are not counted');
+      assert.equal(findLeadingTurn(messages, 0).turnStartedAt, null);
+      assert.equal(findLeadingTurn([...messages, row('text', { role: 'user' })], 5).turnStartedAt, null, 'a prompt at the boundary starts its own turn');
+      assert.equal(findLeadingTurn(messages, sliceTailPage(messages, null, 0).start).turnOutputTokens, undefined);
     });
 
     test('increasing offsets walk backwards in time', () => {

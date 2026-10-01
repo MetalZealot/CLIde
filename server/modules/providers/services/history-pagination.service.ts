@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type { FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
-import { AppError, findTurnStartedAt, sliceTailPage } from '@/shared/utils.js';
+import { AppError, findLeadingTurn, sliceTailPage } from '@/shared/utils.js';
 
 // Weak ownership keeps fingerprints within the parsed history's lifetime.
 const fingerprints = new WeakMap<NormalizedMessage[], Map<number, string>>();
@@ -125,7 +125,7 @@ export function paginateHistory(
     nextCursor,
     revision: `${scope}.${prefixHash(full.messages, full.messages.length)}`,
     recordTotal: full.messages.length,
-    turnStartedAt: findTurnStartedAt(full.messages, start),
+    ...findLeadingTurn(full.messages, start),
   };
 }
 
@@ -197,6 +197,6 @@ function paginateDetached(
     newerCursor,
     revision: `${scope}.${hash}`,
     recordTotal: count,
-    turnStartedAt: findTurnStartedAt(messages, start),
+    ...findLeadingTurn(messages, start),
   };
 }

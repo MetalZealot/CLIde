@@ -185,6 +185,7 @@ function ChatInterface({
     isLoadingMoreMessages,
     hasMoreMessages,
     turnStartedAt,
+    turnOutputTokens,
     isUserScrolledUp,
     setIsUserScrolledUp,
     tokenBudget,
@@ -969,6 +970,7 @@ function ChatInterface({
           isLoadingMoreMessages={isLoadingMoreMessages}
           hasMoreMessages={hasMoreMessages}
           turnStartedAt={turnStartedAt}
+          turnOutputTokens={turnOutputTokens}
           visibleMessageCount={visibleMessageCount}
           visibleMessages={visibleMessages}
           loadAllMessages={loadAllMessages}

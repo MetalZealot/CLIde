@@ -827,8 +827,10 @@ export type FetchHistoryResult = {
   offset: number;
   limit: number | null;
   tokenUsage?: unknown;
-  /** Prompt time of the turn the page opens mid-way through; see `findTurnStartedAt`. */
+  /** Prompt time of the turn the page opens mid-way through; see `findLeadingTurn`. */
   turnStartedAt?: string | null;
+  /** That turn's output tokens from records before the page. */
+  turnOutputTokens?: number;
 };
 
 /**

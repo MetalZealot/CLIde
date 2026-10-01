@@ -1121,6 +1121,7 @@ describe('history performance targets', () => {
     assert.equal(page.recordTotal, 9);
     assert.equal(page.total, 1, 'display count must not control pagination');
     assert.equal(page.turnStartedAt, messages[0].timestamp);
+    assert.equal(page.turnOutputTokens, 0);
     const bookmark = page.nextCursor!;
     let walked = page.messages;
     while (page.nextCursor) {

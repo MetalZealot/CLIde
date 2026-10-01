@@ -445,26 +445,31 @@ export function sliceTailPage<T>(
 }
 
 /**
- * Timestamp of the prompt that opened the turn in progress at `pageStart`, so a client
- * holding only that page can still time the turn. Null when the page opens on a prompt.
+ * The turn in progress at `pageStart`, so a client holding only that page can still time
+ * it and total its output tokens. Empty when the page opens on a prompt.
  */
-export function findTurnStartedAt(messages: NormalizedMessage[], pageStart: number): string | null {
+export function findLeadingTurn(
+  messages: NormalizedMessage[],
+  pageStart: number,
+): { turnStartedAt: string | null; turnOutputTokens?: number } {
   const first = messages[pageStart];
   if (first?.kind === 'text' && first.role === 'user' && !first.isCompactSummary && !first.isLocalCommandStdout) {
-    return null;
+    return { turnStartedAt: null, turnOutputTokens: undefined };
   }
+  let outputTokens = 0;
   for (let index = Math.min(pageStart, messages.length) - 1; index >= 0; index -= 1) {
     const message = messages[index];
+    outputTokens += message.outputTokens ?? 0;
     if (
       message.kind === 'text'
       && message.role === 'user'
       && !message.isCompactSummary
       && !message.isLocalCommandStdout
     ) {
-      return message.timestamp;
+      return { turnStartedAt: message.timestamp, turnOutputTokens: outputTokens };
     }
   }
-  return null;
+  return { turnStartedAt: null, turnOutputTokens: undefined };
 }
 
 // ---------------------------

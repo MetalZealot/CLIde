@@ -230,6 +230,8 @@ export interface SessionSlot {
   _findText?: { revision: string; messages: NormalizedMessage[] };
   /** Prompt time of the turn the oldest loaded page opens mid-way through. */
   turnStartedAt: string | null;
+  /** That turn's output tokens from records above the oldest loaded page. */
+  turnOutputTokens: number | null;
   tokenUsage: unknown;
   model: string | null;
   modelStatus: 'idle' | 'loading' | 'error';
@@ -270,6 +272,7 @@ function createEmptySlot(): SessionSlot {
     newerCursor: null,
     revision: null,
     turnStartedAt: null,
+    turnOutputTokens: null,
     tokenUsage: null,
     model: null,
     modelStatus: 'idle',
@@ -687,6 +690,7 @@ export function useSessionStore() {
       slot.newerCursor = null;
       slot.revision = data.revision ?? null;
       slot.turnStartedAt = data.turnStartedAt ?? null;
+      slot.turnOutputTokens = data.turnOutputTokens ?? null;
       slot.offset = (opts.offset ?? 0) + messages.length;
       slot.fetchedAt = Date.now();
       slot.status = 'idle';
@@ -745,6 +749,7 @@ export function useSessionStore() {
       slot.newerCursor = data.newerCursor ?? null;
       slot.revision = data.revision ?? null;
       slot.turnStartedAt = data.turnStartedAt ?? null;
+      slot.turnOutputTokens = data.turnOutputTokens ?? null;
       slot.offset = messages.length;
       slot.fetchedAt = Date.now();
       if (slot.status === 'loading') slot.status = 'idle';
@@ -827,6 +832,7 @@ export function useSessionStore() {
       slot.nextCursor = data.nextCursor;
       slot.revision = data.revision ?? slot.revision;
       slot.turnStartedAt = data.turnStartedAt ?? null;
+      slot.turnOutputTokens = data.turnOutputTokens ?? null;
       slot.offset = slot.nextCursor === undefined ? slot.offset + olderMessages.length : slot.serverMessages.length;
       slot.total = data.total ?? slot.total;
       if (slot.status === 'loading') slot.status = 'idle';
@@ -1014,6 +1020,7 @@ export function useSessionStore() {
       slot.nextCursor = data.nextCursor;
       slot.revision = data.revision ?? null;
       slot.turnStartedAt = data.turnStartedAt ?? null;
+      slot.turnOutputTokens = data.turnOutputTokens ?? null;
       slot.offset = slot.serverMessages.length;
       slot.fetchedAt = Date.now();
       if (slot.status === 'loading') slot.status = 'idle';

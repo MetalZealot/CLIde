@@ -13,7 +13,7 @@ import {
   readObjectRecord,
   readJsonRecord,
   readOptionalString,
-  findTurnStartedAt,
+  findLeadingTurn,
   sliceTailPage,
   unwrapJsonStringLiteral,
 } from '@/shared/utils.js';
@@ -352,7 +352,7 @@ export class OpenCodeSessionsProvider implements IProviderSessions {
         messages: page,
         total,
         hasMore,
-        turnStartedAt: findTurnStartedAt(normalized, start),
+        ...findLeadingTurn(normalized, start),
         offset: normalizedOffset,
         limit: normalizedLimit,
         tokenUsage,
