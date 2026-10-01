@@ -43,6 +43,9 @@ on the machine it started on and stays there.
       environment configured, behaviour is unchanged.
 - [ ] 2. **Settings → Environments**: add a machine by name and address, sign in
       to it, see whether it is reachable. List stored on the home server.
+      Address suggestions come from the tailnet's device list when Tailscale is
+      present; a tailnet machine without HTTPS shows the `tailscale serve`
+      command to copy.
 - [ ] 3. **One sidebar across machines.** Each environment's projects load
       independently and carry a machine label; an unreachable machine shows as
       offline without delaying or breaking the others.
@@ -72,3 +75,5 @@ on the machine it started on and stays there.
   (`--cloud`), but the Agent SDK that CLIde drives has no option for it.
 - Per-environment Settings screens beyond Environments itself; other settings
   stay the home server's.
+- CLIde changing Tailscale. It reads tailnet state only; `tailscale serve` needs
+  root and is system networking, so the user runs it.
