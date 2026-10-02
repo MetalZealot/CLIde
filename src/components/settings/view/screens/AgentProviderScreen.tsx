@@ -1,16 +1,14 @@
 import { Bell } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useProviderCapabilities } from '../../../../hooks/useProviderCapabilities';
 import { Button } from '../../../../shared/view/ui';
-import type { ProviderModelsDefinition } from '../../../../types/app';
-import { authenticatedFetch } from '../../../../utils/api';
-import { readProviderDefaultModel } from '../../../../utils/providerDefaultModel';
 import { useProviderUsage } from '../../../provider-usage/hooks/useProviderUsage';
 import { supportsProviderUsageReset } from '../../../provider-usage/types';
 import { useProviderSkills } from '../../../skills/hooks/useProviderSkills';
 import { GLOBAL_SKILLS_TARGET } from '../../../skills/types';
+import { useClaudeDefaultEffort, useDefaultModelLabel } from '../../hooks/useAgentSubsystemValues';
+import { useClaudeSettings } from '../../hooks/useClaudeSettings';
 import {
   AGENT_PROVIDERS,
   type AgentProviderId,
@@ -26,7 +24,7 @@ import type {
   NotificationPreferencesState,
   SettingsProject,
 } from '../../types/types';
-import { cascadeUrl, initialConfigurationProject } from '../../utils/claudeConfiguration';
+import { advancedClaudeEntries, isClaudeSettingsCategory } from '../../utils/claudeSettingsLayout';
 import { SETTINGS_ICONS, SettingsGroup, SettingsNavRow, SettingsRow, SettingsScreen, SettingsToggle } from '../primitives';
 import AgentAccountCard from '../sections/agent/AgentAccountCard';
 
@@ -83,36 +81,6 @@ function ToolsSubsystemRow({ provider, onOpenScreen }: SubsystemRowProps) {
       onClick={() => onOpenScreen(screen.id)}
     />
   );
-}
-
-/** Reads one value through an authenticated GET; null until it lands or if it fails. */
-function useFetchedValue<T>(url: string | null, pick: (data: unknown) => T | null): T | null {
-  const [value, setValue] = useState<T | null>(null);
-  useEffect(() => {
-    if (!url) return undefined;
-    let cancelled = false;
-    authenticatedFetch(url)
-      .then((response) => response.json())
-      .then((body) => { if (!cancelled && body.success) setValue(pick(body.data)); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-    // `pick` is a pure reader; the URL alone decides when to refetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
-  return value;
-}
-
-/** The model a new chat starts on: the stored choice, else the catalog's own default. */
-function useDefaultModelLabel(provider: AgentProviderId): string | null {
-  const catalog = useFetchedValue(
-    `/api/providers/${provider}/models`,
-    (data) => (data as { models?: ProviderModelsDefinition }).models ?? null,
-  );
-  if (!catalog) return null;
-  const stored = readProviderDefaultModel(provider);
-  const option = catalog.OPTIONS.find((candidate) => candidate.value === stored)
-    ?? catalog.OPTIONS.find((candidate) => candidate.isDefault);
-  return option?.label ?? null;
 }
 
 function usePermissionsSummary(
@@ -199,30 +167,37 @@ export default function AgentProviderScreen({
   const usageResetEnabled = notificationPreferences.events.usageReset[provider] === true;
   const resetAlertLabel = t('agents.usage.resetAlert');
 
-  const values: Partial<Record<AgentSubsystem, string | null>> = {
-    model: useDefaultModelLabel(provider),
-    // The level the default model runs at, as the composer shows it.
-    effort: useFetchedValue(
-      subsystems.includes('effort') ? '/api/providers/claude/effort-defaults' : null,
-      (data) => {
-        const rows = (data as { models?: { isDefault?: boolean; effort?: string | null }[] }).models ?? [];
-        return (rows.find((row) => row.isDefault) ?? rows[0])?.effort ?? null;
-      },
-    ),
-    autoCompact: useFetchedValue(
-      subsystems.includes('autoCompact') ? '/api/providers/claude/auto-compact' : null,
-      (data) => ((data as { enabled?: boolean }).enabled ? t('agents.subsystems.on') : t('agents.subsystems.off')),
-    ),
-    permissions: usePermissionsSummary(provider, permissions),
-    // Counted against the project the Configuration screen will open on.
-    configuration: useFetchedValue(
-      subsystems.includes('configuration') ? cascadeUrl(initialConfigurationProject(projects)) : null,
-      (data) => t('agents.subsystems.settingsCount', {
-        count: ((data as { entries?: { source: string | null }[] }).entries ?? [])
-          .filter((entry) => entry.source).length,
-      }),
-    ),
+  // Claude's settings are grouped into categories; other providers list subsystems flat.
+  const hasCategories = subsystems.includes('modelThinking');
+  const modelLabel = useDefaultModelLabel(provider);
+  const effort = useClaudeDefaultEffort(hasCategories);
+  const { entries: claudeSettings } = useClaudeSettings(projects, hasCategories);
+  const claudeValue = (key: string): unknown => {
+    const entry = claudeSettings?.get(key);
+    return entry?.source ? entry.value : undefined;
   };
+  const outputStyle = claudeValue('outputStyle');
+
+  const values: Partial<Record<AgentSubsystem, string | null>> = {
+    model: modelLabel,
+    permissions: usePermissionsSummary(provider, permissions),
+    modelThinking: modelLabel ? [modelLabel, effort].filter(Boolean).join(' · ') : null,
+    ...(claudeSettings && {
+      responses: typeof outputStyle === 'string' ? outputStyle : t('claudeSettings.options.defaultStyle'),
+      memory: t(claudeValue('autoMemoryEnabled') === false ? 'agents.subsystems.off' : 'agents.subsystems.on'),
+      git: t(claudeValue('attribution') === false ? 'claudeSettings.summary.coAuthorOff' : 'claudeSettings.summary.coAuthorOn'),
+      history: t('claudeSettings.options.daysCount', { count: Number(claudeValue('cleanupPeriodDays') ?? 30) }),
+      advanced: t('agents.subsystems.settingsCount', { count: advancedClaudeEntries(claudeSettings).length }),
+    }),
+  };
+  const sections: AgentSubsystem[][] = hasCategories
+    ? [
+      subsystems.filter((subsystem) => isClaudeSettingsCategory(subsystem)),
+      subsystems.filter((subsystem) => subsystem === 'permissions' || subsystem === 'tools'),
+      subsystems.filter((subsystem) => subsystem === 'advanced'),
+      [],
+    ]
+    : [subsystems];
 
   const setUsageResetEnabled = (enabled: boolean) => {
     onNotificationPreferencesChange({
@@ -248,13 +223,17 @@ export default function AgentProviderScreen({
         onOpenUsage={onOpenUsage}
       />
 
-      {(subsystems.length > 0 || supportsUsageReset) && (
-        <SettingsGroup divided>
+      {sections.map((section, index) => {
+        const isLast = index === sections.length - 1;
+        if (section.length === 0 && !(isLast && supportsUsageReset)) return null;
+        return (
+        // Sections are fixed per provider, so their position is a stable key.
+        <SettingsGroup divided key={index}>
           {/* Rendered from the registry list, in its order, so registering a
               subsystem is the whole job — an unlisted one has no way in. Only
               the Tools row, whose count comes from the skills hook, needs a
               component of its own. */}
-          {subsystems.map((subsystem) => {
+          {section.map((subsystem) => {
             if (subsystem === 'tools') {
               return (
                 <ToolsSubsystemRow
@@ -276,7 +255,7 @@ export default function AgentProviderScreen({
             );
           })}
 
-          {supportsUsageReset && (
+          {isLast && supportsUsageReset && (
             <SettingsRow
               className="py-3"
               icon={<Bell className="h-4 w-4 text-muted-foreground" />}
@@ -290,7 +269,7 @@ export default function AgentProviderScreen({
               />
             </SettingsRow>
           )}
-          {supportsUsageReset && !hasNotificationChannel && (
+          {isLast && supportsUsageReset && !hasNotificationChannel && (
             <div className="px-4 py-3">
               <Button type="button" variant="outline" size="sm" onClick={onOpenNotifications}>
                 {t('common:usageDashboard.notifications.openSettings', { defaultValue: 'Notification settings' })}
@@ -298,7 +277,8 @@ export default function AgentProviderScreen({
             </div>
           )}
         </SettingsGroup>
-      )}
+        );
+      })}
     </SettingsScreen>
   );
 }

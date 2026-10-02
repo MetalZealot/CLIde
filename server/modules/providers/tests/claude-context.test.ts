@@ -9,7 +9,7 @@ import test, { describe } from 'node:test';
 import { readClaudeAutoCompactSettings, writeClaudeAutoCompactSettings } from '@/modules/providers/list/claude/claude-autocompact.settings.js';
 import { CLAUDE_BUILTIN_DEFAULT_EFFORT } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_SETTINGS_CATALOG } from '@/modules/providers/list/claude/claude-settings-catalog.js';
-import { readClaudeSettingsCascade, writeClaudeSetting } from '@/modules/providers/list/claude/claude-settings-cascade.js';
+import { readClaudeSettingsCascade, readClaudeSettingsOverview, writeClaudeSetting } from '@/modules/providers/list/claude/claude-settings-cascade.js';
 import { updateClaudeSettingsFile } from '@/modules/providers/list/claude/claude-settings-file.js';
 import { readClaudeUpdateChannel, writeClaudeUpdateChannel } from '@/modules/providers/list/claude/claude-update-channel.settings.js';
 import {
@@ -1133,6 +1133,15 @@ describe('claude-settings-catalog', () => {
         { value: 90, source: 'user' },
       );
       assert.equal(afterWrite.get('alwaysThinkingEnabled')?.value, false);
+
+      // The overview is the user file, with each key naming the projects that override it.
+      const overview = new Map((await readClaudeSettingsOverview([project])).entries.map((entry) => [entry.key, entry]));
+      assert.deepEqual(
+        { source: overview.get('model')?.source, overrides: overview.get('model')?.overrides },
+        { source: 'user', overrides: [{ workspacePath: project, source: 'project', value: 'sonnet' }] },
+      );
+      await writeClaudeSetting('attribution', false, userFile);
+      assert.equal(JSON.parse(readFileSync(userFile, 'utf8')).attribution, false);
 
       // Reset removes the key so Claude Code's own default applies; the rest of the file stays.
       await writeClaudeSetting('cleanupPeriodDays', undefined, userFile);

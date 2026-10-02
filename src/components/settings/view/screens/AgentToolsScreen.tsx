@@ -1,16 +1,19 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { compactHomePath } from '../../../sidebar/utils/worktreeManager';
 import { GLOBAL_SKILLS_TARGET, type SkillsTarget } from '../../../skills/types';
 import ProviderTools from '../../../tools/view/ProviderTools';
 import { AGENT_PROVIDERS, type AgentProviderId, agentScreenId } from '../../registry/registry';
 import type { SettingsProject } from '../../types/types';
+import { CLAUDE_TOOLS_ROWS } from '../../utils/claudeSettingsLayout';
 import {
   SettingsChoicePopover,
   SettingsGroup,
   SettingsRow,
   SettingsScreen,
 } from '../primitives';
+import ClaudeSettingsGroup from '../sections/agent/ClaudeSettingsGroup';
 
 type AgentToolsScreenProps = {
   provider: AgentProviderId;
@@ -63,6 +66,7 @@ const toSkillsWorkspaces = (projects: SettingsProject[]): SkillsWorkspace[] => {
  * context this screen does not have.
  */
 export default function AgentToolsScreen({ provider, projects, onOpenScreen }: AgentToolsScreenProps) {
+  const { t } = useTranslation('settings');
   const [target, setTarget] = useState<SkillsTarget>(GLOBAL_SKILLS_TARGET);
   const [listedProvider, setListedProvider] = useState(provider);
   const workspaces = useMemo(() => toSkillsWorkspaces(projects), [projects]);
@@ -129,6 +133,10 @@ export default function AgentToolsScreen({ provider, projects, onOpenScreen }: A
         showSkills={AGENT_PROVIDERS.find((descriptor) => descriptor.id === provider)?.listsSkills ?? false}
         onOpenMcpEditor={() => onOpenScreen(agentScreenId(provider, 'mcp'))}
       />
+
+      {provider === 'claude' && (
+        <ClaudeSettingsGroup rows={CLAUDE_TOOLS_ROWS} title={t('claudeSettings.sections.toolBehaviour')} projects={projects} />
+      )}
     </SettingsScreen>
   );
 }

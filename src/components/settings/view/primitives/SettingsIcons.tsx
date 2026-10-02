@@ -1,14 +1,19 @@
 import {
   Bell,
+  BookOpen,
   Brain,
   CircleUser,
   Code2,
   FileCode2,
   Gauge,
   GitBranch,
+  History,
   Info,
   KeyRound,
+  Layers,
+  Lightbulb,
   MessageSquare,
+  MessageSquareText,
   Mic,
   MonitorPlay,
   Palette,
@@ -17,7 +22,6 @@ import {
   ShieldCheck,
   Shrink,
   SlidersHorizontal,
-  TerminalSquare,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -70,5 +74,10 @@ export const SETTINGS_ICONS: Record<SettingsIconName, ComponentType<{ className?
   defaultModel: Brain,
   defaultEffort: Gauge,
   autoCompact: Shrink,
-  configuration: SlidersHorizontal,
+  configuration: Layers,
+  claudeModel: Lightbulb,
+  responses: MessageSquareText,
+  memory: BookOpen,
+  history: History,
+  advanced: SlidersHorizontal,
 };

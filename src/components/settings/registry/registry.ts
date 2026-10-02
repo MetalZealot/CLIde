@@ -32,7 +32,12 @@ export type SettingsIconName =
   | 'defaultModel'
   | 'defaultEffort'
   | 'autoCompact'
-  | 'configuration';
+  | 'configuration'
+  | 'claudeModel'
+  | 'responses'
+  | 'memory'
+  | 'history'
+  | 'advanced';
 
 export type SettingsGroupId = 'agents' | 'app' | 'extensions' | 'system';
 
@@ -74,7 +79,9 @@ export const SETTINGS_GROUPS: SettingsGroupNode[] = [
  */
 export type AgentProviderId = 'claude' | 'cursor' | 'codex' | 'opencode';
 
-export type AgentSubsystem = 'model' | 'effort' | 'autoCompact' | 'permissions' | 'tools' | 'configuration' | 'mcp';
+export type AgentSubsystem =
+  | 'model' | 'effort' | 'autoCompact' | 'permissions' | 'tools' | 'configuration' | 'mcp'
+  | 'modelThinking' | 'responses' | 'memory' | 'git' | 'history' | 'advanced';
 
 type AgentProviderDescriptor = {
   id: AgentProviderId;
@@ -86,19 +93,25 @@ type AgentProviderDescriptor = {
    * place on the account card rather than pushing a screen.
    */
   subsystems: AgentSubsystem[];
-  /** Screens reached from inside Tools rather than from a row of their own. */
-  nested: AgentSubsystem[];
+  /** Screens reached from inside another subsystem screen, keyed to that parent. */
+  nested: Partial<Record<AgentSubsystem, AgentSubsystem>>;
   /** OpenCode's skills are not listed per provider, so its Tools page has no Skills tab. */
   listsSkills: boolean;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDescriptor[] = [
-  // Default effort, auto-compact and configuration are Claude's alone: they
-  // live in Claude Code's settings files, which no other adapter reads.
-  { id: 'claude', icon: 'providerClaude', subsystems: ['model', 'effort', 'autoCompact', 'permissions', 'tools', 'configuration'], nested: ['mcp'], listsSkills: true },
-  { id: 'cursor', icon: 'providerCursor', subsystems: ['model', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
-  { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'tools'], nested: ['mcp'], listsSkills: true },
-  { id: 'opencode', icon: 'providerOpenCode', subsystems: ['model', 'tools'], nested: ['mcp'], listsSkills: false },
+  // Claude's categories group Claude Code's own settings file, which no other
+  // adapter reads; its model, effort and auto-compact screens sit inside one.
+  {
+    id: 'claude',
+    icon: 'providerClaude',
+    subsystems: ['modelThinking', 'responses', 'memory', 'git', 'history', 'permissions', 'tools', 'advanced'],
+    nested: { model: 'modelThinking', effort: 'modelThinking', autoCompact: 'modelThinking', mcp: 'tools', configuration: 'advanced' },
+    listsSkills: true,
+  },
+  { id: 'cursor', icon: 'providerCursor', subsystems: ['model', 'permissions', 'tools'], nested: { mcp: 'tools' }, listsSkills: true },
+  { id: 'codex', icon: 'providerCodex', subsystems: ['model', 'permissions', 'tools'], nested: { mcp: 'tools' }, listsSkills: true },
+  { id: 'opencode', icon: 'providerOpenCode', subsystems: ['model', 'tools'], nested: { mcp: 'tools' }, listsSkills: false },
 ];
 
 export const AGENT_PROVIDER_IDS: AgentProviderId[] = AGENT_PROVIDERS.map((provider) => provider.id);
@@ -132,7 +145,37 @@ const SUBSYSTEM_NODES: Record<AgentSubsystem, { labelKey: string; icon: Settings
   configuration: {
     labelKey: 'tabs.configuration',
     icon: 'configuration',
-    keywords: 'configuration settings.json cascade effective source user project local managed hooks env',
+    keywords: 'configuration sources where values come from settings.json cascade effective user project local managed hooks env',
+  },
+  modelThinking: {
+    labelKey: 'tabs.modelThinking',
+    icon: 'claudeModel',
+    keywords: 'model thinking fast mode prompt cache summaries effort compact',
+  },
+  responses: {
+    labelKey: 'tabs.responses',
+    icon: 'responses',
+    keywords: 'responses output style language prompt suggestions to-do todo questions timeout usage limit continue',
+  },
+  memory: {
+    labelKey: 'tabs.memory',
+    icon: 'memory',
+    keywords: 'memory auto-memory dream notes folder',
+  },
+  git: {
+    labelKey: 'tabs.git',
+    icon: 'git',
+    keywords: 'git commit pull request co-author attribution gitignore worktree',
+  },
+  history: {
+    labelKey: 'tabs.history',
+    icon: 'history',
+    keywords: 'history privacy transcripts retention cleanup days checkpoints rewind upload plans folder',
+  },
+  advanced: {
+    labelKey: 'tabs.advanced',
+    icon: 'advanced',
+    keywords: 'advanced claude code settings new search all',
   },
   mcp: {
     labelKey: 'tabs.mcpServers',
@@ -167,14 +210,14 @@ const AGENT_SCREENS: SettingsScreenNode[] = AGENT_PROVIDERS.flatMap((provider) =
     keywords: `${provider.id} ${SUBSYSTEM_NODES[subsystem].keywords}`,
     parent: agentScreenId(provider.id),
   })),
-  ...provider.nested.map((subsystem) => ({
+  ...(Object.entries(provider.nested) as [AgentSubsystem, AgentSubsystem][]).map(([subsystem, parent]) => ({
     kind: 'screen' as const,
     id: agentScreenId(provider.id, subsystem),
     labelKey: SUBSYSTEM_NODES[subsystem].labelKey,
     icon: SUBSYSTEM_NODES[subsystem].icon,
     group: 'agents' as const,
     keywords: `${provider.id} ${SUBSYSTEM_NODES[subsystem].keywords}`,
-    parent: agentScreenId(provider.id, 'tools'),
+    parent: agentScreenId(provider.id, parent),
   })),
 ]);
 
@@ -355,7 +398,7 @@ export type AgentScreenRef = {
 const AGENT_SCREEN_REFS = new Map<string, AgentScreenRef>(
   AGENT_PROVIDERS.flatMap((provider) => [
     [agentScreenId(provider.id), { provider: provider.id, subsystem: null }] as const,
-    ...[...provider.subsystems, ...provider.nested].map((subsystem) => (
+    ...[...provider.subsystems, ...(Object.keys(provider.nested) as AgentSubsystem[])].map((subsystem) => (
       [agentScreenId(provider.id, subsystem), { provider: provider.id, subsystem }] as const
     )),
   ]),

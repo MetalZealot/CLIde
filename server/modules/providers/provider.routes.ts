@@ -18,6 +18,7 @@ import {
 import {
   ClaudeSettingWriteError,
   readClaudeSettingsCascade,
+  readClaudeSettingsOverview,
   writeClaudeSetting,
 } from '@/modules/providers/list/claude/claude-settings-cascade.js';
 import {
@@ -1137,6 +1138,17 @@ router.get(
       });
     }
     res.json(createApiSuccessResponse(await readClaudeSettingsCascade(workspacePath ?? null)));
+  }),
+);
+
+/** The user settings with per-project overrides; `workspacePath` repeats, one per project. */
+router.get(
+  '/claude/settings-overview',
+  asyncHandler(async (req: Request, res: Response) => {
+    const raw = req.query.workspacePath;
+    const workspacePaths = (Array.isArray(raw) ? raw : [raw])
+      .filter((value): value is string => typeof value === 'string' && path.isAbsolute(value));
+    res.json(createApiSuccessResponse(await readClaudeSettingsOverview(workspacePaths)));
   }),
 );
 

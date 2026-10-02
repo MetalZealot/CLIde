@@ -43,6 +43,14 @@ export type ClaudeCascadeEntry = {
   inUserFile: boolean;
   /** The user file's own value for an editable key, which a higher source may override. */
   userValue?: unknown;
+  /** Projects whose own files set the key, so the user value does not apply there. */
+  overrides?: ClaudeSettingOverride[];
+};
+
+export type ClaudeSettingOverride = {
+  workspacePath: string;
+  source: ClaudeSettingSource;
+  value: unknown;
 };
 
 export type ClaudeSettingsCascade = {
@@ -59,9 +67,19 @@ const redact = (key: string, value: unknown): Pick<ClaudeCascadeEntry, 'value' |
     : { value }
 );
 
-/** The generated control for a key the screen may write, if it is one. */
+/** Union-typed keys whose plain form CLIde writes; the richer form stays file-only. */
+const CONTROL_OVERRIDES: Record<string, ClaudeCascadeEntry['control']> = {
+  attribution: { kind: 'boolean' },
+};
+
+/**
+ * The generated control for a key the screen may write, if it is one: an
+ * `adapt` key, or one newer than the catalog, whose SDK type is simple.
+ */
 const editableControl = (key: string): ClaudeCascadeEntry['control'] => {
-  if (CLAUDE_SETTINGS_CATALOG[key] !== 'adapt') return undefined;
+  const tier = CLAUDE_SETTINGS_CATALOG[key];
+  if (tier !== undefined && tier !== 'adapt') return undefined;
+  if (CONTROL_OVERRIDES[key]) return CONTROL_OVERRIDES[key];
   const control = readClaudeSettingsSchema().get(key)?.control;
   return control && control.kind !== 'complex' ? control : undefined;
 };
@@ -92,10 +110,11 @@ export const readClaudeSettingsCascade = async (
   const provenance = resolved.provenance as Record<string, { source: string; path?: string } | undefined>;
   const schema = readClaudeSettingsSchema();
 
-  // Every set key, plus every `adapt` key so an unset one can be set.
+  // Every set key, plus every `adapt` or uncatalogued key so an unset one can be set.
   const keys = new Set([
     ...Object.keys(effective),
     ...Object.keys(CLAUDE_SETTINGS_CATALOG).filter((key) => CLAUDE_SETTINGS_CATALOG[key] === 'adapt'),
+    ...[...schema.keys()].filter((key) => !(key in CLAUDE_SETTINGS_CATALOG)),
   ]);
 
   const entries = [...keys]
@@ -125,6 +144,31 @@ export const readClaudeSettingsCascade = async (
     .sort((a, b) => a.key.localeCompare(b.key));
 
   return { workspacePath: workspacePath ? path.resolve(workspacePath) : null, sources, entries };
+};
+
+/**
+ * The user and managed settings, with each key annotated by the projects whose
+ * own files override it. Projects resolve one at a time to keep the load flat.
+ */
+export const readClaudeSettingsOverview = async (
+  workspacePaths: string[],
+): Promise<Pick<ClaudeSettingsCascade, 'entries'>> => {
+  const base = await readClaudeSettingsCascade(null);
+  const overrides = new Map<string, ClaudeSettingOverride[]>();
+  for (const workspacePath of new Set(workspacePaths.map((candidate) => path.resolve(candidate)))) {
+    const project = await readClaudeSettingsCascade(workspacePath).catch(() => null);
+    for (const entry of project?.entries ?? []) {
+      if (entry.source !== 'project' && entry.source !== 'local') continue;
+      const list = overrides.get(entry.key) ?? [];
+      list.push({ workspacePath, source: entry.source, value: entry.value });
+      overrides.set(entry.key, list);
+    }
+  }
+  return {
+    entries: base.entries.map((entry) => (
+      overrides.has(entry.key) ? { ...entry, overrides: overrides.get(entry.key) } : entry
+    )),
+  };
 };
 
 export class ClaudeSettingWriteError extends Error {}

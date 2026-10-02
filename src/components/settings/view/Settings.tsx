@@ -15,6 +15,8 @@ import AboutScreen from './screens/AboutScreen';
 import AccountScreen from './screens/AccountScreen';
 import AgentMcpScreen from './screens/AgentMcpScreen';
 import AgentAutoCompactScreen from './screens/AgentAutoCompactScreen';
+import AgentClaudeAdvancedScreen from './screens/AgentClaudeAdvancedScreen';
+import AgentClaudeCategoryScreen from './screens/AgentClaudeCategoryScreen';
 import AgentConfigurationScreen from './screens/AgentConfigurationScreen';
 import AgentDefaultEffortScreen from './screens/AgentDefaultEffortScreen';
 import AgentDefaultModelScreen from './screens/AgentDefaultModelScreen';
@@ -214,6 +216,22 @@ function Settings({ isOpen, onClose, projects = [], initialTab, onOpenUsage }: S
 
         case 'configuration':
           return <AgentConfigurationScreen projects={projects} />;
+
+        case 'modelThinking':
+        case 'responses':
+        case 'memory':
+        case 'git':
+        case 'history':
+          return (
+            <AgentClaudeCategoryScreen
+              category={subsystem}
+              projects={projects}
+              onOpenScreen={isMobile ? nav.push : nav.select}
+            />
+          );
+
+        case 'advanced':
+          return <AgentClaudeAdvancedScreen projects={projects} onOpenScreen={isMobile ? nav.push : nav.select} />;
 
         case 'permissions':
           return (

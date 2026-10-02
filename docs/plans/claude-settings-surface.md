@@ -1,7 +1,7 @@
 # Claude Code's settings, changeable from CLIde
 
 - Status: 3/6
-- Next: Phase 4 live check, then Phase 5 — homes for the 13 structured keys
+- Next: Phase 4 live check, then Phase 5 — editors for the structured keys
 - Context: per-key tiers in [the settings audit](../maps/2026-07-28-claude-code-settings-surface-audit.md);
   destinations in [the command surface map](../maps/claude-command-surface.md);
   the release-to-release history in [the Claude ledger](../maps/claude-upgrade-ledger.md)
@@ -26,16 +26,17 @@ arrive with a working control without anyone building it.
   atomic, re-read the file immediately before writing, refuse a file they
   cannot parse, and follow a symlinked file rather than replacing it.
   `claude-settings-file.ts`; every new control writes through it.
-- [~] 4. The Configuration screen becomes editable for every simple key — 47 of
-  the 60 `adapt` keys are a boolean, fixed choice, string or number in the SDK's
-  types. Controls and help text are generated from `sdk.d.ts`, unset keys are
-  listed too, and "Reset" deletes the key so Claude Code's own default applies.
-  Booleans are a Default/On/Off choice, since a toggle cannot show "unset".
-  Built and exercised end to end on 3003; not yet seen on 3001.
-- [ ] 5. Hand-built homes for the 13 structured keys, on the screen each belongs
-  to: plugin, MCP and marketplace keys in Tools; `attribution`, `worktree`,
-  `fallbackModel`, `modelPicker`, `skillOverrides`, `fileSuggestion`. The two
-  mobile-push keys are candidates for Notifications.
+- [~] 4. Agents › Claude reorganised into categories — Model & thinking,
+  Responses, Memory, Git, History & privacy — with hand-labelled rows in
+  `claudeSettingsLayout.ts`; Claude-app pushes on Notifications, hook and skill
+  switches on Tools. Everything else editable sits in a searchable Advanced,
+  generated from `sdk.d.ts`; a key newer than the catalog lands there under
+  "New in this version". The cascade view is Advanced's last row. Switch
+  defaults are decoded from the CLI 2.1.286; server-decided ones offer "Claude
+  decides". Exercised on 3003; not yet seen on 3001.
+- [ ] 5. Structured keys get their own editors: plugins, marketplaces and
+  `.mcp.json` servers on Tools; `worktree`, `fallbackModel`, `modelPicker`,
+  `skillOverrides`, `fileSuggestion`, custom `attribution` text.
 - [ ] 6. The two permission systems reconciled, behind an ADR written first.
   The skip toggle is already gone (ADR 0064). A setting that hides Bypass from
   the picker writes Claude Code's `permissions.disableBypassPermissionsMode`.

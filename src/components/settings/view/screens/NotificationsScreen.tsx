@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '../../../../shared/view/ui';
 import { playChatCompletionSound } from '../../../../utils/notificationSound';
 import type { NotificationPreferencesState } from '../../types/types';
+import { CLAUDE_NOTIFICATION_ROWS } from '../../utils/claudeSettingsLayout';
 import { SettingsGroup, SettingsRow, SettingsScreen, SettingsToggle } from '../primitives';
+import ClaudeSettingsGroup from '../sections/agent/ClaudeSettingsGroup';
 
 type DesktopNotificationsState = {
   enabled: boolean;
@@ -178,6 +180,12 @@ export default function NotificationsScreen({
           />
         </SettingsRow>
       </SettingsGroup>
+
+      <ClaudeSettingsGroup
+        rows={CLAUDE_NOTIFICATION_ROWS}
+        title={t('claudeSettings.sections.claudeApp')}
+        description={t('claudeSettings.sections.claudeAppDescription')}
+      />
     </SettingsScreen>
   );
 }

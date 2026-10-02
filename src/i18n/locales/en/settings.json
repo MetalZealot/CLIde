@@ -10,7 +10,13 @@
     "defaultEffort": "Default Effort",
     "runtime": "Runtime",
     "autoCompact": "Auto-compact",
-    "configuration": "Configuration"
+    "configuration": "Where values come from",
+    "modelThinking": "Model & thinking",
+    "responses": "Responses",
+    "memory": "Memory",
+    "git": "Git",
+    "history": "History & privacy",
+    "advanced": "Advanced"
   },
   "account": {
     "title": "Account",
@@ -1047,7 +1053,7 @@
     "saveError": "Couldn't read or write Claude Code's settings file."
   },
   "configuration": {
-    "description": "What Claude Code's settings files resolve to for a session in the chosen project, and which file set each value. Changes save to your user settings file, the same one /config writes.",
+    "description": "Every Claude Code settings file that applies to a session in the chosen project, and which one set each value. Read-only.",
     "project": "Project",
     "noProject": "No project (user and managed files only)",
     "loadError": "Couldn't resolve Claude Code's settings.",
@@ -1069,7 +1075,7 @@
       },
       "adapt": {
         "title": "Claude Code settings",
-        "description": "Set here, or leave on Default to use Claude Code's own. Lists and nested settings are read-only for now."
+        "description": "Change these from Claude's category screens or Advanced."
       },
       "display": {
         "title": "Read-only",
@@ -1096,5 +1102,161 @@
     "overridden": "The {{source}} file sets this to {{value}} in this project, so your setting won't apply here.",
     "saveError": "Couldn't save to Claude Code's settings file.",
     "invalidNumber": "Enter a number."
+  },
+  "claudeSettings": {
+    "default": "Default",
+    "setByYou": "Set by you",
+    "reset": "Reset",
+    "managed": "Set by your organization",
+    "standard": "Standard",
+    "loadError": "Couldn't read Claude Code's settings.",
+    "saveError": "Couldn't save to Claude Code's settings file.",
+    "overriddenOne": "Overridden in {{project}}: that project sets {{value}}.",
+    "overriddenMany_one": "Overridden in {{count}} project: {{projects}}.",
+    "overriddenMany_other": "Overridden in {{count}} projects: {{projects}}.",
+    "summary": {
+      "coAuthorOn": "Co-author on",
+      "coAuthorOff": "Co-author off"
+    },
+    "sections": {
+      "thinking": "Thinking",
+      "speedCost": "Speed & cost",
+      "whileWorking": "While Claude works",
+      "toolBehaviour": "Claude Code behaviour",
+      "claudeApp": "Claude mobile app",
+      "claudeAppDescription": "Sent by Claude Code itself to the Claude app, separate from CLIde's own alerts."
+    },
+    "options": {
+      "on": "On",
+      "off": "Off",
+      "claudeDecides": "Claude decides",
+      "automatic": "Automatic",
+      "minutes5": "5 minutes",
+      "hour1": "1 hour",
+      "minutes10": "10 minutes",
+      "seconds60": "60 seconds",
+      "never": "Never",
+      "defaultStyle": "Default style",
+      "explanatory": "Explanatory",
+      "learning": "Learning",
+      "days7": "7 days",
+      "days30": "30 days",
+      "days90": "90 days",
+      "days365": "1 year",
+      "daysCount_one": "{{count}} day",
+      "daysCount_other": "{{count}} days"
+    },
+    "advanced": {
+      "description": "Settings most people never change, with Claude Code's own descriptions.",
+      "newTitle": "New in this version",
+      "newDescription": "Added by a recent Claude Code release and not yet given a home in CLIde.",
+      "noMatches": "No settings match."
+    },
+    "rows": {
+      "alwaysThinkingEnabled": {
+        "label": "Thinking",
+        "description": "Let Claude think before answering, on models that support it."
+      },
+      "showThinkingSummaries": {
+        "label": "Show thinking summaries",
+        "description": "Show a short summary of what Claude thought about."
+      },
+      "fastMode": {
+        "label": "Fast mode",
+        "description": "Faster output on models that support it."
+      },
+      "promptCacheTtl": {
+        "label": "Prompt cache",
+        "description": "How long your conversation stays cached. Longer saves usage when you reply slowly."
+      },
+      "outputStyle": {
+        "label": "Output style",
+        "description": "How Claude writes its replies."
+      },
+      "language": {
+        "label": "Reply language",
+        "description": "The language Claude answers in, e.g. “spanish”."
+      },
+      "todoFeatureEnabled": {
+        "label": "To-do lists",
+        "description": "Let Claude track its steps as a checklist."
+      },
+      "promptSuggestionEnabled": {
+        "label": "Suggest next prompts",
+        "description": "Offer a likely next message after each reply."
+      },
+      "askUserQuestionTimeout": {
+        "label": "Answer my questions for me after",
+        "description": "When Claude asks you something and you don't reply, continue with what's selected."
+      },
+      "autoContinueAtUsageLimit": {
+        "label": "Continue after usage limit",
+        "description": "When you hit a usage limit, wait for the reset and carry on automatically."
+      },
+      "autoMemoryEnabled": {
+        "label": "Auto-memory",
+        "description": "Claude saves and reads notes about your projects between sessions."
+      },
+      "autoDreamEnabled": {
+        "label": "Tidy memories in the background",
+        "description": "Periodically merge and clean up saved notes."
+      },
+      "autoMemoryDirectory": {
+        "label": "Memory folder",
+        "description": "Where notes are kept. Leave empty for the standard place."
+      },
+      "includeGitInstructions": {
+        "label": "Built-in commit & PR guidance",
+        "description": "Claude's own instructions for writing commits and pull requests."
+      },
+      "attribution": {
+        "label": "Co-author line on commits",
+        "description": "Credit Claude in commits and pull requests it makes."
+      },
+      "respectGitignore": {
+        "label": "Skip .gitignored files in @-mentions",
+        "description": "Keep build output and dependencies out of file suggestions."
+      },
+      "worktree": {
+        "label": "Worktrees",
+        "description": "How new worktrees are set up. Edited in the settings file for now."
+      },
+      "cleanupPeriodDays": {
+        "label": "Keep transcripts for",
+        "description": "Older conversations are deleted from this machine."
+      },
+      "fileCheckpointingEnabled": {
+        "label": "File checkpoints",
+        "description": "Snapshot files before edits, so Rewind can restore them."
+      },
+      "autoUploadSessions": {
+        "label": "Upload sessions to claude.ai",
+        "description": "Mirror sessions to your claude.ai account, view-only."
+      },
+      "plansDirectory": {
+        "label": "Plans folder",
+        "description": "Where plan-mode plans are saved, relative to the project. Leave empty for the standard place."
+      },
+      "disableAllHooks": {
+        "label": "Hooks",
+        "description": "Run the hooks configured in your settings files."
+      },
+      "disableBundledSkills": {
+        "label": "Bundled skills",
+        "description": "Skills that ship with Claude Code."
+      },
+      "disableSkillShellExecution": {
+        "label": "Shell commands inside skills",
+        "description": "Let skills run their own shell steps."
+      },
+      "inputNeededNotifEnabled": {
+        "label": "When input is needed",
+        "description": "Alert the Claude app when a question or permission is waiting."
+      },
+      "agentPushNotifEnabled": {
+        "label": "Proactive alerts",
+        "description": "Let Claude send its own alerts to the Claude app."
+      }
+    }
   }
 }

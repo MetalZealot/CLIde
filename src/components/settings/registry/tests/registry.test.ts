@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
 
 import en from '../../../../i18n/locales/en/settings.json';
+import { CLAUDE_NOTIFICATION_ROWS, CLAUDE_SETTINGS_LAYOUT, CLAUDE_TOOLS_ROWS } from '../../utils/claudeSettingsLayout';
 import {
   currentScreenId,
   isAtRoot,
@@ -496,6 +497,24 @@ describe('search', () => {
         screen.labelKey,
         `${screen.id} has no translation for "${screen.labelKey}"`,
       );
+    }
+  });
+});
+
+describe('claude settings layout', () => {
+  test('every placed Claude Code setting has a label and a description', () => {
+    const rows = en.claudeSettings.rows as Record<string, { label?: string; description?: string }>;
+    const specs = [
+      ...Object.values(CLAUDE_SETTINGS_LAYOUT).flatMap((sections) => sections.flatMap((section) => section.rows)),
+      ...CLAUDE_TOOLS_ROWS,
+      ...CLAUDE_NOTIFICATION_ROWS,
+    ];
+    for (const spec of specs) {
+      if (spec.kind === 'screen') {
+        assert.ok(getScreen(agentScreenId('claude', spec.screen)), `${spec.screen} is not a Claude screen`);
+        continue;
+      }
+      assert.ok(rows[spec.key]?.label && rows[spec.key]?.description, `${spec.key} has no label or description`);
     }
   });
 });
