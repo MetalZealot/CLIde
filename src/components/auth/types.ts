@@ -39,7 +39,7 @@ export type OnboardingStatusPayload = {
 };
 
 export type ApiErrorPayload = {
-  error?: string;
+  error?: string | { code?: string; message?: string };
   message?: string;
 };
 

@@ -52,6 +52,8 @@ cleanly the fix stands alone.
 - [ ] **Claude composer `default` inherits `permissions.defaultMode`.** `claude-runtime.provider.js` still skips `permissionMode` when it is `default`; open #1160 targets that exact line. Review or comment there rather than opening a duplicate.
 - [ ] **Duplicate-session double-send** (still unfixed here, `TODO.md` Bugs). Upstream issue #1306; open #1420 fixes it. If it merges, cherry-pick it.
 
+- [x] **Wrong password blanks the login screen.** The login route answers with the AppError envelope and the form rendered its `error` object as a React child. Upstream issues #1300/#1480; maintainer's open PR #1425 fixes it. Ported here with #1425's `readApiErrorMessage` logic in `src/components/auth/utils.ts`; take #1425's version when cherry-picking it.
+
 ## Fixed upstream (closed 2026-10-01)
 
 - [x] **`<synthetic>` model guard** — fixed by #1207 (and #1391). Our PR **#1056 is still open and now redundant**; branch `fix/synthetic-model-guard` exists locally and on origin.

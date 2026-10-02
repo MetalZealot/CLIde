@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { api, AUTH_TOKEN_REFRESHED_EVENT, isAuthTokenExpired, TOKEN_EXPIRY_SKEW_MS } from '../../../utils/api';
 import { AUTH_TOKEN_STORAGE_KEY } from '../constants';
+import { resolveApiErrorMessage } from '../utils';
 
 import { AuthProvider, useAuth } from './AuthContext';
 
@@ -269,5 +270,20 @@ describe('api token expiry', () => {
     assert.equal(isAuthTokenExpired('not-a-jwt'), false);
     assert.equal(isAuthTokenExpired('only.two-segments'), false);
     assert.equal(isAuthTokenExpired(null), false);
+  });
+});
+
+describe('auth error messages', () => {
+  test('reads the message out of the AppError envelope a wrong password returns', () => {
+    const envelope = { success: false, error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid username or password' } };
+    assert.equal(resolveApiErrorMessage(envelope, 'fallback'), 'Invalid username or password');
+  });
+
+  test('keeps the string and top-level message shapes, and falls back on anything else', () => {
+    assert.equal(resolveApiErrorMessage({ error: 'Not found' }, 'fallback'), 'Not found');
+    assert.equal(resolveApiErrorMessage({ message: 'Too many attempts' }, 'fallback'), 'Too many attempts');
+    assert.equal(resolveApiErrorMessage({ error: { code: 'X' } }, 'fallback'), 'fallback');
+    assert.equal(resolveApiErrorMessage({ error: '  ' }, 'fallback'), 'fallback');
+    assert.equal(resolveApiErrorMessage(null, 'fallback'), 'fallback');
   });
 });
