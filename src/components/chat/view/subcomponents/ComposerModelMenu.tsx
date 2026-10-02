@@ -473,7 +473,8 @@ export default function ComposerModelMenu({
                 <>
                   {hasModelSection && <ComposerMenuSeparator />}
                   <div className="px-2 pb-1.5 pt-1" role="group" aria-label={t('composer.reasoning', { defaultValue: 'Reasoning' })}>
-                    <div className="mb-1.5 flex items-center justify-between gap-3 px-0.5 text-xs">
+                    {/* Fixed to the badge's height so the menu doesn't jump when it appears. */}
+                    <div className="mb-1.5 flex h-[18px] items-center justify-between gap-3 px-0.5 text-xs">
                       <span className="text-muted-foreground">
                         {t('composer.effort', { defaultValue: 'Effort' })}
                       </span>
