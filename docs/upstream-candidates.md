@@ -11,150 +11,75 @@ links (or "none found") in the bug's entry* — a keyword search finding nothing
 evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
 Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
 
+## Open candidates
+
+Re-checked 2026-10-01 against `upstream/main` v1.37.3+37 (`dc7cb6c6`) by reading upstream
+source; nothing was built or reproduced there.  `gh` searches were keyword-only, so "none
+found" is weak evidence.  Upstream moved most client code from `src/components/` to
+`src/modules/`, so every port is re-sited by hand.  Ranked by user impact, then by how
+cleanly the fix stands alone.
+
+- [ ] **Chat reconnect during a later run replays nothing** (`55d8c44`) **+ client-side half-open detection** (`dd47ddd`). #1206 closed #554 with per-run seq replay, but `chat-run-registry.service.ts` restarts `lastSeq` at 0 each run with no run id while the client keeps one only-rising counter per session. #1206 also added server ping reaping; the client still has no liveness probe (#953 open, #1270 related). Re-port onto upstream's registry and frame as a #1206 follow-up. **M — strongest impact.**
+- [ ] **Two sessions streaming at once mix their text** (`81852c78`). One `accumulatedStreamRef`/`streamTimerRef` in `ChatInterface.tsx` serves every session, so each flush overwrites the other session's bubble. None found (searched "stream interleave", "streamTimerRef", "streaming background session"). **3 files.**
+- [ ] **Any non-OK `/api/auth/user` logs the user out.** `AuthContext.tsx:236` calls `clearSession()` on every non-OK response, including a server restart's 502, not only 401/403. #1408 fixed remounting, not this; #980 (idle keep-alive) closed unmerged, so that half is also still open upstream. **1–2 files.**
+- [ ] **A tool result with no content blanks the chat** (`c91c70a6`). `formatToolResultContent` in `useChatMessages.ts` calls `.trim()` on `JSON.stringify(undefined)`. Open #1459 (root error boundary) would only soften it. **1 file + test.**
+- [ ] **Session list order comes from file mtime, so opening a session reorders it.** `readFileTimestamps` in `server/shared/utils.ts` still returns `stat().mtime`; Claude appends untimestamped rows on open. Fix reads the last timestamped row from a bounded tail. Open #1379 edits adjacent lines in the Claude synchronizer (conflict, not overlap). **4 files.**
+- [ ] **Generate commit message leaves a phantom session** (`8c46645d`). The `queryClaudeSDK` call in `git.routes.ts` has no `persistSession: false`. The other half (always returning `chore: update files`) is covered by open #1430, which does not touch persistence. **Small, after #1430.**
+- [ ] **A Claude session that moves (EnterWorktree, /cd) snaps back to its starting project** (`a138e031`). The synchronizer takes `cwd` from the first transcript row and `createSession` rewrites `project_path` on every sync. None found (#1170/#1379 concern `jsonl_path`). **4 files.**
+- [ ] **Deleted sessions and projects linger in an open sidebar.** The watcher still ignores `unlink`; upstream's `pruneOrphanedSessions` runs only after a full sync; `mergeExpandedSessionPages` still copies stale "load more" pages back. **~3 files.**
+- [ ] **Provider-id backfill re-runs on every start** (`5b164e36`). Reachable upstream: `detachProviderSession` nulls `provider_session_id`, so a restart before the next run stamps the app id and the run resumes a conversation that never existed. **2 files.**
+- [ ] **Chat force-wraps every code block.** `src/index.css` still has `white-space: pre-wrap !important; word-break: break-all` on `.chat-message pre, code`; scope to `:not(pre) > code`. The fork's sidebar-swipe guard stays here. **1–3 files.**
+- [ ] **Commit-hook rejection looks like nothing happened** (`6dc05b23`). `git.routes.ts` returns `error.message` and drops the `stderr` `spawnAsync` attaches; the panel logs it to the console only. **3 files, ~15 lines.**
+- [ ] **Pasting a non-image file into the composer does nothing** (drag-and-drop accepts it) (`19ae4a9f`). `useChatComposerState.ts` paste handler filters on `image/`. Core fix is a few lines; the rejection banner is optional.
+- [ ] **Running a built-in command from the command button wipes typed text** (`6aba1bc4`). `useSlashCommands.ts` calls `onExecuteCommand` without `preserveInput`. **1 file.**
+- [ ] **Consecutive assistant replies hide their timestamps.** `MessageComponent.tsx` still guards the time with `!isGrouped`; #1391 added model labels but kept it. **1 file.**
+- [ ] **HTML file preview is an ephemeral popup.** `CodeEditor.tsx` (now `src/modules/code-editor/`) still uses `window.open('', '_blank')` + `srcdoc`. Fork replacement is an isolated inline preview with authenticated asset rewriting. Live-accepted on Firefox, Samsung Internet and the installed PWA. **Medium.**
+- [ ] **File browsing eagerly builds one recursive project tree.** `listProjectFiles` still calls depth-10 `buildFileTree`; no lazy-loading PR open (#755 closed, and its lexical containment must not be revived). [ADR 0049](decisions/0049-file-tree-loads-folders-not-projects.md). **Large; stage it: backend contract, then client migrations.**
+- [ ] **File-tree Move to…, touch context menu, drag-to-move** (`0efea7d`/`ad9efda`/`8747136`). Upstream has no move route and its context menu is right-click only. **Largest feature PR, ~800 lines.**
+- [ ] **Sidebar project stuck on "Loading sessions…" after quick load-more clicks** (`a7f831de`). `useSidebarController.ts` has the identical `shouldLoad`-inside-updater pattern; the race itself is inferred from the fork commit, not reproduced upstream. **1 file.**
+- [ ] **Skills synced from claude.ai are missing from the skills list** (`e9ccd4ac`). `claude-skills.provider.ts` scans `~/.claude/skills` without recursing into `synced/`. The fork commit mixes in settings-key changes, so carve it out. **Medium.**
+- [ ] **Grep/Glob live result counts** (`931fc81`). `toolConfigs.ts` still uses `numFiles || filenames?.length || 0` with no fallback to `content`. None found. **1 file + test.**
+- [ ] **Claude re-login creates a stray sidebar session** (`962ef7a`). `ProviderLoginModal.tsx` still runs `claude … /login`, and `isLoginCommand` matches `'auth login'`, which Claude never hits. Open #1414 edits the same file (working directory only). Needs a CLI with `claude auth`. **XS.**
+- [ ] **Haiku loses the effort picker** (`7af88a7`). The Haiku entry in `claude-models.provider.ts` has no `effort`, and `useChatProviderState.ts` returns `option.effort?.values ?? []` for catalogued models. **XS.**
+- [ ] **~25 `[css-syntax-error]` minifier warnings** (`5cc4185`). All five `@media` blocks still sit inside `@layer components` in `src/index.css`. **XS.**
+- [ ] **Shell shortcuts toolbar hides the CLI's last line** (`f8410b4`). `TerminalShortcutsPanel.tsx` is still a `fixed bottom-0` overlay the terminal reserves no space for. Keep upstream's `backdrop-blur-sm` in the PR. **XS.**
+- [ ] **Pinch-to-zoom leaks on Samsung/iOS** (`6a5e1c1`). `index.html` still relies on `user-scalable=no` alone. **S.**
+- [ ] **Shimmer loop jumps at the seam.** `tailwind.config.js` keyframes and `src/shared/ui/Shimmer.tsx` unchanged. Cosmetic. **2 files.**
+- [ ] **Enter sends instead of newline on touch** (`d9c9d2b`, `0551406`). **Grayson is reworking this himself.** Open #1149 also tries it, bundled with a repo picker and on pre-move paths; mention it.
+
+## Covered by someone else's open PR
+
+- [ ] **Claude composer `default` inherits `permissions.defaultMode`.** `claude-runtime.provider.js` still skips `permissionMode` when it is `default`; open #1160 targets that exact line. Review or comment there rather than opening a duplicate.
+- [ ] **Duplicate-session double-send** (still unfixed here, `TODO.md` Bugs). Upstream issue #1306; open #1420 fixes it. If it merges, cherry-pick it.
+
+## Fixed upstream (closed 2026-10-01)
+
+- [x] **`<synthetic>` model guard** — fixed by #1207 (and #1391). Our PR **#1056 is still open and now redundant**; branch `fix/synthetic-model-guard` exists locally and on origin.
+- [x] **AskUserQuestion comma-answer split** — #1249.
+- [x] **Claude "logged out" after an idle access token** — #1206 now accepts a valid refresh token.
+- [x] **Skill content rendered as user input** (#1009) — #1037 filters by content prefix; compact summaries by #1295. The fork's notice banner is fork UI.
+- [x] **Dead files from upstream refactors** — removed by #1153 and #1206.
+- [x] **Per-session model stack** — #1037 added a per-session model column and resume resolution. Only the fork's transcript-recency reconciliation is left; not worth a PR on its own.
+
+## Fork-only and declined
+
 - [x] **Compact Auto-Continue controls. Fork-only, personal preference.** Session mode stays in the header menu; the live notice offers enabling only when off with nothing waiting, and the scheduled bubble owns the waiting status.
-
-- [ ] **Deleted sessions and projects linger in an open sidebar. Upstreamable.** The session watcher ignored `unlink`, and a refetch copied expanded "load more" pages back in, deleted sessions included. The watcher now broadcasts `projects_changed` and the merge keeps only sessions that sort past the fresh first page. Both confirmed on `upstream/main` (read from source); `gh` not searched. Mobile pull-to-refresh is fork UI.
-
-- [ ] **Provider-id backfill re-runs on every start. Upstreamable.** `addProviderSessionIdMapping` stamps any unrun app session with its own id, so its first run resumes a conversation that never existed. Same code in `upstream/main` (read from source); `gh` not searched. Fixed in `5b164e36`.
-
 - [x] **Follow installed CLIs and offer native updates in New Session. Fork-only policy.** Replaces CLIde's manual Codex runtime promotion with automatic compatibility checks and an explicit, idle-safe update action for Claude/Codex. [Decision](decisions/0061-follow-installed-provider-clis.md). No upstream defect or PR claimed.
-
 - [x] **Collapsible asynchronous questions. Fork UI.** Async and blocking questions share a bounded, collapsible frame; async Send now / Queue delivery stays separate. [Rule](maps/orientation.md#14-nothing-has-a-published-place-around-the-composer). No upstream PR proposed.
-
 - [x] **Phase-4 stable history bookmarks. Fork contract.** CLIde pages and refreshes against session-scoped snapshot bookmarks. Inspected upstream `5e73a49b` uses serialized offset requests with a bounded overlap/reconciliation retry; this is a different contract, not a claim that upstream lacks mitigation. No PR proposed. [Details](maps/chat-history-performance.md#phase-4-stable-history-bookmarks).
 - [x] **Phase-3 unchanged-message rendering. Fork adaptation.** Upstream snapshot `5e73a49b` already includes projection reuse and memoized Markdown. CLIde adds complete refreshed-record comparison and stable tool groups around its existing store/pane contracts; no separate upstream PR proposed. [Evidence](maps/chat-history-performance.md#phase-3-unchanged-message-rendering).
-
 - [x] **Phase-2 cache review corrections. Fork-only.** Fix dependency-discovery races, swallowed directory-read errors and unbounded identity bookkeeping introduced in CLIde's phase-2 implementation; regression coverage includes overlapping identity changes.
-
 - [x] **Chat-history measurement harness is fork-only; cache hardening is upstreamable.** Synthetic fixtures, explicit pending targets and Browser/server baselines exercise CLIde's contracts. Phase 2 adapts upstream snapshot `5e73a49b`'s main-file cache but adds stable before/after revisions, dependent Claude subagent and Codex parent files, strict failure/partial-write exclusion, identity-safe concurrency and normalized-memory bounds. Those protections apply to upstream's cache independently of CLIde's later rendering plan.
-
-- [x] **Show timestamps on consecutive assistant replies. Upstreamable.** The footer hid each grouped reply's time, including replies after hidden thinking. Removed that visibility condition while retaining grouping. Confirmed the same guard in `upstream/main`'s `src/modules/chat/transcript/MessageComponent.tsx`; GitHub issue/PR searches for `timestamp` on 2026-09-14 found no matching visibility fix (PR #1196 concerns server-clock stamping).
-
 - [x] **Find typing, cached-history visibility, and header Export overflow. Fork-only.** Repairs features introduced by the bottom-navigation branch; regression tests and synthetic browser checks pass; included in the bottom-navigation integration. [Review](plans/archive/2026-09-13-mobile-bottom-navigation.md#final-review).
-
 - [x] **Bottom navigation before worktree selection. Fork-only, personal preference.** Keep the bar visible and disable worktree-dependent destinations; preserve keyboard hiding.
-
 - [x] **Compact header Export panel. Fork-only, personal preference.** Matches the header kebab spacing and removes the fixed list-height cap from its form panel; accepted in the installed PWA.
-
 - [x] **Chat browser preview and selected-page monitoring. Fork-only.** Extends CLIde's official-Playwright MCP monitor; the current `upstream/main` has no browser-use service at that module path (checked locally). Accepted in the installed PWA. No upstream PR proposed.
-
 - [x] **Async-answer delivery recovery. Fork-only.** Lost acknowledgements release Sending on completion, reconnect, or timeout, preserve drafts, and refresh history without automatic retries. The async-answer hook is absent from local `upstream/main` (path checked 2026-09-08); this repairs the fork's own feature.
-
-- [ ] **File browsing eagerly builds one recursive project tree for Files, mentions, links, and Command Palette.** CLIde now pages folders and gives search/resolution a shared cancellable index, real-path containment, bounded concurrency, deterministic ambiguity handling, and complete capped ZIP traversal; [completion record](todo-done.md) and [ADR 0049](decisions/0049-file-tree-loads-folders-not-projects.md). Upstream check 2026-08-30: local `upstream/main` at v1.37.2 still calls the depth-10 `buildFileTree` from `listProjectFiles`; issue #1082 added its 10,000-entry refusal but not lazy loading. Closed, unmerged PR #755 attempted lazy directories with lexical containment, so its symlink-escape and duplicate-request gaps must not be revived. Broad but separable by backend directory/search contract followed by client migrations — **good staged PR candidate after this fork settles.**
-- [ ] **Session list order comes from file mtime, so merely opening a session reorders it.** `readFileTimestamps` in `server/shared/utils.ts` fills `updated_at` from `stat().mtime` for the Claude, Codex and Cursor synchronizers alike. Claude appends untimestamped `last-prompt` and `permission-mode` rows when a transcript is opened, so the file's mtime advances while the conversation has not — measured on a real transcript here, mtime ran 30 minutes past the last message. The fix reads the last timestamped row from a bounded tail and keeps mtime as the fallback; OpenCode already does the honest thing, reading `time_updated` from its own database. Upstream check 2026-08-27: `readFileTimestamps` is byte-identical on `upstream/main`; issue searches for `mtime`, `session order`, `reorder`, `session list order` and `recently updated` found nothing on ordering (the near hits, #1170 and #1021, are other indexer defects), and a PR search for `timestamp` found nothing related. Self-contained, four files, one shared helper. **Good standalone PR candidate.**
-- [ ] **HTML file preview is an ephemeral popup.** Upstream PR #933 added the same `window.open('', '_blank')` + `srcdoc` implementation while primarily changing media preview: installed Samsung PWA activation is a no-op, refresh destroys the in-memory page, and relative project links/assets have no project base. CLIde now uses an isolated inline static preview with authenticated passive-asset rewriting and project-aware links; executable development-server preview remains separate. Upstream check 2026-08-23: confirmed unchanged on `upstream/main`; open-issue searches for “HTML preview”, “preview HTML”, and `srcdoc` found nothing; PR search found only #933 and closed #1024, whose cookie-authenticated dev-server/Docker proxy addresses dynamic apps instead. Live-accepted on Firefox, Samsung Internet, and a Samsung-installed PWA. **Good standalone PR candidate.**
 - [x] ~~**Account usage dashboard, truthful usage cache, and reset alerts.**~~ **Fork-only.**
   The provider-usage service/hook and CLIde's provider-neutral notification preferences do not
   exist on `upstream/main` (checked by path on 2026-08-16), so neither the stale-timestamp fix
   nor the dashboard/monitor can be separated into an upstream patch without first proposing
   the whole account-usage architecture.
-
-- [ ] **Chat force-wraps every code block** (see `todo-done.md`, 2026-08-17, this commit). `.chat-message pre, code` in `src/index.css` carries `white-space: pre-wrap !important` and `word-break: break-all`, which overrides the syntax highlighter's own `overflow: auto` and breaks identifiers mid-word — confirmed present in `upstream/main` at line 782 on 2026-08-17. Scoping it to `:not(pre) > code` is a three-line CSS change that stands alone; the tool-renderer classes (`whitespace-pre` on bash output, snippets, raw params, tool diffs) are the same defect and could travel with it. The sidebar-swipe guard that keeps the drawer off those scrollers is fork-only — upstream has no such gesture. Upstream check 2026-08-17: issue searches for `wrap`, `code block` and `horizontal scroll` found nothing on forced wrapping; the nearest is closed feature request #671 (hide/minimize command blocks). **Good standalone PR candidate.**
-- [ ] **Dead files shipped by upstream's own refactors.** `src/utils/dateUtils.ts` (`formatTimeAgo`, orphaned by `f891316`) and `src/components/git-panel/view/changes/FileSelectionControls.tsx` (orphaned by `844de26`/`5e3a7b6`) have no importer in `upstream/main` either, and `CONFIRMATION_ICON_CLASSES` in the Git panel constants is defined and never read. Deleted here 2026-08-09. Zero-risk tidy, but low value to upstream and it touches three unrelated areas — **bundle into another Git-panel PR rather than sending alone.**
-- [ ] **Claude composer `default` silently inherits `permissions.defaultMode`** (see `todo-done.md`, 2026-08-09, this commit). Upstream's `claude-runtime.provider.js` still assigns `sdkOptions.permissionMode` only when the selected value is not `default`, even though the composer sends that value explicitly. A user selecting Default can therefore run as `acceptEdits` from `settings.json` with no UI acknowledgement. CLIde now forwards native `default` and labels it Ask Before Tools. Upstream check 2026-08-09: confirmed in `upstream/main`; issue and PR searches for permission/default/settings inheritance found no relevant report. The adapter change is small and independently testable; the fork's broader composer-menu redesign need not travel with it. **Good standalone PR candidate.**
-- [ ] **Claude account reported "logged out" after an idle access token** (see
-  `todo-done.md`, 2026-07-28) — verbatim upstream bug, but the diff needs re-siting: upstream
-  still has the expiry check inline in `claude-auth.provider.ts` (`if (!expiresAt || Date.now() <
-  expiresAt)` … else "login has expired"), since the `claude-credentials.ts` extraction is
-  ours. The logic gap is identical — the `refreshToken`/`refreshTokenExpiresAt` sitting in the
-  same file are never consulted — and it fires for every OAuth user who leaves the app idle
-  more than ~8 hours. Upstream check 2026-07-28: no issue or PR for it — searched issues for
-  "login expired" (two hits, both different: **#556** is auth status not refreshing *after* the
-  OAuth flow completes, **#754** is the JWT/web-login layer already tracked above) and
-  "credentials expired token refresh" (zero hits); PR search for "credentials expiresAt refresh
-  token" returned only fuzzy title matches. Self-contained, testable, no UI change —
-  **good standalone PR candidate.**
-- [ ] **Grep/Glob live result counts** (see `todo-done.md`, 2026-07-23, `931fc81`) — client-only
-  `toolConfigs.ts` fix; affects every provider that surfaces Grep/Glob, nothing
-  fork-specific. No upstream issue/PR search done yet — check `gh` before PRing.
-- [ ] **Spurious logouts: transient-failure token wipe + no idle token refresh** (see
-  `todo-done.md`, 2026-07-23) — all client-side, auth is provider-agnostic. Upstream overlap: the
-  keep-alive + in-memory-token-sync halves are the same two gaps as **open PR
-  siteboon/claudecodeui#980** ("refresh auth token for idle WS/SSE clients", closes #754,
-  unmerged as of 2026-07-23 — checked via `gh pr view 980`); our fix is narrower (no WS
-  expiry teardown / "session expired" LoginForm copy). The *first* half — `checkAuthStatus`
-  clearing the token on any non-OK `/api/auth/user`, not just 401/403 — is **not** in #980
-  and looks like a clean standalone PR. Decide: PR the standalone half, or wait and see if
-  #980 lands and cherry-pick it.
-- [ ] **Skill-content leak + synthetic-notice/compact-summary rendering** (see
-  `todo-done.md`, 2026-07-23) — the skill-injection filter directly fixes **open upstream issue
-  siteboon/claudecodeui#1009** ("skill content rendered as user input in web UI",
-  no fix PR as of 2026-07-23 — only a CodeRabbit auto-comment; checked via
-  `gh issue view 1009` + PR search). Upstream's `normalizeMessage` has the identical
-  gap (`isMeta`-only check misses the live stream's `isSynthetic`). The
-  `isSystemNotice` banner + compact-summary collapsible parts are more
-  fork-flavored UI, but the server-side filter is a clean standalone PR.
-  **Strong second-PR candidate.**
-- [ ] **Shimmer loop discontinuity** (see `todo-done.md`, 2026-07-23) — verbatim upstream bug:
-  `git show upstream/main:{tailwind.config.js,src/shared/view/ui/Shimmer.tsx}` at v1.36.3
-  is byte-identical to our pre-fix state, and upstream has four call sites (`Reasoning`,
-  `PlanDisplay` ×2, `ActivityIndicator`), so it's visible on every provider. Upstream check
-  2026-07-23: no issue or PR — searched issues for "shimmer" / "thinking animation" /
-  "animation stutter" (zero hits) and PRs for "shimmer" (only fuzzy title matches, none
-  about the animation). Two-line diff, no tests possible (pure CSS) — **easy PR, but
-  cosmetic; low priority next to #1009.**
-
-- [ ] **`<synthetic>` transcript-placeholder guard** (`422411f`) — upstream has the same
-  unguarded `extractClaudeEventModel`; exposure there is display-only (their
-  `resolveResumeModel` never reads the transcript), but the popup showing `<synthetic>`
-  after an API error is a real upstream bug. Small, self-contained, test-covered.
-  Upstream check 2026-07-17: no issue/PR mentions it (searched "synthetic", "selected
-  model", "529", "active model"; read #981/#996/#998 bodies; confirmed by reading
-  upstream/main's code). **Best first-PR candidate.**
-  **PR SUBMITTED 2026-07-22: siteboon/claudecodeui#1056** — first upstream PR. Branch
-  `fix/synthetic-model-guard` (off `upstream/main` v1.36.3, pushed to origin), worktree
-  `../cloudcli-wt-synthetic-guard` kept alive for review feedback. The fork's test file
-  couldn't be cherry-picked as-is (it was born with the per-session model-stack DI,
-  `85ddd7e`/`5d9da84`, which isn't upstreamed), so the PR carries a rewritten
-  `claude-models.test.ts` in upstream's own idiom (isolated-DB harness from
-  `opencode-sessions.test.ts`, real `sessionsDb`): control + guard + all-synthetic
-  fallback, 3/3 pass, guard tests confirmed failing on unpatched upstream/main. Run
-  upstream tests with `npx tsx --tsconfig server/tsconfig.json --test <path>` (the root
-  tsconfig maps `@/` to `src/`, not `server/`). Check off when merged.
-- [ ] **AskUserQuestion comma-answer split** (`9450562`) — upstream-checked + test-covered
-  (see `todo-done.md`, 2026-07-20: both files predate the fork, no issue/PR). **Ready.**
-- [ ] **File-tree Move to… + touch context menu + drag-to-move**
-  (`0efea7d`/`ad9efda`/`8747136`) — upstream-checked (see `todo-done.md`: #436/#444 merged
-  the context menu but no move op, right-click-only) and verified live 2026-07-22.
-  Server + client + i18n — the largest candidate; PR as one feature branch. **Ready.**
-- [ ] **CSS minifier warnings fix** (`5cc4185`) — inherited from upstream, repros on
-  `upstream/main` (~25 `[css-syntax-error]` build warnings from `@layer` re-emission).
-  Self-contained `src/index.css` move. Upstream check 2026-07-22: no issue/PR (searched
-  "css-syntax-error", "css warning", "build warnings", "minify" — only unrelated hits);
-  corroborated in upstream/main code: `@layer components` spans `src/index.css` 566–805
-  and all five `@media` blocks (608/686/702/763/769) still sit inside it. **Ready.**
-- [ ] **Haiku effort-picker gap** (`7af88a7`) — re-verified on upstream/main 2026-07-22
-  (v1.36.3): `claude-models.provider.ts:107` haiku entry still has no `effort` field, and
-  `useChatProviderState.ts:319` returns `option.effort?.values ?? []` for catalogued
-  models (provider fallback only runs for models absent from the catalog) — so Haiku
-  still loses the picker. No issue/PR (searched "effort"; #943 is the merged effort
-  feature that introduced the gap, #998 is model-select display, unrelated). **Ready.**
-- [ ] **Pinch-to-zoom leak on Samsung/iOS** (`6a5e1c1`) — upstream check 2026-07-22:
-  no issue/PR (searched "pinch", "zoom"; hits #954/#986/#923 are all *terminal touch
-  scrolling*, unrelated); corroborated: upstream/main `index.html` still relies on the
-  viewport meta alone (`user-scalable=no`), no gesture-suppression script — the leak
-  repros on engines that ignore the meta. **Ready.**
-- [ ] **Enter sends instead of newline on touch** (`d9c9d2b`) — **deferred; Grayson will
-  rework this into a proper PR himself.** Upstream check 2026-07-22: no issue/PR for the
-  touch case (searched "enter key", "newline", "enter send mobile"; adjacent: #58
-  IME-composing Enter — already guarded via `isComposing` in their `handleKeyDown`; #74
-  is Shell-side). Note discovered 2026-07-22: a **"Send by Ctrl+Enter" toggle already
-  exists** on both upstream and this fork — Quick Settings panel
-  (`quick-settings-panel/constants.ts` `INPUT_SETTING_TOGGLES`), i18n'd in all 10
-  locales, framed as an IME-user feature — so "add a settings toggle" is already done;
-  the open PR angles are the touch *default* (the `isTouchPrimary` carve-out) and/or
-  surfacing the toggle in the main Settings modal for discoverability. Follow-up shipped
-  2026-07-22 (`0551406`): on touch devices Quick Settings now swaps the (no-op there)
-  Ctrl+Enter row for an opt-in **"Enter to send"** toggle (`enterToSend` pref, default
-  off) — a future PR can bundle both as "correct default on touch + escape hatch",
-  which preempts the "just use the existing setting" objection.
-- [ ] **Shell toolbar hiding the CLI's last line** (`f8410b4`) — repro confirmed in
-  upstream/main code 2026-07-22: `TerminalShortcutsPanel.tsx` still renders
-  `pointer-events-none fixed inset-x-0 bottom-0 z-20` — a floating overlay the terminal
-  reserves no space for. No issue/PR (searched "terminal last line", "toolbar terminal",
-  "shortcuts toolbar"; PR #411 introduced the panel). **Caveat: the fork commit bundles
-  the personal backdrop-blur removal** — a PR needs to keep upstream's `backdrop-blur-sm`
-  or split the diff.
 - [x] ~~**Stop-button-becomes-queue trap** (`a236952`)~~ — **NOT an upstream bug;
   removed from candidates 2026-07-22 after tracing the fork's own history.** Chain:
   upstream has *two* Stop affordances — the composer submit button (flips to "Queue next
@@ -166,40 +91,6 @@ Grayson decides what actually gets PRed; nothing is submitted without an explici
   tab Stop stays visible while typing — `isInputFocused` only restyles border/shadow,
   never hides it — so upstream users always have a Stop. Fork-only. (Minor residue
   upstream: their composer Stop never checks `canInterrupt` — cosmetic, not PR-worthy.)
-- [ ] **Per-session model stack** (`85ddd7e`/`5d9da84`/`8771eea`) — already tracked as
-  model-picker #11. Blocked on live verification (#8) and on watching open PRs #996/#998,
-  which overlap; if they merge, reconcile instead of PRing wholesale.
-- [ ] The duplicate-session double-send (`TODO.md` Bugs section, unfixed) is almost certainly an
-  upstream bug too — search upstream when we fix it.
-- [ ] **WS reliability pair: half-open detection (`dd47ddd`) + run-scoped exactly-once
-  replay (`55d8c44`, comment cleanup `7ae4aa2`).** Provider-neutral by construction
-  (shared `/ws` gateway + run-registry layer), 17/17 tests, verified live on the fork
-  2026-07-22 — including an unexpected scroll-smoothness win (see the replay-protocol
-  item in `TODO.md` Bugs). Upstream
-  check 2026-07-22 (searched issues "duplicate"/"scroll"/"reconnect", PRs
-  "reconnect websocket"/"duplicate"): **this exact bug family is on file upstream.**
-  Issue **#554** (open, 2026-03) "Mobile chat responses lost due to WebSocket reconnect
-  race condition" = our silent-loss hole; **#567** (closed, 2026-04) "Duplicate
-  responses on WebSocket reconnect — double token consumption" = our replay dup race;
-  **#953** (open) "half-open sockets never reaped" is the shell-side sibling of the
-  `dd47ddd` server sweep (open PR #960 covers shell only); **#769** (closed) added the
-  server protocol pings that `dd47ddd`/ADR 0006 found insufficient for client-side
-  detection (browsers answer them in the network stack). No open PR overlaps the chat
-  path (#1016/#980 are token-refresh bugs). PR as one branch or two commits; ADR 0006
-  can seed the description, and #554/#567 give it ready-made repro reports. **Ready
-  pending the half-open-WS item's desktop/network-tab check — strongest-impact candidate.**
-
-- [ ] **Claude re-login creating stray sidebar sessions** (`962ef7a`) — upstream runs the
-  same `claude --dangerously-skip-permissions /login` in `ProviderLoginModal.tsx`, so
-  every Claude re-login leaves a junk REPL transcript session there too, and their
-  `isLoginCommand` fresh-PTY detection (`'auth login'`) never matches Claude either.
-  One-file swap to `claude auth login`. Upstream check 2026-07-23: no issue/PR (searched
-  issues "login session", PRs "auth login"; adjacent hits #551 cursor login, #1051 slash
-  command rendering — different bugs); open PR #1035 already uses `claude auth status`,
-  so the `auth` subcommand family is accepted there. Caveat for the PR: needs a CLI new
-  enough to have `claude auth` (2.1.x). **Pending live verification on the fork.**
-
-
 - [x] ~~**Settings information-architecture restructure**~~ (`19d078a`…P6, branch
   `feat/settings-ia`) — **deliberately fork-only; not a PR candidate.** Recorded here
   because it is the largest divergence this fork has taken in an upstream-heavy subtree,
