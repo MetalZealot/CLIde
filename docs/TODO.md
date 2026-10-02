@@ -99,7 +99,7 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 - [~] **Chat's non-message text uses two sizes and one grey.** Activity rows and metadata (timestamps, notices, citations, divider) become `text-chat-activity`/`text-chat-meta` in muted grey, scaling with reading size. Awaiting a look on phone and desktop. [ADR 0062](decisions/0062-chat-metadata-scales-with-reading-size.md). **S**
 - [ ] **Older standalone tool panels adopt the chat text roles.** To-do and task lists, plans and question forms still mix 9–13px and raw greys. [ADR 0062](decisions/0062-chat-metadata-scales-with-reading-size.md). **S/M**
 - [ ] **Colour theming overhaul** — OKLCH tokens, monochrome/accent/full-colour presets with derived light and dark, a corner-radius dial, and provider accents. Supersedes the old accent-picker and provider-branding items. Cost is Phase 0: 2,335 hardcoded palette classes across 118 files bypass the token layer. [Plan](plans/colour-theming-system.md). **L**
-- [ ] **Custom project icon**, second half of Customize after the colour strip. Pick an image from the project (or upload) via a modal reusing `useFileTreeData` + `isImageFile`, not a Files-tab detour — the tab has no pick mode and the cross-tab return trip is the real cost. Store a downscaled data URI on the project row, path as provenance only: a file in the repo breaks on worktrees. **M**
+- [ ] **Custom project icon**, second half of Customize after the colour strip. Pick an image from the project (or upload) via a modal reusing `useFileTreeData` + `isImageFile`, not a Files-tab detour. Store a downscaled data URI on the project row, path as provenance only: a file in the repo breaks on worktrees. **M**
 
 ## Features (bigger ideas)
 
@@ -120,6 +120,7 @@ new work.
 
 ---
 
+- [ ] **Threads with no project**, each in its own scratch folder, so a new user can message before adding one. [Plan](plans/no-project-threads.md). **M/L**
 - [ ] **Markdown-native cross-project dashboard and Kanban board.** A possible built-in or extension surface over authoritative project docs, with deterministic partial adoption, optional agent-assisted setup, and later constrained source edits—no task database or orchestration layer. [Plan](plans/markdown-project-board.md). **L — observe dashboard V1 first**
 - [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
 - [~] **Claude Code settings are almost entirely unreachable from CLIde** — all 172 cascade keys are classified and drift-tested, and settable from Agents › Claude › Configuration (47 generated controls). [Plan](plans/claude-settings-surface.md). **L**
@@ -132,7 +133,7 @@ new work.
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
 - [ ] **Workspace tabs like the desktop apps** — Terminal for Shell; Tasks, Agents. [Plan](plans/workspace-surfaces.md). **M/L**
-- [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live; 3–4 move the banners onto the messages and cover editing a turn the provider already took. [Plan](plans/message-edit-model.md). **M/L**
+- [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live. [Plan](plans/message-edit-model.md). **M/L**
 - [~] **Send a queued message into the running turn.** *Send now* on the queued row steers the active Claude or Codex turn instead of waiting for it to end; Enter still queues. [Plan](plans/send-queued-now.md). **M**
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
