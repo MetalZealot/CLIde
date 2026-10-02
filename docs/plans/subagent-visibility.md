@@ -65,5 +65,5 @@ constraint holds for every phase below.
   process does not.
 - Subagent token accounting. The context ring skips `isSidechain` rows by
   design — separate TODO item.
-- A sidebar entry or session row. The Agents tab is
-  [workspace surfaces](workspace-surfaces.md) phase 4.
+- A sidebar entry, session row, or Agents tab. The row in the chat is the
+  only surface.

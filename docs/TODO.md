@@ -132,7 +132,7 @@ new work.
 - [ ] Codex equivalent of the Claude command-surface audit — which of its commands and config keys CLIde is missing. **L**
 - [ ] Modern IDE features: `@`-ing files, highlighting editor text to reference in chat, following edits in realtime. **L**
 - [ ] More IDE-like desktop layout: split panels for convo, files, and editor at once. **L**
-- [ ] **Workspace tabs like the desktop apps** — Terminal for Shell; Tasks, Agents. [Plan](plans/workspace-surfaces.md). **M/L**
+- [ ] **Workspace tabs like the desktop apps** — Terminal for Shell; Tasks and Agents tabs dropped. [Plan](plans/workspace-surfaces.md). **M/L**
 - [~] **One edit model for queued, scheduled, and earlier messages.** Scheduled messages move into the thread, queued ones share one row by the input, editing marks the original instead of a banner, and cancel restores the prior draft. Phases 1–2 are live. [Plan](plans/message-edit-model.md). **M/L**
 - [~] **Send a queued message into the running turn.** *Send now* on the queued row steers the active Claude or Codex turn instead of waiting for it to end; Enter still queues. [Plan](plans/send-queued-now.md). **M**
 

@@ -20,7 +20,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | — | | |
 | [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
 | [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript |
-| [Workspace surfaces](workspace-surfaces.md) | 1/5 | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |
+| [Workspace surfaces](workspace-surfaces.md) | 1/2 | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
 | [Markdown-native project board](markdown-project-board.md) | not started | First observe the existing dashboard, then test the status contract across three projects |
