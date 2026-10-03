@@ -18,6 +18,8 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Commit-message model selection](commit-message-model-selection.md) | not started | Rebaseline on the post-v1.37 Git module, then build `IProviderJobs` |
 | [MCP scope storage collisions](mcp-scope-storage-collisions.md) | not started | Re-map provider config paths after the module migration |
 | — | | |
+| [Claude permission default](claude-permission-default.md) | not started | Phase 1: read `permissions.defaultMode` into Claude's capability default |
+| [Single-row mobile composer](composer-single-row.md) | not started | Phase 1: probe page on the S20 for row, badge and sheet |
 | [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
 | [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript |
 | [Workspace surfaces](workspace-surfaces.md) | 1/2 | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |

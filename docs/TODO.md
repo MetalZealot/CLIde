@@ -18,7 +18,7 @@ main checkout only).
 - [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows [the finished Tools plan](plans/archive/2026-09-29-provider-tools-page.md). **L — design first**
 - [ ] **Multiple Codex clients can claim the same native thread.** Add App Server-native Chat compaction and cross-process single-writer coordination so Shell, another CLIde service, or an external client cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**
 - [ ] **Claude, Cursor and OpenCode MCP edits still erase native keys CLIde does not model.** Codex was fixed in `2a4a727`; the shared base now hands `buildServerConfig` the existing record, so each remaining adapter needs the same merge plus its own owned-key list. **S each**
-- [ ] **Split [the Claude SDK map](maps/claude-agent-sdk.md)** — 29 KB against a 24 KB cap, and its "Current CLIde mapping" section alone is 13 KB. Split native surface from CLIde mapping, then drop its entry from `SIZE_EXCEPTIONS` in `scripts/check-docs.mjs`. Its 2026-07-19 delta section was already folded into [the ledger](maps/claude-upgrade-ledger.md) on 2026-08-06. **S/M**
+- [ ] **Split [the Claude SDK map](maps/claude-agent-sdk.md)** — 29 KB against a 24 KB cap, and its "Current CLIde mapping" section alone is 13 KB. Split native surface from CLIde mapping, then drop its entry from `SIZE_EXCEPTIONS` in `scripts/check-docs.mjs`. **S/M**
 - [ ] **Claude's usage panel goes blind whenever the access token idle-expires.** The token lives 8h and only the SDK renews it, as a side effect of sending a message — so an idle night, or a limit that stops your session, refuses every usage fetch until you send one. Renewing it ourselves means writing `~/.claude/.credentials.json` and racing Claude Code's own rotation. **M/?**
 - [ ] **Composer message recall (upstream `#1238`).** ↑ in the composer walks previously sent messages; no provider work needed. The last open "build" verdict. [Plan](plans/upstream-feature-harvest.md), [map](maps/upstream-sync.md). **S**
 - [~] **Recurring upstream-fork sync process.** `npm run check:upstream` reports the span and which commits are ruled on; verdicts and the ledger live in [the map](maps/upstream-sync.md). Open: five commits unassessed as of 2026-09-23. **M recurring**
@@ -36,6 +36,7 @@ main checkout only).
 
 ## Bugs
 
+- [ ] **New Claude sessions ignore `permissions.defaultMode`**; a one-off Bypass carries into the next session. [Plan](plans/claude-permission-default.md). **S/M**
 - [ ] **Rewinding to the first message lists a second session.** It starts fresh and the original stays listed. **S**
 - [ ] **Auto-Continue sends with no permission mode.** Its `usage-reset` row has no options, so the turn runs in `default` and approvals time out. Store the mode when arming. **S**
 - [ ] **Claude thoughts come back empty because CLIde never requests summaries.** Passing `thinking: { display: 'summarized' }` returned text where the current run returns 0 characters (probe, 2026-09-24). Check adaptive vs fixed-budget models first. [Map](maps/tool-activity-stream.md#settings-that-decide-what-is-sent). **S**
@@ -57,6 +58,7 @@ main checkout only).
 
 ## Mobile UX polish
 
+- [ ] **Single-row composer on mobile**, settings in a sheet. [Plan](plans/composer-single-row.md). **M — probe first**
 - [~] **Context & Usage popover redesign, with a Claude prompt-cache countdown.** Big session %, cache pill, auto-compact/breakdown buttons, limits as open columns with pace ticks (probe variant F, `~/Projects/mockups/usage-popover`); breakdown is its own view. Tests pass; awaiting phone check. **M**
 
 - [ ] **Consider floating New Session above the sidebar footer instead of inside it.** `--app-footer-height` is 60px, accepted with the bottom nav; ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if the button misfires near the gesture strip. **S — on trial, don't act unprompted**
@@ -138,11 +140,9 @@ new work.
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
 
-Moved to [`upstream-candidates.md`](upstream-candidates.md) on 2026-07-27 — the ledger of
-fixes tagged **upstreamable**, their issue/PR checks, and PR status. Nothing is PRed without
+Tracked in [`upstream-candidates.md`](upstream-candidates.md). Nothing is PRed without
 Grayson's explicit go-ahead.
 
 ## Done
 
-Moved to [`todo-done.md`](todo-done.md) on 2026-07-27. Append finished items there and delete
-them from the sections above.
+Finished items move to [`todo-done.md`](todo-done.md).
