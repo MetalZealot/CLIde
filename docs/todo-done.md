@@ -6,6 +6,10 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **The status row's pulsing dot becomes three dots that move between states.** Starting, Thinking, Working, Waiting for you, Retrying, Compacting, then Done or Failed as the turn ends; reduced motion shows still frames. Thinking is a tilted, precessing ring and Working a braid, chosen from the round-4 probe. `ActivityDots.tsx`. Awaiting a trial on the phone. **S**
+
+- [x] **A finished turn keeps its time and output tokens.** The "Worked for" footer line becomes a row set like the activity row, `46s · 1,234 tokens`, read back from Claude and Codex transcripts so older turns show it too; Cursor and OpenCode show time only. `TurnSummaryRow.tsx`. Awaiting a trial on the phone. **S**
+
 - [x] **Claude SDK 0.3.258 → 0.3.286** (2026-10-01). Merged `6c945d27`; Sonnet 5.5 added to the model tables, 13 settings keys classified, the `check:providers` type diff fixed. Verified: 717 server tests, both SDK probes, live chat/model/rewind/approval on the branch-test slot, and Grayson confirmed SDK 0.3.286 in production. [Ledger](maps/claude-upgrade-ledger.md)
 
 - [x] **Wrap command output** (2026-09-29). A Chat setting picks wrap or sideways scroll for every opened tool panel; the wrap button beside Copy inverts it for that call, unsaved. Wrapped text flows around the corner buttons. Fork-only. Verified: client tests, Browser on a test slot.

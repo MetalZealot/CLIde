@@ -112,7 +112,9 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
                 attempt: stage.attempt ?? 1,
                 defaultValue: 'Retrying · attempt {{attempt}} · {{reason}}',
               }))
-            : t('claudeStatus.stage.compacting', { defaultValue: 'Compacting' });
+            : stage.name === 'background'
+              ? t('claudeStatus.stage.background', { count: stage.count ?? 1 })
+              : t('claudeStatus.stage.compacting', { defaultValue: 'Compacting' });
   const liveLabel = (
     (awaitingInput ? t('claudeStatus.waiting', { defaultValue: 'Waiting for you' }) : null)
     || stageLabel

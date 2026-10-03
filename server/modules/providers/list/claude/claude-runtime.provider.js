@@ -63,6 +63,8 @@ const activeSessions = new Map();
 const abortedSessionIds = new Set();
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
+// Silence after which a run held open for background work gives up and closes its input.
+const BACKGROUND_HOLD_SILENCE_MS = 30 * 60 * 1000;
 
 const CLAUDE_CONTEXT_USAGE_REFRESH_MS =
   parseInt(process.env.CLAUDE_CONTEXT_USAGE_REFRESH_MS, 10) || 60000;
@@ -601,8 +603,9 @@ function createUserInput(content) {
 /**
  * The run's prompt: an input stream the SDK reads for the whole turn, so text
  * pushed while tools run reaches the model within the same turn. Closed on the
- * turn's first result; input the CLI already holds then runs as a follow-up
- * turn inside the same run, so a push is never lost, only refused once closed.
+ * first result with no background task running; input the CLI already holds
+ * then runs as a follow-up turn inside the same run, so a push is never lost,
+ * only refused once closed.
  */
 export function createClaudeInputChannel(firstContent) {
   const pending = [createUserInput(firstContent)];
@@ -635,6 +638,15 @@ export function createClaudeInputChannel(firstContent) {
       return !closed;
     },
   };
+}
+
+/**
+ * Background tasks that keep the run's input open. Closed input makes the CLI a
+ * one-shot run, which stops background shells seconds after the result; ambient
+ * tasks (watchers) are excluded so they cannot hold a run open indefinitely.
+ */
+export function countHeldBackgroundTasks(tasks) {
+  return Array.isArray(tasks) ? tasks.filter((task) => task && task.ambient !== true).length : 0;
 }
 
 /**
@@ -811,6 +823,16 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let sentOutputTokens = 0;
   // The prompt stream `steer()` writes into; see createClaudeInputChannel.
   let inputChannel = null;
+  let backgroundTasks = 0;
+  // A turn ended with background work running; the CLI wakes the model when it settles.
+  let holdingInput = false;
+  // The label shows the wait until the next turn's output replaces it.
+  let awaitingBackground = false;
+  let backgroundHoldTimer = null;
+  const clearBackgroundHold = () => {
+    clearTimeout(backgroundHoldTimer);
+    backgroundHoldTimer = null;
+  };
 
   const emitNotification = (event) => {
     notifyUserIfEnabled({
@@ -1015,6 +1037,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     let lastContextUsageAt = 0;
     for await (const message of queryInstance) {
       frames += 1;
+      clearBackgroundHold();
       if (frames === 1) {
         logTurn('first-frame', capturedSessionId || message.session_id, {
           ms: sinceStart(),
@@ -1097,9 +1120,23 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       if (message?.type === 'assistant') {
         turnTokens.step(message.message?.id, message.message?.usage?.output_tokens);
       }
+      if (message?.type === 'system' && message.subtype === 'background_tasks_changed') {
+        backgroundTasks = countHeldBackgroundTasks(message.tasks);
+        if (awaitingBackground) {
+          awaitingBackground = backgroundTasks > 0;
+          sendStage(awaitingBackground ? { name: 'background', count: backgroundTasks } : null);
+        }
+      }
       if (message?.type === 'result') {
         turnTokens.result(message.usage?.output_tokens);
-        inputChannel?.close();
+        holdingInput = backgroundTasks > 0;
+        awaitingBackground = holdingInput;
+        if (holdingInput) {
+          logTurn('background-wait', capturedSessionId || sessionId, { ms: sinceStart(), tasks: backgroundTasks });
+          sendStage({ name: 'background', count: backgroundTasks });
+        } else {
+          inputChannel?.close();
+        }
       }
 
       const turnOutputTokens = turnTokens.total();
@@ -1191,6 +1228,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       if (message?.type === 'assistant' || message?.type === 'user') {
         outputStarted = true;
       }
+      if (message?.type === 'assistant') {
+        awaitingBackground = false;
+      }
       if (stageSent && (message?.type === 'assistant' || message?.type === 'user')) {
         sendStage(null);
       }
@@ -1218,9 +1258,17 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
           ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
         }
       }
+
+      if (holdingInput) {
+        backgroundHoldTimer = setTimeout(() => {
+          logTurn('background-timeout', capturedSessionId || sessionId, { tasks: backgroundTasks });
+          inputChannel?.close();
+        }, BACKGROUND_HOLD_SILENCE_MS);
+      }
     }
 
     // Clean up session on completion
+    clearBackgroundHold();
     inputChannel?.close();
     if (sessionKey()) {
       removeSession(sessionKey());
@@ -1266,6 +1314,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     }
 
     // Clean up session on error
+    clearBackgroundHold();
     inputChannel?.close();
     if (sessionKey()) {
       removeSession(sessionKey());
@@ -1301,8 +1350,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 }
 
 /**
- * Adds user text to the session's running turn. False once the turn's result
- * has arrived — the caller keeps the message queued for the next turn.
+ * Adds user text to the session's running turn. False once the run's input has
+ * closed — the caller keeps the message queued for the next turn.
  * @param {string} sessionId - App session id
  * @param {string} content - Text to deliver
  * @returns {boolean} Whether the turn accepted it

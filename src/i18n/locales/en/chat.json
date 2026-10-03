@@ -502,7 +502,9 @@
       "retrying": "Retrying · {{reason}} · {{attempt}} of {{maxAttempts}}",
       "retryingOpenEnded": "Retrying · attempt {{attempt}} · {{reason}}",
       "retryReasonFallback": "API error",
-      "compacting": "Compacting"
+      "compacting": "Compacting",
+      "background_one": "Waiting on a background task",
+      "background_other": "Waiting on {{count}} background tasks"
     },
     "waiting": "Waiting for you",
     "finished": {

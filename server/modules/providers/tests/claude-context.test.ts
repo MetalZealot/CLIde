@@ -1262,4 +1262,15 @@ describe('claude turn input stream', () => {
     assert.equal(channel.push('too late'), false);
     assert.equal((await iterator.next()).done, true);
   });
+
+  test('only non-ambient background tasks hold the input open', async () => {
+    const { countHeldBackgroundTasks } = await import('@/modules/providers/list/claude/claude-runtime.provider.js');
+    assert.equal(countHeldBackgroundTasks([
+      { task_id: 'a', task_type: 'local_bash' },
+      { task_id: 'b', task_type: 'local_agent', ambient: false },
+      { task_id: 'c', task_type: 'monitor', ambient: true },
+    ]), 2);
+    assert.equal(countHeldBackgroundTasks([]), 0);
+    assert.equal(countHeldBackgroundTasks(undefined), 0);
+  });
 });

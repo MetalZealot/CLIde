@@ -36,6 +36,7 @@ main checkout only).
 
 ## Bugs
 
+- [~] **Background shells died when a Claude turn ended.** The run now holds its input open until background tasks settle, then the agent reports back; 30-min silence backstop. Fork reimplementation of upstream `#1347`'s hold; its background-task strip and per-task stop are not taken. **S — awaiting live check**
 - [ ] **New Claude sessions ignore `permissions.defaultMode`**; a one-off Bypass carries into the next session. [Plan](plans/claude-permission-default.md). **S/M**
 - [ ] **Rewinding to the first message lists a second session.** It starts fresh and the original stays listed. **S**
 - [ ] **Auto-Continue sends with no permission mode.** Its `usage-reset` row has no options, so the turn runs in `default` and approvals time out. Store the mode when arming. **S**
@@ -94,8 +95,6 @@ This section is the complete outstanding model-picker list (2026-07-13 and 2026-
 
 ## Theming
 
-- [x] **The status row's pulsing dot becomes three dots that move between states.** Starting, Thinking, Working, Waiting for you, Retrying, Compacting, then Done or Failed as the turn ends; reduced motion shows still frames. Thinking is a tilted, precessing ring and Working a braid, chosen from the round-4 probe. `ActivityDots.tsx`. Awaiting a trial on the phone. **S**
-- [x] **A finished turn keeps its time and output tokens.** The "Worked for" footer line becomes a row set like the activity row, `46s · 1,234 tokens`, read back from Claude and Codex transcripts so older turns show it too; Cursor and OpenCode show time only. `TurnSummaryRow.tsx`. Awaiting a trial on the phone. **S**
 - [ ] **Maybe: pick the activity-dot motions in Settings**, as Activity Messages has its own settings. The round-4 probe holds 13 Working/Thinking motions to choose from. **S/M**
 - [ ] **Try the CLIde logo as the activity indicator.** Light runs along the logo's own band (round-3 probe, family H); liked, "with a few tweaks", after living with the dots. Reuses the dots' state-to-state blending. **S/M**
 - [~] **Chat's non-message text uses two sizes and one grey.** Activity rows and metadata (timestamps, notices, citations, divider) become `text-chat-activity`/`text-chat-meta` in muted grey, scaling with reading size. Awaiting a look on phone and desktop. [ADR 0062](decisions/0062-chat-metadata-scales-with-reading-size.md). **S**

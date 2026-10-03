@@ -557,9 +557,11 @@ export type FollowUpQuestion = {
  * own cycling words.
  */
 export type TurnStage = {
-  name: 'starting' | 'sent' | 'thinking' | 'retrying' | 'compacting';
+  name: 'starting' | 'sent' | 'thinking' | 'retrying' | 'compacting' | 'background';
   /** Running estimate while the model thinks; approximate, not billed tokens. */
   tokens?: number;
+  /** Background tasks the run is waiting on. */
+  count?: number;
   attempt?: number;
   maxAttempts?: number;
   reason?: string;
