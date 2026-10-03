@@ -14,10 +14,8 @@ today's two-row footer. Agreed with Grayson on 2026-10-02.
 ## Phases
 
 - [ ] 1. Probe page in `dist/` with the row and the sheet, tried on the S20: three
-  badge styles (dot, ring, tint), two sheet heights, and four ways the row grows
-  (T3 expand-on-focus, Claude's reserved send column, ChatGPT's split into text above
-  and tools below, messaging's buttons outside). ChatGPT's is the lead: long prompts
-  get the full width. Agree the end state before building.
+  badge styles (dot, ring, tint), two sheet heights, and the split triggered on focus
+  versus on the first wrapped line. Agree the end state before building.
 - [ ] 2. A mobile bottom sheet holds every next-message setting: provider (where
   switching is allowed), model, effort slider, fast mode, permission mode and plan
   mode. It reuses the menus' data and handlers, not their popover visuals, and the
@@ -26,8 +24,10 @@ today's two-row footer. Agreed with Grayson on 2026-10-02.
   permission or plan mode differs from the provider default. The placeholder is the
   short model and effort ("Opus 5.5 · High", plus "· Fast"); the no-project
   placeholder is unchanged. Mic shows when the input is empty, send when it is not,
-  stop while a turn runs. The usage ring moves to the header. Multi-line text grows
-  the row the way Phase 1 chose.
+  stop while a turn runs. The usage ring moves to the header. Longer text splits the
+  row ChatGPT's way: the text slides up to its own full-width line with the buttons
+  staying below, and it stays split until the input is empty. The slide is animated
+  both ways; reduced motion switches instantly.
 - [ ] 4. Live check on the installed PWA against 3001, keyboard open and closed.
 
 ## Done when
