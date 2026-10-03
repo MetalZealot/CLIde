@@ -21,13 +21,18 @@ Every command definition in the binary carries its own `type`:
 | `type` | What it is | Reaches a non-terminal client? |
 |---|---|---|
 | `prompt` | Expands into text and goes to the model | Yes — it is only a prompt |
-| `local` | Runs in the CLI process, returns text | Yes, as `system`/`local_command_output` |
-| `local-jsx` | Renders a terminal UI component | **Never** |
+| `local` | Runs in the CLI process, returns text | Yes, as an ordinary assistant text message plus `result` (measured 2.1.286) |
+| `local-jsx` | Renders a terminal UI component | **Never** — but see below |
 
 Of 75 definitions recovered by pattern at 2.1.246, 54 are `local-jsx`, 19 `local`,
 2 `prompt`.
 So the large majority of what `/help` advertises is terminal UI that no web client
 can host — it can only be *re-implemented* natively, or dropped.
+
+At 2.1.286 most `local-jsx` commands the SDK advertises (`model`, `effort`, `fast`,
+`usage`, `mcp`, `rename`, `advisor`…) also carry a `local` twin, and the SDK runs
+the twin: a text reply instead of the panel. That is why they appear in
+`supportedCommands()` at all.
 
 Two live measurements set the size of the real problem:
 
@@ -56,20 +61,23 @@ CLIs, so a static fallback is still needed — but as the fallback, not the sour
 
 Two more contract facts, from the same declarations:
 
-- `SDKLocalCommandOutputMessage` (`system` / `local_command_output`) — a `local`
-  command's text output arrives as a typed stream message. Nothing in this repo
-  references it, so today that output would be dropped.
-- The `UserPromptExpansion` hook fires with `expansion_type: 'slash_command'`, which
-  is how a `prompt` command submitted as plain text becomes a real prompt. That is
-  the supported path for the whole skill-command family.
+- `SDKLocalCommandOutputMessage` (`system` / `local_command_output`) is declared,
+  but no command in the 2.1.286 probe emitted it — every `local` reply came back as
+  assistant text, which CLIde already renders.
+- The `UserPromptExpansion` hook fires with `expansion_type: 'slash_command'` for
+  skill and `prompt` commands, with `prompt` holding the typed text, not an
+  expansion: the skill body loads inside the model turn. Blocking that hook is how
+  the probe below classified them without spending a turn.
 
 ## What CLIde reaches today
 
-Nine commands, and no runtime enumeration:
+Eleven commands, and no runtime enumeration:
 
 - Seven hardcoded server-side (`server/modules/commands/commands.routes.ts`):
   `/help`, `/models`, `/usage`, `/context`, `/memory`, `/config`, `/status`.
-- Two client-side and capability-gated (`useSlashCommands.ts`): `/rewind`, `/fork`.
+- Four client-side and capability-gated (`useSlashCommands.ts`): `/rewind`, `/fork`,
+  `/compact` (sent as a prompt), `/btw` (CLIde's side question; the CLI's own
+  `btw` is terminal-only and not advertised over the SDK).
 - Custom commands are found by scanning `.claude/commands/`, read from disk, and
   expanded server-side (`POST /api/commands/execute`).
 
@@ -78,6 +86,34 @@ nowhere in `server/`, `src/`, or `shared/`. Every bundled skill command —
 `/code-review`, `/security-review`, `/simplify`, `/dataviz`, `/loop`, `/schedule`,
 `/run`, `/init`, `/verify`, `/insights` — is absent from CLIde's slash menu, though
 each is a plain prompt expansion with no terminal dependency.
+
+## How each command behaves when sent as text
+
+Measured 2026-10-02 against CLI **2.1.286** / SDK **0.3.286**: `supportedCommands()`
+returned 56 rows for this repo (54 `builtin`, 2 user skills), and 37 were sent
+through `query()` one at a time, with a `UserPromptExpansion` hook blocking skill
+commands before the model ran. `terminal_slash_commands` on that run's `init` was
+`doctor`, `color`, `focus`, `reload-plugins`.
+
+Arguments are always free text after the name; the CLI parses them, and
+`argumentHint` is the only description of their shape. CLIde already shows that
+hint as ghost text after a typed command.
+
+| Group | Commands | Behaviour over the SDK | CLIde needs |
+|---|---|---|---|
+| Skills / `prompt` | `code-review` `simplify` `loop` `batch` `design-sync` `schedule` `dataviz` `claude-api` `verify` `run` `run-skill-generator` `plugin-authoring` `update-config` `fewer-permission-prompts` `security-review` `init` `team-onboarding` `debug` `insights`† | One model turn; arguments reach the skill verbatim | Nothing — send as text |
+| Local, read-only reply | `context` `usage` `list-agents` `skill-doctor` `goal` `output-style` (bare) `mcp` (bare) `reload-skills` `plugin-types` `compact` | Instant, free markdown reply | Nothing — send as text |
+| Local, changes state CLIde owns | `model <x>` `effort <x>` `fast`† `advisor`† `autocompact`† `config k=v` `output-style <x>` | Bare form prints current value and usage; with a value it changes the session or `settings.json` behind CLIde's controls | Hide, or route to CLIde's control |
+| Emits a session event CLIde ignores | `clear` → `conversation_reset`; `rename` → `session_title_changed`; `reload-skills`/`reload-plugins` → `commands_changed` | Reply arrives, but CLIde's view of the session goes stale | Handle the event (new session, sidebar title, menu refresh) |
+| Fixed choices in `argumentHint` | `code-review` `advisor` `autocompact` `color` `effort` `fast` `focus` `mcp` `design` | `[a\|b\|c]` / `<a\|b>` lists in the hint | Optional chip picker parsed from the hint; typing already works |
+| Dynamic choices | `model`, `output-style`, `mcp <server>` | The list is only in the bare command's reply | A data source per command; CLIde already owns `model` |
+| Hide | terminal list above; `__remote-workflow`, `workflow-launch-exec` (internal); `extra-usage` (renamed stub); `agents` (removal notice); `heapdump` (writes a heap dump) | — | Filter |
+
+† not sent: state-changing, billed or heavy. Also not sent: `ultrareview` (billed
+cloud review), `usage-credits`, `import`, `design-consent`/`design-revoke`, `recap`,
+`mcp enable|disable`.
+
+`doctor` is now a model-run health check that shells out, not a local report.
 
 ## The inventory
 
@@ -154,9 +190,8 @@ only because CLIde's menu is a hardcoded list.
 `update-config` · `verify` · `plugin-types`
 
 `plugin-types` is the odd one: a `local` command, not a prompt expansion. It writes
-`claude-code-mcp.d.ts` describing the connected MCP tools, and reports what it wrote
-as `local_command_output` — the message type CLIde drops. Enumeration alone would
-list it and then show nothing when it ran.
+type declarations into `.claude/types/` and reports the paths as plain assistant
+text, so enumeration alone is enough.
 
 ### Deliberately not doing (4)
 
