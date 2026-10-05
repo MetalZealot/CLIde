@@ -1068,6 +1068,7 @@ describe('codex-models', () => {
     }), 'utf8');
 
     const provider = new CodexProviderModels({
+      modelPickStore: { getSessionModelPick: () => null, setSessionModelPick: () => true },
       lookupSessionRow: (sessionId) => ({
         jsonl_path: sessionId === 'session-a' ? firstPath : secondPath,
       }),

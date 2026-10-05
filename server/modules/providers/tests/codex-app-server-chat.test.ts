@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { afterEach, beforeEach } from 'node:test';
 
+import { closeConnection, initializeDatabase } from '@/modules/database/index.js';
 import {
   CodexAppServerChatTransport,
   CodexAppServerStartupError,
@@ -1301,7 +1302,10 @@ process.stdin.once('data', () => process.exit(17));
   }
 });
 
-test('App Server keeps its runtime snapshot through a turn and recycles only when idle', async () => {
+test('App Server keeps its runtime snapshot through a turn and recycles only when idle', async (t) => {
+  // A question asked in a session is persisted with it.
+  await initializeDatabase();
+  t.after(closeConnection);
   const serverSource = (marker: string) => `
 import readline from 'node:readline';
 const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });

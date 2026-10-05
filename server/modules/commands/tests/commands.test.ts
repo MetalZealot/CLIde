@@ -5,6 +5,8 @@ import test from 'node:test';
 
 import express from 'express';
 
+import { closeConnection, initializeDatabase } from '@/modules/database/index.js';
+
 import { createCommandsRouter } from '../commands.routes.js';
 
 /**
@@ -122,7 +124,9 @@ test('cost and status commands report the same resolved model as /models', async
 // past the injected services into the session row, so it is the one most easily
 // broken by a refactor of this file — and `@ts-nocheck` means the compiler will
 // not say so. A session with no recorded reading exercises the headline branch.
-test('context command answers for a session with no recorded reading', async () => {
+test('context command answers for a session with no recorded reading', async (t) => {
+  await initializeDatabase();
+  t.after(closeConnection);
   const result = await executeCommand('/context', {
     provider: 'claude',
     sessionId: 'context-session-missing',

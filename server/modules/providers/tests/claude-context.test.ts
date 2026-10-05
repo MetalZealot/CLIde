@@ -571,6 +571,7 @@ describe('claude-context-window', () => {
     supportsLongContext: boolean;
   };
 
+  const registrySkip = process.env.CI ? 'needs the installed claude binary, which CI does not have' : false;
   const REGISTRY_MARKER = 'models:[{id:"claude-';
 
   /** Executable named by CLAUDE_CLI_PATH, else the first `claude` on PATH. */
@@ -683,7 +684,7 @@ describe('claude-context-window', () => {
     };
   };
 
-  test('CLAUDE_MODEL_CONTEXT_SPECS matches the installed runtime model registry', () => {
+  test('CLAUDE_MODEL_CONTEXT_SPECS matches the installed runtime model registry', { skip: registrySkip }, () => {
     const { models } = readModelRegistry();
 
     // A parser that silently matched nothing would make this test vacuous.
@@ -705,13 +706,13 @@ describe('claude-context-window', () => {
     assert.deepEqual(recorded, models);
   });
 
-  test('CLAUDE_BUILTIN_DEFAULT_EFFORT matches the registry', () => {
+  test('CLAUDE_BUILTIN_DEFAULT_EFFORT matches the registry', { skip: registrySkip }, () => {
     const { defaultEfforts } = readModelRegistry();
     assert.ok(Object.keys(defaultEfforts).length > 0, 'parsed no default_effort fields');
     assert.deepEqual({ ...CLAUDE_BUILTIN_DEFAULT_EFFORT }, defaultEfforts);
   });
 
-  test('CLAUDE_MODEL_ID_ALIASES matches the registry aliases block', () => {
+  test('CLAUDE_MODEL_ID_ALIASES matches the registry aliases block', { skip: registrySkip }, () => {
     const { models, aliases } = readModelRegistry();
 
     assert.ok(Object.keys(aliases).length > 0, 'parsed no registry aliases');
