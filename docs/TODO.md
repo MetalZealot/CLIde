@@ -11,6 +11,7 @@ main checkout only).
 
 ## Operations
 
+- [~] **Repo cleanup: CLIde presents and builds as itself.** New README, one CI workflow; upstream's desktop, Docker and release tooling, CloudCLI's plugin system and non-English locales removed on `chore/repo-cleanup`. Awaiting Grayson's check on the branch-test slot, then merge. Refusals in [the sync map](maps/upstream-sync.md). **M**
 
 ## Provider maintenance
 

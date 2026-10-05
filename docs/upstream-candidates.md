@@ -103,7 +103,7 @@ cleanly the fix stands alone.
   was deleted outright ([ADR 0019](decisions/0019-quicksettings-removal.md)), and
   providers were promoted to root. Cherry-pick guidance: upstream changes to a *tab* file
   usually have to be re-sited by hand into the matching screen; upstream changes to
-  `src/components/mcp/`, `src/components/plugins/` and the `api-settings/sections/` are
+  `src/components/mcp/` and the `api-settings/sections/` are
   still ported nearly verbatim, since those were re-parented rather than rewritten. The
   design record is `docs/specs/archive/2026-07-28-settings-information-architecture.md`
   plus ADRs 0018–0021. Upstream check 2026-07-29: nothing proposes an IA change of this

@@ -24,7 +24,10 @@ and OpenCode) from a phone or a desktop browser. It is a fork of
   own transcript files in its own home; those are the record of what ran. A watcher
   indexes transcripts written by any process, including ones started outside CLIde.
 - **Around chat:** a terminal (the Shell), Files, Source Control, a Playwright-driven
-  Browser, voice, scheduled messages and plugins.
+  Browser, voice and scheduled messages.
+- **Scope.** English only, run from a git checkout. CLIde has no desktop app,
+  container image, npm package or plugin system of its own; the agents' own plugins
+  and skills appear under each provider's Tools.
 
 ## Quality goals (pillars)
 
@@ -96,27 +99,29 @@ shaped by [the module standards](.agents/skills/backend-module-standards/SKILL.m
 - `browser-use/` runs a Playwright browser per chat and its MCP endpoint.
 - `scheduled-messages/` and `notifications/` cover timed sends, Auto-Continue and
   notices.
-- `commands/`, `settings/`, `plugins/`, `voice/` and `assets/` cover slash commands,
-  app settings, plugin processes, speech and chat attachments.
+- `commands/`, `settings/`, `voice/` and `assets/` cover slash commands, app
+  settings, speech and chat attachments.
 - `agent/` is the external Agent API (HTTP and server-sent events) for other tools.
 - `system/` and `cli/` are self-update and the `cloudcli` command-line entry point.
 
 ### `src/`
 
-- `App.tsx` wraps the whole app in sign-in, theme, the WebSocket connection and
-  plugins.
+- `App.tsx` wraps the whole app in sign-in, theme and the WebSocket connection.
 - `components/<area>/` has one folder per surface: `chat/`, `sidebar/`, `shell/`,
   `git-panel/`, `file-tree/`, `settings/`, `browser-use/` and others.
 - `stores/useSessionStore.ts` holds each session's messages, pagination and live
   reconciliation; `contexts/` holds the WebSocket, auth, theme, appearance and
   permission contexts.
-- `i18n/` holds ten locales.
+- `i18n/` holds the English strings every `t()` call reads; there is no other locale.
 
 ### Elsewhere
 
 - `shared/` has types and utilities imported by both server and browser.
 - `scripts/` has the `check:*` gates (docs, tests, providers, upstream), benchmarks,
-  live SDK probes (`verify-*`), the runtime scorecard and worktree setup.
+  live SDK probes (`verify-*`), the runtime scorecard, the server tests' database
+  preload and worktree setup.
+- `.github/workflows/ci.yml` runs typecheck, lint, the docs and test-budget checks and
+  both test halves on every push.
 - `docs/` has maps, decisions and plans; `docs/TODO.md` is the backlog.
 - `designs/` has the logo masters; the assets in `public/` are generated from them.
 - `dist/` and `dist-server/` are build output (invariant 12).

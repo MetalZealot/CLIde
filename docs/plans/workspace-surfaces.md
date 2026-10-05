@@ -12,7 +12,7 @@ open chat in the provider's own CLI (`claude --resume`, `opencode --session`,
 …). No app compared exposes that as a tab, and CLIde has no plain terminal.
 
 Target bar, phone: **Chat · Terminal · Files · Git · [swappable ▾]**, where the
-swappable slot lists Browser and plugins. Desktop's header tabs get the same
+swappable slot lists Browser. Desktop's header tabs get the same
 set.
 
 ## Phases
