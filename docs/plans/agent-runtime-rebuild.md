@@ -11,7 +11,7 @@
   [provider contract](../maps/CLIde_Provider_Architecture_Current_Contract.md),
   [capability map](../maps/clide-provider-capability-map.md),
   [permission modes](../maps/provider-permission-modes.md),
-  [Codex App Server](../maps/codex-cli-sdk-app-server.md), [orientation](../maps/orientation.md) §16 and §20;
+  [Codex App Server](../maps/codex-cli-sdk-app-server.md), [architecture](../../ARCHITECTURE.md) §16 and §20;
   ADRs 0003, 0007, 0008, 0012, 0013, 0025, 0056, 0063, 0064
 
 This plan fixes the layer between each provider's SDK and the chat view, Claude
@@ -179,7 +179,7 @@ Each is a technical call, with its reason.
   model, effort and fast mode are held server-side with requested and effective
   values. Otherwise phone and laptop on one live session each send their own
   browser-held mode and flip it back and forth. The per-device value becomes the
-  default for new sessions only; that supersedes orientation §16 for live
+  default for new sessions only; that supersedes ARCHITECTURE.md §16 for live
   sessions (ADR in phase 0).
 - **"Default" is resolved before it is sent.** Clearing `effortLevel` or `model`
   through the flag layer falls back to the model's built-in effort or Claude
@@ -411,7 +411,7 @@ phase done.
     matching line); 0066, one long-lived Claude process per chat, Stop ends only
     the turn, delivery read from `command_lifecycle`, superseding ADR 0013 for
     Claude; 0067, one typed message shape shared by server and client; 0068, a
-    live session's settings and queue on the server, superseding orientation §16
+    live session's settings and queue on the server, superseding ARCHITECTURE.md §16
     for open sessions.
   - Probes: `scripts/verify-claude-session-sdk.ts`, the 13 checks plus a
     background-subagent interrupt, run on the Pi; results in the
@@ -522,7 +522,7 @@ phase done.
     and after a reload. Agent: full `npm test` (a protocol change).
 
 - [ ] 3b. **Failure pass and product bar: research, no code — est. 1.** Gaps
-  the [pillar check](../maps/orientation.md#pillars) found.
+  the [pillar check](../../ARCHITECTURE.md#pillars) found.
   - Failure pass: for every call out of CLIde (provider processes, the APIs
     behind them, WebSocket, Git, MCP, scheduled sends), what you see when it
     fails, hangs or half-succeeds. Each silent case becomes an item in phases

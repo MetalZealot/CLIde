@@ -125,7 +125,7 @@ for leaving it is recorded.
 
 Cold open, scroll to the top and back, Find, jumps, streaming a long reply and
 streaming while reading old text, reconnect, rewind, selection and session switching on the installed
-phone app. Update the map and orientation as rules change.
+phone app. Update the map and ARCHITECTURE.md as rules change.
 
 **Exit:** device acceptance recorded, with unverified cases named.
 

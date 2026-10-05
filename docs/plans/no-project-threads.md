@@ -50,7 +50,7 @@ CLIde created.
 - [ ] 4. Workspace tabs on a no-project thread: Files shows the thread's own
   folder; Source Control shows its ordinary not-a-repository state; nothing
   offers project-only actions. Check on the phone; add the scratch-root rule
-  to the orientation doc.
+  to ARCHITECTURE.md.
 
 ## Done when
 

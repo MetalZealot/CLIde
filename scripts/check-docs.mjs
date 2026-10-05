@@ -31,6 +31,8 @@ const FILE_CAPS = [
   // budget (~4K tokens), not a style rule. Raised from 13K once, for the comment
   // rules; a further rise needs a section routed into docs/ instead.
   { file: 'AGENTS.md', cap: 15_000 },
+  // The architecture overview: shape, code map, invariants and quality goals only.
+  { file: 'ARCHITECTURE.md', cap: 24_000 },
 ];
 
 /** Sections that exist to introduce a document rather than to say anything.

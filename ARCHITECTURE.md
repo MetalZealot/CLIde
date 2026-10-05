@@ -21,7 +21,7 @@ A pillar with no check is a known gap.
 - **Contract.** Every message between server, browser and provider has one typed
   shape. *Breaks:* a field renamed on one side fails silently on the other. Held by
   1. Check: `chat-session.test.ts` (every provider, unequal ids); the shape itself
-  is untyped until [runtime plan](../plans/agent-runtime-rebuild.md) phase 3.
+  is untyped until [runtime plan](docs/plans/agent-runtime-rebuild.md) phase 3.
 - **Capabilities.** Each provider declares what it can do; the UI follows that, not
   its name. *Breaks:* controls that do nothing, features for one provider only.
   Held by 2. Check: none until runtime phase 8.
@@ -227,7 +227,7 @@ If the browser reset between replies, an agent's first action each time would la
 a blank page it thought it had already navigated. Stretching a phone capture across
 the desktop column makes it huge, while a tall capture pushes the activity line off
 the phone screen.
-Provider coverage and current limits: [Chat browser activity](chat-browser-activity.md).
+Provider coverage and current limits: [Chat browser activity](docs/maps/chat-browser-activity.md).
 
 ## 12. Agents sign in to test servers without ever seeing the password
 
@@ -292,7 +292,7 @@ touches makes selection handles slide under it or jump to the top again, and any
 floating over the chat that can be selected, even an empty one like the scrollbar, pulls
 the selection into the composer. Putting the phone chat back in a box brings
 back handles that jump to the top of the conversation
-([ADR 0056](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md)).
+([ADR 0056](docs/decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md)).
 
 ## 16. A preference either follows you across devices or belongs to one browser
 
@@ -338,7 +338,7 @@ Session offers an Update action; checking for an update never installs one.
 
 **What breaks:** a private bundled version misses the fixes you installed, while
 switching a running process can interrupt work. An incompatible update must say
-so rather than silently choosing an older copy. [Decision](../decisions/0061-follow-installed-provider-clis.md).
+so rather than silently choosing an older copy. [Decision](docs/decisions/0061-follow-installed-provider-clis.md).
 
 ## 19. Nothing moves the chat that you did not scroll
 
@@ -353,7 +353,7 @@ pausing between swipes, before it ships.
 
 **What breaks:** the view jumps by a message's height while you read, or a chat opens
 partway up. Speed-only checks let exactly that ship once
-([history map](chat-history-performance.md#position-and-per-step-walk)).
+([history map](docs/maps/chat-history-performance.md#position-and-per-step-walk)).
 
 ## 20. A conversation has one writer: Chat or the Shell, never both
 

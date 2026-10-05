@@ -39,7 +39,7 @@ only once its index points there; never read a directory to find out.
 | Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
 | Running, adding, or timing tests | `docs/maps/test-suite.md` |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
-| Phased work, or any architecture change | its plan via the `docs/plans/` board; the Pillars atop `docs/maps/orientation.md`; a pre-mortem |
+| Phased work, or any architecture change | its plan via the `docs/plans/` board; the Pillars atop `ARCHITECTURE.md`; a pre-mortem |
 
 ## Glossary
 
