@@ -31,9 +31,9 @@ remains the companion inventory for the settings cascade.
 | SDK's own bundled runtime | `@anthropic-ai/claude-agent-sdk-linux-arm64` 0.3.286 → `claude` 2.1.286 — **fallback only**, never spawned while CLIde sets `pathToClaudeCodeExecutable` |
 | Runtime CLIde actually spawns | Standalone Claude Code on `PATH` — 2.1.286 on this host |
 | Runtime pairing policy | **Unpinned by design**: `CLAUDE_CLI_PATH` or bare `claude` |
-| SDK `Options` surface | 69 top-level options (`projectConfigRoot`, `verbatimPrompts`, `permissionPrompts`, `pluginDelivery` new at 0.3.286); CLIde sets 19 |
-| SDK `Query` control methods | 30 (`reloadOutputStyles`, `readMcpResource` new at 0.3.286); CLIde calls 2 (`interrupt`, `getContextUsage`) |
-| SDK stream message types | 39; CLIde's live normalizer acts on assistant/user shapes plus `rate_limit_event` and `status: compacting` |
+| SDK `Options` surface | 69 top-level options (`projectConfigRoot`, `verbatimPrompts`, `permissionPrompts`, `pluginDelivery` new at 0.3.286); CLIde sets 20 |
+| SDK `Query` control methods | 30 typed (`reloadOutputStyles`, `readMcpResource` new at 0.3.286); CLIde calls 3 (`interrupt`, `getContextUsage`, `supportedModels`) plus the untyped `askSideQuestion` |
+| SDK stream message types | 39 in the `SDKMessage` union; CLIde handles 14 and drops 25. The CLI also sends `command_lifecycle`, which is outside the union (§4) |
 | SDK top-level exports | 18 functions (`prewarm` new at 0.3.286), 2 classes, 7 constants; CLIde imports `query` only |
 | Hook events | 33, unchanged at 0.3.286; CLIde registers 1 (`Notification`) |
 | Settings cascade | In force via `settingSources: ['project','user','local']`; no CLIde UI |
@@ -143,6 +143,43 @@ Two consequences are already user-visible:
   live turn falls back to the mirrored model registry in
   `claude-context-window.ts`.
 
+### A long-lived query, measured
+
+`scripts/verify-claude-session-sdk.ts` drove one `query()` per session across
+turns, on 2026-10-05 at SDK 0.3.286 / CLI 2.1.286, mostly on haiku. Its
+FINDINGS block has the detail and the fixtures directory beside the Claude
+provider tests holds the sanitized frame streams.
+
+| # | Question | Result |
+|---|---|---|
+| 1 | Several turns on one query | One process and one session id. `init` repeats every turn. Warm turns reach `init` in 50–80 ms against 3.8 s cold. `total_cost_usd`, `modelUsage` and `duration_api_ms` are running totals; `usage` and `duration_ms` are per turn |
+| 1 | Delivery receipt | No `isReplay` echo of sent input. `command_lifecycle` (queued → started → completed / cancelled, keyed by the sent uuid) and `user_message_uuid` on the turn's first assistant frame |
+| 2 | Mid-turn `setModel` / `setPermissionMode` | Both apply inside the running turn: the next API call used the new model, the next Write skipped `canUseTool` under `acceptEdits` |
+| 3 | `interrupt()` mid-turn | 6–8 ms; `still_queued` lists a message pushed meanwhile, which then runs as the next turn; `canUseTool`'s signal aborts; the turn ends `error_during_execution` and the process lives |
+| 3 | Background work on interrupt | A background shell survives with or without `perTaskStopAffordance`. A background subagent is killed without it and survives with it; `stopTask` then ends it in 13 ms |
+| 4 | `AskUserQuestion` in `auto` / `bypassPermissions` | Reaches `canUseTool` in both, with no hook. A `PreToolUse` hook answering `ask` adds no second prompt. `auto` falls back to `default` on haiku |
+| 5 | Switching to bypass mid-session | Rejected unless the query set `allowDangerouslySkipPermissions`; with it, `default` still asks until the switch. A `system/status` frame reports the new mode |
+| 6 | `applyFlagSettings` with `null` | `effortLevel: null` runs at the model's own default (medium on sonnet 5.5), not `settings.json`'s nor the session's starting value. `model: null` goes to "Default (recommended)", Fable 5.1 on this account, which fails without usage credits. `init` carries no effort at 2.1.286; a hook's `input.effort.level` does |
+| 7 | Error results | Never end the iterator: `error_max_turns`, an out-of-credits result and `error_during_execution` were each followed by a working turn. When the last result was an error, closing the input exits the CLI with code 1 and the iterator throws |
+| 8 | Opt-in frames | `session_state_changed` needs `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1` (otherwise the SDK swallows it); `idle` lands ~8 ms after `result`. `tool_use_summary` needs `CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES=1`. `session_title_changed` never arrived |
+| 9 | `Options.sessionId` | Names every frame and the transcript file. Refused with `resume` unless `forkSession` is set |
+| 10 | Idle query, no message sent | `initializationResult()` in 4.5 s; `supportedCommands()` then returns 58 rows (this repo) in ≤1 ms, likewise models, agents and account. No frames while idle |
+| 11 | Background task after `result`, input open | Its completion starts a new turn by itself, 15.5 s after the result for a 15 s sleep |
+| 12 | Input closed at `result`, background shell running | The CLI exits ~5 s later and kills the shell. The SDK's 600 s ceiling never arms, because the session already reports `idle` |
+| 13 | Memory per process | Idle: RSS ~234, PSS ~150, USS ~122 MB. Three open took available memory from 637 to 434 MB. Loading a 16.9 MB transcript adds ~30 MB; mid-turn with tool children ~170 MB USS |
+
+**Where "Starting" goes.** From the probe's `init.startup_timing` and
+`result.time_to_request_phases_ms` (set with `CLAUDE_CODE_EMIT_STARTUP_TIMING=1`):
+the spawn is 2.7–2.9 s to `input_ready` (node boot 0.4–0.7 s, skills 0.8 s),
+loading the transcript 2 ms for a new session and 0.25–0.41 s for 2.7–16.9 MB, and
+the first turn's request build 0.7–0.8 s against 0.1–0.15 s warm. Production's
+`[turn]` logs agree: 240 turns from 2026-09-28 to 2026-10-05 put send → first
+frame at 3.27 s median resumed and 3.06 s new (p90 4.4 s), with no difference
+between contexts under 60K and over 150K tokens. A long-lived query removes about
+3.5 s per message whatever the session's size. The ~10 s median from first frame
+to the first `rate_limit_event` on resumed turns is API time, not loading: that
+event can arrive at the end of a response.
+
 ## 3. Current CLIde mapping
 
 ### 3.1 Interactive Chat and turn control
@@ -156,7 +193,7 @@ Two consequences are already user-visible:
 | Plan mode | `permissionMode: 'plan'` plus a hardcoded allow-list | Approximate: CLIde injects `Read`/`Task`/`exit_plan_mode`/`Todo*`/`WebFetch`/`WebSearch` itself | `mapCliOptionsToSDK` | Compatibility watch; `planModeInstructions` is unused |
 | Tool approval | `canUseTool` callback | Implemented through the interactive-request registry | Approval UI + registry | Keep |
 | Structured questions and plan exit | `AskUserQuestion`, `ExitPlanMode` via `canUseTool` | Implemented, no auto-resolution timeout | Question UI | Keep |
-| Approval in `auto`/`bypassPermissions` | Permission-mode step precedes `canUseTool` | **Known gap:** interactive tools never reach the UI in those modes; the classifier answers for the user | `PreToolUse` hook (runs before the mode check) | Integrate |
+| Approval in `auto`/`bypassPermissions` | Permission-mode step precedes `canUseTool` | `AskUserQuestion` reaches `canUseTool` in both modes with no hook (probe, 2026-10-05); other tools skip it, as designed | Request tray | Keep. A question lost in CLIde is lost after `canUseTool`, not before |
 | Abort active turn | `interrupt()` plus `abortController` | Implemented, signal-first (ADR 0013) | Chat transport | Keep |
 | Token-level streaming | `includePartialMessages` | Not exposed; the normalizer's `content_block_delta`/`content_block_stop` branches are dead code | Live normalizer + composer | Integrate — the client-side path partly exists |
 | Active-turn steering | Streaming input | Not exposed; CLIde queues a later turn | Composer queue | Defer pending provider-neutral steering semantics |
@@ -197,7 +234,7 @@ redaction behavior as the live stream.
 | Model catalog | `supportedModels()`, the SDK's embedded registry | Live `supportedModels()` plus a pinned legacy list; hand-maintained fallback if the CLI fails | `claude-models.provider.ts` | Implemented |
 | Context-window facts | SDK model registry (`context.window`, output caps) | Mirrored by hand in `claude-context-window.ts` | Same | Compatibility watch — see §6 |
 | Per-session effective model | Transcript inspection plus `settings.json` `model` | Implemented (ADR 0003) | Active-model service | Keep |
-| Mid-session model switch | `setModel()` | Not reachable — needs streaming input | Chat transport | Defer to the persistent-query migration |
+| Mid-session model switch | `setModel()` | Reachable mid-turn and never called; the next API call of the running turn uses the new model (probe, 2026-10-05) | Chat transport | Integrate (rebuild plan phase 1) |
 | Account identity | `accountInfo()` (email, org, subscription) | Inferred from credentials files and `settings.json` | `claude-auth.provider.ts` + Settings | Candidate |
 | Installed/authenticated state | `claude --version`, credentials files | Implemented | `claude-auth.provider.ts` | Keep |
 | Login/logout | `claude auth`, `setup-token` | Terminal flow only | Settings | Defer pending a complete native design |
@@ -229,7 +266,7 @@ be decorative.
 | Slash commands | `supportedCommands()`, `commands_changed`, `system:init`'s `slash_commands` / `terminal_slash_commands` | Approximate: CLIde scans `.claude/commands/` and hardcodes 9 commands (`server/modules/commands/commands.routes.ts`, `useSlashCommands.ts`) — misses plugin, skill, and real built-in commands; `local_command_output` is unhandled | Commands route + slash menu; full routing in [the command surface map](claude-command-surface.md) | Integrate |
 | Plugins | `plugins` option, `reloadPlugins()`, `claude plugin`, `enabledPlugins` | Not exposed. CLIde's own Settings → Plugins is a *different* system — name collision to avoid | Provider-slotted extensions settings | Defer |
 | Subagents | `agents` option, `supportedAgents()`, `claude agents` | Not exposed as a library; subagent output is grouped in the transcript | Agents settings + activity model | Defer |
-| Hooks | 30 hook events | 1 registered (`Notification` → CLIde notifications) | Hook registration + provider settings | Integrate selectively (`PreToolUse` first — see §3.1) |
+| Hooks | 33 hook events | 1 registered (`Notification` → CLIde notifications) | Hook registration + provider settings | Integrate selectively; `PreToolUse` is not needed for questions (§3.1) |
 | Sandbox | `sandbox` option and settings object | Not exposed; needs `bubblewrap` on Linux | Its own spec | Defer |
 | File reads for a remote UI | `readFile(path, {maxBytes, encoding})` | Not used; CLIde owns Files/editor APIs | Files architecture | No action — preserve CLIde's authorization boundary |
 
@@ -238,7 +275,7 @@ be decorative.
 | Capability | Upstream surface | CLIde today | Integration destination | Disposition |
 |---|---|---|---|---|
 | Interactive slash commands and key actions | TUI | Shell only unless CLIde has an explicit equivalent | Shell or capability-gated web action | Do not forward slash text as protocol |
-| Background agents | `--bg`, `claude agents`, `stopTask()`, `backgroundTasks()` | Not exposed; `task_notification` exists in shared types but nothing emits it for Claude | Background-task tray | Candidate |
+| Background agents | `--bg`, `claude agents`, `stopTask()`, `backgroundTasks()` | Partial: `task_*` and `background_tasks_changed` are normalized; no per-task stop, and `stopTask()` is never called | Background-task tray | Integrate (rebuild plan phases 6–7) |
 | Worktrees | `-w/--worktree`, `worktree.*` settings, `WorktreeCreate/Remove` hooks | Not exposed; CLIde has its own Git panel and worktree script | Source Control workspace | Defer |
 | Cloud multi-agent review | `claude ultrareview` | Not exposed — user-triggered and billed | None | No action |
 | Remote control and gateway | `--remote-control`, `claude gateway` | Not exposed | None | No action |
@@ -249,30 +286,38 @@ be decorative.
 
 ## 4. Stream message coverage
 
-`normalizeMessage` (`claude-sessions.provider.ts:493`) acts on the assistant and
-user message shapes — text, `thinking`, `tool_use`, `tool_result`, base64 image
-blocks — plus transcript-only concerns: compact summaries, local-command rows and
-their stdout, and `<synthetic>` notices. `claude-runtime.provider.js` reads `session_id` off
-any frame, consumes `rate_limit_event` into the shared account-usage cache, and
-reads per-step usage off assistant frames; `result` is only an exclusion so the
-cumulative turn total never drives the ring.
-
-Everything else in the 32-type union falls through and is dropped:
+The `SDKMessage` union has 39 members at 0.3.286. CLIde handles 14: `assistant`,
+`user`, `result`, `system/init` (session id only), `compact_boundary`, `status`,
+`api_retry`, `thinking_tokens`, `background_tasks_changed`, the four `task_*`
+types, and `rate_limit_event`. `normalizeMessage` (`claude-sessions.provider.ts`)
+turns the assistant and user shapes into rows: text, `thinking`, `tool_use`,
+`tool_result`, base64 images, compact summaries, local-command rows and
+`<synthetic>` notices. The other 25 fall through and are dropped in silence;
+[the runtime rebuild plan](../plans/agent-runtime-rebuild.md) gives each a home.
 
 | Message type | What it carries | Disposition |
 |---|---|---|
-| `rate_limit_event` | `status`, `rateLimitType` (`five_hour` / `seven_day` / `seven_day_opus` / `seven_day_sonnet` / `overage`), `utilization`, `resetsAt`, `surpassedThreshold`, `unifiedWindows`, overage status | Implemented for normalized windows and live `provider_usage`. `utilization` and `surpassedThreshold` appear only at `allowed_warning` (0.9 observed); plain `allowed` frames omit them, so the normalizer drops those. Arrives 0.5–0.65 s after `init` on every real probed turn. Overage fields unused (measured 2026-09-15) |
-| `status` (`compacting` / `requesting`) | Why the session is silent | `compacting` implemented as the activity label. `requesting` is only emitted with `includePartialMessages` (0 of 4 turns without, 1 of 1 with — measured at 2.1.270), so CLIde takes the first `rate_limit_event` as the sent marker instead |
-| `api_retry` | Attempt, max retries, delay, HTTP status, error class for a retryable failure | Implemented: logged and shown as the `retrying` activity stage. Arrives without `includePartialMessages`, one frame per attempt (measured against a local 529 stub at 2.1.270) |
-| `compact_boundary` | Where context was compacted | Candidate |
-| `task_notification`, `task_started`, `task_updated`, `task_progress` | Background-task lifecycle | Candidate |
-| `thinking_tokens` | Running thinking-token estimate while thinking text is redacted; not billed `output_tokens` | Implemented: the live part of the activity row's turn token count. A finished step keeps its estimate, because mid-turn `assistant` rows report a placeholder `output_tokens` of 1–2 (measured 2026-09-22); the result's total replaces the sum. Arrives without `includePartialMessages`: 46 frames over a 55 s Opus think, average gap 1.2 s, max 1.7 s, estimate reaching 5,350; thinking text itself is 0 characters (measured at 2.1.270) |
-| `tool_progress`, `tool_use_summary` | Per-tool progress and summaries | Candidate |
-| `commands_changed` | Live slash-menu invalidation | Integrate with `supportedCommands()` |
-| `stream_event` partials | Token-level deltas | Blocked on `includePartialMessages` |
-| `auth_status`, `session_state_changed`, `permission_denied`, `elicitation_complete`, `memory_recall`, `files_persisted`, `plugin_install`, `hook_started/progress/response`, `prompt_suggestion`, `local_command_output`, `mirror_error` | Assorted | Defer / No action |
+| `rate_limit_event` | `status`, `rateLimitType` (`five_hour` / `seven_day` / `seven_day_opus` / `seven_day_sonnet` / `overage`), `utilization`, `resetsAt`, `surpassedThreshold`, `unifiedWindows`, overage status | Implemented for normalized windows and live `provider_usage`. `utilization` and `surpassedThreshold` appear only at `allowed_warning` (0.9 observed); plain `allowed` frames omit them. Its timing within a turn varies: before the first token, after the last, or absent on a warm turn (measured 2026-10-05), so it is a poor "sent" marker |
+| `status` (`compacting` / `requesting`, or a new `permissionMode`) | Why the session is silent; a mode change | `compacting` implemented as the activity label. `requesting` is only emitted with `includePartialMessages` (0 of 4 turns without, 1 of 1 with, at 2.1.270). A `status` frame carrying `permissionMode` follows a live mode switch (measured 2026-10-05) |
+| `api_retry` | Attempt, max retries, delay, HTTP status, error class | Implemented as the `retrying` activity stage. Arrives without `includePartialMessages`, one frame per attempt (measured against a local 529 stub at 2.1.270) |
+| `thinking_tokens` | Running thinking-token estimate while thinking text is redacted; not billed `output_tokens` | Implemented: the live part of the activity row's token count. A finished step keeps its estimate, because mid-turn `assistant` rows report a placeholder `output_tokens` of 1–2. 46 frames over a 55 s Opus think, average gap 1.2 s (measured at 2.1.270) |
+| `compact_boundary` | Where context was compacted | Implemented as a transcript row |
+| `task_started`, `task_updated`, `task_progress`, `task_notification`, `background_tasks_changed` | Background-task lifecycle: shells (`local_bash`) and subagents (`local_agent`), `is_backgrounded`, final status | Implemented as rows and the background-hold count; no per-task stop |
+| `stream_event` | Raw API stream events, wrapped (`message_start`, `content_block_delta`, …) | Needs `includePartialMessages`; the normalizer's unwrapped `content_block_delta` branch never matches |
+| `session_state_changed` | `idle` / `running` / `requires_action` | Reaches the consumer only with `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`; without it the CLI marks it `sdk_host_only` and the SDK consumes it to time its own stdin close |
+| `tool_use_summary` | One-line summary of the preceding tool calls | Only with `CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES=1` |
+| `user` with `isReplay` | An echo, but not of sent input: `setModel` produces one carrying `<local-command-stdout>Set model to …` | Dropped |
+| `commands_changed`, `local_command_output`, `conversation_reset`, `model_refusal_*`, `tool_progress`, `hook_*`, `control_request_progress`, `auth_status`, `notification`, `informational`, `prompt_suggestion`, `permission_denied`, `memory_recall`, `elicitation_complete`, `files_persisted`, `plugin_install`, `worker_shutting_down`, `mirror_error` | Assorted | Dropped; homes in the rebuild plan |
 
-Unknown message types are silently ignored. See §7.
+Outside the union, the CLI sends `command_lifecycle` on every turn: `queued`,
+`started`, then `completed` or `cancelled`, keyed by the uuid of the user message
+CLIde pushed (measured 2026-10-05). It is the delivery receipt a long-lived
+session needs, and the type checker cannot see it. The first assistant frame of
+a turn also carries `user_message_uuid`. `result` gains `ttft_ms`,
+`time_to_request_ms` and per-phase timings with `CLAUDE_CODE_EMIT_STARTUP_TIMING=1`,
+and the first turn's `init` carries `startup_timing` regardless.
+
+Unknown message types are silently ignored. See §6.
 
 ## 5. Current implementation destinations
 
@@ -380,11 +425,10 @@ For each candidate SDK bump or material runtime change:
 
 ## Bottom line
 
-CLIde drives Claude through the narrowest possible slice of a very wide surface:
-19 of 62 options, 2 of 23 control methods, 2 of 32 message shapes, 1 of 30 hooks,
-and 1 of 17 exported functions (`query` itself). That slice is deliberate for
-history and identity — hand-parsed JSONL serves the multi-provider model — but
-three gaps are pure loss: the live `rate_limit_event` stream, the settings
-cascade that is already in force but invisible, and file checkpoints that are
-written on every run and never restored. The persistent streaming-input query is
-the single unlock behind most of the rest.
+CLIde drives Claude through a narrow slice of a very wide surface: 20 of 69
+options, 3 of 30 typed control methods, 14 of 39 message types, 1 of 33 hooks,
+and 1 of 18 exported functions (`query` itself). That slice is deliberate for
+history and identity — hand-parsed JSONL serves the multi-provider model. The
+live controls it lacks already work on today's per-message query (§2), and a
+long-lived query per session is measured to remove about 3.5 s of start-up from
+every message and to let background work start a turn by itself.

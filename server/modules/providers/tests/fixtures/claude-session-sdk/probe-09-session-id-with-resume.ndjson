@@ -1,0 +1,2 @@
+{"t":655,"action":"control:initializationResult","ok":false,"ms":633,"error":"Claude Code process exited with code 1. stderr: Error: --session-id can only be used with --continue or --resume if --fork-session is also specified."}
+{"t":656,"action":"closeInput"}
