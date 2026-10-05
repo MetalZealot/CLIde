@@ -3,6 +3,9 @@
 - Status: not started
 - Next: Phase 0 — re-audit bootstrap, Settings registry, auth refresh, WebSocket
   and service-worker boundaries against post-v1.37 `main` before writing code.
+  The chat-path core (frames by kind, handler errors, store rejections) is built
+  first, as [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 1b;
+  this plan keeps the other probes and the Settings screen.
 - Context: the temporary recorder that proved the method — added `30f3498`,
   integrated `929a2dc`, removed after acceptance in `8aee41e`/`05cf60c`
 

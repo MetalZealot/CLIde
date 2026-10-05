@@ -1,7 +1,7 @@
 # Claude Code's settings, changeable from CLIde
 
 - Status: 3/6
-- Next: Phase 4 live check, then Phase 5 — editors for the structured keys
+- Next: Phase 4 live check, then Phase 5 — editors for the structured keys. Phase 6 reads session state from [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 5
 - Context: per-key tiers in [the settings audit](../maps/2026-07-28-claude-code-settings-surface-audit.md);
   destinations in [the command surface map](../maps/claude-command-surface.md);
   the release-to-release history in [the Claude ledger](../maps/claude-upgrade-ledger.md)

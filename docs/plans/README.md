@@ -10,7 +10,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 
 | Plan | Status | Next |
 |---|---|---|
-| [Agent runtime rebuild](agent-runtime-rebuild.md) | not started | Phase 0: four ADRs for Grayson, then the probe script on the Pi |
+| [Agent runtime rebuild](agent-runtime-rebuild.md) | 0/11 | Grayson accepts or amends ADRs 0065–0068; then Phase 1, id-space slips first |
 | [Chat history performance](chat-history-performance.md) | 8/14 | Phase 7: cut the ~50 ms fixed frame cost of scroll restoration; phone check |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Composer message recall; the other two builds shipped |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
@@ -22,7 +22,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Claude permission default](claude-permission-default.md) | not started | Phase 1: read `permissions.defaultMode` into Claude's capability default |
 | [Single-row mobile composer](composer-single-row.md) | not started | Phase 1: probe page on the S20 for row, badge and sheet |
 | [Backend TypeScript conversion](server-typescript-conversion.md) | not started | Phase 1: Codex runtime, renamed in its own commit, then typed |
-| [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript |
+| [Subagent visibility](subagent-visibility.md) | 4/5 | Phase 5: the row opens the agent's whole transcript; waits on runtime rebuild phase 7 |
 | [Workspace surfaces](workspace-surfaces.md) | 1/2 | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
@@ -32,7 +32,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |
 | [Cross-provider chat handoff](cross-provider-chat-handoff.md) | not started | Re-verify its four assumed contracts |
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
-| [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main` |
+| [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main`; the chat-path core is runtime rebuild phase 1b |
 | [Composer prompt stash](composer-prompt-stash.md) | not started | Agree draft ownership and the `+` popover contract |
 | [Browser video clips](browser-video-clips.md) | not started | Phase 0: live recording proof on a branch-test slot, with CPU and clip-size numbers |
 | [Environments](environments.md) | not started | Phase 0: CLIde on the laptop, reachable from the phone over HTTPS |

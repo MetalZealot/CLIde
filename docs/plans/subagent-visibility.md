@@ -1,7 +1,7 @@
 # Subagents are visible while they run and readable after they die
 
 - Status: 4/5
-- Next: Phase 5 — the row opens the agent's whole transcript
+- Next: Phase 5 — the row opens the agent's whole transcript; waits on [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 7
 - Context: transcript shape and the id rules in
   [code anchors](../maps/code-anchors.md); detail-surface rule in
   [ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md); this

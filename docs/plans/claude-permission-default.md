@@ -1,7 +1,7 @@
 # New Claude sessions start in Claude Code's own default permission mode
 
 - Status: not started
-- Next: Phase 1 — read `permissions.defaultMode` into Claude's capability default
+- Next: Phase 1 — read `permissions.defaultMode` into Claude's capability default; a live session's mode is read from [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 5
 - Context: [permission modes map](../maps/provider-permission-modes.md);
   the settings writer from [the Claude settings plan](claude-settings-surface.md)
 

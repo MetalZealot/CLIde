@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
 - Status: 8/14
-- Next: Phase 7 — cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check
+- Next: Phase 7 — cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check. Phase 13 lands with [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 2, and phase 11 is coordinated with its phase 3
 - Context: [pipeline and measurements](../maps/chat-history-performance.md),
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),

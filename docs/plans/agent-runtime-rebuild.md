@@ -1,8 +1,10 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
-- Status: not started
-- Next: Phase 0 — four ADRs for Grayson, then the probe script run on the Pi
-- Context: [SDK map](../maps/claude-agent-sdk.md) (its §4 counts are stale until phase 0),
+- Status: 0/11
+- Next: Grayson accepts or amends ADRs 0065–0068 (phase 0's probes, map and
+  scorecard are done), then Phase 1, the id-space slips first
+- Context: [SDK map](../maps/claude-agent-sdk.md) (§2 holds the phase-0 probe results),
+  `scripts/verify-claude-session-sdk.ts`, `scripts/runtime-scorecard.mjs`,
   [command surface](../maps/claude-command-surface.md),
   [tool activity stream](../maps/tool-activity-stream.md),
   [code anchors](../maps/code-anchors.md),
@@ -30,13 +32,17 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
 - **One `claude` process per message.** Each send builds a new `query()` whose
   input closes at `result`, so the process exits. Since `8ac0bd16` the input is
   held while background tasks run, with a 30-minute silence backstop. Costs: a
-  "Starting" respawn plus transcript reload on every message, nothing reachable
-  between messages, and the provider can never start a turn on its own.
+  "Starting" respawn on every message, nothing reachable between messages, and
+  the provider can never start a turn on its own. "Starting" is the spawn, not
+  the transcript (measured 2026-10-05): run start to first frame is 3.3 s median
+  over 246 production turns, the spawn alone 2.7–2.9 s, loading even a 16.9 MB
+  transcript 0.4 s; a warm turn on one process reaches `init` in 50–80 ms.
 - **Mid-turn controls are already reachable; nothing calls them.** The
   per-message prompt is an input stream (`createClaudeInputChannel`), and the
   SDK requires exactly that, not a long-lived process, for `setPermissionMode`,
   `setModel` and `applyFlagSettings` (sdk.d.ts:2861, 2890, 2936). Both branch
-  drafts assumed the opposite and pushed these fixes behind the rebuild.
+  drafts assumed the opposite and pushed these fixes behind the rebuild. Probe 2
+  confirmed both mode and model changes apply inside the running turn.
 - **SDK use:** 3 of 30 typed `Query` methods (`interrupt`, `getContextUsage`,
   `supportedModels`) plus the untyped `askSideQuestion`; 20 of 69 `Options`;
   1 of 33 hooks (`Notification`); 14 of 39 message types handled, the other 25
@@ -47,8 +53,10 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
   stream nothing.
 - **Stop kills everything.** The gateway hands the run's AbortController to
   `query()` and trips it before `interrupt()` runs (`beginAbort`), which ends
-  the process. Without `Options.perTaskStopAffordance`, even a bare
-  `interrupt()` kills background tasks (sdk.d.ts:1786-1805). CLIde never sets it.
+  the process. A bare `interrupt()` would spare background shells but kill
+  background subagents unless `Options.perTaskStopAffordance` is set (measured
+  2026-10-05; sdk.d.ts:1786-1805 says "background agents/workflows"). CLIde
+  never sets it.
 - **A held run blocks the chat.** While background tasks hold the input, the
   run stays "running": `chat.send` gets RUN_IN_PROGRESS, the Shell refuses,
   scheduled sends wait, and the turn-end notification fires only when the hold
@@ -73,8 +81,9 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
   provider check is correct.
 - **Nothing budgets memory.** No `MemAvailable` or process cap anywhere in
   `server/`. Side questions, model-list reads, commit messages and the agent API
-  each spawn their own `claude` outside any limit. One `claude` process measured
-  277 MB resident (measured 2026-10-04, one session) with about 2.6 GB available.
+  each spawn their own `claude` outside any limit. Measured 2026-10-05: an idle
+  `claude` holds ~234 MB resident, ~122 MB of it private (freed on close); three
+  open took available memory from 637 to 434 MB under the host's normal load.
 - **Id-space slips** (source, not run). The context-usage refresh route looks up
   the live query by provider id, but the map is keyed by app id, so a mid-turn
   refresh answers "no live turn" for every session CLIde created. Abort adds the
@@ -94,7 +103,7 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
 | Pain | Phase |
 |---|---|
 | A mode or model change waits for the next message | 1 |
-| AskUserQuestion never shows in bypass (auto unverified) | 0 probe, then 1 |
+| AskUserQuestion never shows in bypass (the SDK hands it to `canUseTool` in bypass and auto, probe 4, so it is lost inside CLIde or never asked) | 1 |
 | The slash menu has 11 commands; the CLI reports about 56 (measured, in the command map) | 1 |
 | Aborting a new chat's first message leaves two sidebar rows | 1 |
 | Search counts and diffs show only after a reload | 1 |
@@ -103,7 +112,7 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
 | A background job keeps the chat busy, blocking sends, Shell and scheduled messages | 4 |
 | Phone and laptop disagree about a live chat; a message queued on a closed phone never sends | 5 |
 | Background-task notices appear only after a reload (inferred: frames after `complete` are dropped) | 5–6 |
-| "Starting" before every message; a background job can't wake the chat after the reply ended | 6 |
+| "Starting" before every message (3.3 s median); a background job can't wake the chat after the reply ended | 6 |
 | Stop kills background jobs | 6 (per Grayson's call 3) |
 | Claude tool rows look different after a reload | 7 |
 | Codex tool rows look different after a reload | follow-on plan (Grayson's call 2) |
@@ -158,7 +167,9 @@ Each is a technical call, with its reason.
   ADR 0013's tier order for Claude, and its corollary that "delivered" means
   `seq > 0`. That corollary already almost never reports false, because the
   "starting" status frame takes a seq before the CLI spawns. Delivery is read
-  from the CLI's echo of the user message instead.
+  from the CLI's `command_lifecycle` frames instead: `queued`, `started`,
+  `completed` or `cancelled`, keyed by the sent message's uuid (probe 1). The CLI
+  never echoes sent input; its `isReplay` frames carry local-command output.
 - **One send queue, on the server.** Queued sends live per session on the
   server, are acknowledged as `input_queued`, and are delivered when the session
   is idle; every browser shows them. The CLI's own queue (message priority and
@@ -173,7 +184,9 @@ Each is a technical call, with its reason.
 - **"Default" is resolved before it is sent.** Clearing `effortLevel` or `model`
   through the flag layer falls back to the model's built-in effort or Claude
   Code's fallback model (sdk.d.ts:2929-2935), not ADR 0063's Default or the
-  picker's. CLIde sends the resolved value.
+  picker's. CLIde sends the resolved value. Measured: `effortLevel: null` ran
+  sonnet at medium while `settings.json` said high, and `model: null` went to
+  Fable 5.1, which this account cannot use without usage credits (probe 6).
 - **No `prewarm`.** It cannot resume (its claim options have no `resume` or
   `sessionId`, sdk.d.ts:311-361), and a parked spare holds about 230–260 MB
   (sdk.d.ts:2769, the SDK's own figure). Reopening is a cold resume, as today;
@@ -298,12 +311,12 @@ CLIde does now.
 | `api_retry` | turn | "retrying" on the activity row | — | handled |
 | `thinking_tokens` | turn | thinking progress | — | handled |
 | `tool_progress` | turn | elapsed time on the tool row | — | dropped |
-| `tool_use_summary` | turn | one-line tool summary | env `CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES` (probe) | dropped |
+| `tool_use_summary` | turn | one-line tool summary | env `CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES=1` (confirmed, probe 8) | dropped |
 | `hook_started` / `hook_progress` / `hook_response` | turn | hook lines in the activity | `includeHookEvents` | dropped |
 | `control_request_progress` | turn | side-question progress | — | dropped |
 | `result` | turn | turn end; summary line (time, cost, denials) | — | handled |
 | `init` | session | effective model, mode, tools, MCP, commands; terminal-only list cached | — | id capture only |
-| `session_state_changed` | session | idle / running, the authoritative turn-over signal | env `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1` (probe) | dropped |
+| `session_state_changed` | session | idle / running, the authoritative turn-over signal; reports idle while background shells still run (probe 11) | env `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1` (confirmed, probe 8) | dropped |
 | `commands_changed` | session | slash menu refresh | — | dropped |
 | `background_tasks_changed` | session | task strip | — | handled |
 | `task_started` / `task_updated` / `task_progress` / `task_notification` | session (+ row for the notification) | task strip rows | — | handled |
@@ -319,7 +332,8 @@ CLIde does now.
 | `elicitation_complete` | interaction | closes a URL-mode elicitation card | — | dropped |
 | `rate_limit_event` | account | usage ring | — | handled |
 | `mirror_error` | diagnostic | never (needs `sessionStore`, declined) | — | dropped |
-| `user` with `isReplay` | drop | CLIde's own input echoed: read once as the delivery receipt | — | dropped |
+| `user` with `isReplay` | drop | local-command output the CLI echoes (`setModel` sends one); sent input is never echoed (probe 1–2) | — | dropped |
+| `command_lifecycle` (outside the union) | turn | the delivery receipt: `queued`, `started`, `completed` or `cancelled` per sent uuid, on every turn (probe 1) | — | dropped |
 
 The disposition record is keyed on type, subtype and `isReplay`, and has a
 runtime default: the SDK yields at least five frame types outside the union,
@@ -353,13 +367,17 @@ kinds CLIde renders, or it is never called (sdk.d.ts:1765-1785).
 ### Options and hooks this plan turns on
 
 `sessionId` (1), `thinking: {display: 'summarized'}` (1),
-`allowDangerouslySkipPermissions` (1, only if probe 5 needs it),
-`includePartialMessages` (2), `perTaskStopAffordance` (6), `includeHookEvents`,
-`onElicitation`, `onUserDialog` + `supportedDialogKinds`, `promptSuggestions`,
-`forwardSubagentText` (7). Env switches from probe 8 (6–7). Hooks: a `PreToolUse`
-hook for AskUserQuestion and ExitPlanMode (1, in the modes probe 4 shows lose
-them); `Notification` stays. The other 31 hook events are the user's own: they
-appear through `includeHookEvents` rows, not CLIde registrations.
+`allowDangerouslySkipPermissions` (1: probe 5 found a live switch to bypass is
+refused without it, and other modes still ask with it), `includePartialMessages`
+(2), `perTaskStopAffordance` (6), `includeHookEvents`, `onElicitation`,
+`onUserDialog` + `supportedDialogKinds`, `promptSuggestions`, `forwardSubagentText`
+(7). Env switches: `CLAUDE_CODE_EMIT_STARTUP_TIMING=1` (1, per-turn timing for the
+scorecard), `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1` and
+`CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES=1` (6–7; both confirmed by probe 8). Hooks:
+none new. Probe 4 found AskUserQuestion reaches `canUseTool` in auto and bypass,
+so the planned `PreToolUse` hook is dropped; `Notification` stays. The other 32
+hook events are the user's own: they appear through `includeHookEvents` rows, not
+CLIde registrations.
 
 ### Codex on the same contract
 
@@ -387,56 +405,43 @@ and this plan in the same commit as its code. "You" is Grayson's under-a-minute
 check; "Agent, live" is what a session on the Pi verifies before calling the
 phase done.
 
-- [ ] 0. **Ground rules and probes — est. 2.**
-  - ADRs, numbered once from 0065: (a) rebuild the runtime middle in place, and
-    stop tracking upstream for runtime, gateway and chat-event code (edit
-    [the upstream sync map](../maps/upstream-sync.md) to match); (b) Claude runs
-    one long-lived query per app session and Stop interrupts the turn,
-    superseding ADR 0013 for Claude including its delivered rule; (c)
-    `NormalizedMessage` becomes a typed shared wire, typed in place; (d)
-    requested session settings and the send queue live on the server per
-    session, superseding orientation §16 for live sessions.
-  - Update the SDK map's §4 counts (§2 was corrected 2026-10-05).
-  - Edit the overlapping plans' Next lines: [TypeScript conversion](server-typescript-conversion.md)
-    phase 5 is superseded by phase 6 here; [subagent visibility](subagent-visibility.md)
-    phase 5 and rewind Phase B wait on phase 7;
-    [chat history performance](chat-history-performance.md) phase 13 lands
-    with phase 2 and its phase 11 (one scroll owner) is coordinated with
-    phase 3; [Claude permission default](claude-permission-default.md) and
-    [Claude settings](claude-settings-surface.md) phase 6 read session state
-    from phase 5.
-  - Probe script `scripts/verify-claude-session-sdk.ts` (the pattern of
-    `verify-rewind-sdk.ts`), run on the Pi with short prompts; sanitized frame
-    streams saved as fixtures:
-    1. three turns on one query;
-    2. `setPermissionMode` and `setModel` mid-turn on today's per-message query;
-    3. interrupt mid-turn, then continue: what `still_queued` returns, whether
-       `canUseTool`'s signal aborts, and whether a background task survives with
-       and without `perTaskStopAffordance`;
-    4. AskUserQuestion in auto and in bypass separately, with and without a
-       `PreToolUse` hook. Auto may already ask, so a hook there could
-       double-prompt. The [permission modes map](../maps/provider-permission-modes.md)
-       disputes the "never reaches the UI" premise;
-    5. `setPermissionMode('bypassPermissions')` on a session started in default,
-       with and without `allowDangerouslySkipPermissions`, which CLIde never sets
-       (sdk.d.ts:1987, 2000-2004);
-    6. what `applyFlagSettings({effortLevel: null})` resets to;
-    7. whether an error `result` (usage limit, API error) ends the iterator in
-       streaming mode;
-    8. `session_state_changed` with and without its env var; `tool_use_summary`
-       with its env var; whether `session_title_changed` (emitted by the CLI,
-       absent from `sdk.d.ts`) reaches the consumer;
-    9. `Options.sessionId`: the transcript file is written under that id;
-    10. `supportedCommands()` and `initializationResult()` from an idle query with
-        `cwd` set to a project: the count and the time it takes;
-    11. a background `sleep` waking a turn after `result` on an open input;
-    12. the SDK's own stdin hold after a closed input (a 600-second ceiling, read
-        from minified `sdk.mjs`, not run) against `8ac0bd16`'s 30-minute hold;
-    13. resident memory: an idle session, a resumed large session, mid-turn.
-  - Measure "Starting" from the existing `[turn]` logs, split into spawn,
-    transcript load and API time. That says how much phase 6 is worth.
-  - You: read the four ADRs; accept or amend each. Agent, live: the probe on
-    the Pi, with its results written into the SDK map.
+- [~] 0. **Ground rules and probes — est. 2.** Done 2026-10-05 except ADR acceptance.
+  - ADRs, proposed and uncommitted until accepted: 0065, the runtime layer is
+    rebuilt in place and stops tracking upstream (with the upstream sync map's
+    matching line); 0066, one long-lived Claude process per chat, Stop ends only
+    the turn, delivery read from `command_lifecycle`, superseding ADR 0013 for
+    Claude; 0067, one typed message shape shared by server and client; 0068, a
+    live session's settings and queue on the server, superseding orientation §16
+    for open sessions.
+  - Probes: `scripts/verify-claude-session-sdk.ts`, the 13 checks plus a
+    background-subagent interrupt, run on the Pi; results in the
+    [SDK map](../maps/claude-agent-sdk.md)'s §2 table and the script's FINDINGS,
+    sanitized frame streams in `server/modules/providers/tests/fixtures/claude-session-sdk/`.
+    The SDK map's §4 counts are fixed (14 of 39 handled).
+  - What the probes changed here: no `PreToolUse` hook (phase 1);
+    `allowDangerouslySkipPermissions` on every chat (phase 1); delivery from
+    `command_lifecycle`, not an input echo (design positions, phase 6); "Sent"
+    from `message_start`, not `rate_limit_event` (phase 2); `perTaskStopAffordance`
+    needed for subagents only, the session's idle state is not the pinned signal,
+    and an error-then-close exits 1 (phase 6).
+  - Runtime scorecard, the one runtime change in this phase (logging only): every
+    `[turn]` line of a turn carries the app session id (a new chat's `start` said
+    `session=new`), and `end`/`failed` carry `dropped=`, the SDK frame kinds
+    nothing handled. `scripts/runtime-scorecard.mjs` reports per turn run start →
+    first frame and → result, the live `claude` processes with their memory, and
+    available memory. Baseline from the logs before any phase-1 change (246 turns,
+    2026-09-28 → 10-05): run start → first frame p50 3.3 s resumed, 3.1 s new,
+    p90 4.4 s; run start → result p50 61 s, p90 500 s; 20 failed runs, 8 error
+    results, 12 aborts. Probe split of "Starting": spawn 2.7–2.9 s, transcript
+    load ≤ 0.4 s, warm turn to `init` 50–80 ms. Memory: an idle `claude` ~122 MB
+    private; three open took available memory down 203 MB.
+  - Overlapping plans' Next lines edited: TypeScript conversion phase 5 is
+    superseded by phase 6; subagent visibility phase 5 and rewind Phase B wait on
+    phase 7; chat history performance phase 13 lands with phase 2 and its phase 11
+    is coordinated with phase 3; Claude permission default and Claude settings
+    phase 6 read session state from phase 5; the flight recorder's chat-path core
+    is phase 1b.
+  - You: read the four ADRs; accept or amend each.
 
 - [ ] 1. **Quick wins on today's runtime — est. 2–3.**
   - Fix the id-space slips first; the new control message uses the same map.
@@ -444,19 +449,41 @@ phase done.
     `setPermissionMode`, `setModel` or `applyFlagSettings` on the live query
     (looked up by app session id), keeping `sdkOptions` and the sessions row
     (ADR 0025) in sync. "Default" is sent resolved.
-  - AskUserQuestion and ExitPlanMode reach the UI through a `PreToolUse` hook in
-    the modes where probe 4 shows they are lost.
+  - AskUserQuestion in bypass: reproduce it in CLIde first. The SDK hands it to
+    `canUseTool` in bypass and auto (probe 4), so it is either lost in CLIde's
+    request path or the model never asked; fix it where the reproduction shows.
+  - `allowDangerouslySkipPermissions: true` on every Claude chat query, so a live
+    switch to bypass works; until the mode is bypass nothing changes (probe 5).
+    CLIde still sends bypass only when the picker says so (ADR 0064).
+  - `CLAUDE_CODE_EMIT_STARTUP_TIMING=1` on chat queries, with the result's
+    `ttft_ms` and `time_to_request_ms` added to `[turn] result` for the scorecard.
   - The slash menu comes from `supportedCommands()` through an idle query per
     project, built the way the model list already is (`claude-models.provider.ts`),
     and cached. The terminal-only list is cached from the last `init`. The 11
     hardcoded definitions remain the fallback for other providers.
   - `Options.sessionId` for new sessions, with the mapping recorded through
-    `assignProviderSessionId` before spawn. Closes the orphaned-first-message item.
+    `assignProviderSessionId` before spawn; with `resume` the CLI refuses it unless
+    `forkSession` is set (probe 9). Closes the orphaned-first-message item.
   - The live `tool_use_result` (snake_case), and summarized thinking.
   - You: during a running Claude reply, switch the mode in the composer; the
     next tool call follows it without a new message. Agent, live: abort a new
     chat's first message (one sidebar row); AskUserQuestion appears in bypass;
     the slash menu lists the CLI's commands.
+
+- [ ] 1b. **Chat-path flight recorder — est. 1–2.** The chat-path core of the
+  [diagnostics flight recorder](diagnostics-flight-recorder.md), built before
+  phases 2–3 change what the client receives, so a "nothing appeared" report from
+  the phone says which of its five causes it was.
+  - For each frame reaching the client's WebSocket listener: kind, session id,
+    `seq`/`runId`, and whether its handler returned or threw, with the stack;
+    each row the session store rejects, with the reason. Never contents.
+  - Activated by a URL query parameter before React starts, kept locally with
+    bounded retention, and copied as one redacted block small enough to paste
+    into a chat. No Settings screen: that stays in the flight-recorder plan's
+    phase 3, with its boot, service-worker and auth probes.
+  - Inert while off; unit tests for the recorder before any probe.
+  - You: open a chat on the phone with the parameter, send a message, copy the
+    block; it lists the turn's frames by kind and nothing you wrote.
 
 - [ ] 2. **Word-by-word replies — est. 1–2.**
   - `includePartialMessages`; the normalizer reads the wrapped `stream_event`;
@@ -469,6 +496,9 @@ phase done.
   - A session not on screen updates one buffered row, not one row per chunk.
     Today each delta appends its own row and counts against the 500-row live
     cap, so background sessions would show duplicated text.
+  - The "Sent" stage moves from the first `rate_limit_event`, which can arrive
+    after the reply or not at all on a warm turn (probe 1), to the `message_start`
+    stream event.
   - [Chat history performance](chat-history-performance.md) phase 13 (cost per
     chunk) lands here.
   - You: ask something with a long answer; it appears word by word; reload, and
@@ -498,7 +528,10 @@ phase done.
   - The one-writer rule for idle processes and for the agent API.
   - The update lease per turn; updates drain idle processes.
   - SIGTERM closes every handle; start-up sweeps orphans.
-  - The memory floor and idle timeout, counting every `claude` spawn.
+  - The memory floor and idle timeout, counting every `claude` spawn. Measured
+    sizes to set them by: an idle `claude` ~122 MB private, ~150 MB shared-fair
+    (PSS), one mid-turn with tool children ~170 MB; three open took available
+    memory from 637 to 434 MB with the host's usual load.
   - No wire change. You: start a dev server in a chat, then send another
     message; it goes through. Agent, live: Claude and Codex send, stop, resume
     and approve; a scheduled message fires; a CLI update with an idle session.
@@ -527,13 +560,23 @@ phase done.
 
 - [ ] 6. **Claude long-lived session, behind `CLIDE_CLAUDE_SESSIONS=persistent` — est. 3–4.**
   - Everything under "Claude session" above.
-  - The idle signal is `session_state_changed` if probe 8 shows its env var
-    works, otherwise `result` plus `background_tasks_changed`.
+  - The idle signal is `session_state_changed` (its env var works, probe 8). It
+    reports idle while background shells still run (probe 11), so `pinned` comes
+    from `background_tasks_changed`, not from it.
+  - `perTaskStopAffordance` matters for background subagents: a bare interrupt
+    already spares background shells and kills subagents (probe 3).
+  - Error results never end the session (probe 7), but closing the input after
+    one makes the CLI exit 1 and the iterator throw; the host treats that as a
+    normal close. A process that exits on its own (crash, OOM kill) marks the
+    session closed and fails its running turn; the next send reopens it.
+  - Delivery is the `command_lifecycle` `queued`/`started` frame for the sent
+    uuid; a send whose uuid is `cancelled` is reported undelivered.
   - Eviction and reopen as under "Session host"; reopening is a cold resume.
   - Tests on an injected fake `Query`: user- and provider-initiated turns;
     interrupt and stopping; live controls and the reconcile table; idle close
-    and reopen, stale reopen, rewind reopen, `/clear` remap. Re-run the probe
-    through the adapter.
+    and reopen, stale reopen, rewind reopen, `/clear` remap, replaying
+    the phase-0 fixtures. Re-run the probe through the adapter, and on every SDK or
+    CLI bump after: `command_lifecycle` and both env switches are undocumented.
   - You: send two messages in a row; the second shows no "Starting". Start a
     background job, press Stop on the reply; the job keeps running and has its
     own stop. Leave a chat idle past the timeout, then send; it resumes normally.
@@ -607,6 +650,20 @@ phase done.
   running background job is never closed to make room.
 - Adding a provider is one adapter folder plus passing the conformance suite.
 
+## Pre-mortem
+
+It failed in six months. The likeliest reasons, each already a work item:
+
+- A CLI update dropped an undocumented frame or switch the session relies on
+  (`command_lifecycle`, the session-state env var): the probe re-runs on every
+  bump (phase 6), and `dropped=` in the scorecard shows new kinds (phase 0).
+- Memory ran out with a few chats and a language server open: the floor reads
+  available memory, so other processes count (phase 4); the scorecard shows who
+  holds it (phase 0).
+- A crashed process left a chat stuck "running": phase 6's unexpected-exit rule.
+- A phone showed nothing after a wire change and nobody could say why: phase 1b
+  before phases 2–3.
+
 ## Reuse, don't rebuild
 
 - Requests: `interactiveRequestRegistry`. Session rows:
@@ -624,7 +681,8 @@ phase done.
 
 - Upstream fixes to runtime, gateway and chat-event code stop arriving; each
   one is reimplemented by hand or skipped. Other areas keep taking upstream work.
-- Each open Claude chat holds a `claude` process (277 MB measured for one).
+- Each open Claude chat holds a `claude` process (~234 MB resident, ~122 MB of
+  it private, measured idle).
   Idle chats close, so a chat left long enough pays a cold start again.
 - During phases 6–9, Claude has two paths behind a flag.
 - Cursor and OpenCode get no new features.

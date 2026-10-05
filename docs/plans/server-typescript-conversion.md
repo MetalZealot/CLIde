@@ -1,7 +1,7 @@
 # The last backend JavaScript becomes TypeScript
 
 - Status: not started
-- Next: Phase 1 — rename the Codex runtime to `.ts` in its own commit, then type it using upstream's `codex-runtime.provider.ts` as a reference
+- Next: Phase 1 — rename the Codex runtime to `.ts` in its own commit, then type it using upstream's `codex-runtime.provider.ts` as a reference. Phase 5 (the Claude runtime) is superseded by [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 6
 - Context: [backend module standards](../../.agents/skills/backend-module-standards/SKILL.md), [upstream sync](../maps/upstream-sync.md), [code anchors](../maps/code-anchors.md) for which id a runtime is addressed by
 
 Six server files are still JavaScript, and the server's `checkJs` is off, so
