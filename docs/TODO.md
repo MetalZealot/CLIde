@@ -14,6 +14,7 @@ main checkout only).
 
 ## Provider maintenance
 
+- [ ] **Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every SDK message.** Grayson's priority; the one plan exempt from the size cap (`SIZE_EXCEPTIONS` in `scripts/check-docs.mjs`). Absorbs the mid-turn controls, streaming, slash menu, orphaned-first-message and live `tool_use_result` items. [Plan](plans/agent-runtime-rebuild.md). **L**
 - [ ] **The last six backend JavaScript files become TypeScript.** Four provider runtimes, the notification orchestrator and Codex token usage; `checkJs` is off, so `typecheck` reads none of them. Codex first, Claude last. [Plan](plans/server-typescript-conversion.md). **L**
 - [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows [the finished Tools plan](plans/archive/2026-09-29-provider-tools-page.md). **L — design first**
 - [ ] **Multiple Codex clients can claim the same native thread.** Add App Server-native Chat compaction and cross-process single-writer coordination so Shell, another CLIde service, or an external client cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**

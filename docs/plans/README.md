@@ -10,6 +10,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 
 | Plan | Status | Next |
 |---|---|---|
+| [Agent runtime rebuild](agent-runtime-rebuild.md) | not started | Phase 0: four ADRs for Grayson, then the probe script on the Pi |
 | [Chat history performance](chat-history-performance.md) | 8/14 | Phase 7: cut the ~50 ms fixed frame cost of scroll restoration; phone check |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Composer message recall; the other two builds shipped |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
@@ -40,9 +41,10 @@ Current active work comes first, followed by the queue Grayson ordered on
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.
 
-Provider architecture consolidation is deliberately not a plan: its baseline is
+Provider architecture is now a plan, [the agent runtime rebuild](agent-runtime-rebuild.md),
+the one plan exempt from the size cap by Grayson's decision; its baseline is
 [the current contract](../maps/CLIde_Provider_Architecture_Current_Contract.md)
-and the living maps, and it is kept separate from release work.
+and the living maps.
 
 ## Why plans are capped
 

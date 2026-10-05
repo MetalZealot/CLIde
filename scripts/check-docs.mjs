@@ -62,6 +62,8 @@ const MAX_TODO_LINE = 400;
 const SIZE_EXCEPTIONS = {
   'docs/maps/claude-agent-sdk.md':
     'section 3 alone is 13 KB; needs splitting into native surface vs CLIde mapping — see docs/TODO.md',
+  'docs/plans/agent-runtime-rebuild.md':
+    "Grayson's call: the priority plan keeps its detail over the cap; archive it when done — see docs/TODO.md",
 };
 
 const problems = [];

@@ -125,9 +125,11 @@ the jsonl, so the synchronizer correctly indexes it as a second session.
 The reconciliation already exists and simply never runs: `assignProviderSessionId`
 (`sessions.db.ts`) merges a watcher-created duplicate into the app row in one
 transaction, covered by `sessions.db.test.ts`. **This is a missing-trigger
-bug, not a missing-mechanism one.** Pre-allocating the id is not available — `query()`
-takes `resume` for existing sessions only and `forkSession` *returns* a new UUID — so
-the fix must be reconciliation on teardown: where `capturedSessionId` is still null,
+bug, not a missing-mechanism one.** Two fixes are available. The SDK declares
+`Options.sessionId` (new sessions and forks only; a valid UUID), so CLIde can mint the
+provider id before spawn and the stream capture becomes a check — untested live, and
+the route phase 1 of [the runtime rebuild plan](../plans/agent-runtime-rebuild.md)
+takes. Short of that, reconcile on teardown: where `capturedSessionId` is still null,
 find a jsonl in the run's project transcript dir created within the run's lifetime that
 no session row claims and no alias tombstones, disambiguate by matching its first `user`
 row against the aborted prompt, and call `assignProviderSessionId`. **If more than one

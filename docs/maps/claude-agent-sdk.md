@@ -110,17 +110,22 @@ the change.
 
 ## 2. The architectural constraint everything else hangs off
 
-CLIde runs **one `query()` per user turn** with a plain string prompt (an async
-generator only for image turns), then lets the generator wind down. Most `Query`
-control methods are documented as available **only in streaming input mode**, so
-today they are structurally out of reach even though the handle exposes them.
+CLIde runs **one `query()` per user turn**. Its prompt is an input stream CLIde
+owns (`createClaudeInputChannel`), open for the whole turn and closed at the
+turn's `result`, or held while background tasks run. "Streaming input mode"
+means exactly that: an async-iterable prompt, however long the query lives. So
+`setPermissionMode`, `setModel` and `applyFlagSettings` are reachable mid-turn
+today; CLIde simply never calls them. What it lacks is a handle **between**
+turns: once the input closes the process exits, and nothing can be changed or
+asked until the next message spawns a new one.
 
-Moving to a persistent streaming-input query per session — feeding later turns
-through the generator instead of constructing a new `query()` — is the
-prerequisite for `setModel`, `setPermissionMode`, `supportedCommands`,
-`supportedModels`, `accountInfo`, MCP management, and background-task control.
-It would also drop the per-turn subprocess spawn cost, which on this host is not
-free.
+`supportedCommands`, `supportedModels`, `supportedAgents` and `accountInfo` read
+the cached `initialize` answer, so an idle query that never sends a message
+answers them, as the model list already does. A persistent query per session,
+feeding later turns through the same input, is what removes the per-turn spawn
+and transcript reload and lets the provider start a turn itself (a background
+task waking the chat). [The runtime rebuild plan](../plans/agent-runtime-rebuild.md)
+sequences both.
 
 Two consequences are already user-visible:
 
