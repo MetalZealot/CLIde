@@ -95,6 +95,25 @@ function logTurn(event, sessionId, fields) {
   console.log(formatTurnLog(event, sessionId, fields));
 }
 
+/** SDK frame kinds this runtime or the normalizer acts on; the rest are counted in a turn's `dropped=`. */
+const HANDLED_SDK_FRAMES = new Set([
+  'assistant', 'user', 'result', 'rate_limit_event',
+  'system/init', 'system/compact_boundary', 'system/status', 'system/api_retry', 'system/thinking_tokens',
+  'system/background_tasks_changed', 'system/task_started', 'system/task_updated', 'system/task_progress',
+  'system/task_notification',
+]);
+
+function recordDroppedFrame(dropped, message) {
+  const kind = message?.type === 'system' ? `system/${message.subtype}` : String(message?.type ?? 'unknown');
+  if (!HANDLED_SDK_FRAMES.has(kind)) {
+    dropped.set(kind, (dropped.get(kind) || 0) + 1);
+  }
+}
+
+function formatDroppedFrames(dropped) {
+  return [...dropped].map(([kind, count]) => `${kind}:${count}`).join(',');
+}
+
 /**
  * The turn's output tokens as shown beside the activity label. Mid-turn an
  * assistant row reports a placeholder `output_tokens` (1–2, measured against
@@ -814,6 +833,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let frames = 0;
   let retries = 0;
   let thinkingEstimate = 0;
+  const droppedFrames = new Map();
   let sentLogged = false;
   // The live limit notice lacks the transcript's `quotaLimits`; this turn's rejected event supplies it.
   let rejectedRateLimit = null;
@@ -1013,7 +1033,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     await loadClaudeContextCeiling(capturedSessionId);
 
     // Process streaming messages
-    logTurn('start', capturedSessionId, {
+    logTurn('start', sessionKey(), {
       model: sdkOptions.model || 'default',
       effort: sdkOptions.effort,
       resume: providerSessionId ? 'yes' : 'no',
@@ -1038,8 +1058,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     for await (const message of queryInstance) {
       frames += 1;
       clearBackgroundHold();
+      recordDroppedFrame(droppedFrames, message);
       if (frames === 1) {
-        logTurn('first-frame', capturedSessionId || message.session_id, {
+        logTurn('first-frame', sessionKey() || message.session_id, {
           ms: sinceStart(),
           frame: message?.subtype ? `${message.type}/${message.subtype}` : message?.type,
         });
@@ -1093,7 +1114,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // hands the label back to the indicator's own cycling words.
       if (message?.type === 'system' && message.subtype === 'api_retry') {
         retries += 1;
-        logTurn('api-retry', capturedSessionId || sessionId, {
+        logTurn('api-retry', sessionKey(), {
           ms: sinceStart(),
           attempt: `${message.attempt}/${message.max_retries}`,
           delay_ms: message.retry_delay_ms,
@@ -1132,7 +1153,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         holdingInput = backgroundTasks > 0;
         awaitingBackground = holdingInput;
         if (holdingInput) {
-          logTurn('background-wait', capturedSessionId || sessionId, { ms: sinceStart(), tasks: backgroundTasks });
+          logTurn('background-wait', sessionKey(), { ms: sinceStart(), tasks: backgroundTasks });
           sendStage({ name: 'background', count: backgroundTasks });
         } else {
           inputChannel?.close();
@@ -1155,7 +1176,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // error, so the subtype alone never says whether the turn worked.
       if (message?.type === 'result') {
         const failed = message.is_error === true || message.subtype !== 'success';
-        logTurn(failed ? 'error-result' : 'result', capturedSessionId || sessionId, {
+        logTurn(failed ? 'error-result' : 'result', sessionKey(), {
           ms: sinceStart(),
           subtype: message.subtype,
           api_ms: message.duration_api_ms,
@@ -1197,13 +1218,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         if (info.status === 'rejected') rejectedRateLimit = info;
         if (!sentLogged) {
           sentLogged = true;
-          logTurn('sent', capturedSessionId || sessionId, { ms: sinceStart(), window: info.rateLimitType, status: info.status });
+          logTurn('sent', sessionKey(), { ms: sinceStart(), window: info.rateLimitType, status: info.status });
           if (!outputStarted) {
             sendStage({ name: 'sent' });
           }
         }
         if (info.status && info.status !== 'allowed') {
-          logTurn('usage', capturedSessionId || sessionId, {
+          logTurn('usage', sessionKey(), {
             window: info.rateLimitType,
             status: info.status,
             utilization: info.utilization,
@@ -1261,7 +1282,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
       if (holdingInput) {
         backgroundHoldTimer = setTimeout(() => {
-          logTurn('background-timeout', capturedSessionId || sessionId, { tasks: backgroundTasks });
+          logTurn('background-timeout', sessionKey(), { tasks: backgroundTasks });
           inputChannel?.close();
         }, BACKGROUND_HOLD_SILENCE_MS);
       }
@@ -1277,12 +1298,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Send the terminal completion event — skipped for aborted runs, whose
     // terminal `complete` (aborted: true) was already sent by abort-session.
     const wasAborted = wasRunAborted();
-    logTurn('end', capturedSessionId || sessionId, {
+    logTurn('end', sessionKey(), {
       ms: sinceStart(),
       frames,
       retries,
       thinking_estimate: thinkingEstimate || undefined,
       aborted: wasAborted ? 'yes' : undefined,
+      dropped: formatDroppedFrames(droppedFrames),
     });
     if (!wasAborted) {
       ws.send(createCompleteMessage({ provider: 'claude', sessionId: capturedSessionId || sessionId || null, exitCode: 0 }));
@@ -1298,12 +1320,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
   } catch (error) {
     const aborted = wasRunAborted();
-    logTurn('failed', capturedSessionId || sessionId, {
+    logTurn('failed', sessionKey(), {
       ms: sinceStart(),
       frames,
       retries,
       thinking_estimate: thinkingEstimate || undefined,
       aborted: aborted ? 'yes' : undefined,
+      dropped: formatDroppedFrames(droppedFrames),
       class: error?.errorClass,
       detail: typeof error?.message === 'string' ? error.message : undefined,
     });
@@ -1592,5 +1615,7 @@ export {
   refreshClaudeContextUsage,
   duplicatesStreamedNotice,
   formatTurnLog,
+  recordDroppedFrame,
+  formatDroppedFrames,
   createTurnTokenCounter
 };

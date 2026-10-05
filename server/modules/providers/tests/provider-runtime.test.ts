@@ -871,6 +871,17 @@ describe('claude-runtime error results', () => {
     assert.equal(line.length, 160 + '[turn] error-result session=s1 detail='.length);
   });
 
+  test('a turn counts the SDK frames nothing handles, from a recorded three-turn session', async () => {
+    const { recordDroppedFrame, formatDroppedFrames } = await import('@/modules/providers/list/claude/claude-runtime.provider.js');
+    const fixture = path.join(process.cwd(), 'server/modules/providers/tests/fixtures/claude-session-sdk/probe-01-three-turns.ndjson');
+    const dropped = new Map();
+    for (const line of (await readFile(fixture, 'utf8')).trim().split('\n')) {
+      const { frame } = JSON.parse(line);
+      if (frame) recordDroppedFrame(dropped, frame);
+    }
+    assert.equal(formatDroppedFrames(dropped), 'command_lifecycle:9,stream_event:30');
+  });
+
   const loadAskSideQuestion = async () => (
     (await import('@/modules/providers/list/claude/claude-runtime.provider.js')).runSideQuestion
   );
