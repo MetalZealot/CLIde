@@ -547,7 +547,7 @@
       "peak": "{{percent}}% · {{window}}",
       "managePlan": "Manage plan and balance",
       "resetAlert": "Usage reset alert",
-      "resetAlertChannelRequired": "Turn on Web Push or Desktop notifications to receive it."
+      "resetAlertChannelRequired": "Turn on Web Push notifications to receive it."
     },
     "serviceStatus": {
       "label": "Service status",

@@ -32,7 +32,7 @@
       "title": "Usage notifications",
       "reset": "Usage reset notification",
       "resetDescription": "Notify me whenever this provider resets a usage limit.",
-      "channelRequired": "Enable Web Push or Desktop notifications to receive this alert.",
+      "channelRequired": "Enable Web Push notifications to receive this alert.",
       "openSettings": "Notification settings"
     }
   },
