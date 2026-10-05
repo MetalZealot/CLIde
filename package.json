@@ -2,7 +2,7 @@
   "name": "@cloudcli-ai/cloudcli",
   "version": "1.37.0",
   "productName": "CloudCLI",
-  "description": "A web-based UI for Claude Code CLI",
+  "description": "A self-hosted web app for driving coding agents from your phone or a desktop browser",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
@@ -18,13 +18,13 @@
     "scripts/",
     "README.md"
   ],
-  "homepage": "https://cloudcli.ai",
+  "homepage": "https://github.com/MetalZealot/CLIde#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/siteboon/claudecodeui.git"
+    "url": "git+https://github.com/MetalZealot/CLIde.git"
   },
   "bugs": {
-    "url": "https://github.com/siteboon/claudecodeui/issues"
+    "url": "https://github.com/MetalZealot/CLIde/issues"
   },
   "scripts": {
     "dev": "concurrently --kill-others \"npm run server:dev\" \"npm run client\"",
