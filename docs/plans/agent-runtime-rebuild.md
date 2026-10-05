@@ -521,6 +521,18 @@ phase done.
   - You: Claude and Codex tool rows look unchanged on phone and laptop, before
     and after a reload. Agent: full `npm test` (a protocol change).
 
+- [ ] 3b. **Failure pass and product bar: research, no code — est. 1.** Gaps
+  the [pillar check](../maps/orientation.md#pillars) found.
+  - Failure pass: for every call out of CLIde (provider processes, the APIs
+    behind them, WebSocket, Git, MCP, scheduled sends), what you see when it
+    fails, hangs or half-succeeds. Each silent case becomes an item in phases
+    4–6, or a TODO line if it is outside the runtime.
+  - Product bar: what Claude Code's CLI and desktop app, T3 Code and Happy do
+    that CLIde lacks. Each gap is mapped to a phase here, to the `/next` mobile
+    plan, or declined with a reason. It runs before phase 5 so anything that
+    needs the protocol lands in it.
+  - You: read both lists and say which gaps matter.
+
 - [ ] 4. **Session host, part 1: busy states, writers, lifecycle — est. 1–2.**
   - The three busy predicates, each caller moved to the right one. A send to a
     pinned session (background tasks running, no turn) becomes a new turn on the
@@ -606,6 +618,10 @@ phase done.
     credential-file inference), plugin and skill reloads, session titles.
   - The SDK map's coverage table is generated from the record by a test; `tsc`
     fails when an SDK bump adds a message type.
+  - Drift reaches past message types: every `Options` field, `Query` method and
+    hook event in `sdk.d.ts` gets an entry (the phase that uses it, or why it is
+    not surfaced), and a test fails by name on one the record lacks, the way the
+    settings catalog test does for settings keys.
   - You: run `/usage` in the composer; its output appears as a row. A finished
     turn shows its one-line summary. Agent: the golden test passes.
 
@@ -624,6 +640,11 @@ phase done.
   - Provider-name checks a capability can replace go; per-provider settings,
     login, MCP and logo screens keep theirs. Capability flags nothing reads are
     consumed or deleted.
+  - Provider updates name what has no home: the Codex protocol test also lists
+    App Server notifications CLIde does not handle (from the bindings
+    `check:providers --protocol` already generates); `check:providers` ends
+    with each provider's surfaces that have no home; the capability map's
+    tables are generated from the descriptors.
   - You: in a Codex chat the composer offers only controls Codex can change; in
     a Claude chat a mode change applies to the running reply.
 
@@ -649,6 +670,7 @@ phase done.
 - Three open Claude chats stay above the memory floor, and a chat with a
   running background job is never closed to make room.
 - Adding a provider is one adapter folder plus passing the conformance suite.
+- After any provider update, one command lists what is new and has no home yet.
 
 ## Pre-mortem
 

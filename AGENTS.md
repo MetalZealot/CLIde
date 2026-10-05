@@ -18,14 +18,14 @@ Before changing code:
    preserve unrelated user changes.
 2. Read the relevant open item in `docs/TODO.md`.  It is the tracked backlog.  Items
    are one line and point elsewhere; follow the pointer only for the item you are
-   working on.  Read the section you need, not the whole file — it runs past 20 KB.
+   working on.  Read only the section you need.
 3. Read relevant ADRs in `docs/decisions/` — especially before "fixing" anything that
    looks odd but deliberate.
 4. Load the task-specific context below.
 
 **Read indexes before documents.**  The READMEs in `docs/plans/`, `docs/maps/`, and
 `docs/decisions/` say what each document covers and where it stands.  Open a document
-only once an index says it is the one you need; never read a directory to find out.
+only once its index points there; never read a directory to find out.
 
 ### Task-specific context
 
@@ -39,7 +39,7 @@ only once an index says it is the one you need; never read a directory to find o
 | Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
 | Running, adding, or timing tests | `docs/maps/test-suite.md` |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
-| Multi-session work with phases | its plan in `docs/plans/` — the board in that README first |
+| Phased work, or any architecture change | its plan via the `docs/plans/` board; the Pillars atop `docs/maps/orientation.md`; a pre-mortem |
 
 ## Glossary
 

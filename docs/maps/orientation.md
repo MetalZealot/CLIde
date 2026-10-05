@@ -10,6 +10,57 @@ to stop and ask, whether or not you can read the diff.
 
 ---
 
+## Pillars
+
+What CLIde must get right as a whole. Every architecture change (a new plan, a
+provider, a dependency, a bug that keeps coming back) is checked against each one,
+plus a pre-mortem ("it failed in six months: why?"), before it reaches Grayson.
+"Held by" names the sections below; "Check" is what catches a break automatically.
+A pillar with no check is a known gap.
+
+- **Contract.** Every message between server, browser and provider has one typed
+  shape. *Breaks:* a field renamed on one side fails silently on the other. Held by
+  1. Check: `chat-session.test.ts` (every provider, unequal ids); the shape itself
+  is untyped until [runtime plan](../plans/agent-runtime-rebuild.md) phase 3.
+- **Capabilities.** Each provider declares what it can do; the UI follows that, not
+  its name. *Breaks:* controls that do nothing, features for one provider only.
+  Held by 2. Check: none until runtime phase 8.
+- **One owner per state.** Every piece of state has one true copy. *Breaks:* phone
+  and laptop disagree. Held by 1, 8, 16. Check: none; runtime phase 5.
+- **Lifecycle.** Start, idle, crash, restart, reconnect and a second device each
+  have a defined outcome. *Breaks:* lost replies, stray processes, two writers.
+  Held by 4, 20. Check: run-registry tests per turn; runtime phases 4–6.
+- **Live equals reload.** A chat looks the same after a reload. *Breaks:* rows
+  change shape, counts arrive late. Held by 3, 5, 17. Check: none; runtime phase 7.
+- **Change over time.** A provider update says what changed and where it belongs.
+  *Breaks:* new abilities go unused for months. Held by 18. Check: the settings
+  catalog test, the Codex protocol test, `npm run check:providers` (reports only).
+  Nothing flags a new message type, option, method or hook with no home until
+  runtime phases 7–8.
+- **Builds itself.** Every change ships alone with chat still working. *Breaks:* a
+  bad change locks you out of its fix. Held by 6, 7. Check: branch-test servers,
+  manual by nature.
+- **Memory.** 4 GB holds everything, and every `claude` process counts. *Breaks:*
+  a chat killed mid-reply. Check: none; runtime phase 4.
+- **Speed.** Measured budgets a change may not break. *Breaks:* slowness creeps in
+  unnoticed. Held by 19. Check: `npm run bench:chat-history`; the runtime
+  scorecard reports turn times but sets no limits yet.
+- **Failure handling.** Every call out of CLIde has a defined result when it fails,
+  hangs or half-succeeds. *Breaks:* a spinner forever. Held by 13. Check: none;
+  runtime phase 3b runs the first full pass.
+- **Seeing what happened.** A record shows why something was slow or wrong.
+  *Breaks:* fixes become guesses. Check: `[turn]` logs and the scorecard; a
+  chat-path recorder comes before runtime phase 2.
+- **Trust.** Every agent action passes the same approval rules; secrets never reach
+  an agent. *Breaks:* a path that skips approval. Held by 12. Check: none; the
+  agent API skips the run registry, and two permission systems remain.
+- **Phone first.** The installed phone app is the main surface. *Breaks:* works on
+  the laptop, fails in your hand. Held by 10, 15, 19, 21. Check: the phone, by nature.
+- **Product bar.** CLIde does what comparable apps taught you to expect. *Breaks:* it
+  feels old while working. Check: none; runtime phase 3b runs the first comparison.
+
+---
+
 ## 1. Every conversation has two IDs, and only one of them is an address
 
 CLIde mints its own id for a session (`session_id`) and stores it in its database.
@@ -191,17 +242,6 @@ credentials file or write their own login script.
 enter it stops at the login form, then verifies in a separate hidden browser you can't
 see in the Browser tab.
 
-## 13. Mobile navigation stays in place before choosing a worktree
-
-Shell, Files, and Git need a worktree; a new Chat can begin at the picker.
-
-**The rule:** keep the bottom bar visible with Chat selected while choosing. Grey out
-destinations that need a worktree, including entries inside More. The bar still hides
-when the software keyboard opens.
-
-**What breaks:** hiding the whole bar shifts the composer when a worktree is picked;
-enabling dependent destinations leads to views with no working folder.
-
 ## 13. A usage limit is read from what the provider marks, not what it writes
 
 A stopped turn carries the provider's own label for why — Claude stamps the row with a
@@ -328,6 +368,30 @@ that CLI stays up for 30 minutes so you can reattach.
 **What breaks:** both write, the conversation forks, and whichever wrote last wins —
 the other side's messages drop out of view though they stay in the file.
 
+## 21. Mobile navigation stays in place before choosing a worktree
+
+Shell, Files, and Git need a worktree; a new Chat can begin at the picker.
+
+**The rule:** keep the bottom bar visible with Chat selected while choosing. Grey out
+destinations that need a worktree, including entries inside More. The bar still hides
+when the software keyboard opens.
+
+**What breaks:** hiding the whole bar shifts the composer when a worktree is picked;
+enabling dependent destinations leads to views with no working folder.
+
+## 22. Auto-Continue is a session setting; its waiting message is one action
+
+Settings supplies the message and the preference for new chats. Each existing chat
+keeps its own Auto-Continue mode in the header menu.
+
+**The rule:** the limit notice offers enabling only when the mode is off and no
+reset message is waiting. The waiting bubble says what will be sent. Canceling
+that message skips one continuation; turning the session mode off also stops
+future automatic continuations.
+
+**What breaks:** repeating the setting beside its queued message makes canceling
+one send and disabling the whole mode look like the same action.
+
 ## When to stop and ask
 
 You do not need to understand a diff to catch these. If a proposed change would:
@@ -345,19 +409,7 @@ You do not need to understand a diff to catch these. If a proposed change would:
 - add another card to the strip above the composer for something not waiting on you (14);
 - open something full-screen over the chat without locking the page, or put the phone chat back in a scrolling box (15);
 - add a preference to the synced allowlist that really describes one device (16);
+- hand you an architecture plan or review that skips the pillars (top of this page);
 
 — then say so. Being able to name the rule is enough; you don't have to be able to prove
 the violation. Asking is cheap, and every one of these is expensive to find later.
-
-## 15. Auto-Continue is a session setting; its waiting message is one action
-
-Settings supplies the message and the preference for new chats. Each existing chat
-keeps its own Auto-Continue mode in the header menu.
-
-**The rule:** the limit notice offers enabling only when the mode is off and no
-reset message is waiting. The waiting bubble says what will be sent. Canceling
-that message skips one continuation; turning the session mode off also stops
-future automatic continuations.
-
-**What breaks:** repeating the setting beside its queued message makes canceling
-one send and disabling the whole mode look like the same action.
