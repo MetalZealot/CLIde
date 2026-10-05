@@ -20,9 +20,6 @@
   },
   "account": {
     "title": "Account",
-    "language": "Language",
-    "languageLabel": "Display Language",
-    "languageDescription": "Choose your preferred language for the interface",
     "username": "Username",
     "email": "Email",
     "profile": "Profile",
@@ -364,9 +361,6 @@
         "twelveHour": "12-hour",
         "twentyFourHour": "24-hour"
       }
-    },
-    "language": {
-      "title": "Language"
     }
   },
   "mcpForm": {

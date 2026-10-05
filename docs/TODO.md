@@ -71,12 +71,9 @@ main checkout only).
 
 ## Sidebar information architecture
 
-- [ ] **The sidebar renders English in all ten locales.** Its `archived.*` keys exist only as inline `t(key, 'fallback')` defaults and are in none of the locale files; there are 115 such two-argument calls under the sidebar. Extract them, then translate. Upstream `#1192` is the same sweep against their key namespace, so it is a checklist, not a port. **M**
-
 Inventory and placement tiers: [the sidebar surface map](maps/sidebar-surface.md). Decide the tier before designing the control.
 
 - [ ] **Audit fifteen compact controls across eleven locations in context** — including repository New Session/kebab and session kebab in touch-driven Desktop View. Being below 44px is not itself a defect: verify WCAG size/spacing, collisions, adjacency, consequence, and Samsung usability before changing one. Table and helper in [the sidebar map](maps/sidebar-surface.md). **S**
-- [ ] **`sidebar.json` is ~40% untranslated in all nine non-`en` locales.** The `worktrees`, `sessionView`, `browseView` and `selection` blocks — 79 keys, every fork-built sidebar feature — exist only in `en` and render through `defaultValue`. **M**
 - [ ] **A repository row tap does different things per breakpoint** — mobile `onClick` only expands, desktop also selects the project (`SidebarRepositoryItem`, `toggleProject` vs `selectAndToggleProject`). No comment says why. Either is defensible; the divergence being undocumented is not. Parity table: [the sidebar map](maps/sidebar-surface.md). **S**
 
 ## Model picker follow-ups
