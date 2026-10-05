@@ -30,7 +30,6 @@ import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
 import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
 import CredentialsScreen from './screens/CredentialsScreen';
 import ExtensionsBrowserScreen from './screens/ExtensionsBrowserScreen';
-import ExtensionsPluginsScreen from './screens/ExtensionsPluginsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ProjectsGitScreen from './screens/ProjectsGitScreen';
 import SettingsHeader from './shell/SettingsHeader';
@@ -273,8 +272,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab, onOpenUsage }: S
       case 'projects-git':
         return <ProjectsGitScreen />;
 
-      case 'plugins':
-        return <ExtensionsPluginsScreen />;
 
       case 'browser':
         return <ExtensionsBrowserScreen />;

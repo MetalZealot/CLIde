@@ -40,12 +40,6 @@ import { createAgentModule } from './modules/agent/index.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
 import { userRoutes } from './modules/user/index.js';
-import {
-    getPluginPort,
-    pluginsRoutes,
-    startEnabledPluginServers,
-    stopAllPlugins,
-} from './modules/plugins/index.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import { scheduledMessageRoutes } from './modules/scheduled-messages/index.js';
 import { voiceRoutes } from './modules/voice/index.js';
@@ -100,7 +94,7 @@ const agentRoutes = createAgentModule({
     queryOpenCode,
 });
 
-// Single WebSocket server that handles chat, shell, and plugin proxy paths.
+// Single WebSocket server that handles chat and shell paths.
 const wss = createWebSocketServer(server, {
     verifyClient: {
         isPlatform: IS_PLATFORM,
@@ -120,7 +114,6 @@ const wss = createWebSocketServer(server, {
             return null;
         },
     },
-    getPluginPort,
 });
 
 // Make WebSocket server available to routes
@@ -187,9 +180,6 @@ app.use('/api/scheduled-messages', authenticateToken, scheduledMessageRoutes);
 
 // User API Routes (protected)
 app.use('/api/user', authenticateToken, userRoutes);
-
-// Plugins API Routes (protected)
-app.use('/api/plugins', authenticateToken, pluginsRoutes);
 
 // Browser MCP bridge API (local token protected)
 app.use('/api/browser-use-mcp', browserUseMcpRoutes);
@@ -336,15 +326,9 @@ async function startServer() {
             // monitor alive when its reset alerts are switched off.
             initializeScheduledMessages();
             initializeProviderUsageResetMonitor();
-
-            // Start server-side plugin processes for enabled plugins
-            startEnabledPluginServers().catch(err => {
-                console.error('[Plugins] Error during startup:', err.message);
-            });
         });
 
         await closeSessionsWatcher();
-        // Clean up plugin processes on shutdown
         const shutdownRuntimeServices = async () => {
             closeProviderUsageResetMonitor();
             closeScheduledMessages();
@@ -352,11 +336,6 @@ async function startServer() {
                 await browserUseService.stopAllSessions();
             } catch (err) {
                 console.error('[Browser] Error stopping sessions during shutdown:', getErrorMessage(err));
-            }
-            try {
-                await stopAllPlugins();
-            } catch (err) {
-                console.error('[Plugins] Error stopping plugins during shutdown:', getErrorMessage(err));
             }
             process.exit(0);
         };

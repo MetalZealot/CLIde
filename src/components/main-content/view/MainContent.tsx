@@ -5,7 +5,6 @@ import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import GitPanel from '../../git-panel/view/GitPanel';
-import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { BrowserUsePanel } from '../../browser-use';
 import type { MainContentProps } from '../types/types';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
@@ -290,16 +289,6 @@ function MainContent({
               <BrowserUsePanel initialSessionId={browserSessionId} isVisible={activeTab === 'browser'} onShowSettings={onShowSettings} />
             </div>
           )}
-
-          {selectedProject && activeTab.startsWith('plugin:') && (
-            <div className="h-full overflow-hidden">
-              <PluginTabContent
-                pluginName={activeTab.replace('plugin:', '')}
-                selectedProject={selectedProject}
-                selectedSession={selectedSession}
-              />
-            </div>
-          )}
         </div>
 
         {selectedProject && (
@@ -328,7 +317,6 @@ function MainContent({
           setActiveTab={setActiveTab}
           shouldShowBrowserTab={shouldShowBrowserTab}
           chatStatus={chatStatus}
-          onShowSettings={onShowSettings}
         />
         </div>
       )}

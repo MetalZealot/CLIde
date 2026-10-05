@@ -1,18 +1,15 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { AlertCircle, Check, ChevronUp, Clock, Ellipsis, Settings as SettingsIcon } from 'lucide-react';
+import { AlertCircle, Check, ChevronUp, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { ContextMenuOverlay, MENU_LIST_MAX_HEIGHT, anchorFromElement } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { AppTab } from '../../../../types/app';
 import { useLongPress } from '../../../../hooks/useLongPress';
-import { usePlugins } from '../../../../contexts/PluginsContext';
-import PluginIcon from '../../../plugins/view/PluginIcon';
 import type { ActivityState } from '../../../sidebar/types/types';
 import {
   BASE_TABS,
   BROWSER_TAB,
-  getPluginTabs,
   type TabDefinition,
 } from '../../constants/workspaceTabs';
 import { MENU_CLASS_NAME, MENU_ITEM_CLASS_NAME } from '../../constants/menu';
@@ -25,7 +22,6 @@ type MobileBottomNavProps = {
   shouldShowBrowserTab: boolean;
   /** The open session's status in the sidebar's shapes; the spinner is left off the bar. */
   chatStatus: Exclude<ActivityState, 'running'> | null;
-  onShowSettings: (tab?: string) => void;
 };
 
 // A fifth of a phone's width holds one short word, so long names get a bar label.
@@ -62,10 +58,8 @@ export default function MobileBottomNav({
   setActiveTab,
   shouldShowBrowserTab,
   chatStatus,
-  onShowSettings,
 }: MobileBottomNavProps) {
   const { t } = useTranslation();
-  const { plugins } = usePlugins();
   const {
     buttonRef: moreButtonRef,
     firstItemRef,
@@ -78,7 +72,6 @@ export default function MobileBottomNav({
 
   const overflowTabs: TabDefinition[] = [
     ...(shouldShowBrowserTab ? [BROWSER_TAB] : []),
-    ...getPluginTabs(plugins),
   ];
   const [storedSlotTab, setStoredSlotTab] = useState(readStoredSlotTab);
   const activeOverflowTab = overflowTabs.find((tab) => tab.id === activeTab);
@@ -153,8 +146,8 @@ export default function MobileBottomNav({
             </li>
           );
         })}
-        <li className="min-w-0 flex-1">
-          {slotTab ? (
+        {slotTab && (
+          <li className="min-w-0 flex-1">
             <button
               ref={moreButtonRef}
               type="button"
@@ -170,18 +163,10 @@ export default function MobileBottomNav({
               className={barItemClassName(isSlotActive || isMenuOpen)}
             >
               <span className={indicatorClassName(isSlotActive)}>
-                {slotTab.kind === 'builtin' ? (
-                  <slotTab.icon className="h-5 w-5" strokeWidth={isSlotActive ? 2.2 : 1.8} aria-hidden="true" />
-                ) : (
-                  <PluginIcon
-                    pluginName={slotTab.pluginName}
-                    iconFile={slotTab.iconFile}
-                    className="flex h-5 w-5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
-                  />
-                )}
+                <slotTab.icon className="h-5 w-5" strokeWidth={isSlotActive ? 2.2 : 1.8} aria-hidden="true" />
               </span>
               <span className="flex max-w-full items-center gap-0.5 px-1">
-                <span className="truncate">{slotTab.kind === 'builtin' ? t(slotTab.labelKey) : slotTab.label}</span>
+                <span className="truncate">{t(slotTab.labelKey)}</span>
                 <ChevronUp
                   className={cn(
                     'h-2.5 w-2.5 flex-shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none',
@@ -192,22 +177,8 @@ export default function MobileBottomNav({
                 />
               </span>
             </button>
-          ) : (
-            <button
-              ref={moreButtonRef}
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={isMenuOpen}
-              onClick={toggleMenu}
-              className={barItemClassName(isMenuOpen)}
-            >
-              <span className={indicatorClassName(false)}>
-                <Ellipsis className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
-              </span>
-              <span className="max-w-full truncate px-1">{t('mobileNav.more')}</span>
-            </button>
-          )}
-        </li>
+          </li>
+        )}
       </ul>
 
       {isMenuOpen && moreButtonRef.current && (
@@ -221,62 +192,32 @@ export default function MobileBottomNav({
           className={MENU_CLASS_NAME}
           measureKey={overflowTabs.length}
         >
-          {overflowTabs.length === 0 ? (
-            <>
-              <div role="menuitem" aria-disabled="true" tabIndex={-1} className="px-3 py-2.5 text-sm text-muted-foreground">
-                {t('mobileNav.noPlugins')}
-              </div>
+          {overflowTabs.map((tab, index) => {
+            const isActive = tab.id === activeTab;
+            return (
               <button
-                ref={firstItemRef}
+                key={tab.id}
+                ref={index === 0 ? firstItemRef : undefined}
                 type="button"
                 role="menuitem"
+                aria-current={isActive ? 'page' : undefined}
+                aria-disabled={!hasSelectedProject || undefined}
+                title={!hasSelectedProject ? t('mobileNav.selectWorktreeFirst') : undefined}
                 onClick={() => {
-                  closeMenu();
-                  onShowSettings('plugins');
+                  if (hasSelectedProject) selectOverflowTab(tab.id);
                 }}
-                className={MENU_ITEM_CLASS_NAME}
+                className={cn(MENU_ITEM_CLASS_NAME, !hasSelectedProject && 'cursor-default opacity-40 hover:bg-transparent active:bg-transparent')}
               >
-                <span className="h-4 w-4 flex-shrink-0" />
-                <SettingsIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span>{t('mobileNav.pluginSettings')}</span>
+                <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+                  {isActive && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
+                </span>
+                <tab.icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className={cn('truncate', isActive && 'font-medium')}>
+                  {t(tab.labelKey)}
+                </span>
               </button>
-            </>
-          ) : (
-            overflowTabs.map((tab, index) => {
-              const isActive = tab.id === activeTab;
-              return (
-                <button
-                  key={tab.id}
-                  ref={index === 0 ? firstItemRef : undefined}
-                  type="button"
-                  role="menuitem"
-                  aria-current={isActive ? 'page' : undefined}
-                  aria-disabled={!hasSelectedProject || undefined}
-                  title={!hasSelectedProject ? t('mobileNav.selectWorktreeFirst') : undefined}
-                  onClick={() => {
-                    if (hasSelectedProject) selectOverflowTab(tab.id);
-                  }}
-                  className={cn(MENU_ITEM_CLASS_NAME, !hasSelectedProject && 'cursor-default opacity-40 hover:bg-transparent active:bg-transparent')}
-                >
-                  <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-                    {isActive && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
-                  </span>
-                  {tab.kind === 'builtin' ? (
-                    <tab.icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
-                  ) : (
-                    <PluginIcon
-                      pluginName={tab.pluginName}
-                      iconFile={tab.iconFile}
-                      className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground [&>svg]:h-full [&>svg]:w-full"
-                    />
-                  )}
-                  <span className={cn('truncate', isActive && 'font-medium')}>
-                    {tab.kind === 'builtin' ? t(tab.labelKey) : tab.label}
-                  </span>
-                </button>
-              );
-            })
-          )}
+            );
+          })}
         </ContextMenuOverlay>
       )}
     </nav>

@@ -194,7 +194,7 @@ describe('registry', () => {
     // SETTINGS_MAIN_TABS array omitted.
     const legacyTabs = [
       'agents', 'appearance', 'git', 'api', 'voice',
-      'tasks', 'browser', 'notifications', 'plugins', 'about',
+      'browser', 'notifications', 'about',
     ];
 
     for (const tab of legacyTabs) {

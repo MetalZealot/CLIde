@@ -105,7 +105,6 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'projects-git', labelKey: 'git.name.label', keywords: 'identity commits author' },
   { screenId: 'projects-git', labelKey: 'git.email.label', keywords: 'identity commits author' },
 
-  { screenId: 'plugins', labelKey: 'pluginSettings.installButton', keywords: 'git repository url' },
 
   { screenId: 'browser', labelKey: 'browserSettings.enable.label', keywords: 'playwright chromium runtime' },
   { screenId: 'browser', labelKey: 'browserSettings.viewport.title', keywords: 'device size resolution desktop tablet mobile emulation' },

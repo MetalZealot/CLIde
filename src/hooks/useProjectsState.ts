@@ -451,7 +451,7 @@ const patchSessionInProject = (
 const VALID_TABS: Set<string> = new Set(['chat', 'files', 'shell', 'git', 'browser']);
 
 const isValidTab = (tab: string): tab is AppTab => {
-  return VALID_TABS.has(tab) || tab.startsWith('plugin:');
+  return VALID_TABS.has(tab);
 };
 
 const readPersistedTab = (): AppTab => {

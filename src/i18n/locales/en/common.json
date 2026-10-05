@@ -66,11 +66,8 @@
   "mobileNav": {
     "label": "Workspace",
     "git": "Git",
-    "more": "More",
     "moreMenu": "More destinations",
     "swapHint": "Tap again or long-press to switch destination",
-    "noPlugins": "No plugins installed",
-    "pluginSettings": "Plugin settings",
     "selectWorktreeFirst": "Select a worktree first",
     "attention": "Permission request waiting",
     "unread": "Unread reply",
