@@ -8,14 +8,6 @@ import { CLAUDE_NOTIFICATION_ROWS } from '../../utils/claudeSettingsLayout';
 import { SettingsGroup, SettingsRow, SettingsScreen, SettingsToggle } from '../primitives';
 import ClaudeSettingsGroup from '../sections/agent/ClaudeSettingsGroup';
 
-type DesktopNotificationsState = {
-  enabled: boolean;
-  supported: boolean;
-  connectedCount?: number;
-  targetCount?: number;
-  lastError?: string | null;
-};
-
 type NotificationsScreenProps = {
   notificationPreferences: NotificationPreferencesState;
   onNotificationPreferencesChange: (value: NotificationPreferencesState) => void;
@@ -24,10 +16,6 @@ type NotificationsScreenProps = {
   isPushLoading: boolean;
   onEnablePush: () => void;
   onDisablePush: () => void;
-  isDesktop?: boolean;
-  desktopNotifications?: DesktopNotificationsState | null;
-  onEnableDesktopNotifications?: () => void;
-  onDisableDesktopNotifications?: () => void;
 };
 
 export default function NotificationsScreen({
@@ -38,10 +26,6 @@ export default function NotificationsScreen({
   isPushLoading,
   onEnablePush,
   onDisablePush,
-  isDesktop = false,
-  desktopNotifications = null,
-  onEnableDesktopNotifications,
-  onDisableDesktopNotifications,
 }: NotificationsScreenProps) {
   const { t } = useTranslation('settings');
 
@@ -64,75 +48,39 @@ export default function NotificationsScreen({
 
   return (
     <SettingsScreen description={t('notifications.description')}>
-      {isDesktop ? (
-        <SettingsGroup title={t('notifications.desktop.title')}>
-          {desktopNotifications?.supported === false ? (
-            <p className="p-4 text-sm text-muted-foreground">{t('notifications.desktop.unsupported')}</p>
-          ) : (
-            <div className="space-y-3 p-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={desktopNotifications?.enabled ? 'destructive' : 'default'}
-                  onClick={() => {
-                    if (desktopNotifications?.enabled) {
-                      onDisableDesktopNotifications?.();
-                    } else {
-                      onEnableDesktopNotifications?.();
-                    }
-                  }}
-                >
-                  {desktopNotifications?.enabled ? <BellOff className="h-4 w-4" /> : <BellRing className="h-4 w-4" />}
-                  {desktopNotifications?.enabled
-                    ? t('notifications.desktop.disable')
-                    : t('notifications.desktop.enable')}
-                </Button>
-                {desktopNotifications?.enabled && (
-                  <span className="text-sm text-primary">{t('notifications.desktop.enabled')}</span>
-                )}
-              </div>
-              {desktopNotifications?.lastError && (
-                <p className="text-sm text-destructive">{desktopNotifications.lastError}</p>
+      <SettingsGroup title={t('notifications.webPush.title')}>
+        {!pushSupported ? (
+          <p className="p-4 text-sm text-muted-foreground">{t('notifications.webPush.unsupported')}</p>
+        ) : pushDenied ? (
+          <p className="p-4 text-sm text-muted-foreground">{t('notifications.webPush.denied')}</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3 p-4">
+            <Button
+              type="button"
+              size="sm"
+              variant={isPushSubscribed ? 'destructive' : 'default'}
+              disabled={isPushLoading}
+              onClick={() => (isPushSubscribed ? onDisablePush() : onEnablePush())}
+            >
+              {isPushLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isPushSubscribed ? (
+                <BellOff className="h-4 w-4" />
+              ) : (
+                <BellRing className="h-4 w-4" />
               )}
-            </div>
-          )}
-        </SettingsGroup>
-      ) : (
-        <SettingsGroup title={t('notifications.webPush.title')}>
-          {!pushSupported ? (
-            <p className="p-4 text-sm text-muted-foreground">{t('notifications.webPush.unsupported')}</p>
-          ) : pushDenied ? (
-            <p className="p-4 text-sm text-muted-foreground">{t('notifications.webPush.denied')}</p>
-          ) : (
-            <div className="flex flex-wrap items-center gap-3 p-4">
-              <Button
-                type="button"
-                size="sm"
-                variant={isPushSubscribed ? 'destructive' : 'default'}
-                disabled={isPushLoading}
-                onClick={() => (isPushSubscribed ? onDisablePush() : onEnablePush())}
-              >
-                {isPushLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isPushSubscribed ? (
-                  <BellOff className="h-4 w-4" />
-                ) : (
-                  <BellRing className="h-4 w-4" />
-                )}
-                {isPushLoading
-                  ? t('notifications.webPush.loading')
-                  : isPushSubscribed
-                    ? t('notifications.webPush.disable')
-                    : t('notifications.webPush.enable')}
-              </Button>
-              {isPushSubscribed && (
-                <span className="text-sm text-primary">{t('notifications.webPush.enabled')}</span>
-              )}
-            </div>
-          )}
-        </SettingsGroup>
-      )}
+              {isPushLoading
+                ? t('notifications.webPush.loading')
+                : isPushSubscribed
+                  ? t('notifications.webPush.disable')
+                  : t('notifications.webPush.enable')}
+            </Button>
+            {isPushSubscribed && (
+              <span className="text-sm text-primary">{t('notifications.webPush.enabled')}</span>
+            )}
+          </div>
+        )}
+      </SettingsGroup>
 
       <SettingsGroup>
         <SettingsRow label={t('notifications.sound.title')} description={t('notifications.sound.description')}>

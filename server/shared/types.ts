@@ -2128,7 +2128,7 @@ export type VoiceService = {
 // ---------------------------
 //----------------- CLI MODULE CONTRACTS ------------
 /**
- * Output boundary used by the CLI and Sandbox services.
+ * Output boundary used by the CLI service.
  *
  * Production wiring delegates to the real console. Unit tests collect these
  * calls in arrays, which keeps command assertions deterministic and avoids
@@ -2140,8 +2140,7 @@ export type CliOutput = {
 };
 
 /**
- * Minimal synchronous filesystem surface shared by CLI status reporting and
- * sandbox workspace validation.
+ * Minimal synchronous filesystem surface used by CLI status reporting.
  *
  * The production composition root adapts Node's filesystem module. Tests supply
  * path-keyed fakes, so service tests never inspect or modify the real machine.
@@ -2182,15 +2181,4 @@ export type CliPackageMetadata = {
  */
 export type CliApplication = {
   run(argumentsList: string[]): Promise<number>;
-};
-
-/**
- * Sandbox command service consumed by the top-level CLI command dispatcher.
- *
- * Keeping this behind one required dependency lets CLI tests use a tiny fake,
- * while focused Sandbox tests exercise subprocess and filesystem behavior with
- * their own handwritten adapters.
- */
-export type SandboxCommandService = {
-  execute(argumentsList: string[]): Promise<number>;
 };

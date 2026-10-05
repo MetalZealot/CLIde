@@ -99,7 +99,6 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'chat.voice', labelKey: 'voiceSettings.format' },
 
   { screenId: 'notifications', labelKey: 'notifications.webPush.title', keywords: 'push browser' },
-  { screenId: 'notifications', labelKey: 'notifications.desktop.title' },
   { screenId: 'notifications', labelKey: 'notifications.sound.title', keywords: 'tone chime audio' },
   { screenId: 'notifications', labelKey: 'notifications.events.title', keywords: 'action required stopped failed' },
 

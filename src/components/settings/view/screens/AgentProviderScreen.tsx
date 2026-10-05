@@ -162,8 +162,7 @@ export default function AgentProviderScreen({
     authStatus.method,
     planUsage.usage?.supported === true,
   );
-  const hasNotificationChannel = notificationPreferences.channels.webPush
-    || notificationPreferences.channels.desktop;
+  const hasNotificationChannel = notificationPreferences.channels.webPush;
   const usageResetEnabled = notificationPreferences.events.usageReset[provider] === true;
   const resetAlertLabel = t('agents.usage.resetAlert');
 
