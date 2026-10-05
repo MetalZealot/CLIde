@@ -1,22 +1,38 @@
-# How CLIde works — orientation
+# Architecture
 
-Written for Grayson, not for an agent. Every other document in `docs/` assumes you
-already know the architecture; this one doesn't. Each area names the one rule
-that governs it and what goes wrong when the rule is broken.
+This document describes CLIde at the level that changes slowly: what the system is,
+the qualities it must keep, where the code lives, and the invariants the code relies
+on. It holds no implementation detail. Decisions and their reasons are in
+[`docs/decisions/`](docs/decisions/README.md), current-state detail in
+[`docs/maps/`](docs/maps/README.md), ordered work in [`docs/plans/`](docs/plans/README.md),
+and how to work in this repo in [`AGENTS.md`](AGENTS.md).
 
-Nothing here is implementation detail — it is the set of assumptions the code is built
-on. When an agent proposes a change that contradicts one of these, that is the moment
-to stop and ask, whether or not you can read the diff.
+## Bird's-eye view
 
----
+CLIde is a self-hosted web app for driving coding agents (Claude Code, Codex, Cursor
+and OpenCode) from a phone or a desktop browser. It is a fork of
+[`siteboon/claudecodeui`](https://github.com/siteboon/claudecodeui).
 
-## Pillars
+- The **browser app** (React 18, Vite, Tailwind; installable as a PWA) talks to one
+  Node server over HTTP and a WebSocket.
+- The **server** (Express plus WebSocket) runs each provider through an adapter:
+  Claude through the Agent SDK, Codex through its App Server, Cursor and OpenCode
+  through their CLIs. Adapters turn provider output into CLIde's normalized messages,
+  which the chat gateway streams to the browser.
+- **Two stores.** CLIde's own SQLite database holds users, sessions and settings,
+  outside the checkout (by default `~/.cloudcli/auth.db`). Each provider writes its
+  own transcript files in its own home; those are the record of what ran. A watcher
+  indexes transcripts written by any process, including ones started outside CLIde.
+- **Around chat:** a terminal (the Shell), Files, Source Control, a Playwright-driven
+  Browser, voice, scheduled messages and plugins.
+
+## Quality goals (pillars)
 
 What CLIde must get right as a whole. Every architecture change (a new plan, a
-provider, a dependency, a bug that keeps coming back) is checked against each one,
-plus a pre-mortem ("it failed in six months: why?"), before it reaches Grayson.
-"Held by" names the sections below; "Check" is what catches a break automatically.
-A pillar with no check is a known gap.
+provider, a dependency, a bug that keeps coming back) is checked against each goal,
+plus a pre-mortem ("it failed in six months: why?"), before it is accepted. "Held by"
+names the invariants below; "Check" is what catches a break automatically. A goal
+with no check is a known gap.
 
 - **Contract.** Every message between server, browser and provider has one typed
   shape. *Breaks:* a field renamed on one side fails silently on the other. Held by
@@ -25,391 +41,312 @@ A pillar with no check is a known gap.
 - **Capabilities.** Each provider declares what it can do; the UI follows that, not
   its name. *Breaks:* controls that do nothing, features for one provider only.
   Held by 2. Check: none until runtime phase 8.
-- **One owner per state.** Every piece of state has one true copy. *Breaks:* phone
-  and laptop disagree. Held by 1, 8, 16. Check: none; runtime phase 5.
-- **Lifecycle.** Start, idle, crash, restart, reconnect and a second device each
-  have a defined outcome. *Breaks:* lost replies, stray processes, two writers.
-  Held by 4, 20. Check: run-registry tests per turn; runtime phases 4–6.
-- **Live equals reload.** A chat looks the same after a reload. *Breaks:* rows
-  change shape, counts arrive late. Held by 3, 5, 17. Check: none; runtime phase 7.
+- **One owner per state.** Every piece of state has one true copy. *Breaks:* two
+  devices disagree. Held by 1, 9, 11. Check: none; runtime phase 5.
+- **Lifecycle.** Start, idle, crash, restart, reconnect and a second device each have
+  a defined outcome. *Breaks:* lost replies, stray processes, two writers. Held by
+  3, 7. Check: run-registry tests per turn; runtime phases 4–6.
+- **Live equals reload.** A chat looks the same after a reload. *Breaks:* rows change
+  shape, counts arrive late. Held by 6, 8, 10. Check: none; runtime phase 7.
 - **Change over time.** A provider update says what changed and where it belongs.
-  *Breaks:* new abilities go unused for months. Held by 18. Check: the settings
+  *Breaks:* new abilities go unused for months. Held by 4. Check: the settings
   catalog test, the Codex protocol test, `npm run check:providers` (reports only).
   Nothing flags a new message type, option, method or hook with no home until
   runtime phases 7–8.
-- **Builds itself.** Every change ships alone with chat still working. *Breaks:* a
-  bad change locks you out of its fix. Held by 6, 7. Check: branch-test servers,
-  manual by nature.
-- **Memory.** 4 GB holds everything, and every `claude` process counts. *Breaks:*
-  a chat killed mid-reply. Check: none; runtime phase 4.
+- **Builds itself.** CLIde is used to develop CLIde, so every change ships alone
+  with chat still working. *Breaks:* a bad change locks its maintainer out of the
+  fix. Held by 12. Check: branch-test servers; manual by nature.
+- **Memory.** A 4 GB host holds everything, and every agent process counts.
+  *Breaks:* a chat killed mid-reply. Check: none; runtime phase 4.
 - **Speed.** Measured budgets a change may not break. *Breaks:* slowness creeps in
-  unnoticed. Held by 19. Check: `npm run bench:chat-history`; the runtime
+  unnoticed. Held by 15. Check: `npm run bench:chat-history`; the runtime
   scorecard reports turn times but sets no limits yet.
 - **Failure handling.** Every call out of CLIde has a defined result when it fails,
-  hangs or half-succeeds. *Breaks:* a spinner forever. Held by 13. Check: none;
+  hangs or half-succeeds. *Breaks:* a spinner forever. Held by 5. Check: none;
   runtime phase 3b runs the first full pass.
 - **Seeing what happened.** A record shows why something was slow or wrong.
-  *Breaks:* fixes become guesses. Check: `[turn]` logs and the scorecard; a
+  *Breaks:* fixes become guesses. Check: `[turn]` logs and the runtime scorecard; a
   chat-path recorder comes before runtime phase 2.
 - **Trust.** Every agent action passes the same approval rules; secrets never reach
-  an agent. *Breaks:* a path that skips approval. Held by 12. Check: none; the
-  agent API skips the run registry, and two permission systems remain.
+  an agent. *Breaks:* a path that skips approval. Check: none; the agent API skips
+  the run registry, and two permission systems remain.
 - **Phone first.** The installed phone app is the main surface. *Breaks:* works on
-  the laptop, fails in your hand. Held by 10, 15, 19, 21. Check: the phone, by nature.
-- **Product bar.** CLIde does what comparable apps taught you to expect. *Breaks:* it
-  feels old while working. Check: none; runtime phase 3b runs the first comparison.
+  the desktop, fails on the phone. Held by 14, 15, 17. Check: a real device, by
+  nature; target sizing is in [the UI standards map](docs/maps/ui-standards.md).
+- **Product bar.** CLIde does what comparable apps have taught users to expect.
+  *Breaks:* it feels old while working. Check: none; runtime phase 3b runs the
+  first comparison.
 
----
+## Code map
 
-## 1. Every conversation has two IDs, and only one of them is an address
+### `server/`
 
-CLIde mints its own id for a session (`session_id`) and stores it in its database.
-The provider — Claude Code, Codex — separately writes its own id (`provider_session_id`)
-into its own transcript file on disk. They are different strings for the same
-conversation.
+`server/index.ts` starts the server. Each area is a module under `server/modules/`,
+shaped by [the module standards](.agents/skills/backend-module-standards/SKILL.md).
 
-**The rule:** a running process is only ever addressed by CLIde's id. The provider's id
-is a lookup key — used to find the right file — never a way to reach a running session.
+- `providers/` holds one adapter per provider in `list/<provider>/` (runtime, history
+  parser, models, settings) plus shared services: runtime selection, capabilities,
+  CLI updates and the sessions watcher. Provider SDKs are imported only here.
+- `websocket/` is the chat gateway (run registry, session writer, replay, abort) and
+  the Shell's terminal connection.
+- `database/` is the SQLite connection, migrations and repositories.
+- `auth/` and `user/` cover sign-in, per-user Git config and onboarding.
+- `projects/`, `file-tree/` and `git/` back project discovery, Files and Source
+  Control.
+- `browser-use/` runs a Playwright browser per chat and its MCP endpoint.
+- `scheduled-messages/` and `notifications/` cover timed sends, Auto-Continue and
+  notices.
+- `commands/`, `settings/`, `plugins/`, `voice/` and `assets/` cover slash commands,
+  app settings, plugin processes, speech and chat attachments.
+- `agent/` is the external Agent API (HTTP and server-sent events) for other tools.
+- `system/` and `cli/` are self-update and the `cloudcli` command-line entry point.
 
-**What breaks:** send, abort, or resume goes to the wrong process or none at all, and a
-single conversation splits into two sidebar rows. This caused three separate bugs in one
-upstream merge, so it is the assumption most worth protecting.
+### `src/`
 
-## 2. Providers are adapters, and shared code must not know their names
+- `App.tsx` wraps the whole app in sign-in, theme, the WebSocket connection and
+  plugins.
+- `components/<area>/` has one folder per surface: `chat/`, `sidebar/`, `shell/`,
+  `git-panel/`, `file-tree/`, `settings/`, `browser-use/` and others.
+- `stores/useSessionStore.ts` holds each session's messages, pagination and live
+  reconciliation; `contexts/` holds the WebSocket, auth, theme, appearance and
+  permission contexts.
+- `i18n/` holds ten locales.
 
-Claude, Codex, Cursor and OpenCode each have a folder under
-`server/modules/providers/list/`. Everything above them — the UI, the websocket layer,
-the database — is supposed to work the same regardless of which one is running.
+### Elsewhere
 
-**The rule:** shared code asks *what can this provider do*, never *which provider is
-this*. There are ten capability flags for exactly this (`supportsAbort`,
-`supportsFork`, `supportsRewind`, `supportsImages`, and so on), served by
+- `shared/` has types and utilities imported by both server and browser.
+- `scripts/` has the `check:*` gates (docs, tests, providers, upstream), benchmarks,
+  live SDK probes (`verify-*`), the runtime scorecard and worktree setup.
+- `docs/` has maps, decisions and plans; `docs/TODO.md` is the backlog.
+- `designs/` has the logo masters; the assets in `public/` are generated from them.
+- `dist/` and `dist-server/` are build output (invariant 12).
+
+## Invariants
+
+Each invariant states what must stay true and what breaks if it does not.
+
+### Sessions and providers
+
+#### 1. Every conversation has two ids, and only CLIde's is an address
+
+CLIde mints `session_id` and stores it in its database; the provider separately
+writes `provider_session_id` into its transcript. A running process is only ever
+addressed by `session_id`. The provider's id is a lookup key for finding the file,
+never a way to reach a running session.
+
+**Breaks:** send, abort or resume reaches the wrong process or none, and one
+conversation splits into two sidebar rows. This caused three separate bugs in one
+upstream merge.
+
+#### 2. Shared code asks what a provider can do, never which provider it is
+
+Everything above `server/modules/providers/list/` (the UI, the gateway, the
+database) works the same for every provider, through capability flags served by
 `provider-capabilities.service.ts`.
 
-**What breaks:** a feature built for Claude with an `if (provider === 'claude')` check
-either silently does nothing on Codex or crashes it. Because Claude is your daily
-driver, you will not notice until you open a Codex session days later — which is
-precisely the delayed-bug pattern.
+**Breaks:** an `if (provider === 'claude')` feature does nothing on Codex, or crashes
+it, and nobody notices until a Codex session days later.
 
-## 3. The transcript file is the truth about what ran
+#### 3. A conversation has one writer: Chat or the Shell, never both
 
-Providers write an append-only log of the conversation to disk. CLIde reads it. Whatever
-the UI shows, whatever the database recorded, whatever model you *think* was selected —
-the transcript is the record of what actually happened.
+The Shell runs its own copy of the provider's CLI, which reads the conversation once
+and then works from memory. While a Shell has a CLI running on a session, Chat
+refuses to send to it; while Chat is replying, the Shell refuses to start on it.
+Disconnect ends the Shell's CLI; a closed tab or lost signal keeps it 30 minutes for
+reattaching.
 
-**The rule:** read the transcript to establish what ran, but validate anything taken from
-it before feeding it back into a command. It is trustworthy as history and untrustworthy
-as input.
+**Breaks:** both write, the conversation forks, and the last writer wins; the other
+side's messages drop out of view though they stay in the file.
 
-History pages may reuse a parsed transcript only while every contributing source still
-has the same revision. Claude subagent files and Codex parent rollouts are part of that
-source; an uncertain, partial, missing, or failed read is never retained as complete.
+#### 4. CLIde follows the installed provider CLI
 
-Unchanged messages should not be rebuilt when a new message arrives. An updated
-reply or tool result must still appear immediately; skipping work must never
-freeze what the conversation shows.
+The installed Claude or Codex launcher owns which version runs. CLIde checks changed
+versions, finishes active work before replacing a running process, and offers
+updates without installing them on a check
+([ADR 0061](docs/decisions/0061-follow-installed-provider-clis.md)).
 
-**What breaks:** a value scraped from an old transcript gets passed as a live model
-argument, and a session silently resumes on a different model than it started on.
+**Breaks:** a private bundled version misses installed fixes, switching a running
+process interrupts work, and an incompatible update chosen silently hides the
+problem.
 
-## 4. A watcher rediscovers anything left on disk
+#### 5. A usage limit is read from the provider's marker, not its wording
 
-`sessions-watcher.service.ts` watches the providers' transcript directories and pushes
-any session it finds into the sidebar automatically. This is how a session started
-outside CLIde still shows up.
+Claude stamps a stopped turn with a quota record and reset time; Codex names
+`usage_limit_exceeded`. Anything that reacts to a limit reads that marker, never the
+localized sentence, and notices a reset when usage returns, not at the predicted
+time, because providers reset early.
 
-**The rule:** when removing a session, delete the file on disk *before* the database row.
-Do it in the other order and the watcher re-adds it in the gap.
+**Breaks:** matching the sentence fails silently the next time it is reworded;
+waiting for the predicted time can hold a message for a week after an early reset.
 
-**What breaks:** deleted sessions reappear, and test runs leave real-looking projects and
-conversations in your sidebar.
+### Transcripts and data
 
-## 5. Token counting exists in three places that must agree
+#### 6. The transcript is the record of what ran
 
-The number behind the context ring is assembled by three separate pieces of code: one
-for the live stream, one for the API endpoint the UI polls, one for reading a session's
-history. Claude also writes fake zero-usage rows into transcripts (error notices,
-session-limit messages), and all three paths have to skip them identically.
+Whatever the UI shows or the database recorded, the provider's transcript is what
+happened. It is trustworthy as history and untrustworthy as input: validate anything
+taken from it before it reaches a command. A parsed transcript is reused only while
+every contributing file (including Claude subagent files and Codex parent rollouts)
+has the same revision, and a partial or failed read is never kept as complete.
+Unchanged messages are not rebuilt when a new one arrives, but an updated reply or
+tool result appears immediately.
 
-**The rule:** any change to how Claude usage is counted gets made in all three, in the
-same edit.
+**Breaks:** a value scraped from an old transcript becomes a live model argument, and
+a session resumes on a different model than it started on.
 
-**What breaks:** the context ring goes blank or reads zero, usually only on sessions that
-hit a limit — so it looks intermittent and unrelated to whatever was changed.
+#### 7. A watcher rediscovers anything left on disk
 
-## 6. Merged, built, and live are three different facts
+The sessions watcher pushes any transcript it finds into the sidebar, which is how
+sessions started outside CLIde appear. Removing a session deletes the file before
+the database row.
 
-`dist/` is the browser code, built by `npm run build:client`. The server reads it from
-disk on every request, so a rebuild plus a browser refresh is a complete deploy.
-`dist-server/` is the backend, built by `npm run build:server`, and only a restart picks
-it up. A merge changes source only; it does not install dependencies, rebuild either
-artifact, or replace the already-running server process.
+**Breaks:** in the other order the watcher re-adds the session in the gap; deleted
+sessions and test runs reappear as real projects and conversations.
 
-**The rule:** establish each boundary separately: source merged, dependencies current,
-client and server built from that source, then the current server process running that
-build. Frontend-only work can still use `build:client` then refresh; anything crossing
-dependencies or the backend uses the production deployment path that verifies every
-boundary.
+#### 8. Token counting exists in three places that must agree
 
-**What breaks:** you refresh, see no change, and conclude the fix failed when it was
-never built or loaded. Or “merged” is mistaken for “live” while production keeps serving
-an older client, server, or dependency set.
+The context ring's number is assembled separately for the live stream, the polled
+API endpoint and history reading. Claude writes synthetic zero-usage rows (error
+notices, limit messages) that all three must skip the same way, so a change to
+Claude usage counting is made in all three at once
+([code anchors](docs/maps/code-anchors.md)).
 
-## 7. Which port you check is not a judgment call
+**Breaks:** the ring reads blank or zero, usually only on sessions that hit a limit,
+so it looks intermittent and unrelated to the change.
 
-3001 is production, serving the main checkout. 3002 is the branch-test server, serving a
-worktree. 5173 is the Vite dev server with hot reload, and it is pinned to the main
-checkout.
+#### 9. The database lives outside the checkout
 
-**The rule:** verify on the port that serves the checkout that was edited. Work done on a
-branch in a worktree does not exist on 3001, by definition.
+Working-tree changes cannot destroy it, and git cannot restore it either. Back it up
+before anything touching auth, schema or migrations.
 
-**What breaks:** you're sent to refresh 3001 for a change that only exists on a branch,
-see nothing, and both of you start debugging a bug that isn't there.
+**Breaks:** a bad migration is permanent.
 
-## 8. The database is outside the repo, so git cannot undo it
+#### 10. Older messages load by bookmark
 
-Your logins, sessions and project rows live in `~/.cloudcli/auth.db`, deliberately
-outside the checkout so that working-tree changes can't destroy them. The tradeoff is
-that `git checkout` and `git stash` can't rescue them either.
+New replies arrive while older messages are read, so a count from the newest reply
+moves; a server bookmark tied to the conversation does not. A refresh keeps the
+oldest loaded message when history only grows; a rewind or replacement starts a
+fresh window; a cancelled request cannot put abandoned messages back. Hidden tool
+records still count toward paging.
 
-**The rule:** back it up before anything touching auth, schema, or migrations —
-`cp ~/.cloudcli/auth.db ~/.cloudcli/auth.db.bak-<label>`. There is no other undo.
+**Breaks:** messages repeat, vanish between pages, or reappear after a rewind.
 
-**What breaks:** a bad migration is permanent.
+#### 11. A preference either follows the user or belongs to one browser
 
-## 9. Documents have three types and hard size caps
+Most preferences live in browser storage, per browser and per device. A short
+allowlist (`shared/synced-preferences.ts`) is mirrored per user in the database:
+the server's copy wins on load, then the latest edit wins. Synced today: theme and
+font, favourite models, and each provider's tool permissions; chat reading size and
+line spacing deliberately are not. A preference syncs if it describes what the user
+wants CLIde to be like, and stays local if it describes the device.
 
-A **map** (`docs/maps/`) answers "how does this work today". An **ADR**
-(`docs/decisions/`) answers "what did we choose, and why". A **plan**
-(`docs/plans/`) answers "what is left, in what order". `npm run check:docs` enforces a
-byte cap on each — 8 KB for a plan, 24 KB for a map, 10 KB for an ADR.
+**Breaks:** a preference silently resets on a new browser, or one device's text size
+follows the user to another. Unsynced tool permissions make one device ask about
+work the other was told to allow.
 
-**The rule:** when a document and reality disagree, edit the document. Never append a
-correction or an audit section to preserve the wrong text.
+### Build and deploy
 
-**What breaks:** the caps exist because the previous system reached 317 KB across
-eighteen files, one of them 79 KB, whose two largest sections were both audits appended
-rather than edits made. Documents that expensive stop being read, and documents nobody
-reads drift into being confidently wrong.
-
-## 10. Accessibility sets a floor; it does not set CLIde's density
+#### 12. Client and server deploy differently
 
-The web accessibility requirement for a pointer target is 24×24 CSS pixels, with
-specific spacing and equivalent-control exceptions. Apple and Android recommend larger
-touch targets for comfort, but those platform figures do not make every CLIde control
-44px or 48px.
-
-**The rule:** start with the established controls around the change, then consider
-spacing, frequency, consequence, input method, and how it works on the actual device.
-Use a larger invisible hit area when it helps without overlapping nearby actions.
-
-**What breaks:** treating 44px as a universal rule makes compact menus and groups look
-unrelated to the rest of CLIde, then forces repeated visual corrections after the
-accessibility work was already technically complete.
-
-## 11. A browser window belongs to the chat that opened it
-
-Several chats can browse at once, and a browser can stay open while its agent is idle.
-
-**The rule:** the Chat preview opens only a browser explicitly linked to that chat.
-That browser belongs to the chat, not to the reply that opened it, so the page an
-agent left is still there when you send the next message; it closes on Stop, when the
-agent closes it, or after it sits unused. An open window alone does not mean the agent
-is using it; the preview distinguishes active, idle, stopped, and unavailable states.
-Questions and queued messages take priority over the thumbnail, which shrinks to a
-text row in the normal layout. The Browser tab fits the whole capture between its
-address and activity bars; Fullscreen offers closer scaling controls.
+The server reads `dist/` (built by `build:client`) from disk on every request, so a
+client rebuild plus a refresh is a complete client deploy. `dist-server/` (built by
+`build:server`) is loaded once, so only a restart picks it up. A merge changes source
+only: dependencies, both builds and the running process are separate boundaries,
+each established on its own.
 
-**What breaks:** guessing from whichever browser was used most recently can show
-another chat's work, and treating an open window as activity leaves a false spinner.
-If the browser reset between replies, an agent's first action each time would land on
-a blank page it thought it had already navigated. Stretching a phone capture across
-the desktop column makes it huge, while a tall capture pushes the activity line off
-the phone screen.
-Provider coverage and current limits: [Chat browser activity](docs/maps/chat-browser-activity.md).
+**Breaks:** a refresh shows no change and a working fix is judged failed, or
+"merged" is taken for "live" while production serves an older build.
 
-## 12. Agents sign in to test servers without ever seeing the password
+### Browser, phone and the chat surface
 
-The test account lives only on the branch-test servers; your own account is on 3001.
+#### 13. A Browser window belongs to the chat that opened it
 
-**The rule:** the Browser opens test servers already signed in, from a saved sign-in
-made when the test server starts. If a login form still appears, the agent types the
-*name* of the secret and Playwright fills in the real value. Agents never read the
-credentials file or write their own login script.
+Several chats can browse at once, and a browser can stay open while its agent is
+idle. The chat preview shows only a browser linked to that chat. The browser belongs
+to the chat, not the reply, so the page persists between messages; it closes on Stop,
+when the agent closes it, or after sitting unused. An open window alone is not
+activity ([chat browser activity](docs/maps/chat-browser-activity.md)).
 
-**What breaks:** an agent told "don't expose the password" but given no safe way to
-enter it stops at the login form, then verifies in a separate hidden browser you can't
-see in the Browser tab.
+**Breaks:** guessing from the most recent browser shows another chat's work, an open
+window reads as a false spinner, and a reset between replies lands the agent on a
+blank page it thought it had navigated.
 
-## 13. A usage limit is read from what the provider marks, not what it writes
+#### 14. On the installed phone app the chat scrolls as the page
 
-A stopped turn carries the provider's own label for why — Claude stamps the row with a
-quota record and a reset time, Codex names `usage_limit_exceeded`. The sentence you see
-is localized wording that has already changed shape once.
+That is the only way Android keeps text-selection handles moving with the finger
+([ADR 0056](docs/decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md));
+browser tabs and desktop still scroll the chat inside a box. Anything full-screen
+over the chat locks the page while open, nothing moves the chat while text is
+selected, and every bar floating over the chat lets touches through during a
+selection.
 
-**The rule:** anything that reacts to a limit — the Auto-Continue offer, a waiting
-message — reads the label, never the sentence. And a reset is noticed when usage comes
-back, not when the predicted time arrives, because providers reset early.
+**Breaks:** drags scroll the chat underneath an overlay; selection handles slide
+under a bar, jump to the top, or get pulled into the composer.
 
-**What breaks:** matching the sentence stops working silently the next time it is
-reworded. Waiting for the predicted time holds a message for up to a week after an early
-reset, at exactly the moment it should have gone.
+#### 15. Nothing moves the chat that the reader did not scroll
 
-## 14. Nothing has a published place around the composer
-
-Where things go in and around the composer is convention and taste; no standard says.
-Four reasons decide it instead, written out in the UI standards map: how far your thumb
-reaches, how little room the keyboard leaves, whether a thing affects the next message or
-the whole session, and whether it is waiting on you.
-
-**The rule:** name which of the four a placement rests on before building it. The strip
-above the composer is the scarcest space on a phone, so it earns an item only when that
-item needs you now — or, for queued messages, when it is about to send and you are
-likely to change it first, and then as one row.
-Questions share a collapsible frame: on a phone, collapse keeps the answer intact and
-frees the conversation for scrolling. Expanded questions take at most half the
-available screen height; their content scrolls inside while the controls stay visible.
-
-**What breaks:** copying a desktop tool's layout fills that strip with cards that all
-compete while you type, and each new feature adds one more.
-
----
-
-## 15. On a phone the chat scrolls as the page, so overlays must lock it
-
-In the installed app on your phone, the conversation scrolls as the whole page, because
-that is the only way Android lets text-selection handles scroll along with your finger.
-Browser tabs and desktop still scroll the chat inside a box.
-
-**The rule:** anything that opens full-screen over the chat locks the page while it is
-open, nothing moves the chat while you have text selected, and every bar floating over the
-chat lets touches through while text is selected.
-
-**What breaks:** a new full-screen screen without the lock lets your drags scroll the chat
-underneath it, which is what the sidebar did. A new bar over the chat that still catches
-touches makes selection handles slide under it or jump to the top again, and anything
-floating over the chat that can be selected, even an empty one like the scrollbar, pulls
-the selection into the composer. Putting the phone chat back in a box brings
-back handles that jump to the top of the conversation
-([ADR 0056](docs/decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md)).
-
-## 16. A preference either follows you across devices or belongs to one browser
-
-Most preferences live in the browser's own storage, so they exist per browser and per
-device: switching from the Samsung app to Chrome starts with none of them. A short
-allowlist (`shared/synced-preferences.ts`) is mirrored per user in the database instead,
-so those follow you: the server's copy wins when a browser loads, and after that the most
-recent edit wins. Synced today: theme and font, favourite models, and each
-provider's tool permissions. Deliberately not synced, from the same appearance settings:
-chat reading size and line spacing.
-
-**The rule:** decide which list a new preference belongs on. It syncs if it describes what
-you want CLIde to be like; it stays local if it describes this device — window sizes, the
-open tab, which model this phone last used.
-
-**What breaks:** a preference you spent time on silently resets on a new browser. Syncing a per-device one is the opposite
-failure and just as annoying: your phone's text size follows you onto the desktop. Tool
-permissions are the case where the split is more than annoying — a device that never
-received them asks about work the other one was told to allow.
-
----
-
-## 17. Loading older messages follows a bookmark
-
-New replies can arrive while you read older messages. A count from the newest reply
-moves whenever that happens; a bookmark tied to the conversation keeps your place.
-
-**The rule:** older pages follow the server's bookmark. A refresh keeps the oldest
-loaded message when history only grows. A rewind or replacement starts a fresh
-window, and a cancelled request cannot put abandoned messages back.
-
-**What breaks:** messages repeat, disappear between pages, or jump back into view
-after a rewind. Hidden tool records still count toward paging even though they do
-not each become a visible bubble.
-
-## 18. Updating a CLI does not require updating CLIde's copy
-
-**The assumption:** the installed Claude or Codex launcher owns which version runs.
-
-**The rule:** CLIde follows that launcher, automatically checks changed Codex
-versions, and finishes active work before replacing its running process. New
-Session offers an Update action; checking for an update never installs one.
-
-**What breaks:** a private bundled version misses the fixes you installed, while
-switching a running process can interrupt work. An incompatible update must say
-so rather than silently choosing an older copy. [Decision](docs/decisions/0061-follow-installed-provider-clis.md).
-
-## 19. Nothing moves the chat that you did not scroll
-
-Older messages load above you, replies stream in below, and rows open while you
-read. The app puts your place back by hand after each, because the browser's own
-place-keeping fights the loading.
-
-**The rule:** a session opens at the bottom. While you are scrolled up, new messages
-never remove rows above you, and the row held still is the one at the top of your
-screen now. Every change to loading or scrolling is walked in phone and desktop mode,
-pausing between swipes, before it ships.
-
-**What breaks:** the view jumps by a message's height while you read, or a chat opens
-partway up. Speed-only checks let exactly that ship once
+Older messages load above, replies stream below, and rows open while reading; the app
+restores the reading position by hand after each. A session opens at the bottom.
+While scrolled up, new messages never remove rows above, and the row held still is
+the one at the top of the screen. Every change to loading or scrolling is walked in
+phone and desktop layouts, pausing between swipes, before it ships
 ([history map](docs/maps/chat-history-performance.md#position-and-per-step-walk)).
 
-## 20. A conversation has one writer: Chat or the Shell, never both
+**Breaks:** the view jumps by a message's height, or a chat opens partway up; speed
+checks alone let that ship once.
 
-**The assumption:** the Shell runs its own copy of the provider's CLI, which reads
-the conversation once and then works from memory. It never sees what Chat adds.
+#### 16. Nothing has a published place around the composer
 
-**The rule:** while a Shell has a CLI running on a session, Chat refuses to send
-to it; while Chat is replying, the Shell refuses to start on it. Disconnect ends the
-Shell's CLI and releases the session. Closing the tab or losing signal does not —
-that CLI stays up for 30 minutes so you can reattach.
+No standard covers placement around the composer. Four reasons decide it, set out in
+[the UI standards map](docs/maps/ui-standards.md): thumb reach, the room the keyboard
+leaves, whether a thing affects the next message or the whole session, and whether it
+is waiting on the user. The strip above the composer is the scarcest space on a
+phone: it holds only what needs the user now, plus queued messages about to send, as
+one row. Questions share one collapsible frame, at most half the screen when
+expanded.
 
-**What breaks:** both write, the conversation forks, and whichever wrote last wins —
-the other side's messages drop out of view though they stay in the file.
+**Breaks:** copying a desktop layout fills the strip with competing cards, one more
+per feature.
 
-## 21. Mobile navigation stays in place before choosing a worktree
+#### 17. Mobile navigation stays in place before choosing a worktree
 
-Shell, Files, and Git need a worktree; a new Chat can begin at the picker.
+Shell, Files and Git need a worktree; a new Chat can begin at the picker. The bottom
+bar stays visible with Chat selected while choosing, and destinations that need a
+worktree are greyed out, including those inside More. The bar still hides when the
+keyboard opens.
 
-**The rule:** keep the bottom bar visible with Chat selected while choosing. Grey out
-destinations that need a worktree, including entries inside More. The bar still hides
-when the software keyboard opens.
+**Breaks:** hiding the bar shifts the composer when a worktree is picked; enabled
+dependent destinations open views with no working folder.
 
-**What breaks:** hiding the whole bar shifts the composer when a worktree is picked;
-enabling dependent destinations leads to views with no working folder.
+#### 18. Auto-Continue is a session setting; its waiting message is one action
 
-## 22. Auto-Continue is a session setting; its waiting message is one action
+Settings supplies the message and the default for new chats; each chat keeps its own
+mode in the header menu. The limit notice offers enabling only when the mode is off
+and no reset message is waiting, and the waiting bubble says what will be sent.
+Cancelling that message skips one continuation; turning the mode off stops future
+ones.
 
-Settings supplies the message and the preference for new chats. Each existing chat
-keeps its own Auto-Continue mode in the header menu.
+**Breaks:** showing the setting beside its queued message makes cancelling one send
+and disabling the mode look like the same action.
 
-**The rule:** the limit notice offers enabling only when the mode is off and no
-reset message is waiting. The waiting bubble says what will be sent. Canceling
-that message skips one continuation; turning the session mode off also stops
-future automatic continuations.
+## Reviewing a change
 
-**What breaks:** repeating the setting beside its queued message makes canceling
-one send and disabling the whole mode look like the same action.
+A change needs a second look if it would:
 
-## When to stop and ask
-
-You do not need to understand a diff to catch these. If a proposed change would:
-
-- pass a provider's own id to something that runs a session (1);
+- address a running session by the provider's id (1);
 - branch on a provider's name in shared code (2);
-- feed a transcript value into a live command without checking it (3);
-- delete a database row for a session whose file is still on disk (4);
-- change Claude token counting in fewer than three places (5);
-- reach the backend but end with "just refresh" (6);
-- ask you to verify a branch's work on 3001 (7);
-- touch auth, schema, or migrations without a backup first (8);
-- turn a compact control into a 44px control solely because it is used by touch (10);
-- react to a usage limit by reading its sentence, or wait on a reset's predicted time (13);
-- add another card to the strip above the composer for something not waiting on you (14);
-- open something full-screen over the chat without locking the page, or put the phone chat back in a scrolling box (15);
-- add a preference to the synced allowlist that really describes one device (16);
-- hand you an architecture plan or review that skips the pillars (top of this page);
+- let Chat and the Shell write one conversation (3);
+- react to a usage limit by its wording, or wait on a predicted reset time (5);
+- feed a transcript value into a live command unchecked (6);
+- delete a session's database row before its file (7);
+- change Claude token counting in fewer than three places (8);
+- touch auth, schema or migrations without a database backup (9);
+- add a per-device preference to the synced allowlist (11);
+- reach the backend but end with "just refresh" (12);
+- open something full-screen over the chat without locking the page, or put the phone
+  chat back in a scrolling box (14);
+- add a card above the composer for something not waiting on the user (16);
+- change the architecture without a check against the quality goals and a
+  pre-mortem.
 
-— then say so. Being able to name the rule is enough; you don't have to be able to prove
-the violation. Asking is cheap, and every one of these is expensive to find later.
+Naming the invariant is enough to raise it; proving the violation is not required.

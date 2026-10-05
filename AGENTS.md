@@ -39,7 +39,7 @@ only once its index points there; never read a directory to find out.
 | Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
 | Running, adding, or timing tests | `docs/maps/test-suite.md` |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
-| Phased work, or any architecture change | its plan via the `docs/plans/` board; the Pillars atop `ARCHITECTURE.md`; a pre-mortem |
+| Phased work, or any architecture change | its plan via the `docs/plans/` board; the quality goals in `ARCHITECTURE.md`; a pre-mortem |
 
 ## Glossary
 
@@ -55,12 +55,10 @@ only once its index points there; never read a directory to find out.
 
 ## Architecture and compatibility
 
-- The backend is Express + WebSocket under `server/`, fully migrated into
-  `server/modules/` as of upstream 1.37; the frontend is React 18, Vite, and Tailwind
-  under `src/`.  Shared types and utilities live in `shared/`.  `server/routes/`,
-  `server/utils/`, `server/services/`, `server/middleware/`, and the flat adapter files
-  at `server/`'s root are gone — be suspicious of any doc or memory that names them.
-  `ls server/modules/` lists the 19 current ones.
+- The system's shape, code map, invariants and quality goals are in
+  [`ARCHITECTURE.md`](ARCHITECTURE.md).  `server/routes/`, `server/utils/`,
+  `server/services/`, `server/middleware/`, and the flat adapter files at `server/`'s
+  root are gone since upstream 1.37 — be suspicious of any doc or memory naming them.
 - Providers are adapters.  Claude is the daily driver, but shared UI, protocol,
   database, and provider-interface work must keep working for Codex, Cursor, and
   OpenCode.  Prototype against Claude, then check how each other adapter implements
@@ -209,8 +207,9 @@ inside narrative that condensing removes anyway — so these rules target length
 Write a durable fact to the file that owns it and route to it, rather than into
 whichever file you happen to have open.  Ownership:
 
-- **This file** owns shared project truth: architecture, invariants, workflow,
-  verification, and the routing table above.  It is published on the fork, so it
+- **`ARCHITECTURE.md`** owns the system's shape, code map, invariants and quality
+  goals.  **This file** owns workflow, verification, project-wide rules, and the
+  routing table above.  It is published on the fork, so it
   carries **no host detail** — no home paths, hostnames, ports, or unit names.
 - **`docs/`** owns depth, in three types, each answering one question: a **map**
   (`docs/maps/`) "how does this work today", an **ADR** (`docs/decisions/`) "what did
