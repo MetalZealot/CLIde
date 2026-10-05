@@ -6,7 +6,7 @@
   [tool activity stream map](../../maps/tool-activity-stream.md); what peer apps
   share and where they differ in
   [UI standards](../../maps/ui-standards.md#tool-activity-rows); the originating
-  brief is `docs/CLIde_Tool_Activity_Display_Investigation.md`, which this plan
+  brief is [the archived investigation](../../specs/archive/2026-08-22-tool-activity-display-investigation.md), which this plan
   supersedes where they disagree.
 
 Claude and Codex only. Cursor and OpenCode ride the same seam afterwards
