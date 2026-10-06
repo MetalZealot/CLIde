@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmod, lstat, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
@@ -1023,6 +1023,7 @@ describe('claude-runtime turns on a fake query', () => {
     abortController?: AbortController;
     permissionMode?: string;
     allowedTools?: string[];
+    cwd?: string;
   }) {
     const runtime = await loadRuntime();
     const fake = createFakeQuery();
@@ -1036,10 +1037,11 @@ describe('claude-runtime turns on a fake query', () => {
       })();
       return fake.instance;
     });
+    const mapped: string[] = [];
     const writer = {
       userId: null,
       send: (frame: Frame) => { sent.push(frame); },
-      setSessionId: () => {},
+      setSessionId: (id: string) => { mapped.push(id); },
     };
     const context = {
       resolveProviderSessionId: () => options.providerId,
@@ -1050,13 +1052,13 @@ describe('claude-runtime turns on a fake query', () => {
     };
     const done = runtime.queryClaudeSDK('hello', {
       sessionId: options.appId,
-      cwd: os.tmpdir(),
+      cwd: options.cwd ?? os.tmpdir(),
       abortController: options.abortController,
       permissionMode: options.permissionMode,
       toolsSettings: { allowedTools: options.allowedTools ?? [], disallowedTools: [] },
     }, writer, context);
     while (!fake.options) await new Promise((resolve) => setImmediate(resolve));
-    return { runtime, fake, sent, done };
+    return { runtime, fake, sent, mapped, done };
   }
 
   const settle = () => new Promise((resolve) => setImmediate(resolve));
@@ -1155,6 +1157,47 @@ describe('claude-runtime turns on a fake query', () => {
       await done;
       runtime.setClaudeQueryForTests(null);
     }
+  });
+
+  // A new chat names its provider id before spawn; one stopped before its first
+  // frame claims that id only if the CLI wrote the transcript.
+  for (const written of [true, false]) {
+    test(`a new chat stopped before its first frame ${written ? 'claims its transcript' : 'maps nothing without one'}`, async () => {
+      const home = await mkdtemp(path.join(os.tmpdir(), 'claude-home-'));
+      const previousHome = process.env.HOME;
+      process.env.HOME = home;
+      try {
+        const cwd = path.join(home, 'project');
+        const controller = new AbortController();
+        const { runtime, fake, mapped, done } = await startTurn({ appId: `app-new-${written}`, providerId: null, abortController: controller, cwd });
+        const minted = fake.options?.sessionId as string;
+        assert.match(minted, /^[0-9a-f-]{36}$/);
+        assert.equal(fake.options?.resume, undefined);
+        if (written) {
+          const { encodeClaudeProjectDir } = await import('@/modules/providers/list/claude/claude-rewind.util.js');
+          const dir = path.join(home, '.claude', 'projects', encodeClaudeProjectDir(cwd));
+          await mkdir(dir, { recursive: true });
+          await writeFile(path.join(dir, `${minted}.jsonl`), '{}\n');
+        }
+        controller.abort();
+        fake.end();
+        await done;
+        runtime.setClaudeQueryForTests(null);
+        assert.deepEqual(mapped, written ? [minted] : []);
+      } finally {
+        process.env.HOME = previousHome;
+        await rm(home, { recursive: true, force: true });
+      }
+    });
+  }
+
+  test('a resumed chat never names a session id, which the CLI refuses with resume', async () => {
+    const { runtime, fake, done } = await startTurn({ appId: 'app-resume', providerId: 'prov-resume' });
+    assert.equal(fake.options?.resume, 'prov-resume');
+    assert.equal(fake.options?.sessionId, undefined);
+    fake.end();
+    await done;
+    runtime.setClaudeQueryForTests(null);
   });
 
   test('a forked resume that announces a new provider id stays addressed by the app id', async () => {

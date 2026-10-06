@@ -810,6 +810,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   // captured from the stream for brand-new sessions).
   let capturedSessionId = providerSessionId;
   let sessionCreatedSent = false;
+  // A new conversation's provider id, named before spawn (probe 9).
+  let mintedSessionId = null;
   // The CLI fabricates a notice row for a usage limit or API error and *then*
   // the SDK throws that same text back wrapped. Both would draw a row.
   let noticeStreamed = false;
@@ -850,6 +852,21 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       capturedSessionId = null;
     }
   }
+
+  // A run that never saw a frame never mapped its id. Mapped only once the CLI
+  // has written the transcript: a mapping to a missing one would make every
+  // later send fail to resume. The watcher's duplicate row, if any, merges in.
+  const claimMintedTranscript = async () => {
+    if (!mintedSessionId || capturedSessionId) return;
+    const transcriptPath = resolveClaudeTranscriptPath({ cwd: options.cwd }, mintedSessionId);
+    try {
+      await fs.access(transcriptPath);
+    } catch {
+      return;
+    }
+    capturedSessionId = mintedSessionId;
+    ws.setSessionId?.(mintedSessionId);
+  };
 
   const turnStartedAt = Date.now();
   const sinceStart = () => Date.now() - turnStartedAt;
@@ -903,6 +920,13 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       model: resolvedModel || options.model,
       effortModels,
     });
+
+    // Named up front so a run stopped before its first frame can still claim the
+    // transcript the CLI wrote; the CLI refuses `sessionId` alongside `resume`.
+    if (sessionId && !sdkOptions.resume) {
+      mintedSessionId = crypto.randomUUID();
+      sdkOptions.sessionId = mintedSessionId;
+    }
 
     // Plan tools the user's own list lacks, so leaving plan mid-turn removes only these.
     const userAllowedTools = options.toolsSettings?.allowedTools || [];
@@ -1328,6 +1352,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Clean up session on completion
     clearBackgroundHold();
     inputChannel?.close();
+    await claimMintedTranscript();
     if (sessionKey()) {
       removeSession(sessionKey());
     }
@@ -1377,6 +1402,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Clean up session on error
     clearBackgroundHold();
     inputChannel?.close();
+    await claimMintedTranscript();
     if (sessionKey()) {
       removeSession(sessionKey());
     }

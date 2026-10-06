@@ -457,9 +457,10 @@ phase done.
     project, built the way the model list already is (`claude-models.provider.ts`),
     and cached. The terminal-only list is cached from the last `init`. The 11
     hardcoded definitions remain the fallback for other providers.
-  - `Options.sessionId` for new sessions, with the mapping recorded through
-    `assignProviderSessionId` before spawn; with `resume` the CLI refuses it unless
-    `forkSession` is set (probe 9). Closes the orphaned-first-message item.
+  - Built, not yet live-checked: `Options.sessionId` for new sessions. The
+    mapping is recorded at the first frame as before, or at teardown when a run
+    stopped before any frame left a transcript; recording it before spawn would
+    map a chat whose spawn failed to a transcript that never existed.
   - The live `tool_use_result` (snake_case), and summarized thinking.
   - You: during a running Claude reply, switch the mode in the composer; the
     next tool call follows it without a new message. Agent, live: abort a new

@@ -113,28 +113,15 @@ touching abort, approval replay, or resume, confirm which id space you are in:
 `server/modules/websocket/tests/chat-session.test.ts`. See ADRs 0008, 0012,
 0013.
 
-**Known open defect — aborting a new session's *first* message orphans it into two
-sidebar rows.** A fourth, distinct id-mapping bug: not one of ADR 0013's three, not
-ADR 0008's rotation case. `capturedSessionId` is assigned only *inside* the stream loop
-(`claude-runtime.provider.js`, `for await (const message of queryInstance)`), so an
-abort that trips the AbortController before the SDK yields its first message runs zero
-iterations — no `session_created`, `ws.setSessionId` never fires, and
-**`assignProviderSessionId` is never called**. The CLI subprocess has already written
-the jsonl, so the synchronizer correctly indexes it as a second session.
-
-The reconciliation already exists and simply never runs: `assignProviderSessionId`
-(`sessions.db.ts`) merges a watcher-created duplicate into the app row in one
-transaction, covered by `sessions.db.test.ts`. **This is a missing-trigger
-bug, not a missing-mechanism one.** Two fixes are available. The SDK declares
-`Options.sessionId` (new sessions and forks only; a valid UUID), so CLIde can mint the
-provider id before spawn and the stream capture becomes a check — untested live, and
-the route phase 1 of [the runtime rebuild plan](../plans/agent-runtime-rebuild.md)
-takes. Short of that, reconcile on teardown: where `capturedSessionId` is still null,
-find a jsonl in the run's project transcript dir created within the run's lifetime that
-no session row claims and no alias tombstones, disambiguate by matching its first `user`
-row against the aborted prompt, and call `assignProviderSessionId`. **If more than one
-candidate matches, do nothing** — that leaves today's behaviour, so an ambiguous case is
-no worse than the status quo.
+**A new Claude chat names its provider id before spawn.** `queryClaudeSDK` mints a
+UUID into `Options.sessionId` whenever it is not resuming (the CLI refuses
+`sessionId` with `resume` unless `forkSession` is set). The mapping is still recorded
+by the first frame's `session_id`, as for every provider. A run stopped before any
+frame — an abort that would otherwise orphan a new chat into two sidebar rows — claims the
+minted id at teardown (`claimMintedTranscript`), but only if the CLI wrote the
+transcript: mapping to a missing one would make every later send fail to resume.
+`assignProviderSessionId` (`sessions.db.ts`) merges any duplicate row the watcher
+created meanwhile.
 
 ## Model picker: catalog and active-model are two systems
 
