@@ -16,8 +16,8 @@ modified heavily, and is not the original CloudCLI UI software.
 
 ## What it does
 
-- **Chat** with each agent: streaming replies, tool activity, approvals, model and
-  effort pickers, resume, rewind and fork.
+- **Chat** with each agent: replies, tool activity, approvals, model and effort
+  pickers, resume, rewind and fork.
 - **Sessions** from every provider in one sidebar, searchable, starrable and
   archivable, with token and context usage.
 - **Shell**: a terminal in the project directory.

@@ -873,25 +873,7 @@
     "tagline": "Open-source AI coding assistant interface",
     "starOnGithub": "Star on GitHub",
     "links": {
-      "github": "GitHub",
-      "discord": "Discord",
-      "website": "cloudcli.ai"
-    },
-    "hosted": {
-      "title": "Try CloudCLI Hosted",
-      "description": "Team collaboration, shared MCP configs, settings sync across environments, and managed infrastructure.",
-      "learnMore": "Learn more"
-    },
-    "pro": {
-      "title": "CloudCLI Pro Features",
-      "sync": {
-        "title": "Sync Settings",
-        "description": "Keep your preferences, MCP configs, and theme in sync across all your environments."
-      },
-      "team": {
-        "title": "Team Management",
-        "description": "Multiple users, role-based access, and shared projects for your team."
-      }
+      "github": "GitHub"
     },
     "license": "Licensed under AGPL-3.0"
   },
