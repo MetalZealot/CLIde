@@ -1,7 +1,7 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
 - Status: 1/11
-- Next: Phase 1, the id-space slips first
+- Next: Grayson's phase-1 check on 3001 (a mode switch mid-reply), then phase 1b
 - Context: [SDK map](../maps/claude-agent-sdk.md) (§2 holds the phase-0 probe results),
   `scripts/verify-claude-session-sdk.ts`, `scripts/runtime-scorecard.mjs`,
   [command surface](../maps/claude-command-surface.md),
@@ -466,9 +466,9 @@ phase done.
     `thinking.display: 'summarized'` (measured: Opus's thinking text is empty
     without it, 141 characters with it; Haiku accepts it).
   - You: during a running Claude reply, switch the mode in the composer; the
-    next tool call follows it without a new message. Agent, live: abort a new
-    chat's first message (one sidebar row);
-    the slash menu lists the CLI's commands.
+    next tool call follows it without a new message. Agent, live (done
+    2026-10-06): aborted new chats map their transcript, against the real CLI;
+    the slash menu on a test server lists 69 commands, 41 from the CLI.
 
 - [ ] 1b. **Chat-path flight recorder — est. 1–2.** The chat-path core of the
   [diagnostics flight recorder](diagnostics-flight-recorder.md), built before
