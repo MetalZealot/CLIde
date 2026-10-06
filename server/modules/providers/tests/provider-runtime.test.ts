@@ -1038,6 +1038,7 @@ describe('claude-runtime turns on a fake query', () => {
       return fake.instance;
     });
     const mapped: string[] = [];
+    const normalized: Frame[] = [];
     const writer = {
       userId: null,
       send: (frame: Frame) => { sent.push(frame); },
@@ -1047,7 +1048,7 @@ describe('claude-runtime turns on a fake query', () => {
       resolveProviderSessionId: () => options.providerId,
       resolveResumeModel: async () => null,
       getProviderModels: async () => catalog,
-      normalizeMessage: () => [],
+      normalizeMessage: (raw: unknown) => { normalized.push(raw as Frame); return []; },
       isProviderInstalled: async () => true,
     };
     const done = runtime.queryClaudeSDK('hello', {
@@ -1058,7 +1059,7 @@ describe('claude-runtime turns on a fake query', () => {
       toolsSettings: { allowedTools: options.allowedTools ?? [], disallowedTools: [] },
     }, writer, context);
     while (!fake.options) await new Promise((resolve) => setImmediate(resolve));
-    return { runtime, fake, sent, mapped, done };
+    return { runtime, fake, sent, mapped, normalized, done };
   }
 
   const settle = () => new Promise((resolve) => setImmediate(resolve));
@@ -1104,6 +1105,8 @@ describe('claude-runtime turns on a fake query', () => {
       // Every chat query may switch to bypass later; the mode itself is unchanged.
       assert.equal(fake.options?.allowDangerouslySkipPermissions, true);
       assert.equal(fake.options?.permissionMode, undefined);
+      assert.deepEqual(fake.options?.thinking, { type: 'adaptive', display: 'summarized' });
+      assert.equal((fake.options?.env as Record<string, string>).CLAUDE_CODE_EMIT_STARTUP_TIMING, '1');
 
       const result = await runtime.controlClaudeSDKSession('app-live', {
         permissionMode: 'acceptEdits', model: 'opus', effort: 'default', fastMode: true,
@@ -1190,6 +1193,20 @@ describe('claude-runtime turns on a fake query', () => {
       }
     });
   }
+
+  test('a live tool result keeps its structured result, as a reloaded one does', async () => {
+    const { runtime, fake, normalized, done } = await startTurn({ appId: 'app-tur', providerId: 'prov-tur' });
+    fake.push({
+      type: 'user',
+      session_id: 'prov-tur',
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] },
+      tool_use_result: { numFiles: 3, filenames: ['a', 'b', 'c'] },
+    });
+    fake.end();
+    await done;
+    runtime.setClaudeQueryForTests(null);
+    assert.deepEqual(normalized[0]?.toolUseResult, { numFiles: 3, filenames: ['a', 'b', 'c'] });
+  });
 
   test('a resumed chat never names a session id, which the CLI refuses with resume', async () => {
     const { runtime, fake, done } = await startTurn({ appId: 'app-resume', providerId: 'prov-resume' });

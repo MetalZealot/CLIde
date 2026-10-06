@@ -59,10 +59,15 @@ function parseTurns(lines) {
       open.set(session, turn);
     }
     if (!turn) continue;
-    if (event === 'first-frame') turn.firstFrame = Number(f.ms);
+    if (event === 'first-frame') {
+      turn.firstFrame = Number(f.ms);
+      if (f.ready_ms) turn.ready = Number(f.ready_ms);
+    }
     if (event === 'result' || event === 'error-result') {
       turn.result = Number(f.ms);
       turn.error = event === 'error-result';
+      if (f.request_ms) turn.request = Number(f.request_ms);
+      if (f.ttft_ms) turn.ttft = Number(f.ttft_ms);
     }
     if (event === 'end' || event === 'failed') {
       turn.end = Number(f.ms);
@@ -156,6 +161,10 @@ console.log('\nSummary');
 console.log(summaryRow('run start → first frame, resumed', done.filter((t) => t.resume === 'yes').map((t) => t.firstFrame)));
 console.log(summaryRow('run start → first frame, new chat', done.filter((t) => t.resume === 'no').map((t) => t.firstFrame)));
 console.log(summaryRow('run start → result', turns.filter((t) => t.result != null).map((t) => t.result)));
+// Logged from the CLI's own timing since phase 1; older turns lack them.
+console.log(summaryRow('spawn → input ready (CLI)', turns.filter((t) => t.ready != null).map((t) => t.ready)));
+console.log(summaryRow('turn → request sent (CLI)', turns.filter((t) => t.request != null).map((t) => t.request)));
+console.log(summaryRow('request → first token (CLI)', turns.filter((t) => t.ttft != null).map((t) => t.ttft)));
 const failed = turns.filter((t) => t.failed).length;
 const errors = turns.filter((t) => t.error).length;
 console.log(`  failed runs ${failed}, error results ${errors}, aborted ${turns.filter((t) => t.aborted).length}`);

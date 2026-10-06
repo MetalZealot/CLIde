@@ -451,8 +451,9 @@ phase done.
     request path or the model never asked; fix it where the reproduction shows.
   - Built, with `chat.control`: `allowDangerouslySkipPermissions: true` on every
     Claude chat query, so a live switch to bypass works (probe 5).
-  - `CLAUDE_CODE_EMIT_STARTUP_TIMING=1` on chat queries, with the result's
-    `ttft_ms` and `time_to_request_ms` added to `[turn] result` for the scorecard.
+  - Built: `CLAUDE_CODE_EMIT_STARTUP_TIMING=1` on chat queries. `[turn]
+    first-frame` carries `ready_ms` (spawn to input ready), `[turn] result` carries
+    `request_ms` and `ttft_ms`, and the scorecard summarises all three.
   - The slash menu comes from `supportedCommands()` through an idle query per
     project, built the way the model list already is (`claude-models.provider.ts`),
     and cached. The terminal-only list is cached from the last `init`. The 11
@@ -461,7 +462,9 @@ phase done.
     mapping is recorded at the first frame as before, or at teardown when a run
     stopped before any frame left a transcript; recording it before spawn would
     map a chat whose spawn failed to a transcript that never existed.
-  - The live `tool_use_result` (snake_case), and summarized thinking.
+  - Built: the live `tool_use_result` reaches tool rows, and chat queries ask for
+    `thinking.display: 'summarized'` (measured: Opus's thinking text is empty
+    without it, 141 characters with it; Haiku accepts it).
   - You: during a running Claude reply, switch the mode in the composer; the
     next tool call follows it without a new message. Agent, live: abort a new
     chat's first message (one sidebar row); AskUserQuestion appears in bypass;

@@ -305,7 +305,11 @@ function mapCliOptionsToSDK(options = {}) {
   // Since SDK 0.2.113, options.env replaces process.env instead of overlaying it.
   // Also how CLI-side knobs reach the child: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS sets how long
   // the CLI waits for still-running background agents after a turn (default 600000 ms; 0 = forever).
-  sdkOptions.env = { ...process.env };
+  sdkOptions.env = {
+    ...process.env,
+    // Spawn phases on `init` and per-turn request timing on `result`, for the scorecard.
+    CLAUDE_CODE_EMIT_STARTUP_TIMING: '1',
+  };
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
   // which does not reliably follow npm's shell wrappers like cross-spawn does.
@@ -378,6 +382,10 @@ function mapCliOptionsToSDK(options = {}) {
     type: 'preset',
     preset: 'claude_code'
   };
+
+  // Opus 5.x omits thinking text unless asked; adaptive is already the CLI's
+  // default where a model supports it (measured 2026-10-06).
+  sdkOptions.thinking = { type: 'adaptive', display: 'summarized' };
 
   sdkOptions.settingSources = ['project', 'user', 'local'];
 
@@ -468,14 +476,19 @@ function getAllSessions() {
  * @returns {Object} Transformed message ready for WebSocket
  */
 function transformMessage(sdkMessage) {
+  let message = sdkMessage;
+  // Live rows carry the tool's structured result snake_case; transcript rows, camelCase.
+  if (message.tool_use_result !== undefined && message.toolUseResult === undefined) {
+    message = { ...message, toolUseResult: message.tool_use_result };
+  }
   // Extract parent_tool_use_id for subagent tool grouping
-  if (sdkMessage.parent_tool_use_id) {
+  if (message.parent_tool_use_id) {
     return {
-      ...sdkMessage,
-      parentToolUseId: sdkMessage.parent_tool_use_id
+      ...message,
+      parentToolUseId: message.parent_tool_use_id
     };
   }
-  return sdkMessage;
+  return message;
 }
 
 /** Gives a live limit notice the `quotaLimits` its transcript row carries, so it classifies as resumable. */
@@ -1120,6 +1133,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         logTurn('first-frame', sessionKey() || message.session_id, {
           ms: sinceStart(),
           frame: message?.subtype ? `${message.type}/${message.subtype}` : message?.type,
+          ready_ms: message?.startup_timing?.phases?.input_ready_ms,
         });
       }
       // Capture session ID from first message
@@ -1245,6 +1259,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
           cache_write: message.usage?.cache_creation_input_tokens,
           cache_read: message.usage?.cache_read_input_tokens,
           out: message.usage?.output_tokens,
+          request_ms: message.time_to_request_ms,
+          ttft_ms: message.ttft_ms,
           detail: failed && typeof message.result === 'string' ? message.result : undefined,
         });
       }
