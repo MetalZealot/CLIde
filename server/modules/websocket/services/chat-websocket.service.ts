@@ -16,6 +16,9 @@ import {
 import type {
   AnyRecord,
   AuthenticatedWebSocketRequest,
+  ChatControlChanges,
+  ChatControlKey,
+  ChatControlResult,
   InteractiveRequestResponse,
   LLMProvider,
   ProviderInteractiveResolution,
@@ -82,6 +85,11 @@ type ProviderRuntimeGateway = {
    */
   abort(provider: LLMProvider, appSessionId: string): Promise<boolean>;
   steer?(provider: LLMProvider, appSessionId: string, content: string): Promise<boolean>;
+  control?(
+    provider: LLMProvider,
+    appSessionId: string,
+    changes: ChatControlChanges,
+  ): Promise<ChatControlResult | null>;
   resolveInteractiveRequest(
     requestId: string,
     response: InteractiveRequestResponse,
@@ -207,6 +215,80 @@ async function handleChatSteer(
     requestId,
     sessionId,
     delivery: 'steer',
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/** Keeps the well-typed fields of a `chat.control` payload; null when none are. */
+function readChatControlChanges(raw: unknown): ChatControlChanges | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const input = raw as AnyRecord;
+  const changes: ChatControlChanges = {};
+  for (const key of ['permissionMode', 'model', 'effort'] as const) {
+    const value = typeof input[key] === 'string' ? input[key].trim() : '';
+    if (value) changes[key] = value;
+  }
+  if (typeof input.fastMode === 'boolean') {
+    changes.fastMode = input.fastMode;
+  }
+  return Object.keys(changes).length > 0 ? changes : null;
+}
+
+/**
+ * Handles `chat.control`: applies composer changes to a running turn. A change
+ * the provider takes only at the next send is reported as deferred, not
+ * refused — the composer already holds it for that send.
+ */
+async function handleChatControl(
+  ws: WebSocket,
+  data: AnyRecord,
+  dependencies: ChatWebSocketDependencies,
+): Promise<void> {
+  const sessionId = readRequiredSessionId(data);
+  if (!sessionId) {
+    sendProtocolError(ws, 'SESSION_ID_REQUIRED', 'chat.control requires a sessionId.');
+    return;
+  }
+  const changes = readChatControlChanges(data.changes);
+  if (!changes) {
+    sendProtocolError(ws, 'CONTROL_CHANGES_REQUIRED', 'chat.control requires at least one change.', sessionId);
+    return;
+  }
+  const session = sessionsDb.getSessionById(sessionId);
+  if (!session) {
+    sendProtocolError(ws, 'SESSION_NOT_FOUND', `Session "${sessionId}" was not found.`, sessionId);
+    return;
+  }
+
+  const provider = session.provider as LLMProvider;
+  const capabilities = providerCapabilitiesService.getProviderCapabilities(provider);
+  const requested = Object.keys(changes) as ChatControlKey[];
+  const live: ChatControlChanges = {};
+  for (const key of requested) {
+    if (capabilities.controlModes[key] !== 'live') continue;
+    if (key === 'permissionMode' && !capabilities.permissionModes.includes(changes.permissionMode ?? '')) continue;
+    Object.assign(live, { [key]: changes[key] });
+  }
+
+  let applied: ChatControlKey[] = [];
+  const run = chatRunRegistry.getRun(sessionId);
+  if (
+    run?.status === 'running'
+    && run.provider === provider
+    && Object.keys(live).length > 0
+    && dependencies.runtime.control
+  ) {
+    applied = (await dependencies.runtime.control(provider, sessionId, live))?.applied ?? [];
+  }
+
+  sendJson(ws, {
+    kind: 'chat_control_result',
+    requestId: typeof data.requestId === 'string' ? data.requestId : null,
+    sessionId,
+    applied,
+    deferred: requested.filter((key) => !applied.includes(key)),
     timestamp: new Date().toISOString(),
   });
 }
@@ -679,6 +761,9 @@ export function handleChatConnection(
           return;
         case 'chat.steer':
           await handleChatSteer(ws, data, dependencies);
+          return;
+        case 'chat.control':
+          await handleChatControl(ws, data, dependencies);
           return;
         case 'chat.abort':
           await handleChatAbort(ws, data, dependencies);

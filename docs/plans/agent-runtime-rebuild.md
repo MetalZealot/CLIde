@@ -440,16 +440,17 @@ phase done.
 - [ ] 1. **Quick wins on today's runtime — est. 2–3.**
   - Done: the id-space slips (context refresh, abort record, forked resume),
     with fake-`Query` turn tests in `provider-runtime.test.ts` that phase 6 extends.
-  - `chat.control`: a composer change during a running turn calls
-    `setPermissionMode`, `setModel` or `applyFlagSettings` on the live query
-    (looked up by app session id), keeping `sdkOptions` and the sessions row
-    (ADR 0025) in sync. "Default" is sent resolved.
+  - Built, not yet live-checked: `chat.control`. A composer change during a
+    running turn calls `setPermissionMode`, `setModel` or `applyFlagSettings` on
+    the live query, gated by the capability matrix's new `controlModes` (`live`
+    for Claude, `next-turn` elsewhere). The sessions row is still written by the
+    composer's own requests; "Default" effort resolves to the model's own level,
+    and `max` waits for the next send (the flag layer cannot carry it).
   - AskUserQuestion in bypass: reproduce it in CLIde first. The SDK hands it to
     `canUseTool` in bypass and auto (probe 4), so it is either lost in CLIde's
     request path or the model never asked; fix it where the reproduction shows.
-  - `allowDangerouslySkipPermissions: true` on every Claude chat query, so a live
-    switch to bypass works; until the mode is bypass nothing changes (probe 5).
-    CLIde still sends bypass only when the picker says so (ADR 0064).
+  - Built, with `chat.control`: `allowDangerouslySkipPermissions: true` on every
+    Claude chat query, so a live switch to bypass works (probe 5).
   - `CLAUDE_CODE_EMIT_STARTUP_TIMING=1` on chat queries, with the result's
     `ttft_ms` and `time_to_request_ms` added to `[turn] result` for the scorecard.
   - The slash menu comes from `supportedCommands()` through an idle query per

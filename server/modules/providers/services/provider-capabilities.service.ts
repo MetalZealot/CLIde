@@ -1,4 +1,4 @@
-import type { LLMProvider } from '@/shared/types.js';
+import type { ChatControlKey, ChatControlMode, LLMProvider } from '@/shared/types.js';
 import { getProviderServiceStatusPageUrl } from '@/modules/providers/services/provider-service-status.service.js';
 import {
   codexAppServerRuntimeCapabilitiesAvailable,
@@ -30,6 +30,8 @@ type ProviderCapabilities = {
   supportsAbort: boolean;
   /** Whether new user input can be appended to an in-flight turn. */
   supportsActiveTurnSteering: boolean;
+  /** When a composer change reaches the provider; `chat.control` applies only `live` ones. */
+  controlModes: Record<ChatControlKey, ChatControlMode>;
   /** Whether interactive tool permission prompts can reach the UI. */
   supportsPermissionRequests: boolean;
   /** Whether the token-usage endpoint has data for this provider. */
@@ -85,6 +87,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsFiles: true,
     supportsAbort: true,
     supportsActiveTurnSteering: true,
+    controlModes: { permissionMode: 'live', model: 'live', effort: 'live', fastMode: 'live' },
     supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
@@ -106,6 +109,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsFiles: true,
     supportsAbort: true,
     supportsActiveTurnSteering: false,
+    controlModes: { permissionMode: 'next-turn', model: 'next-turn', effort: 'none', fastMode: 'none' },
     supportsPermissionRequests: false,
     supportsTokenUsage: false,
     supportsUsageResetAlerts: false,
@@ -127,6 +131,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsFiles: true,
     supportsAbort: true,
     supportsActiveTurnSteering: false,
+    controlModes: { permissionMode: 'next-turn', model: 'next-turn', effort: 'next-turn', fastMode: 'next-turn' },
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: true,
@@ -151,6 +156,7 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
     supportsFiles: true,
     supportsAbort: true,
     supportsActiveTurnSteering: false,
+    controlModes: { permissionMode: 'next-turn', model: 'next-turn', effort: 'next-turn', fastMode: 'none' },
     supportsPermissionRequests: false,
     supportsTokenUsage: true,
     supportsUsageResetAlerts: false,

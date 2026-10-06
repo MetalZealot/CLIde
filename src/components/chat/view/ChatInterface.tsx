@@ -22,7 +22,7 @@ import {
   type ScheduledMessage,
   type ScheduledMessageTrigger,
 } from '../hooks/useScheduledMessages';
-import { useProviderCapabilities } from '../../../hooks/useProviderCapabilities';
+import { useProviderCapabilities, type ChatControlChanges } from '../../../hooks/useProviderCapabilities';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 
@@ -217,6 +217,23 @@ function ChatInterface({
     pageScroll,
   });
 
+  const providerCapabilities = useProviderCapabilities();
+  // A composer change during a running turn also reaches that turn when the
+  // provider takes it live; otherwise the next send carries it.
+  const sendLiveControl = useCallback((changes: ChatControlChanges) => {
+    const sessionId = currentSessionId || selectedSession?.id;
+    const modes = providerCapabilities?.[provider]?.controlModes;
+    if (!sessionId || !isProcessing || !modes) return;
+    const live = Object.fromEntries(
+      Object.entries(changes).filter(([key]) => modes[key as keyof ChatControlChanges] === 'live'),
+    );
+    if (Object.keys(live).length === 0) return;
+    sendMessage({ type: 'chat.control', sessionId, changes: live });
+  }, [currentSessionId, isProcessing, provider, providerCapabilities, selectedSession?.id, sendMessage]);
+  const handleTogglePermissionMode = useCallback(() => {
+    sendLiveControl({ permissionMode: togglePermissionMode() });
+  }, [sendLiveControl, togglePermissionMode]);
+
   // Brand-new conversation: the composer allocated a stable session id via
   // the session gateway before the first send. Record it locally and put it
   // in the URL — this id never changes again, so there is no later handoff.
@@ -326,7 +343,7 @@ function ChatInterface({
     provider,
     permissionMode,
     collaborationMode,
-    togglePermissionMode,
+    togglePermissionMode: handleTogglePermissionMode,
     toggleCollaborationMode: availableCollaborationModes.length > 0
       ? toggleCollaborationMode
       : undefined,
@@ -458,9 +475,10 @@ function ChatInterface({
     const result = await selectProviderModel(targetProvider, model, sessionId);
     if (result.scope === 'session' && sessionId) {
       sessionStore.setModel(sessionId, result.model);
+      sendLiveControl({ model: result.model });
     }
     return result;
-  }, [selectProviderModel, sessionStore]);
+  }, [selectProviderModel, sendLiveControl, sessionStore]);
 
   const applySessionEffort = useCallback(async (
     nextEffort: string,
@@ -478,6 +496,7 @@ function ChatInterface({
 
     try {
       await selectProviderEffort(provider, nextEffort, sessionId);
+      sendLiveControl({ effort: nextEffort });
       return true;
     } catch (error) {
       console.error('Error changing the reasoning effort:', error);
@@ -486,7 +505,7 @@ function ChatInterface({
       }
       return false;
     }
-  }, [provider, selectProviderEffort, sessionStore]);
+  }, [provider, selectProviderEffort, sendLiveControl, sessionStore]);
 
   const handleSelectComposerEffort = useCallback(async (nextEffort: string) => {
     const sessionId = currentSessionId || selectedSession?.id || null;
@@ -501,12 +520,13 @@ function ChatInterface({
     if (sessionId) sessionStore.setFastMode(sessionId, enabled);
     try {
       await selectProviderFastMode(provider, enabled, sessionId);
+      sendLiveControl({ fastMode: enabled });
       showSettingsChangeNotice();
     } catch (error) {
       console.error('Error changing fast mode:', error);
       if (sessionId && previous !== null) sessionStore.setFastMode(sessionId, previous);
     }
-  }, [currentSessionId, provider, selectProviderFastMode, selectedSession?.id, sessionStore, showSettingsChangeNotice]);
+  }, [currentSessionId, provider, selectProviderFastMode, selectedSession?.id, sendLiveControl, sessionStore, showSettingsChangeNotice]);
 
   const handleSelectComposerModel = useCallback(async (model: string, targetProvider: LLMProvider = provider) => {
     const sessionId = currentSessionId || selectedSession?.id || null;
@@ -596,7 +616,6 @@ function ChatInterface({
     }, [addMessage, scheduledSessionId, sessionStore]),
   );
   scheduledEditRef.current = scheduledEdit;
-  const providerCapabilities = useProviderCapabilities();
   const canScheduleOnUsageReset = providerCapabilities?.[provider]?.supportsUsageResetAlerts === true;
   const liveLimitStop = useLiveLimitStop(chatMessages, canScheduleOnUsageReset);
   const autoContinue = useSessionAutoContinue(selectedSession?.id, projects, selectedSession?.autoContinue);
@@ -780,10 +799,10 @@ function ChatInterface({
     },
     [handleScheduleMessage],
   );
-  const handleSelectPermissionMode = useCallback(
-    (mode: string) => selectPermissionMode(mode as PermissionMode),
-    [selectPermissionMode],
-  );
+  const handleSelectPermissionMode = useCallback((mode: string) => {
+    selectPermissionMode(mode as PermissionMode);
+    sendLiveControl({ permissionMode: mode });
+  }, [selectPermissionMode, sendLiveControl]);
   const handleRemoveAttachment = useCallback(
     (index: number) =>
       setAttachedFiles((previous) => previous.filter((_, currentIndex) => currentIndex !== index)),

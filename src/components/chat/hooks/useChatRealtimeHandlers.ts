@@ -270,6 +270,10 @@ export function useChatRealtimeHandlers({
         case 'chat_input_rejected':
           return;
 
+        // Reply to a live composer change; the composer already shows the value.
+        case 'chat_control_result':
+          return;
+
         default:
           break;
       }

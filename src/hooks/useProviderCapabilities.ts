@@ -11,6 +11,16 @@ import type { LLMProvider } from '../types/app';
  * one that drops a flag, must degrade to the caller's fallback rather than
  * crash. Callers read a flag from here instead of branching on the provider id.
  */
+/** Composer settings a running turn may change (`chat.control`). */
+export type ChatControlKey = 'permissionMode' | 'model' | 'effort' | 'fastMode';
+
+export type ChatControlChanges = {
+  permissionMode?: string;
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
+};
+
 export type ProviderCapabilities = {
   provider: LLMProvider;
   permissionModes: string[];
@@ -21,6 +31,8 @@ export type ProviderCapabilities = {
   supportsFiles?: boolean;
   supportsAbort?: boolean;
   supportsActiveTurnSteering?: boolean;
+  /** `live` reaches the running turn; `next-turn` waits for the next send. */
+  controlModes?: Partial<Record<ChatControlKey, 'live' | 'next-turn' | 'none'>>;
   supportsPermissionRequests?: boolean;
   supportsTokenUsage?: boolean;
   supportsUsageResetAlerts?: boolean;

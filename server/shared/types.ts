@@ -772,6 +772,36 @@ export type SideQuestionAnswer = {
   synthetic?: boolean;
 };
 
+/**
+ * Composer settings a running turn may change. The gateway reads the
+ * per-provider mode from the capability matrix; runtimes only ever see `live`
+ * keys. Used by `chat.control`, the provider runtime contract and capabilities.
+ */
+export type ChatControlKey = 'permissionMode' | 'model' | 'effort' | 'fastMode';
+
+/**
+ * How a provider takes a change to one control: `live` reaches the running
+ * turn, `next-turn` waits for the next send, `none` means it has no such control.
+ */
+export type ChatControlMode = 'live' | 'next-turn' | 'none';
+
+/**
+ * One `chat.control` request. Values are what the composer shows; a runtime
+ * resolves "default" to a concrete value before applying it, because clearing
+ * a setting mid-session falls back to Claude Code's own defaults, not CLIde's.
+ */
+export type ChatControlChanges = {
+  permissionMode?: string;
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
+};
+
+/** What a runtime applied to the running turn; the rest waits for the next send. */
+export type ChatControlResult = {
+  applied: ChatControlKey[];
+};
+
 export type ProviderRunFunction = (
   command: string,
   options: AnyRecord,

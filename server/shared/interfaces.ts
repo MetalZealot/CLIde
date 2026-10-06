@@ -1,5 +1,7 @@
 import type {
   AnyRecord,
+  ChatControlChanges,
+  ChatControlResult,
   FetchHistoryOptions,
   FetchHistoryResult,
   HistorySourceRevision,
@@ -48,6 +50,11 @@ export interface IProviderRuntime {
   abort(sessionId: string): boolean | Promise<boolean>;
   /** Appends ordinary user input to an already-running provider turn. */
   steer?(sessionId: string, content: string): boolean | Promise<boolean>;
+  /**
+   * Applies composer changes to the running turn. Null when the session has no
+   * live turn; keys left out of `applied` take effect on the next send.
+   */
+  control?(sessionId: string, changes: ChatControlChanges): Promise<ChatControlResult | null>;
   /**
    * Answers one question beside the session without disturbing it: no transcript
    * row, no queued turn, and no interruption of a run already in flight.

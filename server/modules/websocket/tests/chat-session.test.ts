@@ -269,6 +269,83 @@ describe('chat-session-addressing', () => {
     });
   });
 
+  // Provider ids differ from app ids so a runtime addressed by the wrong one fails.
+  for (const provider of ['claude', 'codex'] as const) {
+    test(`${provider}: chat.control reaches the runtime only with live changes, by app id`, async () => {
+      await withIsolatedDatabase(async () => {
+        const appSessionId = `app-control-${provider}`;
+        sessionsDb.createAppSession(appSessionId, provider, '/workspace/demo');
+        sessionsDb.assignProviderSessionId(appSessionId, `native-control-${provider}`);
+        let releaseRun = (): void => {};
+        const controls: unknown[][] = [];
+        const dependencies: ChatDependencies = {
+          runtime: {
+            hasRuntime: () => true,
+            run: async () => new Promise<void>((resolve) => { releaseRun = resolve; }),
+            abort: async () => true,
+            control: async (runProvider, sessionId, changes) => {
+              controls.push([runProvider, sessionId, changes]);
+              return { applied: Object.keys(changes) as Array<'permissionMode' | 'model'> };
+            },
+            resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+            getPendingApprovalsForSession: () => [],
+          },
+        };
+        const connection = new FakeConnection();
+        handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+        connection.emit('message', JSON.stringify({ type: 'chat.send', sessionId: appSessionId, content: 'start' }));
+        await flush();
+        connection.emit('message', JSON.stringify({
+          type: 'chat.control', requestId: 'c1', sessionId: appSessionId,
+          changes: { permissionMode: 'acceptEdits', model: 'opus', fastMode: 'yes' },
+        }));
+        await flush();
+
+        const result = connection.frames.find((frame) => frame.kind === 'chat_control_result');
+        if (provider === 'claude') {
+          assert.deepEqual(controls, [['claude', appSessionId, { permissionMode: 'acceptEdits', model: 'opus' }]]);
+          assert.deepEqual(result?.applied, ['permissionMode', 'model']);
+          assert.deepEqual(result?.deferred, []);
+        } else {
+          // Codex takes both at the next send, so its runtime is never asked.
+          assert.deepEqual(controls, []);
+          assert.deepEqual(result?.deferred, ['permissionMode', 'model']);
+        }
+        assert.equal(result?.sessionId, appSessionId);
+        releaseRun();
+        await flush();
+      });
+    });
+  }
+
+  test('chat.control on an idle session defers every change and asks no runtime', async () => {
+    await withIsolatedDatabase(async () => {
+      const appSessionId = 'app-control-idle';
+      sessionsDb.createAppSession(appSessionId, 'claude', '/workspace/demo');
+      let asked = false;
+      const dependencies: ChatDependencies = {
+        runtime: {
+          hasRuntime: () => true,
+          run: async () => undefined,
+          abort: async () => true,
+          control: async () => { asked = true; return { applied: [] }; },
+          resolveInteractiveRequest: async () => ({ status: 'not_found' as const }),
+          getPendingApprovalsForSession: () => [],
+        },
+      };
+      const connection = new FakeConnection();
+      handleChatConnection(connection as never, {} as AuthenticatedWebSocketRequest, dependencies);
+      connection.emit('message', JSON.stringify({
+        type: 'chat.control', sessionId: appSessionId, changes: { permissionMode: 'plan' },
+      }));
+      await flush();
+
+      assert.equal(asked, false);
+      const result = connection.frames.find((frame) => frame.kind === 'chat_control_result');
+      assert.deepEqual(result?.deferred, ['permissionMode']);
+    });
+  });
+
   test('chat.send forwards validated mixed attachments through the runtime contract', async () => {
     await withIsolatedDatabase(async () => {
       const appSessionId = 'app-attachments';

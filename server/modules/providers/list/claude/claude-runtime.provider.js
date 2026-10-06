@@ -35,6 +35,7 @@ import {
   getClaudeContextCeiling,
   loadClaudeContextCeiling,
 } from '@/modules/providers/list/claude/claude-context-usage.js';
+import { CLAUDE_PERSISTABLE_EFFORT_LEVELS } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_FALLBACK_MODELS } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { normalizeClaudeRateLimitEvent } from '@/modules/providers/list/claude/claude-usage.provider.js';
 import { providerUsageService } from '@/modules/providers/services/provider-usage.service.js';
@@ -83,6 +84,9 @@ const CLAUDE_CONTEXT_USAGE_REFRESH_MS =
   parseInt(process.env.CLAUDE_CONTEXT_USAGE_REFRESH_MS, 10) || 60000;
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
+
+// Auto-allowed while the mode is plan, on top of the user's own allow list.
+const PLAN_MODE_TOOLS = ['Read', 'Task', 'exit_plan_mode', 'TodoRead', 'TodoWrite', 'WebFetch', 'WebSearch'];
 
 /** Model the CLI stamps on rows it fabricated rather than the model producing. */
 const SYNTHETIC_MODEL = '<synthetic>';
@@ -326,8 +330,7 @@ function mapCliOptionsToSDK(options = {}) {
   let allowedTools = [...(settings.allowedTools || [])];
 
   if (permissionMode === 'plan') {
-    const planModeTools = ['Read', 'Task', 'exit_plan_mode', 'TodoRead', 'TodoWrite', 'WebFetch', 'WebSearch'];
-    for (const tool of planModeTools) {
+    for (const tool of PLAN_MODE_TOOLS) {
       if (!allowedTools.includes(tool)) {
         allowedTools.push(tool);
       }
@@ -342,6 +345,10 @@ function mapCliOptionsToSDK(options = {}) {
   sdkOptions.tools = { type: 'preset', preset: 'claude_code' };
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
+
+  // Lets a live switch to bypass work; until the picker chooses bypass, every
+  // other mode still asks (probe 5). The mode itself stays the picker's (ADR 0064).
+  sdkOptions.allowDangerouslySkipPermissions = true;
 
   // Unset lets Claude Code apply its own precedence (ANTHROPIC_MODEL, settings
   // cascade, plan default). "default" is not a real alias: sending it drops the
@@ -418,13 +425,15 @@ function mapCliOptionsToSDK(options = {}) {
  * @param {Object} writer - WebSocket writer for reconnect support
  * @param {Object|null} input - The run's input stream, for steering
  */
-function addSession(sessionId, queryInstance, writer = null, input = null) {
+function addSession(sessionId, queryInstance, writer = null, input = null, turn = null) {
   activeSessions.set(sessionId, {
     instance: queryInstance,
     startTime: Date.now(),
     status: 'active',
     writer,
-    input
+    input,
+    // The turn's live options and model catalog, for `controlClaudeSDKSession`.
+    turn
   });
 }
 
@@ -895,6 +904,16 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       effortModels,
     });
 
+    // Plan tools the user's own list lacks, so leaving plan mid-turn removes only these.
+    const userAllowedTools = options.toolsSettings?.allowedTools || [];
+    const liveTurn = {
+      sdkOptions,
+      effortModels,
+      planToolsAdded: sdkOptions.permissionMode === 'plan'
+        ? PLAN_MODE_TOOLS.filter((tool) => !userAllowedTools.includes(tool))
+        : [],
+    };
+
     const mcpServers = await loadMcpConfig(options.cwd);
     if (mcpServers) {
       sdkOptions.mcpServers = scopeClaudeChatBrowser(mcpServers, sessionId);
@@ -1036,7 +1055,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
     // Track the query instance for abort capability
     if (sessionKey()) {
-      addSession(sessionKey(), queryInstance, ws, inputChannel);
+      addSession(sessionKey(), queryInstance, ws, inputChannel, liveTurn);
     }
 
     // Frames resolve their ceiling from memory only, which a restart empties
@@ -1083,7 +1102,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
-        addSession(sessionKey(), queryInstance, ws, inputChannel);
+        addSession(sessionKey(), queryInstance, ws, inputChannel, liveTurn);
 
         // Set session ID on writer
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
@@ -1103,7 +1122,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         }
         capturedSessionId = message.session_id;
         if (!sessionId) {
-          addSession(capturedSessionId, queryInstance, ws, inputChannel);
+          addSession(capturedSessionId, queryInstance, ws, inputChannel, liveTurn);
         }
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
           ws.setSessionId(capturedSessionId);
@@ -1445,6 +1464,102 @@ async function abortClaudeSDKSession(sessionId) {
   }
 }
 
+/**
+ * Moves a turn's own permission bookkeeping to a new mode: `canUseTool` reads
+ * the mode, and plan's extra auto-allowed tools come and go with it.
+ */
+function setTurnPermissionMode(turn, mode) {
+  const { sdkOptions } = turn;
+  if (mode === 'plan' && sdkOptions.permissionMode !== 'plan') {
+    turn.planToolsAdded = PLAN_MODE_TOOLS.filter((tool) => !sdkOptions.allowedTools.includes(tool));
+    sdkOptions.allowedTools.push(...turn.planToolsAdded);
+  } else if (mode !== 'plan' && sdkOptions.permissionMode === 'plan') {
+    sdkOptions.allowedTools = sdkOptions.allowedTools.filter((tool) => !turn.planToolsAdded.includes(tool));
+    turn.planToolsAdded = [];
+  }
+  sdkOptions.permissionMode = mode;
+}
+
+/**
+ * The effort to apply live, or undefined to leave it for the next send.
+ * "default" is resolved to the model's own setting (ADR 0063): clearing it
+ * through the flag layer would run the model's built-in default instead. `max`
+ * is session-only in Claude Code, so the flag layer cannot carry it.
+ */
+function resolveLiveEffort(model, effort, models) {
+  const option = models?.OPTIONS?.find((candidate) => candidate.value === model) || null;
+  const level = effort === 'default'
+    ? option?.effort?.resolvedDefault
+    : resolveClaudeEffort(model, effort, models);
+  return CLAUDE_PERSISTABLE_EFFORT_LEVELS.includes(level) ? level : undefined;
+}
+
+/**
+ * Applies composer changes to the session's running turn. The session row's
+ * picks (ADR 0025) are written by the composer's own requests; this changes
+ * only what the live process runs with.
+ * @param {string} sessionId - App session id
+ * @param {import('@/shared/types.js').ChatControlChanges} changes
+ * @returns {Promise<import('@/shared/types.js').ChatControlResult|null>} Null when no turn is live
+ */
+async function controlClaudeSDKSession(sessionId, changes) {
+  const session = getSession(sessionId);
+  if (!session || session.status !== 'active' || !session.turn) {
+    return null;
+  }
+  const { instance, turn } = session;
+  const { sdkOptions, effortModels } = turn;
+  /** @type {import('@/shared/types.js').ChatControlKey[]} */
+  const applied = [];
+  const attempt = async (key, apply) => {
+    try {
+      await apply();
+      applied.push(key);
+    } catch (error) {
+      console.warn(`[Claude SDK] Live ${key} change failed:`, error?.message || error);
+    }
+  };
+
+  if (changes.permissionMode) {
+    await attempt('permissionMode', async () => {
+      await instance.setPermissionMode(changes.permissionMode);
+      setTurnPermissionMode(turn, changes.permissionMode);
+    });
+  }
+  // Never `setModel(undefined)`: that is Claude Code's fallback, not the picker's default.
+  const model = changes.model === 'default' ? effortModels?.DEFAULT : changes.model;
+  if (model) {
+    await attempt('model', async () => {
+      await instance.setModel(model);
+      sdkOptions.model = model;
+    });
+  }
+  // After the model, so "default" resolves against the model now running.
+  const effort = changes.effort
+    ? resolveLiveEffort(sdkOptions.model || effortModels?.DEFAULT, changes.effort, effortModels)
+    : undefined;
+  if (effort) {
+    await attempt('effort', async () => {
+      await instance.applyFlagSettings({ effortLevel: effort });
+      sdkOptions.effort = effort;
+    });
+  }
+  if (typeof changes.fastMode === 'boolean') {
+    await attempt('fastMode', async () => {
+      await instance.applyFlagSettings({ fastMode: changes.fastMode });
+      sdkOptions.settings = { ...sdkOptions.settings, fastMode: changes.fastMode };
+    });
+  }
+
+  logTurn('control', sessionId, {
+    applied: applied.join(',') || 'none',
+    mode: applied.includes('permissionMode') ? sdkOptions.permissionMode : undefined,
+    model: applied.includes('model') ? sdkOptions.model : undefined,
+    effort: applied.includes('effort') ? sdkOptions.effort : undefined,
+  });
+  return { applied };
+}
+
 const SIDE_QUESTION_UNAVAILABLE = 'Side questions are unavailable on this Claude version.';
 
 /**
@@ -1612,6 +1727,7 @@ export const claudeRuntime = {
   run: queryClaudeSDK,
   abort: abortClaudeSDKSession,
   steer: steerClaudeSDKSession,
+  control: controlClaudeSDKSession,
   askSideQuestion: askClaudeSideQuestion,
   permissions: {
     resolve: resolveToolApproval,
@@ -1624,6 +1740,7 @@ export {
   queryClaudeSDK,
   abortClaudeSDKSession,
   steerClaudeSDKSession,
+  controlClaudeSDKSession,
   askClaudeSideQuestion,
   runSideQuestion,
   isClaudeSDKSessionActive,

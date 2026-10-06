@@ -597,10 +597,11 @@ export function useChatProviderState({
     }
   }, [getCollaborationModesForProvider, provider, selectedSession?.id]);
 
-  const togglePermissionMode = useCallback(() => {
+  const togglePermissionMode = useCallback((): PermissionMode => {
     const modes = getPermissionModesForProvider(provider);
-    const nextMode = getNextRoutinePermissionMode(permissionMode, modes);
-    selectPermissionMode(nextMode as PermissionMode);
+    const nextMode = getNextRoutinePermissionMode(permissionMode, modes) as PermissionMode;
+    selectPermissionMode(nextMode);
+    return nextMode;
   }, [permissionMode, provider, getPermissionModesForProvider, selectPermissionMode]);
 
   const availablePermissionModes = useMemo(

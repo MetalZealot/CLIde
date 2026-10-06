@@ -988,6 +988,15 @@ describe('claude-runtime turns on a fake query', () => {
           calls.push({ method: 'getContextUsage', args: [] });
           return { maxTokens: 200000, totalTokens: 1000 };
         },
+        async setPermissionMode(...args: unknown[]) {
+          calls.push({ method: 'setPermissionMode', args });
+        },
+        async setModel(...args: unknown[]) {
+          calls.push({ method: 'setModel', args });
+        },
+        async applyFlagSettings(...args: unknown[]) {
+          calls.push({ method: 'applyFlagSettings', args });
+        },
       },
     };
     return fake;
@@ -999,7 +1008,22 @@ describe('claude-runtime turns on a fake query', () => {
 
   // Starts one turn the way the gateway does: app id in, provider id resolved
   // from the session row. Resolves once the fake has received its options.
-  async function startTurn(options: { appId: string; providerId: string | null; abortController?: AbortController }) {
+  const effortLevels = (...levels: string[]) => levels.map((value) => ({ value, label: value }));
+  const catalog = {
+    OPTIONS: [
+      { value: 'sonnet', label: 'Sonnet', effort: { values: effortLevels('low', 'high', 'max'), resolvedDefault: 'high' } },
+      { value: 'opus', label: 'Opus', effort: { values: effortLevels('low', 'medium', 'max'), resolvedDefault: 'medium' } },
+    ],
+    DEFAULT: 'sonnet',
+  };
+
+  async function startTurn(options: {
+    appId: string;
+    providerId: string | null;
+    abortController?: AbortController;
+    permissionMode?: string;
+    allowedTools?: string[];
+  }) {
     const runtime = await loadRuntime();
     const fake = createFakeQuery();
     const sent: Frame[] = [];
@@ -1020,7 +1044,7 @@ describe('claude-runtime turns on a fake query', () => {
     const context = {
       resolveProviderSessionId: () => options.providerId,
       resolveResumeModel: async () => null,
-      getProviderModels: async () => { throw new Error('no catalog in tests'); },
+      getProviderModels: async () => catalog,
       normalizeMessage: () => [],
       isProviderInstalled: async () => true,
     };
@@ -1028,6 +1052,8 @@ describe('claude-runtime turns on a fake query', () => {
       sessionId: options.appId,
       cwd: os.tmpdir(),
       abortController: options.abortController,
+      permissionMode: options.permissionMode,
+      toolsSettings: { allowedTools: options.allowedTools ?? [], disallowedTools: [] },
     }, writer, context);
     while (!fake.options) await new Promise((resolve) => setImmediate(resolve));
     return { runtime, fake, sent, done };
@@ -1066,6 +1092,69 @@ describe('claude-runtime turns on a fake query', () => {
     await second.done;
     second.runtime.setClaudeQueryForTests(null);
     assert.equal(completes(second.sent).length, 1);
+  });
+
+  test('a live control reaches the running turn, with Default resolved to a real value', async () => {
+    const { runtime, fake, done } = await startTurn({ appId: 'app-live', providerId: 'prov-live' });
+    try {
+      fake.push({ type: 'system', subtype: 'init', session_id: 'prov-live' });
+      await settle();
+      // Every chat query may switch to bypass later; the mode itself is unchanged.
+      assert.equal(fake.options?.allowDangerouslySkipPermissions, true);
+      assert.equal(fake.options?.permissionMode, undefined);
+
+      const result = await runtime.controlClaudeSDKSession('app-live', {
+        permissionMode: 'acceptEdits', model: 'opus', effort: 'default', fastMode: true,
+      });
+      assert.deepEqual(result?.applied, ['permissionMode', 'model', 'effort', 'fastMode']);
+      assert.deepEqual(fake.calls.filter((call) => call.method !== 'getContextUsage'), [
+        { method: 'setPermissionMode', args: ['acceptEdits'] },
+        { method: 'setModel', args: ['opus'] },
+        // The new model's own default, never a cleared key.
+        { method: 'applyFlagSettings', args: [{ effortLevel: 'medium' }] },
+        { method: 'applyFlagSettings', args: [{ fastMode: true }] },
+      ]);
+      assert.equal(fake.options?.permissionMode, 'acceptEdits', 'canUseTool reads the new mode');
+    } finally {
+      fake.end();
+      await done;
+      runtime.setClaudeQueryForTests(null);
+    }
+  });
+
+  test('max effort and a session with no live turn are left for the next send', async () => {
+    const { runtime, fake, done } = await startTurn({ appId: 'app-max', providerId: 'prov-max' });
+    try {
+      fake.push({ type: 'system', subtype: 'init', session_id: 'prov-max' });
+      await settle();
+      assert.equal(await runtime.controlClaudeSDKSession('app-elsewhere', { model: 'opus' }), null);
+      const result = await runtime.controlClaudeSDKSession('app-max', { effort: 'max' });
+      assert.deepEqual(result?.applied, []);
+      assert.equal(fake.calls.some((call) => call.method === 'applyFlagSettings'), false);
+    } finally {
+      fake.end();
+      await done;
+      runtime.setClaudeQueryForTests(null);
+    }
+  });
+
+  test('leaving plan mid-turn withdraws only the tools plan added', async () => {
+    const { runtime, fake, done } = await startTurn({
+      appId: 'app-plan', providerId: 'prov-plan', permissionMode: 'plan', allowedTools: ['WebFetch'],
+    });
+    try {
+      fake.push({ type: 'system', subtype: 'init', session_id: 'prov-plan' });
+      await settle();
+      assert.ok((fake.options?.allowedTools as string[]).includes('Read'));
+      await runtime.controlClaudeSDKSession('app-plan', { permissionMode: 'default' });
+      assert.deepEqual(fake.options?.allowedTools, ['WebFetch']);
+      await runtime.controlClaudeSDKSession('app-plan', { permissionMode: 'plan' });
+      assert.ok((fake.options?.allowedTools as string[]).includes('Read'));
+    } finally {
+      fake.end();
+      await done;
+      runtime.setClaudeQueryForTests(null);
+    }
   });
 
   test('a forked resume that announces a new provider id stays addressed by the app id', async () => {

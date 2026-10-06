@@ -5,6 +5,8 @@ import { providerUpdateCoordinator } from '@/modules/providers/services/provider
 import type { IProvider } from '@/shared/interfaces.js';
 import type {
   AnyRecord,
+  ChatControlChanges,
+  ChatControlResult,
   InteractiveRequestResponse,
   LLMProvider,
   ProviderInteractiveResolution,
@@ -100,6 +102,15 @@ export function createProviderRuntimeService(
     async steer(providerName: LLMProvider, sessionId: string, content: string): Promise<boolean> {
       const runtime = dependencies.resolveProvider(providerName).runtime;
       return runtime.steer ? Boolean(await runtime.steer(sessionId, content)) : false;
+    },
+
+    async control(
+      providerName: LLMProvider,
+      sessionId: string,
+      changes: ChatControlChanges,
+    ): Promise<ChatControlResult | null> {
+      const runtime = dependencies.resolveProvider(providerName).runtime;
+      return runtime.control ? runtime.control(sessionId, changes) : null;
     },
 
     /**
