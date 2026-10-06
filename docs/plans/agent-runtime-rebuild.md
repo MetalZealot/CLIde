@@ -140,6 +140,14 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
 
 Each is a technical call, with its reason.
 
+- **The bar is a Claude client built today, not CloudCLI's past.** Grayson kept
+  this codebase instead of restarting on the strength of this plan, so existing
+  behaviour earns no weight by being there. Every phase is reviewed against what
+  a from-scratch client would do; a workaround that exists only because of the
+  old design is named here, with the phase that removes it. Open ones: the
+  transcript wait for aborted new chats and the idle `claude` per project for the
+  command list (phase 6), and the hidden `/model`, `/effort`, `/fast`, `/clear`,
+  `/rename` (phase 7).
 - **Fix in place; no new app.** A rewrite rebuilds resume, approvals, tool
   display, PWA quirks, login, terminal, Git, Browser, voice and scheduled
   messages before gaining anything; what is wrong is concentrated in about
@@ -584,6 +592,10 @@ phase done.
   - Delivery is the `command_lifecycle` `queued`/`started` frame for the sent
     uuid; a send whose uuid is `cancelled` is reported undelivered.
   - Eviction and reopen as under "Session host"; reopening is a cold resume.
+  - Phase 1's workarounds for the per-message process go: an aborted new chat's
+    mapping waits on the process exit, not a 5-second file check; the command
+    list comes from the open session, and the idle `claude` per project stays
+    only if a project with no open chat still needs it — decided by measuring.
   - Tests on an injected fake `Query`: user- and provider-initiated turns;
     interrupt and stopping; live controls and the reconcile table; idle close
     and reopen, stale reopen, rewind reopen, `/clear` remap, replaying
@@ -605,7 +617,9 @@ phase done.
     real transcripts.
   - Commands: `supportedCommands()` and `commands_changed` feed the menu; slash
     text is sent natively; `local_command_output` becomes a command-output row;
-    terminal-only commands are hidden.
+    terminal-only commands are hidden. `/model`, `/effort`, `/fast`, `/clear` and
+    `/rename` leave the hide list once their state is read back
+    (`conversation_reset`, the session title, the composer controls).
   - A task strip from `task_*`, `background_tasks_changed` and
     `backgroundTasks()`.
   - Requests: `onElicitation`; `onUserDialog` with `supportedDialogKinds`.
@@ -649,6 +663,8 @@ phase done.
     a Claude chat a mode change applies to the running reply.
 
 - [ ] 9. **Cleanup — est. 1.**
+  - The from-scratch review: every workaround named under design positions is
+    gone, or has a written reason a client built today would keep it.
   - Remove the phase-6 flag and Claude's per-message chat path. `run()` stays
     for one-shot jobs (commit messages, the agent API).
   - Update the SDK map (snapshot and bottom line), the capability map, code
