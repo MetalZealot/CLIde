@@ -50,7 +50,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0010 — Viewport-positioned overlays set inset inline, never via `inset-0`](0010-pwa-mode-fixed-inset-override.md)
 - [0011 — Codex App Server is the opt-in interactive Chat transport](0011-codex-app-server-chat-transport.md) *(superseded by 0034)*
 - [0012 — Codex rewind replaces a stable session; fork creates another](0012-codex-rewind-and-fork-session-identity.md)
-- [0013 — Abort is signal-first; the provider id is only the graceful tier](0013-abort-is-signal-first-not-provider-id-keyed.md)
+- [0013 — Abort is signal-first; the provider id is only the graceful tier](0013-abort-is-signal-first-not-provider-id-keyed.md) *(superseded for Claude by 0066)*
 - [0014 — The context ring's ceiling is read from the SDK, not derived](0014-context-ceiling-from-sdk.md)
 - [0015 — The composer ring opens `/context`; `/cost` became `/usage`](0015-ring-opens-context-and-usage-rename.md) *(superseded by 0032)*
 - [0016 — Projects group checkouts by repository; a project is not a directory](0016-repository-grouped-checkouts.md)
@@ -102,3 +102,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0062 — Chat activity and metadata text scale with the reading size](0062-chat-metadata-scales-with-reading-size.md)
 - [0063 — A chat's Default effort is Claude Code's own per-model setting](0063-effort-default-is-claude-codes-own-setting.md)
 - [0064 — Claude's bypass is the picker's mode only, never a standing toggle](0064-claude-bypass-is-the-pickers-mode-only.md)
+- [0065 — The agent runtime layer is rebuilt in place and stops tracking upstream](0065-rebuild-the-runtime-layer-in-place-off-upstream.md)
+- [0066 — A Claude chat keeps one process open, and Stop ends only the turn](0066-claude-keeps-one-process-per-chat-and-stop-ends-the-turn.md)
+- [0067 — Chat messages are one typed shape, shared by server and client](0067-chat-messages-are-a-typed-shared-wire.md)
+- [0068 — A live session's settings and send queue live on the server](0068-live-session-settings-and-queue-live-on-the-server.md)

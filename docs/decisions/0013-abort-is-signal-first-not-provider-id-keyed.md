@@ -1,7 +1,7 @@
 # 0013 — Abort is signal-first; the provider id is only the graceful tier
 
 - Date: 2026-07-27
-- Status: Accepted
+- Status: Accepted; superseded for Claude by 0066
 
 ## Decision
 

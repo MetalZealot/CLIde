@@ -1,7 +1,7 @@
 # 0066 — A Claude chat keeps one process open, and Stop ends only the turn
 
 - Date: 2026-10-05
-- Status: Proposed
+- Status: Accepted
 
 Each open Claude chat holds one Claude Code process whose input stays open between messages, addressed by CLIde's own session id; an idle chat's process is closed when memory runs low or after an idle timeout, and the next message reopens it by resuming the transcript, as every message does today.
 Stop calls `interrupt()` and ends only the running reply: measured on 2026-10-05 it returns in under 10 ms, cancels a pending approval, keeps any queued message (which then runs next), and leaves the process ready for the next message, so the process is closed only when the chat closes, is evicted, or the interrupt has not settled within a few seconds.

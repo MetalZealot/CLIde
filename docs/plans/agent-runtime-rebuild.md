@@ -1,8 +1,7 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
-- Status: 0/11
-- Next: Grayson accepts or amends ADRs 0065–0068 (phase 0's probes, map and
-  scorecard are done), then Phase 1, the id-space slips first
+- Status: 1/11
+- Next: Phase 1, the id-space slips first
 - Context: [SDK map](../maps/claude-agent-sdk.md) (§2 holds the phase-0 probe results),
   `scripts/verify-claude-session-sdk.ts`, `scripts/runtime-scorecard.mjs`,
   [command surface](../maps/claude-command-surface.md),
@@ -12,7 +11,7 @@
   [capability map](../maps/clide-provider-capability-map.md),
   [permission modes](../maps/provider-permission-modes.md),
   [Codex App Server](../maps/codex-cli-sdk-app-server.md), [architecture](../../ARCHITECTURE.md) invariants 3 and 11;
-  ADRs 0003, 0007, 0008, 0012, 0013, 0025, 0056, 0063, 0064
+  ADRs 0003, 0007, 0008, 0012, 0013, 0025, 0056, 0063, 0064, 0065–0068
 
 This plan fixes the layer between each provider's SDK and the chat view, Claude
 first. The shell around it stays: sidebar, settings, Git, terminal, PWA, login,
@@ -113,7 +112,7 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
 | Phone and laptop disagree about a live chat; a message queued on a closed phone never sends | 5 |
 | Background-task notices appear only after a reload (inferred: frames after `complete` are dropped) | 5–6 |
 | "Starting" before every message (3.3 s median); a background job can't wake the chat after the reply ended | 6 |
-| Stop kills background jobs | 6 (per Grayson's call 3) |
+| Stop kills background jobs | 6 (ADR 0066) |
 | Claude tool rows look different after a reload | 7 |
 | Codex tool rows look different after a reload | follow-on plan (Grayson's call 2) |
 
@@ -128,6 +127,8 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
 - 2026-10-04: verification is a fake `Query` in tests, small live turns, and
   acceptance on the Pi per phase.
 - 2026-10-05: this plan is the priority, and it may exceed the plan size cap.
+- 2026-10-06: ADRs 0065–0068 accepted as written; that settles call 3 below
+  (Stop ends only the reply).
 
 ## Grayson's calls (the recommended default applies until he answers)
 
@@ -138,9 +139,8 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
    The likely fix is reading Codex history through its App Server
    (`thread/read`, `thread/turns/list`, `thread/items/list`: found in the 0.153.4
    binary's strings, never tried live), which is a different job from Claude's.
-3. **What Stop means.** Recommended: Stop ends the reply only; background jobs
-   (dev servers, background agents) keep running, each with its own stop button.
-   The alternative is today's behaviour: Stop ends everything.
+3. **What Stop means.** Settled by ADR 0066: Stop ends the reply only;
+   background jobs keep running, each with its own stop button.
 
 ## Design positions
 
@@ -405,8 +405,8 @@ and this plan in the same commit as its code. "You" is Grayson's under-a-minute
 check; "Agent, live" is what a session on the Pi verifies before calling the
 phase done.
 
-- [~] 0. **Ground rules and probes — est. 2.** Done 2026-10-05 except ADR acceptance.
-  - ADRs, proposed and uncommitted until accepted: 0065, the runtime layer is
+- [x] 0. **Ground rules and probes — est. 2.** Done 2026-10-05; ADRs accepted 2026-10-06.
+  - ADRs: 0065, the runtime layer is
     rebuilt in place and stops tracking upstream (with the upstream sync map's
     matching line); 0066, one long-lived Claude process per chat, Stop ends only
     the turn, delivery read from `command_lifecycle`, superseding ADR 0013 for
@@ -441,7 +441,6 @@ phase done.
     is coordinated with phase 3; Claude permission default and Claude settings
     phase 6 read session state from phase 5; the flight recorder's chat-path core
     is phase 1b.
-  - You: read the four ADRs; accept or amend each.
 
 - [ ] 1. **Quick wins on today's runtime — est. 2–3.**
   - Fix the id-space slips first; the new control message uses the same map.

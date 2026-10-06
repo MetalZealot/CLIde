@@ -1,7 +1,7 @@
 # 0067 — Chat messages are one typed shape, shared by server and client
 
 - Date: 2026-10-05
-- Status: Proposed
+- Status: Accepted
 
 `NormalizedMessage` moves to `shared/chat-protocol/` as a union of saved row kinds (text, thinking, tool call and result, error, compaction, …) and a union of live-only events, each kind carrying only its own fields, imported by both server and client; history, live frames and the agent API all carry these shapes, and the catch-all index signature goes.
 It is typed in place: the client's hand-copied type in `useSessionStore.ts` is deleted, `ChatMessage` is typed from the union, and the store's pagination, scroll restoration and reconciliation stay as they are.
