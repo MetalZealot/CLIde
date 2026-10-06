@@ -1,7 +1,7 @@
 # A Markdown-native project board makes work visible without becoming an orchestrator
 
-- Status: 1/6
-- Next: Grayson picks a mobile layout from the probe (inbox, swipe columns, or rows with filter chips), then phase 1
+- Status: 2/6
+- Next: phase 2, the plan-format contract
 - Context: [current project dashboard](project-dashboard.md), [plans board](README.md), [static HTML preview boundary](../decisions/0045-html-file-preview-is-static-and-isolated.md)
 
 CLIde may eventually provide a built-in or opt-in extension that shows project work
@@ -88,8 +88,10 @@ extension using the app's file-access boundary.
       measured against the 26 plans on 2026-10-06: 2 record a size for their next phase,
       none has a field saying it waits on Grayson, and one's checkbox count disagrees with
       its `Status`.
-- [ ] 1. Mobile layout chosen on the S20 from the probe of three layouts, then
-      captured as this plan's design.
+- [x] 1. Mobile layout chosen from a probe of three (inbox, swipe columns, rows):
+      rows.  Every plan is one line — title, progress bar, next-phase size, amber dot
+      when it needs Grayson — grouped by lane; filter chips with counts sit above;
+      tapping a row opens its full card in place.
 - [ ] 2. Plan-format contract for CLIde's own plans: a size on every phase, an optional
       `Needs:` field naming what waits on Grayson, `Status` matching the checkboxes —
       enforced by `npm run check:docs`, with existing plans migrated in one pass.

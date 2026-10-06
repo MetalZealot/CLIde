@@ -26,7 +26,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Workspace surfaces](workspace-surfaces.md) | 1/2 | Phase 1: a plain Terminal tab takes Shell's place; Shell view moves to the chat kebab |
 | [Codex thread ownership](codex-chat-shell-ownership.md) | not started | Phase 0: make failed Codex resume stop instead of opening a blank thread |
 | [Project dashboard](project-dashboard.md) | 1/4 | Use the generated page for real work before extending it |
-| [Markdown-native project board](markdown-project-board.md) | 1/6 | Phase 1: pick a mobile layout from the probe on the S20 |
+| [Markdown-native project board](markdown-project-board.md) | 2/6 | Phase 2: plan-format contract (phase sizes, `Needs:`) enforced by check:docs |
 | [Claude settings surface](claude-settings-surface.md) | 3/6 | Phase 4 (categories) built: live check on 3001, then Phase 5 |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
 | [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |
