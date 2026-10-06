@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useAuth } from '../components/auth/context/AuthContext';
 import { IS_PLATFORM } from '../constants/config';
 import { expireAuthSession, isAuthTokenExpired } from '../utils/api';
+import { flightRecorder } from '../utils/flightRecorder';
 
 /**
  * One frame received from the chat websocket. The server guarantees every
@@ -130,13 +131,17 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const { isLoading: isAuthLoading, token, user } = useAuth();
 
   const dispatch = useCallback((event: ServerEvent) => {
+    const recorder = flightRecorder();
+    const recorded = recorder?.beginFrame(event, listenersRef.current.size);
     for (const listener of listenersRef.current) {
       try {
         listener(event);
       } catch (error) {
+        recorder?.noteError(error);
         console.error('WebSocket listener error:', error);
       }
     }
+    if (recorded) recorder?.endFrame(recorded);
   }, []);
 
   const clearWatchdog = useCallback(() => {
@@ -167,6 +172,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       watchdogTimeoutRef.current = null;
       if (unmountedRef.current) return;
       console.warn('[WS] No response to liveness ping — forcing reconnect');
+      flightRecorder()?.event('ws.watchdog');
       setIsConnected(false);
       connectRef.current();
     }, PONG_TIMEOUT_MS);
@@ -190,7 +196,11 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       // Construct WebSocket URL
       const wsUrl = buildWebSocketUrl(token);
 
-      if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
+      if (!wsUrl) {
+        flightRecorder()?.event('ws.no-url');
+        return console.warn('No authentication token found for WebSocket connection');
+      }
+      flightRecorder()?.event('ws.connect');
 
       // Tear down any previous socket (half-open zombie, token change, or a
       // reconnect racing a wake probe): a leaked second socket would
@@ -216,6 +226,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
       websocket.onopen = () => {
         if (wsRef.current !== websocket) return; // superseded while connecting
+        flightRecorder()?.event('ws.open');
         setIsConnected(true);
         if (hasConnectedRef.current) {
           // This is a reconnect — signal so components can catch up on missed messages
@@ -233,7 +244,10 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       };
 
       websocket.onmessage = (event) => {
-        if (wsRef.current !== websocket) return;
+        if (wsRef.current !== websocket) {
+          flightRecorder()?.dropFrame(null, 'stale-socket');
+          return;
+        }
         // Any frame proves the connection is alive, even if the matching
         // pong was interleaved away.
         clearWatchdog();
@@ -251,6 +265,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
             const runId = typeof data.runId === 'string' ? data.runId : null;
             const known = replayProgressRef.current.get(data.sessionId);
             if (runId !== null && known && known.runId === runId && data.seq <= known.seq) {
+              flightRecorder()?.dropFrame(data, 'dup');
               return;
             }
             replayProgressRef.current.set(data.sessionId, { runId, seq: data.seq });
@@ -258,12 +273,14 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
           dispatch(data);
         } catch (error) {
+          flightRecorder()?.dropFrame(null, 'unparsed');
           console.error('Error parsing WebSocket message:', error);
         }
       };
 
-      websocket.onclose = () => {
+      websocket.onclose = (event) => {
         if (wsRef.current !== websocket) return; // stale socket — already replaced
+        flightRecorder()?.event('ws.close', { code: event.code });
         wsRef.current = null;
         setIsConnected(false);
         stopHeartbeat();
@@ -277,6 +294,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       };
 
       websocket.onerror = (error) => {
+        flightRecorder()?.event('ws.error');
         console.error('WebSocket error:', error);
       };
 
@@ -332,6 +350,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     const probe = () => {
       if (unmountedRef.current) return;
       const socket = wsRef.current;
+      flightRecorder()?.event('ws.wake', { code: socket?.readyState ?? -1 });
       if (socket && socket.readyState === WebSocket.OPEN) {
         sendPing(socket);
         return;
@@ -359,12 +378,15 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     if (socket && socket.readyState === WebSocket.OPEN) {
       try {
         socket.send(JSON.stringify(message));
+        flightRecorder()?.send(message, true);
         return true;
       } catch (error) {
+        flightRecorder()?.send(message, false);
         console.warn('WebSocket send failed:', error);
         return false;
       }
     }
+    flightRecorder()?.send(message, false);
     console.warn('WebSocket not connected');
     return false;
   }, []);

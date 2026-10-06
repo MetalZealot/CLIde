@@ -1,11 +1,9 @@
 # Opt-in diagnostics flight recorder
 
-- Status: not started
-- Next: Phase 0 — re-audit bootstrap, Settings registry, auth refresh, WebSocket
-  and service-worker boundaries against post-v1.37 `main` before writing code.
-  The chat-path core (frames by kind, handler errors, store rejections) is built
-  first, as [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 1b;
-  this plan keeps the other probes and the Settings screen.
+- Status: 1/5
+- Next: Phase 0's re-audit of bootstrap, Settings registry, auth refresh and
+  service worker, then phase 2's remaining probes on that core and the Settings
+  screen.
 - Context: the temporary recorder that proved the method — added `30f3498`,
   integrated `929a2dc`, removed after acceptance in `8aee41e`/`05cf60c`
 
@@ -59,10 +57,12 @@ for the device nobody can drive: the phone, and the installed PWA.
       diagnostics, error boundaries, or logging utilities worth adapting rather
       than duplicating. Confirm the URL query parameter does not collide with
       upstream.
-- [ ] **1. Recorder core.** Versioned enable/report storage; typed events,
+- [x] **1. Recorder core.** Built ahead of phase 0 as [the agent runtime
+      rebuild](agent-runtime-rebuild.md)'s phase 1b, in `src/utils/flightRecorder.ts`,
+      with its WebSocket and session-store probes. Versioned enable/report storage; typed events,
       redaction, ordering, bounded retention, batching, flushing, corruption
-      recovery, export; idempotent `startDiagnostics()`/`stopDiagnostics()`; query
-      activation *before* React bootstrap. Unit tests before any probe exists.
+      recovery, export; idempotent `startFlightRecorder()`/`stopFlightRecorder()`; query
+      activation (`?clideRecord=1`) *before* React bootstrap. Unit tests before any probe exists.
 - [ ] **2. Baseline probes.** Lifecycle/environment, service worker, auth,
       WebSocket, app-boundary, navigation, minimal user actions — each installed
       at its real ownership boundary, each with symmetric cleanup and no duplicate

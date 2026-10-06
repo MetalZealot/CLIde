@@ -5,6 +5,7 @@ import i18n from '../../../i18n/config.js';
 import type { ServerEvent } from '../../../contexts/WebSocketContext';
 import { showCompletionTitleIndicator } from '../../../utils/pageTitleNotification';
 import { playChatCompletionSound, playNotificationSound } from '../../../utils/notificationSound';
+import { flightRecorder } from '../../../utils/flightRecorder';
 import type { MarkSessionIdle, MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import type { PendingPermissionRequest, TurnEnd } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
@@ -285,7 +286,11 @@ export function useChatRealtimeHandlers({
       // --- Streaming: buffer for performance ---
       if (msg.kind === 'stream_delta') {
         const text = (msg.content as string) || '';
-        if (!text || !sid) return;
+        if (!text || !sid) {
+          flightRecorder()?.note(sid ? 'empty-delta' : 'no-session');
+          return;
+        }
+        flightRecorder()?.note('buffered');
         const streamSessionId = sid;
         appendStreamChunk(accumulatedStreamsRef.current, streamSessionId, text);
         if (!streamTimersRef.current.has(streamSessionId)) {
@@ -318,7 +323,10 @@ export function useChatRealtimeHandlers({
       }
 
       // A subagent's prose never renders live; keeping it would evict the session's own rows from the buffer.
-      if (msg.parentToolUseId && msg.kind !== 'tool_use' && msg.kind !== 'tool_result') return;
+      if (msg.parentToolUseId && msg.kind !== 'tool_use' && msg.kind !== 'tool_result') {
+        flightRecorder()?.note('subagent');
+        return;
+      }
 
       // --- All other messages: route to store ---
       const shouldPersist =
@@ -329,6 +337,8 @@ export function useChatRealtimeHandlers({
 
       if (sid && shouldPersist) {
         sessionStore.appendRealtime(sid, msg as unknown as NormalizedMessage);
+      } else if (shouldPersist) {
+        flightRecorder()?.note('no-session');
       }
 
       // --- UI side effects for specific kinds ---

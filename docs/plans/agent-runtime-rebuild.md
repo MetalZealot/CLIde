@@ -1,7 +1,8 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
 - Status: 1/11
-- Next: Grayson's phase-1 check on 3001 (a mode switch mid-reply), then phase 1b
+- Next: Grayson's checks on 3001 once Pi-Ops' Deploy has run: phase 1 (a mode
+  switch mid-reply) and phase 1b (copy a recorder block); then phase 2
 - Context: [SDK map](../maps/claude-agent-sdk.md) (§2 holds the phase-0 probe results),
   `scripts/verify-claude-session-sdk.ts`, `scripts/runtime-scorecard.mjs`,
   [command surface](../maps/claude-command-surface.md),
@@ -482,14 +483,23 @@ phase done.
   [diagnostics flight recorder](diagnostics-flight-recorder.md), built before
   phases 2–3 change what the client receives, so a "nothing appeared" report from
   the phone says which of its five causes it was.
-  - For each frame reaching the client's WebSocket listener: kind, session id,
-    `seq`/`runId`, and whether its handler returned or threw, with the stack;
-    each row the session store rejects, with the reason. Never contents.
-  - Activated by a URL query parameter before React starts, kept locally with
-    bounded retention, and copied as one redacted block small enough to paste
-    into a chat. No Settings screen: that stays in the flight-recorder plan's
-    phase 3, with its boot, service-worker and auth probes.
-  - Inert while off; unit tests for the recorder before any probe.
+  - Built, not yet seen on the phone: `src/utils/flightRecorder.ts`. Per frame
+    reaching the WebSocket listener: kind, short session and run ids, `seq`,
+    listener count, and handler notes (`stored`, `buffered`, `subagent`,
+    `no-session`, `dup`, `threw` with a redacted message and top stack frames);
+    the store adds `no-id`, `cap`, `detached` or `hidden` when a live row does
+    not reach the merged view. Also sends (type, session, sent or not), socket
+    connect/open/close/watchdog/wake and page visibility. Never contents.
+  - `?clideRecord=1` turns it on per origin before React starts (`=0` turns it
+    off and deletes what it kept). Each page load keeps its own storage key, 300
+    events, newest three loads; identical consecutive frames fold into one line.
+    A Copy / Clear / Off bar, built outside React, sits top right below the
+    header. No Settings screen: that stays in the flight-recorder plan's phase 3,
+    with its boot, service-worker and auth probes.
+  - Off costs one null check per call site; 12 recorder tests plus a store case.
+  - Agent, live (done 2026-10-06, main's client on Vite against the 3002 test
+    server): a Haiku turn recorded subscribe → send → status, thinking and text
+    `stored` → complete, with no message text; Copy, and Off clearing storage.
   - You: open a chat on the phone with the parameter, send a message, copy the
     block; it lists the turn's frames by kind and nothing you wrote.
 

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../utils/api';
+import { flightRecorder } from '../utils/flightRecorder';
 import type { LLMProvider } from '../types/app';
 
 import { removeOptimisticUserEchoes, reuseUnchangedServerMessages } from './sessionMessageReconciliation';
@@ -593,6 +594,17 @@ const STALE_THRESHOLD_MS = 30_000;
 
 const MAX_REALTIME_MESSAGES = 500;
 
+/** Tells the flight recorder whether a live row made it into the merged view. */
+function noteStoredRow(slot: SessionSlot, message: NormalizedMessage, overflow: boolean) {
+  const recorder = flightRecorder();
+  if (!recorder) return;
+  recorder.note('stored');
+  if (!message.id) recorder.note('no-id');
+  if (overflow) recorder.note('cap');
+  if (slot.hasNewer) recorder.note('detached');
+  else if (!slot.merged.some((row) => row.id === message.id)) recorder.note('hidden');
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useSessionStore() {
@@ -937,11 +949,13 @@ export function useSessionStore() {
         ? msg
         : { ...msg, sessionId };
     let updated = [...slot.realtimeMessages, normalizedMessage];
-    if (updated.length > MAX_REALTIME_MESSAGES) {
+    const overflow = updated.length > MAX_REALTIME_MESSAGES;
+    if (overflow) {
       updated = updated.slice(-MAX_REALTIME_MESSAGES);
     }
     slot.realtimeMessages = updated;
     recomputeMergedIfNeeded(slot);
+    noteStoredRow(slot, normalizedMessage, overflow);
     notify(sessionId);
   }, [getSlot, notify]);
 
@@ -957,11 +971,13 @@ export function useSessionStore() {
         : { ...msg, sessionId },
     );
     let updated = [...slot.realtimeMessages, ...normalizedMessages];
-    if (updated.length > MAX_REALTIME_MESSAGES) {
+    const overflow = updated.length > MAX_REALTIME_MESSAGES;
+    if (overflow) {
       updated = updated.slice(-MAX_REALTIME_MESSAGES);
     }
     slot.realtimeMessages = updated;
     recomputeMergedIfNeeded(slot);
+    normalizedMessages.forEach((message) => noteStoredRow(slot, message, overflow));
     notify(sessionId);
   }, [getSlot, notify]);
 

@@ -18,7 +18,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
  *  the number in the commit message. */
 const HALVES = [
   { name: 'server', dir: 'server', collected: /\.test\.(ts|js)$/, budget: 40 },
-  { name: 'client', dir: 'src', collected: /\.test\.tsx?$/, budget: 18 },
+  { name: 'client', dir: 'src', collected: /\.test\.tsx?$/, budget: 19 },
 ];
 
 const SKIP_DIRECTORIES = new Set(['node_modules', 'dist', 'dist-server', '.git']);

@@ -5,6 +5,8 @@ import test, { afterEach, beforeEach, describe } from 'node:test';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
+import { flightRecorder, startFlightRecorder, stopFlightRecorder } from '../utils/flightRecorder';
+
 import { removeOptimisticUserEchoes } from './sessionMessageReconciliation';
 import { type NormalizedMessage, type SessionStore, useSessionStore } from './useSessionStore';
 
@@ -387,6 +389,35 @@ describe('useSessionStore.pagination', () => {
     await finish(paging);
     assert.deepEqual(contents(), ['one', 'two', 'three', 'four', 'live']);
     assert.equal(store.getSessionSlot(SESSION_ID)!.hasNewer, false);
+  });
+
+  test('the flight recorder hears whether a live row reached the view', async () => {
+    window.history.replaceState(null, '', '/?clideRecord=1');
+    startFlightRecorder();
+    try {
+      const recorder = flightRecorder()!;
+      const append = async (row: NormalizedMessage) => {
+        const frame = recorder.beginFrame({ kind: row.kind, sessionId: SESSION_ID }, 1);
+        await React.act(async () => store.appendRealtime(SESSION_ID, row));
+        recorder.endFrame(frame);
+      };
+      await loadFirstPage();
+      await append({ ...message('9', 'same reply'), role: 'assistant' });
+      await append({ ...message('10', 'same reply'), role: 'assistant' });
+      const { pending: jumping } = await begin(() => store.fetchAround(SESSION_ID, '1', { limit: 2 }));
+      await settle();
+      respond({ messages: [message('1', 'one')], hasNewer: true, newerCursor: 'n1', revision: 'r1' });
+      await finish(jumping);
+      await append(message('11', 'live'));
+
+      const notes = recorder.report().split('\n')
+        .filter((line) => line.includes(' frame text '))
+        .map((line) => line.split(' ').at(-1));
+      assert.deepEqual(notes, ['stored', 'stored,hidden', 'stored,detached']);
+    } finally {
+      stopFlightRecorder();
+      window.history.replaceState(null, '', '/');
+    }
   });
 
   test('a missing jump target keeps the window; search text is reused per revision', async () => {
