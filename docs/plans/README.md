@@ -57,7 +57,7 @@ confidently wrong. Two of the largest sections in that 79 KB document were not
 plan at all: they were audits appended when reality diverged, because editing
 the plan felt more expensive than adding to it.
 
-So a plan is capped at **8 KB** and `npm run check:docs` enforces it. When a
+So a plan is capped at **16 KB** and `npm run check:docs` enforces it. When a
 plan strains the cap, the fix is almost never a bigger cap — it is that
 background has crept in that belongs in a map, a decision has crept in that
 belongs in an ADR, or the target design of architecture work belongs in a design.

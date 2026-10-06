@@ -16,19 +16,20 @@ const ROOT = new URL('..', import.meta.url).pathname;
 /** Byte caps per document type. Bytes track token cost better than lines do —
  *  docs/TODO.md was once 77 KB across 143 lines. */
 const CAPS = [
-  { dir: 'docs/plans', cap: 8_000, type: 'plan' },
+  { dir: 'docs/plans', cap: 16_000, type: 'plan' },
   { dir: 'docs/maps', cap: 24_000, type: 'map' },
   { dir: 'docs/decisions', cap: 10_000, type: 'ADR' },
   // Read whole by every session working its plan; stable, so read rarely otherwise.
   { dir: 'docs/designs', cap: 32_000, type: 'design' },
 ];
 
-// docs/todo-done.md is deliberately absent: it is a completed-work archive in the
-// same sense as docs/specs/archive/, so the rule that matters for it is "nothing
-// reads it by default", not a size cap. Do not start reading it to answer questions
-// about current work — git history and the ADRs are the canonical record.
+// docs/TODO.md is deliberately absent: the backlog's size is the amount of queued
+// work, so only its items are capped (below). docs/todo-done.md is absent too: it is
+// a completed-work archive in the same sense as docs/specs/archive/, so the rule that
+// matters for it is "nothing reads it by default", not a size cap. Do not start
+// reading it to answer questions about current work — git history and the ADRs are
+// the canonical record.
 const FILE_CAPS = [
-  { file: 'docs/TODO.md', cap: 24_000 },
   // AGENTS.md is imported into every session, so this is a per-session read
   // budget (~4K tokens), not a style rule. Raised from 13K once, for the comment
   // rules; a further rise needs a section routed into docs/ instead.

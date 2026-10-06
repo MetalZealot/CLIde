@@ -9,7 +9,7 @@
   `scripts/runtime-scorecard.mjs`
 
 The phases that build [the design](../designs/agent-runtime-rebuild.md), the daily
-pains each one ends, and Grayson's open calls. It is over the 8 KB plan cap by
+pains each one ends, and Grayson's open calls. It is over the 16 KB plan cap by
 Grayson's decision (2026-10-05): it is the plan that decides whether CLIde stays
 his daily driver, so detail wins over size.
 
