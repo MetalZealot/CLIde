@@ -37,6 +37,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Browser video clips](browser-video-clips.md) | not started | Phase 0: live recording proof on a branch-test slot, with CPU and clip-size numbers |
 | [Environments](environments.md) | not started | Phase 0: CLIde on the laptop, reachable from the phone over HTTPS |
 | [Threads with no project](no-project-threads.md) | not started | Phase 0: prove each provider runs and resumes in an empty, non-git folder |
+| [Scheduled tasks](scheduled-tasks.md) | not started | Phase 0: Grayson agrees the positions |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.
