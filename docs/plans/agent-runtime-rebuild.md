@@ -97,7 +97,6 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
 | Pain | Phase |
 |---|---|
 | A mode or model change waits for the next message | 1 |
-| AskUserQuestion never shows in bypass (the SDK hands it to `canUseTool` in bypass and auto, probe 4, so it is lost inside CLIde or never asked) | 1 |
 | The slash menu has 11 commands; the CLI reports about 56 (measured, in the command map) | 1 |
 | Aborting a new chat's first message leaves two sidebar rows | 1 |
 | Search counts and diffs show only after a reload | 1 |
@@ -446,9 +445,9 @@ phase done.
     for Claude, `next-turn` elsewhere). The sessions row is still written by the
     composer's own requests; "Default" effort resolves to the model's own level,
     and `max` waits for the next send (the flag layer cannot carry it).
-  - AskUserQuestion in bypass: reproduce it in CLIde first. The SDK hands it to
-    `canUseTool` in bypass and auto (probe 4), so it is either lost in CLIde's
-    request path or the model never asked; fix it where the reproduction shows.
+  - Done, no code: AskUserQuestion in bypass does not reproduce. All 12 calls in
+    CLIde transcripts from 2026-09-16 to 10-06 were shown and answered, 4 of
+    them in bypass; `canUseTool` never short-circuits interactive tools.
   - Built, with `chat.control`: `allowDangerouslySkipPermissions: true` on every
     Claude chat query, so a live switch to bypass works (probe 5).
   - Built: `CLAUDE_CODE_EMIT_STARTUP_TIMING=1` on chat queries. `[turn]
@@ -467,7 +466,7 @@ phase done.
     without it, 141 characters with it; Haiku accepts it).
   - You: during a running Claude reply, switch the mode in the composer; the
     next tool call follows it without a new message. Agent, live: abort a new
-    chat's first message (one sidebar row); AskUserQuestion appears in bypass;
+    chat's first message (one sidebar row);
     the slash menu lists the CLI's commands.
 
 - [ ] 1b. **Chat-path flight recorder — est. 1–2.** The chat-path core of the
