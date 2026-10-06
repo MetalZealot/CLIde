@@ -53,6 +53,7 @@ const namespaceLabels: Record<string, string> = {
   frequent: 'Frequently Used',
   builtin: 'Built-in Commands',
   skill: 'Skills',
+  cli: 'CLI Commands',
   project: 'Project Commands',
   user: 'User Commands',
   other: 'Other Commands',
@@ -62,6 +63,7 @@ const namespaceIcons: Record<string, LucideIcon> = {
   frequent: Star,
   builtin: Terminal,
   skill: Sparkles,
+  cli: Terminal,
   project: Folder,
   user: User,
   other: MessageSquare,
@@ -215,8 +217,8 @@ export default function CommandMenu({
   }
 
   const preferredOrder = hasFrequentCommands
-    ? ['frequent', 'builtin', 'skill', 'project', 'user', 'other']
-    : ['builtin', 'skill', 'project', 'user', 'other'];
+    ? ['frequent', 'builtin', 'skill', 'cli', 'project', 'user', 'other']
+    : ['builtin', 'skill', 'cli', 'project', 'user', 'other'];
   const extraNamespaces = Object.keys(groupedCommands).filter((namespace) => !preferredOrder.includes(namespace));
   const orderedNamespaces = [...preferredOrder, ...extraNamespaces].filter((namespace) => groupedCommands[namespace]);
   const renderInPortal = (node: ReactElement) =>

@@ -1011,6 +1011,22 @@ export type ProviderSkillSource = {
 };
 
 /**
+ * One slash command a provider's CLI advertises for a working directory, already
+ * filtered to what a web client can run. Sent as the turn's text; the CLI
+ * interprets it. Used by the slash menu through `IProviderTools.listCommands`.
+ */
+export type ProviderCommand = {
+  /** With the leading slash, as typed. */
+  name: string;
+  description: string;
+  /** Free-text shape of the arguments; empty when the command takes none. */
+  argumentHint: string;
+  aliases: string[];
+  /** The provider's own command rather than a user, project, plugin or MCP one. */
+  builtin: boolean;
+};
+
+/**
  * One plugin as its provider reports it, with the skills and MCP servers it
  * bundles. `connectors` are the plugin's own server names, not status.
  */

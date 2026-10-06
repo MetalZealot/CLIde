@@ -8,6 +8,7 @@ import type {
   LLMProvider,
   McpScope,
   NormalizedMessage,
+  ProviderCommand,
   ProviderConnector,
   ProviderPlugin,
   ProviderSkill,
@@ -214,6 +215,8 @@ export interface IProviderSkills {
 export interface IProviderTools {
   listPlugins(options?: ProviderSkillListOptions): Promise<ProviderPlugin[]>;
   listConnectors(options?: ProviderSkillListOptions): Promise<ProviderConnector[]>;
+  /** Slash commands the CLI runs from text; absent means the menu keeps its own list. */
+  listCommands?(options?: ProviderSkillListOptions): Promise<ProviderCommand[]>;
 }
 
 // ---------------------------

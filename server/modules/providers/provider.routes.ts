@@ -691,6 +691,17 @@ router.get(
   }),
 );
 
+router.get(
+  '/:provider/commands',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const workspacePath = readOptionalQueryString(req.query.workspacePath);
+    const refresh = parseOptionalBooleanQuery(req.query.refresh, 'refresh') ?? false;
+    const result = await providerToolsService.listCommands(provider, { workspacePath, refresh });
+    res.json(createApiSuccessResponse({ provider, ...result }));
+  }),
+);
+
 // ----------------- Skills routes -----------------
 router.get(
   '/:provider/skills',

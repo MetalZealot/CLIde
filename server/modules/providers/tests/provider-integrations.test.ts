@@ -9,6 +9,7 @@ import TOML from '@iarna/toml';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { createProviderServiceStatusService } from '@/modules/providers/services/provider-service-status.service.js';
+import { rememberClaudeTerminalCommands, toProviderCommands } from '@/modules/providers/list/claude/claude-commands.js';
 import { parseClaudeMcpList } from '@/modules/providers/list/claude/claude-tools.provider.js';
 import { CodexToolsProvider } from '@/modules/providers/list/codex/codex-tools.provider.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
@@ -505,6 +506,52 @@ describe('mcp', () => {
       restoreHomeDir();
       await fs.rm(tempRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe('claude commands', () => {
+  // supportedCommands() as an idle session in this repo answered it, 2026-10-05.
+  const loadRecordedRows = async () => {
+    const fixture = path.join(process.cwd(), 'server/modules/providers/tests/fixtures/claude-session-sdk/probe-10-idle-repo.ndjson');
+    for (const line of (await fs.readFile(fixture, 'utf8')).trim().split('\n')) {
+      const entry = JSON.parse(line);
+      if (entry.action === 'control:initializationResult') return entry.value.commands;
+    }
+    throw new Error('fixture has no initializationResult');
+  };
+
+  test('the menu offers what a web client can run, named as typed', async () => {
+    const names = toProviderCommands(await loadRecordedRows()).map((command) => command.name);
+    for (const kept of ['/code-review', '/simplify', '/usage', '/context', '/compact', '/init', '/reconcile-pi-ops']) {
+      assert.ok(names.includes(kept), `${kept} should be offered`);
+    }
+    // Terminal-bound (CLI 2.1.286's own list), internal, or state CLIde tracks itself.
+    for (const hidden of ['/doctor', '/color', '/focus', '/reload-plugins', '/__remote-workflow', '/heapdump', '/model', '/effort', '/fast', '/clear', '/rename']) {
+      assert.ok(!names.includes(hidden), `${hidden} should be hidden`);
+    }
+    assert.equal(new Set(names).size, names.length);
+  });
+
+  test('a chat-reported terminal list replaces the built-in guess', () => {
+    try {
+      rememberClaudeTerminalCommands(['usage']);
+      const names = toProviderCommands([
+        { name: 'usage', description: '', argumentHint: '', builtin: true },
+        { name: 'doctor', description: '', argumentHint: '', builtin: true },
+      ]).map((command) => command.name);
+      assert.deepEqual(names, ['/doctor']);
+    } finally {
+      rememberClaudeTerminalCommands(['doctor', 'color', 'focus', 'reload-plugins']);
+    }
+  });
+
+  test('when two rows share a name, the builtin is the one the CLI runs', () => {
+    const [command] = toProviderCommands([
+      { name: 'review', description: 'mine', argumentHint: '', builtin: false },
+      { name: 'review', description: 'claude code', argumentHint: '[pr]', builtin: true },
+    ]);
+    assert.equal(command.description, 'claude code');
+    assert.equal(command.argumentHint, '[pr]');
   });
 });
 

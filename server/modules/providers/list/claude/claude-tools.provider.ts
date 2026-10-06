@@ -8,9 +8,11 @@ import {
   listClaudePluginServerNames,
   listClaudePluginSkills,
 } from '@/modules/providers/list/claude/claude-plugins.js';
+import { listClaudeCliCommands } from '@/modules/providers/list/claude/claude-commands.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { IProviderTools } from '@/shared/interfaces.js';
 import type {
+  ProviderCommand,
   ProviderConnector,
   ProviderConnectorState,
   ProviderPlugin,
@@ -133,5 +135,9 @@ export class ClaudeToolsProvider implements IProviderTools {
   async listConnectors(options?: ProviderSkillListOptions): Promise<ProviderConnector[]> {
     const cwd = options?.workspacePath ? path.resolve(options.workspacePath) : os.homedir();
     return parseClaudeMcpList(await this.runMcpList(cwd));
+  }
+
+  async listCommands(options?: ProviderSkillListOptions): Promise<ProviderCommand[]> {
+    return listClaudeCliCommands(options?.workspacePath ? path.resolve(options.workspacePath) : undefined);
   }
 }

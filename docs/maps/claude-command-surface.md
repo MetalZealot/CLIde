@@ -71,7 +71,7 @@ Two more contract facts, from the same declarations:
 
 ## What CLIde reaches today
 
-Eleven commands, and no runtime enumeration:
+CLIde's own eleven, plus everything the CLI advertises for the project:
 
 - Seven hardcoded server-side (`server/modules/commands/commands.routes.ts`):
   `/help`, `/models`, `/usage`, `/context`, `/memory`, `/config`, `/status`.
@@ -80,12 +80,15 @@ Eleven commands, and no runtime enumeration:
   `btw` is terminal-only and not advertised over the SDK).
 - Custom commands are found by scanning `.claude/commands/`, read from disk, and
   expanded server-side (`POST /api/commands/execute`).
+- The CLI's own list (`GET /api/providers/:provider/commands`, `claude-commands.ts`):
+  `supportedCommands()` from an idle `claude` in the project folder, one at a time,
+  cached 30 minutes; 49 rows for this repo in 2.1 s (measured 2026-10-06). Rows go
+  out as the turn's text. Hidden: `init.terminal_slash_commands` from the last chat
+  (the 2.1.286 list until one reports), internal rows, and `model`, `effort`, `fast`,
+  `clear`, `rename` until CLIde reads their changes back. CLIde's own rows win a
+  name clash.
 
-`slash_commands`, `terminal_slash_commands`, and `local_command_output` appear
-nowhere in `server/`, `src/`, or `shared/`. Every bundled skill command —
-`/code-review`, `/security-review`, `/simplify`, `/dataviz`, `/loop`, `/schedule`,
-`/run`, `/init`, `/verify`, `/insights` — is absent from CLIde's slash menu, though
-each is a plain prompt expansion with no terminal dependency.
+`local_command_output` still appears nowhere in `server/`, `src/`, or `shared/`.
 
 ## How each command behaves when sent as text
 

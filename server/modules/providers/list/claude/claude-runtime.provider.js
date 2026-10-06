@@ -35,6 +35,7 @@ import {
   getClaudeContextCeiling,
   loadClaudeContextCeiling,
 } from '@/modules/providers/list/claude/claude-context-usage.js';
+import { rememberClaudeTerminalCommands } from '@/modules/providers/list/claude/claude-commands.js';
 import { CLAUDE_PERSISTABLE_EFFORT_LEVELS } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_FALLBACK_MODELS } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { normalizeClaudeRateLimitEvent } from '@/modules/providers/list/claude/claude-usage.provider.js';
@@ -1215,6 +1216,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
       if (message?.type === 'assistant') {
         turnTokens.step(message.message?.id, message.message?.usage?.output_tokens);
+      }
+      if (message?.type === 'system' && message.subtype === 'init') {
+        rememberClaudeTerminalCommands(message.terminal_slash_commands);
       }
       if (message?.type === 'system' && message.subtype === 'background_tasks_changed') {
         backgroundTasks = countHeldBackgroundTasks(message.tasks);

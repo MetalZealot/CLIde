@@ -103,6 +103,39 @@ type ProviderSkill = {
   pluginId?: string;
 };
 
+/** A command the provider's CLI runs from text (`GET /api/providers/:provider/commands`). */
+type ProviderCommand = {
+  name: string;
+  description: string;
+  argumentHint: string;
+  aliases: string[];
+  builtin: boolean;
+};
+
+type ProviderCommandsResponse = {
+  success?: boolean;
+  data?: {
+    supported?: boolean;
+    commands?: ProviderCommand[];
+  };
+};
+
+const mapProviderCommandToSlashCommand = (command: ProviderCommand): SlashCommand => ({
+  name: command.name,
+  description: command.description,
+  namespace: 'cli',
+  type: 'cli',
+  sendAsPrompt: true,
+  argumentHint: command.argumentHint || undefined,
+  metadata: { builtin: command.builtin, aliases: command.aliases },
+});
+
+/** CLIde's own rows win a name clash: they carry a native handler or richer metadata. */
+const mergeProviderCommands = (commands: SlashCommand[], providerCommands: SlashCommand[]): SlashCommand[] => {
+  const taken = new Set(commands.map((command) => command.name));
+  return [...commands, ...providerCommands.filter((command) => !taken.has(command.name))];
+};
+
 type ProviderSkillsResponse = {
   success?: boolean;
   data?: {
@@ -258,8 +291,19 @@ export function useSlashCommands({
         return;
       }
 
+      const workspacePath = selectedProject.fullPath || selectedProject.path || '';
+      // The CLI's list needs an idle `claude` to start (seconds when uncached), so
+      // the menu opens on the lists below and gains these when they arrive.
+      const providerCommandsRequest = authenticatedFetch(
+        `/api/providers/${encodeURIComponent(provider)}/commands?${new URLSearchParams(
+          workspacePath ? { workspacePath } : {},
+        ).toString()}`,
+      )
+        .then(async (response) => (response.ok ? ((await response.json()) as ProviderCommandsResponse) : null))
+        .then((body) => (body?.data?.commands ?? []).map(mapProviderCommandToSlashCommand))
+        .catch(() => [] as SlashCommand[]);
+
       try {
-        const workspacePath = selectedProject.fullPath || selectedProject.path || '';
         const response = await authenticatedFetch('/api/commands/list', {
           method: 'POST',
           headers: {
@@ -308,14 +352,19 @@ export function useSlashCommands({
         ];
 
         const parsedHistory = readCommandHistory(selectedProject.projectId);
-        const sortedCommands = [...allCommands].sort((commandA, commandB) => {
+        const byUsage = (commands: SlashCommand[]) => [...commands].sort((commandA, commandB) => {
           const commandAUsage = parsedHistory[commandA.name] || 0;
           const commandBUsage = parsedHistory[commandB.name] || 0;
           return commandBUsage - commandAUsage;
         });
 
         if (!cancelled) {
-          setSlashCommands(sortedCommands);
+          setSlashCommands(byUsage(allCommands));
+        }
+
+        const providerCommands = await providerCommandsRequest;
+        if (!cancelled && providerCommands.length > 0) {
+          setSlashCommands(byUsage(mergeProviderCommands(allCommands, providerCommands)));
         }
       } catch (error) {
         console.error('Error fetching slash commands:', error);

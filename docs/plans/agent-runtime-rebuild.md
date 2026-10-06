@@ -454,10 +454,10 @@ phase done.
   - Built: `CLAUDE_CODE_EMIT_STARTUP_TIMING=1` on chat queries. `[turn]
     first-frame` carries `ready_ms` (spawn to input ready), `[turn] result` carries
     `request_ms` and `ttft_ms`, and the scorecard summarises all three.
-  - The slash menu comes from `supportedCommands()` through an idle query per
-    project, built the way the model list already is (`claude-models.provider.ts`),
-    and cached. The terminal-only list is cached from the last `init`. The 11
-    hardcoded definitions remain the fallback for other providers.
+  - Built, not yet seen in the app: the slash menu adds `supportedCommands()` from
+    an idle query per project (49 rows here, 2.1 s), cached 30 minutes, minus the
+    last `init`'s terminal list and the commands whose state CLIde does not yet
+    read back. CLIde's own 11 stay and win name clashes.
   - Built, not yet live-checked: `Options.sessionId` for new sessions. The
     mapping is recorded at the first frame as before, or at teardown when a run
     stopped before any frame left a transcript; recording it before spawn would
