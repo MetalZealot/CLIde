@@ -23,8 +23,8 @@ Before changing code:
    looks odd but deliberate.
 4. Load the task-specific context below.
 
-**Read indexes before documents.**  The READMEs in `docs/plans/`, `docs/maps/`, and
-`docs/decisions/` say what each document covers and where it stands.  Open a document
+**Read indexes before documents.**  The README in each `docs/` folder says what each
+document covers and where it stands.  Open a document
 only once its index points there; never read a directory to find out.
 
 ### Task-specific context
@@ -39,7 +39,7 @@ only once its index points there; never read a directory to find out.
 | Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
 | Running, adding, or timing tests | `docs/maps/test-suite.md` |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
-| Phased work, or any architecture change | its plan via the `docs/plans/` board; the quality goals in `ARCHITECTURE.md`; a pre-mortem |
+| Phased work, or any architecture change | its plan via the `docs/plans/` board, and its design whole if it names one; the quality goals in `ARCHITECTURE.md`; a pre-mortem |
 
 ## Glossary
 
@@ -211,13 +211,14 @@ whichever file you happen to have open.  Ownership:
   goals.  **This file** owns workflow, verification, project-wide rules, and the
   routing table above.  It is published on the fork, so it
   carries **no host detail** — no home paths, hostnames, ports, or unit names.
-- **`docs/`** owns depth, in three types, each answering one question: a **map**
+- **`docs/`** owns depth, in four types, each answering one question: a **map**
   (`docs/maps/`) "how does this work today", an **ADR** (`docs/decisions/`) "what did
-  we choose and why", a **plan** (`docs/plans/`) "what is left, in what order".
-  Something answering a different question does not need a document.  `docs/specs/`
-  is **retired** — the name invited an essay and eighteen reached 317 KB.  Byte
-  caps and banned ceremony sections live in `docs/plans/README.md`, enforced by
-  `npm run check:docs`.  Do not invent a fourth type to escape them.
+  we choose and why", a **design** (`docs/designs/`) "what will it look like when
+  done", a **plan** (`docs/plans/`) "what is left, in what order".  A design binds
+  every phase of its plan and changes only with Grayson: if it is wrong, stop and
+  say so.  Anything else does not need a document.  `docs/specs/` is **retired**:
+  the name invited essays.  Byte caps and banned sections are in the plans and
+  designs READMEs, enforced by `npm run check:docs`.  Do not invent a fifth type to escape them.
 - **Each agent's global config** owns the host — paths, ports, services, the
   deploy loop.  This repo is published, so it holds none of it.  The two files
   are not shared: Claude Code reads `~/.claude/CLAUDE.md`, Codex reads

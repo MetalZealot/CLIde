@@ -293,7 +293,7 @@ types, and `rate_limit_event`. `normalizeMessage` (`claude-sessions.provider.ts`
 turns the assistant and user shapes into rows: text, `thinking`, `tool_use`,
 `tool_result`, base64 images, compact summaries, local-command rows and
 `<synthetic>` notices. The other 25 fall through and are dropped in silence;
-[the runtime rebuild plan](../plans/agent-runtime-rebuild.md) gives each a home.
+[the runtime rebuild design](../designs/agent-runtime-rebuild.md) gives each a home.
 
 | Message type | What it carries | Disposition |
 |---|---|---|

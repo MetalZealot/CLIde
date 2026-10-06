@@ -8,7 +8,7 @@
 //
 // Run: npm run check:docs [-- <paths>]
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
@@ -19,6 +19,8 @@ const CAPS = [
   { dir: 'docs/plans', cap: 8_000, type: 'plan' },
   { dir: 'docs/maps', cap: 24_000, type: 'map' },
   { dir: 'docs/decisions', cap: 10_000, type: 'ADR' },
+  // Read whole by every session working its plan; stable, so read rarely otherwise.
+  { dir: 'docs/designs', cap: 32_000, type: 'design' },
 ];
 
 // docs/todo-done.md is deliberately absent: it is a completed-work archive in the
@@ -55,6 +57,12 @@ const BANNED_HEADINGS = [
 /** A plan must say where it is without being read. */
 const STATUS_LINE = /^- Status: (not started|\d+\/\d+|complete|blocked\b.*)$/m;
 const NEXT_LINE = /^- Next: \S/m;
+
+/** A design and its plan name each other: the plan's `- Design:` line is how a
+ *  session working one phase learns the design binds it. */
+const DESIGN_STATUS_LINE = /^- Status: (draft|agreed \d{4}-\d{2}-\d{2}|superseded by \S.*)$/m;
+const PLAN_LINK = /^- Plan: .*\]\(\.\.\/plans\/([\w.-]+\.md)\)/m;
+const DESIGN_LINK = /^- Design: .*\]\(\.\.\/designs\/([\w.-]+\.md)\)/m;
 
 const MAX_TODO_LINE = 400;
 
@@ -126,6 +134,24 @@ for (const { dir, cap, type } of CAPS) {
       if (!NEXT_LINE.test(text)) {
         fail(file, 'no "- Next: <the next concrete action>" line');
       }
+      const design = text.match(DESIGN_LINK)?.[1];
+      if (design && !existsSync(join(ROOT, 'docs/designs', design))) {
+        fail(file, `its "- Design:" line points at docs/designs/${design}, which does not exist`);
+      }
+    }
+    if (type === 'design') {
+      if (!DESIGN_STATUS_LINE.test(text)) {
+        fail(file, 'no "- Status: draft | agreed <YYYY-MM-DD> | superseded by <link>" line');
+      }
+      const plan = text.match(PLAN_LINK)?.[1];
+      const name = file.slice(file.lastIndexOf('/') + 1);
+      if (!plan) {
+        fail(file, 'no "- Plan: [<title>](../plans/<file>.md)" line');
+      } else if (!existsSync(join(ROOT, 'docs/plans', plan))) {
+        fail(file, `its plan docs/plans/${plan} does not exist`);
+      } else if (readFileSync(join(ROOT, 'docs/plans', plan), 'utf8').match(DESIGN_LINK)?.[1] !== name) {
+        fail(file, `docs/plans/${plan} has no "- Design:" line linking back to ../designs/${name}`);
+      }
     }
   }
 }
@@ -157,7 +183,7 @@ try {
 try {
   const stray = readdirSync(join(ROOT, 'docs/specs')).filter((n) => n.endsWith('.md'));
   if (stray.length) {
-    fail('docs/specs', `${stray.length} file(s) remain — docs/specs is retired; each belongs in maps/, decisions/, plans/, or specs/archive/`);
+    fail('docs/specs', `${stray.length} file(s) remain — docs/specs is retired; each belongs in maps/, decisions/, plans/, designs/, or specs/archive/`);
   }
 } catch {
   /* already gone */
@@ -166,7 +192,7 @@ try {
 if (problems.length) {
   console.error(`\ndocs check failed — ${problems.length} problem(s):\n`);
   for (const { file, msg } of problems) console.error(`  ${file}: ${msg}`);
-  console.error('\nRules and rationale: docs/plans/README.md\n');
+  console.error('\nRules and rationale: docs/plans/README.md, docs/designs/README.md\n');
   process.exit(1);
 }
 

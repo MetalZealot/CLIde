@@ -42,7 +42,8 @@ Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.
 
 Provider architecture is now a plan, [the agent runtime rebuild](agent-runtime-rebuild.md),
-the one plan exempt from the size cap by Grayson's decision; its baseline is
+built to [its design](../designs/agent-runtime-rebuild.md) and the one plan exempt
+from the size cap by Grayson's decision; its baseline is
 [the current contract](../maps/CLIde_Provider_Architecture_Current_Contract.md)
 and the living maps.
 
@@ -58,10 +59,10 @@ the plan felt more expensive than adding to it.
 
 So a plan is capped at **8 KB** and `npm run check:docs` enforces it. When a
 plan strains the cap, the fix is almost never a bigger cap — it is that
-background has crept in that belongs in a map, or a decision has crept in that
-belongs in an ADR.
+background has crept in that belongs in a map, a decision has crept in that
+belongs in an ADR, or the target design of architecture work belongs in a design.
 
-## The three document types
+## The four document types
 
 Each answers one question. If what you are writing answers a different one, it
 belongs in a different file.
@@ -70,12 +71,15 @@ belongs in a different file.
 |---|---|---|
 | [Map](../maps/) | How does this work today? | Updated when the code changes |
 | [ADR](../decisions/) | What did we choose, and why? | Append-only; supersede, never edit |
+| [Design](../designs/) | What will it look like when done, and why? | Changes only with Grayson; archived with its plan |
 | Plan | What is left to do, in what order? | Rewritten as the work moves; archived when done |
 
 **A plan may point at a map. It must never restate one.** Restating is how the
 same provider semantics ended up copied into five specs, each drifting
 separately. A line of the form "provider permission semantics:
-[map](../maps/clide-provider-capability-map.md)" is complete.
+[map](../maps/clide-provider-capability-map.md)" is complete. A plan with a
+design names it in a `- Design:` header line, because the design binds every
+phase; [when a plan gets one](../designs/README.md).
 
 ## Template
 
@@ -85,6 +89,7 @@ separately. A line of the form "provider permission semantics:
 - Status: not started | 2/5 | complete | blocked <why>
 - Next: <the next concrete action, in one line>
 - Context: <links to the maps and ADRs a reader needs; no summary of them>
+- Design: <only when it has one: link, and that it binds every phase>
 
 ## Phases
 
@@ -135,9 +140,11 @@ for it.
 2. A plan appears only when work has **phases that outlive one session**. That
    is the whole test.
 3. Durable facts learned along the way go to a map; non-obvious choices go to an
-   ADR. Neither stays in the plan.
+   ADR; the target design of architecture work goes to a design. None stays in
+   the plan.
 4. When the last phase closes, move the plan to `archive/` with a row in that
-   directory's index naming the current authority, and close the TODO item.
+   directory's index naming the current authority, archive its design the same
+   way in `../designs/archive/`, and close the TODO item.
 
 Archived plans and specs are frozen. They are exempt from these rules because
 the rule that matters for them is that nothing reads them by default.

@@ -4,7 +4,8 @@ This document describes CLIde at the level that changes slowly: what the system 
 the qualities it must keep, where the code lives, and the invariants the code relies
 on. It holds no implementation detail. Decisions and their reasons are in
 [`docs/decisions/`](docs/decisions/README.md), current-state detail in
-[`docs/maps/`](docs/maps/README.md), ordered work in [`docs/plans/`](docs/plans/README.md),
+[`docs/maps/`](docs/maps/README.md), the target design of large work in
+[`docs/designs/`](docs/designs/README.md), ordered work in [`docs/plans/`](docs/plans/README.md),
 and how to work in this repo in [`AGENTS.md`](AGENTS.md).
 
 ## Bird's-eye view
