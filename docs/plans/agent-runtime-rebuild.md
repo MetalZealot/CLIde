@@ -83,11 +83,6 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
   each spawn their own `claude` outside any limit. Measured 2026-10-05: an idle
   `claude` holds ~234 MB resident, ~122 MB of it private (freed on close); three
   open took available memory from 637 to 434 MB under the host's normal load.
-- **Id-space slips** (source, not run). The context-usage refresh route looks up
-  the live query by provider id, but the map is keyed by app id, so a mid-turn
-  refresh answers "no live turn" for every session CLIde created. Abort adds the
-  app id to `abortedSessionIds` while `wasRunAborted` deletes the provider id.
-  The forked-resume branch re-keys the map by provider id.
 - **Lifecycle gaps.** SIGTERM never closes Claude queries or the Codex App Server
   client; nothing sweeps orphans at start. The CLI update lease is held for one
   `run()`, so a process that outlives `run()` would block updates forever. The
@@ -443,7 +438,8 @@ phase done.
     is phase 1b.
 
 - [ ] 1. **Quick wins on today's runtime — est. 2–3.**
-  - Fix the id-space slips first; the new control message uses the same map.
+  - Done: the id-space slips (context refresh, abort record, forked resume),
+    with fake-`Query` turn tests in `provider-runtime.test.ts` that phase 6 extends.
   - `chat.control`: a composer change during a running turn calls
     `setPermissionMode`, `setModel` or `applyFlagSettings` on the live query
     (looked up by app session id), keeping `sdkOptions` and the sessions row

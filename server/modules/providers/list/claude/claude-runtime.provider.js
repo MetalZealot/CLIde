@@ -56,6 +56,19 @@ import { createCompleteMessage, createNormalizedMessage } from '@/shared/utils.j
 
 import { scopeClaudeChatBrowser } from '../../shared/mcp/chat-browser.js';
 
+// Swapped for a fake by the runtime tests; production always runs the SDK's.
+let runQuery = query;
+
+/**
+ * Replaces the SDK's `query()` for the provider tests, which drive whole turns
+ * against a scripted fake. `null` restores the SDK's.
+ * @param {Function|null} fake
+ */
+export function setClaudeQueryForTests(fake) {
+  runQuery = fake ?? query;
+}
+
+// Keyed by the app session id; provider ids only for callers that supply none.
 const activeSessions = new Map();
 // Sessions cancelled via abort-session. The abort handler already sent the
 // terminal `complete` (aborted: true) to the client, so the run loop must not
@@ -802,8 +815,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   const wasRunAborted = () => {
     // `delete` both tests and clears, so it must run even when the signal
     // already reports the abort — a stale id would suppress the *next* run's
-    // terminal complete.
-    const interruptClaimed = capturedSessionId ? abortedSessionIds.delete(capturedSessionId) : false;
+    // terminal complete. Same key `abortClaudeSDKSession` recorded.
+    const key = sessionKey();
+    const interruptClaimed = key ? abortedSessionIds.delete(key) : false;
     return interruptClaimed || Boolean(abortSignal?.aborted);
   };
 
@@ -1005,7 +1019,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
     let queryInstance;
     try {
-      queryInstance = query({
+      queryInstance = runQuery({
         prompt: await createPrompt(),
         options: sdkOptions
       });
@@ -1014,7 +1028,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // Keep notification behavior operational via runtime events even if hook registration fails.
       console.warn('Failed to initialize Claude query with hooks, retrying without hooks:', hookError?.message || hookError);
       delete sdkOptions.hooks;
-      queryInstance = query({
+      queryInstance = runQuery({
         prompt: await createPrompt(),
         options: sdkOptions
       });
@@ -1082,11 +1096,15 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
           ws.send(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
         }
       } else if (message.session_id && capturedSessionId && message.session_id !== capturedSessionId) {
-        // Defensive: SDK announced a different session id on a resumed query
-        // (e.g. a forked resume). Re-key abort tracking; the writer remaps it.
-        removeSession(capturedSessionId);
+        // A forked resume announces a new provider id; the writer remaps it.
+        // Only a run without an app id is keyed by the provider id.
+        if (!sessionId) {
+          removeSession(capturedSessionId);
+        }
         capturedSessionId = message.session_id;
-        addSession(capturedSessionId, queryInstance, ws, inputChannel);
+        if (!sessionId) {
+          addSession(capturedSessionId, queryInstance, ws, inputChannel);
+        }
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {
           ws.setSessionId(capturedSessionId);
         }
@@ -1319,6 +1337,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Complete
 
   } catch (error) {
+    // Asked once: the first call clears the abort record.
     const aborted = wasRunAborted();
     logTurn('failed', sessionKey(), {
       ms: sinceStart(),
@@ -1343,8 +1362,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       removeSession(sessionKey());
     }
 
-    const wasAborted = wasRunAborted();
-    if (wasAborted) {
+    if (aborted) {
       // The abort already produced the terminal complete; a generator throw
       // caused by interrupt() or an aborted signal is expected noise, not a
       // user-facing error.
@@ -1575,11 +1593,12 @@ function reconnectSessionWriter(sessionId, newRawWs) {
  * Manual counterpart to the interval re-capture above, for the /context modal's
  * refresh button. Same mid-turn-only constraint: it asks the live query
  * instance, so it returns null when no turn is streaming.
- * @param {string} providerSessionId - Claude's own session id
+ * @param {string} sessionId - App session id, which keys the live query
+ * @param {string} providerSessionId - Claude's own id, which keys the cached reading
  * @returns {Promise<Object|null>} Fresh ceiling, or null if no live query
  */
-async function refreshClaudeContextUsage(providerSessionId) {
-  const session = getSession(providerSessionId);
+async function refreshClaudeContextUsage(sessionId, providerSessionId) {
+  const session = getSession(sessionId);
   if (!session?.instance) {
     return null;
   }

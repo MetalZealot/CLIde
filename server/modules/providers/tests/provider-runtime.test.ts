@@ -942,3 +942,144 @@ describe('claude-runtime error results', () => {
     assert.equal(duplicates(true, undefined), false);
   });
 });
+
+describe('claude-runtime turns on a fake query', () => {
+  type Frame = Record<string, unknown>;
+
+  // A scripted stand-in for the SDK's Query: frames are pushed by the test, and
+  // the stream stays open until `end()`, like a turn still streaming.
+  function createFakeQuery() {
+    const frames: Frame[] = [];
+    const calls: Array<{ method: string; args: unknown[] }> = [];
+    let wake: (() => void) | null = null;
+    let ended = false;
+    const notify = () => {
+      wake?.();
+      wake = null;
+    };
+    const fake = {
+      options: null as Record<string, unknown> | null,
+      inputs: [] as unknown[],
+      calls,
+      push(frame: Frame) {
+        frames.push(frame);
+        notify();
+      },
+      end() {
+        ended = true;
+        notify();
+      },
+      instance: {
+        async *[Symbol.asyncIterator]() {
+          while (true) {
+            if (frames.length > 0) {
+              yield frames.shift();
+              continue;
+            }
+            if (ended) return;
+            await new Promise<void>((resolve) => { wake = resolve; });
+          }
+        },
+        async interrupt() {
+          calls.push({ method: 'interrupt', args: [] });
+          fake.end();
+        },
+        async getContextUsage() {
+          calls.push({ method: 'getContextUsage', args: [] });
+          return { maxTokens: 200000, totalTokens: 1000 };
+        },
+      },
+    };
+    return fake;
+  }
+
+  async function loadRuntime() {
+    return import('@/modules/providers/list/claude/claude-runtime.provider.js');
+  }
+
+  // Starts one turn the way the gateway does: app id in, provider id resolved
+  // from the session row. Resolves once the fake has received its options.
+  async function startTurn(options: { appId: string; providerId: string | null; abortController?: AbortController }) {
+    const runtime = await loadRuntime();
+    const fake = createFakeQuery();
+    const sent: Frame[] = [];
+    runtime.setClaudeQueryForTests((params: { prompt: AsyncIterable<unknown>; options: Record<string, unknown> }) => {
+      fake.options = params.options;
+      // Like the CLI, the stream ends once the runtime closes its input.
+      void (async () => {
+        for await (const input of params.prompt) fake.inputs.push(input);
+        fake.end();
+      })();
+      return fake.instance;
+    });
+    const writer = {
+      userId: null,
+      send: (frame: Frame) => { sent.push(frame); },
+      setSessionId: () => {},
+    };
+    const context = {
+      resolveProviderSessionId: () => options.providerId,
+      resolveResumeModel: async () => null,
+      getProviderModels: async () => { throw new Error('no catalog in tests'); },
+      normalizeMessage: () => [],
+      isProviderInstalled: async () => true,
+    };
+    const done = runtime.queryClaudeSDK('hello', {
+      sessionId: options.appId,
+      cwd: os.tmpdir(),
+      abortController: options.abortController,
+    }, writer, context);
+    while (!fake.options) await new Promise((resolve) => setImmediate(resolve));
+    return { runtime, fake, sent, done };
+  }
+
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const completes = (sent: Frame[]) => sent.filter((frame) => frame.kind === 'complete');
+
+  test('the context refresh reaches the live turn by app id while the provider id differs', async () => {
+    const { runtime, fake, done } = await startTurn({ appId: 'app-ctx', providerId: 'prov-ctx' });
+    try {
+      fake.push({ type: 'system', subtype: 'init', session_id: 'prov-ctx' });
+      await settle();
+      const before = fake.calls.filter((call) => call.method === 'getContextUsage').length;
+      const ceiling = await runtime.refreshClaudeContextUsage('app-ctx', 'prov-ctx');
+      assert.equal((ceiling as { maxTokens?: number } | null)?.maxTokens, 200000);
+      assert.equal(fake.calls.filter((call) => call.method === 'getContextUsage').length, before + 1);
+    } finally {
+      fake.end();
+      await done;
+      runtime.setClaudeQueryForTests(null);
+    }
+  });
+
+  test('an abort clears its record, so the next turn on the session still completes', async () => {
+    const first = await startTurn({ appId: 'app-abort', providerId: 'prov-abort' });
+    first.fake.push({ type: 'system', subtype: 'init', session_id: 'prov-abort' });
+    await settle();
+    assert.equal(await first.runtime.abortClaudeSDKSession('app-abort'), true);
+    await first.done;
+    assert.equal(completes(first.sent).length, 0, 'the abort handler owns the aborted run\'s complete');
+
+    const second = await startTurn({ appId: 'app-abort', providerId: 'prov-abort' });
+    second.fake.push({ type: 'system', subtype: 'init', session_id: 'prov-abort' });
+    second.fake.push({ type: 'result', subtype: 'success', is_error: false, usage: {} });
+    await second.done;
+    second.runtime.setClaudeQueryForTests(null);
+    assert.equal(completes(second.sent).length, 1);
+  });
+
+  test('a forked resume that announces a new provider id stays addressed by the app id', async () => {
+    const { runtime, fake, done } = await startTurn({ appId: 'app-fork', providerId: 'prov-old' });
+    try {
+      fake.push({ type: 'system', subtype: 'init', session_id: 'prov-new' });
+      await settle();
+      assert.equal(Boolean(runtime.isClaudeSDKSessionActive('app-fork')), true);
+      assert.equal(Boolean(runtime.isClaudeSDKSessionActive('prov-new')), false);
+    } finally {
+      fake.end();
+      await done;
+      runtime.setClaudeQueryForTests(null);
+    }
+    assert.deepEqual(runtime.getActiveClaudeSDKSessions(), []);
+  });
+});

@@ -872,12 +872,11 @@ router.post(
   '/sessions/:sessionId/context-usage/refresh',
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
-    // The caller sends the app-facing id, but the live session (and its cached
-    // reading) is keyed by the provider-native id.
+    // The live query is keyed by the app id, its cached reading by the provider id.
     const session = sessionsDb.getSessionById(sessionId);
     const providerSessionId = session?.provider_session_id || sessionId;
 
-    const ceiling = await refreshClaudeContextUsage(providerSessionId);
+    const ceiling = await refreshClaudeContextUsage(sessionId, providerSessionId);
     if (!ceiling) {
       res.json(createApiSuccessResponse({ refreshed: false, reason: 'no-live-turn' }));
       return;
