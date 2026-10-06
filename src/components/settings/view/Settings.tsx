@@ -30,30 +30,15 @@ import ChatVoiceBackendScreen from './screens/ChatVoiceBackendScreen';
 import ChatVoiceLibraryScreen from './screens/ChatVoiceLibraryScreen';
 import CredentialsScreen from './screens/CredentialsScreen';
 import ExtensionsBrowserScreen from './screens/ExtensionsBrowserScreen';
-import ExtensionsPluginsScreen from './screens/ExtensionsPluginsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ProjectsGitScreen from './screens/ProjectsGitScreen';
 import SettingsHeader from './shell/SettingsHeader';
 import SettingsRail from './shell/SettingsRail';
 import SettingsRootList from './shell/SettingsRootList';
 
-type DesktopNotificationsState = {
-  enabled: boolean;
-  supported: boolean;
-  connectedCount?: number;
-  targetCount?: number;
-  lastError?: string | null;
-};
-
 function Settings({ isOpen, onClose, projects = [], initialTab, onOpenUsage }: SettingsProps) {
   const { t } = useTranslation('settings');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
-  const desktopNotificationsBridge = useMemo(() => (
-    typeof window === 'undefined'
-      ? null
-      : ((window as any).cloudcliDesktopNotifications || null)
-  ), []);
-  const [desktopNotificationsState, setDesktopNotificationsState] = useState<DesktopNotificationsState | null>(null);
 
   const nav = useSettingsNavigation({
     isOpen,
@@ -143,45 +128,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab, onOpenUsage }: S
     setNotificationPreferences({
       ...notificationPreferences,
       channels: { ...notificationPreferences.channels, webPush: false },
-    });
-  };
-
-  useEffect(() => {
-    if (!desktopNotificationsBridge) return undefined;
-    let mounted = true;
-    desktopNotificationsBridge.getState().then((state: any) => {
-      if (mounted) {
-        setDesktopNotificationsState(state?.desktopNotifications || null);
-      }
-    }).catch(() => {});
-    const unsubscribe = desktopNotificationsBridge.onStateUpdated?.((state: any) => {
-      if (mounted) {
-        setDesktopNotificationsState(state?.desktopNotifications || null);
-      }
-    });
-    return () => {
-      mounted = false;
-      unsubscribe?.();
-    };
-  }, [desktopNotificationsBridge]);
-
-  const handleEnableDesktopNotifications = async () => {
-    if (!desktopNotificationsBridge) return;
-    const state = await desktopNotificationsBridge.update({ enabled: true });
-    setDesktopNotificationsState(state?.desktopNotifications || null);
-    setNotificationPreferences({
-      ...notificationPreferences,
-      channels: { ...notificationPreferences.channels, desktop: true },
-    });
-  };
-
-  const handleDisableDesktopNotifications = async () => {
-    if (!desktopNotificationsBridge) return;
-    const state = await desktopNotificationsBridge.update({ enabled: false });
-    setDesktopNotificationsState(state?.desktopNotifications || null);
-    setNotificationPreferences({
-      ...notificationPreferences,
-      channels: { ...notificationPreferences.channels, desktop: false },
     });
   };
 
@@ -320,18 +266,12 @@ function Settings({ isOpen, onClose, projects = [], initialTab, onOpenUsage }: S
             isPushLoading={isPushLoading}
             onEnablePush={handleEnablePush}
             onDisablePush={handleDisablePush}
-            isDesktop={Boolean(desktopNotificationsBridge)}
-            desktopNotifications={desktopNotificationsState}
-            onEnableDesktopNotifications={handleEnableDesktopNotifications}
-            onDisableDesktopNotifications={handleDisableDesktopNotifications}
           />
         );
 
       case 'projects-git':
         return <ProjectsGitScreen />;
 
-      case 'plugins':
-        return <ExtensionsPluginsScreen />;
 
       case 'browser':
         return <ExtensionsBrowserScreen />;

@@ -6,6 +6,8 @@ open backlog; move an item here once it is verified.
 
 Short records: what/why, commit, classification, verification. Detail lives in the commit messages and ADRs.
 
+- [x] **Closed, not done: the two sidebar translation items** (2026-10-05). CLIde is English-only now, so the inline `t(key, 'fallback')` sidebar strings and the `en`-only `sidebar.json` blocks no longer leave anyone untranslated. Fork-only.
+
 - [x] **The status row's pulsing dot becomes three dots that move between states.** Starting, Thinking, Working, Waiting for you, Retrying, Compacting, then Done or Failed as the turn ends; reduced motion shows still frames. Thinking is a tilted, precessing ring and Working a braid, chosen from the round-4 probe. `ActivityDots.tsx`. Awaiting a trial on the phone. **S**
 
 - [x] **A finished turn keeps its time and output tokens.** The "Worked for" footer line becomes a row set like the activity row, `46s · 1,234 tokens`, read back from Claude and Codex transcripts so older turns show it too; Cursor and OpenCode show time only. `TurnSummaryRow.tsx`. Awaiting a trial on the phone. **S**

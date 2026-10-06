@@ -1,30 +1,20 @@
 {
   "name": "@cloudcli-ai/cloudcli",
   "version": "1.37.0",
-  "productName": "CloudCLI",
-  "description": "A web-based UI for Claude Code CLI",
+  "private": true,
+  "description": "A self-hosted web app for driving coding agents from your phone or a desktop browser",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
     "cloudcli": "dist-server/server/modules/cli/cli.js"
   },
-  "files": [
-    "electron/",
-    "server/",
-    "shared/",
-    "public/api-docs.html",
-    "dist/",
-    "dist-server/",
-    "scripts/",
-    "README.md"
-  ],
-  "homepage": "https://cloudcli.ai",
+  "homepage": "https://github.com/MetalZealot/CLIde#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/siteboon/claudecodeui.git"
+    "url": "git+https://github.com/MetalZealot/CLIde.git"
   },
   "bugs": {
-    "url": "https://github.com/siteboon/claudecodeui/issues"
+    "url": "https://github.com/MetalZealot/CLIde/issues"
   },
   "scripts": {
     "dev": "concurrently --kill-others \"npm run server:dev\" \"npm run client\"",
@@ -32,14 +22,6 @@
     "server:dev": "tsx --tsconfig server/tsconfig.json server/index.ts",
     "server:dev-watch": "tsx watch --tsconfig server/tsconfig.json server/index.ts",
     "client": "vite",
-    "desktop": "electron electron/main.js",
-    "desktop:dev": "cross-env ELECTRON_DEV_URL=http://127.0.0.1:5173 electron electron/main.js",
-    "desktop:stage": "node scripts/release/prepare-desktop-app.js",
-    "desktop:pack": "npm run build && npm run desktop:stage && electron-builder --projectDir .desktop-build/desktop-app --dir",
-    "desktop:dist:mac": "npm run build && npm run desktop:stage && electron-builder --projectDir .desktop-build/desktop-app --mac dmg",
-    "desktop:dist:win": "npm run build && npm run desktop:stage && electron-builder --projectDir .desktop-build/desktop-app --win nsis",
-    "server:bundle": "npm run build && node scripts/release/build-server-bundle.js",
-    "desktop:icon:mac": "node electron/scripts/generate-macos-icon.js",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
     "postbuild:client": "node scripts/write-release-state.mjs client",
@@ -51,16 +33,14 @@
     "typecheck:client": "tsc --noEmit -p tsconfig.json",
     "typecheck:server": "tsc --noEmit -p server/tsconfig.json",
     "test": "npm run check:tests && npm run test:server && npm run test:client",
-    "test:server": "tsx --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\" \"server/**/*.test.js\"",
+    "test:server": "tsx --tsconfig server/tsconfig.json --import ./scripts/isolate-test-database.mjs --test \"server/**/*.test.ts\" \"server/**/*.test.js\"",
     "test:client": "tsx --tsconfig tsconfig.json --import ./src/test/setup-client-env.ts --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\"",
-    "test:server:one": "tsx --tsconfig server/tsconfig.json --test",
+    "test:server:one": "tsx --tsconfig server/tsconfig.json --import ./scripts/isolate-test-database.mjs --test",
     "test:client:one": "tsx --tsconfig tsconfig.json --import ./src/test/setup-client-env.ts --test",
     "test:codex": "node scripts/verify-codex-integration.mjs",
     "lint": "eslint --cache --cache-location node_modules/.cache/eslintcache src/ server/",
     "lint:fix": "eslint --cache --cache-location node_modules/.cache/eslintcache src/ server/ --fix",
     "start": "npm run build && npm run server",
-    "release": "./release.sh",
-    "prepublishOnly": "npm run build",
     "postinstall": "node scripts/fix-node-pty.js",
     "prepare": "husky && node scripts/write-release-state.mjs dependencies",
     "update:platform": "./update-platform.sh",
@@ -72,66 +52,6 @@
     "test:docs:dashboard": "node --test scripts/build-project-dashboard.test.mjs",
     "bench:chat-history": "node scripts/bench-chat-history.mjs",
     "bench:chat-history:browser": "tsx --tsconfig server/tsconfig.json scripts/chat-history/browser-server.ts"
-  },
-  "build": {
-    "appId": "ai.cloudcli.desktop",
-    "productName": "CloudCLI",
-    "asar": false,
-    "artifactName": "cloudcli-desktop-${version}-${os}-${arch}.${ext}",
-    "directories": {
-      "output": "release/desktop"
-    },
-    "extraMetadata": {
-      "main": "electron/main.js"
-    },
-    "files": [
-      "electron/",
-      "public/",
-      "dist/",
-      "dist-server/",
-      "shared/",
-      "server/",
-      "package.json",
-      "!**/node_modules/@anthropic-ai/claude-agent-sdk-{darwin,linux,win32}-*/**"
-    ],
-    "protocols": [
-      {
-        "name": "CloudCLI",
-        "schemes": [
-          "cloudcli"
-        ]
-      }
-    ],
-    "mac": {
-      "category": "public.app-category.developer-tools",
-      "icon": "electron/assets/logo-macos.icns",
-      "notarize": true,
-      "target": [
-        "dmg"
-      ],
-      "extendInfo": {
-        "CFBundleName": "CloudCLI",
-        "CFBundleDisplayName": "CloudCLI",
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLName": "CloudCLI",
-            "CFBundleURLSchemes": [
-              "cloudcli"
-            ]
-          }
-        ]
-      }
-    },
-    "win": {
-      "icon": "electron/assets/logo-windows.ico",
-      "target": [
-        "nsis"
-      ]
-    },
-    "nsis": {
-      "installerIcon": "electron/assets/logo-windows.ico",
-      "uninstallerIcon": "electron/assets/logo-windows.ico"
-    }
   },
   "keywords": [
     "claude code",
@@ -192,7 +112,6 @@
     "fuse.js": "^7.0.0",
     "gray-matter": "^4.0.3",
     "i18next": "^25.7.4",
-    "i18next-browser-languagedetector": "^8.2.0",
     "ignore": "^7.0.6",
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.1",
@@ -225,7 +144,6 @@
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^9.39.3",
-    "@release-it/conventional-changelog": "^10.0.5",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/cross-spawn": "^6.0.6",
@@ -238,12 +156,8 @@
     "@types/react-dom": "^18.2.17",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.6.0",
-    "auto-changelog": "^2.5.0",
     "autoprefixer": "^10.4.16",
     "concurrently": "^8.2.2",
-    "cross-env": "^10.1.0",
-    "electron": "^38.0.0",
-    "electron-builder": "^26.15.3",
     "eslint": "^9.39.3",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-boundaries": "^6.0.2",
@@ -260,7 +174,6 @@
     "node-gyp": "^10.0.0",
     "playwright": "1.63.0-alpha-2026-08-31",
     "postcss": "^8.4.32",
-    "release-it": "^19.0.5",
     "sharp": "^0.34.2",
     "tailwindcss": "^3.4.0",
     "tsc-alias": "^1.8.16",
@@ -275,9 +188,5 @@
     "docs/**/*.md": "node scripts/check-docs.mjs --",
     "AGENTS.md": "node scripts/check-docs.mjs --",
     "{src,server}/**/*.test.{ts,tsx,js}": "node scripts/check-tests.mjs --"
-  },
-  "optionalDependencies": {
-    "@nut-tree-fork/nut-js": "^4.2.6",
-    "screenshot-desktop": "^1.15.4"
   }
 }

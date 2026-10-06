@@ -38,6 +38,20 @@ const RESTRUCTURE_FILES = 200;
  *  classified by subject rather than re-listed every release. */
 const RELEASE_NOISE = /^chore\(release\)|release-it|npm (publish|release)|\breadme\b|electron/i;
 
+/** Areas CLIde deleted: the desktop app, Docker sandbox, npm release tooling,
+ *  CloudCLI's own plugin system, non-English locales and upstream's repo chrome.
+ *  A commit touching only these has nothing to apply to. Claude Code's and
+ *  Codex's plugins live elsewhere and are not covered. */
+const REMOVED_AREAS = [
+  /^electron\//, /^docker\//, /^redirect-package\//, /^scripts\/release\//,
+  /^release\.sh$/, /^\.release-it\.json$/, /^\.npmignore$/, /^CHANGELOG\.md$/,
+  /^README\.[^/]+\.md$/, /^\.github\//, /^\.gitmodules$/, /^plugins\//,
+  /^server\/modules\/plugins\//, /^src\/components\/plugins\//,
+  /^src\/contexts\/PluginsContext\.tsx$/, /^src\/i18n\/locales\/(?!en\/)/,
+];
+const onlyRemovedAreas = (paths) => paths.length > 0
+  && paths.every((file) => REMOVED_AREAS.some((area) => area.test(file)));
+
 const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim();
 const tryGit = (...a) => { try { return git(...a); } catch { return null; } };
 
@@ -114,8 +128,8 @@ if (revs.length === 0) {
 
 const commits = revs.map((sha) => {
   const subject = git('log', '--format=%s', '-1', sha);
-  const files = Number(git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean).length);
-  return { sha: sha.slice(0, 8), subject, files, pr: subject.match(/\(#(\d+)\)/)?.[1] ?? null };
+  const paths = git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean);
+  return { sha: sha.slice(0, 8), subject, files: paths.length, paths, pr: subject.match(/\(#(\d+)\)/)?.[1] ?? null };
 });
 
 const restructures = commits.filter((c) => c.files >= RESTRUCTURE_FILES);
@@ -138,6 +152,7 @@ const carried = (pr) => Boolean(pr) && tryGit('log', '--format=%h', '--grep', `#
 const rows = commits.map((c, i) => {
   let verdict = 'NEW';
   if (RELEASE_NOISE.test(c.subject)) verdict = 'release';
+  else if (onlyRemovedAreas(c.paths)) verdict = 'removed';
   else if (c.pr && map.refused.has(c.pr)) verdict = 'refused';
   else if (c.pr && map.assessed.has(c.pr)) verdict = 'assessed';
   else if (carried(c.pr)) verdict = 'carried';
@@ -148,7 +163,7 @@ const unassessed = rows.filter((r) => r.verdict === 'NEW');
 const known = rows.length - unassessed.length;
 
 say(bold(`Commits since merge base: ${rows.length}`));
-say(dim(`  ${known} already ruled on: in the map, carried under our own commit, or release plumbing`));
+say(dim(`  ${known} already ruled on: in the map, carried under our own commit, release plumbing, or only in areas CLIde removed`));
 say('');
 
 const show = args.has('--all') ? rows : unassessed;
@@ -161,6 +176,7 @@ if (show.length === 0) {
       NEW: warn('NEW    '),
       refused: dim('refused'),
       release: dim('release'),
+      removed: dim('removed'),
       assessed: dim('assessed'),
       carried: good('carried'),
     }[r.verdict];

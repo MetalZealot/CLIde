@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type { AppTab, Project, ProjectSession } from '../../../../types/app';
-import { usePlugins } from '../../../../contexts/PluginsContext';
 
 type MainContentTitleProps = {
   activeTab: AppTab;
@@ -12,11 +11,7 @@ type MainContentTitleProps = {
   checkoutLabel: string | null;
 };
 
-function getTabTitle(activeTab: AppTab, t: (key: string) => string, pluginDisplayName?: string) {
-  if (activeTab.startsWith('plugin:') && pluginDisplayName) {
-    return pluginDisplayName;
-  }
-
+function getTabTitle(activeTab: AppTab, t: (key: string) => string) {
   if (activeTab === 'shell') {
     return t('tabs.shell');
   }
@@ -51,12 +46,6 @@ export default function MainContentTitle({
   checkoutLabel,
 }: MainContentTitleProps) {
   const { t } = useTranslation();
-  const { plugins } = usePlugins();
-
-  const pluginDisplayName = activeTab.startsWith('plugin:')
-    ? plugins.find((p) => p.name === activeTab.replace('plugin:', ''))?.displayName
-    : undefined;
-
   // One sidebar row can cover several working trees (ADR 0016), so the project
   // name on its own does not say which one this is. The checkout label answers
   // that, and is absent for the ordinary single-checkout project.
@@ -89,7 +78,7 @@ export default function MainContentTitle({
         ) : (
           <div className="min-w-0">
             <h2 className="text-sm font-semibold leading-tight text-foreground">
-              {getTabTitle(activeTab, t, pluginDisplayName)}
+              {getTabTitle(activeTab, t)}
             </h2>
             <div className="truncate text-[11px] leading-tight text-muted-foreground">{subtitle}</div>
           </div>

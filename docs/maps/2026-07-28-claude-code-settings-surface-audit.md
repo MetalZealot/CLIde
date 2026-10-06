@@ -69,10 +69,9 @@ would be decorative. Prefs the CLI has since moved into the cascade — `editorM
 `autoScrollEnabled`, `defaultView` — are reachable; check the current list rather
 than this one.
 
-Note also that CLIde's Settings → Plugins tab manages *CLIde* plugins
-(`server/routes/plugins.js`, its own `getPluginsConfig`/`savePluginsConfig`), which
-is a different thing from Claude Code's `enabledPlugins` / marketplaces. Name
-collision to be careful about in any new UI.
+CLIde's own plugin system, once a Settings → Plugins tab, was removed on
+2026-10-05; "plugins" in CLIde now means only the providers' own, such as Claude
+Code's `enabledPlugins` and marketplaces.
 
 ## What CLIde exposes today
 

@@ -6,7 +6,6 @@ import type {
   CliFileSystem,
   CliOutput,
   CliPackageMetadata,
-  SandboxCommandService,
 } from '@/shared/types.js';
 import { terminalTextStyles } from '@/shared/utils.js';
 
@@ -18,7 +17,6 @@ type CliServiceDependencies = {
   environment: CliEnvironment;
   fileSystem: CliFileSystem;
   output: CliOutput;
-  sandboxService: SandboxCommandService;
   getLatestPackageVersion(): Promise<string>;
   updateGlobalPackage(): void;
   startServer(): Promise<void>;
@@ -30,14 +28,12 @@ type ParsedCliArguments = {
     serverPort?: string;
     databasePath?: string;
   };
-  remainingArguments: string[];
 };
 
 function parseCliArguments(argumentsList: string[]): ParsedCliArguments {
   const parsedArguments: ParsedCliArguments = {
     command: 'start',
     options: {},
-    remainingArguments: [],
   };
 
   for (let argumentIndex = 0; argumentIndex < argumentsList.length; argumentIndex += 1) {
@@ -56,10 +52,6 @@ function parseCliArguments(argumentsList: string[]): ParsedCliArguments {
       parsedArguments.command = 'version';
     } else if (!argument.startsWith('-')) {
       parsedArguments.command = argument;
-      if (argument === 'sandbox') {
-        parsedArguments.remainingArguments = argumentsList.slice(argumentIndex + 1);
-        break;
-      }
     }
   }
 
@@ -155,7 +147,6 @@ Usage:
 
 Commands:
   start            Start the CloudCLI server (default)
-  sandbox          Manage Docker sandbox environments
   status           Show configuration and data locations
   update           Update to the latest version
   help             Show this help information
@@ -170,7 +161,6 @@ Options:
 Examples:
   $ cloudcli                        # Start with defaults
   $ cloudcli --port 8080            # Start on port 8080
-  $ cloudcli sandbox ~/my-project   # Run in a Docker sandbox
   $ cloudcli status                 # Show configuration
 
 Environment Variables:
@@ -251,8 +241,6 @@ export function createCliService(dependencies: CliServiceDependencies): CliAppli
           void checkForUpdates(true);
           await dependencies.startServer();
           return 0;
-        case 'sandbox':
-          return dependencies.sandboxService.execute(parsedArguments.remainingArguments);
         case 'status':
         case 'info':
           showStatus(dependencies);

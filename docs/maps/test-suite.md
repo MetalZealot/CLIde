@@ -5,19 +5,29 @@ The policy for *which* of them to run is here too; `AGENTS.md` routes to it.
 
 ## Shape
 
-57 test files, 824 tests, in two halves that need different tsconfigs — the root
+56 test files, 1,172 tests, in two halves that need different tsconfigs — the root
 maps `@/*` to `src/*`, the server maps it to `server/*`.
 
 | Half | Files | Tests | Command |
 |---|---|---|---|
-| Server | 39 | 546 | `npm run test:server` |
-| Client | 18 | 278 | `npm run test:client` |
+| Server | 38 | 722 | `npm run test:server` |
+| Client | 18 | 450 | `npm run test:client` |
 
 Server tests concentrate where the contracts are: `providers` (13 files),
 `projects` (3), `websocket` (3), `database` (2), most other modules one. Client
 tests hold one file per feature area per layer — `chat` and `settings` each have
 hooks, utils and view files; stores, contexts, and single-purpose components hold
 one apiece.
+
+## Isolation and CI
+
+Every server test process starts on its own empty database, preloaded by
+`test:server` and `test:server:one` from `scripts/isolate-test-database.mjs`, so
+an inherited `DATABASE_PATH` never reaches the live one. A test that needs tables
+calls `initializeDatabase()`. GitHub Actions runs typecheck, lint, `check:docs`,
+`check:tests` and both halves on every push; a test needing something only the
+maintainer's machine has skips when `CI` is set and says why (today: the three
+that parse the installed `claude` binary's model registry).
 
 ## Which checks to run
 

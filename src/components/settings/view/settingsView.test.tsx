@@ -1475,7 +1475,7 @@ describe('AgentToolsScreen', () => {
         projects={PROJECTS}
         onOpenScreen={() => {}}
         notificationPreferences={{
-          channels: { inApp: true, webPush: false, desktop: false, sound: false },
+          channels: { inApp: true, webPush: false, sound: false },
           events: { actionRequired: true, stop: true, error: true, usageReset: {} },
         }}
         onNotificationPreferencesChange={() => {}}

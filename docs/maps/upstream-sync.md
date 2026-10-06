@@ -69,15 +69,18 @@ catalog. The upstream diff looks like a large gain and is a regression here.
 When an upstream change adds a table of provider facts, check whether this fork
 already derives them.
 
-**A missing translation key is not automatically a gap.** `#1162` added five
-sidebar keys CLIde does not have, because they belong to an archive dialog
-CLIde does not have. Porting them adds dead keys. Ask which component consumes
-a key before counting it as missing.
+**CLIde is English-only.** Upstream changes to other locales, the language list
+or the language picker are refused. An English key upstream adds is a gap only
+if a CLIde component reads it: `#1162` added five sidebar keys for an archive
+dialog CLIde does not have, and porting them would add dead keys.
 
-**Upstream release plumbing is never a CLIde change.** npm publishing,
-release-it, trusted publishing, Electron packaging, and the README rewrite are
-their operational surface. The README in particular would restore upstream
-branding. These are refused permanently and do not need re-assessing each time.
+**Areas CLIde removed are refused permanently.** The desktop app, the Docker
+sandbox, npm release tooling, upstream's README, changelog, issue templates and
+workflows, and CloudCLI's own plugin system (`server/modules/plugins`, the
+plugin tabs, `plugins/starter`) were deleted on 2026-10-05. Upstream changes to
+them have nothing to apply to; `check:upstream` marks a commit `removed` when
+every file it touches is in one of them. Claude Code's and Codex's plugins are
+a separate system and stay in scope.
 
 ## Refused permanently
 
@@ -88,7 +91,10 @@ branding. These are refused permanently and do not need re-assessing each time.
 | `#1274` plugin commands and skills | CLIde reads both folders and dedupes by command |
 | `#1265` OpenCode Go catalog | CLIde reads the live catalog instead of hardcoding it |
 | `#1162` archive dialog keys | The dialog they belong to does not exist here |
-| Release plumbing, README, Electron | Upstream operations; the README would restore their branding |
+| Release plumbing, README, changelog, workflows | Upstream operations; the README would restore their branding |
+| Desktop app, Docker sandbox | Deleted from CLIde; nothing to apply to |
+| CloudCLI's plugin system | Deleted from CLIde; providers' own plugins are unaffected |
+| Non-English locales and the language picker | CLIde is English-only |
 
 ## Gap inventory
 
@@ -212,8 +218,8 @@ are pending.
   namespace. Revisit any of these only if the fork's own version proves worse
   in use.
 - **Refused:** the table above. Upstream release commits, `release-it`, npm
-  publishing and Electron packaging are classified automatically by subject
-  and never need re-listing.
+  publishing and Electron packaging are classified automatically by subject,
+  and commits confined to removed areas by path; neither needs re-listing.
 - **Not adopted, reconsider only on evidence:** `#1206`'s transcript
   performance work — server-side history caching, lazy row mounting, streaming
   markdown, scan coalescing. Real, but measured on upstream's architecture.

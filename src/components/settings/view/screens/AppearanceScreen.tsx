@@ -10,7 +10,6 @@ import {
 } from '../../../../contexts/AppearancePreferencesContext';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { formatClockTime, type ClockFormat } from '../../../../utils/formatTime';
-import { languages } from '../../../../i18n/languages';
 import { getScreen } from '../../registry/registry';
 import {
   SETTINGS_ICONS,
@@ -75,7 +74,7 @@ type AppearanceScreenProps = {
 export default function AppearanceScreen({
   onOpenScreen,
 }: AppearanceScreenProps) {
-  const { t, i18n } = useTranslation('settings');
+  const { t } = useTranslation('settings');
   const { theme, setTheme } = useTheme();
   const {
     chatReadingSize,
@@ -90,8 +89,6 @@ export default function AppearanceScreen({
   const isWide = useWideReadingMetrics();
   const readingMetrics = READING_METRICS[isWide ? 'wide' : 'phone'];
   const selectedMetrics = readingMetrics[chatReadingSize];
-  const selectedLanguage = languages.find((language) =>
-    language.value === (i18n.resolvedLanguage ?? i18n.language)) ?? languages[0];
 
   const readingSizeOptions = (['smallest', 'small', 'default', 'large'] as ChatReadingSize[])
     .map((value) => ({
@@ -210,23 +207,6 @@ export default function AppearanceScreen({
           <p className="mt-2 text-sm tabular-nums text-muted-foreground">
             {formatClockTime(clockPreviewTime, { format: clockFormat })}
           </p>
-        </SettingsRow>
-      </SettingsGroup>
-
-      <SettingsGroup title={t('appearanceSettings.language.title')}>
-        <SettingsRow
-          label={t('account.languageLabel')}
-          description={t('account.languageDescription')}
-        >
-          <SettingsChoicePopover<string>
-            value={selectedLanguage?.value ?? 'en'}
-            options={languages.map((language) => ({
-              value: language.value,
-              label: language.nativeName,
-            }))}
-            ariaLabel={t('account.languageLabel')}
-            onChange={(language) => void i18n.changeLanguage(language)}
-          />
         </SettingsRow>
       </SettingsGroup>
 

@@ -76,7 +76,6 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'appearance', labelKey: 'appearanceSettings.typography.readingSize.label', keywords: 'font text smallest small default large compact readability density preview pixels' },
   { screenId: 'appearance', labelKey: 'appearanceSettings.typography.lineSpacing.label', keywords: 'font text line height leading condensed relaxed spacious readability preview pixels' },
   { screenId: 'appearance', labelKey: 'appearanceSettings.time.clockFormat.label', keywords: 'time 12 24 hour clock am pm timestamp military' },
-  { screenId: 'appearance', labelKey: 'appearanceSettings.language.title', keywords: 'locale translation picker dropdown popover' },
 
   { screenId: 'appearance.editor', labelKey: 'appearanceSettings.codeEditor.wordWrap.label' },
   { screenId: 'appearance.editor', labelKey: 'appearanceSettings.codeEditor.showMinimap.label' },
@@ -99,14 +98,12 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'chat.voice', labelKey: 'voiceSettings.format' },
 
   { screenId: 'notifications', labelKey: 'notifications.webPush.title', keywords: 'push browser' },
-  { screenId: 'notifications', labelKey: 'notifications.desktop.title' },
   { screenId: 'notifications', labelKey: 'notifications.sound.title', keywords: 'tone chime audio' },
   { screenId: 'notifications', labelKey: 'notifications.events.title', keywords: 'action required stopped failed' },
 
   { screenId: 'projects-git', labelKey: 'git.name.label', keywords: 'identity commits author' },
   { screenId: 'projects-git', labelKey: 'git.email.label', keywords: 'identity commits author' },
 
-  { screenId: 'plugins', labelKey: 'pluginSettings.installButton', keywords: 'git repository url' },
 
   { screenId: 'browser', labelKey: 'browserSettings.enable.label', keywords: 'playwright chromium runtime' },
   { screenId: 'browser', labelKey: 'browserSettings.viewport.title', keywords: 'device size resolution desktop tablet mobile emulation' },

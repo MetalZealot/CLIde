@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // Load environment variables before other imports execute.
 import './load-env.js';
-import fs, { promises as fsPromises } from 'fs';
+import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import http from 'http';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -41,12 +40,6 @@ import { createAgentModule } from './modules/agent/index.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
 import { userRoutes } from './modules/user/index.js';
-import {
-    getPluginPort,
-    pluginsRoutes,
-    startEnabledPluginServers,
-    stopAllPlugins,
-} from './modules/plugins/index.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import { scheduledMessageRoutes } from './modules/scheduled-messages/index.js';
 import { voiceRoutes } from './modules/voice/index.js';
@@ -101,7 +94,7 @@ const agentRoutes = createAgentModule({
     queryOpenCode,
 });
 
-// Single WebSocket server that handles chat, shell, and plugin proxy paths.
+// Single WebSocket server that handles chat and shell paths.
 const wss = createWebSocketServer(server, {
     verifyClient: {
         isPlatform: IS_PLATFORM,
@@ -121,7 +114,6 @@ const wss = createWebSocketServer(server, {
             return null;
         },
     },
-    getPluginPort,
 });
 
 // Make WebSocket server available to routes
@@ -188,9 +180,6 @@ app.use('/api/scheduled-messages', authenticateToken, scheduledMessageRoutes);
 
 // User API Routes (protected)
 app.use('/api/user', authenticateToken, userRoutes);
-
-// Plugins API Routes (protected)
-app.use('/api/plugins', authenticateToken, pluginsRoutes);
 
 // Browser MCP bridge API (local token protected)
 app.use('/api/browser-use-mcp', browserUseMcpRoutes);
@@ -285,50 +274,9 @@ const SERVER_PORT = Number.parseInt(process.env.SERVER_PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const DISPLAY_HOST = getConnectableHost(HOST);
 const VITE_PORT = process.env.VITE_PORT || 5173;
-const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudcli', 'local-server.json');
-
-function getErrorCode(error: unknown): string | undefined {
-    if (typeof error !== 'object' || error === null || !('code' in error)) {
-        return undefined;
-    }
-    return String(error.code);
-}
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
-}
-
-async function writeLocalServerMarker() {
-    const marker = {
-        pid: process.pid,
-        host: HOST,
-        port: Number.parseInt(String(SERVER_PORT), 10),
-        url: `http://${DISPLAY_HOST}:${SERVER_PORT}`,
-        installMode,
-        appRoot: APP_ROOT,
-        updatedAt: new Date().toISOString(),
-    };
-
-    await fsPromises.mkdir(path.dirname(LOCAL_SERVER_MARKER_PATH), { recursive: true });
-    await fsPromises.writeFile(LOCAL_SERVER_MARKER_PATH, JSON.stringify(marker, null, 2), 'utf8');
-}
-
-async function removeLocalServerMarker() {
-    try {
-        const raw = await fsPromises.readFile(LOCAL_SERVER_MARKER_PATH, 'utf8');
-        const marker = JSON.parse(raw);
-        if (marker.pid && marker.pid !== process.pid) return;
-    } catch (error) {
-        if (getErrorCode(error) === 'ENOENT') return;
-    }
-
-    try {
-        await fsPromises.unlink(LOCAL_SERVER_MARKER_PATH);
-    } catch (error) {
-        if (getErrorCode(error) !== 'ENOENT') {
-            console.warn('[WARN] Could not remove local server marker:', getErrorMessage(error));
-        }
-    }
 }
 
 // Initialize database and start server
@@ -356,10 +304,6 @@ async function startServer() {
    
         server.listen(SERVER_PORT, HOST, async () => {
             const appInstallPath = APP_ROOT;
-            await writeLocalServerMarker().catch((error) => {
-                console.warn('[WARN] Could not write local server marker:', error.message);
-            });
-
             console.log('');
             console.log(terminalTextStyles.dim('═'.repeat(63)));
             console.log(`  ${terminalTextStyles.bright('CloudCLI Server - Ready')}`);
@@ -382,15 +326,9 @@ async function startServer() {
             // monitor alive when its reset alerts are switched off.
             initializeScheduledMessages();
             initializeProviderUsageResetMonitor();
-
-            // Start server-side plugin processes for enabled plugins
-            startEnabledPluginServers().catch(err => {
-                console.error('[Plugins] Error during startup:', err.message);
-            });
         });
 
         await closeSessionsWatcher();
-        // Clean up plugin processes on shutdown
         const shutdownRuntimeServices = async () => {
             closeProviderUsageResetMonitor();
             closeScheduledMessages();
@@ -398,16 +336,6 @@ async function startServer() {
                 await browserUseService.stopAllSessions();
             } catch (err) {
                 console.error('[Browser] Error stopping sessions during shutdown:', getErrorMessage(err));
-            }
-            try {
-                await stopAllPlugins();
-            } catch (err) {
-                console.error('[Plugins] Error stopping plugins during shutdown:', getErrorMessage(err));
-            }
-            try {
-                await removeLocalServerMarker();
-            } catch (err) {
-                console.error('[Local Server] Error removing server marker during shutdown:', getErrorMessage(err));
             }
             process.exit(0);
         };

@@ -17,7 +17,6 @@ export type SettingsIconName =
   | 'voice'
   | 'notifications'
   | 'git'
-  | 'plugins'
   | 'browser'
   | 'credentials'
   | 'about'
@@ -233,7 +232,7 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
     labelKey: 'mainTabs.appearance',
     icon: 'appearance',
     group: 'app',
-    keywords: 'appearance theme dark light system language typography font text reading size',
+    keywords: 'appearance theme dark light system typography font text reading size',
   },
   {
     kind: 'screen',
@@ -288,14 +287,6 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
   },
   {
     kind: 'screen',
-    id: 'plugins',
-    labelKey: 'mainTabs.plugins',
-    icon: 'plugins',
-    group: 'extensions',
-    keywords: 'plugins extensions integrations',
-  },
-  {
-    kind: 'screen',
     id: 'browser',
     labelKey: 'mainTabs.browser',
     icon: 'browser',
@@ -341,7 +332,6 @@ export const MAX_SETTINGS_DEPTH = 3;
  * enable toggle now lives on `chat`. `git` merged into `projects-git`.
  */
 export const LEGACY_SCREEN_IDS: Record<string, string> = {
-  tasks: 'plugins',
   'agent.claude.skills': 'agent.claude.tools',
   'agent.cursor.skills': 'agent.cursor.tools',
   'agent.codex.skills': 'agent.codex.tools',
