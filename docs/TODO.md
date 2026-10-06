@@ -121,7 +121,7 @@ new work.
 ---
 
 - [ ] **Threads with no project**, each in its own scratch folder, so a new user can message before adding one. [Plan](plans/no-project-threads.md). **M/L**
-- [ ] **Markdown-native cross-project dashboard and Kanban board.** A possible built-in or extension surface over authoritative project docs, with deterministic partial adoption, optional agent-assisted setup, and later constrained source edits—no task database or orchestration layer. [Plan](plans/markdown-project-board.md). **L — observe dashboard V1 first**
+- [~] **Markdown-native cross-project dashboard and Kanban board.** A possible built-in or extension surface over authoritative project docs, with deterministic partial adoption, optional agent-assisted setup, and later constrained source edits—no task database or orchestration layer. [Plan](plans/markdown-project-board.md). **L — observe dashboard V1 first**
 - [ ] **Register CLIde as a Web Share Target** — the only remaining way to get a native file-attach flow on Android. The composer's attachment control is at the ceiling of what `accept` can do (ADR 0026): eleven variants were probed on the installed PWA and an in-app source menu was built and reverted the same day, because it could only add a tap in front of the same chooser. **M**
 - [~] **Claude Code settings are almost entirely unreachable from CLIde** — all 172 cascade keys are classified and drift-tested, and settable from Agents › Claude's categories and Advanced. [Plan](plans/claude-settings-surface.md). **L**
 - [ ] **Environments**: a second machine in the same app. [Plan](plans/environments.md). **L**
