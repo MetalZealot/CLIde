@@ -1163,9 +1163,10 @@ describe('claude-runtime turns on a fake query', () => {
   });
 
   // A new chat names its provider id before spawn; one stopped before its first
-  // frame claims that id only if the CLI wrote the transcript.
+  // frame claims that id only once the CLI has written the transcript, which it
+  // does as it exits, after the run has returned.
   for (const written of [true, false]) {
-    test(`a new chat stopped before its first frame ${written ? 'claims its transcript' : 'maps nothing without one'}`, async () => {
+    test(`a new chat stopped before its first frame ${written ? 'claims the transcript the CLI writes as it exits' : 'maps nothing without one'}`, async () => {
       const home = await mkdtemp(path.join(os.tmpdir(), 'claude-home-'));
       const previousHome = process.env.HOME;
       process.env.HOME = home;
@@ -1176,16 +1177,18 @@ describe('claude-runtime turns on a fake query', () => {
         const minted = fake.options?.sessionId as string;
         assert.match(minted, /^[0-9a-f-]{36}$/);
         assert.equal(fake.options?.resume, undefined);
+        controller.abort();
+        fake.end();
+        await done;
+        runtime.setClaudeQueryForTests(null);
+        assert.deepEqual(mapped, [], 'nothing is mapped before the transcript exists');
         if (written) {
           const { encodeClaudeProjectDir } = await import('@/modules/providers/list/claude/claude-rewind.util.js');
           const dir = path.join(home, '.claude', 'projects', encodeClaudeProjectDir(cwd));
           await mkdir(dir, { recursive: true });
           await writeFile(path.join(dir, `${minted}.jsonl`), '{}\n');
         }
-        controller.abort();
-        fake.end();
-        await done;
-        runtime.setClaudeQueryForTests(null);
+        await new Promise((resolve) => setTimeout(resolve, 300));
         assert.deepEqual(mapped, written ? [minted] : []);
       } finally {
         process.env.HOME = previousHome;

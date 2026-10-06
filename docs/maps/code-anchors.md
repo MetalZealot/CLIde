@@ -118,10 +118,11 @@ UUID into `Options.sessionId` whenever it is not resuming (the CLI refuses
 `sessionId` with `resume` unless `forkSession` is set). The mapping is still recorded
 by the first frame's `session_id`, as for every provider. A run stopped before any
 frame — an abort that would otherwise orphan a new chat into two sidebar rows — claims the
-minted id at teardown (`claimMintedTranscript`), but only if the CLI wrote the
-transcript: mapping to a missing one would make every later send fail to resume.
-`assignProviderSessionId` (`sessions.db.ts`) merges any duplicate row the watcher
-created meanwhile.
+minted id at teardown (`claimMintedTranscript`), but only once the CLI has written
+the transcript: mapping to a missing one would make every later send fail to resume.
+The CLI writes it as it exits, up to ~0.8 s after the run returns, so the check
+repeats for 5 s. `assignProviderSessionId` (`sessions.db.ts`) merges any duplicate
+row the watcher created meanwhile, and the upsert evicts it from every sidebar.
 
 ## Model picker: catalog and active-model are two systems
 

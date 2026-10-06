@@ -457,10 +457,11 @@ phase done.
     an idle query per project (49 rows here, 2.1 s), cached 30 minutes, minus the
     last `init`'s terminal list and the commands whose state CLIde does not yet
     read back. CLIde's own 11 stay and win name clashes.
-  - Built, not yet live-checked: `Options.sessionId` for new sessions. The
-    mapping is recorded at the first frame as before, or at teardown when a run
-    stopped before any frame left a transcript; recording it before spawn would
-    map a chat whose spawn failed to a transcript that never existed.
+  - Built and checked against the real CLI (aborts at 0.6–4.2 s, all mapped,
+    including one with no frames): `Options.sessionId` for new sessions. The
+    mapping is recorded at the first frame as before, or once a frame-less run's
+    transcript appears (the CLI writes it as it exits); recording it before spawn
+    would map a chat whose spawn failed to a transcript that never existed.
   - Built: the live `tool_use_result` reaches tool rows, and chat queries ask for
     `thinking.display: 'summarized'` (measured: Opus's thinking text is empty
     without it, 141 characters with it; Haiku accepts it).

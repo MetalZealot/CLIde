@@ -81,6 +81,9 @@ const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEO
 // Silence after which a run held open for background work gives up and closes its input.
 const BACKGROUND_HOLD_SILENCE_MS = 30 * 60 * 1000;
 
+// How long a run stopped before its first frame waits for the CLI's transcript.
+const MINTED_TRANSCRIPT_WAIT_MS = 5000;
+
 const CLAUDE_CONTEXT_USAGE_REFRESH_MS =
   parseInt(process.env.CLAUDE_CONTEXT_USAGE_REFRESH_MS, 10) || 60000;
 
@@ -869,17 +872,26 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
   // A run that never saw a frame never mapped its id. Mapped only once the CLI
   // has written the transcript: a mapping to a missing one would make every
-  // later send fail to resume. The watcher's duplicate row, if any, merges in.
-  const claimMintedTranscript = async () => {
-    if (!mintedSessionId || capturedSessionId) return;
-    const transcriptPath = resolveClaudeTranscriptPath({ cwd: options.cwd }, mintedSessionId);
-    try {
-      await fs.access(transcriptPath);
-    } catch {
-      return;
-    }
-    capturedSessionId = mintedSessionId;
-    ws.setSessionId?.(mintedSessionId);
+  // later send fail to resume. The CLI writes it as it exits, up to ~0.8 s after
+  // the run returns (measured 2026-10-06), so the check repeats in the
+  // background. The watcher's duplicate row, if any, merges in.
+  const claimMintedTranscript = () => {
+    const transcriptPath = mintedSessionId && !capturedSessionId
+      ? resolveClaudeTranscriptPath({ cwd: options.cwd }, mintedSessionId)
+      : null;
+    if (!transcriptPath) return;
+    const minted = mintedSessionId;
+    const deadline = Date.now() + MINTED_TRANSCRIPT_WAIT_MS;
+    const check = async () => {
+      try {
+        await fs.access(transcriptPath);
+      } catch {
+        if (Date.now() < deadline) setTimeout(check, 100).unref();
+        return;
+      }
+      ws.setSessionId?.(minted);
+    };
+    void check();
   };
 
   const turnStartedAt = Date.now();
@@ -1368,7 +1380,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Clean up session on completion
     clearBackgroundHold();
     inputChannel?.close();
-    await claimMintedTranscript();
+    claimMintedTranscript();
     if (sessionKey()) {
       removeSession(sessionKey());
     }
@@ -1418,7 +1430,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Clean up session on error
     clearBackgroundHold();
     inputChannel?.close();
-    await claimMintedTranscript();
+    claimMintedTranscript();
     if (sessionKey()) {
       removeSession(sessionKey());
     }
