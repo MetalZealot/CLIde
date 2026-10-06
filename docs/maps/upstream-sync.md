@@ -18,6 +18,10 @@ upstream was abandoned; `package.json` keeps its own number and the fork's
   **after** it lands in paths this fork does not have, so it is read and
   reimplemented, never applied. Check which side of `99ea0525` a commit sits on
   before planning any of it.
+- **Runtime layer off upstream (ADR 0065):** provider runtime adapters, the chat
+  gateway and run registry, and the chat message and event types are never
+  cherry-picked. An upstream change there is read, then reimplemented or skipped,
+  with the call recorded in the ledger.
 
 ## The procedure
 
