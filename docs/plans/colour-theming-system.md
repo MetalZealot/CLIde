@@ -8,8 +8,10 @@
   exist (`src/components/sidebar/utils/accentColors.ts`,
   `SidebarAccentColorMenu.tsx`) and Phase 4 extends that, not a parallel system.
   No `backdrop-filter` (ADR 0001). Typography
-  ([UI standards](../ui-standards.md#typography)) shares `src/index.css` and
-  `tailwind.config.js`; keep the two changes separate.
+  ([design system](../design-system.md#typography)) shares `src/index.css` and
+  `tailwind.config.js`; keep the two changes separate. Phase 0 here is Phase 1
+  of [the design-system plan](design-system.md), whose radius phase lands
+  before Phase 3 here.
 
 The architecture is already right and roughly half the app ignores it. Measured
 2026-08-13: **2,335 hardcoded palette-class occurrences** (`text-gray-400`,
@@ -82,7 +84,7 @@ phase is small once it lands and impossible before it.
   Its own item.
 - **Syntax highlighting.** `react-syntax-highlighter` and the code editor ship
   independent colour sets; retheming those is separate work.
-- **Typography** — [UI standards](../ui-standards.md#typography).
+- **Typography** — [design system](../design-system.md#typography).
 - **User-authored themes.** Phase 2 ships a dial over a fixed token set, not an
   arbitrary per-token editor.
 - **Custom project icons** — a separate TODO item, unrelated to colour.

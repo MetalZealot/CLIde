@@ -18,7 +18,7 @@ lot of code.
 | [Upstream](upstream.md) | How this fork takes work from `siteboon/claudecodeui`, and which of its fixes could go back; each verdict is a line in [`upstream-verdicts.tsv`](upstream-verdicts.tsv) | Candidates merged in 2026-10-07 |
 | [Code anchors](code-anchors.md) | Symbol-anchored map of the code worth not blind-reading; the areas where a wrong assumption is expensive | 90 of 93 named symbols present, 2026-10-06 |
 | [Testing](testing.md) | What the suites own, their measured cost, and what they cannot establish | Measured 2026-08-15 after consolidation to 82 files |
-| [UI standards](ui-standards.md) | What the interface is objectively required to do, what is only house convention, and typography's ownership and boundaries | Typography merged in 2026-10-07 |
+| [Design system](design-system.md) | The tokens screens draw from, the accessibility floor, and the patterns new work copies, each rule labelled standard, convention or taste | Renamed from UI standards 2026-10-07; typography is its only token section so far |
 | [Providers](providers.md) | What CLIde does with each provider, how exactly, and what it refuses | Stale Claude and Codex rows corrected 2026-10-06 |
 
 ## What belongs here

@@ -112,7 +112,7 @@ behaviour stays behind adapter interfaces.
 **Before building, bucket each UI choice as external standard, house convention,
 or maintainer taste.**  A confident convention reads like a published standard
 to someone who cannot check it.  44px is contextual comfort guidance, not CLIde's
-universal target floor.  Sources: [the UI standards doc](docs/ui-standards.md).
+universal target floor.  Read [the design system](docs/design-system.md) first.
 
 ## Code comments
 

@@ -76,7 +76,7 @@ with no check is a known gap.
   the run registry, and two permission systems remain.
 - **Phone first.** The installed phone app is the main surface. *Breaks:* works on
   the desktop, fails on the phone. Held by 14, 15, 17. Check: a real device, by
-  nature; target sizing is in [the UI standards doc](docs/ui-standards.md).
+  nature; target sizing is in [the design system doc](docs/design-system.md).
 - **Product bar.** CLIde does what comparable apps have taught users to expect.
   *Breaks:* it feels old while working. Check: none; runtime phase 3b runs the
   first comparison.
@@ -304,7 +304,7 @@ checks alone let that ship once.
 #### 16. Nothing has a published place around the composer
 
 No standard covers placement around the composer. Four reasons decide it, set out in
-[the UI standards doc](docs/ui-standards.md): thumb reach, the room the keyboard
+[the design system doc](docs/design-system.md): thumb reach, the room the keyboard
 leaves, whether a thing affects the next message or the whole session, and whether it
 is waiting on the user. The strip above the composer is the scarcest space on a
 phone: it holds only what needs the user now, plus queued messages about to send, as

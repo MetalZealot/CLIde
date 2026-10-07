@@ -4,7 +4,7 @@
 - Next: phase 3 — the banners go, and all three edits mark the original instead
 - Merged to `main` 2026-09-15; phases 0 and 1 are live
 - Context: Auto-Continue offers on the scheduled bubble
-  this plan introduces; placement reasons in [UI standards](../ui-standards.md);
+  this plan introduces; placement reasons in [design system](../design-system.md);
   rewind semantics are ADRs 0012 and 0013
 
 Three kinds of message can be edited in the composer: one sent while a run is busy

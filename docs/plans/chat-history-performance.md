@@ -5,7 +5,7 @@
 - Context: budgets in `scripts/chat-history/budgets.ts`,
   [test suite](../testing.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
-  [tool activity rows](../ui-standards.md#tool-activity-rows)
+  [tool activity rows](../design-system.md#tool-activity-rows)
 
 Long conversations open promptly, scroll back without a Load button or a
 freeze that grows with length, keep their place and open state, and let any
