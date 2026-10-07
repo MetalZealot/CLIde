@@ -65,7 +65,6 @@ main checkout only).
 - [ ] **Single-row composer on mobile**, settings in a sheet. [Plan](plans/composer-single-row.md). **M — probe first**
 - [~] **Context & Usage popover redesign, with a Claude prompt-cache countdown.** Big session %, cache pill, auto-compact/breakdown buttons, limits as open columns with pace ticks (probe variant F, `~/Projects/mockups/usage-popover`); breakdown is its own view. Tests pass; awaiting phone check. **M**
 
-- [ ] **Consider floating New Session above the sidebar footer instead of inside it.** `--app-footer-height` is 60px, accepted with the bottom nav; ChatGPT and T3 both float the compose action over the list rather than embedding it in a solid bar. Revisit if the button misfires near the gesture strip. **S — on trial, don't act unprompted**
 - [ ] General condensing of UI elements and popup menus on mobile — some assets and text get cut off. **M — grab-bag, itemize as found**
 - [ ] Sidebar: needs-action amber can stick if a background session's pending permission is answered in **another client**. Opening deliberately preserves unresolved attention; it clears only when this client receives `permission_cancelled` or the session is removed. Acceptable for now. **S**
 - [ ] Tool-call copy button placement on mobile: always-visible since `05b176b`, but it spans the whole right edge of the tool row, which is heavy. Compact or fold into a row action; keep hover-reveal on desktop. **S/M — design decision first**
@@ -75,8 +74,7 @@ main checkout only).
 
 Placement tiers: 1 permanent (must be seen without acting), 2 the row's menu (default for new ideas), 3 a container (Settings, Archive, worktree manager). Decide the tier before designing the control.
 
-- [ ] **Audit fifteen compact controls across eleven locations in context** — repository New Session/kebab, session kebab in touch Desktop View, search field, toggle and Clear, close sidebar, batch-bar and archive-row buttons, rename Save/Cancel, New Project (helper `.sidebar-utility-hit-target`). Under 44px is not a defect by itself: check WCAG spacing, collisions and Samsung use first. **S**
-- [ ] **A repository row tap does different things per breakpoint** — mobile `onClick` only expands, desktop also selects the project (`SidebarRepositoryItem`, `toggleProject` vs `selectAndToggleProject`). No comment says why. Either is defensible; the divergence being undocumented is not. **S**
+- [ ] **The sidebar becomes a rail of views over one project-scoped list**: icon rail of views, one project picker scoping them all, a flat session list, a round button that follows the view, a project sheet and Settings › Projects. Folds in the compact-controls audit. [Design](designs/sidebar-rail.md), [plan](plans/sidebar-rail.md). **L — design agreement first**
 
 ## Model picker follow-ups
 

@@ -130,8 +130,9 @@ Read from source 2026-10-06 unless marked.
   - Agent check, live: Claude and Codex tasks each produce a run chat, and the
     project list is unchanged.
 - [ ] 5. **The Scheduled section — est. 2.**
-  - Probe on the S20 first, and agree the end state, including where it sits in
-    the sidebar, before building.
+  - Placement is settled: Scheduled is a rail view in
+    [the sidebar design](../designs/sidebar-rail.md), which fixes its rows,
+    scope and round button. Probe the task sheet on the S20 before building.
   - Work:
     - A task list showing the next run and the last outcome.
     - A task sheet with Run now, Pause, Edit and Delete, a history with skip

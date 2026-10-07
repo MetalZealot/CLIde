@@ -1,7 +1,7 @@
 # 0036 — Pins belong to session lists; activity belongs to status
 
 - Date: 2026-08-14
-- Status: Accepted
+- Status: Accepted; repository-row pins and the no-Pinned-heading rule for the flat list superseded by 0071
 
 ## Decision
 

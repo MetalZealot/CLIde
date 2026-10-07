@@ -2,7 +2,7 @@
 
 - Status: 2/6
 - Next: phase 2, the plan-format contract
-- Context: [current project dashboard](project-dashboard.md), [plans board](README.md), [static HTML preview boundary](../decisions/0045-html-file-preview-is-static-and-isolated.md)
+- Context: [current project dashboard](project-dashboard.md), [plans board](README.md), [static HTML preview boundary](../decisions/0045-html-file-preview-is-static-and-isolated.md), [sidebar design](../designs/sidebar-rail.md) (Board's place, rows and scope)
 
 CLIde may eventually provide a built-in or opt-in extension that shows project work
 as a dashboard and Kanban board. This plan owns that cross-project, potentially
@@ -95,7 +95,7 @@ extension using the app's file-access boundary.
 - [ ] 2. Plan-format contract for CLIde's own plans: a size on every phase, an optional
       `Needs:` field naming what waits on Grayson, `Status` matching the checkboxes —
       enforced by `npm run check:docs`, with existing plans migrated in one pass.
-- [ ] 3. Read-only board panel for the current project, read live from the files so
+- [ ] 3. Read-only board panel, the sidebar's Board view (lane headings, no chips, per the sidebar design), read live from the files so
       nothing needs regenerating: lanes, progress, Needs Grayson, blocked-by links,
       timeline, Start session.  Replaces the generated page.
 - [ ] 4. Cross-project: sample three differently organised repositories, define the

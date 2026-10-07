@@ -40,6 +40,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Threads with no project](no-project-threads.md) | not started | Phase 0: prove each provider runs and resumes in an empty, non-git folder |
 | [CLIde harness](clide-harness.md) | not started | Phase 0: inventory what each adapter injects and what each provider already tells its agent |
 | [Scheduled tasks](scheduled-tasks.md) | not started | Phase 0: Grayson agrees the positions |
+| [Sidebar rail](sidebar-rail.md) | not started | Phase 0: Grayson agrees the design |
 
 Read this table before opening anything. Seeing where every piece of work
 stands should cost about a kilobyte.

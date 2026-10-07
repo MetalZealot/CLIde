@@ -1,7 +1,7 @@
 # 0029 — A repository row's session view is per row, in memory, and loads before it filters
 
 - Date: 2026-08-06
-- Status: Accepted; pinned-session consequence superseded by 0036
+- Status: Superseded by 0071
 
 ## Decision
 

@@ -66,16 +66,16 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0026 — Android's file chooser can't be shaped from the web; the composer keeps one plain input](0026-attachment-menu-accept-ceiling.md) *(superseded by 0070)*
 - [0027 — The backlog lives at `docs/TODO.md`](0027-todo-md-lives-in-docs.md)
 - [0028 — Creating a worktree ships ahead of ADR 0016's Phase 0; removing one does not](0028-worktree-creation-precedes-phase-0.md) *(narrows 0016's sequencing)*
-- [0029 — A repository row's session view is per row, in memory, and loads before it filters](0029-per-row-session-views-load-before-they-filter.md) *(pinned-session consequence superseded by 0036)*
+- [0029 — A repository row's session view is per row, in memory, and loads before it filters](0029-per-row-session-views-load-before-they-filter.md) *(superseded by 0071)*
 - [0030 — Sidebar activity is a section; search is persistent and Archive is in the footer](0030-sidebar-activity-persistent-search-footer-archive.md) *(superseded by 0036 and 0037)*
 - [0031 — Selection follows the theme; sidebar status uses symbols](0031-theme-relative-selection-and-symbolic-sidebar-status.md)
 - [0032 — The composer ring owns a summary-first usage popover](0032-summary-first-composer-usage-popover.md)
 - [0033 — A worktree with no project row is listed, not registered](0033-discovered-checkouts-are-derived-not-stored.md)
 - [0034 — Codex uses one explicitly approved native runtime](0034-codex-managed-native-runtime.md) *(selection superseded by 0061)*
 - [0035 — Discovered checkout selection registers first](0035-discovered-checkout-selection-registers-first.md)
-- [0036 — Pins belong to session lists; activity belongs to status](0036-pins-belong-to-session-lists-activity-belongs-to-status.md)
+- [0036 — Pins belong to session lists; activity belongs to status](0036-pins-belong-to-session-lists-activity-belongs-to-status.md) *(repository-row pins superseded by 0071)*
 - [0037 — The sidebar view menu owns Archive and global list controls](0037-sidebar-view-menu-owns-archive-and-global-list-controls.md)
-- [0038 — The sidebar view menu owns Archive and global sorting](0038-global-sessions-menu-sorts-only.md)
+- [0038 — The sidebar view menu owns Archive and global sorting](0038-global-sessions-menu-sorts-only.md) *(superseded by 0071)*
 - [0039 — Usage reset alerts follow provider timestamps without catch-up](0039-provider-reset-timestamps-no-catch-up.md)
 - [0040 — Mobile Settings root owns the Back gesture](0040-settings-root-owns-back-gesture.md)
 - [0041 — A checkout is named by its folder, with its branch as state](0041-checkouts-are-named-by-place-and-state.md)
@@ -108,3 +108,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0068 — A live session's settings and send queue live on the server](0068-live-session-settings-and-queue-live-on-the-server.md)
 - [0069 — A chat's Browser context belongs to the chat, not the MCP connection](0069-a-chats-browser-belongs-to-the-chat-not-the-connection.md)
 - [0070 — Attach files uses `showOpenFilePicker`; photos get their own image-only input](0070-attach-files-uses-showopenfilepicker.md)
+- [0071 — The sidebar is a rail of views over one project-scoped list](0071-sidebar-is-a-rail-of-views-over-one-scoped-list.md)

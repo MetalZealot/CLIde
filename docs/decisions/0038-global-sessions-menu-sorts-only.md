@@ -1,7 +1,7 @@
 # 0038 — The sidebar view menu owns Archive and global sorting
 
 - Date: 2026-08-14
-- Status: Accepted
+- Status: Superseded by 0071
 
 ## Decision
 
