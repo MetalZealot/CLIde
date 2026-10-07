@@ -267,8 +267,9 @@ test('an aborted complete reports whether the run reached the provider', async (
     });
     assert.ok(run);
 
-    // Stop before the runtime emitted anything at all: the provider never took
-    // the turn, so the client's optimistic user row has nothing behind it.
+    // Stop before the provider produced anything — the runtime's own `starting`
+    // stage is not delivery, so the optimistic user row has nothing behind it.
+    run.writer.send({ kind: 'status', provider: 'claude', sessionId: 'app-run-undelivered', text: '', stage: { name: 'starting' } });
     chatRunRegistry.beginAbort('app-run-undelivered');
     chatRunRegistry.completeRun('app-run-undelivered', { exitCode: 0, aborted: true });
 

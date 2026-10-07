@@ -24,6 +24,7 @@ import {
 } from '../hooks/useScheduledMessages';
 import { useProviderCapabilities, type ChatControlChanges } from '../../../hooks/useProviderCapabilities';
 import { useSessionStore } from '../../../stores/useSessionStore';
+import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
@@ -306,6 +307,7 @@ function ChatInterface({
     returnDraftToInput,
     pendingRewind,
     beginRewindEdit,
+    restoreUndeliveredTurn,
     cancelRewindEdit,
     showRewindPicker,
     closeRewindPicker,
@@ -571,7 +573,7 @@ function ChatInterface({
    * A send was cancelled before the provider ever saw it, so its bubble was
    * retracted; put the text back in the composer to re-send or edit.
    */
-  const handleUndeliveredTurnRetracted = useCallback((sessionId: string, content: string) => {
+  const handleUndeliveredTurnRetracted = useCallback((sessionId: string, message: NormalizedMessage) => {
     // Scoped to the visible session: a background session's cancelled turn
     // must not drop its text into the composer being used for another one.
     if (sessionId !== (selectedSession?.id || currentSessionId)) {
@@ -582,8 +584,11 @@ function ChatInterface({
     if (inputSnapshotRef.current.trim().length > 0) {
       return;
     }
-    setInput(content);
-  }, [selectedSession?.id, currentSessionId, setInput]);
+    restoreUndeliveredTurn(
+      typeof message.content === 'string' ? message.content : '',
+      [...(message.images ?? []), ...(message.files ?? [])],
+    );
+  }, [selectedSession?.id, currentSessionId, restoreUndeliveredTurn]);
 
   const scheduledSessionId = currentSessionId || selectedSession?.id || null;
   const {

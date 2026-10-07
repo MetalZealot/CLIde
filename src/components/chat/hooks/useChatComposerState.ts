@@ -1502,6 +1502,17 @@ export function useChatComposerState({
     });
   }, [attachedFiles, isLoading, setInput]);
 
+  /** Hands a turn the provider never received back to the composer, attachments included. */
+  const restoreUndeliveredTurn = useCallback((content: string, attachments: ChatImage[]) => {
+    setInput(content);
+    inputValueRef.current = content;
+    if (attachments.length === 0) return;
+    void Promise.all(attachments.map(fetchAttachmentFile)).then((files) => {
+      const restored = files.filter((file): file is File => file !== null);
+      setAttachedFiles((previous) => [...restored, ...previous]);
+    });
+  }, [setInput]);
+
   const cancelRewindEdit = useCallback(() => {
     if (!pendingRewind) {
       return;
@@ -1945,6 +1956,7 @@ export function useChatComposerState({
     pendingRewind,
     beginRewindEdit,
     cancelRewindEdit,
+    restoreUndeliveredTurn,
     showRewindPicker,
     closeRewindPicker: () => setShowRewindPicker(false),
     showForkPicker,

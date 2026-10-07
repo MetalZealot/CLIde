@@ -78,7 +78,7 @@ interface UseChatRealtimeHandlersArgs {
    * A run was cancelled before the provider received it; its retracted text is
    * offered back so the composer can restore it as a draft.
    */
-  onUndeliveredTurnRetracted?: (sessionId: string, content: string) => void;
+  onUndeliveredTurnRetracted?: (sessionId: string, message: NormalizedMessage) => void;
   sessionStore: SessionStore;
 }
 

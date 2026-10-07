@@ -69,6 +69,8 @@ type ChatRun = {
    * wording. Consumed once, when the terminal `complete` passes.
    */
   usageLimitStop: boolean;
+  /** Set by the first event the provider caused; the runtime's own `starting` stage precedes the provider and does not count. */
+  providerResponded: boolean;
 };
 
 /** Notified at the end of a run the provider ended on a usage limit. */
@@ -177,6 +179,9 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
   }
 
   run.lastSeq += 1;
+  if (!(message.kind === 'status' && message.stage?.name === 'starting')) {
+    run.providerResponded = true;
+  }
 
   const outbound: NormalizedMessage = {
     ...message,
@@ -324,6 +329,7 @@ export const chatRunRegistry = {
       completedAt: null,
       abortInFlight: false,
       usageLimitStop: false,
+      providerResponded: false,
       abortController: new AbortController(),
       broadcast: input.broadcast === true,
     };
@@ -448,13 +454,12 @@ export const chatRunRegistry = {
       return;
     }
 
-    // Read `lastSeq` before `sendComplete`, which assigns the terminal event its
-    // own seq: a run cancelled with the counter still at zero never emitted
-    // anything, so the provider never took the turn and the client's optimistic
-    // user row has nothing behind it. Only meaningful for aborts.
+    // Read before `sendComplete`, whose own event would set it: a run cancelled
+    // before the provider produced anything never took the turn, so the client's
+    // optimistic user row has nothing behind it. Only meaningful for aborts.
     run.writer.sendComplete({
       ...opts,
-      ...(opts.aborted ? { deliveredToProvider: run.lastSeq > 0 } : {}),
+      ...(opts.aborted ? { deliveredToProvider: run.providerResponded } : {}),
     });
   },
 

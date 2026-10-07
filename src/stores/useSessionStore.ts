@@ -1352,7 +1352,7 @@ export function useSessionStore() {
    * until the next reload and then silently disappears — and it cannot be edited
    * or rewound, having no transcript uuid to anchor a resume.
    */
-  const retractUndeliveredUserTurn = useCallback((sessionId: string): string | null => {
+  const retractUndeliveredUserTurn = useCallback((sessionId: string): NormalizedMessage | null => {
     const slot = storeRef.current.get(sessionId);
     if (!slot || slot.realtimeMessages.length === 0) return null;
 
@@ -1367,7 +1367,7 @@ export function useSessionStore() {
     slot.realtimeMessages = slot.realtimeMessages.slice(0, -1);
     recomputeMergedIfNeeded(slot);
     notify(sessionId);
-    return typeof last.content === 'string' ? last.content : null;
+    return last;
   }, [notify]);
 
   /**
