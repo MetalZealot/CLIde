@@ -1,59 +1,66 @@
 # One design system: every screen draws from a small set of named values
 
 - Status: not started
-- Next: Phase 1 — the colour plan's Phase 0, screen by screen onto tokens
-- Context: [design system](../design-system.md),
-  [colour theming plan](colour-theming-system.md), shared components in
-  `src/shared/view/ui/`, [ADR 0062](../decisions/0062-chat-metadata-scales-with-reading-size.md)
+- Next: Phase 0 — Grayson agrees the design
+- Context: [design system reference](../design-system.md); per-repo accents in
+  `src/components/sidebar/utils/accentColors.ts`; no `backdrop-filter`
+  (ADR 0001); chat text roles (ADR 0062)
+- Design: [Design system](../designs/design-system.md), binding every phase
 
-Each phase runs one loop: decide the allowed values and the job each does,
-migrate `src/` onto them screen by screen, add a lint check that rejects
-anything else, and write that section of [the design system](../design-system.md)
-in the same commit. Token phases intend no visual change, so a difference you
-can see is a mapping bug. Counts are over `src/**/*.{ts,tsx}`, measured
-2026-10-07; re-measure before starting a phase.
+Each token phase runs the loop in the design: settle the set, migrate `src/`
+screen by screen with each looked at in the app before the next, take the
+ratchet's baseline to zero, and write that section of
+[the reference](../design-system.md) in the same commit — never a repo-wide
+find-and-replace. Re-measure before a phase starts; the design's counts are a
+2026-10-07 snapshot.
 
 ## Phases
 
-- [ ] 1. Every colour resolves through a semantic token: the
-      [colour plan's Phase 0](colour-theming-system.md#phases). Its lint check
-      rejects raw palette classes and hex literals outside the token files.
-- [ ] 2. Corners come from about three radius tokens, each named for a job
-      (chip, control, panel); `rounded-full` stays literal. Today 7 sizes over
-      646 uses: `rounded` 197, `-lg` 192, `-md` 149, `-xl` 78, `-2xl` 17,
-      `-sm` 10, `-3xl` 3. The colour plan's radius dial (its Phase 3) builds
-      on this.
-- [ ] 3. Elevation is three shadow levels and a named stacking order (base,
-      sticky, dropdown, overlay, toast). Today 7 shadow sizes plus 4 arbitrary
-      ones, and 10 z-index values from `z-10` to `z-[10000]`.
-- [ ] 4. No font size sits outside the type scale. 134 arbitrary sizes across
-      9 values (`text-[11px]` 59, `text-[10px]` 48, `text-[13px]` 14, …) map onto
-      the scale or a named role, and the older tool panels adopt the chat text
-      roles from ADR 0062.
-- [ ] 5. The shared components are inventoried — variants, sizes, states
-      (hover, focus, pressed, disabled, loading) and when to use which — and
-      look-alike copies elsewhere in `src/` fold into them.
-- [ ] 6. Recurring layouts are patterns, each naming a live screen to copy:
-      list row, settings row, empty/error/loading state, confirmation, which
-      overlay for which job, panel layout on phone and desktop. Spacing is
-      settled here as which step goes where, not as new tokens.
-- [ ] 7. Motion uses two or three named durations. Today 7, mostly
-      `duration-150` and `duration-200` (28 uses each).
+- [ ] 0. Grayson agrees the design.
+- [ ] 1. `npm run check:design` ratchets every banned pattern at today's count
+      and runs on commit, so new raw values stop before migration starts.
+- [ ] 2. Every colour resolves through a role. The raw classes collapse to
+      roughly 25 mappings, and each `text-gray-500 dark:text-gray-400` pair
+      becomes one `text-muted-foreground`. A role the table needs but the design
+      lacks goes to Grayson first. Hex literals outside the token files go too.
+- [ ] 3. Corners use the three radius roles.
+- [ ] 4. Depth uses the surface steps and three shadows, and every overlay sits
+      on a named stacking layer.
+- [ ] 5. No font size sits outside the scale: arbitrary sizes move to
+      `text-2xs` or a scale step, and the older tool panels (to-do and task
+      lists, plans, question forms) adopt the chat text roles.
+- [ ] 6. Motion uses the two named durations.
+- [ ] 7. The shared components are listed in the reference with their
+      variants, sizes and states, and look-alike copies fold into
+      `src/shared/view/ui/`.
+- [ ] 8. Patterns are written into the reference, each naming a live screen to
+      copy, with spacing settled per pattern.
+- [ ] 9. Tokens are OKLCH: the ~40 definitions in `src/index.css` change format
+      and Tailwind's `hsl(var(--x))` wrappers become `oklch(var(--x))`, matching
+      today's colours exactly.
+- [ ] 10. Theme presets and their Settings picker — monochrome, single-accent,
+      full-colour — with dark derived, the contrast script passing every preset,
+      and `theme-color` following the theme.
+- [ ] 11. The radius preset (square, min, medium, large) scales the three radius
+      roles.
+- [ ] 12. Provider accent presets (Anthropic, Codex, Cursor, OpenCode, DeepSeek,
+      Antigravity) on the per-repo accent mechanism.
 
 ## Done when
 
-- The design system has a section for colour, radius, elevation, type,
-  components, patterns and motion, and each token section names the check that
-  enforces it.
-- Lint fails on a raw palette class, hex colour, off-scale font size, arbitrary
-  z-index, or radius outside the token set.
-- The next new screen built from the doc ships without a round of styling
+- `npm run check:design` reports zero for every pattern, and each is banned
+  outright.
+- The reference has sections for colour, radius, elevation, type, motion,
+  components and patterns.
+- Switching theme repaints every screen with no grey-and-blue islands;
+  monochrome shows hue only on status; each radius preset changes every corner
+  except `rounded-full`.
+- Find's match highlight is obvious on every bubble, including your own
+  messages; today it tints with `--primary`, the user bubble's own colour.
+- Light and dark both verified on the installed PWA.
+- The next new screen built from the reference ships without a round of styling
   corrections.
 
 ## Not doing
 
-- Theme presets, OKLCH and provider accents: they stay in
-  [the colour plan](colour-theming-system.md).
-- Spacing tokens. Tailwind's 4px scale already is one; only 30 arbitrary
-  spacing values exist.
-- The Shell and the code editor, which keep their own themes and metrics.
+- Everything in [the design's list](../designs/design-system.md#not-doing).

@@ -29,8 +29,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 | [Markdown-native project board](markdown-project-board.md) | 2/6 | Phase 2: plan-format contract (phase sizes, `Needs:`) enforced by check:docs |
 | [Claude settings surface](claude-settings-surface.md) | 3/6 | Phase 4 (categories) built: live check on 3001, then Phase 5 |
 | [Background-session notifications](background-session-notifications.md) | not started | Amber header dot + in-app banner, client-only |
-| [Design system](design-system.md) | not started | Phase 1: the colour plan's Phase 0, screen by screen onto tokens |
-| [Colour theming system](colour-theming-system.md) | not started | Phase 0: migrate 118 files off hardcoded palette classes onto tokens |
+| [Design system](design-system.md) | not started | Phase 0: Grayson agrees the design |
 | [Cross-provider chat handoff](cross-provider-chat-handoff.md) | not started | Re-verify its four assumed contracts |
 | [System diagnostics](system-diagnostics.md) | not started | Move process status from Commands into an authenticated System contract |
 | [Diagnostics flight recorder](diagnostics-flight-recorder.md) | not started | Phase 0 re-audit against post-v1.37 `main`; the chat-path core is runtime rebuild phase 1b |

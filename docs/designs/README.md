@@ -9,6 +9,7 @@ apart from the plan, which changes every session.
 |---|---|---|
 | [Agent runtime](agent-runtime-rebuild.md) | agreed 2026-10-06 | [Rebuild the agent runtime](../plans/agent-runtime-rebuild.md) |
 | [Sidebar rail](sidebar-rail.md) | draft | [Sidebar rail](../plans/sidebar-rail.md) |
+| [Design system](design-system.md) | draft | [One design system](../plans/design-system.md) |
 
 ## When one exists
 
