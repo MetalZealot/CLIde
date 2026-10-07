@@ -25,7 +25,6 @@ import { DEFAULT_CHAT_EXPORT_INCLUDE } from '../../utils/chatExport';
 import type { ChatMessage } from '../../types/types';
 import { describeActivity, describeOperation, operationLabel, summarizeActivity, thinkingDurationMs } from '../../utils/toolActivity';
 import { formatClockTime, formatMessageTimestamp, setClockFormat } from '../../../../utils/formatTime';
-import { IMAGE_PICKER_OPTIONS } from '../../../../utils/filePicker';
 
 import ToolActivity, { OperationRow } from './ToolActivity';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
@@ -2702,14 +2701,13 @@ describe('chatSubcomponents', () => {
     test('keeps the real file input under the tap and schedules only typed text', async () => {
       let requestedProps: Record<string, unknown> | undefined;
       let scheduled = 0;
-      const attached: File[][] = [];
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
       const render = (canSchedule: boolean) => root.render(
         React.createElement(ComposerAddMenu, {
           attachLabel: 'Attach files',
-          onAttachFiles: (files: File[]) => { attached.push(files); },
+          onAttachFiles: () => {},
           canSchedule,
           onSchedule: () => { scheduled += 1; },
           getInputProps: (props: unknown) => {
@@ -2737,14 +2735,8 @@ describe('chatSubcomponents', () => {
         const surface = document.body.querySelector('[role="menu"]');
         assert.match(surface?.className ?? '', /\bhidden\b/);
 
-        // Without showOpenFilePicker, photos fall back to an image-only input.
-        const photoInput = document.body.querySelector<HTMLInputElement>('input[type="file"][aria-label="Attach photos"]');
-        assert.equal(photoInput?.accept, 'image/*');
-        assert.equal(photoInput?.multiple, true);
-        const photo = new File(['x'], 'cat.png', { type: 'image/png' });
-        Object.defineProperty(photoInput, 'files', { configurable: true, value: [photo] });
-        await React.act(async () => photoInput?.dispatchEvent(new Event('change', { bubbles: true })));
-        assert.deepEqual(attached, [[photo]]);
+        // No image-only input: on Android it opens the Photo Picker, whose files Chrome can fail to read.
+        assert.equal(document.body.querySelector('input[accept="image/*"]'), null);
 
         const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
         assert.ok(trigger);
@@ -2767,7 +2759,7 @@ describe('chatSubcomponents', () => {
       }
     });
 
-    test('attaches files and photos through showOpenFilePicker when the browser has it', async () => {
+    test('attaches files through showOpenFilePicker when the browser has it', async () => {
       const pdf = new File(['%PDF'], 'notes.pdf', { type: 'application/pdf' });
       const pickerCalls: unknown[] = [];
       const attached: File[][] = [];
@@ -2801,13 +2793,6 @@ describe('chatSubcomponents', () => {
         assert.deepEqual(pickerCalls, [{ multiple: true }]);
         assert.deepEqual(attached, [[pdf]]);
         assert.match(document.body.querySelector('[role="menu"]')?.className ?? '', /\bhidden\b/);
-
-        // Never an image-only input: on Android that opens the Photo Picker, whose files Chrome can fail to read.
-        assert.equal(document.body.querySelector('input[aria-label="Attach photos"]'), null);
-        const photosItem = [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
-          .find((item) => /Attach photos/.test(item.textContent ?? ''));
-        await React.act(async () => photosItem?.click());
-        assert.deepEqual(pickerCalls[1], { multiple: true, ...IMAGE_PICKER_OPTIONS });
       } finally {
         delete pickerWindow.showOpenFilePicker;
         await React.act(async () => root.unmount());

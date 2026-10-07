@@ -655,7 +655,7 @@ test('an unnamed rejected file still produces a message', () => {
 
 test('attachments are copied into memory, and an unreadable one is reported by name', async () => {
   const photo = new File(['png bytes'], 'photo.png', { type: 'image/png', lastModified: 1234 });
-  // A photo-picker file whose read permission has lapsed.
+  // A file the browser refuses to read, as Android's Photo Picker sometimes hands over.
   const lapsed = new File(['x'], 'lapsed.png', { type: 'image/png' });
   let lapsedReadStarted = false;
   lapsed.arrayBuffer = () => {

@@ -309,9 +309,8 @@ export const describeDropRejections = (
 };
 
 /**
- * Reads each file into memory, starting every read before the first await. Chrome on
- * Android can read a photo-picker File only for a moment after the pick, so a preview
- * or upload that reads the original later fails.
+ * Reads each file into memory when it is attached, so a file the browser cannot read
+ * is reported at once instead of becoming a broken preview and a failed send.
  */
 export const copyAttachmentsToMemory = async (
   files: readonly File[],
@@ -1012,7 +1011,6 @@ export function useChatComposerState({
       }
     });
 
-    // Must run in the same tick as the pick: see copyAttachmentsToMemory.
     void copyAttachmentsToMemory(validFiles).then(({ copies, unreadable }) => {
       unreadable.forEach((fileName) => rejections.push({ fileName, reason: 'unreadable' }));
       if (copies.length > 0) {

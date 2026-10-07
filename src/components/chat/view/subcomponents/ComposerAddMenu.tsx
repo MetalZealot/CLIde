@@ -1,10 +1,9 @@
-import { useCallback, useState, type ChangeEvent, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useCallback, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { ClockIcon, ImageIcon, PaperclipIcon, PlusIcon } from 'lucide-react';
+import { ClockIcon, PaperclipIcon, PlusIcon } from 'lucide-react';
 
 import { buttonVariants } from '../../../../shared/view/ui';
-import { IMAGE_PICKER_OPTIONS, hasOpenFilePicker, openFilePicker } from '../../../../utils/filePicker';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 
 import { ComposerMenuItem, ComposerMenuSurface } from './ComposerMenuPrimitives';
@@ -15,6 +14,10 @@ type ComposerAddMenuProps = {
   onAttachFiles: (files: File[]) => void;
   canSchedule: boolean;
   onSchedule: () => void;
+};
+
+type FilePickerWindow = Window & {
+  showOpenFilePicker?: (options: { multiple: boolean }) => Promise<Array<{ getFile: () => Promise<File> }>>;
 };
 
 const HIDDEN_ANCHOR = { right: 0, bottom: 0, maxHeight: 0, maxWidth: 0 };
@@ -42,14 +45,16 @@ function OverlayInputRow({ icon, label, children }: { icon: ReactNode; label: st
 }
 
 /**
- * The composer's + menu: attach files, attach photos, or schedule the typed message.
+ * The composer's + menu: attach files or schedule the typed message.
  *
- * Both attach rows use `showOpenFilePicker` where it exists, which opens Android's
- * file browser. A file input there detours through a camera chooser, or for images
- * only, the Photo Picker, whose files Chrome sometimes cannot read. Elsewhere a real
- * file input is stretched over the row so it owns the tap — Android standalone PWAs
- * drop the result of a JS `input.click()`. The surface stays mounted while closed so
- * those inputs outlive the picker they opened.
+ * Attach files uses `showOpenFilePicker` where it exists: on Android it opens the
+ * file browser with every type selectable, where a file input with any `accept`
+ * that admits images detours through a camera chooser. There is deliberately no
+ * image-only row: that opens Android's Photo Picker, and Chrome cannot read some
+ * of its files (ADR 0072). Elsewhere a real file input is stretched over the row
+ * so it owns the tap — Android standalone PWAs drop the result of a JS
+ * `input.click()`. The surface stays mounted while closed so that input outlives
+ * the picker it opened.
  */
 export default function ComposerAddMenu({
   getInputProps,
@@ -64,8 +69,9 @@ export default function ComposerAddMenu({
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 14 * 16);
   const menuLabel = t('input.addMenu', { defaultValue: 'Add to message' });
   const scheduleLabel = t('input.schedule.menuItem', { defaultValue: 'Schedule message' });
-  const photosLabel = t('input.attachPhotos', { defaultValue: 'Attach photos' });
-  const canUseFilePicker = hasOpenFilePicker();
+  const showOpenFilePicker = typeof window === 'undefined'
+    ? undefined
+    : (window as FilePickerWindow).showOpenFilePicker?.bind(window);
 
   const inputProps = getInputProps({
     'aria-label': attachLabel,
@@ -75,19 +81,19 @@ export default function ComposerAddMenu({
     onClick: close,
   }) as InputHTMLAttributes<HTMLInputElement>;
 
-  const pickFiles = (imagesOnly: boolean) => {
+  const pickFiles = () => {
     close();
-    openFilePicker({ multiple: true, ...(imagesOnly ? IMAGE_PICKER_OPTIONS : {}) })
+    // Called synchronously from the tap: the picker needs that user activation.
+    showOpenFilePicker?.({ multiple: true })
+      .then((handles) => Promise.all(handles.map((handle) => handle.getFile())))
       .then((files) => {
         if (files.length > 0) onAttachFiles(files);
       })
-      .catch((error: unknown) => console.error('File picker failed:', error));
-  };
-
-  const handlePhotosPicked = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    if (files.length > 0) onAttachFiles(files);
-    event.target.value = '';
+      .catch((error: unknown) => {
+        if ((error as { name?: string })?.name !== 'AbortError') {
+          console.error('File picker failed:', error);
+        }
+      });
   };
 
   const isShown = isOpen && anchor !== null;
@@ -125,13 +131,13 @@ export default function ComposerAddMenu({
           ariaLabel={menuLabel}
           className={isShown ? undefined : 'hidden'}
         >
-          {canUseFilePicker ? (
+          {showOpenFilePicker ? (
             <ComposerMenuItem
               role="menuitem"
               isSelected={false}
               icon={<PaperclipIcon className="h-4 w-4 text-muted-foreground" />}
               label={attachLabel}
-              onSelect={() => pickFiles(false)}
+              onSelect={pickFiles}
             />
           ) : (
             <OverlayInputRow
@@ -139,32 +145,6 @@ export default function ComposerAddMenu({
               label={attachLabel}
             >
               <input {...inputProps} />
-            </OverlayInputRow>
-          )}
-          {canUseFilePicker ? (
-            <ComposerMenuItem
-              role="menuitem"
-              isSelected={false}
-              icon={<ImageIcon className="h-4 w-4 text-muted-foreground" />}
-              label={photosLabel}
-              onSelect={() => pickFiles(true)}
-            />
-          ) : (
-            <OverlayInputRow
-              icon={<ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
-              label={photosLabel}
-            >
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                aria-label={photosLabel}
-                className={OVERLAY_INPUT_CLASS}
-                style={OVERLAY_INPUT_STYLE}
-                tabIndex={0}
-                onClick={close}
-                onChange={handlePhotosPicked}
-              />
             </OverlayInputRow>
           )}
           <ComposerMenuItem
