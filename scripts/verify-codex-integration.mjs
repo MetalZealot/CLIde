@@ -1,3 +1,6 @@
+// Codex behaviour CLIde claims, checked at every boundary it crosses: protocol, gateway,
+// adapter, history, browser. A group's name identifies the broken boundary, so a failed
+// group is never replaced by a broad `npm test` pass.
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -94,7 +97,24 @@ runClientGroup('4/4 browser reconciliation and rendering', [
   'src/stores/sessionStore.test.tsx',
 ]);
 
+/** Live rows: [what, verify, required after]. The suite fakes App Server, so none of these is covered. */
+const LIVE_ROWS = [
+  ['Runtime identity', 'Diagnostics show the intended SDK, bundled CLI, and configured and actual transport', 'dependency, runtime or transport changes'],
+  ['New then resumed', 'One sidebar row, one user turn, one reply; the resumed turn stays in the same CLIde session', 'gateway, session-id or App Server changes'],
+  ['Plan then Default', 'Plan tools appear in Plan; the next Default turn clears collaboration mode', 'mode or capability changes'],
+  ['Interactive request', 'An approval or question survives one refresh and resolves once; Send now steers, Queue waits, a composer queue wins', 'App Server, registry, WebSocket or replay changes'],
+  ['Mixed attachments', 'An image and a non-image file both reach Codex and keep their indicators after reload', 'composer, upload, gateway, adapter or history changes'],
+  ['Tool lifecycle', 'Command, file change, MCP call and web search render live and match after reload', 'normalizer, renderer or rollout-parser changes'],
+  ['Stop', 'Aborting a first turn and a resumed turn leaves nothing running and no second sidebar row', 'abort, run-registry or session-mapping changes'],
+  ['Rewind and fork', 'Rewind keeps the CLIde session id; fork makes a new session with correct lineage', 'session or turn identity changes'],
+  ['Usage', 'Context usage updates during Chat; account usage loads without sharing Chat\'s process', 'usage or App Server client changes'],
+  ['SDK escape hatch', 'With CLIDE_CODEX_CHAT_TRANSPORT=sdk, text and image Chat work and App-Server-only capabilities are not advertised', 'transport selection or capability changes'],
+];
+
 console.log('\nAutomated Codex integration checks passed.');
-console.log(
-  'Complete the live smoke rows in docs/maps/codex-integration-conformance.md before deployment acceptance.',
-);
+console.log('\nNot covered: a real Codex thread, ~/.codex, new rollout shapes, the installed PWA.');
+console.log('After a dependency upgrade, provider refactor or upstream integration, run the rows that apply:\n');
+for (const [row, verify, after] of LIVE_ROWS) {
+  console.log(`  ${row.padEnd(20)} ${verify}\n  ${''.padEnd(20)} after ${after}`);
+}
+console.log('\nRecord accepted live evidence in the commit that takes the release.');

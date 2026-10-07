@@ -12,7 +12,6 @@ The system's shape, code map, invariants and quality goals live in
 | [UI standards](ui-standards.md) | What the interface is objectively required to do, what is only house convention, and which is which | Updated 2026-09-14 with composer placement reasons and WCAG 4.1.3 |
 | [Typography](typography.md) | Font-family routing, unchanged interface sizing, reading presets, and fixed-metric boundaries | Implemented and accepted 2026-08-21 |
 | [CLIde provider capability map](clide-provider-capability-map.md) | What CLIde does with each provider, how exactly, and what it refuses | Stale Claude and Codex rows corrected 2026-10-06 |
-| [Codex integration conformance](codex-integration-conformance.md) | Executable cross-layer regression matrix and live acceptance rows | Automated gate and full isolated live matrix passed at 0.153.4, 2026-09-08 |
 
 ## What belongs here
 

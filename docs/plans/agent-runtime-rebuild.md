@@ -310,8 +310,8 @@ phase done.
     phase 6; this phase gives it the session state it needs.
   - The provider kit: one provider id list in `shared/`; a server descriptor
     endpoint (label, logo key, capability defaults) that drives the client's
-    provider lists; `docs/maps/adding-a-provider.md` replaces the README
-    section; phase 5's conformance suite is the gate a new provider passes.
+    provider lists; the providers module README's "How To Add A Provider" is
+    rewritten for the kit; phase 5's conformance suite is the gate a new provider passes.
   - Provider-name checks a capability can replace go; per-provider settings,
     login, MCP and logo screens keep theirs. Capability flags nothing reads are
     consumed or deleted.
