@@ -15,7 +15,7 @@ function dependencies(overrides: Partial<Dependencies> = {}): Dependencies {
       notifyUser: () => undefined,
     },
     preferences: { getPreferences: () => ({}), setPreferences: () => undefined },
-    pushSubscriptions: { save: () => undefined, remove: () => undefined },
+    pushSubscriptions: { has: () => false, save: () => undefined, remove: () => undefined },
     getVapidPublicKey: () => null,
     ...overrides,
   };
@@ -25,6 +25,7 @@ test('subscribeToPush persists the subscription and enables Web Push', () => {
   const operations: string[] = [];
   const service = createSettingsService(dependencies({
     pushSubscriptions: {
+      has: () => false,
       save: (_id, endpoint) => operations.push(`save:${endpoint}`),
       remove: () => undefined,
     },
@@ -41,6 +42,29 @@ test('subscribeToPush persists the subscription and enables Web Push', () => {
     keys: { p256dh: 'key', auth: 'auth' },
   });
   assert.deepEqual(operations, ['save:https://push.example.test', 'preferences', 'notify']);
+});
+
+test('subscribeToPush re-sending a known endpoint only upserts it', () => {
+  const operations: string[] = [];
+  const service = createSettingsService(dependencies({
+    pushSubscriptions: {
+      has: () => true,
+      save: (_id, endpoint) => operations.push(`save:${endpoint}`),
+      remove: () => undefined,
+    },
+    notifications: {
+      getPreferences: () => ({ channels: { webPush: false } }),
+      updatePreferences: () => { operations.push('preferences'); return {}; },
+      createEnabledEvent: () => ({ code: 'push.enabled' }),
+      notifyUser: () => { operations.push('notify'); },
+    },
+  }));
+
+  service.subscribeToPush(1, {
+    endpoint: 'https://push.example.test',
+    keys: { p256dh: 'key', auth: 'auth' },
+  });
+  assert.deepEqual(operations, ['save:https://push.example.test']);
 });
 
 test('updateSyncedPreferences stores allowlisted keys and drops unknown ones', () => {

@@ -34,6 +34,7 @@ type SettingsDependencies = {
     setPreferences(userId: number, entries: Record<string, unknown>): void;
   };
   pushSubscriptions: {
+    has(userId: number, endpoint: string): boolean;
     save(userId: number, endpoint: string, p256dh: string, auth: string): void;
     remove(endpoint: string): void;
   };
@@ -175,7 +176,10 @@ export function createSettingsService(dependencies: SettingsDependencies) {
         : {};
       const p256dh = requiredString(keys.p256dh, 'p256dh', 'PUSH_SUBSCRIPTION_REQUIRED');
       const auth = requiredString(keys.auth, 'auth', 'PUSH_SUBSCRIPTION_REQUIRED');
+      // Clients re-send their subscription on every load; a known endpoint is a quiet upsert.
+      const isKnown = dependencies.pushSubscriptions.has(userId, endpoint);
       dependencies.pushSubscriptions.save(userId, endpoint, p256dh, auth);
+      if (isKnown) return { success: true };
 
       const currentPreferences = dependencies.notifications.getPreferences(userId);
       if (!currentPreferences?.channels?.webPush) {

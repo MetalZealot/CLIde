@@ -35,16 +35,22 @@ export function useWebPush(): WebPushState {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check existing subscription on mount
+  // Re-send the browser's subscription on mount: the server drops endpoints the push
+  // service rejects, and only this device can restore its row.
   useEffect(() => {
     if (permission === 'unsupported') return;
 
-    navigator.serviceWorker.ready.then((registration) => {
-      registration.pushManager.getSubscription().then((sub) => {
-        setIsSubscribed(sub !== null);
+    navigator.serviceWorker.ready.then(async (registration) => {
+      const sub = await registration.pushManager.getSubscription();
+      setIsSubscribed(sub !== null);
+      if (!sub || Notification.permission !== 'granted') return;
+      const subJson = sub.toJSON();
+      await authenticatedFetch('/api/settings/push/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys }),
       });
     }).catch(() => {
-      // SW not ready yet
+      // SW not ready yet, or offline; the next load retries
     });
   }, [permission]);
 

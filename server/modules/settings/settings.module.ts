@@ -39,6 +39,8 @@ const settingsService = createSettingsService({
     setPreferences: (userId, entries) => userPreferencesDb.setPreferences(userId, entries),
   },
   pushSubscriptions: {
+    has: (userId, endpoint) =>
+      pushSubscriptionsDb.getSubscriptions(userId).some((sub) => sub.endpoint === endpoint),
     save: (userId, endpoint, p256dh, auth) =>
       pushSubscriptionsDb.saveSubscription(userId, endpoint, p256dh, auth),
     remove: (endpoint) => pushSubscriptionsDb.removeSubscription(endpoint),
