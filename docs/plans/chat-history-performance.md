@@ -3,9 +3,9 @@
 - Status: 8/14
 - Next: Phase 7 — cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check. Phase 13 lands with [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 2, and phase 11 is coordinated with its phase 3
 - Context: budgets in `scripts/chat-history/budgets.ts`,
-  [test suite](../maps/test-suite.md),
+  [test suite](../testing.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
-  [tool activities](archive/2026-09-29-tool-activity-display.md)
+  [tool activity rows](../ui-standards.md#tool-activity-rows)
 
 Long conversations open promptly, scroll back without a Load button or a
 freeze that grows with length, keep their place and open state, and let any
@@ -16,7 +16,7 @@ rendered rows): real tool bursts, images and subagents. Synthetic fixtures
 are prose-heavy and missed the per-page growth phase 7 targets.
 
 **Every change is checked for position, not just speed, in pane and phone
-page-scroll mode** ([how](../maps/test-suite.md#which-checks-to-run)):
+page-scroll mode** ([how](../testing.md#which-checks-to-run)):
 the session opens at the bottom, and a walk up that pauses between swipes
 moves nothing the reader did not scroll. Speed-only checks shipped a fault
 that opened sessions 629 px up and jumped the view 1,338 px (`61440326`).

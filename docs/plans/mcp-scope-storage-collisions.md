@@ -4,7 +4,7 @@
 - Next: re-map the provider config-storage paths after the v1.37 module
   migration, then add the storage-identity comparison.
 - Context: observed on Codex and Cursor · present in `upstream/main` at v1.37
-  (`264e0946`), so likely upstreamable — see [`upstream-candidates.md`](../upstream-candidates.md)
+  (`264e0946`), so likely upstreamable — see [`upstream.md`](../upstream.md#sending-fixes-upstream)
 
 A provider's *project* scope can resolve to the same configuration storage
 target as its *user* scope, so one MCP server lists twice and either card can
@@ -65,4 +65,4 @@ policy or reproducing its full config-layer discovery. Merging user and project
 entries by name or content. Changing provider precedence. Redesigning the MCP
 Settings screen. Making global add transactional. Touching `auth.db`, project
 rows, sessions, or provider authentication. The separate
-[Browser MCP hardening](archive/2026-09-08-browser-mcp-hardening.md) work.
+Browser MCP hardening work.

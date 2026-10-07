@@ -3,8 +3,8 @@
 - Status: 1/4
 - Next: composer message recall; scheduled messages and session-id copy have shipped
   agreed before code
-- Context: [upstream verdicts](../maps/upstream-verdicts.tsv) holds each verdict
-  and its reason; [provider capability map](../maps/clide-provider-capability-map.md)
+- Context: [upstream verdicts](../upstream-verdicts.tsv) holds each verdict
+  and its reason; [provider capabilities](../providers.md)
   owns what each adapter can be asked to do
 
 Nine capabilities exist upstream and not here. Each was deferred during the
@@ -24,7 +24,7 @@ plug in or explicitly no-op, per `AGENTS.md`.
 
 ## Phases
 
-- [x] 1. Each gap has a verdict — [upstream verdicts](../maps/upstream-verdicts.tsv)
+- [x] 1. Each gap has a verdict — [upstream verdicts](../upstream-verdicts.tsv)
       holds all nine: three build, three refuse, three defer. Two premises were
       wrong and are recorded as such — the model-catalog cache and the Spanish
       locale
@@ -38,7 +38,7 @@ plug in or explicitly no-op, per `AGENTS.md`.
 ## The gaps
 
 Each verdict's reason is one line in
-[upstream verdicts](../maps/upstream-verdicts.tsv). Summary only:
+[upstream verdicts](../upstream-verdicts.tsv). Summary only:
 
 | Gap | Verdict |
 |---|---|
@@ -56,7 +56,7 @@ Build order is Grayson's to set; the ranking above is size, not priority.
 
 ## Done when
 
-- Every one of the nine has a recorded verdict in the sync map, including the
+- Every one of the nine has a recorded verdict in the upstream doc, including the
   refusals and the reason
 - Each "build" verdict has a TODO item naming its provider answer
 - No feature was built by copying a post-`#1206` file into `src/components/`
@@ -65,6 +65,6 @@ Build order is Grayson's to set; the ranking above is size, not priority.
 
 - Adopting `#1206`'s restructure. Harvesting a capability never justifies
   moving the tree; that decision is separate and is not made here
-- Re-assessing anything in the sync map's refusal table
+- Re-assessing anything in the upstream doc's refusal table
 - Building anything in phase 1. The inventory is a decision document, and the
   ranking is Grayson's to change before any code is written

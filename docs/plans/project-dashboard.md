@@ -2,10 +2,10 @@
 
 - Status: 1/4
 - Next: paused by choice — use the generated page for real project work before adding anything to it
-- Context: [plans board](README.md), [maps index](../maps/README.md), [ADR 0045](../decisions/0045-html-file-preview-is-static-and-isolated.md), [future project board](markdown-project-board.md)
+- Context: [plans board](README.md), [reference index](../README.md), [ADR 0045](../decisions/0045-html-file-preview-is-static-and-isolated.md), [future project board](markdown-project-board.md)
 
 Answering "what am I on, what's half-done, what's next" currently means opening
-`TODO.md`, several plans, and the maps index. The dashboard aggregates what those
+`TODO.md`, several plans, and the reference index. The dashboard aggregates what those
 already say into one self-contained HTML file.
 
 **Markdown is the authority; HTML is a lens over it.** The generator reads only
@@ -15,7 +15,7 @@ project state is kept, and disagreement always resolves to the Markdown.
 ## Phases
 
 - [x] 0. A generated page renders active plans with their `Status` and `Next`, the
-      backlog's shape by section and size, the maps index, and recent ADRs, each
+      backlog's shape by section and size, the reference index, and recent ADRs, each
       linking back to its source file — `scripts/build-project-dashboard.mjs`,
       `npm run docs:dashboard`, output ignored under `.generated/`. Parsers are
       unit-tested (`npm run test:docs:dashboard`); viewing it inside CLIde is what

@@ -379,5 +379,5 @@ if (!behind.length) say('\nNothing moved.');
 say('\nNext, if anything moved:');
 say('  1. CLI updates follow the installed launcher. For SDK changes, update dependencies and run `npm test`.');
 say('  2. Classify each change: consumed, candidate, watch, or no action.');
-say('  3. Record what changed in the commit that takes the release; update the capability map only where CLIde behaviour changed.');
+say('  3. Record what changed in the commit that takes the release; update docs/providers.md only where CLIde behaviour changed.');
 if (artifacts.length) say(`\nArtifacts: ${OUT}`);

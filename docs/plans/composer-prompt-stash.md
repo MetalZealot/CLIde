@@ -3,7 +3,7 @@
 - Status: not started
 - Next: agree the active-draft ownership, conflict behaviour, attachment scope,
   and `+` popover end state before implementation.
-- Context: [composer anchors](../maps/code-anchors.md); Grayson reproduced both
+- Context: [composer anchors](../code-anchors.md); Grayson reproduced both
   failures on the installed PWA on 2026-08-14.
 
 ## Phases

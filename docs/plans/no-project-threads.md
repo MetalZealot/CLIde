@@ -2,7 +2,7 @@
 
 - Status: not started
 - Next: Phase 0 — prove each provider runs and resumes in an empty, non-git folder
-- Context: [provider capability map](../maps/clide-provider-capability-map.md),
+- Context: [provider capabilities](../providers.md),
   ADR 0064 (the picker's mode is the only bypass)
 
 A thread can start without choosing a project. It runs in a fresh, empty

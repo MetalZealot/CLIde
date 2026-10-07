@@ -120,21 +120,21 @@ function markdownCells(line) {
     .map((cell) => cell.trim());
 }
 
-export function parseMapsIndex(markdown) {
-  const maps = [];
+export function parseReferenceIndex(markdown) {
+  const docs = [];
   for (const line of markdown.split('\n')) {
     if (!line.startsWith('|')) continue;
     const [document, role, status] = markdownCells(line);
     const link = document?.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (!link || !role || !status) continue;
-    maps.push({
+    docs.push({
       name: plainMarkdown(link[1]),
       role: plainMarkdown(role),
       status: plainMarkdown(status),
-      sourcePath: posix.normalize(`docs/maps/${link[2]}`),
+      sourcePath: posix.normalize(`docs/${link[2]}`),
     });
   }
-  return maps;
+  return docs;
 }
 
 export function parseAdr(markdown, sourcePath) {
@@ -172,7 +172,7 @@ export function collectDashboardData(root = DEFAULT_ROOT) {
   return {
     plans,
     todo: parseTodo(read('docs/TODO.md')),
-    maps: parseMapsIndex(read('docs/maps/README.md')),
+    reference: parseReferenceIndex(read('docs/README.md')),
     decisions,
   };
 }
@@ -230,13 +230,13 @@ function renderBacklog(todo) {
 </div>`;
 }
 
-function renderMaps(maps) {
-  return maps.map((map) => `<article class="reference-row">
+function renderReference(docs) {
+  return docs.map((doc) => `<article class="reference-row">
   <div>
-    <h3><a href="${sourceHref(map.sourcePath)}">${escapeHtml(map.name)}</a></h3>
-    <p>${escapeHtml(map.role)}</p>
+    <h3><a href="${sourceHref(doc.sourcePath)}">${escapeHtml(doc.name)}</a></h3>
+    <p>${escapeHtml(doc.role)}</p>
   </div>
-  <p class="freshness">${escapeHtml(map.status)}</p>
+  <p class="freshness">${escapeHtml(doc.status)}</p>
 </article>`).join('\n');
 }
 
@@ -408,9 +408,9 @@ export function renderDashboard(data) {
     <section aria-labelledby="reference-title">
       <div class="section-heading">
         <h2 id="reference-title">Current reference</h2>
-        <p>${data.maps.length} living maps</p>
+        <p>${data.reference.length} reference docs</p>
       </div>
-      <div class="reference-list">${renderMaps(data.maps)}</div>
+      <div class="reference-list">${renderReference(data.reference)}</div>
     </section>
 
     <section aria-labelledby="decisions-title">

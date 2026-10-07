@@ -2,8 +2,8 @@
 
 - Status: not started
 - Next: Phase 1 — probe page on the S20 for the row, badge styles and sheet height
-- Context: [UI standards map](../maps/ui-standards.md) ("Placement around the
-  composer"); [composer anchors](../maps/code-anchors.md);
+- Context: [UI standards](../ui-standards.md) ("Placement around the
+  composer"); [composer anchors](../code-anchors.md);
   [permission default plan](claude-permission-default.md) for the badge baseline;
   [prompt stash plan](composer-prompt-stash.md) owns what the `+` menu holds
 

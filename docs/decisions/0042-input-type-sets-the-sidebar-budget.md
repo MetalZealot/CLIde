@@ -12,7 +12,7 @@ touch affordance is either permanent or behind a gesture. That asymmetry, not
 control goes.
 
 Three rules follow, and they bound tier 1 of the
-[sidebar surface map](../maps/sidebar-surface.md):
+sidebar surface map (retired in `5fac9351`):
 
 1. **Per row, touch gets at most one permanent trailing control; a pointer gets
    at most one permanent plus any number revealed on hover or focus.** Anything

@@ -17,18 +17,19 @@ const ROOT = new URL('..', import.meta.url).pathname;
  *  docs/TODO.md was once 77 KB across 143 lines. */
 const CAPS = [
   { dir: 'docs/plans', cap: 16_000, type: 'plan' },
-  { dir: 'docs/maps', cap: 24_000, type: 'map' },
+  { dir: 'docs', cap: 24_000, type: 'reference', flat: true },
   { dir: 'docs/decisions', cap: 10_000, type: 'ADR' },
   // Read whole by every session working its plan; stable, so read rarely otherwise.
   { dir: 'docs/designs', cap: 32_000, type: 'design' },
 ];
 
-// docs/TODO.md is deliberately absent: the backlog's size is the amount of queued
-// work, so only its items are capped (below). docs/todo-done.md is absent too: it is
-// a completed-work archive in the same sense as docs/specs/archive/, so the rule that
-// matters for it is "nothing reads it by default", not a size cap. Do not start
-// reading it to answer questions about current work — git history and the ADRs are
-// the canonical record.
+// docs/TODO.md is deliberately uncapped: the backlog's size is the amount of queued
+// work, so only its items are capped (below).
+const UNCAPPED = new Set(['docs/TODO.md']);
+
+/** The only folders under docs/. Anything else is an archive or a fifth type;
+ *  finished work is deleted and git keeps it. */
+const DOC_FOLDERS = new Set(['decisions', 'designs', 'plans']);
 const FILE_CAPS = [
   // AGENTS.md is imported into every session, so this is a per-session read
   // budget (~4K tokens), not a style rule. Raised from 13K once, for the comment
@@ -72,13 +73,13 @@ const MAX_TODO_LINE = 400;
  *  quiet. Adding one without a TODO item defeats the point of the check. */
 const SIZE_EXCEPTIONS = {
   'docs/plans/agent-runtime-rebuild.md':
-    "Grayson's call: the priority plan keeps its detail over the cap; archive it when done — see docs/TODO.md",
+    "Grayson's call: the priority plan keeps its detail over the cap; delete it when done — see docs/TODO.md",
 };
 
 const problems = [];
 const fail = (file, msg) => problems.push({ file, msg });
 
-function walk(dir) {
+function walk(dir, flat = false) {
   const out = [];
   let entries;
   try {
@@ -88,10 +89,8 @@ function walk(dir) {
   }
   for (const entry of entries) {
     const rel = `${dir}/${entry.name}`;
-    // Archives are frozen history. They are exempt from every rule here
-    // because the rule that matters for them is "not read by default".
     if (entry.isDirectory()) {
-      if (entry.name !== 'archive') out.push(...walk(rel));
+      if (!flat) out.push(...walk(rel));
     } else if (entry.name.endsWith('.md')) {
       out.push(rel);
     }
@@ -116,13 +115,13 @@ function checkSize(file, text, cap, type) {
     return;
   }
   if (size > cap) {
-    fail(file, `${(size / 1000).toFixed(1)} KB exceeds the ${(cap / 1000).toFixed(0)} KB ${type} cap — split it, cut the background, or route to a map`);
+    fail(file, `${(size / 1000).toFixed(1)} KB exceeds the ${(cap / 1000).toFixed(0)} KB ${type} cap — split it, cut the background, or route to a reference doc`);
   }
 }
 
-for (const { dir, cap, type } of CAPS) {
-  for (const file of walk(dir)) {
-    if (file.endsWith('/README.md')) continue;
+for (const { dir, cap, type, flat } of CAPS) {
+  for (const file of walk(dir, flat)) {
+    if (file.endsWith('/README.md') || UNCAPPED.has(file)) continue;
     const text = readFileSync(join(ROOT, file), 'utf8');
     checkSize(file, text, cap, type);
     checkHeadings(file, text);
@@ -178,14 +177,15 @@ try {
   /* absent is fine */
 }
 
-// docs/specs/ is retired as a category; the name invited the essay.
-try {
-  const stray = readdirSync(join(ROOT, 'docs/specs')).filter((n) => n.endsWith('.md'));
-  if (stray.length) {
-    fail('docs/specs', `${stray.length} file(s) remain — docs/specs is retired; each belongs in maps/, decisions/, plans/, designs/, or specs/archive/`);
+for (const entry of readdirSync(join(ROOT, 'docs'), { withFileTypes: true })) {
+  if (!entry.isDirectory()) continue;
+  if (!DOC_FOLDERS.has(entry.name)) {
+    fail(`docs/${entry.name}`, 'not a document type — reference docs sit in docs/ itself, and finished work is deleted, not archived');
+    continue;
   }
-} catch {
-  /* already gone */
+  for (const nested of readdirSync(join(ROOT, 'docs', entry.name), { withFileTypes: true })) {
+    if (nested.isDirectory()) fail(`docs/${entry.name}/${nested.name}`, 'docs/ folders are flat; finished work is deleted, not archived');
+  }
 }
 
 if (problems.length) {

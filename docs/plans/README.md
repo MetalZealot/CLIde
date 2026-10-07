@@ -47,7 +47,7 @@ Provider architecture is now a plan, [the agent runtime rebuild](agent-runtime-r
 built to [its design](../designs/agent-runtime-rebuild.md) and the one plan exempt
 from the size cap by Grayson's decision; its baseline is
 [ARCHITECTURE.md](../../ARCHITECTURE.md)'s provider invariants and
-[the capability map](../maps/clide-provider-capability-map.md).
+[the provider reference](../providers.md).
 
 ## Why plans are capped
 
@@ -61,7 +61,7 @@ the plan felt more expensive than adding to it.
 
 So a plan is capped at **16 KB** and `npm run check:docs` enforces it. When a
 plan strains the cap, the fix is almost never a bigger cap — it is that
-background has crept in that belongs in a map, a decision has crept in that
+background has crept in that belongs in a reference doc, a decision has crept in that
 belongs in an ADR, or the target design of architecture work belongs in a design.
 
 ## The four document types
@@ -71,15 +71,15 @@ belongs in a different file.
 
 | Type | Question | Lifecycle |
 |---|---|---|
-| [Map](../maps/) | How does this work today? | Updated when the code changes |
+| [Reference](../README.md) | How does this work today? | Updated when the code changes |
 | [ADR](../decisions/) | What did we choose, and why? | Append-only; supersede, never edit |
-| [Design](../designs/) | What will it look like when done, and why? | Changes only with Grayson; archived with its plan |
-| Plan | What is left to do, in what order? | Rewritten as the work moves; archived when done |
+| [Design](../designs/) | What will it look like when done, and why? | Changes only with Grayson; deleted with its plan |
+| Plan | What is left to do, in what order? | Rewritten as the work moves; deleted when done |
 
-**A plan may point at a map. It must never restate one.** Restating is how the
+**A plan may point at a reference doc. It must never restate one.** Restating is how the
 same provider semantics ended up copied into five specs, each drifting
 separately. A line of the form "provider permission semantics:
-[map](../maps/clide-provider-capability-map.md)" is complete. A plan with a
+[reference](../providers.md)" is complete. A plan with a
 design names it in a `- Design:` header line, because the design binds every
 phase; [when a plan gets one](../designs/README.md).
 
@@ -90,7 +90,7 @@ phase; [when a plan gets one](../designs/README.md).
 
 - Status: not started | 2/5 | complete | blocked <why>
 - Next: <the next concrete action, in one line>
-- Context: <links to the maps and ADRs a reader needs; no summary of them>
+- Context: <links to the reference docs and ADRs a reader needs; no summary of them>
 - Design: <only when it has one: link, and that it binds every phase>
 
 ## Phases
@@ -141,12 +141,9 @@ for it.
    need a plan — the item and the commit are enough.
 2. A plan appears only when work has **phases that outlive one session**. That
    is the whole test.
-3. Durable facts learned along the way go to a map; non-obvious choices go to an
+3. Durable facts learned along the way go to a reference doc; non-obvious choices go to an
    ADR; the target design of architecture work goes to a design. None stays in
    the plan.
-4. When the last phase closes, move the plan to `archive/` with a row in that
-   directory's index naming the current authority, archive its design the same
-   way in `../designs/archive/`, and close the TODO item.
-
-Archived plans and specs are frozen. They are exempt from these rules because
-the rule that matters for them is that nothing reads them by default.
+4. When the last phase closes, move what became true into the reference docs
+   and `ARCHITECTURE.md`, delete the plan and its design, and close the TODO
+   item. Git keeps both; the closing commit names them.

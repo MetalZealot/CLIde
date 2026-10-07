@@ -3,7 +3,7 @@
 - Status: 1/2
 - Next: Phase 1 — a plain Terminal tab takes Shell's place, and Shell view moves to the chat kebab
 - Context: [subagent visibility](subagent-visibility.md) owns how agents show
-  in the chat; [provider capability map](../maps/clide-provider-capability-map.md)
+  in the chat; [provider capabilities](../providers.md)
 
 Measured against T3 Code's "Open a surface" launcher (Browser, Terminal,
 Files, Diff, Pull request, Agents; read from its installed v0.0.42 client),

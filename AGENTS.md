@@ -32,12 +32,12 @@ only once its index points there; never read a directory to find out.
 | If the work touches | Read first |
 |---|---|
 | Backend code under `server/modules/` | `.agents/skills/backend-module-standards/SKILL.md` |
-| Provider behaviour, capability parity, or a runtime adapter | `docs/maps/clide-provider-capability-map.md`, then the provider's own types and docs |
+| Provider behaviour, capability parity, or a runtime adapter | `docs/providers.md`, then the provider's own types and docs |
 | Abort, approval replay, resume, rewind, or fork | ADRs 0008, 0012, 0013 |
 | The model picker | "Model picker follow-ups" in `docs/TODO.md`, ADRs 0003 and 0025 |
-| Token usage, the context ring, session identity, or any file the code anchors list | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
-| Running, adding, or timing tests | `docs/maps/test-suite.md` |
-| An upstream-shared defect | `docs/upstream-candidates.md` |
+| Token usage, the context ring, session identity, or any file the code anchors list | `docs/code-anchors.md` — grep the symbol, don't blind-read |
+| Running, adding, or timing tests | `docs/testing.md` |
+| An upstream-shared defect | "Sending fixes upstream" in `docs/upstream.md` |
 | Phased work, or any architecture change | its plan via the `docs/plans/` board, and its design whole if it names one; the quality goals in `ARCHITECTURE.md`; a pre-mortem |
 
 ## Glossary
@@ -46,7 +46,7 @@ only once its index points there; never read a directory to find out.
   **the only id a runtime is addressed by**.  **`provider_session_id`** is the
   provider's own on-disk id for the same conversation — a lookup key, never an
   address.  Confusing them caused three separate v1.37 merge defects; before passing
-  an id to a runtime, confirm which one you hold (`docs/maps/code-anchors.md`).
+  an id to a runtime, confirm which one you hold (`docs/code-anchors.md`).
 - **"default"** — never write it bare.  It can mean the model Anthropic recommends,
   Claude Code's fallback, the last model picked, or CLIde's stored preference.  Name
   which.  ADRs 0003 and 0025 fix the behaviour; this fixes the vocabulary.
@@ -83,7 +83,7 @@ behaviour stays behind adapter interfaces.
 - **Match the checks to what changed.  The full gate is opt-in, not the default ending
   of a task** — ~250s all together against seconds for a focused path, and running it
   after every edit is a session's largest avoidable cost.  Per-change checks, one-file
-  commands, and measured costs: [the test suite map](docs/maps/test-suite.md).
+  commands, and measured costs: [the testing doc](docs/testing.md).
 - **Cost is per test *file*, not per test**: add cases to an existing file, don't create
   a near-empty new one.  `npm run check:tests` enforces that with a per-half file budget
   — raise one only deliberately.  Consolidating is the lever, never deleting a passing
@@ -112,7 +112,7 @@ behaviour stays behind adapter interfaces.
 **Before building, bucket each UI choice as external standard, house convention,
 or maintainer taste.**  A confident convention reads like a published standard
 to someone who cannot check it.  44px is contextual comfort guidance, not CLIde's
-universal target floor.  Sources: [the UI standards map](docs/maps/ui-standards.md).
+universal target floor.  Sources: [the UI standards doc](docs/ui-standards.md).
 
 ## Code comments
 
@@ -144,7 +144,7 @@ inside narrative that condensing removes anyway — so these rules target length
   the manifest's `background_color`/`theme_color`.
 - Claude emits synthetic, zero-usage transcript rows.  If touching Claude token usage,
   preserve the equivalent skip guard in all three paths — see
-  `docs/maps/code-anchors.md`.  Codex accounting is separate.
+  `docs/code-anchors.md`.  Codex accounting is separate.
 - For session starring, retain `isStarred` in both fetch and watcher event paths and
   apply `compareSessionsStarredFirst` on every session-list surface.
 - Claude model/transcript logic is subtle.  The transcript is ground truth for what
@@ -161,7 +161,7 @@ inside narrative that condensing removes anyway — so these rules target length
 - `main` is the long-lived CLIde branch and tracks `origin/main` on the user's
   `MetalZealot/CLIde` fork; `upstream/main` is `siteboon/claudecodeui`.  **Upstream
   work is cherry-picked or reimplemented, never rebased or merged** — see
-  [the upstream sync map](docs/maps/upstream-sync.md).
+  [the upstream doc](docs/upstream.md).
 - Conventional commits are enforced by commitlint; eslint runs on staged files.
   **Commit verified work in the same turn, unasked**, by path
   (`git commit -- <paths>`): another agent may share the checkout, so never `stash`,
@@ -180,7 +180,7 @@ inside narrative that condensing removes anyway — so these rules target length
   `package.json`, and tsc's incremental cache lives inside it, so a shared one makes
   tsc **emit no `dist-server/`** while `typecheck` skips files and passes vacuously.
 - Keep `docs/TODO.md` current **in the same batch as the code change**: flip `[ ]` →
-  `[~]` → `[x]` and move verified work to `docs/todo-done.md` as you go, never as a
+  `[~]` → `[x]` and delete an item once it is verified, as you go, never as a
   separate turn at the end.  Never ask permission to update the board.  An item is one
   line naming the work and pointing at its plan, ADR, or commit, capped at 400
   characters.
@@ -192,7 +192,7 @@ inside narrative that condensing removes anyway — so these rules target length
   *contract* surfaces — runtime options, gateway addressing, provider context —
   and write one test per contract driving every provider with the ids
   deliberately unequal (`server/modules/websocket/tests/chat-session.test.ts`).
-- Categorize fixes as fork-only or upstreamable in `docs/upstream-candidates.md`.
+- Categorize fixes as fork-only or upstreamable in `docs/upstream.md`.
   Before calling a defect upstream-wide, inspect upstream code, not just issues/PRs.
   Never open, push, or update an upstream PR without the user's explicit approval.
 - **Never end a turn by asking "worth an ADR?"** — write one only when asked, or
@@ -210,14 +210,16 @@ whichever file you happen to have open.  Ownership:
   goals.  **This file** owns workflow, verification, project-wide rules, and the
   routing table above.  It is published on the fork, so it
   carries **no host detail** — no home paths, hostnames, ports, or unit names.
-- **`docs/`** owns depth, in four types, each answering one question: a **map**
-  (`docs/maps/`) "how does this work today", an **ADR** (`docs/decisions/`) "what did
-  we choose and why", a **design** (`docs/designs/`) "what will it look like when
-  done", a **plan** (`docs/plans/`) "what is left, in what order".  A design binds
-  every phase of its plan and changes only with Grayson: if it is wrong, stop and
-  say so.  Anything else does not need a document.  `docs/specs/` is **retired**:
-  the name invited essays.  Byte caps and banned sections are in the plans and
-  designs READMEs, enforced by `npm run check:docs`.  Do not invent a fifth type to escape them.
+- **`docs/`** owns depth, in four types, each answering one question: a
+  **reference doc** (`docs/*.md`) "how does this work today", an **ADR**
+  (`docs/decisions/`) "what did we choose and why", a **design** (`docs/designs/`)
+  "what will it look like when done", a **plan** (`docs/plans/`) "what is left, in
+  what order".  A design binds every phase of its plan and changes only with
+  Grayson: if it is wrong, stop and say so.  Anything else does not need a
+  document, and nothing is archived: finished work is deleted, and git keeps it.
+  Byte caps and banned sections are in the plans and designs READMEs, enforced by
+  `npm run check:docs`, which also rejects any other folder under `docs/`.  Do not
+  invent a fifth type to escape them.
 - **Each agent's global config** owns the host — paths, ports, services, the
   deploy loop.  This repo is published, so it holds none of it.  The two files
   are not shared: Claude Code reads `~/.claude/CLAUDE.md`, Codex reads

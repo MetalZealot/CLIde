@@ -1,17 +1,102 @@
-# Upstream candidates (PRs to siteboon/claudecodeui)
+# Upstream
 
-Split out of `TODO.md` on 2026-07-27 — it had grown to roughly half that file, and the
-backlog is read far more often than this list. `TODO.md` remains the daily board and
-links here; this file is the upstream-PR ledger.
+How CLIde takes work from `siteboon/claudecodeui`, the traps that cost time
+when this was done by feel, and which of CLIde's own fixes could go back. What has been decided about each upstream change is in
+[`upstream-verdicts.tsv`](upstream-verdicts.tsv), which `check:upstream` reads.
 
-Process (agreed 2026-07-17): every shipped fix gets tagged here as **upstreamable** or
-**personal-preference** (colors, mobile layout taste, etc. stay in the fork). When
-investigating a new bug, check `gh` for existing upstream issues/PRs *and record the
-links (or "none found") in the bug's entry* — a keyword search finding nothing is weak
-evidence (upstream has Chinese-language PRs and vague titles), so say how it was checked.
-Grayson decides what actually gets PRed; nothing is submitted without an explicit go-ahead.
+CLIde is a cherry-picking fork, not a tracking one. Version-number parity with
+upstream was abandoned; `package.json` keeps its own number and the fork's
+`main` is never expected to equal any upstream tag.
 
-## Open candidates
+## The fork's current position
+
+- **Merge base:** `check:upstream` prints it.
+- **Structural break:** upstream `#1206` (`99ea0525`, in `v1.37.3`) moved
+  `src/components/**` to `src/modules/**` across 702 files, replaced eslint
+  with oxlint, and added vitest. CLIde did not follow it.
+- **Consequence:** a commit **before** `#1206` can be cherry-picked. A commit
+  **after** it lands in paths this fork does not have, so it is read and
+  reimplemented, never applied. Check which side of `99ea0525` a commit sits on
+  before planning any of it.
+- **Runtime layer off upstream (ADR 0065):** provider runtime adapters, the chat
+  gateway and run registry, and the chat message and event types are never
+  cherry-picked. An upstream change there is read, then reimplemented or skipped,
+  with a verdict line recorded.
+
+## The procedure
+
+`npm run check:upstream` does the mechanical half — fetch, merge base, commit
+list, the changelog span, and which upstream commits already have a verdict or are
+carried in git. It
+reports and never gates, like `check:providers`. What follows is the judgement
+half.
+
+1. **Run `npm run check:upstream`.** Read the whole changelog span between the
+   merge base and the newest tag, not just the newest entry. Upstream squashes
+   a release's worth of work into a few PRs, so one entry routinely hides a
+   restructure.
+2. **Sort every commit into one of four buckets** before assessing any of them:
+   already ours, not applicable, take, or fork-diverged. The fourth is the
+   expensive one — it is where an upstream fix and a CLIde fix solve the same
+   problem differently and the comparison is real work.
+3. **For "already ours", find the code, not the commit message.** Upstream
+   sometimes lands a fix this fork sent them, sometimes lands the same fix
+   independently, and sometimes lands a narrower version of ours. Grep the
+   symbol and read both.
+4. **For "take", check whether the patch applies *and* whether it is correct
+   here.** These are different questions — see the trap below.
+5. **Ship the small ones on one branch**, and give anything with phases its own
+   plan. Add a `docs/TODO.md` item for every deferred take, so a later session
+   does not re-derive it.
+6. **Record every call.** Take a patch with `git cherry-pick -x`; give a
+   reimplementation's commit an `Upstream: #1234` footer. Everything else gets a
+   line in [`upstream-verdicts.tsv`](upstream-verdicts.tsv), refusals included: a
+   refusal that is not written down gets rediscovered as a find.
+
+## Traps
+
+**A patch that applies cleanly and typechecks can still be wrong.** Upstream
+`#1159` removed a `.models` unwrap from the agent route. Applied to CLIde it
+conflicts with nothing, because the line is textually identical, and it
+compiles, because `.models` is a valid property of the type either way. It is
+still a defect here: upstream dropped the unwrap because their own `#1095`
+changed their return shape, and CLIde's `getProviderModels` still returns
+`{ models, cache }`. Testing a cherry-pick in a disposable clone proves the
+patch applies; it does not prove the surrounding code means the same thing.
+**Read the type and at least one other call site before taking any patch that
+changes how a shared service's result is consumed.**
+
+**Upstream hardcodes where CLIde queries.** `#1265` added twenty-nine OpenCode
+model rows as literals; CLIde spawns `opencode models --verbose` and parses the
+catalog. The upstream diff looks like a large gain and is a regression here.
+When an upstream change adds a table of provider facts, check whether this fork
+already derives them.
+
+**CLIde is English-only.** Upstream changes to other locales, the language list
+or the language picker are refused. An English key upstream adds is a gap only
+if a CLIde component reads it: `#1162` added five sidebar keys for an archive
+dialog CLIde does not have, and porting them would add dead keys.
+
+**Areas CLIde removed are refused permanently.** The desktop app, the Docker
+sandbox, npm release tooling, upstream's README, changelog, issue templates and
+workflows, and CloudCLI's own plugin system (`server/modules/plugins`, the
+plugin tabs, `plugins/starter`) were deleted on 2026-10-05; the external agent
+API (`server/modules/agent`, its API keys and `api-docs.html`) on 2026-10-06. Upstream changes to
+them have nothing to apply to; `check:upstream` marks a commit `removed` when
+every file it touches is in one of them. Claude Code's and Codex's plugins are
+a separate system and stay in scope.
+
+## Sending fixes upstream
+
+Every shipped fix is tagged here as **upstreamable** or **personal-preference**
+(colors, mobile layout taste, etc. stay in the fork). When investigating a new
+bug, check `gh` for existing upstream issues/PRs *and record the links (or "none
+found") in the bug's entry* — a keyword search finding nothing is weak evidence
+(upstream has Chinese-language PRs and vague titles), so say how it was checked.
+Grayson decides what actually gets PRed; nothing is submitted without an
+explicit go-ahead.
+
+### Open candidates
 
 Re-checked 2026-10-01 against `upstream/main` v1.37.3+37 (`dc7cb6c6`) by reading upstream
 source; nothing was built or reproduced there.  `gh` searches were keyword-only, so "none
@@ -47,14 +132,14 @@ cleanly the fix stands alone.
 - [ ] **Shimmer loop jumps at the seam.** `tailwind.config.js` keyframes and `src/shared/ui/Shimmer.tsx` unchanged. Cosmetic. **2 files.**
 - [ ] **Enter sends instead of newline on touch** (`d9c9d2b`, `0551406`). **Grayson is reworking this himself.** Open #1149 also tries it, bundled with a repo picker and on pre-move paths; mention it.
 
-## Covered by someone else's open PR
+### Covered by someone else's open PR
 
 - [ ] **Claude composer `default` inherits `permissions.defaultMode`.** `claude-runtime.provider.js` still skips `permissionMode` when it is `default`; open #1160 targets that exact line. Review or comment there rather than opening a duplicate.
 - [ ] **Duplicate-session double-send** (still unfixed here, `TODO.md` Bugs). Upstream issue #1306; open #1420 fixes it. If it merges, cherry-pick it.
 
 - [x] **Wrong password blanks the login screen.** The login route answers with the AppError envelope and the form rendered its `error` object as a React child. Upstream issues #1300/#1480; maintainer's open PR #1425 fixes it. Ported here with #1425's `readApiErrorMessage` logic in `src/components/auth/utils.ts`; take #1425's version when cherry-picking it.
 
-## Fixed upstream (closed 2026-10-01)
+### Fixed upstream (closed 2026-10-01)
 
 - [x] **`<synthetic>` model guard** — fixed by #1207 (and #1391). Our PR **#1056 is still open and now redundant**; branch `fix/synthetic-model-guard` exists locally and on origin.
 - [x] **AskUserQuestion comma-answer split** — #1249.
@@ -63,7 +148,7 @@ cleanly the fix stands alone.
 - [x] **Dead files from upstream refactors** — removed by #1153 and #1206.
 - [x] **Per-session model stack** — #1037 added a per-session model column and resume resolution. Only the fork's transcript-recency reconciliation is left; not worth a PR on its own.
 
-## Fork-only and declined
+### Fork-only and declined
 
 - [x] **Compact Auto-Continue controls. Fork-only, personal preference.** Session mode stays in the header menu; the live notice offers enabling only when off with nothing waiting, and the scheduled bubble owns the waiting status.
 - [x] **Follow installed CLIs and offer native updates in New Session. Fork-only policy.** Replaces CLIde's manual Codex runtime promotion with automatic compatibility checks and an explicit, idle-safe update action for Claude/Codex. [Decision](decisions/0061-follow-installed-provider-clis.md). No upstream defect or PR claimed.
@@ -72,7 +157,7 @@ cleanly the fix stands alone.
 - [x] **Phase-3 unchanged-message rendering. Fork adaptation.** Upstream snapshot `5e73a49b` already includes projection reuse and memoized Markdown. CLIde adds complete refreshed-record comparison and stable tool groups around its existing store/pane contracts; no separate upstream PR proposed.
 - [x] **Phase-2 cache review corrections. Fork-only.** Fix dependency-discovery races, swallowed directory-read errors and unbounded identity bookkeeping introduced in CLIde's phase-2 implementation; regression coverage includes overlapping identity changes.
 - [x] **Chat-history measurement harness is fork-only; cache hardening is upstreamable.** Synthetic fixtures, explicit pending targets and Browser/server baselines exercise CLIde's contracts. Phase 2 adapts upstream snapshot `5e73a49b`'s main-file cache but adds stable before/after revisions, dependent Claude subagent and Codex parent files, strict failure/partial-write exclusion, identity-safe concurrency and normalized-memory bounds. Those protections apply to upstream's cache independently of CLIde's later rendering plan.
-- [x] **Find typing, cached-history visibility, and header Export overflow. Fork-only.** Repairs features introduced by the bottom-navigation branch; regression tests and synthetic browser checks pass; included in the bottom-navigation integration. [Review](plans/archive/2026-09-13-mobile-bottom-navigation.md#final-review).
+- [x] **Find typing, cached-history visibility, and header Export overflow. Fork-only.** Repairs features introduced by the bottom-navigation branch; regression tests and synthetic browser checks pass; included in the bottom-navigation integration.
 - [x] **Bottom navigation before worktree selection. Fork-only, personal preference.** Keep the bar visible and disable worktree-dependent destinations; preserve keyboard hiding.
 - [x] **Compact header Export panel. Fork-only, personal preference.** Matches the header kebab spacing and removes the fixed list-height cap from its form panel; accepted in the installed PWA.
 - [x] **Chat browser preview and selected-page monitoring. Fork-only.** Extends CLIde's official-Playwright MCP monitor; the current `upstream/main` has no browser-use service at that module path (checked locally). Accepted in the installed PWA. No upstream PR proposed.
@@ -106,6 +191,7 @@ cleanly the fix stands alone.
   `src/components/mcp/` and the `api-settings/sections/` are
   still ported nearly verbatim, since those were re-parented rather than rewritten. The
   design record is `docs/specs/archive/2026-07-28-settings-information-architecture.md`
+  at tag `docs-archive-2026-10-07`
   plus ADRs 0018–0021. Upstream check 2026-07-29: nothing proposes an IA change of this
   size — `gh issue list --search "settings redesign"` returned nothing, `"settings tabs"`
   returned only **#508** (a multi-tab right-side *panel*, unrelated), and

@@ -5,7 +5,7 @@
 - Context: the queued row belongs to [the edit model](message-edit-model.md);
   Codex already steers its question answers through `chat.steer`
   (`handleChatSteer`, `steer()` on the runtime interface); provider parity rules
-  in [the provider maps](../maps/README.md)
+  in [the provider reference](../providers.md)
 
 A message typed while a reply runs is queued and goes when the turn ends. *Send
 now* delivers it into the turn instead: the agent reads it after the tool call in

@@ -1,4 +1,4 @@
-# CLIde provider capability map
+# Provider capabilities
 
 **Status:** Living foundation baseline
 
@@ -6,7 +6,7 @@
 
 **Last source audit:** 2026-09-13, Codex usage-reset redemption integration
 
-**Architecture contract:** [ARCHITECTURE.md](../../ARCHITECTURE.md) invariants 1–5
+**Architecture contract:** [ARCHITECTURE.md](../ARCHITECTURE.md) invariants 1–5
 
 This is the canonical map of provider-normalized behavior in CLIde. It records
 what CLIde means, who owns it, how each active provider/runtime binds to it, and
@@ -87,7 +87,7 @@ runtime state; the other providers still depend on manual assumptions.
 
 | Provider | Interactive profile | Other relevant profiles | Current availability note |
 |---|---|---|---|
-| Claude | Agent SDK spawns a standalone Claude Code per turn | Separate Claude Shell; SDK control surface | Follows the installed `claude` launcher ([ADR 0061](../decisions/0061-follow-installed-provider-clis.md)); `npm run check:providers` reports versions |
+| Claude | Agent SDK spawns a standalone Claude Code per turn | Separate Claude Shell; SDK control surface | Follows the installed `claude` launcher ([ADR 0061](decisions/0061-follow-installed-provider-clis.md)); `npm run check:providers` reports versions |
 | Codex | Long-lived App Server from the installed CLI; explicit SDK escape hatch or initialization-only fallback | SDK jobs, disposable reads, Shell, models, auth, and usage follow the same configured launcher | Changed executables are checked automatically; incompatible or missing CLIs do not fall back to bundled (ADR 0061) |
 | Cursor | External `cursor-agent` process | Native model/config/session stores | No installation detected in the audited service environment |
 | OpenCode | External `opencode run` process | Native model command and shared SQLite history | No installation detected in the audited service environment |

@@ -7,9 +7,9 @@
   `tailwind.config.js` `theme.extend.colors`. Per-repo accent colours already
   exist (`src/components/sidebar/utils/accentColors.ts`,
   `SidebarAccentColorMenu.tsx`) and Phase 4 extends that, not a parallel system.
-  No `backdrop-filter` (ADR 0001). Sibling plan:
-  [typography](archive/2026-08-21-typography-system.md) — it touches `src/index.css` and
-  `tailwind.config.js` too, so do not run both at once.
+  No `backdrop-filter` (ADR 0001). Typography
+  ([UI standards](../ui-standards.md#typography)) shares `src/index.css` and
+  `tailwind.config.js`; keep the two changes separate.
 
 The architecture is already right and roughly half the app ignores it. Measured
 2026-08-13: **2,335 hardcoded palette-class occurrences** (`text-gray-400`,
@@ -82,7 +82,7 @@ phase is small once it lands and impossible before it.
   Its own item.
 - **Syntax highlighting.** `react-syntax-highlighter` and the code editor ship
   independent colour sets; retheming those is separate work.
-- **Typography** — [its own plan](archive/2026-08-21-typography-system.md).
+- **Typography** — [UI standards](../ui-standards.md#typography).
 - **User-authored themes.** Phase 2 ships a dial over a fixed token set, not an
   arbitrary per-token editor.
 - **Custom project icons** — a separate TODO item, unrelated to colour.

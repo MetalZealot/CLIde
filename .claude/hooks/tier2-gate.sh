@@ -37,7 +37,7 @@ Two builds means iterative visual work, which CLAUDE.md defines as Tier 2:
   (both are in your agent's own host config, not in this repo)
 
 Edits hot-reload there, so stop rebuilding between rounds. Before the next visual
-change, confirm you have read docs/maps/ui-standards.md and labelled each decision
+change, confirm you have read docs/ui-standards.md and labelled each decision
 standard / convention / taste.
 
 If this genuinely is a one-off fix or the final deploy build, run it again — this

@@ -1,4 +1,4 @@
-# Test suite map
+# Test suite
 
 What the automated suites own, what they cost, and what they cannot establish.
 The policy for *which* of them to run is here too; `AGENTS.md` routes to it.

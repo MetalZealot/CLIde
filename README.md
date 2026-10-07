@@ -57,7 +57,7 @@ For development, `npm run dev` runs the server with Vite's live reload on port 5
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the system is put together and the rules
   it relies on.
 - [AGENTS.md](AGENTS.md): how work is done in this repo.
-- [docs/](docs/): maps of how things work today, decisions and their reasons, and plans.
+- [docs/](docs/): reference docs on how things work today, decisions and their reasons, and plans.
 
 ## Credit and licence
 

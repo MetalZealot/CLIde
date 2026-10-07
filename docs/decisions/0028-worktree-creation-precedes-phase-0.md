@@ -54,4 +54,5 @@ right.
 
 Phase 0 is still the gate for everything else, and the spec's implementation
 sequence keeps it as Phase 0
-(`docs/specs/2026-07-26-git-source-control-workspace-ux.md`).
+(`docs/specs/archive/2026-07-26-git-source-control-workspace-ux.md` at tag
+`docs-archive-2026-10-07`).

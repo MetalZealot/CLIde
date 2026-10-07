@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   parseAdr,
-  parseMapsIndex,
+  parseReferenceIndex,
   parsePlan,
   parsePlanOrder,
   parseTodo,
@@ -37,15 +37,15 @@ test('TODO parsing groups states and assigns mixed or unknown estimates honestly
   ]);
 });
 
-test('maps and ADRs retain only display metadata', () => {
-  const maps = parseMapsIndex(`| Document | Role | Status |\n|---|---|---|\n| [Code anchors](code-anchors.md) | Expensive symbols | Updated today |`);
+test('reference docs and ADRs retain only display metadata', () => {
+  const reference = parseReferenceIndex(`| Document | Role | Status |\n|---|---|---|\n| [Code anchors](code-anchors.md) | Expensive symbols | Updated today |`);
   const adr = parseAdr('# 0044 — Input targets\n\n- Date: 2026-08-22\n- Status: Accepted\n', 'docs/decisions/0044-input.md');
 
-  assert.deepEqual(maps, [{
+  assert.deepEqual(reference, [{
     name: 'Code anchors',
     role: 'Expensive symbols',
     status: 'Updated today',
-    sourcePath: 'docs/maps/code-anchors.md',
+    sourcePath: 'docs/code-anchors.md',
   }]);
   assert.equal(adr.title, '0044 — Input targets');
   assert.equal(adr.status, 'Accepted');
@@ -67,7 +67,7 @@ test('rendered dashboard is static, escaped, and links back to Markdown', () => 
       categories: [{ name: 'Features', open: 1, partial: 0 }],
       sizes: { S: 1, M: 0, L: 0, '?': 0 },
     },
-    maps: [{ name: 'Map', role: 'Current truth', status: 'Current', sourcePath: 'docs/maps/map.md' }],
+    reference: [{ name: 'Reference', role: 'Current truth', status: 'Current', sourcePath: 'docs/reference.md' }],
     decisions: [{ title: '0001 — Choice', date: '2026-08-23', status: 'Accepted', sourcePath: 'docs/decisions/0001-choice.md' }],
   });
 

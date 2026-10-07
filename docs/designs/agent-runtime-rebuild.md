@@ -4,8 +4,8 @@
 - Plan: [Rebuild the agent runtime](../plans/agent-runtime-rebuild.md)
 - Context: `scripts/verify-claude-session-sdk.ts` (its FINDINGS block holds the
   phase-0 probe results), `scripts/runtime-scorecard.mjs`,
-  [code anchors](../maps/code-anchors.md),
-  [capability map](../maps/clide-provider-capability-map.md),
+  [code anchors](../code-anchors.md),
+  [provider capabilities](../providers.md),
   [architecture](../../ARCHITECTURE.md) invariants 3 and 11;
   ADRs 0003, 0007, 0008, 0012, 0013, 0025, 0056, 0063, 0064, 0065–0068
 
@@ -247,7 +247,7 @@ plumbing is needed.
 - Per-turn cost and tokens are the difference between consecutive `result`s:
   `total_cost_usd` and `modelUsage` are running totals in a streaming session
   (sdk.d.ts:5736-5744). The synthetic-row token guard stays
-  ([code anchors](../maps/code-anchors.md)).
+  ([code anchors](../code-anchors.md)).
 - Side questions ride the live handle. Context usage is read while idle with
   `detail: 'summary'`.
 - `loadMcpConfig`'s hand-merge goes: its project branch reads a

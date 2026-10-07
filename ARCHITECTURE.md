@@ -4,7 +4,7 @@ This document describes CLIde at the level that changes slowly: what the system 
 the qualities it must keep, where the code lives, and the invariants the code relies
 on. It holds no implementation detail. Decisions and their reasons are in
 [`docs/decisions/`](docs/decisions/README.md), current-state detail in
-[`docs/maps/`](docs/maps/README.md), the target design of large work in
+[`docs/`](docs/README.md), the target design of large work in
 [`docs/designs/`](docs/designs/README.md), ordered work in [`docs/plans/`](docs/plans/README.md),
 and how to work in this repo in [`AGENTS.md`](AGENTS.md).
 
@@ -76,7 +76,7 @@ with no check is a known gap.
   the run registry, and two permission systems remain.
 - **Phone first.** The installed phone app is the main surface. *Breaks:* works on
   the desktop, fails on the phone. Held by 14, 15, 17. Check: a real device, by
-  nature; target sizing is in [the UI standards map](docs/maps/ui-standards.md).
+  nature; target sizing is in [the UI standards doc](docs/ui-standards.md).
 - **Product bar.** CLIde does what comparable apps have taught users to expect.
   *Breaks:* it feels old while working. Check: none; runtime phase 3b runs the
   first comparison.
@@ -123,7 +123,7 @@ shaped by [the module standards](.agents/skills/backend-module-standards/SKILL.m
   preload and worktree setup.
 - `.github/workflows/ci.yml` runs typecheck, lint, the docs and test-budget checks and
   both test halves on every push.
-- `docs/` has maps, decisions and plans; `docs/TODO.md` is the backlog.
+- `docs/` has reference docs, decisions, designs and plans; `docs/TODO.md` is the backlog.
 - `designs/` has the logo masters; the assets in `public/` are generated from them.
 - `dist/` and `dist-server/` are build output (invariant 12).
 
@@ -215,7 +215,7 @@ The context ring's number is assembled separately for the live stream, the polle
 API endpoint and history reading. Claude writes synthetic zero-usage rows (error
 notices, limit messages) that all three must skip the same way, so a change to
 Claude usage counting is made in all three at once
-([code anchors](docs/maps/code-anchors.md)).
+([code anchors](docs/code-anchors.md)).
 
 **Breaks:** the ring reads blank or zero, usually only on sessions that hit a limit,
 so it looks intermittent and unrelated to the change.
@@ -296,7 +296,7 @@ restores the reading position by hand after each. A session opens at the bottom.
 While scrolled up, new messages never remove rows above, and the row held still is
 the one at the top of the screen. Every change to loading or scrolling is walked in
 phone and desktop layouts, pausing between swipes, before it ships
-([how](docs/maps/test-suite.md#which-checks-to-run)).
+([how](docs/testing.md#which-checks-to-run)).
 
 **Breaks:** the view jumps by a message's height, or a chat opens partway up; speed
 checks alone let that ship once.
@@ -304,7 +304,7 @@ checks alone let that ship once.
 #### 16. Nothing has a published place around the composer
 
 No standard covers placement around the composer. Four reasons decide it, set out in
-[the UI standards map](docs/maps/ui-standards.md): thumb reach, the room the keyboard
+[the UI standards doc](docs/ui-standards.md): thumb reach, the room the keyboard
 leaves, whether a thing affects the next message or the whole session, and whether it
 is waiting on the user. The strip above the composer is the scarcest space on a
 phone: it holds only what needs the user now, plus queued messages about to send, as

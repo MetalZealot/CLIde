@@ -61,7 +61,7 @@ phase done.
 
 - [x] 0. **Ground rules and probes — est. 2.** Done 2026-10-05; ADRs accepted 2026-10-06.
   - ADRs: 0065, the runtime layer is
-    rebuilt in place and stops tracking upstream (with the upstream sync map's
+    rebuilt in place and stops tracking upstream (with the upstream doc's
     matching line); 0066, one long-lived Claude process per chat, Stop ends only
     the turn, delivery read from `command_lifecycle`, superseding ADR 0013 for
     Claude; 0067, one typed message shape shared by server and client; 0068, a
@@ -318,7 +318,7 @@ phase done.
   - Provider updates name what has no home: the Codex protocol test also lists
     App Server notifications CLIde does not handle (from the bindings
     `check:providers --protocol` already generates); `check:providers` ends
-    with each provider's surfaces that have no home; the capability map's
+    with each provider's surfaces that have no home; the provider capabilities doc's
     tables are generated from the descriptors.
   - You: in a Codex chat the composer offers only controls Codex can change; in
     a Claude chat a mode change applies to the running reply.
@@ -328,7 +328,7 @@ phase done.
     gone, or has a written reason a client built today would keep it.
   - Remove the phase-6 flag and Claude's per-message chat path. `run()` stays
     for one-shot jobs (commit messages, the agent API).
-  - Update the capability map, code anchors, the websocket and providers READMEs, and the `AGENTS.md` routing
+  - Update the provider capabilities doc, code anchors, the websocket and providers READMEs, and the `AGENTS.md` routing
     table. Narrow the TypeScript conversion plan to Codex, Cursor, OpenCode and
     notifications. Archive this plan and its design.
 

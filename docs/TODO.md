@@ -1,6 +1,6 @@
 # Grayson's TODO
 
-`- [ ]` open, `- [~]` partly done, `- [x]` done (move to [`todo-done.md`](todo-done.md) once verified).
+`- [ ]` open, `- [~]` partly done, `- [x]` done (delete the line once verified; the commit is the record).
 `[x]` means merged, which is not the same as live-verified on the production port.
 Sizes: **S** small/frontend-only, **M** medium, **L** large/needs design, **?** unknown until investigated.
 
@@ -11,20 +11,20 @@ main checkout only).
 
 ## Operations
 
-- [~] **Repo cleanup: CLIde presents and builds as itself.** New README, one CI workflow; upstream's desktop, Docker and release tooling, CloudCLI's plugin system and non-English locales removed on `chore/repo-cleanup`. Awaiting Grayson's check on the branch-test slot, then merge. Refusals in [the verdicts file](maps/upstream-verdicts.tsv). **M**
+- [~] **Repo cleanup: CLIde presents and builds as itself.** New README, one CI workflow; upstream's desktop, Docker and release tooling, CloudCLI's plugin system and non-English locales removed on `chore/repo-cleanup`. Awaiting Grayson's check on the branch-test slot, then merge. Refusals in [the verdicts file](upstream-verdicts.tsv). **M**
 
 ## Provider maintenance
 
 - [~] **Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every SDK message.** Grayson's priority, exempt from the plan size cap. Phases 0–1b done 2026-10-06; next is phase 2. Absorbs the mid-turn controls, streaming, slash menu, orphaned-first-message and live `tool_use_result` items. [Plan](plans/agent-runtime-rebuild.md). **L**
 - [ ] **Signing in to a provider opens a terminal.** The sign-in window runs `claude auth login`, `codex login --device-auth` or `cursor-agent login` in a plain shell. Replace it with a link and a code box, CLIde driving the same command behind it; check each CLI's flow first. Grayson's call 2026-10-06. **M**
 - [ ] **The last six backend JavaScript files become TypeScript.** Four provider runtimes, the notification orchestrator and Codex token usage; `checkJs` is off, so `typecheck` reads none of them. Codex first, Claude last. [Plan](plans/server-typescript-conversion.md). **L**
-- [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows [the finished Tools plan](plans/archive/2026-09-29-provider-tools-page.md). **L — design first**
+- [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows the finished Tools plan (tag `docs-archive-2026-10-07`). **L — design first**
 - [ ] **Multiple Codex clients can claim the same native thread.** Add App Server-native Chat compaction and cross-process single-writer coordination so Shell, another CLIde service, or an external client cannot strand Chat behind raw writer errors. [Plan](plans/codex-chat-shell-ownership.md). **L — design agreement first**
 - [ ] **Claude, Cursor and OpenCode MCP edits still erase native keys CLIde does not model.** Codex was fixed in `2a4a727`; the shared base now hands `buildServerConfig` the existing record, so each remaining adapter needs the same merge plus its own owned-key list. **S each**
 - [ ] **Claude's usage panel goes blind whenever the access token idle-expires.** The token lives 8h and only the SDK renews it, as a side effect of sending a message — so an idle night, or a limit that stops your session, refuses every usage fetch until you send one. Renewing it ourselves means writing `~/.claude/.credentials.json` and racing Claude Code's own rotation. **M/?**
-- [ ] **Composer message recall (upstream `#1238`).** ↑ in the composer walks previously sent messages; no provider work needed. The last open "build" verdict. [Plan](plans/upstream-feature-harvest.md), [map](maps/upstream-sync.md). **S**
-- [~] **Recurring upstream-fork sync process.** `npm run check:upstream` reports the span and which commits are ruled on, from [the verdicts file](maps/upstream-verdicts.tsv) and `-x`/`Upstream:` lines in git; procedure in [the sync map](maps/upstream-sync.md). Open: five commits unassessed as of 2026-09-23. **M recurring**
-- [~] **Recurring provider SDK/CLI update process.** `npm run check:providers` reports versions, notes, `.d.ts` diffs and Codex protocol counts for all four providers; update rules in [the capability map](maps/clide-provider-capability-map.md#9-update-rules). Open: unknown-method diagnostics; the typed capability registry validating the canonical map. **M recurring**
+- [ ] **Composer message recall (upstream `#1238`).** ↑ in the composer walks previously sent messages; no provider work needed. The last open "build" verdict. [Plan](plans/upstream-feature-harvest.md), [map](upstream.md). **S**
+- [~] **Recurring upstream-fork sync process.** `npm run check:upstream` reports the span and which commits are ruled on, from [the verdicts file](upstream-verdicts.tsv) and `-x`/`Upstream:` lines in git; procedure in [the upstream doc](upstream.md). Open: five commits unassessed as of 2026-09-23. **M recurring**
+- [~] **Recurring provider SDK/CLI update process.** `npm run check:providers` reports versions, notes, `.d.ts` diffs and Codex protocol counts for all four providers; update rules in [provider capabilities](providers.md#9-update-rules). Open: unknown-method diagnostics; the typed capability registry validating the canonical map. **M recurring**
 - [~] **Assess upstream 1.37's worktree foundations.** Rejected as shipped; harvest onto CLIde's model instead, from the immutable `v1.37.0` tag. The porcelain parser is harvested (`worktree-inventory.service.ts`); ahead/behind, dirty counts and last-commit reads are not. [Plan](plans/source-control-truthfulness.md). **L**
 - [~] **Per-browser settings don't follow you.** The new-chat model seed and Claude's Allowed Tools sit in `localStorage`, per device and site; Allowed Tools skip Ask-mode prompts unseen elsewhere. Keep ADRs 0003/0025. **M**
 - [ ] **Codex's thread store moved and CLIde still reads the old path.** `~/.codex/session_index.jsonl` is gone; the newest `state_*.sqlite` `threads` table holds `title`, `name`, `archived`, `model`, effort. Name lookup gets nothing, then a watcher race titles from the first agent reply. Use `name`, else the first prompt, never an agent reply. **M**
@@ -48,7 +48,7 @@ main checkout only).
 - [ ] **Cursor `ApplyPatch` edits show 0/0 line counts.** It is renamed `Edit` but only `patch` is filled. Source only; no Cursor session to test. **S**
 - [ ] **OpenCode live tool rows may be empty.** Live parsing reads top-level `tool`/`input`/`output`; history nests them under `state`. Tool names also arrive lowercase, so case-sensitive `getToolCategory` files every one as default. Unverified — needs one real OpenCode run. **S/?**
 - [~] **Claude's live stream drops `tool_use_result`.** Mapped from snake_case since `b1692402`; not yet checked live that search counts and diffs appear before reload. **S**
-- [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](maps/code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
+- [ ] **Aborting a new session's first message orphans it into two sidebar rows.** A fourth, distinct id-mapping defect. Full mechanism and fix shape in [code anchors](code-anchors.md) — it's a missing-trigger bug; the merge already exists and simply never runs. Careful tier: back up `auth.db` first. **M**
 - [ ] **Cursor's permission-mode picker is mostly cosmetic** — capabilities advertise Default, Accept Edits, Bypass and Plan; the runtime only adds `-f` for `skipPermissions`. Map `--mode=plan`/`--force`, or stop advertising. **S/M**
 - [ ] Convo window: clicking the mode selector on desktop shifts the UI and buttons in the message box. **S**
 - [ ] File Editor: long lines don't wrap — they push the left edge in and squish the conversation box. Should wrap by default. **S/M**
@@ -108,13 +108,13 @@ Queued work first. Below the rule is **someday**: real ideas, but nothing here i
 started, sliced, or blocking anything — skip it unless you are deliberately picking
 new work.
 
-- [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, maps and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
+- [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, reference docs and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**
 - [~] **Source Control: manage worktrees and integrate branches without leaving CLIde.** Identity and grouping shipped (ADRs 0016, 0028, 0029); truthfulness and lifecycle remain. [Plan](plans/source-control-truthfulness.md). **L**
 - [ ] **Two Claude command surfaces sit behind the CLI's** — `/context` ignores the SDK's `gridRows`, and `/usage` lacks per-model costs. (`/stats` was investigated and declined 2026-08-18: its cache refreshes only from the terminal's stats screen.) **S–M each**
 - [ ] **Codex history shows edits as raw `exec` source.** An apply_patch, `write_stdin` or `web__run` call reloads as an untranslated `exec` row, not `FileChanges`; the activity parses edits client-side, but other opened calls show source text. Translate it in the Codex adapter. **S**
-- [ ] **A turn that edited files ends with a changed-files card.** Codex, Cursor and T3 Code each close an editing turn with the files touched, their `+N −M` counts and a Review action; CLIde has none. After tool-activity phase 4. [UI standards](maps/ui-standards.md#tool-activity-rows). **M**
+- [ ] **A turn that edited files ends with a changed-files card.** Codex, Cursor and T3 Code each close an editing turn with the files touched, their `+N −M` counts and a Review action; CLIde has none. After tool-activity phase 4. [UI standards](ui-standards.md#tool-activity-rows). **M**
 - [~] **Rewind via the transcript.** Phase A (conversation-only) shipped and live-verified 2026-07-22 (`daea812`…`845ed24`), ADR 0007. `enableFileCheckpointing` is on so checkpoints accumulate for Phase B — file-state rewind — the remaining half, waiting on runtime rebuild phase 7. **L**
 - [ ] **Composer prompt stash and lossless draft handoff.** Project selection can overwrite pre-project text, while New Session can detach visible text from its saved project draft. Preserve both before adding a `+` popover for Attach, Stash, and Stashed prompts. [Plan](plans/composer-prompt-stash.md). **M — design agreement first**
 - [ ] **Background-session notifications** — in-app banner plus header roll-up dot, and stop the redundant OS notification while you're looking at the session. [Plan](plans/background-session-notifications.md). **M**
@@ -141,9 +141,5 @@ new work.
 
 ## Upstream candidates (PRs to siteboon/claudecodeui)
 
-Tracked in [`upstream-candidates.md`](upstream-candidates.md). Nothing is PRed without
+Tracked in [`upstream.md`](upstream.md#sending-fixes-upstream). Nothing is PRed without
 Grayson's explicit go-ahead.
-
-## Done
-
-Finished items move to [`todo-done.md`](todo-done.md).

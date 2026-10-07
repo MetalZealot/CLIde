@@ -2,7 +2,7 @@
 
 - Status: not started
 - Next: Phase 1 — read `permissions.defaultMode` into Claude's capability default; a live session's mode is read from [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 5
-- Context: [capability map §4.3](../maps/clide-provider-capability-map.md#43-access-policy-and-interaction);
+- Context: [provider capabilities §4.3](../providers.md#43-access-policy-and-interaction);
   the settings writer from [the Claude settings plan](claude-settings-surface.md)
 
 CLIde sends the composer's mode to the SDK explicitly, which is correct and stays.

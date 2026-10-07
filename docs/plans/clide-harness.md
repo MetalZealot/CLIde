@@ -2,7 +2,7 @@
 
 - Status: not started
 - Next: Phase 0 — inventory what each adapter injects today and what each provider already tells its agent
-- Context: [provider capability map](../maps/clide-provider-capability-map.md),
+- Context: [provider capabilities](../providers.md),
   [session forensics skill](../../.claude/skills/session-forensics/SKILL.md),
   [project board](markdown-project-board.md), [agent runtime rebuild](agent-runtime-rebuild.md)
 

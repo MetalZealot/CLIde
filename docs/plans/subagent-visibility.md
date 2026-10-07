@@ -3,7 +3,7 @@
 - Status: 4/5
 - Next: Phase 5 — the row opens the agent's whole transcript; waits on [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 7
 - Context: transcript shape and the id rules in
-  [code anchors](../maps/code-anchors.md); detail-surface rule in
+  [code anchors](../code-anchors.md); detail-surface rule in
   [ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md); this
   supersedes TODO items "Subagent tracking in the UI" and "A running subagent's
   tool calls render as the session's own".

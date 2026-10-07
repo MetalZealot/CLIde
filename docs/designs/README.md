@@ -13,7 +13,7 @@ apart from the plan, which changes every session.
 
 Only for architecture work whose plan runs across many sessions. Everything
 else is a plan alone: its TODO item, its phases and its commits are enough. A
-small plan's background belongs in a map, not here.
+small plan's background belongs in a reference doc, not here.
 
 A design is drafted, given the pillar pass (`ARCHITECTURE.md`'s quality goals,
 each gap folded into the design or the plan as work), and agreed with Grayson
@@ -33,9 +33,10 @@ before the plan's first build phase starts.
 
 - **ADR**: one decision in five sentences. A position a future session would
   undo even after reading the design becomes an ADR, and the design links it.
-- **Map**: how it works today. A design's starting point is a dated snapshot,
-  never kept current; when the plan closes, what became true moves into maps
-  and `ARCHITECTURE.md`, and the design goes to `archive/` with its plan.
+- **Reference doc**: how it works today. A design's starting point is a dated
+  snapshot, never kept current; when the plan closes, what became true moves
+  into the reference docs and `ARCHITECTURE.md`, and the design is deleted with
+  its plan.
 - **Plan**: what is left, in what order. Its header names the design in a
   `- Design:` line. `npm run check:docs` checks the two link each other, the
   32 KB cap, and the same banned sections as plans.
@@ -47,7 +48,7 @@ before the plan's first build phase starts.
 
 - Status: draft | agreed <date> | superseded by <link>
 - Plan: [<plan title>](../plans/<same-name>.md)
-- Context: <links to the maps and ADRs a reader needs; no summary of them>
+- Context: <links to the reference docs and ADRs a reader needs; no summary of them>
 
 <Two or three sentences: what this changes and what stays.>
 

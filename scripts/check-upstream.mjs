@@ -6,7 +6,7 @@
 // scroll the commit list, hunt for the changelog, then try to remember which
 // PRs a previous session already ruled on. That preamble is mechanical, so it
 // lives here. The judgement calls stay with the reader: the procedure is in
-// docs/maps/upstream-sync.md, the verdicts in docs/maps/upstream-verdicts.tsv.
+// docs/upstream.md, the verdicts in docs/upstream-verdicts.tsv.
 //
 // Run: npm run check:upstream [-- --offline] [-- --all]
 //
@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const args = new Set(process.argv.slice(2));
-const VERDICTS = 'docs/maps/upstream-verdicts.tsv';
+const VERDICTS = 'docs/upstream-verdicts.tsv';
 
 /** A commit touching more files than this is a restructure, not a change.
  *  Upstream #1206 moved 702 files; everything after it needs reimplementing

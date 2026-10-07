@@ -92,7 +92,7 @@ Aborting a **new** session's *first* message orphans it into two rows. The abort
 trips before the SDK yields any message, so `assignProviderSessionId` never fires
 while the CLI has already written the JSONL — the watcher then indexes it as a
 second session. This is a missing-trigger bug, not a corrupted database; do not
-"repair" rows by hand. Details in `docs/maps/code-anchors.md`.
+"repair" rows by hand. Details in `docs/code-anchors.md`.
 
 ## Before any write
 
