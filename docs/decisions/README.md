@@ -63,7 +63,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0023 — On `/compact`'s duplicate transcript row, the wrapper is dropped, not the prompt](0023-compact-echo-drops-wrapper-keeps-prompt.md)
 - [0024 — Token rotation does not restart auth bootstrap](0024-token-rotation-does-not-restart-auth-bootstrap.md)
 - [0025 — Per-session model picks live in the sessions table, behind transcript truth](0025-session-model-picks-live-in-the-database.md)
-- [0026 — Android's file chooser can't be shaped from the web; the composer keeps one plain input](0026-attachment-menu-accept-ceiling.md)
+- [0026 — Android's file chooser can't be shaped from the web; the composer keeps one plain input](0026-attachment-menu-accept-ceiling.md) *(superseded by 0070)*
 - [0027 — The backlog lives at `docs/TODO.md`](0027-todo-md-lives-in-docs.md)
 - [0028 — Creating a worktree ships ahead of ADR 0016's Phase 0; removing one does not](0028-worktree-creation-precedes-phase-0.md) *(narrows 0016's sequencing)*
 - [0029 — A repository row's session view is per row, in memory, and loads before it filters](0029-per-row-session-views-load-before-they-filter.md) *(pinned-session consequence superseded by 0036)*
@@ -107,3 +107,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0067 — Chat messages are one typed shape, shared by server and client](0067-chat-messages-are-a-typed-shared-wire.md)
 - [0068 — A live session's settings and send queue live on the server](0068-live-session-settings-and-queue-live-on-the-server.md)
 - [0069 — A chat's Browser context belongs to the chat, not the MCP connection](0069-a-chats-browser-belongs-to-the-chat-not-the-connection.md)
+- [0070 — Attach files uses `showOpenFilePicker`; photos get their own image-only input](0070-attach-files-uses-showopenfilepicker.md)

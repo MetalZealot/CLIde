@@ -298,6 +298,7 @@ function ChatInterface({
     dismissAttachmentRejections,
     getRootProps,
     getInputProps,
+    handleAttachmentFiles,
     isDragActive,
     handleSubmit,
     queuedDraft,
@@ -1176,6 +1177,7 @@ function ChatInterface({
             slashCommands={slashCommands}
             getRootProps={getRootProps as (...args: unknown[]) => Record<string, unknown>}
             getInputProps={getInputProps as (...args: unknown[]) => Record<string, unknown>}
+            onAttachFiles={handleAttachmentFiles}
             inputHighlightRef={inputHighlightRef}
             renderInputWithMentions={renderInputWithMentions}
             textareaRef={textareaRef}

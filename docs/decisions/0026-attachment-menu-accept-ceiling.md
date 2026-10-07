@@ -1,7 +1,7 @@
 # 0026 — Android's file chooser can't be shaped from the web; the composer keeps one plain input
 
 - Date: 2026-08-04
-- Status: Accepted
+- Status: Superseded by 0070
 
 ## Decision
 

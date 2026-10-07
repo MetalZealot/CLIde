@@ -169,6 +169,7 @@ interface ChatComposerProps {
   slashCommands: SlashCommand[];
   getRootProps: (...args: unknown[]) => Record<string, unknown>;
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
+  onAttachFiles: (files: File[]) => void;
   inputHighlightRef: RefObject<HTMLDivElement>;
   renderInputWithMentions: (text: string) => ReactNode;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -264,6 +265,7 @@ function ChatComposer({
   slashCommands,
   getRootProps,
   getInputProps,
+  onAttachFiles,
   inputHighlightRef,
   renderInputWithMentions,
   textareaRef,
@@ -635,6 +637,7 @@ function ChatComposer({
             <ComposerAddMenu
               getInputProps={getInputProps}
               attachLabel={t('input.attachFiles')}
+              onAttachFiles={onAttachFiles}
               canSchedule={canScheduleCurrentInput}
               onSchedule={() => setIsScheduleMenuOpen(true)}
             />

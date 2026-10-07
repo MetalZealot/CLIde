@@ -1942,6 +1942,7 @@ export function useChatComposerState({
     dismissAttachmentRejections,
     getRootProps,
     getInputProps,
+    handleAttachmentFiles,
     isDragActive,
     handleSubmit,
     // Scheduling stores the same option snapshot a send would have carried,

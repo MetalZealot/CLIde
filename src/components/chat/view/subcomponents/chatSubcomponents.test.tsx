@@ -2701,12 +2701,14 @@ describe('chatSubcomponents', () => {
     test('keeps the real file input under the tap and schedules only typed text', async () => {
       let requestedProps: Record<string, unknown> | undefined;
       let scheduled = 0;
+      const attached: File[][] = [];
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
       const render = (canSchedule: boolean) => root.render(
         React.createElement(ComposerAddMenu, {
           attachLabel: 'Attach files',
+          onAttachFiles: (files: File[]) => { attached.push(files); },
           canSchedule,
           onSchedule: () => { scheduled += 1; },
           getInputProps: (props: unknown) => {
@@ -2734,6 +2736,15 @@ describe('chatSubcomponents', () => {
         const surface = document.body.querySelector('[role="menu"]');
         assert.match(surface?.className ?? '', /\bhidden\b/);
 
+        // Images only, so Android opens its photo grid rather than the camera chooser.
+        const photoInput = document.body.querySelector<HTMLInputElement>('input[type="file"][aria-label="Attach photos"]');
+        assert.equal(photoInput?.accept, 'image/*');
+        assert.equal(photoInput?.multiple, true);
+        const photo = new File(['x'], 'cat.png', { type: 'image/png' });
+        Object.defineProperty(photoInput, 'files', { configurable: true, value: [photo] });
+        await React.act(async () => photoInput?.dispatchEvent(new Event('change', { bubbles: true })));
+        assert.deepEqual(attached, [[photo]]);
+
         const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
         assert.ok(trigger);
         assert.match(trigger.innerHTML, /lucide-plus/);
@@ -2750,6 +2761,47 @@ describe('chatSubcomponents', () => {
         assert.equal(scheduled, 1);
         assert.match(surface?.className ?? '', /\bhidden\b/);
       } finally {
+        await React.act(async () => root.unmount());
+        container.remove();
+      }
+    });
+
+    test('attaches files through showOpenFilePicker when the browser has it', async () => {
+      const pdf = new File(['%PDF'], 'notes.pdf', { type: 'application/pdf' });
+      const pickerCalls: unknown[] = [];
+      const attached: File[][] = [];
+      const pickerWindow = window as unknown as { showOpenFilePicker?: unknown };
+      pickerWindow.showOpenFilePicker = async (options: unknown) => {
+        pickerCalls.push(options);
+        return [{ getFile: async () => pdf }];
+      };
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      try {
+        await React.act(async () => root.render(
+          React.createElement(ComposerAddMenu, {
+            attachLabel: 'Attach files',
+            onAttachFiles: (files: File[]) => { attached.push(files); },
+            canSchedule: false,
+            onSchedule: () => {},
+            getInputProps: (props: unknown) => ({ ...(props as Record<string, unknown>), type: 'file' }),
+          }),
+        ));
+        assert.equal(document.body.querySelector('input[aria-label="Attach files"]'), null);
+
+        const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
+        await React.act(async () => trigger?.click());
+        const attachItem = [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+          .find((item) => /Attach files/.test(item.textContent ?? ''));
+        await React.act(async () => attachItem?.click());
+
+        assert.deepEqual(pickerCalls, [{ multiple: true }]);
+        assert.deepEqual(attached, [[pdf]]);
+        assert.match(document.body.querySelector('[role="menu"]')?.className ?? '', /\bhidden\b/);
+      } finally {
+        delete pickerWindow.showOpenFilePicker;
         await React.act(async () => root.unmount());
         container.remove();
       }
