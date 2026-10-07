@@ -1,7 +1,7 @@
 # 0053 — Browser tools are official Playwright MCP over an authenticated HTTP endpoint
 
 - Date: 2026-09-04
-- Status: Accepted
+- Status: Accepted; identity clause superseded by 0069
 
 ## Decision
 

@@ -68,10 +68,8 @@ phase done.
     live session's settings and queue on the server, superseding ARCHITECTURE.md invariant 11
     for open sessions.
   - Probes: `scripts/verify-claude-session-sdk.ts`, the 13 checks plus a
-    background-subagent interrupt, run on the Pi; results in the
-    [SDK map](../maps/claude-agent-sdk.md)'s §2 table and the script's FINDINGS,
-    sanitized frame streams in `server/modules/providers/tests/fixtures/claude-session-sdk/`.
-    The SDK map's §4 counts are fixed (14 of 39 handled).
+    background-subagent interrupt, run on the Pi; results in the script's
+    FINDINGS block, sanitized frame streams in `server/modules/providers/tests/fixtures/claude-session-sdk/`.
   - What the probes changed here: no `PreToolUse` hook (phase 1);
     `allowDangerouslySkipPermissions` on every chat (phase 1); delivery from
     `command_lifecycle`, not an input echo (the design's positions, phase 6); "Sent"
@@ -293,8 +291,8 @@ phase done.
   - `rewindFiles` (rewind Phase B), `forwardSubagentText`, `promptSuggestions`,
     `includeHookEvents`, MCP status and controls, `accountInfo` (replacing
     credential-file inference), plugin and skill reloads, session titles.
-  - The SDK map's coverage table is generated from the record by a test; `tsc`
-    fails when an SDK bump adds a message type.
+  - The record is the coverage table; `tsc` fails when an SDK bump adds a
+    message type.
   - Drift reaches past message types: every `Options` field, `Query` method and
     hook event in `sdk.d.ts` gets an entry (the phase that uses it, or why it is
     not surfaced), and a test fails by name on one the record lacks, the way the
@@ -330,8 +328,7 @@ phase done.
     gone, or has a written reason a client built today would keep it.
   - Remove the phase-6 flag and Claude's per-message chat path. `run()` stays
     for one-shot jobs (commit messages, the agent API).
-  - Update the SDK map (snapshot and bottom line), the capability map, code
-    anchors, the websocket and providers READMEs, and the `AGENTS.md` routing
+  - Update the capability map, code anchors, the websocket and providers READMEs, and the `AGENTS.md` routing
     table. Narrow the TypeScript conversion plan to Codex, Cursor, OpenCode and
     notifications. Archive this plan and its design.
 

@@ -369,7 +369,7 @@ if (want('--protocol')) {
       };
       say(`  ${mode.padEnd(12)} ${count('ClientRequest.ts')} client, ${count('ServerRequest.ts')} server, ${count('ServerNotification.ts')} notifications`);
     }
-    say('\n  Compare against the counts in docs/maps/codex-cli-sdk-app-server.md.');
+    say('\n  Totals only size the change; codex-runtime.test.ts fails by name if a method CLIde uses is gone.');
   }
 }
 
@@ -379,5 +379,5 @@ if (!behind.length) say('\nNothing moved.');
 say('\nNext, if anything moved:');
 say('  1. CLI updates follow the installed launcher. For SDK changes, update dependencies and run `npm test`.');
 say('  2. Classify each change: consumed, candidate, watch, or no action.');
-say('  3. Append one ledger entry and update the map rows you actually re-measured.');
+say('  3. Record what changed in the commit that takes the release; update the capability map only where CLIde behaviour changed.');
 if (artifacts.length) say(`\nArtifacts: ${OUT}`);

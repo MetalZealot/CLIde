@@ -3,8 +3,7 @@
 - Status: 1/4
 - Next: Phase 0 item 1 — make server-side Git failures visible in the UI. Nothing
   else in this plan is safe to build until a refusal can reach the screen.
-- Context: [repository and checkout identity, and the current truth gaps](../maps/repository-checkout-identity.md)
-  · ADRs [0016](../decisions/0016-repository-grouped-checkouts.md),
+- Context: ADRs [0016](../decisions/0016-repository-grouped-checkouts.md),
   [0028](../decisions/0028-worktree-creation-precedes-phase-0.md),
   [0029](../decisions/0029-per-row-session-views-load-before-they-filter.md),
   [0033](../decisions/0033-discovered-checkouts-are-derived-not-stored.md)

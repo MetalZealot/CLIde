@@ -1117,6 +1117,8 @@ main()
  *     starting low. ({model: null}) went to "Default (recommended)" =
  *     claude-fable-5-1, which this account cannot use ("out of usage credits").
  *     init has no effort field at 2.1.286; a Stop hook's input.effort.level does.
+ *     A set effortLevel 'high' overrides a spawn effort 'low' from the next
+ *     request (2026-10-06).
  *  7  Error results do not end the iterator: error_max_turns, the out-of-credits
  *     result and error_during_execution were each followed by a working turn.
  *     setModel with an unknown id rejects at the control call. When the LAST
@@ -1149,4 +1151,9 @@ main()
  *     node boot 0.4-0.7 s and skills load ~0.8 s; initial_messages_load_ms 2 ms
  *     new, 253 ms (2.7 MB), 408 ms (16.9 MB); time_to_request 0.7-0.8 s cold
  *     against 0.1-0.15 s warm.
+ *     Production [turn] logs, 240 turns 2026-09-28 to 2026-10-05: send to first
+ *     frame 3.27 s median resumed, 3.06 s new (p90 4.4 s), no difference between
+ *     contexts under 60K and over 150K tokens. A long-lived query saves ~3.5 s
+ *     per message whatever the session's size. The ~10 s median from first frame
+ *     to the first rate_limit_event on resumed turns is API time, not loading.
  */

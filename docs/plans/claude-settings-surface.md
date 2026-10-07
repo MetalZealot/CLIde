@@ -2,9 +2,8 @@
 
 - Status: 3/6
 - Next: Phase 4 live check, then Phase 5 — editors for the structured keys. Phase 6 reads session state from [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 5
-- Context: per-key tiers in [the settings audit](../maps/2026-07-28-claude-code-settings-surface-audit.md);
-  destinations in [the command surface map](../maps/claude-command-surface.md);
-  the release-to-release history in [the Claude ledger](../maps/claude-upgrade-ledger.md)
+- Context: per-key tiers and destinations in `server/modules/providers/list/claude/claude-settings-catalog.ts`,
+  which a drift test holds to the installed SDK
 
 The goal is that changing a Claude Code setting never needs a terminal. The
 cascade is already in force in every CLIde session; what is missing is a way to

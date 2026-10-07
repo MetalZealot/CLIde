@@ -6,16 +6,16 @@
 
 **Last source audit:** 2026-09-13, Codex usage-reset redemption integration
 
-**Architecture contract:** [Current provider architecture contract](CLIde_Provider_Architecture_Current_Contract.md)
+**Architecture contract:** [ARCHITECTURE.md](../../ARCHITECTURE.md) invariants 1–5
 
 This is the canonical map of provider-normalized behavior in CLIde. It records
 what CLIde means, who owns it, how each active provider/runtime binds to it, and
 whether the behavior reaches the application today.
 
 It is not an exhaustive copy of every native SDK method, CLI flag, App Server
-endpoint, event, or setting. Those remain in provider-native maps. Every
-material native surface should instead receive a disposition here or in its
-provider map.
+endpoint, event, or setting. Those are read from the provider's own docs and type
+definitions (§7). A material native surface CLIde adopts or refuses gets a
+disposition here.
 
 ## 1. Reading the map
 
@@ -87,7 +87,7 @@ runtime state; the other providers still depend on manual assumptions.
 
 | Provider | Interactive profile | Other relevant profiles | Current availability note |
 |---|---|---|---|
-| Claude | Agent SDK spawns a standalone Claude Code per turn | Separate Claude Shell; SDK control surface | Pinned SDK 0.3.165 bundles runtime 2.1.165; the runtime actually spawned is whatever `PATH` resolves (2.1.220 observed) |
+| Claude | Agent SDK spawns a standalone Claude Code per turn | Separate Claude Shell; SDK control surface | Follows the installed `claude` launcher ([ADR 0061](../decisions/0061-follow-installed-provider-clis.md)); `npm run check:providers` reports versions |
 | Codex | Long-lived App Server from the installed CLI; explicit SDK escape hatch or initialization-only fallback | SDK jobs, disposable reads, Shell, models, auth, and usage follow the same configured launcher | Changed executables are checked automatically; incompatible or missing CLIs do not fall back to bundled (ADR 0061) |
 | Cursor | External `cursor-agent` process | Native model/config/session stores | No installation detected in the audited service environment |
 | OpenCode | External `opencode run` process | Native model command and shared SQLite history | No installation detected in the audited service environment |
@@ -111,7 +111,8 @@ profile changes when App Server falls back to the SDK.
 | `turn.start` | Start a text turn through the selected provider | E | E | E | E |
 | `turn.abort` | Signal-first cancellation with native graceful interruption where possible | E | E | E | E |
 | `turn.queue-followup` | Queue a later CLIde turn rather than native active-turn steering | C | C | C | C |
-| `turn.steer-input` | Append accepted user input to an active turn | — | R | — | — |
+| `turn.steer-input` | Append accepted user input to an active turn | E | R | — | — |
+| `turn.live-control` | Change permission mode, model, effort or fast mode inside a running turn | E | — | — | — |
 
 Notes:
 
@@ -167,22 +168,28 @@ future resets, and deliberately skips catch-up alerts after downtime (ADR 0039).
 | `interaction.file-approval` | Surface a file-change approval request | — | R | — | — |
 | `interaction.permission-approval` | Surface a scoped permission amendment | — | R | — | — |
 | `interaction.user-input` | Structured questions with reconnect-safe pending state; asynchronous questions add Send now and a separate FIFO Queue | E | R | — | — |
+| `interaction.auto-review` | An automatic reviewer decides approval prompts | E | — | — | — |
 
 The canonical access model is not a single `permissionMode` string. Filesystem
 boundary, network, approval behavior, reviewer, collaboration intent, and
 prompting are separate dimensions.
 
-Known gap: Cursor currently advertises permission modes in the capability
-service, but its runtime adapter does not consume the composer's
-`permissionMode` consistently.
+Known gap: Cursor advertises Default, Accept Edits, Bypass and Plan, but its
+runtime only adds `-f` for `skipPermissions`.
 
 Claude qualifications behind its exact marks: two native access modes
 (`dontAsk`, and the CLI-only `manual`) are unmapped; Plan mode relies on a
-CLIde-owned tool allow-list rather than native plan instructions; and in the
-`auto` and `bypassPermissions` modes the runtime resolves approval before the
-tool-permission callback, so interactive tools never reach the UI. Access-policy
-changes also apply only from the next turn, because CLIde constructs a new query
-per turn instead of holding a streaming-input session.
+CLIde-owned tool allow-list rather than native plan instructions. Interactive
+tools reach the tool-permission callback in every mode, `auto` and
+`bypassPermissions` included. Mode, model, effort and fast-mode changes apply
+inside the running turn.
+
+Codex qualifications: `default` is workspace-write with untrusted approval;
+`acceptEdits` is workspace-write with no approval, so every sandboxed command runs
+unprompted — labelled Auto in Workspace, and not Claude's edits-only mode;
+`bypassPermissions` is danger-full-access with no approval. Plan/Build is a
+separate collaboration mode on top. The reviewer is pinned to `user`: neither
+`auto_review` nor `--approve-for-me` is exposed.
 
 ### 4.4 Provider resources
 
@@ -194,6 +201,8 @@ per turn instead of holding a streaming-input session.
 | `skills.discovery` | Discover normalized provider-visible skills | E | E | E | E |
 | `skills.install` | Install/remove user-scoped skills through provider conventions | E | E | E | E |
 | `runtime.diagnostics` | Report configured/effective executable, version, health, and compatibility | G | E | G | G |
+| `commands.native-list` | Offer the provider CLI's own slash commands, hiding terminal-only ones | E | — | — | — |
+| `settings.native` | Show effective native settings with each value's source; edit the classified keys | G | — | — | — |
 
 Configuration support does not imply runtime MCP health, OAuth state, active
 tools/resources, or reload controls. Those are separate future capabilities.
@@ -229,15 +238,24 @@ universal configuration object.
 | MCP/skills/auth/usage | Optional provider facets, shared routes/services, `/usage`, reset redemption, and the reset monitor |
 | Generic UI capability consumption | Composer, Chat controls, provider settings/status surfaces |
 
-## 7. Provider-native maps and ledgers
+## 7. Provider-native sources
 
-| Provider | Native map | Upgrade ledger | Current action |
-|---|---|---|---|
-| Claude | [Claude Code and Agent SDK](claude-agent-sdk.md) | [Claude ledger](claude-upgrade-ledger.md) | Maintain on each SDK bump or material runtime change |
-| Codex | [CLI, SDK, and App Server](codex-cli-sdk-app-server.md) | [Codex ledger](codex-upgrade-ledger.md) | Maintain on each stable candidate |
-| Cursor | Not created | Not created | Audit official docs plus installed CLI artifacts when available |
-| OpenCode | Not created | Not created | Audit source, config schema, OpenAPI server, CLI, and installed artifacts |
-| Antigravity | Not a registered provider | Not created | Begin with provider-fit and integration-surface assessment |
+`npm run check:providers` reports pinned, installed and published versions and fetches
+release notes when one moved; the drift tests fail by name when a pinned contract moves.
+
+| Provider | Read the native surface from |
+|---|---|
+| Claude | The Agent SDK's `sdk.d.ts` (`check:providers -- --types` diffs it), the platform docs, and the `claude` binary for model aliases |
+| Codex | The App Server protocol the bundled CLI generates (`check:providers -- --protocol`), and the official docs |
+| Cursor | Official docs plus installed CLI artifacts |
+| OpenCode | Source, config schema, OpenAPI server, CLI, and installed artifacts |
+| Antigravity | Not a registered provider; begin with a provider-fit assessment |
+
+Neither SDK publishes release notes. `anthropics/claude-code`'s `CHANGELOG.md`
+covers every runtime version; `openai/codex` and `sst/opencode` tag each release on
+GitHub; Cursor publishes only a web page. Read the whole span between the installed
+and published versions: an artifact diff shows contract changes but never
+behaviour.
 
 ## 8. Known conformance work
 
@@ -259,7 +277,8 @@ universal configuration object.
 
 When a provider release changes:
 
-1. Update its provider-native map and compact ledger.
+1. Read the release notes `check:providers` fetched; the commit taking the
+   release records what changed.
 2. Classify each material native surface as:
    - existing canonical binding;
    - selected new canonical behavior;

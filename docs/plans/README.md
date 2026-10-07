@@ -46,8 +46,8 @@ stands should cost about a kilobyte.
 Provider architecture is now a plan, [the agent runtime rebuild](agent-runtime-rebuild.md),
 built to [its design](../designs/agent-runtime-rebuild.md) and the one plan exempt
 from the size cap by Grayson's decision; its baseline is
-[the current contract](../maps/CLIde_Provider_Architecture_Current_Contract.md)
-and the living maps.
+[ARCHITECTURE.md](../../ARCHITECTURE.md)'s provider invariants and
+[the capability map](../maps/clide-provider-capability-map.md).
 
 ## Why plans are capped
 

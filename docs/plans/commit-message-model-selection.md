@@ -5,7 +5,7 @@
   `IProviderJobs` contract.
 - Context: adopts the merged Settings IA (Projects & Git screen, depth-two
   navigation, settings registry, one-scroll-container rule — ADRs 0018, 0021)
-  · [provider permission and mode surfaces](../maps/provider-permission-modes.md)
+  · [provider capability map](../maps/clide-provider-capability-map.md)
 
 **Treat commit-message generation as a provider-neutral ephemeral text job, not
 a hidden Chat turn.**

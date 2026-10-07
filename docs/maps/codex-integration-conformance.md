@@ -8,9 +8,8 @@
 
 **Last full live acceptance:** 0.153.4 on isolated slot B, 2026-09-08
 
-This map answers a narrower question than the
-[Codex native surface map](codex-cli-sdk-app-server.md): does the Codex behavior
-CLIde already claims still survive every application boundary?
+This map answers one question: does the Codex behavior CLIde already claims
+still survive every application boundary?
 
 The check is deliberately layered. A generated App Server schema can remain
 compatible while CLIde drops a renamed option before it reaches the adapter, or
@@ -79,8 +78,7 @@ upstream integration.
 | Usage | Context usage updates during Chat and plan/account usage loads without sharing Chat's long-lived process | Usage or App Server client changes |
 | SDK escape hatch | With `CLIDE_CODEX_CHAT_TRANSPORT=sdk`, text/image Chat works and App-Server-only capabilities are not advertised | Transport selection or capability changes |
 
-Record accepted live evidence in the
-[Codex upgrade ledger](codex-upgrade-ledger.md) for releases, or in
+Record accepted live evidence in the commit that takes a release, or in
 [`docs/todo-done.md`](../todo-done.md) for an integration/refactor. Keep source,
 installed dependencies, built artifacts, running service, and live acceptance
 as separate states.

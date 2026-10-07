@@ -16,8 +16,7 @@ import ts from 'typescript';
  * its whole life (removed 2026-08-11).
  *
  * Components that fork into a mobile tree and a desktop tree are the sidebar's
- * main parity risk, so the rule is checked rather than written down. See
- * `docs/maps/sidebar-surface.md`.
+ * main parity risk, so the rule is checked rather than written down.
  */
 
 const REPO_ROOT = new URL('../..', import.meta.url).pathname;

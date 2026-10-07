@@ -46,6 +46,10 @@ One file: `npm run test:client:one <path>` / `test:server:one <path>`. A bare
 `--test` fails on the `@/` alias, and a directory argument fails even with the
 right tsconfig.
 
+Chat loading or scrolling: `npm run bench:chat-history:browser`, open the printed
+URL in CLIde's Browser, then `await historyBench.walk(2, 'page')` at 412 px wide
+and `historyBench.walk(2, 'pane')` at 1280 px, reloading between runs.
+
 ## Measured cost
 
 Taken on the maintainer's Pi (4 GB, microSD), 2026-08-26:

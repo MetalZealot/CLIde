@@ -271,7 +271,7 @@ Several chats can browse at once, and a browser can stay open while its agent is
 idle. The chat preview shows only a browser linked to that chat. The browser belongs
 to the chat, not the reply, so the page persists between messages; it closes on Stop,
 when the agent closes it, or after sitting unused. An open window alone is not
-activity ([chat browser activity](docs/maps/chat-browser-activity.md)).
+activity ([ADR 0069](docs/decisions/0069-a-chats-browser-belongs-to-the-chat-not-the-connection.md)).
 
 **Breaks:** guessing from the most recent browser shows another chat's work, an open
 window reads as a false spinner, and a reset between replies lands the agent on a
@@ -296,7 +296,7 @@ restores the reading position by hand after each. A session opens at the bottom.
 While scrolled up, new messages never remove rows above, and the row held still is
 the one at the top of the screen. Every change to loading or scrolling is walked in
 phone and desktop layouts, pausing between swipes, before it ships
-([history map](docs/maps/chat-history-performance.md#position-and-per-step-walk)).
+([how](docs/maps/test-suite.md#which-checks-to-run)).
 
 **Breaks:** the view jumps by a message's height, or a chat opens partway up; speed
 checks alone let that ship once.
@@ -335,6 +335,24 @@ ones.
 **Breaks:** showing the setting beside its queued message makes cancelling one send
 and disabling the mode look like the same action.
 
+### Trust and discovery
+
+#### 19. The browser never names an executable
+
+Runtime routes take an opaque installation id (`runtime_` plus 24 hex characters);
+the server resolves it to a path.
+
+**Breaks:** anyone with a signed-in browser or an API token can make the server run
+any binary as the service user.
+
+#### 20. A session's activity time is its last recorded row, not the file's mtime
+
+Each provider's synchronizer reads the newest timestamped transcript row
+(`readLastJsonlTimestamp`); a new provider's synchronizer follows the same rule.
+
+**Breaks:** opening a Claude session appends untimestamped rows, so it jumps to the
+top of the sidebar without having done anything.
+
 ## Reviewing a change
 
 A change needs a second look if it would:
@@ -352,6 +370,8 @@ A change needs a second look if it would:
 - open something full-screen over the chat without locking the page, or put the phone
   chat back in a scrolling box (14);
 - add a card above the composer for something not waiting on the user (16);
+- accept an executable path from the browser (19);
+- sort or date sessions by a file's modified time (20);
 - change the architecture without a check against the quality goals and a
   pre-mortem.
 

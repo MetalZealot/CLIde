@@ -32,11 +32,10 @@ only once its index points there; never read a directory to find out.
 | If the work touches | Read first |
 |---|---|
 | Backend code under `server/modules/` | `.agents/skills/backend-module-standards/SKILL.md` |
-| Token usage, the context ring, or session identity | `docs/maps/code-anchors.md` |
-| Provider behaviour, capability parity, or a runtime adapter | `docs/maps/README.md`, then that provider's map |
+| Provider behaviour, capability parity, or a runtime adapter | `docs/maps/clide-provider-capability-map.md`, then the provider's own types and docs |
 | Abort, approval replay, resume, rewind, or fork | ADRs 0008, 0012, 0013 |
 | The model picker | "Model picker follow-ups" in `docs/TODO.md`, ADRs 0003 and 0025 |
-| Any file listed in the code anchors | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
+| Token usage, the context ring, session identity, or any file the code anchors list | `docs/maps/code-anchors.md` — grep the symbol, don't blind-read |
 | Running, adding, or timing tests | `docs/maps/test-suite.md` |
 | An upstream-shared defect | `docs/upstream-candidates.md` |
 | Phased work, or any architecture change | its plan via the `docs/plans/` board, and its design whole if it names one; the quality goals in `ARCHITECTURE.md`; a pre-mortem |

@@ -2,7 +2,7 @@
 
 - Status: not started
 - Next: Phase 0 — live recording proof on a branch-test slot, measuring CPU and clip size
-- Context: [Browser map](../maps/chat-browser-activity.md), [ADR 0053](../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md), [bridge](../../server/modules/browser-use/browser-use-mcp-endpoint.service.ts)
+- Context: [ADR 0069](../decisions/0069-a-chats-browser-belongs-to-the-chat-not-the-connection.md), [ADR 0053](../decisions/0053-browser-tools-are-official-playwright-mcp-over-http.md), [bridge](../../server/modules/browser-use/browser-use-mcp-endpoint.service.ts)
 
 An agent records the Browser page as WebM within one turn, then inspects the
 clip as still frames, because no provider's model accepts video input. This

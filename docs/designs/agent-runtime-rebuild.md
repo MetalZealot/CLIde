@@ -2,15 +2,11 @@
 
 - Status: agreed 2026-10-06
 - Plan: [Rebuild the agent runtime](../plans/agent-runtime-rebuild.md)
-- Context: [SDK map](../maps/claude-agent-sdk.md) (§2 holds the phase-0 probe results),
-  `scripts/verify-claude-session-sdk.ts`, `scripts/runtime-scorecard.mjs`,
-  [command surface](../maps/claude-command-surface.md),
-  [tool activity stream](../maps/tool-activity-stream.md),
+- Context: `scripts/verify-claude-session-sdk.ts` (its FINDINGS block holds the
+  phase-0 probe results), `scripts/runtime-scorecard.mjs`,
   [code anchors](../maps/code-anchors.md),
-  [provider contract](../maps/CLIde_Provider_Architecture_Current_Contract.md),
   [capability map](../maps/clide-provider-capability-map.md),
-  [permission modes](../maps/provider-permission-modes.md),
-  [Codex App Server](../maps/codex-cli-sdk-app-server.md), [architecture](../../ARCHITECTURE.md) invariants 3 and 11;
+  [architecture](../../ARCHITECTURE.md) invariants 3 and 11;
   ADRs 0003, 0007, 0008, 0012, 0013, 0025, 0056, 0063, 0064, 0065–0068
 
 This design fixes the layer between each provider's SDK and the chat view, Claude

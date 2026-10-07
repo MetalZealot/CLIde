@@ -2,7 +2,7 @@
 
 - Status: not started
 - Next: make a failed Codex Shell resume stop instead of silently opening a fresh thread
-- Context: [Codex transport map](../maps/2026-07-25-codex-chat-transport-architecture.md), [Codex surface map](../maps/codex-cli-sdk-app-server.md), [ADR 0034](../decisions/0034-codex-managed-native-runtime.md), [official App Server contract](https://developers.openai.com/codex/app-server), [upstream writer-retention issue](https://github.com/openai/codex/issues/37450)
+- Context: [ADR 0061](../decisions/0061-follow-installed-provider-clis.md), [ADR 0034](../decisions/0034-codex-managed-native-runtime.md), [official App Server contract](https://developers.openai.com/codex/app-server), [upstream writer-retention issue](https://github.com/openai/codex/issues/37450)
 
 ## What is known
 

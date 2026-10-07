@@ -159,8 +159,7 @@ would inherit the same holes. Extract to keys first; translating is the cheap
 half.
 
 **Transcript performance** (`#1206`). CLIde's own readers and client hooks were
-profiled at `668f4049` on 2026-09-19; the [performance map](chat-history-performance.md)
-records measurements and their limits. Adapt history caching, stable message
+profiled at `668f4049` on 2026-09-19. Adapt history caching, stable message
 objects and lazy contents through the [dedicated plan](../plans/chat-history-performance.md).
 Cache dependencies, phone selection and indexed Find need CLIde-specific work;
 the upstream restructure remains excluded. Implementation and device acceptance

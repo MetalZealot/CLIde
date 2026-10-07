@@ -2,7 +2,7 @@
 
 - Status: 8/14
 - Next: Phase 7 — cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check. Phase 13 lands with [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 2, and phase 11 is coordinated with its phase 3
-- Context: [pipeline and measurements](../maps/chat-history-performance.md),
+- Context: budgets in `scripts/chat-history/budgets.ts`,
   [test suite](../maps/test-suite.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
   [tool activities](archive/2026-09-29-tool-activity-display.md)
@@ -16,7 +16,7 @@ rendered rows): real tool bursts, images and subagents. Synthetic fixtures
 are prose-heavy and missed the per-page growth phase 7 targets.
 
 **Every change is checked for position, not just speed, in pane and phone
-page-scroll mode** ([how](../maps/chat-history-performance.md#what-the-reader-experiences)):
+page-scroll mode** ([how](../maps/test-suite.md#which-checks-to-run)):
 the session opens at the bottom, and a walk up that pauses between swipes
 moves nothing the reader did not scroll. Speed-only checks shipped a fault
 that opened sessions 629 px up and jumped the view 1,338 px (`61440326`).
@@ -45,8 +45,7 @@ interaction behaviour. Sizes include tests and verification, not model cost.
 - [~] **7. Cut the per-page cost of scrolling up — M–L.**
 
 Each scroll-up step blocks the main thread longer as rows accumulate: 67 ms at
-14 rows, 855 ms at 112, with requests near 20 ms
-([measurement](../maps/chat-history-performance.md#what-the-reader-experiences)).
+14 rows, 855 ms at 112, with requests near 20 ms.
 Done: pickers scan only when open, restoration reads before writing, the
 list uses `gap`, restores keep the reader's scroll, laid-out rows skip
 rendering off-screen, chained pages double (walk 6.7 → 1.2 s blocked), the
@@ -60,7 +59,10 @@ Count before cutting: timings on the Pi vary run to run and can hide a small
 win. Record React commits and rows re-rendered per scroll-up step in the
 reference session. Those counts repeat exactly. Confirm once that lowering them
 lowers blocked time, then work against the counts; the phase-9 walk fails
-when they grow.
+when they grow. To count on the reference session, a stub
+`__REACT_DEVTOOLS_GLOBAL_HOOK__` in a same-origin iframe counts commits and
+components rendered; Long Animation Frame entries give frame and forced-layout
+time; aliasing `react-dom` to `react-dom/profiling` adds time per component.
 
 **Exit:** in the reference session no scroll-up step blocks over 100 ms in
 CLIde Browser, and cost no longer grows with rows already mounted.
@@ -106,9 +108,12 @@ the owner writes scroll position.
 First open of a changed transcript reparses it (1.9 s for the reference
 session); Find preparation is 3.2 s on the 1,000-record fixture. Profile, then
 add incremental parsing or indexing only for measured need. Any persistent
-index must be rebuildable from provider history.
+index must be rebuildable from provider history. Find indexes in the browser
+because only the browser turns records into displayed text; a server search
+would match text the chat never shows. Building in 12 ms slices keeps typing
+responsive, so no worker.
 
-**Exit:** first open and Find meet the map's budgets, or the evidence for
+**Exit:** first open and Find meet the budgets in `scripts/chat-history/budgets.ts`, or the evidence for
 leaving them is recorded.
 
 - [ ] **13. Streaming replies stay cheap as they grow — M.**
@@ -125,7 +130,7 @@ for leaving it is recorded.
 
 Cold open, scroll to the top and back, Find, jumps, streaming a long reply and
 streaming while reading old text, reconnect, rewind, selection and session switching on the installed
-phone app. Update the map and ARCHITECTURE.md as rules change.
+phone app. Update ARCHITECTURE.md as rules change.
 
 **Exit:** device acceptance recorded, with unverified cases named.
 

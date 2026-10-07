@@ -71,8 +71,6 @@ const MAX_TODO_LINE = 400;
  *  is a debt that has been looked at and scheduled — not a way to make the check
  *  quiet. Adding one without a TODO item defeats the point of the check. */
 const SIZE_EXCEPTIONS = {
-  'docs/maps/claude-agent-sdk.md':
-    'section 3 alone is 13 KB; needs splitting into native surface vs CLIde mapping — see docs/TODO.md',
   'docs/plans/agent-runtime-rebuild.md':
     "Grayson's call: the priority plan keeps its detail over the cap; archive it when done — see docs/TODO.md",
 };

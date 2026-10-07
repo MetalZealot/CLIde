@@ -90,7 +90,7 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0050 — The voice runtime owns shared settings](0050-voice-runtime-owns-shared-settings.md)
 - [0051 — Voice Studio is a standalone personal tool](0051-voice-studio-is-a-standalone-personal-tool.md)
 - [0052 — Reads reach the workspace and temp roots; writes stay in the project](0052-reads-reach-the-workspace-and-temp-roots.md)
-- [0053 — Browser tools are official Playwright MCP over an authenticated HTTP endpoint](0053-browser-tools-are-official-playwright-mcp-over-http.md)
+- [0053 — Browser tools are official Playwright MCP over an authenticated HTTP endpoint](0053-browser-tools-are-official-playwright-mcp-over-http.md) *(identity clause superseded by 0069)*
 - [0054 — Async question answers steer now or queue separately](0054-async-question-answer-delivery.md)
 - [0055 — Target size is contextual, with a WCAG floor](0055-target-size-is-contextual-with-a-wcag-floor.md)
 - [0056 — In the installed phone app, the chat scrolls as the page](0056-installed-phone-app-scrolls-the-chat-as-the-page.md)
@@ -106,3 +106,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0066 — A Claude chat keeps one process open, and Stop ends only the turn](0066-claude-keeps-one-process-per-chat-and-stop-ends-the-turn.md)
 - [0067 — Chat messages are one typed shape, shared by server and client](0067-chat-messages-are-a-typed-shared-wire.md)
 - [0068 — A live session's settings and send queue live on the server](0068-live-session-settings-and-queue-live-on-the-server.md)
+- [0069 — A chat's Browser context belongs to the chat, not the MCP connection](0069-a-chats-browser-belongs-to-the-chat-not-the-connection.md)
