@@ -1,8 +1,7 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
-- Status: 1/11
-- Next: Grayson's checks on 3001 once Pi-Ops' Deploy has run: phase 1 (a mode
-  switch mid-reply) and phase 1b (copy a recorder block); then phase 2
+- Status: 3/11
+- Next: phase 2, word-by-word replies
 - Design: [agent runtime design](../designs/agent-runtime-rebuild.md). Read it whole
   before any phase: it binds every phase and changes only with Grayson.
 - Context: the design's list, plus `scripts/verify-claude-session-sdk.ts` and
@@ -97,7 +96,7 @@ phase done.
     phase 6 read session state from phase 5; the flight recorder's chat-path core
     is phase 1b.
 
-- [ ] 1. **Quick wins on today's runtime — est. 2–3.**
+- [x] 1. **Quick wins on today's runtime — est. 2–3.** Done 2026-10-06.
   - Done: the id-space slips (context refresh, abort record, forked resume),
     with fake-`Query` turn tests in `provider-runtime.test.ts` that phase 6 extends.
   - Built, not yet live-checked: `chat.control`. A composer change during a
@@ -126,12 +125,13 @@ phase done.
   - Built: the live `tool_use_result` reaches tool rows, and chat queries ask for
     `thinking.display: 'summarized'` (measured: Opus's thinking text is empty
     without it, 141 characters with it; Haiku accepts it).
-  - You: during a running Claude reply, switch the mode in the composer; the
-    next tool call follows it without a new message. Agent, live (done
+  - You (passed 2026-10-06 on 3001): during a running Claude reply, switch the
+    mode in the composer; the next tool call follows it without a new message.
+    Agent, live (done
     2026-10-06): aborted new chats map their transcript, against the real CLI;
     the slash menu on a test server lists 69 commands, 41 from the CLI.
 
-- [ ] 1b. **Chat-path flight recorder — est. 1–2.** The chat-path core of the
+- [x] 1b. **Chat-path flight recorder — est. 1–2.** Done 2026-10-06. The chat-path core of the
   [diagnostics flight recorder](diagnostics-flight-recorder.md), built before
   phases 2–3 change what the client receives, so a "nothing appeared" report from
   the phone says which of its five causes it was.
@@ -152,8 +152,9 @@ phase done.
   - Agent, live (done 2026-10-06, main's client on Vite against the 3002 test
     server): a Haiku turn recorded subscribe → send → status, thinking and text
     `stored` → complete, with no message text; Copy, and Off clearing storage.
-  - You: open a chat on the phone with the parameter, send a message, copy the
-    block; it lists the turn's frames by kind and nothing you wrote.
+  - You (passed 2026-10-06 on 3001): open a chat on the phone with the
+    parameter, send a message, copy the block; it lists the turn's frames by
+    kind and nothing you wrote.
 
 - [ ] 2. **Word-by-word replies — est. 1–2.**
   - `includePartialMessages`; the normalizer reads the wrapped `stream_event`;

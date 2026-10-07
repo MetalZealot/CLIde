@@ -10,7 +10,7 @@ Current active work comes first, followed by the queue Grayson ordered on
 
 | Plan | Status | Next |
 |---|---|---|
-| [Agent runtime rebuild](agent-runtime-rebuild.md) | 1/11 | Phase 1 built: Grayson's mode-switch check on 3001, then phase 1b |
+| [Agent runtime rebuild](agent-runtime-rebuild.md) | 3/11 | Phase 2: word-by-word replies |
 | [Chat history performance](chat-history-performance.md) | 8/14 | Phase 7: cut the ~50 ms fixed frame cost of scroll restoration; phone check |
 | [Upstream feature harvest](upstream-feature-harvest.md) | 1/4 | Composer message recall; the other two builds shipped |
 | [One edit model for queued, scheduled, and earlier messages](message-edit-model.md) | 3/5 | Phase 3 — the banners go, and all three edits mark the original instead |
