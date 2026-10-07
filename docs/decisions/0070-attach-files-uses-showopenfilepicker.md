@@ -1,7 +1,7 @@
 # 0070 — Attach files uses `showOpenFilePicker`; photos get their own image-only input
 
 - Date: 2026-10-07
-- Status: Accepted
+- Status: Attach photos superseded by 0072
 
 ## Decision
 

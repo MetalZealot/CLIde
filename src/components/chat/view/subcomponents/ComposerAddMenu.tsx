@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ClockIcon, ImageIcon, PaperclipIcon, PlusIcon } from 'lucide-react';
 
 import { buttonVariants } from '../../../../shared/view/ui';
+import { IMAGE_PICKER_OPTIONS, hasOpenFilePicker, openFilePicker } from '../../../../utils/filePicker';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
 
 import { ComposerMenuItem, ComposerMenuSurface } from './ComposerMenuPrimitives';
@@ -14,10 +15,6 @@ type ComposerAddMenuProps = {
   onAttachFiles: (files: File[]) => void;
   canSchedule: boolean;
   onSchedule: () => void;
-};
-
-type FilePickerWindow = Window & {
-  showOpenFilePicker?: (options: { multiple: boolean }) => Promise<Array<{ getFile: () => Promise<File> }>>;
 };
 
 const HIDDEN_ANCHOR = { right: 0, bottom: 0, maxHeight: 0, maxWidth: 0 };
@@ -47,12 +44,12 @@ function OverlayInputRow({ icon, label, children }: { icon: ReactNode; label: st
 /**
  * The composer's + menu: attach files, attach photos, or schedule the typed message.
  *
- * Attach files uses `showOpenFilePicker` where it exists: on Android it opens the
- * file browser with every type selectable, where a file input with any `accept`
- * that admits images detours through a camera chooser. Elsewhere, and for photos,
- * a real file input is stretched over the row so it owns the tap — Android
- * standalone PWAs drop the result of a JS `input.click()`. The surface stays
- * mounted while closed so those inputs outlive the picker they opened.
+ * Both attach rows use `showOpenFilePicker` where it exists, which opens Android's
+ * file browser. A file input there detours through a camera chooser, or for images
+ * only, the Photo Picker, whose files Chrome sometimes cannot read. Elsewhere a real
+ * file input is stretched over the row so it owns the tap — Android standalone PWAs
+ * drop the result of a JS `input.click()`. The surface stays mounted while closed so
+ * those inputs outlive the picker they opened.
  */
 export default function ComposerAddMenu({
   getInputProps,
@@ -68,9 +65,7 @@ export default function ComposerAddMenu({
   const menuLabel = t('input.addMenu', { defaultValue: 'Add to message' });
   const scheduleLabel = t('input.schedule.menuItem', { defaultValue: 'Schedule message' });
   const photosLabel = t('input.attachPhotos', { defaultValue: 'Attach photos' });
-  const showOpenFilePicker = typeof window === 'undefined'
-    ? undefined
-    : (window as FilePickerWindow).showOpenFilePicker?.bind(window);
+  const canUseFilePicker = hasOpenFilePicker();
 
   const inputProps = getInputProps({
     'aria-label': attachLabel,
@@ -80,19 +75,13 @@ export default function ComposerAddMenu({
     onClick: close,
   }) as InputHTMLAttributes<HTMLInputElement>;
 
-  const pickFiles = () => {
+  const pickFiles = (imagesOnly: boolean) => {
     close();
-    // Called synchronously from the tap: the picker needs that user activation.
-    showOpenFilePicker?.({ multiple: true })
-      .then((handles) => Promise.all(handles.map((handle) => handle.getFile())))
+    openFilePicker({ multiple: true, ...(imagesOnly ? IMAGE_PICKER_OPTIONS : {}) })
       .then((files) => {
         if (files.length > 0) onAttachFiles(files);
       })
-      .catch((error: unknown) => {
-        if ((error as { name?: string })?.name !== 'AbortError') {
-          console.error('File picker failed:', error);
-        }
-      });
+      .catch((error: unknown) => console.error('File picker failed:', error));
   };
 
   const handlePhotosPicked = (event: ChangeEvent<HTMLInputElement>) => {
@@ -136,13 +125,13 @@ export default function ComposerAddMenu({
           ariaLabel={menuLabel}
           className={isShown ? undefined : 'hidden'}
         >
-          {showOpenFilePicker ? (
+          {canUseFilePicker ? (
             <ComposerMenuItem
               role="menuitem"
               isSelected={false}
               icon={<PaperclipIcon className="h-4 w-4 text-muted-foreground" />}
               label={attachLabel}
-              onSelect={pickFiles}
+              onSelect={() => pickFiles(false)}
             />
           ) : (
             <OverlayInputRow
@@ -152,23 +141,32 @@ export default function ComposerAddMenu({
               <input {...inputProps} />
             </OverlayInputRow>
           )}
-          <OverlayInputRow
-            icon={<ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
-            label={photosLabel}
-          >
-            {/* Images only, so Android opens its photo grid instead of the camera chooser. */}
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              aria-label={photosLabel}
-              className={OVERLAY_INPUT_CLASS}
-              style={OVERLAY_INPUT_STYLE}
-              tabIndex={0}
-              onClick={close}
-              onChange={handlePhotosPicked}
+          {canUseFilePicker ? (
+            <ComposerMenuItem
+              role="menuitem"
+              isSelected={false}
+              icon={<ImageIcon className="h-4 w-4 text-muted-foreground" />}
+              label={photosLabel}
+              onSelect={() => pickFiles(true)}
             />
-          </OverlayInputRow>
+          ) : (
+            <OverlayInputRow
+              icon={<ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+              label={photosLabel}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                aria-label={photosLabel}
+                className={OVERLAY_INPUT_CLASS}
+                style={OVERLAY_INPUT_STYLE}
+                tabIndex={0}
+                onClick={close}
+                onChange={handlePhotosPicked}
+              />
+            </OverlayInputRow>
+          )}
           <ComposerMenuItem
             role="menuitem"
             isSelected={false}

@@ -107,5 +107,6 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0067 — Chat messages are one typed shape, shared by server and client](0067-chat-messages-are-a-typed-shared-wire.md)
 - [0068 — A live session's settings and send queue live on the server](0068-live-session-settings-and-queue-live-on-the-server.md)
 - [0069 — A chat's Browser context belongs to the chat, not the MCP connection](0069-a-chats-browser-belongs-to-the-chat-not-the-connection.md)
-- [0070 — Attach files uses `showOpenFilePicker`; photos get their own image-only input](0070-attach-files-uses-showopenfilepicker.md)
+- [0070 — Attach files uses `showOpenFilePicker`; photos get their own image-only input](0070-attach-files-uses-showopenfilepicker.md) *(Attach photos superseded by 0072)*
 - [0071 — The sidebar is a rail of views over one project-scoped list](0071-sidebar-is-a-rail-of-views-over-one-scoped-list.md)
+- [0072 — Photos are picked through the file browser, never Android's Photo Picker](0072-photos-avoid-android-photo-picker.md)

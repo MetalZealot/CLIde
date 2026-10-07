@@ -6,6 +6,7 @@ import { useAuth } from '../../../auth/context/AuthContext';
 import AccountAvatar from '../../../auth/view/AccountAvatar';
 import { fileToAvatarDataUrl } from '../../../auth/avatar';
 import { Button } from '../../../../shared/view/ui';
+import { IMAGE_PICKER_OPTIONS, hasOpenFilePicker, openFilePicker } from '../../../../utils/filePicker';
 import { SettingsGroup, SettingsRow, SettingsScreen, SettingsTextField } from '../primitives';
 
 /** What the last save of a section reported, so each one owns its own message. */
@@ -104,6 +105,16 @@ export default function AccountScreen() {
     }
   };
 
+  const pickAvatar = () => {
+    if (!hasOpenFilePicker()) {
+      fileInputRef.current?.click();
+      return;
+    }
+    openFilePicker(IMAGE_PICKER_OPTIONS)
+      .then((files) => handleAvatarPicked(files[0]))
+      .catch((error: unknown) => console.error('Avatar picker failed:', error));
+  };
+
   const handleAvatarRemoved = async () => {
     setIsAvatarSaving(true);
     const result = await updateProfile({ avatar: null });
@@ -152,7 +163,7 @@ export default function AccountScreen() {
               variant="outline"
               size="sm"
               disabled={isAvatarSaving}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={pickAvatar}
             >
               {t('accountScreen.picture.change')}
             </Button>
