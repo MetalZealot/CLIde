@@ -1,8 +1,8 @@
 # Upstream sync
 
-How CLIde takes work from `siteboon/claudecodeui` today, what has already been
-decided about each upstream change, and the traps that cost time when this was
-done by feel.
+How CLIde takes work from `siteboon/claudecodeui`, and the traps that cost time
+when this was done by feel. What has been decided about each upstream change is in
+[`upstream-verdicts.tsv`](upstream-verdicts.tsv), which `check:upstream` reads.
 
 CLIde is a cherry-picking fork, not a tracking one. Version-number parity with
 upstream was abandoned; `package.json` keeps its own number and the fork's
@@ -10,7 +10,7 @@ upstream was abandoned; `package.json` keeps its own number and the fork's
 
 ## The fork's current position
 
-- **Merge base:** `264e0946`, upstream `v1.37.0`.
+- **Merge base:** `check:upstream` prints it.
 - **Structural break:** upstream `#1206` (`99ea0525`, in `v1.37.3`) moved
   `src/components/**` to `src/modules/**` across 702 files, replaced eslint
   with oxlint, and added vitest. CLIde did not follow it.
@@ -21,12 +21,13 @@ upstream was abandoned; `package.json` keeps its own number and the fork's
 - **Runtime layer off upstream (ADR 0065):** provider runtime adapters, the chat
   gateway and run registry, and the chat message and event types are never
   cherry-picked. An upstream change there is read, then reimplemented or skipped,
-  with the call recorded in the ledger.
+  with a verdict line recorded.
 
 ## The procedure
 
 `npm run check:upstream` does the mechanical half — fetch, merge base, commit
-list, the changelog span, and which PR numbers this fork already carries. It
+list, the changelog span, and which upstream commits already have a verdict or are
+carried in git. It
 reports and never gates, like `check:providers`. What follows is the judgement
 half.
 
@@ -47,8 +48,10 @@ half.
 5. **Ship the small ones on one branch**, and give anything with phases its own
    plan. Add a `docs/TODO.md` item for every deferred take, so a later session
    does not re-derive it.
-6. **Record the release in the ledger below**, including the items deliberately
-   refused. A refusal that is not written down gets rediscovered as a find.
+6. **Record every call.** Take a patch with `git cherry-pick -x`; give a
+   reimplementation's commit an `Upstream: #1234` footer. Everything else gets a
+   line in [`upstream-verdicts.tsv`](upstream-verdicts.tsv), refusals included: a
+   refusal that is not written down gets rediscovered as a find.
 
 ## Traps
 
@@ -81,148 +84,3 @@ plugin tabs, `plugins/starter`) were deleted on 2026-10-05. Upstream changes to
 them have nothing to apply to; `check:upstream` marks a commit `removed` when
 every file it touches is in one of them. Claude Code's and Codex's plugins are
 a separate system and stay in scope.
-
-## Refused permanently
-
-| Upstream | Why it is refused, not deferred |
-|---|---|
-| `#1159` agent model catalog | CLIde's `getProviderModels` returns `{ models, cache }`; taking it breaks the agent route |
-| `#1249` comma-containing answers | CLIde's version also reconstructs custom answers containing `", "` |
-| `#1274` plugin commands and skills | CLIde reads both folders and dedupes by command |
-| `#1265` OpenCode Go catalog | CLIde reads the live catalog instead of hardcoding it |
-| `#1162` archive dialog keys | The dialog they belong to does not exist here |
-| Release plumbing, README, changelog, workflows | Upstream operations; the README would restore their branding |
-| Desktop app, Docker sandbox | Deleted from CLIde; nothing to apply to |
-| CloudCLI's plugin system | Deleted from CLIde; providers' own plugins are unaffected |
-| Non-English locales and the language picker | CLIde is English-only |
-
-## Gap inventory
-
-The nine capabilities upstream has and CLIde does not, each read against what
-this fork already ships. One of them, scheduled messages, has since been built
-here on a different design — see the ledger. Assessed 2026-09-08 under
-[the harvest plan](../plans/upstream-feature-harvest.md) phase 1. Everything
-listed sits after `99ea0525`, so "where it lives" names research material, never
-a cherry-pick source.
-
-### Build
-
-**Composer message recall** (`#1238`, `8f9a2e43`). Arrow keys walk previously
-sent messages. Upstream: `useInputHistory.ts` plus a wiring hook and its test,
-three self-contained files, no server side. CLIde has nothing — no input-history
-state exists anywhere in `src/`. Provider answer: none needed; the composer is
-above the adapter boundary. The smallest of the nine and the only one with no
-open design question.
-
-**Provider session-id copy** (`#1040`, `428b1052`). CLIde already has a
-`copy-id` action in the sidebar row menu, but it copies `session.id` — the app
-id — under the label "Copy session ID", which names neither id. The sidebar row
-never receives `provider_session_id` at all, so this is a serializer change
-before it is a menu change. Exactly the confusion the glossary exists to
-prevent, and worth taking for the relabel alone. Provider answer: every adapter
-has a provider id; Claude and Codex expose one per session, so the action shows
-only when the row carries one.
-
-### Refuse
-
-**Model catalog cached in SQLite** (`#1095`, `0f67810c`). The premise does not
-hold here. CLIde already persists the catalog across restarts at
-`~/.cloudcli/provider-models-cache.json` — versioned, per-provider entries, a
-three-day TTL. Upstream's table buys durability this fork has and adds a
-migration. No ADR needed; there is no decision left.
-
-**Collapsible model-picker groups** (`#1229`, `66c0e4df`). Upstream is solving a
-flat list of every provider's models at once. `ComposerModelMenu.tsx` is one
-popover with three panes — the current provider's models, a providers pane, and
-a legacy pane — so the problem does not occur. Revisit only if one provider's
-own catalog grows awkward, which ADRs 0003 and 0025 already constrain.
-
-**Recent-conversations feed** (`#1041`, redrawn by `#1157`). Recency already has
-several surfaces here: an urgency-ordered Activity section, Pinned, starring,
-persistent search, and the archive. Upstream added a feed to a sidebar that had
-none of it. Adding a fourth recency surface competes with the three that work.
-
-### Defer
-
-**Database-backed drafts and preferences** (`#1206`). Two differences, and the
-smaller one is the storage. CLIde keys drafts by `projectId` in `localStorage`;
-upstream keys them per session in SQLite. Whether a draft belongs to a project
-or to a conversation is a product decision, not a storage one, and it has to be
-settled before the storage question is worth asking. Blocked on that answer,
-not on cost.
-
-**Spanish locale** (`#1090`). Reframed by measurement: 225 `t(key, 'fallback')`
-calls across `src/components/` carry their English inline and exist in no locale
-file, 122 of them in the sidebar. All nine non-English locales already render
-English for those strings, so this is not a Spanish gap — adding a tenth locale
-would inherit the same holes. Extract to keys first; translating is the cheap
-half.
-
-**Transcript performance** (`#1206`). CLIde's own readers and client hooks were
-profiled at `668f4049` on 2026-09-19. Adapt history caching, stable message
-objects and lazy contents through the [dedicated plan](../plans/chat-history-performance.md).
-Cache dependencies, phone selection and indexed Find need CLIde-specific work;
-the upstream restructure remains excluded. Implementation and device acceptance
-are pending.
-
-## Ledger
-
-### v1.37.1 – v1.37.3, assessed 2026-09-08
-
-- **Span:** 37 commits, `264e0946..5e73a49b`. Independently assessed twice, by
-  Claude and by Codex, and the two disagreed on three items; the disagreements
-  are what produced the traps above.
-- **Already ours:** `#1074`, `#1078`, `#1085`, `#1115`, `#1036`, `#1084`,
-  `#1207`, `#1274`, `#1249`, `#1265`.
-- **Taken:** `#1223` editor highlighting for `.mts`/`.cts`/`.mjs`/`.cjs`. Its
-  commit `aa2755b8` lands after `#1206`, in `src/modules/`, so the four `case`
-  lines were applied by hand like everything else on that side of the break.
-  `#1220` archived-session rescan, hand-ported — the rule and its three tests
-  are upstream's, the surrounding repository is not.
-  `0d517749`, which stops a failed server build destroying the running one;
-  found by `check:upstream`, not by either assessment, because it carries no PR
-  number and sat between two release commits. Its staging half only — the
-  `preserver` recover hook fires from `npm run server`, which no CLIde
-  deployment uses.
-- **Deferred with a TODO item:** `#1238` composer history recall; the sidebar
-  localization gap that `#1192` pointed at.
-- **Owned by another branch:** `#1289` GPT-6 Astra and `#1290` Codex SDK
-  0.153.x. The Astra worktree owns both; this fork's adapter reads the Codex
-  catalog live, so upstream's replacement runtime adapter is not the route.
-- **Scheduled messages (`#1206` core, `#1239` interrupt semantics): built here
-  instead, decided 2026-09-09.** CLIde's version fires at a time *or* at the
-  provider's usage reset, which upstream has no equivalent of — its rows store
-  a time and a status with no trigger. Where upstream interrupts a run the
-  message lands mid-way through, CLIde queues, because
-  `useQueuedMessageAutoSend.ts` already does; inheriting `#1239` would be a
-  downgrade. Upstream also hands its scheduled run a **null** connection and
-  relies on a client subscribing afterwards to replay it, so a chat that is
-  already open sees nothing live; CLIde fans the run out to every listening
-  client. The two implementations occupy the same paths
-  (`server/modules/scheduled-messages/`, `scheduled-messages.db.ts`,
-  a composer popover and hook), so a cherry-pick of that work conflicts there: **keep this
-  fork's files and delete upstream's four.** Placement diverges too: upstream
-  stacks its scheduled list, queued card and edit banner above the composer and
-  schedules from a toolbar button, where CLIde schedules by long-pressing send and
-  is moving unsent messages out of that strip
-  ([edit model](../plans/message-edit-model.md)). Design and phases:
-  [the plan](../plans/archive/2026-09-29-scheduled-messages.md).
-- **Considered, not taken — fork has diverged by choice:** `#1041` and `#1157`
-  recent-conversation rows, against CLIde's own sidebar with starring and its
-  action menus; `#1229` collapsible model groups, against a picker that shows
-  one provider at a time; `#1040` provider session-id copy, whose host row
-  `#1157` then rewrote; `#1153` chat-view and bandwidth work, too entangled to
-  separate; `#1114`, which recommends a plugin tab CLIde does not have;
-  `#1020`, `#997` and `#1090` locale completions, which target upstream's key
-  namespace. Revisit any of these only if the fork's own version proves worse
-  in use.
-- **Refused:** the table above. Upstream release commits, `release-it`, npm
-  publishing and Electron packaging are classified automatically by subject,
-  and commits confined to removed areas by path; neither needs re-listing.
-- **Not adopted, reconsider only on evidence:** `#1206`'s transcript
-  performance work — server-side history caching, lazy row mounting, streaming
-  markdown, scan coalescing. Real, but measured on upstream's architecture.
-  Profile CLIde first; the restructure is the cost of entry.
-- **Gap inventory:** all nine have verdicts — see the section below.
-- **Structural note:** `#1206` is the reason this map exists. Everything after
-  it is a reimplementation, and the fork should expect that permanently.

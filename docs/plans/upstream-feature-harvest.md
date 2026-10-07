@@ -3,8 +3,8 @@
 - Status: 1/4
 - Next: composer message recall; scheduled messages and session-id copy have shipped
   agreed before code
-- Context: [upstream sync map](../maps/upstream-sync.md) holds the buckets and
-  the ledger; [provider capability map](../maps/clide-provider-capability-map.md)
+- Context: [upstream verdicts](../maps/upstream-verdicts.tsv) holds each verdict
+  and its reason; [provider capability map](../maps/clide-provider-capability-map.md)
   owns what each adapter can be asked to do
 
 Nine capabilities exist upstream and not here. Each was deferred during the
@@ -24,7 +24,7 @@ plug in or explicitly no-op, per `AGENTS.md`.
 
 ## Phases
 
-- [x] 1. Each gap has a verdict — the [gap inventory](../maps/upstream-sync.md)
+- [x] 1. Each gap has a verdict — [upstream verdicts](../maps/upstream-verdicts.tsv)
       holds all nine: three build, three refuse, three defer. Two premises were
       wrong and are recorded as such — the model-catalog cache and the Spanish
       locale
@@ -37,8 +37,8 @@ plug in or explicitly no-op, per `AGENTS.md`.
 
 ## The gaps
 
-Verdicts, evidence and the provider answer for each of the nine live in the
-[gap inventory](../maps/upstream-sync.md). Summary only:
+Each verdict's reason is one line in
+[upstream verdicts](../maps/upstream-verdicts.tsv). Summary only:
 
 | Gap | Verdict |
 |---|---|
@@ -49,7 +49,7 @@ Verdicts, evidence and the provider answer for each of the nine live in the
 | Collapsible model-picker groups (`#1229`) | refuse — the flat list never occurs here |
 | Recent-conversations feed (`#1041`, `#1157`) | refuse — three recency surfaces already |
 | DB-backed drafts and preferences (`#1206`) | defer — project-scoped or session-scoped is the real question |
-| Spanish locale (`#1090`) | defer — 225 strings sit in no locale file; extract first |
+| Spanish locale (`#1090`) | refuse — CLIde is English-only |
 | Transcript performance (`#1206`) | staged adaptation — [performance plan](chat-history-performance.md) owns delivery |
 
 Build order is Grayson's to set; the ranking above is size, not priority.

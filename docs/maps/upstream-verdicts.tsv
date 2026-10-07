@@ -1,0 +1,41 @@
+# Upstream changes this fork has ruled on; `npm run check:upstream` reads this file.
+# One per line, tab-separated: upstream ref, verdict, reason.
+#   ref       #1234 for a PR, or a commit sha (7+ hex) for a commit with no PR
+#   verdict   ours      CLIde has it: taken by hand or built its own way
+#             refused   never take; the reason says why
+#             declined  the fork diverged by choice; revisit only if ours proves worse in use
+#             deferred  wanted; an open docs/TODO.md item owns it
+# A cherry-pick made with `git cherry-pick -x`, or a commit with an `Upstream: #1234`
+# footer, is found in git and needs no line here.
+
+#1036	ours	Sonnet label fix already in CLIde
+#1074	ours	file trees skip system directories already
+#1078	ours	search matches Claude transcripts by provider_session_id already
+#1084	ours	@/ aliases already resolve for the server tests
+#1085	ours	clock-skew tolerance already in CLIde's auth
+#1115	ours	the stream-close timeout workaround is already gone
+#1207	ours	the <synthetic> model placeholder is already skipped
+#1223	ours	the four editor `case` lines, applied by hand after the restructure
+#1220	ours	archived-session rescan rule and its three tests, hand-ported
+#1040	ours	built as c62a838a: copy either session id from the row menu
+#1289	ours	GPT-6 Astra, d6b1d435
+#1290	ours	Codex SDK 0.153, d6b1d435
+0d517749	ours	staging half only: a failed server build keeps the running one; the `preserver` hook needs `npm run server`, which no deployment uses
+#1159	refused	CLIde's getProviderModels returns { models, cache }; taking it breaks the agent route
+#1249	refused	CLIde's version also reconstructs custom answers containing ", "
+#1274	refused	CLIde reads both folders and dedupes by command
+#1265	refused	CLIde reads the live OpenCode catalog instead of hardcoding it
+#1162	refused	the archive dialog these keys belong to does not exist here
+#1114	refused	recommends a tab in CloudCLI's plugin system, which CLIde deleted
+#997	refused	CLIde is English-only
+#1020	refused	CLIde is English-only
+#1090	refused	CLIde is English-only
+#1192	refused	CLIde is English-only; inline English fallbacks are the strings
+#1206	declined	the 702-file restructure; capabilities are reimplemented through the harvest plan. DB drafts wait on project- versus session-scoped; transcript performance goes through the chat history plan
+#1239	declined	scheduled messages are built here on another design: fire at a time or at the usage reset, queue instead of interrupting. On conflict keep this fork's files and delete upstream's four
+#1095	declined	the model catalog already persists in provider-models-cache.json with a three-day TTL
+#1229	declined	the picker shows one provider's models at a time, so the flat list never occurs
+#1041	declined	Activity, Pinned, starring and search already cover recency
+#1157	declined	redraws #1041's rows
+#1153	declined	chat-view and bandwidth work too entangled with upstream's view to separate
+#1238	deferred	composer message recall

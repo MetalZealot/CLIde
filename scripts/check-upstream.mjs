@@ -5,14 +5,14 @@
 // Every upstream sync started the same way: fetch, work out the merge base,
 // scroll the commit list, hunt for the changelog, then try to remember which
 // PRs a previous session already ruled on. That preamble is mechanical, so it
-// lives here. The judgement calls stay with the reader, in
-// docs/maps/upstream-sync.md.
+// lives here. The judgement calls stay with the reader: the procedure is in
+// docs/maps/upstream-sync.md, the verdicts in docs/maps/upstream-verdicts.tsv.
 //
 // Run: npm run check:upstream [-- --offline] [-- --all]
 //
 //   (default)   merge base, version pins, the changelog span, and every
-//               unassessed commit. Commits already ruled on in the map are
-//               collapsed to a count.
+//               unassessed commit. Commits already ruled on are collapsed to
+//               a count.
 //   --all       list assessed commits too, with their verdict
 //   --offline   skip the fetch and read whatever refs are local
 //
@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const args = new Set(process.argv.slice(2));
-const MAP = 'docs/maps/upstream-sync.md';
+const VERDICTS = 'docs/maps/upstream-verdicts.tsv';
 
 /** A commit touching more files than this is a restructure, not a change.
  *  Upstream #1206 moved 702 files; everything after it needs reimplementing
@@ -60,31 +60,45 @@ const dim = (s) => `\x1b[90m${s}\x1b[0m`;
 const warn = (s) => `\x1b[33m${s}\x1b[0m`;
 const good = (s) => `\x1b[32m${s}\x1b[0m`;
 
-// --- the map is the memory ------------------------------------------------
+// --- what has been ruled on ----------------------------------------------
 
-/** Every `#1234` the map mentions has been ruled on by some session. The
- *  refusal table is read separately so a refusal is never reported as new. */
-function readMap() {
+const VERDICT_LINE = /^(#\d{2,6}|[0-9a-f]{7,40})\t(ours|refused|declined|deferred)\t(.+)$/;
+
+/** Ref → verdict. A line that names a ref but does not parse is reported, not skipped. */
+function readVerdicts() {
   let text;
   try {
-    text = readFileSync(path.join(ROOT, MAP), 'utf8');
+    text = readFileSync(path.join(ROOT, VERDICTS), 'utf8');
   } catch {
-    return { assessed: new Set(), refused: new Set(), mergeBase: null, missing: true };
+    return { byRef: new Map(), malformed: [], missing: true };
   }
-  const prs = (s) => new Set([...s.matchAll(/#(\d{2,6})\b/g)].map((m) => m[1]));
-  const refusedSection = text.split(/^## Refused permanently$/m)[1]?.split(/^## /m)[0] ?? '';
-  const mergeBase = text.match(/\*\*Merge base:\*\*\s*`([0-9a-f]{7,40})`/)?.[1] ?? null;
-  return { assessed: prs(text), refused: prs(refusedSection), mergeBase, missing: false };
+  const byRef = new Map();
+  const malformed = [];
+  text.split('\n').forEach((line, i) => {
+    if (!line.trim() || /^#(\s|$)/.test(line)) return;
+    const m = line.match(VERDICT_LINE);
+    if (m) byRef.set(m[1], m[2]);
+    else malformed.push(i + 1);
+  });
+  return { byRef, malformed, missing: false };
 }
+
+const verdictFor = (byRef, c) => byRef.get(c.pr ? `#${c.pr}` : '')
+  ?? [...byRef].find(([ref]) => !ref.startsWith('#') && c.full.startsWith(ref))?.[1]
+  ?? null;
 
 // --- report ---------------------------------------------------------------
 
-const map = readMap();
+const verdicts = readVerdicts();
 const out = [];
 const say = (s = '') => out.push(s);
 
-if (map.missing) {
-  say(warn(`${MAP} is missing — every commit below will read as unassessed.`));
+if (verdicts.missing) {
+  say(warn(`${VERDICTS} is missing — every commit below will read as unassessed.`));
+  say('');
+}
+if (verdicts.malformed.length) {
+  say(warn(`${VERDICTS}: line(s) ${verdicts.malformed.join(', ')} do not parse as "ref<TAB>verdict<TAB>reason".`));
   say('');
 }
 
@@ -111,10 +125,6 @@ say(`  upstream/main   ${upstreamHead}  ${git('log', '--format=%s', '-1', 'upstr
 const ourVersion = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 const theirVersion = JSON.parse(git('show', 'upstream/main:package.json')).version;
 say(`  version         ours ${ourVersion} · upstream ${theirVersion} ${dim('(parity abandoned; not a defect)')}`);
-
-if (map.mergeBase && !base.startsWith(map.mergeBase)) {
-  say(warn(`  ${MAP} records merge base ${map.mergeBase}; the tree says ${baseShort}. Update the map.`));
-}
 say('');
 
 // --- commits --------------------------------------------------------------
@@ -129,7 +139,7 @@ if (revs.length === 0) {
 const commits = revs.map((sha) => {
   const subject = git('log', '--format=%s', '-1', sha);
   const paths = git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean);
-  return { sha: sha.slice(0, 8), subject, files: paths.length, paths, pr: subject.match(/\(#(\d+)\)/)?.[1] ?? null };
+  return { sha: sha.slice(0, 8), full: sha, subject, files: paths.length, paths, pr: subject.match(/\(#(\d+)\)/)?.[1] ?? null };
 });
 
 const restructures = commits.filter((c) => c.files >= RESTRUCTURE_FILES);
@@ -146,16 +156,27 @@ if (restructures.length) {
 const lastRestructure = restructures.at(-1);
 const afterIndex = lastRestructure ? commits.findIndex((c) => c.sha === lastRestructure.sha) : -1;
 
-/** A PR this fork already carries under its own commit message. */
-const carried = (pr) => Boolean(pr) && tryGit('log', '--format=%h', '--grep', `#${pr}`, 'HEAD')?.length > 0;
+/** What git itself says this fork carries: `cherry-pick -x` lines, `Upstream:` footers,
+ *  and upstream patches with an identical change on HEAD (`git cherry` marks them `-`). */
+const carriedRefs = new Set();
+for (const body of (tryGit('log', '--format=%B%x00', `${base}..HEAD`) ?? '').split('\0')) {
+  for (const m of body.matchAll(/^\(cherry picked from commit ([0-9a-f]{40})\)$/gm)) carriedRefs.add(m[1]);
+  for (const m of body.matchAll(/^Upstream:\s*(.+)$/gm)) {
+    for (const ref of m[1].match(/#\d{2,6}|[0-9a-f]{7,40}/g) ?? []) carriedRefs.add(ref);
+  }
+}
+for (const line of (tryGit('cherry', 'HEAD', 'upstream/main', base) ?? '').split('\n')) {
+  if (line.startsWith('- ')) carriedRefs.add(line.slice(2));
+}
+const carried = (c) => (c.pr && carriedRefs.has(`#${c.pr}`))
+  || [...carriedRefs].some((ref) => !ref.startsWith('#') && c.full.startsWith(ref));
 
 const rows = commits.map((c, i) => {
   let verdict = 'NEW';
   if (RELEASE_NOISE.test(c.subject)) verdict = 'release';
   else if (onlyRemovedAreas(c.paths)) verdict = 'removed';
-  else if (c.pr && map.refused.has(c.pr)) verdict = 'refused';
-  else if (c.pr && map.assessed.has(c.pr)) verdict = 'assessed';
-  else if (carried(c.pr)) verdict = 'carried';
+  else if (carried(c)) verdict = 'carried';
+  else verdict = verdictFor(verdicts.byRef, c) ?? 'NEW';
   return { ...c, verdict, side: i > afterIndex ? 'reimplement' : 'pickable' };
 });
 
@@ -163,7 +184,7 @@ const unassessed = rows.filter((r) => r.verdict === 'NEW');
 const known = rows.length - unassessed.length;
 
 say(bold(`Commits since merge base: ${rows.length}`));
-say(dim(`  ${known} already ruled on: in the map, carried under our own commit, release plumbing, or only in areas CLIde removed`));
+say(dim(`  ${known} already ruled on: a verdict line, carried in git, release plumbing, or only in areas CLIde removed`));
 say('');
 
 const show = args.has('--all') ? rows : unassessed;
@@ -173,12 +194,14 @@ if (show.length === 0) {
   say(bold(args.has('--all') ? 'All commits' : 'Unassessed — these need a verdict'));
   for (const r of show) {
     const tag = {
-      NEW: warn('NEW    '),
-      refused: dim('refused'),
-      release: dim('release'),
-      removed: dim('removed'),
-      assessed: dim('assessed'),
-      carried: good('carried'),
+      NEW: warn('NEW     '),
+      ours: good('ours    '),
+      carried: good('carried '),
+      refused: dim('refused '),
+      declined: dim('declined'),
+      deferred: warn('deferred'),
+      release: dim('release '),
+      removed: dim('removed '),
     }[r.verdict];
     const pr = r.pr ? `#${r.pr}`.padEnd(6) : '      ';
     say(`  ${tag} ${r.sha} ${pr} ${dim(r.side.padEnd(11))} ${r.subject}`);
@@ -210,5 +233,5 @@ if (changelog) {
 }
 
 say('');
-say(dim(`Verdicts, refusals and the ledger live in ${MAP}.`));
+say(dim(`Record each verdict in ${VERDICTS}; take a patch with \`git cherry-pick -x\`, or footer a reimplementation \`Upstream: #1234\`.`));
 console.log(out.join('\n'));

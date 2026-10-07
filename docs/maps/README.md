@@ -6,7 +6,7 @@ The system's shape, code map, invariants and quality goals live in
 
 | Document | Role | Status |
 |---|---|---|
-| [Upstream sync](upstream-sync.md) | How this fork takes work from `siteboon/claudecodeui`, what has been refused, and the release ledger | Written 2026-09-08 for the v1.37.3 span |
+| [Upstream sync](upstream-sync.md) | How this fork takes work from `siteboon/claudecodeui`; each verdict is a line in [`upstream-verdicts.tsv`](upstream-verdicts.tsv) | Verdicts moved to data 2026-10-06 |
 | [Code anchors](code-anchors.md) | Symbol-anchored map of the code worth not blind-reading; the areas where a wrong assumption is expensive | 90 of 93 named symbols present, 2026-10-06 |
 | [Test suite](test-suite.md) | What the suites own, their measured cost, and what they cannot establish | Measured 2026-08-15 after consolidation to 82 files |
 | [UI standards](ui-standards.md) | What the interface is objectively required to do, what is only house convention, and which is which | Updated 2026-09-14 with composer placement reasons and WCAG 4.1.3 |
