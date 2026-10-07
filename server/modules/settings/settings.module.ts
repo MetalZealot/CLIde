@@ -1,5 +1,4 @@
 import {
-  apiKeysDb,
   credentialsDb,
   notificationPreferencesDb,
   pushSubscriptionsDb,
@@ -16,12 +15,6 @@ import { createSettingsRouter } from './settings.routes.js';
 import { createSettingsService } from './settings.service.js';
 
 const settingsService = createSettingsService({
-  apiKeys: {
-    list: (userId) => apiKeysDb.getApiKeys(userId),
-    create: (userId, keyName) => apiKeysDb.createApiKey(userId, keyName),
-    remove: (userId, keyId) => apiKeysDb.deleteApiKey(userId, keyId),
-    toggle: (userId, keyId, isActive) => apiKeysDb.toggleApiKey(userId, keyId, isActive),
-  },
   credentials: {
     list: (userId, type) => credentialsDb.getCredentials(userId, type),
     create: (userId, name, type, value, description) =>

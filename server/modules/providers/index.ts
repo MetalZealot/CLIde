@@ -9,10 +9,6 @@ export {
   codexNativeRuntimeService,
 } from './list/codex/codex-native-runtime.provider.js';
 
-// queryCodexJob: the non-interactive Codex entry point. The registry runner
-// (codexRuntime.run) is the interactive Chat path, which brings up the App
-// Server transport; one-shot agent jobs deliberately stay on the SDK surface.
-export { queryCodexJob } from './list/codex/codex-runtime.provider.js';
 
 // providerModelsService: used by Commands to list models and resolve the active session model.
 export { providerModelsService } from './services/provider-models.service.js';

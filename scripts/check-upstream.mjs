@@ -39,7 +39,8 @@ const RESTRUCTURE_FILES = 200;
 const RELEASE_NOISE = /^chore\(release\)|release-it|npm (publish|release)|\breadme\b|electron/i;
 
 /** Areas CLIde deleted: the desktop app, Docker sandbox, npm release tooling,
- *  CloudCLI's own plugin system, non-English locales and upstream's repo chrome.
+ *  CloudCLI's own plugin system, the external agent API, non-English locales and
+ *  upstream's repo chrome.
  *  A commit touching only these has nothing to apply to. Claude Code's and
  *  Codex's plugins live elsewhere and are not covered. */
 const REMOVED_AREAS = [
@@ -48,6 +49,7 @@ const REMOVED_AREAS = [
   /^README\.[^/]+\.md$/, /^\.github\//, /^\.gitmodules$/, /^plugins\//,
   /^server\/modules\/plugins\//, /^src\/components\/plugins\//,
   /^src\/contexts\/PluginsContext\.tsx$/, /^src\/i18n\/locales\/(?!en\/)/,
+  /^server\/modules\/agent\//, /^public\/api-docs\.html$/,
 ];
 const onlyRemovedAreas = (paths) => paths.length > 0
   && paths.every((file) => REMOVED_AREAS.some((area) => area.test(file)));

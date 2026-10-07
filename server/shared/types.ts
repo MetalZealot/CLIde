@@ -98,7 +98,7 @@ export type ProviderNativeRuntimeSource =
  * Codex execution surface recording which installed executable it resolved.
  * Diagnostics expose only installation ids and versions, never executable paths.
  */
-export type CodexNativeRuntimeFacet = 'auth' | 'chat' | 'shell' | 'models' | 'usage' | 'jobs';
+export type CodexNativeRuntimeFacet = 'auth' | 'chat' | 'shell' | 'models' | 'usage';
 
 /**
  * One canonical provider executable discovered on the host. `id` and

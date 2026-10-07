@@ -307,7 +307,7 @@ export const SETTINGS_SCREENS: SettingsScreenNode[] = [
     labelKey: 'mainTabs.credentials',
     icon: 'credentials',
     group: 'system',
-    keywords: 'credentials api tokens keys github auth',
+    keywords: 'credentials tokens github auth clone private',
   },
   {
     kind: 'screen',

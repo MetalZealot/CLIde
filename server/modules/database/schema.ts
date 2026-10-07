@@ -17,19 +17,6 @@ CREATE TABLE IF NOT EXISTS users (
 );
 `;
 
-export const API_KEYS_TABLE_SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS api_keys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    key_name TEXT NOT NULL,
-    api_key TEXT UNIQUE NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_used DATETIME,
-    is_active BOOLEAN DEFAULT 1,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-`;
-
 export const USER_CREDENTIALS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS user_credentials (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -232,11 +219,6 @@ ${USER_TABLE_SCHEMA_SQL}
 -- Indexes for performance for user lookups
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active);
-
-${API_KEYS_TABLE_SCHEMA_SQL}
-CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(api_key);
-CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
-CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys(is_active);
 
 ${USER_CREDENTIALS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_user_credentials_user_id ON user_credentials(user_id);

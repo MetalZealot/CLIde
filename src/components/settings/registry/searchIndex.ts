@@ -111,7 +111,6 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
   { screenId: 'browser', labelKey: 'browserSettings.origins.title', keywords: 'origins allow block network sites urls domains' },
 
 
-  { screenId: 'credentials', labelKey: 'apiKeys.title', keywords: 'external api token' },
   { screenId: 'credentials', labelKey: 'apiKeys.github.title', keywords: 'personal access token clone private' },
 
   // About has no rows of its own — "version", "license" and "links" are already

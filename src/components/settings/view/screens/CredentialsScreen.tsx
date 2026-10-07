@@ -1,21 +1,14 @@
 import { useTranslation } from 'react-i18next';
 
 import { useCredentialsSettings } from '../../hooks/useCredentialsSettings';
-import ApiKeysSection from '../tabs/api-settings/sections/ApiKeysSection';
 import GithubCredentialsSection from '../tabs/api-settings/sections/GithubCredentialsSection';
-import NewApiKeyAlert from '../tabs/api-settings/sections/NewApiKeyAlert';
 import { SettingsScreen } from '../primitives';
 
 export default function CredentialsScreen() {
   const { t } = useTranslation('settings');
   const {
-    apiKeys,
     githubCredentials,
     loading,
-    showNewKeyForm,
-    setShowNewKeyForm,
-    newKeyName,
-    setNewKeyName,
     showNewGithubForm,
     setShowNewGithubForm,
     newGithubName,
@@ -25,21 +18,12 @@ export default function CredentialsScreen() {
     newGithubDescription,
     setNewGithubDescription,
     showToken,
-    copiedKey,
-    newlyCreatedKey,
-    createApiKey,
-    deleteApiKey,
-    toggleApiKey,
     createGithubCredential,
     deleteGithubCredential,
     toggleGithubCredential,
-    copyToClipboard,
-    dismissNewlyCreatedKey,
-    cancelNewApiKeyForm,
     cancelNewGithubForm,
     toggleNewGithubTokenVisibility,
   } = useCredentialsSettings({
-    confirmDeleteApiKeyText: t('apiKeys.confirmDelete'),
     confirmDeleteGithubCredentialText: t('apiKeys.github.confirmDelete'),
   });
 
@@ -53,27 +37,6 @@ export default function CredentialsScreen() {
 
   return (
     <SettingsScreen>
-      {newlyCreatedKey && (
-        <NewApiKeyAlert
-          apiKey={newlyCreatedKey}
-          copiedKey={copiedKey}
-          onCopy={copyToClipboard}
-          onDismiss={dismissNewlyCreatedKey}
-        />
-      )}
-
-      <ApiKeysSection
-        apiKeys={apiKeys}
-        showNewKeyForm={showNewKeyForm}
-        newKeyName={newKeyName}
-        onShowNewKeyFormChange={setShowNewKeyForm}
-        onNewKeyNameChange={setNewKeyName}
-        onCreateApiKey={createApiKey}
-        onCancelCreateApiKey={cancelNewApiKeyForm}
-        onToggleApiKey={toggleApiKey}
-        onDeleteApiKey={deleteApiKey}
-      />
-
       <GithubCredentialsSection
         githubCredentials={githubCredentials}
         showNewGithubForm={showNewGithubForm}

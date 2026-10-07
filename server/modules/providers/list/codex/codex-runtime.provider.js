@@ -10,7 +10,6 @@
  * - codexRuntime.run(command, options, writer, context) - Execute a streamed prompt
  *   (interactive Chat; the provider registry's runner)
  * - queryCodexChat(command, options, ws) - Run interactive Chat
- * - queryCodexJob(command, options, writer) - Run a non-interactive SDK job
  * - abortCodexSession(sessionId) - Cancel an active session
  * - isCodexSessionActive(sessionId) - Check if a session is running
  * - getActiveCodexSessions() - List all active sessions
@@ -18,7 +17,6 @@
 
 import { Codex } from '@openai/codex-sdk';
 
-import { providerUpdateCoordinator } from '@/modules/providers/services/provider-update-coordinator.service.js';
 import {
   abortCodexAppServerSession,
   askCodexAppServerSideQuestion,
@@ -512,9 +510,6 @@ export function getActiveCodexSessions() {
   return sessions;
 }
 
-// The registry runner is the interactive Chat entry point. Non-interactive jobs
-// call queryCodexJob directly to stay on the smaller SDK surface.
-//
 // Codex's App Server transport parks its approval and question requests in the
 // same provider-neutral registry Claude uses, so it declares the identical
 // permission surface. Without it, Codex approvals would only work by riding on
@@ -600,16 +595,6 @@ export async function queryCodexChat(command, options = {}, ws, context = defaul
       return queryCodexSdk(command, options, ws, context);
     },
   );
-}
-
-/**
- * Non-interactive jobs stay on the smaller SDK surface: they need neither App
- * Server's approval/question channel nor its shared process lifecycle, and they
- * enter from the agent routes without a registry runtime context.
- */
-export async function queryCodexJob(command, options = {}, writer) {
-  return providerUpdateCoordinator.run('codex',
-    () => queryCodexSdk(command, { ...options, runtimeFacet: 'jobs' }, writer));
 }
 
 export async function abortCodexSession(sessionId) {

@@ -16,7 +16,6 @@ import {
     initializeProviderUsageResetMonitor,
     closeProviderUsageResetMonitor,
     providerRuntimeService,
-    queryCodexJob,
 } from '@/modules/providers/index.js';
 import {
     closeScheduledMessages,
@@ -36,7 +35,6 @@ import {
 import { commandsRoutes } from './modules/commands/index.js';
 import { settingsRoutes } from './modules/settings/index.js';
 import { createSystemModule } from './modules/system/index.js';
-import { createAgentModule } from './modules/agent/index.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
 import { userRoutes } from './modules/user/index.js';
@@ -79,19 +77,9 @@ const app = express();
 const server = http.createServer(app);
 const queryClaude = providerRuntimeService.getRunner('claude');
 const queryCursor = providerRuntimeService.getRunner('cursor');
-const queryOpenCode = providerRuntimeService.getRunner('opencode');
 const gitRoutes = createGitModule({
     queryClaude,
     queryCursor,
-});
-const agentRoutes = createAgentModule({
-    queryClaude,
-    queryCursor,
-    // Agent requests are one-shot jobs, not interactive Chat: they take Codex's
-    // SDK path rather than the registry runner, which starts the App Server
-    // transport with its approval/question channel and shared process lifecycle.
-    queryCodex: queryCodexJob,
-    queryOpenCode,
 });
 
 // Single WebSocket server that handles chat and shell paths.
@@ -190,12 +178,9 @@ app.use('/api/browser-use', authenticateToken, browserUseRoutes);
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
 
-// Agent API Routes (uses API key authentication)
-app.use('/api/agent', agentRoutes);
-
 app.use('/api/voice', authenticateToken, voiceRoutes);
 
-// Serve public files (like api-docs.html)
+// Serve public files (manifest, icons, service worker)
 app.use(express.static(path.join(APP_ROOT, 'public')));
 
 // Static files served after API routes

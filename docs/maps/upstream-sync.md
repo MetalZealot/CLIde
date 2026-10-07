@@ -80,7 +80,8 @@ dialog CLIde does not have, and porting them would add dead keys.
 **Areas CLIde removed are refused permanently.** The desktop app, the Docker
 sandbox, npm release tooling, upstream's README, changelog, issue templates and
 workflows, and CloudCLI's own plugin system (`server/modules/plugins`, the
-plugin tabs, `plugins/starter`) were deleted on 2026-10-05. Upstream changes to
+plugin tabs, `plugins/starter`) were deleted on 2026-10-05; the external agent
+API (`server/modules/agent`, its API keys and `api-docs.html`) on 2026-10-06. Upstream changes to
 them have nothing to apply to; `check:upstream` marks a commit `removed` when
 every file it touches is in one of them. Claude Code's and Codex's plugins are
 a separate system and stay in scope.
