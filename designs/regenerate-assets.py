@@ -4,11 +4,9 @@
 Usage (from repo root):
     python3 designs/regenerate-assets.py
 
-Masters:
+Master:
     designs/clide-logo_dark.svg   — WHITE glyph, TRANSPARENT background, 512x512.
                                     Source of truth for all app assets.
-    designs/clide-logo_light.svg  — #141414 glyph, transparent. No app consumer yet
-                                    (for docs/README on light surfaces).
 
 Outputs (all derived from the dark master):
     public/icons/icon-{72..512}.png          rounded 25%, #141414 bg  (PWA manifest, purpose "any")
