@@ -308,6 +308,28 @@ export const describeDropRejections = (
   }));
 };
 
+/**
+ * Reads each file into memory, starting every read before the first await. Chrome on
+ * Android can read a photo-picker File only for a moment after the pick, so a preview
+ * or upload that reads the original later fails.
+ */
+export const copyAttachmentsToMemory = async (
+  files: readonly File[],
+): Promise<{ copies: File[]; unreadable: string[] }> => {
+  const results = await Promise.allSettled(files.map((file) => file.arrayBuffer()));
+  const copies: File[] = [];
+  const unreadable: string[] = [];
+  results.forEach((result, index) => {
+    const file = files[index];
+    if (result.status === 'fulfilled') {
+      copies.push(new File([result.value], file.name, { type: file.type, lastModified: file.lastModified }));
+    } else {
+      unreadable.push(file.name || 'Unknown file');
+    }
+  });
+  return { copies, unreadable };
+};
+
 const MAX_ATTACHMENT_COUNT = 10;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
@@ -990,20 +1012,24 @@ export function useChatComposerState({
       }
     });
 
-    if (validFiles.length > 0) {
-      setAttachedFiles((previous) => {
-        const merged = [...previous, ...validFiles];
-        // The cap is silent truncation, so the dropped tail has to be reported here:
-        // it never reaches a card, and a card is the only place fileErrors renders.
-        const dropped = merged.length - MAX_ATTACHMENT_COUNT;
-        if (dropped > 0) {
-          rejections.push({ reason: 'too-many', count: dropped });
-        }
-        return merged.slice(0, MAX_ATTACHMENT_COUNT);
-      });
-    }
+    // Must run in the same tick as the pick: see copyAttachmentsToMemory.
+    void copyAttachmentsToMemory(validFiles).then(({ copies, unreadable }) => {
+      unreadable.forEach((fileName) => rejections.push({ fileName, reason: 'unreadable' }));
+      if (copies.length > 0) {
+        setAttachedFiles((previous) => {
+          const merged = [...previous, ...copies];
+          // The cap is silent truncation, so the dropped tail has to be reported here:
+          // it never reaches a card, and a card is the only place fileErrors renders.
+          const dropped = merged.length - MAX_ATTACHMENT_COUNT;
+          if (dropped > 0) {
+            rejections.push({ reason: 'too-many', count: dropped });
+          }
+          return merged.slice(0, MAX_ATTACHMENT_COUNT);
+        });
+      }
 
-    setAttachmentRejections(rejections);
+      setAttachmentRejections(rejections);
+    });
   }, []);
 
   // react-dropzone enforces maxSize/maxFiles before onDrop, so drag-and-drop

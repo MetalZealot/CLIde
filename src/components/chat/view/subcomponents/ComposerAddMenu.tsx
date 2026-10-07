@@ -97,8 +97,8 @@ export default function ComposerAddMenu({
 
   const handlePhotosPicked = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
-    event.target.value = '';
     if (files.length > 0) onAttachFiles(files);
+    event.target.value = '';
   };
 
   const isShown = isOpen && anchor !== null;

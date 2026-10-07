@@ -22,6 +22,7 @@ import { resolveEffortValuesForModel } from '../constants/providerEffort';
 import { useAsyncQuestions } from './useAsyncQuestions';
 import { applyScrollRestore, useChatSessionState, type ScrollRestoreState } from './useChatSessionState';
 import {
+  copyAttachmentsToMemory,
   describeDropRejections,
   resolveComposerTabAction,
   resolveSessionSendSetting,
@@ -649,6 +650,29 @@ test('an unnamed rejected file still produces a message', () => {
   assert.deepEqual(
     describeDropRejections([{ file: { name: '' }, errors: [{ code: 'file-invalid-type' }] }]),
     [{ fileName: 'Unknown file', reason: 'unreadable' }],
+  );
+});
+
+test('attachments are copied into memory, and an unreadable one is reported by name', async () => {
+  const photo = new File(['png bytes'], 'photo.png', { type: 'image/png', lastModified: 1234 });
+  // A photo-picker file whose read permission has lapsed.
+  const lapsed = new File(['x'], 'lapsed.png', { type: 'image/png' });
+  let lapsedReadStarted = false;
+  lapsed.arrayBuffer = () => {
+    lapsedReadStarted = true;
+    return Promise.reject(new DOMException('The requested file could not be read', 'NotReadableError'));
+  };
+
+  const pending = copyAttachmentsToMemory([photo, lapsed]);
+  assert.equal(lapsedReadStarted, true, 'every read starts before the first await');
+  const { copies, unreadable } = await pending;
+
+  assert.deepEqual(unreadable, ['lapsed.png']);
+  assert.equal(copies.length, 1);
+  assert.notEqual(copies[0], photo);
+  assert.deepEqual(
+    { name: copies[0].name, type: copies[0].type, lastModified: copies[0].lastModified, text: await copies[0].text() },
+    { name: 'photo.png', type: 'image/png', lastModified: 1234, text: 'png bytes' },
   );
 });
 
