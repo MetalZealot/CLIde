@@ -42,6 +42,7 @@ import {
 
 import UsageLimitNotice from '../../../provider-usage/UsageLimitNotice';
 import { splitLeadingCommand } from '../../utils/chatFormatting';
+import { isTouchPrimaryDevice } from '../../../../utils/pointer';
 
 import CommandMenu from './CommandMenu';
 import { ComposerAttachmentGallery } from './ComposerAttachment';
@@ -619,6 +620,10 @@ function ChatComposer({
             <PromptInputTextarea
               ref={textareaRef}
               dir="auto"
+              // Tapping a squiggled word on Chrome for Android hides the keyboard to
+              // show its suggestion menu, and the composer drops as the viewport grows.
+              // The keyboard's own suggestion strip corrects words without closing.
+              spellCheck={!isTouchPrimaryDevice()}
               value={input}
               onChange={onInputChange}
               onClick={onTextareaClick}
