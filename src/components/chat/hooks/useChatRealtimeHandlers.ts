@@ -65,8 +65,8 @@ interface UseChatRealtimeHandlersArgs {
   setPendingPermissionRequests: Dispatch<SetStateAction<PendingPermissionRequest[]>>;
   /** Pending 100 ms flush timer per session; concurrent streams must not share one. */
   streamTimersRef: MutableRefObject<Map<string, number>>;
-  /** Accumulated streaming text per session, keyed like the store's streaming rows. */
-  accumulatedStreamsRef: MutableRefObject<Map<string, string>>;
+  /** Accumulated streaming text per session. */
+  accumulatedStreamsRef: MutableRefObject<Map<string, StreamBuffer>>;
   /** When each session's `chat.subscribe` was last sent; guards stale idle acks. */
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
   onSessionProcessing?: MarkSessionProcessing;
@@ -82,6 +82,9 @@ interface UseChatRealtimeHandlersArgs {
   sessionStore: SessionStore;
 }
 
+/** One session's stream so far; `key` names the block when the provider keys it. */
+export type StreamBuffer = { key?: string; text: string };
+
 /**
  * Accumulate a streaming chunk for one session and return its text so far.
  * Buffers are per session: background sessions stream at the same time as the
@@ -89,13 +92,32 @@ interface UseChatRealtimeHandlersArgs {
  * overwrites the other session's bubble.
  */
 export function appendStreamChunk(
-  buffers: Map<string, string>,
+  buffers: Map<string, StreamBuffer>,
   sessionId: string,
   text: string,
 ): string {
-  const next = (buffers.get(sessionId) || '') + text;
-  buffers.set(sessionId, next);
+  const next = (buffers.get(sessionId)?.text || '') + text;
+  buffers.set(sessionId, { text: next });
   return next;
+}
+
+/**
+ * Accumulate a keyed `text_delta`; a new key starts a new block. A chunk that
+ * does not start where its block ends follows one this client missed, so it
+ * is refused and the block's final row fills the gap.
+ */
+export function appendTextDelta(
+  buffers: Map<string, StreamBuffer>,
+  sessionId: string,
+  streamKey: string,
+  offset: number,
+  text: string,
+): boolean {
+  const current = buffers.get(sessionId);
+  const sofar = current?.key === streamKey ? current.text : '';
+  if (offset !== sofar.length) return false;
+  buffers.set(sessionId, { key: streamKey, text: sofar + text });
+  return true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -284,27 +306,32 @@ export function useChatRealtimeHandlers({
       /* -------------------------------------------------------------- */
 
       // --- Streaming: buffer for performance ---
-      if (msg.kind === 'stream_delta') {
+      // Every session, on screen or not, grows one row per stream.
+      if (msg.kind === 'stream_delta' || msg.kind === 'text_delta') {
         const text = (msg.content as string) || '';
         if (!text || !sid) {
           flightRecorder()?.note(sid ? 'empty-delta' : 'no-session');
           return;
         }
-        flightRecorder()?.note('buffered');
         const streamSessionId = sid;
-        appendStreamChunk(accumulatedStreamsRef.current, streamSessionId, text);
+        if (msg.kind === 'text_delta') {
+          if (!appendTextDelta(accumulatedStreamsRef.current, streamSessionId, String(msg.streamKey), Number(msg.streamOffset), text)) {
+            flightRecorder()?.note('stream-gap');
+            return;
+          }
+        } else {
+          appendStreamChunk(accumulatedStreamsRef.current, streamSessionId, text);
+        }
+        flightRecorder()?.note('buffered');
+        const streamProvider = (msg.provider as LLMProvider | undefined) || provider;
         if (!streamTimersRef.current.has(streamSessionId)) {
           streamTimersRef.current.set(streamSessionId, window.setTimeout(() => {
             streamTimersRef.current.delete(streamSessionId);
             const buffered = accumulatedStreamsRef.current.get(streamSessionId);
             if (buffered) {
-              sessionStore.updateStreaming(streamSessionId, buffered, provider);
+              sessionStore.updateStreaming(streamSessionId, buffered.text, streamProvider, buffered.key);
             }
           }, 100));
-        }
-        // Also route to store for non-active sessions
-        if (streamSessionId !== activeViewSessionId) {
-          sessionStore.appendRealtime(streamSessionId, msg as unknown as NormalizedMessage);
         }
         return;
       }
@@ -314,7 +341,7 @@ export function useChatRealtimeHandlers({
           cancelStreamTimer(sid);
           const buffered = accumulatedStreamsRef.current.get(sid);
           if (buffered) {
-            sessionStore.updateStreaming(sid, buffered, provider);
+            sessionStore.updateStreaming(sid, buffered.text, provider, buffered.key);
           }
           sessionStore.finalizeStreaming(sid);
           accumulatedStreamsRef.current.delete(sid);
@@ -326,6 +353,12 @@ export function useChatRealtimeHandlers({
       if (msg.parentToolUseId && msg.kind !== 'tool_use' && msg.kind !== 'tool_result') {
         flightRecorder()?.note('subagent');
         return;
+      }
+
+      // A streamed block's final row already holds the text still buffered.
+      if (sid && msg.streamKey && accumulatedStreamsRef.current.get(sid)?.key === msg.streamKey) {
+        cancelStreamTimer(sid);
+        accumulatedStreamsRef.current.delete(sid);
       }
 
       // --- All other messages: route to store ---
@@ -349,9 +382,9 @@ export function useChatRealtimeHandlers({
             cancelStreamTimer(sid);
             const buffered = accumulatedStreamsRef.current.get(sid);
             if (buffered) {
-              sessionStore.updateStreaming(sid, buffered, provider);
-              sessionStore.finalizeStreaming(sid);
+              sessionStore.updateStreaming(sid, buffered.text, provider, buffered.key);
             }
+            sessionStore.finalizeStreaming(sid);
             accumulatedStreamsRef.current.delete(sid);
           }
 

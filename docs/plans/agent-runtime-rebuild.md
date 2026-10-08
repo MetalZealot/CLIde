@@ -1,7 +1,7 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
 - Status: 3/11
-- Next: phase 2, word-by-word replies
+- Next: your phase-2 check on 3001, then phase 3, the typed wire
 - Design: [agent runtime design](../designs/agent-runtime-rebuild.md). Read it whole
   before any phase: it binds every phase and changes only with Grayson.
 - Context: the design's list, plus `scripts/verify-claude-session-sdk.ts` and
@@ -41,6 +41,12 @@ his daily driver, so detail wins over size.
    binary's strings, never tried live), which is a different job from Claude's.
 3. **What Stop means.** Settled by ADR 0066: Stop ends the reply only;
    background jobs keep running, each with its own stop button.
+4. **Thinking text or word-by-word after long thinking.** With
+   `display: 'summarized'` (phase 1) the reply waits behind the thinking
+   summary, then lands at once (measured on Haiku 5.5: 14 s of thinking, then
+   1,737 characters in 0.27 s; with `omitted`, 3.3 s of streaming, finished
+   10 s sooner; one run each). Recommended: keep the summary and stream it live
+   into the thinking row, so the wait shows words too.
 
 ## Inherited workarounds
 
@@ -154,25 +160,30 @@ phase done.
     parameter, send a message, copy the block; it lists the turn's frames by
     kind and nothing you wrote.
 
-- [ ] 2. **Word-by-word replies — est. 1–2.**
-  - `includePartialMessages`; the normalizer reads the wrapped `stream_event`;
-    the server coalesces deltas into `text_delta` frames that take no replay
-    slot; subagent `stream_event`s are dropped.
-  - The client reuses the existing `stream_delta`/`stream_end` path and its
-    100 ms buffer, never a parallel one. The final row reconciles by API message
-    id plus block index, replacing the store's text matching, and keeps its real
-    row id.
-  - A session not on screen updates one buffered row, not one row per chunk.
-    Today each delta appends its own row and counts against the 500-row live
-    cap, so background sessions would show duplicated text.
-  - The "Sent" stage moves from the first `rate_limit_event`, which can arrive
-    after the reply or not at all on a warm turn (probe 1), to the `message_start`
-    stream event.
-  - [Chat history performance](chat-history-performance.md) phase 13 (cost per
-    chunk) lands here.
+- [~] 2. **Word-by-word replies — est. 1–2.** Built 2026-10-07 on SDK and CLI 293.
+  - `includePartialMessages` on every persisted chat; `claude-text-stream.ts`
+    turns `stream_event`s into `text_delta` frames every 50 ms, keyed by API
+    message id plus block index, with each chunk's offset. They take no seq or
+    replay slot; subagent ones are dropped. The block's final row carries the
+    same key; deltas still waiting when it arrives are dropped.
+  - The client feeds `text_delta` into the `stream_delta` buffer; a chunk off
+    its offset is refused (`stream-gap`) and the final row fills it. The final
+    row replaces the streamed one in place with its real id; text matching stays
+    only for Cursor and OpenCode, which send no key. Every session, on screen or
+    not, grows one row per stream.
+  - "Sent" is the turn's first `message_start`.
+  - Chat history phase 13: a streaming reply renders block by block, so an
+    update re-renders only the open block.
+  - Left for Grayson: an unfinished code block re-highlights on every update;
+    leaving it plain until its fence closes would cut that, and changes the look.
+  - Agent, live (done 2026-10-07, main on the 3003 slot): two Haiku replies
+    arrived as `text_delta` frames, then their final rows, shown once before and
+    after a reload. The recorded probe-01 session replays to three claimed
+    blocks whose deltas equal their rows. History walks: every target as before
+    the change; `rerenderBounded` fails identically with and without it (worst
+    127), which is chat history phase 7's open item.
   - You: ask something with a long answer; it appears word by word; reload, and
-    the same reply shows once. Agent, live: the scroll benchmark and history
-    budgets hold.
+    the same reply shows once.
 
 - [ ] 3. **Typed wire in place, no behaviour change — est. 2–3.**
   - `NormalizedMessage` moves to `shared/chat-protocol/` as the row and event

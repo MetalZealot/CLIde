@@ -28,6 +28,7 @@ export type FrameNote =
   | 'subagent' // subagent prose, not rendered live
   | 'empty-delta'
   | 'buffered' // stream text held for the 100 ms flush
+  | 'stream-gap' // a delta after one this client missed; the block's final row fills it
   | 'stored' // appended to the session store
   | 'no-id' // stored without a row id
   | 'cap' // storing it evicted the oldest live row

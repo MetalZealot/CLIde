@@ -36,9 +36,10 @@ type ChatRunStatus = 'running' | 'completed';
  *   Without this flag each calls the provider's interrupt independently, and
  *   overlapping interrupts against one CLI process corrupt its response stream
  *   (garbled result, `stop_reason: null`) instead of stopping it.
- * - `lastSeq` / `events`: the per-run event log. Every live event gets a
- *   monotonically increasing `seq` and is buffered so a reconnecting client
- *   can replay exactly the events it missed via `chat.subscribe`.
+ * - `lastSeq` / `events`: the per-run event log. Every live event but a
+ *   `text_delta` gets a monotonically increasing `seq` and is buffered so a
+ *   reconnecting client can replay exactly the events it missed via
+ *   `chat.subscribe`.
  * - `runId`: identifies this run on the wire. `seq` restarts at 1 per run, so a
  *   client's replay progress only means anything for the run it was recorded
  *   against. `chat.subscribe` echoes the runId back; a mismatch means the
@@ -176,6 +177,13 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
   // those events reach the client after Stop already disappeared.
   if (run.status === 'completed') {
     return null;
+  }
+
+  // Streamed text is superseded by its final row, so it takes no seq and no
+  // replay slot: a client that reconnects mid-block gets the row instead.
+  if (message.kind === 'text_delta') {
+    run.providerResponded = true;
+    return { ...message, sessionId: run.appSessionId, runId: run.runId };
   }
 
   run.lastSeq += 1;

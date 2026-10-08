@@ -10,6 +10,7 @@ import type { LLMProvider, ProviderModelOption } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
+import type { StreamBuffer } from '../hooks/useChatRealtimeHandlers';
 import { fetchAttachmentFile, isImageAttachment, uploadAttachmentFiles, useChatComposerState } from '../hooks/useChatComposerState';
 import { safeLocalStorage } from '../utils/chatStorage';
 import { useAsyncQuestions } from '../hooks/useAsyncQuestions';
@@ -103,7 +104,7 @@ function ChatInterface({
   // Streaming buffers are per session: background sessions stream concurrently
   // with the visible one, and a shared buffer interleaves their text.
   const streamTimersRef = useRef(new Map<string, number>());
-  const accumulatedStreamsRef = useRef(new Map<string, string>());
+  const accumulatedStreamsRef = useRef(new Map<string, StreamBuffer>());
   // When each session's `chat.subscribe` was last sent; idle acks older than
   // a later local request are discarded as stale.
   const statusCheckSentAtRef = useRef(new Map<string, number>());

@@ -8,7 +8,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTranslation } from 'react-i18next';
 
-import { normalizeInlineCodeFences } from '../../utils/chatFormatting';
+import { normalizeInlineCodeFences, splitMarkdownBlocks } from '../../utils/chatFormatting';
 import { copyTextToClipboard } from '../../../../utils/clipboard';
 import { usePaletteOps } from '../../../../contexts/PaletteOpsContext';
 import { useTheme } from '../../../../contexts/ThemeContext';
@@ -22,7 +22,24 @@ type MarkdownProps = {
   readingTypography?: boolean;
   /** Preserve a wider phone scroll gutter around horizontally scrollable code. */
   insetFencedCode?: boolean;
+  /** Text still arriving: finished blocks render once, only the open tail re-renders. */
+  streaming?: boolean;
 };
+
+type MarkdownBlockProps = {
+  text: string;
+  remarkPlugins: any;
+  rehypePlugins: any;
+  components: any;
+};
+
+const MarkdownBlock = memo(function MarkdownBlock({ text, remarkPlugins, rehypePlugins, components }: MarkdownBlockProps) {
+  return (
+    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
+      {text}
+    </ReactMarkdown>
+  );
+});
 
 // Links to the wider web (or in-page anchors) keep normal browser navigation;
 // everything else is treated as a workspace file reference.
@@ -216,6 +233,7 @@ export const Markdown = memo(function Markdown({
   breaks = false,
   readingTypography = false,
   insetFencedCode = false,
+  streaming = false,
 }: MarkdownProps) {
   const content = normalizeInlineCodeFences(String(children ?? ''));
   const remarkPlugins = useMemo(
@@ -291,6 +309,23 @@ export const Markdown = memo(function Markdown({
     }),
     [insetFencedCode, openFileInEditor, readingTypography],
   );
+
+  if (streaming) {
+    return (
+      <div className={className}>
+        {splitMarkdownBlocks(content).map((block, index) => (
+          <MarkdownBlock
+            // Blocks only ever append, so an index names the same block on every update.
+            key={index}
+            text={block}
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
+            components={components}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className={className}>

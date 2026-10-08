@@ -451,6 +451,32 @@ test('replayEvents returns only events after the requested seq for the matching 
   });
 });
 
+test('streamed text reaches the socket with no seq and is never replayed; its final row is', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-run-delta', 'claude', '/workspace/demo');
+    const connection = new FakeConnection();
+    const run = chatRunRegistry.startRun({
+      appSessionId: 'app-run-delta',
+      provider: 'claude',
+      providerSessionId: null,
+      connection,
+      userId: null,
+    });
+    assert.ok(run);
+
+    run.writer.send({ kind: 'text_delta', provider: 'claude', sessionId: 'native', content: 'Hel', streamKey: 'm:1', streamOffset: 0 });
+    run.writer.send({ kind: 'text', role: 'assistant', provider: 'claude', sessionId: 'native', content: 'Hello', streamKey: 'm:1' });
+
+    const live = connection.frames;
+    assert.equal(live[0].kind, 'text_delta');
+    assert.equal(live[0].sessionId, 'app-run-delta');
+    assert.equal(live[0].runId, run.runId);
+    assert.equal(live[0].seq, undefined);
+    assert.equal(live[1].seq, 1);
+    assert.deepEqual(chatRunRegistry.replayEvents('app-run-delta', 0, run.runId).map((event) => event.kind), ['text']);
+  });
+});
+
 test('replayEvents ignores the client seq when its runId is stale or missing', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createAppSession('app-run-10', 'claude', '/workspace/demo');

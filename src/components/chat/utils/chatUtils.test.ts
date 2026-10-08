@@ -17,6 +17,7 @@ import {
   formatFollowUpQuestions,
   formatMemoryCitationSource,
   splitLeadingCommand,
+  splitMarkdownBlocks,
 } from './chatFormatting';
 import { exportToHTML, exportToMarkdown } from './chatExport';
 import {
@@ -699,4 +700,26 @@ test('a sidebar result finds its record by snippet, else by nearest time', () =>
   assert.equal(locateSearchTarget(records, { snippet: '...the deploy failed twice...' })?.id, '1');
   assert.equal(locateSearchTarget(records, { snippet: 'no such words anywhere', timestamp: '2026-01-01T00:00:28Z' })?.id, '30');
   assert.equal(locateSearchTarget(records, {}), null);
+});
+
+test('streaming markdown splits only where a block is finished, losing nothing', () => {
+  const reply = [
+    'Intro paragraph.', '',
+    '```ts', 'const a = 1;', '', 'const b = 2;', '```', '',
+    '1. First', '', '2. Second', '   continued', '',
+    '    indented code', '',
+    'Tail being writ',
+  ].join('\n');
+  const blocks = splitMarkdownBlocks(reply);
+  assert.equal(blocks.join(''), reply);
+  assert.deepEqual(blocks.map((block) => block.split('\n')[0]), [
+    'Intro paragraph.',
+    // The fence's inner blank line is not a boundary.
+    '```ts',
+    // A loose list stays whole; so does indented text after a blank line.
+    '1. First',
+    'Tail being writ',
+  ]);
+  // A fence still open at the end holds everything after it.
+  assert.equal(splitMarkdownBlocks('Hi.\n\n```\ncode\n\nmore').length, 2);
 });

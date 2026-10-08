@@ -15,7 +15,7 @@ main checkout only).
 
 ## Provider maintenance
 
-- [~] **Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every SDK message.** Grayson's priority, exempt from the plan size cap. Phases 0–1b done 2026-10-06; next is phase 2. Absorbs the mid-turn controls, streaming, slash menu, orphaned-first-message and live `tool_use_result` items. [Plan](plans/agent-runtime-rebuild.md). **L**
+- [~] **Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every SDK message.** Grayson's priority, exempt from the plan size cap. Phases 0–1b done; phase 2 built 2026-10-07, awaiting your check. Absorbs the mid-turn controls, streaming, slash menu, orphaned-first-message and live `tool_use_result` items. [Plan](plans/agent-runtime-rebuild.md). **L**
 - [ ] **Signing in to a provider opens a terminal.** The sign-in window runs `claude auth login`, `codex login --device-auth` or `cursor-agent login` in a plain shell. Replace it with a link and a code box, CLIde driving the same command behind it; check each CLI's flow first. Grayson's call 2026-10-06. **M**
 - [ ] **The last six backend JavaScript files become TypeScript.** Four provider runtimes, the notification orchestrator and Codex token usage; `checkJs` is off, so `typecheck` reads none of them. Codex first, Claude last. [Plan](plans/server-typescript-conversion.md). **L**
 - [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows the finished Tools plan (tag `docs-archive-2026-10-07`). **L — design first**

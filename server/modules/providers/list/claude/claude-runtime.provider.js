@@ -38,6 +38,7 @@ import {
 import { rememberClaudeTerminalCommands } from '@/modules/providers/list/claude/claude-commands.js';
 import { CLAUDE_PERSISTABLE_EFFORT_LEVELS } from '@/modules/providers/list/claude/claude-effort.settings.js';
 import { CLAUDE_FALLBACK_MODELS } from '@/modules/providers/list/claude/claude-models.provider.js';
+import { createClaudeTextStream } from '@/modules/providers/list/claude/claude-text-stream.js';
 import { normalizeClaudeRateLimitEvent } from '@/modules/providers/list/claude/claude-usage.provider.js';
 import { providerUsageService } from '@/modules/providers/services/provider-usage.service.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
@@ -118,7 +119,7 @@ function logTurn(event, sessionId, fields) {
 
 /** SDK frame kinds this runtime or the normalizer acts on; the rest are counted in a turn's `dropped=`. */
 const HANDLED_SDK_FRAMES = new Set([
-  'assistant', 'user', 'result', 'rate_limit_event',
+  'assistant', 'user', 'result', 'rate_limit_event', 'stream_event',
   'system/init', 'system/compact_boundary', 'system/status', 'system/api_retry', 'system/thinking_tokens',
   'system/background_tasks_changed', 'system/task_started', 'system/task_updated', 'system/task_progress',
   'system/task_notification',
@@ -398,6 +399,9 @@ function mapCliOptionsToSDK(options = {}) {
   // sidebar session.
   if (options.persistSession === false) {
     sdkOptions.persistSession = false;
+  } else {
+    // Word-by-word replies; one-shot runs read only the finished rows.
+    sdkOptions.includePartialMessages = true;
   }
 
   // File snapshots give a future file-restore rewind its checkpoints.
@@ -919,6 +923,15 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     clearTimeout(backgroundHoldTimer);
     backgroundHoldTimer = null;
   };
+  // Re-armed after every frame, so it measures silence.
+  const armBackgroundHold = () => {
+    if (!holdingInput) return;
+    backgroundHoldTimer = setTimeout(() => {
+      logTurn('background-timeout', sessionKey(), { tasks: backgroundTasks });
+      inputChannel?.close();
+    }, BACKGROUND_HOLD_SILENCE_MS);
+  };
+  let textStream = null;
 
   const emitNotification = (event) => {
     notifyUserIfEnabled({
@@ -1133,6 +1146,14 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     if (capturedSessionId || sessionId) {
       sendStage({ name: 'starting' });
     }
+    textStream = createClaudeTextStream((delta) => ws.send(createNormalizedMessage({
+      kind: 'text_delta',
+      content: delta.text,
+      streamKey: delta.streamKey,
+      streamOffset: delta.offset,
+      sessionId: capturedSessionId || sessionId || null,
+      provider: 'claude',
+    })));
     let lastContextUsageAt = 0;
     for await (const message of queryInstance) {
       frames += 1;
@@ -1191,6 +1212,25 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // Transform and normalize message via adapter
       const transformedMessage = withLiveQuotaLimits(transformMessage(message), rejectedRateLimit);
       const sid = capturedSessionId || sessionId || null;
+
+      if (message?.type === 'stream_event') {
+        const signal = textStream.onStreamEvent(message);
+        // The API answering; a warm turn may send no rate-limit event at all.
+        if (signal === 'message_start' && !sentLogged) {
+          sentLogged = true;
+          logTurn('sent', sessionKey(), { ms: sinceStart() });
+          if (!outputStarted) sendStage({ name: 'sent' });
+        }
+        if (signal === 'text' && !outputStarted) {
+          outputStarted = true;
+          awaitingBackground = false;
+          if (stageSent) sendStage(null);
+        }
+        armBackgroundHold();
+        continue;
+      }
+      const streamKey = message?.type === 'assistant' ? textStream.claim(message) : null;
+      textStream.flush();
 
       // Compaction is a minutes-long silence in the stream unless it is
       // announced: the CLI reports it as a status message, `compacting` while
@@ -1301,17 +1341,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // event (no message id, no session id) so no chat surface files it
       // under the conversation that happened to trigger it.
       if (message?.type === 'rate_limit_event') {
-        // The first one marks the API answering, which is the only "it left the
-        // building" signal without `includePartialMessages`.
         const info = message.rate_limit_info || {};
         if (info.status === 'rejected') rejectedRateLimit = info;
-        if (!sentLogged) {
-          sentLogged = true;
-          logTurn('sent', sessionKey(), { ms: sinceStart(), window: info.rateLimitType, status: info.status });
-          if (!outputStarted) {
-            sendStage({ name: 'sent' });
-          }
-        }
         if (info.status && info.status !== 'allowed') {
           logTurn('usage', sessionKey(), {
             window: info.rateLimitType,
@@ -1347,6 +1378,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
 
       // Use adapter to normalize SDK events into NormalizedMessage[]
       const normalized = context.normalizeMessage(transformedMessage, sid);
+      const streamedRow = streamKey ? normalized.find((msg) => msg.kind === 'text' && msg.role === 'assistant') : null;
+      if (streamedRow) streamedRow.streamKey = streamKey;
       for (const msg of normalized) {
         // Preserve parentToolUseId from SDK wrapper for subagent tool grouping
         if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
@@ -1369,16 +1402,12 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         }
       }
 
-      if (holdingInput) {
-        backgroundHoldTimer = setTimeout(() => {
-          logTurn('background-timeout', sessionKey(), { tasks: backgroundTasks });
-          inputChannel?.close();
-        }, BACKGROUND_HOLD_SILENCE_MS);
-      }
+      armBackgroundHold();
     }
 
     // Clean up session on completion
     clearBackgroundHold();
+    textStream.close();
     inputChannel?.close();
     claimMintedTranscript();
     if (sessionKey()) {
@@ -1409,6 +1438,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     // Complete
 
   } catch (error) {
+    textStream?.close();
     // Asked once: the first call clears the abort record.
     const aborted = wasRunAborted();
     logTurn('failed', sessionKey(), {

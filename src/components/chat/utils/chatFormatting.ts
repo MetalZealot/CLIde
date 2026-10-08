@@ -20,6 +20,46 @@ export function normalizeInlineCodeFences(text: string) {
   }
 }
 
+const FENCE_MARKER = /^ {0,3}(`{3,}|~{3,})/;
+const LIST_ITEM_START = /^(?:[-*+]|\d{1,9}[.)])(?:\s|$)/;
+
+/**
+ * Cuts streaming markdown where a finished block ends, so each update renders
+ * only the open tail: at a blank line outside a code fence that is followed by
+ * an unindented line, unless that line is the next item of a list. Joined, the
+ * pieces are the input.
+ */
+export function splitMarkdownBlocks(text: string): string[] {
+  const lines = text.split('\n');
+  const blocks: string[] = [];
+  let start = 0;
+  let fence: string | null = null;
+  let lastContent = '';
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim()) lastContent = lines[i];
+    const marker = FENCE_MARKER.exec(lines[i])?.[1];
+    if (fence) {
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length && !lines[i].trim().slice(marker.length).trim()) {
+        fence = null;
+      }
+      continue;
+    }
+    if (marker) {
+      fence = marker;
+      continue;
+    }
+    const next = lines[i + 1];
+    const continuesList = next !== undefined && LIST_ITEM_START.test(next)
+      && (LIST_ITEM_START.test(lastContent) || /^\s/.test(lastContent));
+    if (lines[i].trim() === '' && i > start && next !== undefined && /^\S/.test(next) && !continuesList) {
+      blocks.push(`${lines.slice(start, i + 1).join('\n')}\n`);
+      start = i + 1;
+    }
+  }
+  blocks.push(lines.slice(start).join('\n'));
+  return blocks;
+}
+
 export type InteractiveOption = {
   number: string;
   text: string;

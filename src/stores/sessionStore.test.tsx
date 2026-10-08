@@ -8,7 +8,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { flightRecorder, startFlightRecorder, stopFlightRecorder } from '../utils/flightRecorder';
 
 import { removeOptimisticUserEchoes } from './sessionMessageReconciliation';
-import { type NormalizedMessage, type SessionStore, useSessionStore } from './useSessionStore';
+import { type NormalizedMessage, type SessionStore, streamingRowId, useSessionStore } from './useSessionStore';
 
 describe('useSessionStore.pagination', () => {
   /**
@@ -363,6 +363,27 @@ describe('useSessionStore.pagination', () => {
     respond({ messages: [message('1', 'old branch')], hasMore: false });
     await finish(pending);
     assert.deepEqual(store.getSlot(SESSION_ID).serverMessages.map(m => m.id), ['3']);
+  });
+
+  test('a streamed block grows one row, and its final row takes that place with its real id', async () => {
+    await loadFirstPage();
+    const rows = () => store.getMessages(SESSION_ID).map((m) => [m.id, m.kind, m.content]);
+    await React.act(async () => {
+      store.updateStreaming(SESSION_ID, 'Hel', 'claude', 'm:1');
+      store.updateStreaming(SESSION_ID, 'Hello', 'claude', 'm:1');
+    });
+    assert.deepEqual(rows().slice(2), [[streamingRowId(SESSION_ID, 'm:1'), 'stream_delta', 'Hello']]);
+
+    const final = { ...message('9', 'Hello world'), id: 'u1_0', role: 'assistant' as const, streamKey: 'm:1' };
+    await React.act(async () => store.appendRealtime(SESSION_ID, final));
+    assert.deepEqual(rows().slice(2), [['u1_0', 'text', 'Hello world']]);
+
+    // A block whose final row never came (an interrupted reply) keeps its id.
+    await React.act(async () => {
+      store.updateStreaming(SESSION_ID, 'Cut sho', 'claude', 'm:3');
+      store.finalizeStreaming(SESSION_ID);
+    });
+    assert.deepEqual(rows().slice(2), [['u1_0', 'text', 'Hello world'], [streamingRowId(SESSION_ID, 'm:3'), 'text', 'Cut sho']]);
   });
 
   test('a jump detaches the window from live rows until newer pages rejoin the tail', async () => {

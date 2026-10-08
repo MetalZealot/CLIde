@@ -492,6 +492,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                       <Markdown
                         readingTypography
                         insetFencedCode
+                        streaming={message.isStreaming}
                         className="chat-reading prose prose-sm prose-gray max-w-none font-prose dark:prose-invert"
                       >
                         {content}

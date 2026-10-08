@@ -32,6 +32,7 @@ export type MessageKind =
   | 'thinking'
   | 'stream_delta'
   | 'stream_end'
+  | 'text_delta'
   | 'error'
   | 'complete'
   | 'status'
@@ -115,6 +116,10 @@ export interface NormalizedMessage {
    * (WebSocketContext's `getReplayProgress`), not derived from this store.
    */
   seq?: number;
+  /** A streamed text block; its final row carries the same key and replaces the streamed one. */
+  streamKey?: string;
+  /** Where a `text_delta` chunk starts in its block. */
+  streamOffset?: number;
 
   // kind-specific fields (flat for simplicity)
   role?: 'user' | 'assistant';
@@ -594,6 +599,11 @@ const STALE_THRESHOLD_MS = 30_000;
 
 const MAX_REALTIME_MESSAGES = 500;
 
+/** The live row a stream grows in: one per session, or one per block when the provider keys it. */
+export function streamingRowId(sessionId: string, streamKey?: string): string {
+  return streamKey ? `__streaming_${sessionId}_${streamKey}` : `__streaming_${sessionId}`;
+}
+
 /** Tells the flight recorder whether a live row made it into the merged view. */
 function noteStoredRow(slot: SessionSlot, message: NormalizedMessage, overflow: boolean) {
   const recorder = flightRecorder();
@@ -948,6 +958,17 @@ export function useSessionStore() {
       msg.sessionId === sessionId
         ? msg
         : { ...msg, sessionId };
+    // A streamed block's final row takes the streamed row's place.
+    const streamedIdx = normalizedMessage.streamKey && normalizedMessage.kind === 'text'
+      ? slot.realtimeMessages.findIndex((m) => m.id === streamingRowId(sessionId, normalizedMessage.streamKey))
+      : -1;
+    if (streamedIdx >= 0) {
+      slot.realtimeMessages = slot.realtimeMessages.map((m, i) => (i === streamedIdx ? normalizedMessage : m));
+      recomputeMergedIfNeeded(slot);
+      noteStoredRow(slot, normalizedMessage, false);
+      notify(sessionId);
+      return;
+    }
     let updated = [...slot.realtimeMessages, normalizedMessage];
     const overflow = updated.length > MAX_REALTIME_MESSAGES;
     if (overflow) {
@@ -1079,9 +1100,14 @@ export function useSessionStore() {
    * Update or create a streaming message (accumulated text so far).
    * Uses a well-known ID so subsequent calls replace the same message.
    */
-  const updateStreaming = useCallback((sessionId: string, accumulatedText: string, msgProvider: LLMProvider) => {
+  const updateStreaming = useCallback((
+    sessionId: string,
+    accumulatedText: string,
+    msgProvider: LLMProvider,
+    streamKey?: string,
+  ) => {
     const slot = getSlot(sessionId);
-    const streamId = `__streaming_${sessionId}`;
+    const streamId = streamingRowId(sessionId, streamKey);
     const msg: NormalizedMessage = {
       id: streamId,
       sessionId,
@@ -1089,6 +1115,7 @@ export function useSessionStore() {
       provider: msgProvider,
       kind: 'stream_delta',
       content: accumulatedText,
+      streamKey,
     };
     const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
     if (idx >= 0) {
@@ -1102,26 +1129,22 @@ export function useSessionStore() {
   }, [getSlot, notify]);
 
   /**
-   * Finalize streaming: convert the streaming message to a regular text message.
-   * The well-known streaming ID is replaced with a unique text message ID.
+   * Finalize streaming: convert the session's streaming rows to text rows. An
+   * unkeyed row's well-known id is reused by the next stream, so it gets a
+   * unique one; a keyed row (a block whose final row never came) keeps its id.
    */
   const finalizeStreaming = useCallback((sessionId: string) => {
     const slot = storeRef.current.get(sessionId);
     if (!slot) return;
-    const streamId = `__streaming_${sessionId}`;
-    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
-    if (idx >= 0) {
-      const stream = slot.realtimeMessages[idx];
-      slot.realtimeMessages = [...slot.realtimeMessages];
-      slot.realtimeMessages[idx] = {
-        ...stream,
-        id: `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        kind: 'text',
-        role: 'assistant',
-      };
-      recomputeMergedIfNeeded(slot);
-      notify(sessionId);
-    }
+    const unkeyedId = streamingRowId(sessionId);
+    if (!slot.realtimeMessages.some((m) => m.kind === 'stream_delta')) return;
+    slot.realtimeMessages = slot.realtimeMessages.map((m) => {
+      if (m.kind !== 'stream_delta') return m;
+      const id = m.id === unkeyedId ? `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : m.id;
+      return { ...m, id, kind: 'text', role: 'assistant' };
+    });
+    recomputeMergedIfNeeded(slot);
+    notify(sessionId);
   }, [notify]);
 
   /**

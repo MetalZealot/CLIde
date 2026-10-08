@@ -1,7 +1,7 @@
 # Fast, stable chat history and navigation
 
-- Status: 8/14
-- Next: Phase 7 — cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check. Phase 13 lands with [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 2, and phase 11 is coordinated with its phase 3
+- Status: 9/14
+- Next: Phase 7 — cut the ~50 ms fixed frame cost (forced layout in scroll restoration); phone check. Phase 11 is coordinated with [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 3
 - Context: budgets in `scripts/chat-history/budgets.ts`,
   [test suite](../testing.md),
   [phone selection](../decisions/0056-installed-phone-app-scrolls-the-chat-as-the-page.md),
@@ -116,15 +116,11 @@ responsive, so no worker.
 **Exit:** first open and Find meet the budgets in `scripts/chat-history/budgets.ts`, or the evidence for
 leaving them is recorded.
 
-- [ ] **13. Streaming replies stay cheap as they grow — M.**
-
-Markdown skips work only for unchanged text, so a streaming reply probably
-reparses all of itself on every chunk (read from source, not measured). Measure
-per-chunk cost against reply length on a long reply with code blocks. If it
-grows, render finished blocks once and reparse only the open tail.
-
-**Exit:** per-chunk work does not grow with reply length, or the measurement
-for leaving it is recorded.
+- [x] **13. Streaming replies stay cheap as they grow — M.** It grew: on the
+  Pi (Node server render, not the phone) an update cost 150 ms at 1,000
+  characters and 4.7 s at 29,000, nearly all syntax highlighting. Streaming
+  replies now render block by block (`splitMarkdownBlocks`), so an update
+  costs the open block only: 105–400 ms across the same lengths.
 
 - [ ] **14. Accept on the phone — M.**
 

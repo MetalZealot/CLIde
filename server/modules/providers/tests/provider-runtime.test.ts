@@ -879,7 +879,38 @@ describe('claude-runtime error results', () => {
       const { frame } = JSON.parse(line);
       if (frame) recordDroppedFrame(dropped, frame);
     }
-    assert.equal(formatDroppedFrames(dropped), 'command_lifecycle:9,stream_event:30');
+    assert.equal(formatDroppedFrames(dropped), 'command_lifecycle:9');
+  });
+
+  test('in a recorded session each text block is claimed by its own final row, holding what streamed', async () => {
+    const { createClaudeTextStream } = await import('@/modules/providers/list/claude/claude-text-stream.js');
+    const fixture = path.join(process.cwd(), 'server/modules/providers/tests/fixtures/claude-session-sdk/probe-01-three-turns.ndjson');
+    const streamed = new Map<string, string>();
+    const stream = createClaudeTextStream((delta) => {
+      assert.equal(delta.offset, streamed.get(delta.streamKey)?.length ?? 0);
+      streamed.set(delta.streamKey, (streamed.get(delta.streamKey) ?? '') + delta.text);
+    }, 60_000);
+    const claims: Array<{ key: string | null; text: string }> = [];
+    for (const line of (await readFile(fixture, 'utf8')).trim().split('\n')) {
+      const { frame } = JSON.parse(line);
+      if (!frame) continue;
+      if (frame.type === 'stream_event') {
+        stream.onStreamEvent(frame);
+        continue;
+      }
+      // Flush first so every delta is seen; the runtime claims first and drops them.
+      stream.flush();
+      if (frame.type === 'assistant') {
+        const text = frame.message.content.find((part: { type: string }) => part.type === 'text')?.text;
+        const key = stream.claim(frame);
+        if (text !== undefined || key) claims.push({ key, text: text ?? '' });
+      }
+    }
+    assert.equal(claims.length, 3);
+    for (const { key, text } of claims) {
+      assert.ok(key, 'every text row claims a stream');
+      assert.equal(streamed.get(key), text);
+    }
   });
 
   const loadAskSideQuestion = async () => (
@@ -1024,6 +1055,7 @@ describe('claude-runtime turns on a fake query', () => {
     permissionMode?: string;
     allowedTools?: string[];
     cwd?: string;
+    normalizeMessage?: (raw: Frame) => Frame[];
   }) {
     const runtime = await loadRuntime();
     const fake = createFakeQuery();
@@ -1048,7 +1080,10 @@ describe('claude-runtime turns on a fake query', () => {
       resolveProviderSessionId: () => options.providerId,
       resolveResumeModel: async () => null,
       getProviderModels: async () => catalog,
-      normalizeMessage: (raw: unknown) => { normalized.push(raw as Frame); return []; },
+      normalizeMessage: (raw: unknown) => {
+        normalized.push(raw as Frame);
+        return options.normalizeMessage?.(raw as Frame) ?? [];
+      },
       isProviderInstalled: async () => true,
     };
     const done = runtime.queryClaudeSDK('hello', {
@@ -1196,6 +1231,53 @@ describe('claude-runtime turns on a fake query', () => {
       }
     });
   }
+
+  test('a streamed block arrives as coalesced deltas, then as a final row naming the same stream', async () => {
+    const { runtime, fake, sent, done } = await startTurn({
+      appId: 'app-stream',
+      providerId: 'prov-stream',
+      normalizeMessage: (raw) => {
+        const part = (raw.message as { content?: Array<{ type: string; text?: string }> } | undefined)?.content?.[0];
+        return raw.type === 'assistant' && part?.type === 'text'
+          ? [{ id: `${raw.uuid}_0`, kind: 'text', role: 'assistant', content: part.text }]
+          : [];
+      },
+    });
+    const event = (body: Frame, parent: string | null = null) => ({
+      type: 'stream_event', session_id: 'prov-stream', parent_tool_use_id: parent, event: body,
+    });
+    const delta = (text: string, parent: string | null = null) => event(
+      { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text } }, parent,
+    );
+    const assistant = (uuid: string, content: Frame[]) => ({
+      type: 'assistant', session_id: 'prov-stream', uuid, message: { id: 'msg_1', role: 'assistant', content },
+    });
+    fake.push(event({ type: 'message_start', message: { id: 'msg_1' } }));
+    fake.push(event({ type: 'content_block_start', index: 0, content_block: { type: 'thinking' } }));
+    fake.push(assistant('u0', [{ type: 'thinking', thinking: '' }]));
+    fake.push(event({ type: 'content_block_start', index: 1, content_block: { type: 'text' } }));
+    fake.push(delta('Hel'));
+    fake.push(delta('lo'));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    fake.push(delta(' world'));
+    fake.push(delta('subagent prose', 'toolu_agent'));
+    fake.push(assistant('u1', [{ type: 'text', text: 'Hello world' }]));
+    fake.push(event({ type: 'content_block_stop', index: 1 }));
+    fake.end();
+    await done;
+    runtime.setClaudeQueryForTests(null);
+
+    assert.equal(fake.options?.includePartialMessages, true);
+    const deltas = sent.filter((frame) => frame.kind === 'text_delta');
+    // ' world' was still waiting when the final row arrived; the row holds it.
+    assert.deepEqual(deltas.map((frame) => [frame.content, frame.streamOffset, frame.streamKey]), [['Hello', 0, 'msg_1:1']]);
+    const final = sent.find((frame) => frame.kind === 'text');
+    assert.equal(final?.id, 'u1_0');
+    assert.equal(final?.streamKey, 'msg_1:1');
+    const stages = sent.filter((frame) => frame.kind === 'status' && frame.stage !== undefined);
+    assert.deepEqual(stages.map((frame) => (frame.stage as { name?: string } | null)?.name ?? null), ['starting', 'sent', null]);
+    assert.ok(sent.indexOf(stages[1]) < sent.indexOf(deltas[0]), '"Sent" shows before the first words');
+  });
 
   test('a live tool result keeps its structured result, as a reloaded one does', async () => {
     const { runtime, fake, normalized, done } = await startTurn({ appId: 'app-tur', providerId: 'prov-tur' });

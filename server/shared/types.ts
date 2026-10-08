@@ -417,6 +417,7 @@ export type MessageKind =
   | 'thinking'
   | 'stream_delta'
   | 'stream_end'
+  | 'text_delta'
   | 'error'
   | 'complete'
   | 'status'
@@ -592,6 +593,13 @@ export type NormalizedMessage = {
    * `chat.subscribe` and reset their counter on a new one.
    */
   runId?: string;
+  /**
+   * A streamed text block: on `text_delta` frames, and on the block's final
+   * row, which replaces the streamed one. Live only, never in history.
+   */
+  streamKey?: string;
+  /** Where a `text_delta` chunk starts in its block, so a gap is detectable. */
+  streamOffset?: number;
   role?: 'user' | 'assistant';
   content?: string;
   /** Non-blocking questions attached to an assistant message. */

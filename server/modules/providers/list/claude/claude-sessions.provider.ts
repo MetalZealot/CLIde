@@ -983,13 +983,6 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       return [];
     }
 
-    if (raw.type === 'content_block_delta' && raw.delta?.text) {
-      return [createNormalizedMessage({ kind: 'stream_delta', content: raw.delta.text, sessionId, provider: PROVIDER })];
-    }
-    if (raw.type === 'content_block_stop') {
-      return [createNormalizedMessage({ kind: 'stream_end', sessionId, provider: PROVIDER })];
-    }
-
     // The boundary row is written to the transcript and streamed live, so one
     // branch gives the divider both on reload and as compaction finishes.
     const compactBoundary = readClaudeCompactBoundary(raw);

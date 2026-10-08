@@ -33,7 +33,8 @@ import { resolveLiveLimitStop } from './useAutoContinue';
 import { normalizedToChatMessages } from './useChatMessages';
 import { resolveHistoryNavigation, type HistoryNav } from './useInputHistory';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
-import { appendStreamChunk, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
+import { appendStreamChunk, appendTextDelta, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
+import type { StreamBuffer } from './useChatRealtimeHandlers';
 import { normalizeVoiceTranscript } from './useVoiceInput';
 import {
   collectChatFindOccurrences,
@@ -762,20 +763,34 @@ test('an empty ack stays empty', () => {
 });
 
 test('two sessions streaming at once keep separate buffers', () => {
-  const buffers = new Map<string, string>();
+  const buffers = new Map<string, StreamBuffer>();
   appendStreamChunk(buffers, 'session-a', 'Hello ');
   appendStreamChunk(buffers, 'session-b', 'Other ');
   appendStreamChunk(buffers, 'session-a', 'world');
   assert.equal(appendStreamChunk(buffers, 'session-b', 'run'), 'Other run');
-  assert.equal(buffers.get('session-a'), 'Hello world');
+  assert.equal(buffers.get('session-a')?.text, 'Hello world');
 });
 
 test('ending one session\'s stream leaves the other session mid-flight', () => {
-  const buffers = new Map<string, string>();
+  const buffers = new Map<string, StreamBuffer>();
   appendStreamChunk(buffers, 'session-a', 'partial');
   appendStreamChunk(buffers, 'session-b', 'done');
   buffers.delete('session-b');
-  assert.equal(buffers.get('session-a'), 'partial');
+  assert.equal(buffers.get('session-a')?.text, 'partial');
+});
+
+test('a keyed stream joins chunks at their offsets, restarts per block, and refuses a gap', () => {
+  const buffers = new Map<string, StreamBuffer>();
+  assert.equal(appendTextDelta(buffers, 's', 'm:1', 0, 'Hel'), true);
+  assert.equal(appendTextDelta(buffers, 's', 'm:1', 3, 'lo'), true);
+  assert.deepEqual(buffers.get('s'), { key: 'm:1', text: 'Hello' });
+  // A missed chunk: everything after it waits for the final row.
+  assert.equal(appendTextDelta(buffers, 's', 'm:1', 9, 'late'), false);
+  assert.equal(buffers.get('s')?.text, 'Hello');
+  assert.equal(appendTextDelta(buffers, 's', 'm:3', 0, 'Next'), true);
+  assert.deepEqual(buffers.get('s'), { key: 'm:3', text: 'Next' });
+  // Joining mid-block shows nothing until the final row.
+  assert.equal(appendTextDelta(buffers, 's', 'n:1', 40, 'tail'), false);
 });
 
 // --- useChatMessages --------------------------------------------------------
