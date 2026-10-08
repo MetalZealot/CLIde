@@ -1,7 +1,7 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
-- Status: 3/11
-- Next: your phase-2 check on the production server, then phase 3, the typed wire
+- Status: 4/11
+- Next: phase 3, the typed wire
 - Design: [agent runtime design](../designs/agent-runtime-rebuild.md). Read it whole
   before any phase: it binds every phase and changes only with Grayson.
 - Context: the design's list, plus `scripts/verify-claude-session-sdk.ts` and
@@ -47,6 +47,11 @@ his daily driver, so detail wins over size.
    1,737 characters in 0.27 s; with `omitted`, 3.3 s of streaming, finished
    10 s sooner; one run each). Recommended: keep the summary and stream it live
    into the thinking row, so the wait shows words too.
+5. **Update cadence.** Recommended: stay on Claude Code's stable channel and
+   bump the SDK in batches (weekly, or when a wanted feature ships);
+   `check:providers` reports everything since the last bump, so skipped
+   releases cost no coverage. Settle the routine after phase 7, once drift
+   fails by name; from phase 6 each bump also re-runs the probe.
 
 ## Inherited workarounds
 
@@ -196,11 +201,20 @@ phase done.
   - You (done 2026-10-08): replies stream on the phone and show once after a
     reload. The first second arriving in one lump is a separate board item.
 
-- [ ] 3. **Typed wire in place, no behaviour change — est. 2–3.**
+- [ ] 3. **Typed wire in place, no behaviour change — est. 3–4.** Two commits:
+  the types, then the tool row and `ToolKind`. Deploy the server before the
+  client: a client built first sees tool rows with no kind until the restart,
+  and `v` arrives only in phase 5.
   - `NormalizedMessage` moves to `shared/chat-protocol/` as the row and event
     unions. The client's copy is deleted, `WebSocketContext` frames are typed,
     and `ChatMessage` is typed. Type errors drive the fixes; no index signature
     remains.
+  - A tool call becomes one row updated by id (the design's typed wire). Claude
+    live sends the row at tool start and an update with the result; history
+    sends the finished row; Codex maps `item/started`/`item/completed` straight
+    onto it. The client's result join in `normalizedToChatMessages` and the
+    server's in Claude history go. A test holds an update that arrives before
+    its row.
   - Every normalizer sets `ToolKind`; the client renders tools by kind with
     per-name overrides. The tool-name branches in `MessageComponent`,
     `ToolRenderer`, `toolActivity.ts`, `operationDetail.ts` and `toolConfigs.ts`
@@ -293,8 +307,7 @@ phase done.
 
 - [ ] 7. **Every Claude message and control has a home — est. 3–4.**
   - The disposition record, filled from the table above; one per-row mapper for
-    live frames and JSONL rows; the cross-row folds (tool-result attachment,
-    subagent files, token crediting, compact references, echo removal) move to
+    live frames and JSONL rows; the cross-row folds (subagent files, token crediting, compact references, echo removal) move to
     `shared/`; a golden test holds live-then-folded equal to `fetchHistory` for
     the same recorded session. History-only row types get their own list from
     real transcripts.

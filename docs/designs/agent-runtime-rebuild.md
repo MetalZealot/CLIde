@@ -100,6 +100,8 @@ the pinned types, **measured** = run, **probe** = needs the phase-0 live check.
 - 2026-10-05: the rebuild is the priority, and its plan may exceed the plan size cap.
 - 2026-10-06: ADRs 0065–0068 accepted as written; that settles the plan's call 3
   (Stop ends only the reply).
+- 2026-10-08: a tool call is one row updated by id (phase 3); tool kinds take
+  ACP's names where they overlap; ACP itself is not the wire.
 
 ## Design positions
 
@@ -120,6 +122,15 @@ Each is a technical call, with its reason.
   restoration and reconciliation keep working. Both branch drafts deleted the
   client store's layer instead, unflagged: about 2,500 lines and 132 tests, with
   no mention of scrolling, history loading or ADR 0056.
+- **ACP's vocabulary, not ACP as the wire.** The Agent Client Protocol (Zed's
+  open standard for one client and many agents) is the nearest from-scratch
+  reference, and its shape matches this one: a typed union, a tool call as one
+  item updated by id, a tool kind. It is a common denominator by design, while
+  phase 7 gives every Claude message a home; Claude-only frames (background
+  tasks, `command_lifecycle`, rewind, usage-limit stops) would need its
+  extensions (not checked against the spec), and each agent would add a bridge
+  process on a 4 GB host. Borrowing its names keeps an ACP adapter, for agents
+  CLIde cannot test natively, one adapter folder away.
 - **Row ids never change.** React keys, the scroll-restore anchors
   (`data-chat-message-id`), the rewind anchor, Find and the server's history
   bookmarks all key on them. Live streamed text is the one exception today
@@ -174,18 +185,25 @@ Each is a technical call, with its reason.
 plumbing is needed.
 
 - `rows.ts`: `TranscriptRow`, a discriminated union on `kind` covering today's
-  persisted kinds (text, thinking, tool_use / tool_result, error,
-  compact_boundary, interactive_prompt, task_notification, agent_status, …),
-  each with only its own fields. The index signature goes. REST history, live
-  frames and the external SSE agent API all carry the same shape.
+  persisted kinds (text, thinking, tool, error, compact_boundary,
+  interactive_prompt, task_notification, agent_status, …), each with only its
+  own fields. The index signature goes. REST history, live frames and the
+  external SSE agent API all carry the same shape.
+- A tool call is one `tool` row with a status (`running`, `completed`,
+  `failed`), sent when the call starts; its result arrives as an update keyed by
+  tool id. History sends the finished row, so live and reload share one shape.
+  Codex's `item/started`/`item/completed` map onto it directly instead of being
+  split into two rows and joined again. An update that arrives before its row is
+  held, not dropped.
 - `events.ts`: ephemeral frames, never persisted: today's status, permission,
   complete and gateway kinds, the five kinds the server sends today that belong
   to no union, and new ones as phases add them (`turn_started`,
   `session_state`, `input_queued`, `text_delta`, `commands_changed`,
   `settings_changed`, `client_outdated`). The envelope carries `v`.
-- `tools.ts`: `ToolKind` (shell, file_read, file_edit, file_write, search,
-  web_fetch, web_search, todo, plan, question, agent, mcp, other), set on tool
-  rows by each provider's normalizer; the raw tool name and input are kept.
+- `tools.ts`: `ToolKind` (execute, read, edit, write, search, fetch,
+  web_search, todo, plan, question, agent, mcp, other), set on tool rows by each
+  provider's normalizer; the raw tool name and input are kept. Kinds that
+  overlap ACP's use its names.
   This moves the client's existing classifiers (`getToolCategory`,
   `describeInput`, `toolConfigs.ts`) to the server. Claude's tool names are
   already the shared vocabulary that Codex's adapter maps onto.
