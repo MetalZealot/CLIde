@@ -19,8 +19,8 @@ export type ClaudeTextDelta = {
   text: string;
 };
 
-/** What a stream event meant to the turn: the API answering, or reply text arriving. */
-export type ClaudeStreamSignal = 'message_start' | 'text' | null;
+/** What a stream event meant to the turn: the API answering, a block beginning, or reply text arriving. */
+export type ClaudeStreamSignal = 'message_start' | 'thinking' | 'tool' | 'text' | null;
 
 type OpenBlock = { key: string; sent: number; pending: string; claimed: boolean };
 
@@ -90,10 +90,12 @@ export function createClaudeTextStream({
       }
       if (event.type === 'content_block_start') {
         abandon();
-        block = messageId && event.content_block?.type === 'text' && typeof event.index === 'number'
+        const blockType = event.content_block?.type;
+        block = messageId && blockType === 'text' && typeof event.index === 'number'
           ? { key: `${messageId}:${event.index}`, sent: 0, pending: '', claimed: false }
           : null;
-        return null;
+        if (blockType === 'text') return null;
+        return blockType === 'thinking' || blockType === 'redacted_thinking' ? 'thinking' : 'tool';
       }
       if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
         const text = typeof event.delta.text === 'string' ? event.delta.text : '';

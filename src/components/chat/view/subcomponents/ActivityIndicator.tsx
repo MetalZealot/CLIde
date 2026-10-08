@@ -26,7 +26,7 @@ const dotStateFor = (activity: SessionActivity, awaitingInput: boolean, finish: 
   if (awaitingInput) return 'waiting';
   switch (activity.stage?.name) {
     case 'starting':
-    case 'sent':
+    case 'sending':
       return 'starting';
     case 'thinking':
     case 'retrying':
@@ -37,16 +37,24 @@ const dotStateFor = (activity: SessionActivity, awaitingInput: boolean, finish: 
   }
 };
 
+// Only an ending reported after this turn began belongs to it; a stop has no ending.
+const endingFor = (activity: SessionActivity, turnEnd: TurnEnd | null): Finish | null => (
+  turnEnd && turnEnd.endedAt >= activity.startedAt && turnEnd.outcome !== 'stopped' ? turnEnd.outcome : null
+);
+
 /**
  * The running turn's status as the conversation's last row: elapsed time, output
  * tokens, then what the provider reports it is doing, or "Working" when it reports nothing.
+ * A finished turn leaves at once, since its reply's summary row takes over; a failed one holds.
  */
 export default function ActivityIndicator({ activity, awaitingInput = false, turnEnd = null }: ActivityIndicatorProps) {
   const { t } = useTranslation('chat');
   const [renderedActivity, setRenderedActivity] = useState<SessionActivity | null>(activity);
   const [finish, setFinish] = useState<Finish | null>(null);
   const [isExiting, setIsExiting] = useState(false);
-  const startedAt = renderedActivity?.startedAt ?? null;
+  // Start-up has no clock, so the elapsed time matches the summary row, which counts from the prompt.
+  const isStarting = renderedActivity?.stage?.name === 'starting';
+  const startedAt = renderedActivity && !isStarting ? renderedActivity.readyAt ?? renderedActivity.startedAt : null;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
@@ -59,10 +67,11 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
 
     if (!renderedActivity) return undefined;
 
-    // Only an ending reported after this turn began belongs to it; a stop has no ending.
-    const ending = turnEnd && turnEnd.endedAt >= renderedActivity.startedAt && turnEnd.outcome !== 'stopped'
-      ? turnEnd.outcome
-      : null;
+    const ending = endingFor(renderedActivity, turnEnd);
+    if (ending === 'done') {
+      setRenderedActivity(null);
+      return undefined;
+    }
     setFinish(ending);
     const holdMs = ending ? FINISH_HOLD_MS : 0;
     if (!ending) setIsExiting(true);
@@ -80,6 +89,7 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
   }, [activity, renderedActivity, turnEnd]);
 
   useEffect(() => {
+    if (startedAt === null) setElapsedSeconds(0);
     if (startedAt === null || finish) return undefined;
     const update = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     update();
@@ -87,15 +97,16 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
     return () => clearInterval(timer);
   }, [startedAt, finish]);
 
-  if (!renderedActivity) return null;
+  // Gone in the same frame the summary row appears, so the two never stack.
+  if (!renderedActivity || (!activity && endingFor(renderedActivity, turnEnd) === 'done')) return null;
 
   const stage = renderedActivity.stage ?? null;
   const stageLabel = !stage
     ? null
     : stage.name === 'starting'
       ? t('claudeStatus.stage.starting', { defaultValue: 'Starting' })
-      : stage.name === 'sent'
-        ? t('claudeStatus.stage.sent', { defaultValue: 'Sent' })
+      : stage.name === 'sending'
+        ? t('claudeStatus.stage.sending', { defaultValue: 'Sending' })
         : stage.name === 'thinking'
           ? t('claudeStatus.stage.thinking', { defaultValue: 'Thinking' })
           : stage.name === 'retrying'
@@ -115,25 +126,23 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
             : stage.name === 'background'
               ? t('claudeStatus.stage.background', { count: stage.count ?? 1 })
               : t('claudeStatus.stage.compacting', { defaultValue: 'Compacting' });
-  const liveLabel = (
+  // Streaming words are their own status, so the line names nothing while they arrive.
+  const isWriting = !awaitingInput && stage?.name === 'writing';
+  const liveLabel = isWriting ? '' : (
     (awaitingInput ? t('claudeStatus.waiting', { defaultValue: 'Waiting for you' }) : null)
     || stageLabel
     || renderedActivity.statusText
     || t('claudeStatus.actions.working', { defaultValue: 'Working' })
   ).replace(/\.+$/, '');
-  const label = finish === 'done'
-    ? t('claudeStatus.finished.done', { defaultValue: 'Done' })
-    : finish === 'failed'
-      ? t('claudeStatus.finished.failed', { defaultValue: 'Failed' })
-      : liveLabel;
+  const label = finish === 'failed' ? t('claudeStatus.finished.failed', { defaultValue: 'Failed' }) : liveLabel;
 
   const outputTokens = renderedActivity.outputTokens ?? 0;
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   const metrics = [
-    minutes < 1
+    isStarting ? '' : (minutes < 1
       ? t('claudeStatus.elapsed.seconds', { count: seconds, defaultValue: '{{count}}s' })
-      : t('claudeStatus.elapsed.minutesSeconds', { minutes, seconds, defaultValue: '{{minutes}}m {{seconds}}s' }),
+      : t('claudeStatus.elapsed.minutesSeconds', { minutes, seconds, defaultValue: '{{minutes}}m {{seconds}}s' })),
     outputTokens > 0
       ? t('claudeStatus.outputTokens', {
         count: outputTokens,
@@ -150,12 +159,16 @@ export default function ActivityIndicator({ activity, awaitingInput = false, tur
     >
       <div className="flex min-h-6 min-w-0 items-center gap-2 text-chat-activity text-muted-foreground sm:min-h-7">
         <ActivityDots state={dotStateFor(renderedActivity, awaitingInput, finish)} />
-        <span className="shrink-0 whitespace-nowrap tabular-nums">{metrics} ·</span>
-        <span className="min-w-0 flex-1 overflow-hidden" title={label}>
-          {finish
-            ? <span className="block truncate">{label}</span>
-            : <Shimmer className="block truncate">{`${label}…`}</Shimmer>}
-        </span>
+        {metrics && (
+          <span className="shrink-0 whitespace-nowrap tabular-nums">{label ? `${metrics} ·` : metrics}</span>
+        )}
+        {label && (
+          <span className="min-w-0 flex-1 overflow-hidden" title={label}>
+            {finish
+              ? <span className="block truncate">{label}</span>
+              : <Shimmer className="block truncate">{`${label}…`}</Shimmer>}
+          </span>
+        )}
       </div>
     </div>
   );

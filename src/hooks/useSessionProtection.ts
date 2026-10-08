@@ -15,6 +15,8 @@ export interface SessionActivity {
    * the elapsed-time display and the stale `chat_subscribed` idle-ack guard.
    */
   startedAt: number;
+  /** When the runtime left its `starting` stage (client clock); the elapsed time counts from here. */
+  readyAt?: number;
 }
 
 export type SessionActivityMap = ReadonlyMap<string, SessionActivity>;
@@ -75,6 +77,7 @@ const sessionActivityMapsMatch = (
       || leftActivity.outputTokens !== rightActivity.outputTokens
       || leftActivity.canInterrupt !== rightActivity.canInterrupt
       || leftActivity.startedAt !== rightActivity.startedAt
+      || leftActivity.readyAt !== rightActivity.readyAt
     ) {
       return false;
     }
@@ -103,13 +106,16 @@ export function useSessionProtection() {
 
     setProcessingSessions((prev) => {
       const existing = prev.get(sessionId);
+      const stage = activity?.stage !== undefined ? activity.stage : existing?.stage ?? null;
       const next: SessionActivity = {
         statusText:
           activity?.statusText !== undefined ? activity.statusText : existing?.statusText ?? null,
-        stage: activity?.stage !== undefined ? activity.stage : existing?.stage ?? null,
+        stage,
         outputTokens: activity?.outputTokens ?? existing?.outputTokens,
         canInterrupt: activity?.canInterrupt ?? existing?.canInterrupt ?? true,
         startedAt: existing?.startedAt ?? Date.now(),
+        readyAt: existing?.readyAt
+          ?? (existing?.stage?.name === 'starting' && stage?.name !== 'starting' ? Date.now() : undefined),
       };
 
       if (
@@ -189,6 +195,7 @@ export function useSessionProtection() {
           startedAt:
             existing?.startedAt
             ?? (snapshotStartedAt !== undefined ? Math.min(snapshotStartedAt, now) : now),
+          readyAt: existing?.readyAt,
         });
       }
 

@@ -572,6 +572,16 @@ describe('chatSubcomponents', () => {
       await render({ statusText: null, canInterrupt: true, startedAt });
       assert.equal(container.querySelector('[role="status"]')?.textContent, '4s ·Working…');
 
+      // Start-up has no clock; it runs from the moment the runtime is ready, as the summary row does.
+      await render({ statusText: null, stage: { name: 'starting' }, canInterrupt: true, startedAt });
+      assert.equal(container.querySelector('[role="status"]')?.textContent, 'Starting…');
+      await render({ statusText: null, stage: { name: 'sending' }, canInterrupt: true, startedAt, readyAt: Date.now() - 1_500 });
+      assert.equal(container.querySelector('[role="status"]')?.textContent, '1s ·Sending…');
+
+      // Streaming words are the status: no label while they arrive.
+      await render({ statusText: null, stage: { name: 'writing' }, outputTokens: 267, canInterrupt: true, startedAt });
+      assert.equal(container.querySelector('[role="status"]')?.textContent, '4s · 267 tokens');
+
       await render({ statusText: 'Compacting conversation', canInterrupt: true, startedAt });
       assert.match(container.textContent ?? '', /Compacting conversation…/);
 
@@ -605,7 +615,7 @@ describe('chatSubcomponents', () => {
       assert.match(container.textContent ?? '', /Waiting for you…/);
       assert.equal(container.querySelector('[data-state]')?.getAttribute('data-state'), 'waiting');
 
-      // A turn that ends plays its outcome before the row leaves; a stop, or an ending older than the turn, does not.
+      // A finished turn leaves at once for its summary row; a failure holds its outcome; a stop, or an ending older than the turn, just fades.
       const endWith = async (turnEnd: React.ComponentProps<typeof ActivityIndicator>['turnEnd']) => {
         await render({ statusText: null, canInterrupt: true, startedAt });
         await React.act(async () => root?.render(
@@ -613,9 +623,10 @@ describe('chatSubcomponents', () => {
         ));
         return container?.querySelector('[data-state]')?.getAttribute('data-state');
       };
-      assert.equal(await endWith({ sessionId: 's', outcome: 'done', endedAt: Date.now() }), 'done');
-      assert.equal(container.querySelector('[role="status"]')?.textContent, '4s ·Done');
+      assert.equal(await endWith({ sessionId: 's', outcome: 'done', endedAt: Date.now() }), undefined);
+      assert.equal(container.querySelector('[role="status"]'), null);
       assert.equal(await endWith({ sessionId: 's', outcome: 'failed', endedAt: Date.now() }), 'failed');
+      assert.equal(container.querySelector('[role="status"]')?.textContent, '4s ·Failed');
       assert.equal(await endWith({ sessionId: 's', outcome: 'stopped', endedAt: Date.now() }), 'working');
       assert.ok(container.querySelector('.chat-activity-exit'));
       assert.equal(await endWith({ sessionId: 's', outcome: 'done', endedAt: startedAt - 1 }), 'working');

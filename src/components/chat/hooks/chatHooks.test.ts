@@ -10,6 +10,7 @@ import { historyBudgets } from '../../../../scripts/chat-history/budgets.js';
 import { useChatBrowser } from '../../browser-use/useChatBrowser';
 import { useAsyncAnswerQueueAutoSend } from '../../../hooks/useAsyncAnswerQueueAutoSend';
 import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSend';
+import { useSessionProtection } from '../../../hooks/useSessionProtection';
 import type { ServerEvent } from '../../../contexts/WebSocketContext';
 import { streamingRowId, useSessionStore, type NormalizedMessage, type SessionStore } from '../../../stores/useSessionStore';
 import type { ProjectSession } from '../../../types/app';
@@ -1435,4 +1436,27 @@ test('display reuse follows tool-result, subagent and streaming changes without 
   const delta = normalizedToChatMessages([plain, { ...streaming, content: 'first second' }]);
   assert.equal(streamed[0], delta[0]);
   assert.equal(delta[1].content, 'first second');
+});
+
+test('the turn clock starts when the runtime leaves its starting stage, once', async () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  let protection!: ReturnType<typeof useSessionProtection>;
+  function Harness() {
+    protection = useSessionProtection();
+    return null;
+  }
+  await React.act(async () => root.render(React.createElement(Harness)));
+  const readyAt = () => protection.processingSessions.get('s1')?.readyAt;
+
+  await React.act(async () => protection.markSessionProcessing('s1', { statusText: null }));
+  await React.act(async () => protection.markSessionProcessing('s1', { stage: { name: 'starting' } }));
+  assert.equal(readyAt(), undefined, 'tapping send and starting up are not on the clock');
+  await React.act(async () => protection.markSessionProcessing('s1', { stage: { name: 'sending' } }));
+  const first = readyAt();
+  assert.equal(typeof first, 'number');
+  await React.act(async () => protection.markSessionProcessing('s1', { stage: { name: 'thinking' } }));
+  assert.equal(readyAt(), first, 'later stages keep the first ready time');
+
+  await React.act(async () => root.unmount());
 });

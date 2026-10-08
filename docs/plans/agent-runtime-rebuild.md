@@ -174,7 +174,10 @@ phase done.
     is left only for rows no key covers: Cursor, OpenCode, and a stopped Claude
     reply. Every session, on screen or not, grows one row per stream; an idle
     `chat_subscribed` drops any still growing.
-  - "Sent" is the turn's first `message_start`; streamed words end any stage.
+  - Stages: Starting until `system/init` (no clock, so the timer matches the
+    summary row), Sending until a block starts, Thinking on a thinking block,
+    no label while words stream, Working for a tool block. A finished turn's
+    row leaves at once for the summary row; only a failure holds.
   - Chat history phase 13: a streaming reply renders block by block, so an
     update re-renders only the open block; a cut waits for the next line to be
     whole, so pieces only append. Link references and footnotes defined in a

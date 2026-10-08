@@ -71,7 +71,7 @@ export type FollowUpQuestion = {
 
 /** What a runtime reports it is doing; mirrors the server's `TurnStage`. */
 export type TurnStage = {
-  name: 'starting' | 'sent' | 'thinking' | 'retrying' | 'compacting' | 'background';
+  name: 'starting' | 'sending' | 'thinking' | 'writing' | 'retrying' | 'compacting' | 'background';
   tokens?: number;
   count?: number;
   attempt?: number;
@@ -79,7 +79,7 @@ export type TurnStage = {
   reason?: string;
 };
 
-const TURN_STAGE_NAMES = new Set(['starting', 'sent', 'thinking', 'retrying', 'compacting', 'background']);
+const TURN_STAGE_NAMES = new Set(['starting', 'sending', 'thinking', 'writing', 'retrying', 'compacting', 'background']);
 
 const readStageNumber = (value: unknown): number | undefined => (
   typeof value === 'number' && Number.isFinite(value) ? value : undefined

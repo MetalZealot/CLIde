@@ -907,8 +907,6 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
   let sentLogged = false;
   // The live limit notice lacks the transcript's `quotaLimits`; this turn's rejected event supplies it.
   let rejectedRateLimit = null;
-  // The rate-limit event can land after the first model output; "Sent" must not follow it.
-  let outputStarted = false;
   const turnTokens = createTurnTokenCounter();
   let sentOutputTokens = 0;
   // The prompt stream `steer()` writes into; see createClaudeInputChannel.
@@ -1132,12 +1130,12 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     });
     // The label shows whatever stage the runtime last reported; an empty frame
     // hands it back to its own cycling words.
-    let stageSent = false;
-    const sendStage = (stage) => {
-      stageSent = stage !== null;
+    let currentStage = null;
+    const sendStage = (stage, text = '') => {
+      currentStage = stage?.name ?? null;
       ws.send(createNormalizedMessage({
         kind: 'status',
-        text: '',
+        text,
         stage,
         sessionId: capturedSessionId || sessionId || null,
         provider: 'claude',
@@ -1223,13 +1221,14 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         if (signal === 'message_start' && !sentLogged) {
           sentLogged = true;
           logTurn('sent', sessionKey(), { ms: sinceStart() });
-          if (!outputStarted) sendStage({ name: 'sent' });
         }
-        // Words on screen end any stage, including a retry or a background wait mid-turn.
+        if (signal === 'thinking' && currentStage !== 'thinking') sendStage({ name: 'thinking' });
+        // A tool call streaming its input is the plain "Working".
+        if (signal === 'tool' && currentStage) sendStage(null);
+        // Words on screen replace any stage, including a retry or a background wait mid-turn.
         if (signal === 'text') {
-          outputStarted = true;
           awaitingBackground = false;
-          if (stageSent) sendStage(null);
+          if (currentStage !== 'writing') sendStage({ name: 'writing' });
         }
         armBackgroundHold();
         continue;
@@ -1266,7 +1265,6 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       // the last value is logged, at the end of the turn.
       if (message?.type === 'system' && message.subtype === 'thinking_tokens') {
         thinkingEstimate = message.estimated_tokens || thinkingEstimate;
-        outputStarted = true;
         sendStage({ name: 'thinking', tokens: thinkingEstimate });
         turnTokens.thinking(message.estimated_tokens);
       }
@@ -1276,6 +1274,7 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       }
       if (message?.type === 'system' && message.subtype === 'init') {
         rememberClaudeTerminalCommands(message.terminal_slash_commands);
+        if (currentStage === 'starting') sendStage({ name: 'sending' });
       }
       if (message?.type === 'system' && message.subtype === 'background_tasks_changed') {
         backgroundTasks = countHeldBackgroundTasks(message.tasks);
@@ -1327,15 +1326,9 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       }
 
       if (message?.type === 'system' && message.subtype === 'status') {
-        const isCompacting = message.status === 'compacting';
-        stageSent = isCompacting;
-        ws.send(createNormalizedMessage({
-          kind: 'status',
-          text: isCompacting ? 'Compacting conversation' : '',
-          stage: isCompacting ? { name: 'compacting' } : null,
-          sessionId: capturedSessionId || sessionId || null,
-          provider: 'claude',
-        }));
+        // Other status values arrive outside compaction too, so only its own end clears it.
+        if (message.status === 'compacting') sendStage({ name: 'compacting' }, 'Compacting conversation');
+        else if (currentStage === 'compacting') sendStage(null);
         if (message.compact_result === 'failed') {
           ws.send(createNormalizedMessage({
             kind: 'error',
@@ -1373,15 +1366,12 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         noticeStreamed = true;
       }
 
-      // Text, a tool call or a tool result means the stage is over: those rows
-      // are the activity now, and a stale "Thinking" would sit above them.
-      if (message?.type === 'assistant' || message?.type === 'user') {
-        outputStarted = true;
-      }
       if (message?.type === 'assistant') {
         awaitingBackground = false;
       }
-      if (stageSent && (message?.type === 'assistant' || message?.type === 'user')) {
+      // A finished block or a tool result ends the stage, so a stale "Thinking"
+      // never sits above them; a finished reply keeps "writing" until the turn ends.
+      if (currentStage && (message?.type === 'user' || (message?.type === 'assistant' && currentStage !== 'writing'))) {
         sendStage(null);
       }
 

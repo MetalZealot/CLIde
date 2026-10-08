@@ -498,7 +498,7 @@
     },
     "stage": {
       "starting": "Starting",
-      "sent": "Sent",
+      "sending": "Sending",
       "thinking": "Thinking",
       "retrying": "Retrying · {{reason}} · {{attempt}} of {{maxAttempts}}",
       "retryingOpenEnded": "Retrying · attempt {{attempt}} · {{reason}}",
@@ -509,7 +509,6 @@
     },
     "waiting": "Waiting for you",
     "finished": {
-      "done": "Done",
       "failed": "Failed"
     }
   },

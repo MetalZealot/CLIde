@@ -1276,6 +1276,9 @@ describe('claude-runtime turns on a fake query', () => {
     const assistant = (uuid: string, content: Frame[]) => ({
       type: 'assistant', session_id: 'prov-stream', uuid, message: { id: 'msg_1', role: 'assistant', content },
     });
+    fake.push({ type: 'system', subtype: 'init', session_id: 'prov-stream' });
+    // Sent after init on every turn; it must not wipe "Sending".
+    fake.push({ type: 'system', subtype: 'status', session_id: 'prov-stream', status: null });
     fake.push(event({ type: 'message_start', message: { id: 'msg_1' } }));
     fake.push(event({ type: 'content_block_start', index: 0, content_block: { type: 'thinking' } }));
     fake.push(assistant('u0', [{ type: 'thinking', thinking: '' }]));
@@ -1288,6 +1291,7 @@ describe('claude-runtime turns on a fake query', () => {
     fake.push(delta(' world'));
     fake.push(assistant('u1', [{ type: 'text', text: 'Hello world' }]));
     fake.push(event({ type: 'content_block_stop', index: 1 }));
+    fake.push(event({ type: 'content_block_start', index: 2, content_block: { type: 'tool_use' } }));
     fake.end();
     await done;
     runtime.setClaudeQueryForTests(null);
@@ -1300,8 +1304,10 @@ describe('claude-runtime turns on a fake query', () => {
     assert.equal(final?.id, 'u1_0');
     assert.equal(final?.streamKey, 'msg_1:1');
     const stages = sent.filter((frame) => frame.kind === 'status' && frame.stage !== undefined);
-    assert.deepEqual(stages.map((frame) => (frame.stage as { name?: string } | null)?.name ?? null), ['starting', 'sent', null]);
-    assert.ok(sent.indexOf(stages[1]) < sent.indexOf(deltas[0]), '"Sent" shows before the first words');
+    // The finished reply keeps "writing"; only the tool call's start returns the label to "Working".
+    assert.deepEqual(stages.map((frame) => (frame.stage as { name?: string } | null)?.name ?? null),
+      ['starting', 'sending', 'thinking', null, 'writing', null]);
+    assert.ok(sent.indexOf(stages[4]) < sent.indexOf(deltas[0]), '"writing" lands before the first words');
   });
 
   test('a retry withdraws the block it cut short, and the retried words clear the retry label', async () => {
@@ -1340,8 +1346,8 @@ describe('claude-runtime turns on a fake query', () => {
     ]);
     const stages = sent.filter((frame) => frame.kind === 'status' && frame.stage !== undefined);
     assert.deepEqual(stages.map((frame) => (frame.stage as { name?: string } | null)?.name ?? null),
-      ['starting', 'sent', null, 'retrying', null]);
-    assert.ok(sent.indexOf(stages[4]) < sent.indexOf(stream[2]), 'the retry label goes when the retried words start, not when the row lands');
+      ['starting', 'writing', 'retrying', 'writing']);
+    assert.ok(sent.indexOf(stages[3]) < sent.indexOf(stream[2]), 'the retry label goes when the retried words start, not when the row lands');
   });
 
   test('a live tool result keeps its structured result, as a reloaded one does', async () => {
