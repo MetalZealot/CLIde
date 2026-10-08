@@ -159,8 +159,8 @@ export function initializeScheduledMessages(): void {
 
   // A session set to continue itself arms the next one here: the gateway
   // classifies the stop, this layer decides what to do about it.
-  chatRunRegistry.onUsageLimitStop((sessionId) => {
-    const outcome = armAutoContinueAfterLimitStop(sessionId);
+  chatRunRegistry.onUsageLimitStop((sessionId, turnOptions) => {
+    const outcome = armAutoContinueAfterLimitStop(sessionId, turnOptions);
     if (outcome === 'armed') broadcastPendingSessions();
     if (outcome === 'capped') announceAutoContinueCapped(sessionId);
   });

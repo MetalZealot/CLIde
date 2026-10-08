@@ -70,12 +70,14 @@ type ChatRun = {
    * wording. Consumed once, when the terminal `complete` passes.
    */
   usageLimitStop: boolean;
+  /** The send options this turn started with, handed to the limit-stop listener. */
+  turnOptions: unknown;
   /** Set by the first event the provider caused; the runtime's own `starting` stage precedes the provider and does not count. */
   providerResponded: boolean;
 };
 
 /** Notified at the end of a run the provider ended on a usage limit. */
-type UsageLimitStopListener = (appSessionId: string) => void;
+type UsageLimitStopListener = (appSessionId: string, turnOptions: unknown) => void;
 
 let usageLimitStopListener: UsageLimitStopListener | null = null;
 
@@ -212,7 +214,7 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     run.completedAt = Date.now();
     if (run.usageLimitStop) {
       run.usageLimitStop = false;
-      usageLimitStopListener?.(run.appSessionId);
+      usageLimitStopListener?.(run.appSessionId, run.turnOptions);
     }
     evictRunLater(run.appSessionId);
   }
@@ -318,6 +320,7 @@ export const chatRunRegistry = {
     userId: string | number | null;
     /** Set when `connection` already fans out; keeps `attachConnection` off it. */
     broadcast?: boolean;
+    turnOptions?: unknown;
   }): ChatRun | null {
     const existing = runs.get(input.appSessionId);
     if (existing && existing.status === 'running') {
@@ -337,6 +340,7 @@ export const chatRunRegistry = {
       completedAt: null,
       abortInFlight: false,
       usageLimitStop: false,
+      turnOptions: input.turnOptions,
       providerResponded: false,
       abortController: new AbortController(),
       broadcast: input.broadcast === true,

@@ -19,6 +19,7 @@ export type ScheduledMessageSendDependencies<TRun> = {
     providerSessionId: string | null;
     connection: RealtimeClientConnection;
     userId: string | number | null;
+    turnOptions?: Record<string, unknown>;
   }): TRun | null;
   /** A Shell's CLI holds the conversation in memory; a send beside it forks the transcript. */
   isSessionOpenInShell?(appSessionId: string): boolean;
@@ -62,12 +63,14 @@ export function createScheduledMessageSender<TRun>(
     // A run already in flight owns the session; the message waits for the next
     // opening rather than interrupting, which is the behaviour CLIde chose over
     // upstream's interrupt.
+    const options = parseOptions(row);
     const run = dependencies.startRun({
       appSessionId: row.session_id,
       provider: session.provider,
       providerSessionId: session.provider_session_id,
       connection: dependencies.connection,
       userId: null,
+      turnOptions: options,
     });
     if (!run) {
       return { ok: false, reason: 'A run is already in progress for this session.' };
@@ -78,7 +81,7 @@ export function createScheduledMessageSender<TRun>(
       run,
       provider: session.provider,
       projectPath: session.project_path,
-      options: parseOptions(row),
+      options,
     });
 
     return { ok: true };

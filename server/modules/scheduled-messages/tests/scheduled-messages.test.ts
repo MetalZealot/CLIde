@@ -645,10 +645,17 @@ describe('scheduled-messages', () => {
       assert.equal(waiting().length, 0);
 
       sessionsDb.setSessionAutoContinue('session-auto', true);
-      assert.equal(armAutoContinueAfterLimitStop('session-auto'), 'armed');
+      assert.equal(armAutoContinueAfterLimitStop('session-auto', {
+        permissionMode: 'acceptEdits',
+        model: 'opus',
+        attachments: [{ name: 'a.png' }],
+        rewindToMessageId: 'm-1',
+      }), 'armed');
       const [armed] = waiting();
       assert.equal(armed?.content, 'Keep going', 'the stored message is what goes');
       assert.equal(armed?.trigger_kind, 'usage-reset');
+      // The stopped turn's mode and model carry over; its files and rewind never do.
+      assert.deepEqual(JSON.parse(armed?.options ?? 'null'), { model: 'opus', permissionMode: 'acceptEdits' });
 
       // A second stop while the first is still waiting must not stack rows.
       assert.equal(armAutoContinueAfterLimitStop('session-auto'), 'already-waiting');
@@ -689,11 +696,15 @@ describe('scheduled-messages', () => {
       assert.equal(setSessionAutoContinueMode('session-switch', true, false), true);
       assert.equal(waiting().length, 0);
 
-      // On while stopped: the continue is queued now, once, without counting.
+      // On while stopped: the continue is queued now, once, without counting,
+      // in the mode the stopped turn ran in.
+      sessionsDb.setSessionAutoContinue('session-switch', false);
+      assert.equal(armAutoContinueAfterLimitStop('session-switch', { permissionMode: 'plan' }), 'off');
       setSessionAutoContinueMode('session-switch', true, true);
       setSessionAutoContinueMode('session-switch', true, true);
       assert.equal(waiting().length, 1);
       assert.equal(waiting()[0]?.content, readAutoContinueMessage());
+      assert.deepEqual(JSON.parse(waiting()[0]?.options ?? 'null'), { permissionMode: 'plan' });
       assert.equal(sessionsDb.getSessionAutoContinue('session-switch')?.streak, 0);
 
       // Off cancels the continue but leaves a message the user wrote.

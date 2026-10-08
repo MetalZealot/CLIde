@@ -74,9 +74,12 @@ Read from source 2026-10-06 unless marked.
   never a bypass mode by default. The agent API's bypass is a known Trust gap, not
   a pattern to copy. This rejects auto-deny, which today turns an unattended run
   into silent half-work.
-- **Three failures in a row pause the task** and send a push saying why. A usage
-  limit, a missing folder and a provider error each count. This stops an hourly
-  task on a broken prompt from burning usage for a week.
+- **A run due while usage is spent waits for the reset**, through the same
+  usage-reset trigger a hand-scheduled message uses, and is skipped only if the
+  reset lands after the task's next run. Spent usage is not a failure.
+- **Three failures in a row pause the task** and send a push saying why. A missing
+  folder and a provider error each count. This stops an hourly task on a broken
+  prompt from burning usage for a week.
 - **Run chats live under their task.** A new-chat run is a real session, but it is
   listed under its task in the Scheduled section, not in the project's chat list.
   That way an hourly task doesn't bury real chats. The runs table maps each

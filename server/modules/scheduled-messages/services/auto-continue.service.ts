@@ -19,6 +19,27 @@ import { cancelScheduledMessage, createScheduledMessage } from './scheduled-mess
  */
 export const AUTO_CONTINUE_MAX_CONSECUTIVE = 3;
 
+/** What a continue repeats from the turn that stopped; never its text, files, or rewind target. */
+const CONTINUE_SETTING_KEYS = [
+  'model', 'effort', 'fastMode', 'permissionMode', 'collaborationMode', 'toolsSettings', 'skipPermissions',
+] as const;
+
+/**
+ * Each session's last limit-stopped turn settings, for a continue the user
+ * arms by hand later. In memory only: after a restart that continue goes
+ * without them and the provider's own default mode applies.
+ */
+const lastStopSettings = new Map<string, Record<string, unknown>>();
+
+function pickContinueSettings(turnOptions: unknown): Record<string, unknown> | undefined {
+  if (!turnOptions || typeof turnOptions !== 'object') return undefined;
+  const source = turnOptions as Record<string, unknown>;
+  const picked = Object.fromEntries(
+    CONTINUE_SETTING_KEYS.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]),
+  );
+  return Object.keys(picked).length > 0 ? picked : undefined;
+}
+
 export type AutoContinueOutcome =
   /** Not this session's mode, or the session is gone. */
   | 'off'
@@ -34,7 +55,10 @@ export type AutoContinueOutcome =
  * Called at the end of a run the gateway classified as a limit stop, so it
  * never reads a notice's wording.
  */
-export function armAutoContinueAfterLimitStop(sessionId: string): AutoContinueOutcome {
+export function armAutoContinueAfterLimitStop(sessionId: string, turnOptions?: unknown): AutoContinueOutcome {
+  const settings = pickContinueSettings(turnOptions);
+  if (settings) lastStopSettings.set(sessionId, settings);
+
   const mode = sessionsDb.getSessionAutoContinue(sessionId);
   if (!mode?.enabled) return 'off';
 
@@ -56,6 +80,7 @@ export function armAutoContinueAfterLimitStop(sessionId: string): AutoContinueOu
     sessionId,
     provider: session.provider as LLMProvider,
     content: readAutoContinueMessage(),
+    options: lastStopSettings.get(sessionId),
     trigger: 'usage-reset',
     scheduledFor: null,
   });
@@ -86,6 +111,7 @@ export function setSessionAutoContinueMode(
       sessionId,
       provider: session.provider as LLMProvider,
       content: readAutoContinueMessage(),
+      options: lastStopSettings.get(sessionId),
       trigger: 'usage-reset',
       scheduledFor: null,
     });

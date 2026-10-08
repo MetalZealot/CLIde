@@ -44,7 +44,7 @@ main checkout only).
 - [~] **Background shells died when a Claude turn ended.** The run now holds its input open until background tasks settle, then the agent reports back; 30-min silence backstop. Fork reimplementation of upstream `#1347`'s hold; its background-task strip and per-task stop are not taken. **S — awaiting live check**
 - [ ] **New Claude sessions ignore `permissions.defaultMode`**; a one-off Bypass carries into the next session. [Plan](plans/claude-permission-default.md). **S/M**
 - [ ] **Rewinding to the first message lists a second session.** It starts fresh and the original stays listed. **S**
-- [ ] **Auto-Continue sends with no permission mode.** Its `usage-reset` row has no options, so the turn runs in `default` and approvals time out. Store the mode when arming. **S**
+- [~] **Auto-Continue sends with no permission mode.** The continue now carries the stopped turn's mode, model and effort (tested); a continue armed by hand after a restart still goes without them. Awaiting a live limit stop. **S**
 - [~] **Claude thoughts come back empty because CLIde never requests summaries.** Requested since `b1692402` (`display: 'summarized'`); not yet checked live. **S**
 - [ ] **Codex history never flags a failed command.** Reloaded `exec` results never set `isError`; 18 failed commands in one sample came back unflagged. The rollout's `CommandExecution` records carry exit code and duration. **S**
 - [ ] **Cursor `ApplyPatch` edits show 0/0 line counts.** It is renamed `Edit` but only `patch` is filled. Source only; no Cursor session to test. **S**
@@ -108,6 +108,7 @@ Queued work first. Below the rule is **someday**: real ideas, but nothing here i
 started, sliced, or blocking anything — skip it unless you are deliberately picking
 new work.
 
+- [~] **Send while usage is spent opens the schedule sheet.** It names the limit and its reset, leads with *When usage resets*, and keeps *Send now anyway*; Claude and Codex only, slash commands pass. Tested; awaiting a live check while limited. **S**
 - [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, reference docs and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
 - [ ] **Move `/status` into Settings → System → Diagnostics.** Replace its Chat-only modal with system-owned process details, remove redundant package/provider/model/health claims, and keep the command only as a hidden redirect. [Plan](plans/system-diagnostics.md). **M**

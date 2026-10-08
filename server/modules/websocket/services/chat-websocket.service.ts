@@ -449,6 +449,7 @@ async function handleChatSend(
     providerSessionId: session.provider_session_id,
     connection: ws,
     userId,
+    turnOptions: data.options,
   });
 
   if (!run) {

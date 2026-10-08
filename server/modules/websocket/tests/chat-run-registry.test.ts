@@ -620,7 +620,11 @@ test('a broadcast run keeps its fan-out connection when a client subscribes', as
 test('a usage-limit stop is reported once, at the end of the run that hit it', async () => {
   await withIsolatedDatabase(() => {
     const reported: string[] = [];
-    chatRunRegistry.onUsageLimitStop((sessionId) => reported.push(sessionId));
+    const reportedOptions: unknown[] = [];
+    chatRunRegistry.onUsageLimitStop((sessionId, turnOptions) => {
+      reported.push(sessionId);
+      reportedOptions.push(turnOptions);
+    });
 
     try {
       sessionsDb.createAppSession('app-limit-1', 'claude', '/workspace/demo');
@@ -631,6 +635,7 @@ test('a usage-limit stop is reported once, at the end of the run that hit it', a
         providerSessionId: null,
         connection,
         userId: 'user-1',
+        turnOptions: { permissionMode: 'acceptEdits' },
       });
       assert.ok(run);
 
@@ -647,6 +652,7 @@ test('a usage-limit stop is reported once, at the end of the run that hit it', a
 
       run.writer.send({ kind: 'complete', provider: 'claude', sessionId: 'provider-id-1', exitCode: 0 });
       assert.deepEqual(reported, ['app-limit-1']);
+      assert.deepEqual(reportedOptions, [{ permissionMode: 'acceptEdits' }], 'the stopped turn\'s options travel with it');
 
       // A spent balance never lifts, so a continue would wait forever.
       sessionsDb.createAppSession('app-limit-2', 'claude', '/workspace/demo');
