@@ -15,7 +15,7 @@ main checkout only).
 
 ## Provider maintenance
 
-- [~] **Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every SDK message.** Grayson's priority, exempt from the plan size cap. Phases 0–1b done; phase 2 built 2026-10-07, awaiting your check. Absorbs the mid-turn controls, streaming, slash menu, orphaned-first-message and live `tool_use_result` items. [Plan](plans/agent-runtime-rebuild.md). **L**
+- [~] **Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every SDK message.** Grayson's priority, exempt from the plan size cap. Phases 0–2 done; phase 3 next. Absorbs the mid-turn controls, streaming, slash menu, orphaned-first-message and live `tool_use_result` items. [Plan](plans/agent-runtime-rebuild.md). **L**
 - [ ] **Signing in to a provider opens a terminal.** The sign-in window runs `claude auth login`, `codex login --device-auth` or `cursor-agent login` in a plain shell. Replace it with a link and a code box, CLIde driving the same command behind it; check each CLI's flow first. Grayson's call 2026-10-06. **M**
 - [ ] **The last six backend JavaScript files become TypeScript.** Four provider runtimes, the notification orchestrator and Codex token usage; `checkJs` is off, so `typecheck` reads none of them. Codex first, Claude last. [Plan](plans/server-typescript-conversion.md). **L**
 - [ ] **Tools pages can show plugins and skills but not control them.** Turn plugins/skills/connectors on and off from CLIde, then optionally browse each provider's marketplace, add a marketplace, and install. Writes each provider's own config; land the native-key MCP fix below first. Follows the finished Tools plan (tag `docs-archive-2026-10-07`). **L — design first**
@@ -39,7 +39,7 @@ main checkout only).
 
 ## Bugs
 
-- [ ] **A streamed reply's first second lands in one lump on the phone.** The SDK delivers evenly (a piece every ~20 ms, measured 2026-10-08), so the hold-up is between server and screen. Next: log first-text time on the server and the phone, then compare. Phase 2 of [the runtime plan](plans/agent-runtime-rebuild.md). **?**
+- [ ] **A streamed reply's first second lands in one lump on the phone.** The SDK delivers evenly (a piece every ~20 ms, measured 2026-10-08), so the hold-up is between server and screen. Next: log first-text time on the server and the phone, then compare. Found in [runtime plan](plans/agent-runtime-rebuild.md) phase 2's check. **?**
 - [ ] **Chat follows the bottom of a growing reply, so its start scrolls away.** Claude.ai and ChatGPT keep the prompt at the top and grow the reply below it; client-only. Agree the end state before building. **M**
 - [~] **Background shells died when a Claude turn ended.** The run now holds its input open until background tasks settle, then the agent reports back; 30-min silence backstop. Fork reimplementation of upstream `#1347`'s hold; its background-task strip and per-task stop are not taken. **S — awaiting live check**
 - [ ] **New Claude sessions ignore `permissions.defaultMode`**; a one-off Bypass carries into the next session. [Plan](plans/claude-permission-default.md). **S/M**

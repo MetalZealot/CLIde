@@ -160,7 +160,7 @@ phase done.
     parameter, send a message, copy the block; it lists the turn's frames by
     kind and nothing you wrote.
 
-- [~] 2. **Word-by-word replies — est. 1–2.** Built 2026-10-07 on SDK and CLI 293.
+- [x] 2. **Word-by-word replies — est. 1–2.** Done 2026-10-08 on SDK and CLI 293.
   - `includePartialMessages` on every persisted chat; `claude-text-stream.ts`
     turns `stream_event`s into `text_delta` frames every 50 ms, keyed by API
     message id plus block index, with each chunk's offset. They take no seq or
@@ -193,8 +193,8 @@ phase done.
     blocks whose deltas equal their rows. History walks: every target as before
     the change; `rerenderBounded` fails identically with and without it (worst
     127), which is chat history phase 7's open item.
-  - You: ask something with a long answer; it appears word by word; reload, and
-    the same reply shows once.
+  - You (done 2026-10-08): replies stream on the phone and show once after a
+    reload. The first second arriving in one lump is a separate board item.
 
 - [ ] 3. **Typed wire in place, no behaviour change — est. 2–3.**
   - `NormalizedMessage` moves to `shared/chat-protocol/` as the row and event
