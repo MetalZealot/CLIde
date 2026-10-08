@@ -109,4 +109,5 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0069 — A chat's Browser context belongs to the chat, not the MCP connection](0069-a-chats-browser-belongs-to-the-chat-not-the-connection.md)
 - [0070 — Attach files uses `showOpenFilePicker`; photos get their own image-only input](0070-attach-files-uses-showopenfilepicker.md) *(Attach photos superseded by 0072)*
 - [0071 — The sidebar is a rail of views over one project-scoped list](0071-sidebar-is-a-rail-of-views-over-one-scoped-list.md)
-- [0072 — The composer has one attach row; no image-only input](0072-composer-has-one-attach-row.md)
+- [0072 — The composer has one attach row; no image-only input](0072-composer-has-one-attach-row.md) *(superseded by 0073)*
+- [0073 — Attach photos clicks a hidden input outside the + menu](0073-attach-photos-uses-a-hidden-input-outside-the-menu.md)

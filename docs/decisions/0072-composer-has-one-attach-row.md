@@ -1,7 +1,7 @@
 # 0072 — The composer has one attach row; no image-only input
 
 - Date: 2026-10-07
-- Status: Accepted
+- Status: Superseded by 0073
 
 ## Decision
 

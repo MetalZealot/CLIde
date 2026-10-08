@@ -2698,16 +2698,17 @@ describe('chatSubcomponents', () => {
   });
 
   describe('ComposerAddMenu', () => {
-    test('keeps the real file input under the tap and schedules only typed text', async () => {
+    test('keeps the real file input under the tap, clicks the photo input, and schedules only typed text', async () => {
       let requestedProps: Record<string, unknown> | undefined;
       let scheduled = 0;
+      const attached: File[][] = [];
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
       const render = (canSchedule: boolean) => root.render(
         React.createElement(ComposerAddMenu, {
           attachLabel: 'Attach files',
-          onAttachFiles: () => {},
+          onAttachFiles: (files: File[]) => { attached.push(files); },
           canSchedule,
           onSchedule: () => { scheduled += 1; },
           getInputProps: (props: unknown) => {
@@ -2735,14 +2736,30 @@ describe('chatSubcomponents', () => {
         const surface = document.body.querySelector('[role="menu"]');
         assert.match(surface?.className ?? '', /\bhidden\b/);
 
-        // No image-only input: on Android it opens the Photo Picker, whose files Chrome can fail to read.
-        assert.equal(document.body.querySelector('input[accept="image/*"]'), null);
-
         const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
         assert.ok(trigger);
         assert.match(trigger.innerHTML, /lucide-plus/);
         await React.act(async () => trigger.click());
         assert.doesNotMatch(surface?.className ?? '', /\bhidden\b/);
+
+        // The photo grid's input sits outside the menu and is clicked from its row.
+        const photoInput = document.body.querySelector<HTMLInputElement>('input[type="file"][aria-label="Attach photos"]');
+        assert.ok(photoInput);
+        assert.equal(photoInput.accept, 'image/*');
+        assert.equal(photoInput.multiple, true);
+        assert.equal(surface?.contains(photoInput), false);
+        let photoClicks = 0;
+        photoInput.click = () => { photoClicks += 1; };
+        const photosItem = [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+          .find((item) => /Attach photos/.test(item.textContent ?? ''));
+        await React.act(async () => photosItem?.click());
+        assert.equal(photoClicks, 1);
+        assert.match(surface?.className ?? '', /\bhidden\b/);
+        const photo = new File(['x'], 'cat.png', { type: 'image/png' });
+        Object.defineProperty(photoInput, 'files', { configurable: true, value: [photo] });
+        await React.act(async () => photoInput.dispatchEvent(new Event('change', { bubbles: true })));
+        assert.deepEqual(attached, [[photo]]);
+        await React.act(async () => trigger.click());
 
         const scheduleItem = () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
           .find((item) => /Schedule message/.test(item.textContent ?? ''));

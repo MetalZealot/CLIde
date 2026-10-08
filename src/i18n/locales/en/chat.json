@@ -273,6 +273,7 @@
     "placeholderDefault": "Type your message...",
     "disabled": "Input disabled",
     "attachFiles": "Attach files",
+    "attachPhotos": "Attach photos",
     "attachImages": "Attach images",
     "attachmentRejected": {
       "tooLarge": "{{fileName}} — too large (max 10MB)",
