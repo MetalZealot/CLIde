@@ -73,8 +73,10 @@ const CLAUDE_CURRENT_FALLBACK_MODELS: ProviderModelOption[] = [
   },
   {
     value: 'haiku',
-    label: 'Haiku 4.5',
+    resolvedModel: 'claude-haiku-5-5',
+    label: 'Haiku 5.5',
     description: 'Fastest for quick answers',
+    effort: CLAUDE_EFFORT_LEVELS,
   },
 ];
 
@@ -126,6 +128,12 @@ const CLAUDE_LEGACY_MODELS: ProviderModelOption[] = [
     description: 'Legacy',
     group: 'legacy',
     effort: CLAUDE_EFFORT_LEVELS,
+  },
+  {
+    value: 'claude-haiku-4-5',
+    label: 'Haiku 4.5',
+    description: 'Legacy',
+    group: 'legacy',
   },
 ];
 

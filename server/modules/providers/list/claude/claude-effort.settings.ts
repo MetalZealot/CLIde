@@ -20,10 +20,11 @@ const CLAUDE_API_DEFAULT_EFFORT = 'high';
 
 /**
  * `default_effort` per model in the CLI's model registry, decoded from the
- * `claude` binary 2026-09-30 (2.1.286). A model absent here ships no default.
+ * `claude` binary 2026-10-07 (2.1.293). A model absent here ships no default.
  * `claude-context.test.ts` diffs this against the installed registry.
  */
 export const CLAUDE_BUILTIN_DEFAULT_EFFORT: Readonly<Record<string, string>> = Object.freeze({
+  'claude-haiku-5-5': 'medium',
   'claude-sonnet-5': 'high',
   'claude-sonnet-5-5': 'medium',
   'claude-opus-4-7': 'xhigh',

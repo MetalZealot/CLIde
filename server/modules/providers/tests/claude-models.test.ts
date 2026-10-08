@@ -346,7 +346,8 @@ test('claude model aliases resolve from full model ids', () => {
   assert.equal(resolveClaudeModelAlias('claude-fable-5-1', options), 'fable');
   assert.equal(resolveClaudeModelAlias('claude-fable-5', options), 'claude-fable-5');
   assert.equal(resolveClaudeModelAlias('claude-opus-5-5', options), 'opus');
-  assert.equal(resolveClaudeModelAlias('claude-haiku-4-5-20251001', options), 'haiku');
+  assert.equal(resolveClaudeModelAlias('claude-haiku-5-5', options), 'haiku');
+  assert.equal(resolveClaudeModelAlias('claude-haiku-4-5-20251001', options), 'claude-haiku-4-5');
   // Sonnet 5 is natively 1M and has no [1m] card, so it maps to plain Sonnet.
   assert.equal(resolveClaudeModelAlias('claude-sonnet-5', options), 'sonnet');
   // Values that already are picker aliases pass through unchanged.

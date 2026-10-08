@@ -413,7 +413,7 @@ describe('claude-context-window', () => {
     assert.equal(ceiling({ model: 'opus' }), 967_000);
     assert.equal(ceiling({ model: 'sonnet' }), 967_000);
     assert.equal(ceiling({ model: 'fable' }), 967_000);
-    assert.equal(ceiling({ model: 'haiku' }), 200_000);
+    assert.equal(ceiling({ model: 'haiku' }), 967_000);
   });
 
   test('dated and provider-qualified wire ids resolve to their registry entry', () => {
