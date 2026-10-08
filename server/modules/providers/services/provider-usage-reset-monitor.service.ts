@@ -35,6 +35,8 @@ type ProviderMonitor = {
   resetTimers: Map<string, ReturnType<typeof setTimeout>>;
   /** Outstanding post-reset re-fetches; not keyed, they only need cancelling. */
   postResetTimers: Set<ReturnType<typeof setTimeout>>;
+  /** Windows from the last usable poll, read when a reset timer fires. */
+  lastWindows: ProviderUsageWindow[];
 };
 
 type ResetMonitorDependencies = {
@@ -109,6 +111,17 @@ const collectUsageWindows = (usage: ProviderUsageStatus): ProviderUsageWindow[] 
  */
 const isExhausted = (windows: ProviderUsageWindow[]): boolean => (
   windows.some((window) => window.utilization >= EXHAUSTED_UTILIZATION)
+);
+
+/**
+ * Whether a spent window lifts after this reset, so a message sent at it would
+ * only meet that limit instead. Same-minute windows belong to this reset.
+ */
+const isOutlastedBySpentWindow = (windows: ProviderUsageWindow[], resetsAtMs: number): boolean => (
+  windows.some((window) => (
+    window.utilization >= EXHAUSTED_UTILIZATION
+    && Math.floor(Date.parse(window.resetsAt ?? '') / 60_000) > Math.floor(resetsAtMs / 60_000)
+  ))
 );
 
 const collectScheduledResets = (
@@ -204,6 +217,7 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
     if (!monitor) return;
 
     const state = dependencies.readState(userId);
+    if (!usage.error) monitor.lastWindows = collectUsageWindows(usage);
 
     // An early reset never fires the timer named after it: the provider just
     // reports a later `resetsAt`, so the identity leaves the poll and the timer
@@ -253,7 +267,11 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
         // each other.
         let delivered = false;
 
-        if (dependencies.hasPendingAutoContinue(provider)) {
+        // A message waiting on "the reset" waits for the last spent window.
+        if (
+          dependencies.hasPendingAutoContinue(provider)
+          && !isOutlastedBySpentWindow(monitor.lastWindows, reset.resetsAtMs)
+        ) {
           delivered = true;
           void dependencies.fireAutoContinue(provider).catch((error: unknown) => {
             console.error('[UsageResetMonitor] Auto-Continue failed', { provider, error });
@@ -310,7 +328,7 @@ export function createProviderUsageResetMonitor(dependencies: ResetMonitorDepend
     const pollTimer = dependencies.setInterval(() => {
       void refreshProvider(userId, provider);
     }, POLL_INTERVAL_MS);
-    monitors.set(key, { pollTimer, resetTimers: new Map(), postResetTimers: new Set() });
+    monitors.set(key, { pollTimer, resetTimers: new Map(), postResetTimers: new Set(), lastWindows: [] });
     void refreshProvider(userId, provider);
   };
 

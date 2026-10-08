@@ -462,6 +462,32 @@ describe('provider-usage-reset-monitor', () => {
     assert.deepEqual(harness.autoContinued, ['claude']);
   });
 
+  test('with the weekly limit spent too, Auto-Continue waits past the 5-hour reset for the weekly one', async () => {
+    const harness = createHarness({
+      pendingAutoContinue: true,
+      usage: {
+        provider: 'claude',
+        supported: true,
+        windows: [
+          { id: 'five_hour', utilization: 100, resetsAt: '2026-08-16T13:00:05.000Z' },
+          { id: 'seven_day', utilization: 100, resetsAt: '2026-08-18T09:00:00.000Z' },
+        ],
+      },
+    });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    const [fiveHour, weekly] = [...harness.timeouts.values()].sort((a, b) => a.delayMs - b.delayMs);
+    fiveHour!.fire();
+    await flushPromises();
+    assert.deepEqual(harness.autoContinued, [], 'the weekly limit would refuse it');
+    assert.equal(harness.notifications.length, 1, 'the 5-hour alert still goes');
+
+    weekly!.fire();
+    await flushPromises();
+    assert.deepEqual(harness.autoContinued, ['claude']);
+  });
+
   test('a poll that is stale or errored is not read as recovery', async () => {
     const harness = createHarness({ pendingAutoContinue: true, usage: spent });
     harness.monitor.reconcileUser(7);
