@@ -122,7 +122,22 @@ export const pickUsageWarning = (
   return picked;
 };
 
-export const usageBarToneClass = (utilization: number): string => {
+/**
+ * The spent window that lifts last, or null while anything can still send.
+ * The latest reset is the one that matters: sending waits for every spent window.
+ */
+export const pickExhaustedWindow = (
+  windows: ProviderUsageWindow[] | undefined,
+): ProviderUsageWindow | null => {
+  let picked: ProviderUsageWindow | null = null;
+  for (const window of windows ?? []) {
+    if (window.utilization < 100 || !window.resetsAt || isUsageWindowResetPending(window.resetsAt)) continue;
+    if (!picked || Date.parse(window.resetsAt) > Date.parse(picked.resetsAt ?? '')) picked = window;
+  }
+  return picked;
+};
+
+export const usageBarToneClass =(utilization: number): string => {
   if (utilization >= 90) return 'bg-red-500';
   if (utilization >= 75) return 'bg-amber-500';
   return 'bg-emerald-500';

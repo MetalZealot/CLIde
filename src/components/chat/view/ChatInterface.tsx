@@ -27,6 +27,8 @@ import { useProviderCapabilities, type ChatControlChanges } from '../../../hooks
 import { useSessionStore } from '../../../stores/useSessionStore';
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
+import { useProviderUsage } from '../../provider-usage/hooks/useProviderUsage';
+import { formatUsageWindowLabel, pickExhaustedWindow } from '../../provider-usage/format';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
@@ -267,7 +269,7 @@ function ChatInterface({
   ]);
 
   // Filled in below, once the scheduled-message edit they refer to exists.
-  const interceptSubmitRef = useRef<(() => boolean) | null>(null);
+  const interceptSubmitRef = useRef<((input: string) => boolean) | null>(null);
   const scheduledEditRef = useRef<{ id: string } | null>(null);
 
   const {
@@ -624,6 +626,11 @@ function ChatInterface({
   );
   scheduledEditRef.current = scheduledEdit;
   const canScheduleOnUsageReset = providerCapabilities?.[provider]?.supportsUsageResetAlerts === true;
+  const { usage: providerUsage } = useProviderUsage(provider, { enabled: canScheduleOnUsageReset });
+  // Set when a send was held back because usage is spent; drives the schedule sheet.
+  const [usageSpentSend, setUsageSpentSend] = useState<{ windowLabel: string; resetsAt: string } | null>(null);
+  const sendDespiteUsageRef = useRef(false);
+  useEffect(() => { setUsageSpentSend(null); }, [scheduledSessionId]);
   const liveLimitStop = useLiveLimitStop(chatMessages, canScheduleOnUsageReset);
   const autoContinue = useSessionAutoContinue(selectedSession?.id, projects, selectedSession?.autoContinue);
   const setAutoContinueEnabled = autoContinue.setEnabled;
@@ -735,13 +742,33 @@ function ChatInterface({
   );
 
   // Every way of sending saves into an open edit instead, or the paused
-  // original would still be waiting after its replacement went out.
+  // original would still be waiting after its replacement went out. Otherwise
+  // a send while usage is spent opens the schedule sheet instead of failing;
+  // slash commands pass, as most never reach the provider.
   interceptSubmitRef.current = scheduledEdit
     ? () => {
       void handleScheduleMessage(scheduledEdit.trigger, scheduledEdit.scheduledFor);
       return true;
     }
-    : null;
+    : (text: string) => {
+      if (sendDespiteUsageRef.current) {
+        sendDespiteUsageRef.current = false;
+        return false;
+      }
+      const trimmed = text.trim();
+      if (!canScheduleOnUsageReset || isProcessing || !trimmed || trimmed.startsWith('/')) return false;
+      const spent = pickExhaustedWindow(providerUsage?.windows);
+      if (!spent?.resetsAt) return false;
+      setUsageSpentSend({ windowLabel: formatUsageWindowLabel(spent, t), resetsAt: spent.resetsAt });
+      return true;
+    };
+
+  const handleSendDespiteUsage = useCallback(() => {
+    setUsageSpentSend(null);
+    sendDespiteUsageRef.current = true;
+    void handleSubmit({ preventDefault: () => {} } as React.FormEvent<HTMLFormElement>);
+  }, [handleSubmit]);
+  const dismissUsageSpentSend = useCallback(() => setUsageSpentSend(null), []);
 
   // Editing pauses the message: it cannot send until this edit is saved or
   // resumed, whatever happens to this device meanwhile. Its text and files come
@@ -1153,6 +1180,9 @@ function ChatInterface({
             onCancelScheduleEdit={handleCancelScheduleEdit}
             onScheduleMessage={handleComposerScheduleMessage}
             canScheduleOnUsageReset={canScheduleOnUsageReset}
+            usageSpentSend={usageSpentSend}
+            onDismissUsageSpentSend={dismissUsageSpentSend}
+            onSendDespiteUsage={handleSendDespiteUsage}
             pendingRewind={pendingRewind}
             onCancelRewindEdit={cancelRewindEdit}
             showProviderUpdate={isNewSession}

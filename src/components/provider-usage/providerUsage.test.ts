@@ -6,7 +6,7 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { initReactI18next } from 'react-i18next';
 
-import { isUsageWindowResetPending, pickUsageWarning, usageWarningKey } from './format';
+import { isUsageWindowResetPending, pickExhaustedWindow, pickUsageWarning, usageWarningKey } from './format';
 import { useProviderUsage } from './hooks/useProviderUsage';
 import UsageLimitNotice from './UsageLimitNotice';
 import { UsageResetCreditsRow } from './UsageWindowList';
@@ -58,6 +58,21 @@ describe('format', () => {
     assert.equal(pickUsageWarning('claude', windows, (key) => key === opusKey)?.window.id, 'five_hour');
     assert.equal(pickUsageWarning('claude', [{ id: 'five_hour', utilization: 89.9, resetsAt }], none), null);
     assert.equal(pickUsageWarning('claude', undefined, none), null);
+  });
+
+  test('only a spent window with a reset still ahead blocks sending, and the latest reset wins', () => {
+    const inHours = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+    const past = new Date(Date.now() - 60_000).toISOString();
+
+    assert.equal(pickExhaustedWindow([{ id: 'five_hour', utilization: 99.9, resetsAt: inHours(1) }]), null);
+    assert.equal(pickExhaustedWindow([{ id: 'five_hour', utilization: 100, resetsAt: past }]), null);
+    assert.equal(pickExhaustedWindow([{ id: 'five_hour', utilization: 100, resetsAt: null }]), null);
+    assert.equal(pickExhaustedWindow(undefined), null);
+    assert.equal(pickExhaustedWindow([
+      { id: 'five_hour', utilization: 100, resetsAt: inHours(2) },
+      { id: 'seven_day', utilization: 100, resetsAt: inHours(30) },
+      { id: 'seven_day_opus', utilization: 40, resetsAt: inHours(60) },
+    ])?.id, 'seven_day');
   });
 
   test('a warning key survives sub-second reset drift but changes with the next window', () => {

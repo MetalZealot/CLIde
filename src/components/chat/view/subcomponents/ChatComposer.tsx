@@ -144,6 +144,10 @@ interface ChatComposerProps {
   onScheduleMessage: (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => void;
   /** False on providers with no usage reset to wait on, which omits that item. */
   canScheduleOnUsageReset: boolean;
+  /** Set when Send was held back because usage is spent; opens the schedule sheet. */
+  usageSpentSend?: { windowLabel: string; resetsAt: string } | null;
+  onDismissUsageSpentSend?: () => void;
+  onSendDespiteUsage?: () => void;
   pendingRewind: PendingRewind | null;
   onCancelRewindEdit: () => void;
   /** New Session only: offer a provider CLI update. */
@@ -241,6 +245,9 @@ function ChatComposer({
   onCancelScheduleEdit,
   onScheduleMessage,
   canScheduleOnUsageReset,
+  usageSpentSend = null,
+  onDismissUsageSpentSend,
+  onSendDespiteUsage,
   pendingRewind,
   onCancelRewindEdit,
   showProviderUpdate,
@@ -426,12 +433,18 @@ function ChatComposer({
         onRemoveAnswer={onRemoveQueuedAnswer}
       />
 
-      {isScheduleMenuOpen && (
+      {(isScheduleMenuOpen || usageSpentSend) && (
         <ScheduleSendMenu
           canWaitForUsageReset={canScheduleOnUsageReset}
-          onDismiss={() => setIsScheduleMenuOpen(false)}
+          usageSpent={usageSpentSend}
+          onSendNow={onSendDespiteUsage}
+          onDismiss={() => {
+            setIsScheduleMenuOpen(false);
+            onDismissUsageSpentSend?.();
+          }}
           onSchedule={(trigger, scheduledFor) => {
             setIsScheduleMenuOpen(false);
+            onDismissUsageSpentSend?.();
             onScheduleMessage(trigger, scheduledFor);
           }}
         />

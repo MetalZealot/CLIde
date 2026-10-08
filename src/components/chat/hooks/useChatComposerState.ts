@@ -95,9 +95,9 @@ interface UseChatComposerStateArgs {
   /**
    * Claims a send before it goes out; returning true stops it. Read through a
    * ref because the owner is defined after this hook. Every submit path —
-   * button, Enter, voice, command — passes through it.
+   * button, Enter, voice, command — passes through it, with the text about to go.
    */
-  interceptSubmitRef?: { current: (() => boolean) | null };
+  interceptSubmitRef?: { current: ((input: string) => boolean) | null };
   /**
    * Set while the composer holds a scheduled message being edited rather than
    * a draft, so the stored draft is left as it was: that text lives in the
@@ -1189,7 +1189,7 @@ export function useChatComposerState({
       queuedSubmission?: QueuedDraft,
     ) => {
       event.preventDefault();
-      if (!queuedSubmission && interceptSubmitRef?.current?.()) {
+      if (!queuedSubmission && interceptSubmitRef?.current?.(inputValueRef.current)) {
         return;
       }
       const currentInput = queuedSubmission?.content ?? inputValueRef.current;

@@ -10,6 +10,10 @@ import { PageScrollLock } from '../../../../shared/view/ui';
 interface ScheduleSendMenuProps {
   /** False on Cursor and OpenCode, which have no usage reset to wait on. */
   canWaitForUsageReset: boolean;
+  /** Set when the sheet opened because Send was pressed with usage spent. */
+  usageSpent?: { windowLabel: string; resetsAt: string } | null;
+  /** Sends as if usage were not spent; offered only with `usageSpent`. */
+  onSendNow?: () => void;
   onDismiss: () => void;
   onSchedule: (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => void;
 }
@@ -38,6 +42,8 @@ function toLocalInputValue(date: Date): string {
  */
 export default function ScheduleSendMenu({
   canWaitForUsageReset,
+  usageSpent = null,
+  onSendNow,
   onDismiss,
   onSchedule,
 }: ScheduleSendMenuProps) {
@@ -89,12 +95,24 @@ export default function ScheduleSendMenu({
         aria-label={t('input.schedule.menuLabel', { defaultValue: 'Send later' })}
         className="settings-content-enter relative mx-auto w-full max-w-md rounded-t-2xl border border-border bg-popover p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-lg"
       >
+        {usageSpent && (
+          <p role="status" className="px-2 pb-2 pt-1 text-sm">
+            {t('input.schedule.usageSpent', {
+              defaultValue: '{{window}} is used up until {{time}}.',
+              window: usageSpent.windowLabel,
+              time: formatClockTimeWithDay(usageSpent.resetsAt),
+            })}
+          </p>
+        )}
+
         {canWaitForUsageReset && (
           <>
             <button
               type="button"
               onClick={() => onSchedule('usage-reset', null)}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-3 text-left text-sm transition-colors hover:bg-accent focus:bg-accent focus:outline-none"
+              className={usageSpent
+                ? 'flex w-full items-center gap-3 rounded-lg bg-primary px-2 py-3 text-left text-sm text-primary-foreground transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                : 'flex w-full items-center gap-3 rounded-lg px-2 py-3 text-left text-sm transition-colors hover:bg-accent focus:bg-accent focus:outline-none'}
             >
               <RotateCcwIcon className="h-4 w-4 flex-shrink-0" />
               <span className="flex-1">
@@ -153,6 +171,15 @@ export default function ScheduleSendMenu({
         </div>
 
         <div className="mt-4 flex justify-end gap-2">
+          {usageSpent && onSendNow && (
+            <button
+              type="button"
+              onClick={onSendNow}
+              className="mr-auto rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent"
+            >
+              {t('input.schedule.sendAnyway', { defaultValue: 'Send now anyway' })}
+            </button>
+          )}
           <button
             type="button"
             onClick={onDismiss}
@@ -164,7 +191,10 @@ export default function ScheduleSendMenu({
             type="button"
             disabled={!target}
             onClick={scheduleRelative}
-            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+            // One filled button per sheet: with usage spent, waiting for the reset is it.
+            className={usageSpent
+              ? 'rounded-md border border-border px-4 py-2 text-sm hover:bg-accent disabled:opacity-50'
+              : 'rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50'}
           >
             {t('input.schedule.confirm', { defaultValue: 'Schedule' })}
           </button>
