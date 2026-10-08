@@ -21,37 +21,52 @@ export function normalizeInlineCodeFences(text: string) {
 }
 
 const FENCE_MARKER = /^ {0,3}(`{3,}|~{3,})/;
+const MATH_OPEN = /^ {0,3}\$\$/;
 const LIST_ITEM_START = /^(?:[-*+]|\d{1,9}[.)])(?:\s|$)/;
+
+/** The test for the line that closes a construct this line opens, or null when it opens none. */
+function constructOpenedBy(line: string): ((later: string) => boolean) | null {
+  const fence = FENCE_MARKER.exec(line)?.[1];
+  if (fence) {
+    return (later) => {
+      const marker = FENCE_MARKER.exec(later)?.[1];
+      return !!marker && marker[0] === fence[0] && marker.length >= fence.length
+        && !later.trim().slice(marker.length).trim();
+    };
+  }
+  if (MATH_OPEN.test(line) && !line.trim().slice(2).includes('$$')) return (later) => later.includes('$$');
+  const comment = line.lastIndexOf('<!--');
+  if (comment >= 0 && !line.slice(comment).includes('-->')) return (later) => later.includes('-->');
+  return null;
+}
 
 /**
  * Cuts streaming markdown where a finished block ends, so each update renders
- * only the open tail: at a blank line outside a code fence that is followed by
- * an unindented line, unless that line is the next item of a list. Joined, the
- * pieces are the input.
+ * only the open tail: at a blank line outside a code fence, `$$` math or an
+ * HTML comment, followed by an unindented line that is not the next item of a
+ * list. A cut waits until that line is complete, so pieces only ever append.
+ * Joined, the pieces are the input.
  */
 export function splitMarkdownBlocks(text: string): string[] {
   const lines = text.split('\n');
   const blocks: string[] = [];
   let start = 0;
-  let fence: string | null = null;
+  let closes: ((line: string) => boolean) | null = null;
   let lastContent = '';
-  for (let i = 0; i < lines.length; i++) {
+  // The final line is still being written, so it is never the line after a cut.
+  for (let i = 0; i < lines.length - 1; i++) {
     if (lines[i].trim()) lastContent = lines[i];
-    const marker = FENCE_MARKER.exec(lines[i])?.[1];
-    if (fence) {
-      if (marker && marker[0] === fence[0] && marker.length >= fence.length && !lines[i].trim().slice(marker.length).trim()) {
-        fence = null;
-      }
+    if (closes) {
+      if (closes(lines[i])) closes = null;
       continue;
     }
-    if (marker) {
-      fence = marker;
-      continue;
-    }
+    closes = constructOpenedBy(lines[i]);
+    if (closes) continue;
     const next = lines[i + 1];
-    const continuesList = next !== undefined && LIST_ITEM_START.test(next)
+    const nextIsComplete = i + 1 < lines.length - 1;
+    const continuesList = LIST_ITEM_START.test(next)
       && (LIST_ITEM_START.test(lastContent) || /^\s/.test(lastContent));
-    if (lines[i].trim() === '' && i > start && next !== undefined && /^\S/.test(next) && !continuesList) {
+    if (lines[i].trim() === '' && i > start && nextIsComplete && /^\S/.test(next) && !continuesList) {
       blocks.push(`${lines.slice(start, i + 1).join('\n')}\n`);
       start = i + 1;
     }

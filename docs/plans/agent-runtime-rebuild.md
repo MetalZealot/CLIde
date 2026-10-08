@@ -1,7 +1,7 @@
 # Rebuild the agent runtime: long-lived Claude sessions, one typed wire, a home for every message
 
 - Status: 3/11
-- Next: your phase-2 check on 3001, then phase 3, the typed wire
+- Next: your phase-2 check on the production server, then phase 3, the typed wire
 - Design: [agent runtime design](../designs/agent-runtime-rebuild.md). Read it whole
   before any phase: it binds every phase and changes only with Grayson.
 - Context: the design's list, plus `scripts/verify-claude-session-sdk.ts` and
@@ -129,7 +129,7 @@ phase done.
   - Built: the live `tool_use_result` reaches tool rows, and chat queries ask for
     `thinking.display: 'summarized'` (measured: Opus's thinking text is empty
     without it, 141 characters with it; Haiku accepts it).
-  - You (passed 2026-10-06 on 3001): during a running Claude reply, switch the
+  - You (passed 2026-10-06 on production): during a running Claude reply, switch the
     mode in the composer; the next tool call follows it without a new message.
     Agent, live (done
     2026-10-06): aborted new chats map their transcript, against the real CLI;
@@ -153,10 +153,10 @@ phase done.
     header. No Settings screen: that stays in the flight-recorder plan's phase 3,
     with its boot, service-worker and auth probes.
   - Off costs one null check per call site; 12 recorder tests plus a store case.
-  - Agent, live (done 2026-10-06, main's client on Vite against the 3002 test
+  - Agent, live (done 2026-10-06, main's client on Vite against a test
     server): a Haiku turn recorded subscribe → send → status, thinking and text
     `stored` → complete, with no message text; Copy, and Off clearing storage.
-  - You (passed 2026-10-06 on 3001): open a chat on the phone with the
+  - You (passed 2026-10-06 on production): open a chat on the phone with the
     parameter, send a message, copy the block; it lists the turn's frames by
     kind and nothing you wrote.
 
@@ -165,20 +165,28 @@ phase done.
     turns `stream_event`s into `text_delta` frames every 50 ms, keyed by API
     message id plus block index, with each chunk's offset. They take no seq or
     replay slot; subagent ones are dropped. The block's final row carries the
-    same key; deltas still waiting when it arrives are dropped.
+    same key; deltas still waiting when it arrives are dropped. A block the CLI
+    moves past unfinished (a retry, a non-streamed fallback) gets a sequenced
+    `stream_discard`, and its row goes.
   - The client feeds `text_delta` into the `stream_delta` buffer; a chunk off
     its offset is refused (`stream-gap`) and the final row fills it. The final
-    row replaces the streamed one in place with its real id; text matching stays
-    only for Cursor and OpenCode, which send no key. Every session, on screen or
-    not, grows one row per stream.
-  - "Sent" is the turn's first `message_start`.
+    row replaces the streamed one in place with its real id, so text matching
+    is left only for rows no key covers: Cursor, OpenCode, and a stopped Claude
+    reply. Every session, on screen or not, grows one row per stream; an idle
+    `chat_subscribed` drops any still growing.
+  - "Sent" is the turn's first `message_start`; streamed words end any stage.
   - Chat history phase 13: a streaming reply renders block by block, so an
-    update re-renders only the open block.
+    update re-renders only the open block; a cut waits for the next line to be
+    whole, so pieces only append. Link references and footnotes defined in a
+    later block resolve when the final row lands.
   - Left for Grayson: an unfinished code block re-highlights on every update;
     leaving it plain until its fence closes would cut that, and changes the look.
-  - Agent, live (done 2026-10-07, main on the 3003 slot): two Haiku replies
-    arrived as `text_delta` frames, then their final rows, shown once before and
-    after a reload. The recorded probe-01 session replays to three claimed
+  - Reviewed 2026-10-08 (`/code-review xhigh` in a cloud session): nine
+    findings, all confirmed and fixed, each new test checked to fail with its
+    fix undone.
+  - Agent, live (done 2026-10-07, the main checkout on a test server): two
+    Haiku replies arrived as `text_delta` frames, then their final rows, shown
+    once before and after a reload. The recorded probe-01 session replays to three claimed
     blocks whose deltas equal their rows. History walks: every target as before
     the change; `rerenderBounded` fails identically with and without it (worst
     127), which is chat history phase 7's open item.

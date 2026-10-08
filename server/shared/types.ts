@@ -418,6 +418,7 @@ export type MessageKind =
   | 'stream_delta'
   | 'stream_end'
   | 'text_delta'
+  | 'stream_discard'
   | 'error'
   | 'complete'
   | 'status'
@@ -594,8 +595,9 @@ export type NormalizedMessage = {
    */
   runId?: string;
   /**
-   * A streamed text block: on `text_delta` frames, and on the block's final
-   * row, which replaces the streamed one. Live only, never in history.
+   * A streamed text block: on `text_delta` frames, on the block's final row,
+   * which replaces the streamed one, and on `stream_discard`, which withdraws
+   * it. Live only, never in history.
    */
   streamKey?: string;
   /** Where a `text_delta` chunk starts in its block, so a gap is detectable. */

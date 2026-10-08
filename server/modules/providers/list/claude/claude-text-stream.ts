@@ -41,10 +41,16 @@ const hasTextPart = (content: unknown): boolean => (
   Array.isArray(content) && content.some((part) => (part as { type?: unknown } | null)?.type === 'text')
 );
 
-export function createClaudeTextStream(
-  emit: (delta: ClaudeTextDelta) => void,
+export function createClaudeTextStream({
+  onDelta,
+  onDiscard,
   flushMs = CLAUDE_TEXT_DELTA_FLUSH_MS,
-) {
+}: {
+  onDelta: (delta: ClaudeTextDelta) => void;
+  /** A streamed block the CLI moved past without finishing; its row must go. */
+  onDiscard: (streamKey: string) => void;
+  flushMs?: number;
+}) {
   let messageId: string | null = null;
   let block: OpenBlock | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -59,8 +65,16 @@ export function createClaudeTextStream(
     if (!block || block.claimed || !block.pending) return;
     const text = block.pending;
     block.pending = '';
-    emit({ streamKey: block.key, offset: block.sent, text });
+    onDelta({ streamKey: block.key, offset: block.sent, text });
     block.sent += text.length;
+  };
+
+  // A retry, a non-streamed fallback or a new block supersedes it; the
+  // replacement's own rows carry the text.
+  const abandon = () => {
+    cancelTimer();
+    if (block && !block.claimed && block.sent > 0) onDiscard(block.key);
+    block = null;
   };
 
   return {
@@ -70,13 +84,12 @@ export function createClaudeTextStream(
       const event = frame.event;
       if (!event) return null;
       if (event.type === 'message_start') {
-        flush();
-        block = null;
+        abandon();
         messageId = typeof event.message?.id === 'string' ? event.message.id : null;
         return 'message_start';
       }
       if (event.type === 'content_block_start') {
-        flush();
+        abandon();
         block = messageId && event.content_block?.type === 'text' && typeof event.index === 'number'
           ? { key: `${messageId}:${event.index}`, sent: 0, pending: '', claimed: false }
           : null;
@@ -94,11 +107,15 @@ export function createClaudeTextStream(
 
     /**
      * The stream an `assistant` frame finishes, if any. Its first text row
-     * takes the key; deltas still waiting are dropped, the row holds them.
+     * takes the key; deltas still waiting are dropped, the row holds them. Text
+     * under another message id means the stream was replaced, not finished.
      */
     claim(frame: RawFrame): string | null {
-      if (frame.parent_tool_use_id || !block || block.claimed) return null;
-      if (frame.message?.id !== messageId || !hasTextPart(frame.message?.content)) return null;
+      if (frame.parent_tool_use_id || !block || block.claimed || !hasTextPart(frame.message?.content)) return null;
+      if (frame.message?.id !== messageId) {
+        abandon();
+        return null;
+      }
       cancelTimer();
       block.claimed = true;
       block.pending = '';

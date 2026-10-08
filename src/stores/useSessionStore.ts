@@ -33,6 +33,7 @@ export type MessageKind =
   | 'stream_delta'
   | 'stream_end'
   | 'text_delta'
+  | 'stream_discard'
   | 'error'
   | 'complete'
   | 'status'
@@ -1147,6 +1148,20 @@ export function useSessionStore() {
     notify(sessionId);
   }, [notify]);
 
+  /** Drop a session's streaming rows: one stream when keyed, otherwise every one still growing. */
+  const discardStreaming = useCallback((sessionId: string, streamKey?: string) => {
+    const slot = storeRef.current.get(sessionId);
+    if (!slot) return;
+    const keep = streamKey
+      ? (m: NormalizedMessage) => m.id !== streamingRowId(sessionId, streamKey)
+      : (m: NormalizedMessage) => m.kind !== 'stream_delta';
+    const kept = slot.realtimeMessages.filter(keep);
+    if (kept.length === slot.realtimeMessages.length) return;
+    slot.realtimeMessages = kept;
+    recomputeMergedIfNeeded(slot);
+    notify(sessionId);
+  }, [notify]);
+
   /**
    * Clear realtime messages for a session (e.g., after stream completes and server fetch catches up).
    */
@@ -1423,6 +1438,7 @@ export function useSessionStore() {
     isStale,
     updateStreaming,
     finalizeStreaming,
+    discardStreaming,
     clearRealtime,
     getMessages,
     getSessionSlot,
@@ -1436,7 +1452,7 @@ export function useSessionStore() {
   }), [
     getSlot, has, fetchFromServer, fetchMore, fetchAround, fetchNewer, fetchFindText,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
-    setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
+    setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming, discardStreaming,
     clearRealtime, getMessages, getSessionSlot, fetchSessionSettings, setModel, setEffort, setFastMode,
     patchToolResult,
     truncateFromMessageId, retractUndeliveredUserTurn,

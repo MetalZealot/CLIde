@@ -11,7 +11,8 @@ import { useChatBrowser } from '../../browser-use/useChatBrowser';
 import { useAsyncAnswerQueueAutoSend } from '../../../hooks/useAsyncAnswerQueueAutoSend';
 import { useQueuedMessageAutoSend } from '../../../hooks/useQueuedMessageAutoSend';
 import type { ServerEvent } from '../../../contexts/WebSocketContext';
-import type { NormalizedMessage, SessionStore } from '../../../stores/useSessionStore';
+import { streamingRowId, useSessionStore, type NormalizedMessage, type SessionStore } from '../../../stores/useSessionStore';
+import type { ProjectSession } from '../../../types/app';
 import type { ChatMessage, PendingPermissionRequest } from '../types/types';
 import { formatPlaybackTime, VoicePlayer, voiceId } from '../../../lib/voicePlayer';
 import { api } from '../../../utils/api';
@@ -33,7 +34,7 @@ import { resolveLiveLimitStop } from './useAutoContinue';
 import { normalizedToChatMessages } from './useChatMessages';
 import { resolveHistoryNavigation, type HistoryNav } from './useInputHistory';
 import { reconcileEffortForAllowedValues } from './useChatProviderState';
-import { appendStreamChunk, appendTextDelta, dedupePermissionRequestsById } from './useChatRealtimeHandlers';
+import { appendStreamChunk, appendTextDelta, dedupePermissionRequestsById, useChatRealtimeHandlers } from './useChatRealtimeHandlers';
 import type { StreamBuffer } from './useChatRealtimeHandlers';
 import { normalizeVoiceTranscript } from './useVoiceInput';
 import {
@@ -760,6 +761,72 @@ test('entries without a usable id are passed through rather than hidden', () => 
 
 test('an empty ack stays empty', () => {
   assert.deepEqual(dedupePermissionRequestsById([]), []);
+});
+
+test('a keyed stream lands once, a withdrawn or orphaned one goes, and a stopped one keeps its provider', async () => {
+  const SID = 'stream-session';
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  let listener: ((event: ServerEvent) => void) | null = null;
+  let store!: SessionStore;
+  function Harness() {
+    const sessionStore = useSessionStore();
+    store = sessionStore;
+    const [pending, setPending] = React.useState<PendingPermissionRequest[]>([]);
+    useChatRealtimeHandlers({
+      subscribe: (next) => { listener = next; return () => { listener = null; }; },
+      // Another provider on screen, so a row stamped from the hook would be wrong.
+      provider: 'cursor',
+      selectedSession: { id: SID } as ProjectSession,
+      currentSessionId: SID,
+      setTokenBudget: () => {},
+      pendingPermissionRequests: pending,
+      setPendingPermissionRequests: setPending,
+      streamTimersRef: React.useRef(new Map<string, number>()),
+      accumulatedStreamsRef: React.useRef(new Map<string, StreamBuffer>()),
+      statusCheckSentAtRef: React.useRef(new Map<string, number>()),
+      sessionStore,
+    });
+    return null;
+  }
+  await React.act(async () => root.render(React.createElement(Harness)));
+  const send = (frame: Record<string, unknown>) => React.act(async () => {
+    listener!({ sessionId: SID, provider: 'claude', timestamp: new Date().toISOString(), ...frame } as unknown as ServerEvent);
+  });
+  const wait = (ms: number) => React.act(() => new Promise<void>((resolve) => { setTimeout(resolve, ms); }));
+  const rows = () => store.getMessages(SID).map((m) => [m.id, m.kind, m.content, m.provider]);
+  const hello = ['u1_0', 'text', 'Hello', 'claude'];
+
+  // A final row arriving while a flush is pending lands once; the timer cannot revive the stream.
+  await send({ kind: 'text_delta', streamKey: 'm:1', streamOffset: 0, content: 'Hel' });
+  await wait(150);
+  assert.deepEqual(rows(), [[streamingRowId(SID, 'm:1'), 'stream_delta', 'Hel', 'claude']]);
+  await send({ kind: 'text_delta', streamKey: 'm:1', streamOffset: 3, content: 'lo' });
+  await send({ kind: 'text', role: 'assistant', id: 'u1_0', streamKey: 'm:1', content: 'Hello' });
+  await wait(150);
+  assert.deepEqual(rows(), [hello]);
+
+  // A stream the server withdrew disappears.
+  await send({ kind: 'text_delta', streamKey: 'm:2', streamOffset: 0, content: 'Partial' });
+  await wait(150);
+  assert.equal(rows().length, 2);
+  await send({ kind: 'stream_discard', streamKey: 'm:2' });
+  assert.deepEqual(rows(), [hello]);
+
+  // An idle ack clears a stream whose run ended while this client was away.
+  await send({ kind: 'text_delta', streamKey: 'm:3', streamOffset: 0, content: 'Frozen' });
+  await wait(150);
+  await send({ kind: 'chat_subscribed', isProcessing: false });
+  assert.deepEqual(rows(), [hello]);
+
+  // A stopped reply keeps what streamed, under its own id and the frame's provider.
+  await send({ kind: 'text_delta', streamKey: 'm:4', streamOffset: 0, content: 'Cut sho' });
+  await send({ kind: 'complete', aborted: true });
+  assert.deepEqual(rows(), [hello, [streamingRowId(SID, 'm:4'), 'text', 'Cut sho', 'claude']]);
+
+  await React.act(async () => root.unmount());
+  host.remove();
 });
 
 test('two sessions streaming at once keep separate buffers', () => {

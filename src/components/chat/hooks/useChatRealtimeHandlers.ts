@@ -207,6 +207,11 @@ export function useChatRealtimeHandlers({
             onSessionIdle?.(sid, {
               ifStartedBefore: statusCheckSentAtRef.current.get(sid),
             });
+            // Nothing streams in an idle session: a growing row is from a run
+            // that ended while this client was away, and history now holds it.
+            cancelStreamTimer(sid);
+            accumulatedStreamsRef.current.delete(sid);
+            sessionStore.discardStreaming(sid);
           }
 
           const isViewedSession = sid === activeViewSessionId;
@@ -336,12 +341,23 @@ export function useChatRealtimeHandlers({
         return;
       }
 
+      if (msg.kind === 'stream_discard') {
+        if (sid && msg.streamKey) {
+          if (accumulatedStreamsRef.current.get(sid)?.key === msg.streamKey) {
+            cancelStreamTimer(sid);
+            accumulatedStreamsRef.current.delete(sid);
+          }
+          sessionStore.discardStreaming(sid, String(msg.streamKey));
+        }
+        return;
+      }
+
       if (msg.kind === 'stream_end') {
         if (sid) {
           cancelStreamTimer(sid);
           const buffered = accumulatedStreamsRef.current.get(sid);
           if (buffered) {
-            sessionStore.updateStreaming(sid, buffered.text, provider, buffered.key);
+            sessionStore.updateStreaming(sid, buffered.text, (msg.provider as LLMProvider | undefined) || provider, buffered.key);
           }
           sessionStore.finalizeStreaming(sid);
           accumulatedStreamsRef.current.delete(sid);
@@ -382,7 +398,7 @@ export function useChatRealtimeHandlers({
             cancelStreamTimer(sid);
             const buffered = accumulatedStreamsRef.current.get(sid);
             if (buffered) {
-              sessionStore.updateStreaming(sid, buffered.text, provider, buffered.key);
+              sessionStore.updateStreaming(sid, buffered.text, (msg.provider as LLMProvider | undefined) || provider, buffered.key);
             }
             sessionStore.finalizeStreaming(sid);
             accumulatedStreamsRef.current.delete(sid);

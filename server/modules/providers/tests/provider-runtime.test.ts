@@ -886,10 +886,14 @@ describe('claude-runtime error results', () => {
     const { createClaudeTextStream } = await import('@/modules/providers/list/claude/claude-text-stream.js');
     const fixture = path.join(process.cwd(), 'server/modules/providers/tests/fixtures/claude-session-sdk/probe-01-three-turns.ndjson');
     const streamed = new Map<string, string>();
-    const stream = createClaudeTextStream((delta) => {
-      assert.equal(delta.offset, streamed.get(delta.streamKey)?.length ?? 0);
-      streamed.set(delta.streamKey, (streamed.get(delta.streamKey) ?? '') + delta.text);
-    }, 60_000);
+    const stream = createClaudeTextStream({
+      onDelta: (delta) => {
+        assert.equal(delta.offset, streamed.get(delta.streamKey)?.length ?? 0);
+        streamed.set(delta.streamKey, (streamed.get(delta.streamKey) ?? '') + delta.text);
+      },
+      onDiscard: (key) => assert.fail(`nothing in a clean session is withdrawn, got ${key}`),
+      flushMs: 60_000,
+    });
     const claims: Array<{ key: string | null; text: string }> = [];
     for (const line of (await readFile(fixture, 'utf8')).trim().split('\n')) {
       const { frame } = JSON.parse(line);
@@ -911,6 +915,26 @@ describe('claude-runtime error results', () => {
       assert.ok(key, 'every text row claims a stream');
       assert.equal(streamed.get(key), text);
     }
+  });
+
+  test('text finished under another message id withdraws the stream instead of claiming it', async () => {
+    const { createClaudeTextStream } = await import('@/modules/providers/list/claude/claude-text-stream.js');
+    const discarded: string[] = [];
+    const stream = createClaudeTextStream({ onDelta: () => {}, onDiscard: (key) => discarded.push(key), flushMs: 60_000 });
+    stream.onStreamEvent({ event: { type: 'message_start', message: { id: 'msg_1' } } });
+    stream.onStreamEvent({ event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } } });
+    stream.onStreamEvent({ event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Cut sh' } } });
+    stream.flush();
+    // A fallback to a non-streamed request: the whole reply under a new id, no message_start.
+    assert.equal(stream.claim({ message: { id: 'msg_2', content: [{ type: 'text', text: 'Cut short reply' }] } }), null);
+    assert.deepEqual(discarded, ['msg_1:0']);
+    // A block that never reached the client is dropped without a frame.
+    stream.onStreamEvent({ event: { type: 'message_start', message: { id: 'msg_3' } } });
+    stream.onStreamEvent({ event: { type: 'content_block_start', index: 0, content_block: { type: 'text' } } });
+    stream.onStreamEvent({ event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'unsent' } } });
+    stream.onStreamEvent({ event: { type: 'message_start', message: { id: 'msg_4' } } });
+    assert.deepEqual(discarded, ['msg_1:0']);
+    stream.close();
   });
 
   const loadAskSideQuestion = async () => (
@@ -1258,9 +1282,10 @@ describe('claude-runtime turns on a fake query', () => {
     fake.push(event({ type: 'content_block_start', index: 1, content_block: { type: 'text' } }));
     fake.push(delta('Hel'));
     fake.push(delta('lo'));
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    fake.push(delta(' world'));
+    // Flushed with the main text if subagent frames were not ignored.
     fake.push(delta('subagent prose', 'toolu_agent'));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    fake.push(delta(' world'));
     fake.push(assistant('u1', [{ type: 'text', text: 'Hello world' }]));
     fake.push(event({ type: 'content_block_stop', index: 1 }));
     fake.end();
@@ -1277,6 +1302,46 @@ describe('claude-runtime turns on a fake query', () => {
     const stages = sent.filter((frame) => frame.kind === 'status' && frame.stage !== undefined);
     assert.deepEqual(stages.map((frame) => (frame.stage as { name?: string } | null)?.name ?? null), ['starting', 'sent', null]);
     assert.ok(sent.indexOf(stages[1]) < sent.indexOf(deltas[0]), '"Sent" shows before the first words');
+  });
+
+  test('a retry withdraws the block it cut short, and the retried words clear the retry label', async () => {
+    const { runtime, fake, sent, done } = await startTurn({
+      appId: 'app-retry',
+      providerId: 'prov-retry',
+      normalizeMessage: (raw) => {
+        const part = (raw.message as { content?: Array<{ type: string; text?: string }> } | undefined)?.content?.[0];
+        return raw.type === 'assistant' && part?.type === 'text'
+          ? [{ id: `${raw.uuid}_0`, kind: 'text', role: 'assistant', content: part.text }]
+          : [];
+      },
+    });
+    const event = (body: Frame) => ({ type: 'stream_event', session_id: 'prov-retry', parent_tool_use_id: null, event: body });
+    const textBlock = (messageId: string, text: string) => [
+      event({ type: 'message_start', message: { id: messageId } }),
+      event({ type: 'content_block_start', index: 0, content_block: { type: 'text' } }),
+      event({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }),
+    ];
+    for (const frame of textBlock('msg_1', 'Partial')) fake.push(frame);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    fake.push({ type: 'system', subtype: 'api_retry', session_id: 'prov-retry', attempt: 1, max_retries: 10, retry_delay_ms: 500, error_status: 529, error: 'overloaded' });
+    for (const frame of textBlock('msg_2', 'Full reply')) fake.push(frame);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    fake.push({ type: 'assistant', session_id: 'prov-retry', uuid: 'u2', message: { id: 'msg_2', role: 'assistant', content: [{ type: 'text', text: 'Full reply' }] } });
+    fake.end();
+    await done;
+    runtime.setClaudeQueryForTests(null);
+
+    const stream = sent.filter((frame) => ['text_delta', 'stream_discard', 'text'].includes(String(frame.kind)));
+    assert.deepEqual(stream.map((frame) => [frame.kind, frame.streamKey]), [
+      ['text_delta', 'msg_1:0'],
+      ['stream_discard', 'msg_1:0'],
+      ['text_delta', 'msg_2:0'],
+      ['text', 'msg_2:0'],
+    ]);
+    const stages = sent.filter((frame) => frame.kind === 'status' && frame.stage !== undefined);
+    assert.deepEqual(stages.map((frame) => (frame.stage as { name?: string } | null)?.name ?? null),
+      ['starting', 'sent', null, 'retrying', null]);
+    assert.ok(sent.indexOf(stages[4]) < sent.indexOf(stream[2]), 'the retry label goes when the retried words start, not when the row lands');
   });
 
   test('a live tool result keeps its structured result, as a reloaded one does', async () => {

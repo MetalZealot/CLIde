@@ -702,24 +702,32 @@ test('a sidebar result finds its record by snippet, else by nearest time', () =>
   assert.equal(locateSearchTarget(records, {}), null);
 });
 
-test('streaming markdown splits only where a block is finished, losing nothing', () => {
+test('streaming markdown splits only where a block is finished, and pieces only ever append', () => {
   const reply = [
     'Intro paragraph.', '',
     '```ts', 'const a = 1;', '', 'const b = 2;', '```', '',
     '1. First', '', '2. Second', '   continued', '',
     '    indented code', '',
-    'Tail being writ',
+    '$$', 'a = b', '', 'c = d', '$$', '',
+    '<!--', 'note', '', 'more', '-->', '',
+    'Tail.', '',
   ].join('\n');
   const blocks = splitMarkdownBlocks(reply);
   assert.equal(blocks.join(''), reply);
   assert.deepEqual(blocks.map((block) => block.split('\n')[0]), [
     'Intro paragraph.',
-    // The fence's inner blank line is not a boundary.
+    // Blank lines inside a fence, display math or a comment are not boundaries.
     '```ts',
     // A loose list stays whole; so does indented text after a blank line.
     '1. First',
-    'Tail being writ',
+    '$$',
+    '<!--',
+    'Tail.',
   ]);
-  // A fence still open at the end holds everything after it.
-  assert.equal(splitMarkdownBlocks('Hi.\n\n```\ncode\n\nmore').length, 2);
+  // Streamed one character at a time, every finished piece is final: a moved
+  // boundary would re-render an earlier block (an unfinished "2" is not yet a list item).
+  for (let end = 1; end <= reply.length; end += 1) {
+    const finished = splitMarkdownBlocks(reply.slice(0, end)).slice(0, -1);
+    assert.deepEqual(finished, blocks.slice(0, finished.length), `pieces changed at ${end} characters`);
+  }
 });

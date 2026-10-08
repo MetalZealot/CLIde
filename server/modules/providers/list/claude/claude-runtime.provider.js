@@ -1146,14 +1146,22 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
     if (capturedSessionId || sessionId) {
       sendStage({ name: 'starting' });
     }
-    textStream = createClaudeTextStream((delta) => ws.send(createNormalizedMessage({
-      kind: 'text_delta',
-      content: delta.text,
-      streamKey: delta.streamKey,
-      streamOffset: delta.offset,
-      sessionId: capturedSessionId || sessionId || null,
-      provider: 'claude',
-    })));
+    textStream = createClaudeTextStream({
+      onDelta: (delta) => ws.send(createNormalizedMessage({
+        kind: 'text_delta',
+        content: delta.text,
+        streamKey: delta.streamKey,
+        streamOffset: delta.offset,
+        sessionId: capturedSessionId || sessionId || null,
+        provider: 'claude',
+      })),
+      onDiscard: (streamKey) => ws.send(createNormalizedMessage({
+        kind: 'stream_discard',
+        streamKey,
+        sessionId: capturedSessionId || sessionId || null,
+        provider: 'claude',
+      })),
+    });
     let lastContextUsageAt = 0;
     for await (const message of queryInstance) {
       frames += 1;
@@ -1209,10 +1217,6 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
         void captureClaudeContextUsage(capturedSessionId, queryInstance);
       }
 
-      // Transform and normalize message via adapter
-      const transformedMessage = withLiveQuotaLimits(transformMessage(message), rejectedRateLimit);
-      const sid = capturedSessionId || sessionId || null;
-
       if (message?.type === 'stream_event') {
         const signal = textStream.onStreamEvent(message);
         // The API answering; a warm turn may send no rate-limit event at all.
@@ -1221,7 +1225,8 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
           logTurn('sent', sessionKey(), { ms: sinceStart() });
           if (!outputStarted) sendStage({ name: 'sent' });
         }
-        if (signal === 'text' && !outputStarted) {
+        // Words on screen end any stage, including a retry or a background wait mid-turn.
+        if (signal === 'text') {
           outputStarted = true;
           awaitingBackground = false;
           if (stageSent) sendStage(null);
@@ -1231,6 +1236,10 @@ async function queryClaudeSDK(command, options = {}, ws, context) {
       }
       const streamKey = message?.type === 'assistant' ? textStream.claim(message) : null;
       textStream.flush();
+
+      // Transform and normalize message via adapter
+      const transformedMessage = withLiveQuotaLimits(transformMessage(message), rejectedRateLimit);
+      const sid = capturedSessionId || sessionId || null;
 
       // Compaction is a minutes-long silence in the stream unless it is
       // announced: the CLI reports it as a status message, `compacting` while
