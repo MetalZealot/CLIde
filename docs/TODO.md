@@ -39,6 +39,8 @@ main checkout only).
 
 ## Bugs
 
+- [ ] **A streamed reply's first second lands in one lump on the phone.** The SDK delivers evenly (a piece every ~20 ms, measured 2026-10-08), so the hold-up is between server and screen. Next: log first-text time on the server and the phone, then compare. Phase 2 of [the runtime plan](plans/agent-runtime-rebuild.md). **?**
+- [ ] **Chat follows the bottom of a growing reply, so its start scrolls away.** Claude.ai and ChatGPT keep the prompt at the top and grow the reply below it; client-only. Agree the end state before building. **M**
 - [~] **Background shells died when a Claude turn ended.** The run now holds its input open until background tasks settle, then the agent reports back; 30-min silence backstop. Fork reimplementation of upstream `#1347`'s hold; its background-task strip and per-task stop are not taken. **S — awaiting live check**
 - [ ] **New Claude sessions ignore `permissions.defaultMode`**; a one-off Bypass carries into the next session. [Plan](plans/claude-permission-default.md). **S/M**
 - [ ] **Rewinding to the first message lists a second session.** It starts fresh and the original stays listed. **S**
