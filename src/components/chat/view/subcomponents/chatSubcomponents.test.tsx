@@ -185,14 +185,14 @@ describe('chatSubcomponents', () => {
     assert.equal(midTurn.querySelectorAll('button').length, 0, 'nor a copy or speaker button');
     const footerOnly = document.createElement('div');
     footerOnly.innerHTML = renderToStaticMarkup(
-      <MessageComponent message={message} prevMessage={null} turnSummary={{ replyText: 'First\n\nA later reply' }}
+      <MessageComponent message={message} prevMessage={null} turnSummary={{ replyText: 'First\n\nA later reply', spokenText: 'A later reply' }}
         createDiff={() => []} showThinking={false} />,
     );
     assert.ok(footerOnly.textContent?.includes(expectedTime));
     assert.ok(!footerOnly.textContent?.includes('tokens'), 'no metrics row without metrics');
     const withSummary = document.createElement('div');
     withSummary.innerHTML = renderToStaticMarkup(
-      <MessageComponent message={message} prevMessage={null} turnSummary={{ replyText: 'A later reply', durationMs: 72_000, outputTokens: 1_234 }}
+      <MessageComponent message={message} prevMessage={null} turnSummary={{ replyText: 'A later reply', spokenText: 'A later reply', durationMs: 72_000, outputTokens: 1_234 }}
         createDiff={() => []} showThinking={false} />,
     );
     const timeLine = [...withSummary.querySelectorAll('span')].find((node) => node.textContent === expectedTime)?.parentElement;

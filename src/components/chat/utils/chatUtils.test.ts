@@ -90,18 +90,18 @@ describe('chatFormatting', () => {
     const messages = [prompt, firstReply, tool, thinking, finalReply, notice, noticeReply, secondPrompt, runningReply];
 
     const running = computeTurnSummaries(messages, true);
-    assert.deepEqual(running.get(finalReply), { replyText: 'Looking.\n\nDone.', durationMs: 72_000, outputTokens: 1_240 },
-      'the copy joins the turn\'s replies and skips its tools and thinking');
+    assert.deepEqual(running.get(finalReply), { replyText: 'Looking.\n\nDone.', spokenText: 'Done.', durationMs: 72_000, outputTokens: 1_240 },
+      'the copy joins the turn\'s replies and skips its tools and thinking; speech reads the last');
     assert.equal(running.get(firstReply), undefined, 'only the last reply of a turn is labelled');
-    assert.deepEqual(running.get(noticeReply), { replyText: 'Noted.', durationMs: 4_000 }, 'a task notification starts its own turn');
+    assert.deepEqual(running.get(noticeReply), { replyText: 'Noted.', spokenText: 'Noted.', durationMs: 4_000 }, 'a task notification starts its own turn');
     assert.equal(running.get(runningReply), undefined, 'a running turn has no summary');
-    assert.deepEqual(computeTurnSummaries(messages, false).get(runningReply), { replyText: 'Working.', durationMs: 10_000, outputTokens: 5 });
-    assert.deepEqual(computeTurnSummaries([firstReply, finalReply], false).get(finalReply), { replyText: 'Looking.\n\nDone.' },
+    assert.deepEqual(computeTurnSummaries(messages, false).get(runningReply), { replyText: 'Working.', spokenText: 'Working.', durationMs: 10_000, outputTokens: 5 });
+    assert.deepEqual(computeTurnSummaries([firstReply, finalReply], false).get(finalReply), { replyText: 'Looking.\n\nDone.', spokenText: 'Done.' },
       'a turn whose prompt is not loaded keeps its footer but has no start');
     assert.equal(computeTurnSummaries([prompt, tool], false).get(tool), undefined, 'a turn without a reply has no footer');
-    assert.deepEqual(computeTurnSummaries([tool, finalReply], false, at(2)).get(finalReply), { replyText: 'Done.', durationMs: 70_000 },
+    assert.deepEqual(computeTurnSummaries([tool, finalReply], false, at(2)).get(finalReply), { replyText: 'Done.', spokenText: 'Done.', durationMs: 70_000 },
       'a page that opens mid-turn keeps its time but not a partial token count');
-    assert.deepEqual(computeTurnSummaries([tool, finalReply], false, at(2), 40).get(finalReply), { replyText: 'Done.', durationMs: 70_000, outputTokens: 1_240 },
+    assert.deepEqual(computeTurnSummaries([tool, finalReply], false, at(2), 40).get(finalReply), { replyText: 'Done.', spokenText: 'Done.', durationMs: 70_000, outputTokens: 1_240 },
       'tokens from above the page complete the count');
   });
 

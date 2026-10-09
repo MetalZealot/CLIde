@@ -18,8 +18,10 @@ const isReplyText = (message: ChatMessage): boolean =>
 const readTime = (timestamp: ChatMessage['timestamp']): number => new Date(timestamp).getTime();
 
 export type TurnSummary = {
-  /** Every reply in the turn, for its single Copy and Speak. */
+  /** Every reply in the turn, for its single Copy. */
   replyText: string;
+  /** The last reply alone, for Speak: it usually sums up the turn. */
+  spokenText: string;
   durationMs?: number;
   /** Absent when the provider records none or the turn's prompt is not loaded. */
   outputTokens?: number;
@@ -47,7 +49,7 @@ export function computeTurnSummaries(
 
   const closeTurn = () => {
     if (!lastReply) return;
-    const summary: TurnSummary = { replyText: replyTexts.filter(Boolean).join('\n\n') };
+    const summary: TurnSummary = { replyText: replyTexts.filter(Boolean).join('\n\n'), spokenText: replyTexts.at(-1) ?? '' };
     const durationMs = turnStart === null ? NaN : readTime(lastReply.timestamp) - turnStart;
     if (Number.isFinite(durationMs) && durationMs >= 1000) summary.durationMs = durationMs;
     if (countsTokens && outputTokens > 0) summary.outputTokens = outputTokens;

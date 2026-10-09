@@ -520,16 +520,16 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
               </div>
             )}
 
-            {/* One footer per turn, under its last reply; the copy covers every reply in the turn. */}
+            {/* One footer per turn, under its last reply: Copy takes every reply, Speak only this one. */}
             {turnSummary && (
               <>
                 <div className="mt-1 select-none text-chat-meta text-muted-foreground">
                   <div className="flex w-full items-center gap-2">
                     {turnSummary.replyText.trim() && (
-                      <>
-                        <MessageCopyControl content={turnSummary.replyText} messageType="assistant" />
-                        <MessageSpeakControl content={turnSummary.replyText} />
-                      </>
+                      <MessageCopyControl content={turnSummary.replyText} messageType="assistant" />
+                    )}
+                    {turnSummary.spokenText.trim() && (
+                      <MessageSpeakControl content={turnSummary.spokenText} />
                     )}
                     <span>{formattedTime}</span>
                   </div>
