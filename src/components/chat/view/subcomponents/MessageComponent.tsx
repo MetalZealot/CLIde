@@ -65,8 +65,6 @@ type MessageComponentProps = {
   hasResetMessage?: boolean;
 };
 
-const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
-
 const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
@@ -100,12 +98,6 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
     && formattedMessageContent.trim() === followUpQuestionContent.trim()
     ? ''
     : formattedMessageContent;
-  const assistantCopyContent = message.isToolUse
-    ? String(message.displayText || message.content || '')
-    : [assistantBodyContent, followUpQuestionContent].filter(Boolean).join('\n\n');
-  const isCommandOrFileEditToolResponse = Boolean(
-    message.isToolUse && COPY_HIDDEN_TOOL_NAMES.has(String(message.toolName || ''))
-  );
   const shouldShowUserCopyControl = message.type === 'user' && userCopyContent.trim().length > 0;
   // Rewind edit needs a transcript-backed uuid: optimistic rows and command
   // artifacts can't anchor a resume, so they never get the affordance.
@@ -119,13 +111,6 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
     !message.isCompactSummary &&
     getTranscriptMessageUuid(message.id) !== null;
 
-  // Thinking and compact-summary rows render inside a collapsible that carries
-  // its own copy control — a second one under the collapsed row would dangle.
-  const shouldShowAssistantCopyControl = message.type === 'assistant' &&
-    assistantCopyContent.trim().length > 0 &&
-    !isCommandOrFileEditToolResponse &&
-    !message.isThinking &&
-    !message.isCompactSummary;
 
 
   const formattedTime = useMemo(
@@ -535,20 +520,23 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
               </div>
             )}
 
-            {(shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 select-none text-chat-meta text-muted-foreground">
-                <div className="flex w-full items-center gap-2">
-                  {shouldShowAssistantCopyControl && (
-                    <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
-                  )}
-                  {shouldShowAssistantCopyControl && (
-                    <MessageSpeakControl content={assistantCopyContent} />
-                  )}
-                  <span>{formattedTime}</span>
+            {/* One footer per turn, under its last reply; the copy covers every reply in the turn. */}
+            {turnSummary && (
+              <>
+                <div className="mt-1 select-none text-chat-meta text-muted-foreground">
+                  <div className="flex w-full items-center gap-2">
+                    {turnSummary.replyText.trim() && (
+                      <>
+                        <MessageCopyControl content={turnSummary.replyText} messageType="assistant" />
+                        <MessageSpeakControl content={turnSummary.replyText} />
+                      </>
+                    )}
+                    <span>{formattedTime}</span>
+                  </div>
                 </div>
-              </div>
+                <TurnSummaryRow summary={turnSummary} />
+              </>
             )}
-            {turnSummary && <TurnSummaryRow summary={turnSummary} />}
           </div>
         </div>
       )}

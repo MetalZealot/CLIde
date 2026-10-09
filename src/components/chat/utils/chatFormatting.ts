@@ -107,6 +107,13 @@ export function formatFollowUpQuestions(questions: FollowUpQuestion[] | undefine
     .join('\n\n');
 }
 
+/** A reply's copied and spoken text: body plus follow-up questions, minus Codex's duplicate fallback. */
+export function formatReplyCopyText(content: string, questions: FollowUpQuestion[] | undefined): string {
+  const body = formatUsageLimitText(content);
+  const followUps = formatFollowUpQuestions(questions);
+  return [followUps && body.trim() === followUps.trim() ? '' : body, followUps].filter(Boolean).join('\n\n');
+}
+
 /** Abbreviates a token count for a chip or a one-line label ("158K", "1.2M"). */
 export const formatTokenCount = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) {

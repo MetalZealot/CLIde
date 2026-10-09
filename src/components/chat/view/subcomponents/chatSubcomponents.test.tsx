@@ -163,7 +163,7 @@ describe('chatSubcomponents', () => {
       host.remove();
     }
   });
-  test('shows each assistant reply timestamp regardless of its preceding message', async () => {
+  test('only the last reply of a finished turn carries the copy, speaker and timestamp', async () => {
     // Node needs the CommonJS theme entry; Vite resolves the ESM entry in the app.
     const hooks = registerHooks({
       resolve(specifier, context, nextResolve) {
@@ -176,33 +176,26 @@ describe('chatSubcomponents', () => {
     const message: ChatMessage = {
       type: 'assistant', content: 'A later reply', timestamp: '2026-09-14T15:42:00.000Z',
     };
-    const earlier = { content: 'Earlier', timestamp: '2026-09-14T14:00:00.000Z' };
-    const predecessors: Array<ChatMessage | null> = [
-      null,
-      { ...earlier, type: 'user' },
-      { ...earlier, type: 'assistant' },
-      { ...earlier, type: 'assistant', isThinking: true },
-      { ...earlier, type: 'assistant', isToolUse: true, toolName: 'Bash' },
-    ];
     const expectedTime = formatMessageTimestamp(message.timestamp);
-    for (const prevMessage of predecessors) {
-      const container = document.createElement('div');
-      container.innerHTML = renderToStaticMarkup(
-        <MessageComponent message={message} prevMessage={prevMessage}
-          createDiff={() => []} showThinking={false} />,
-      );
-      assert.ok(container.textContent?.includes(expectedTime),
-        `reply must show its own time after ${JSON.stringify(prevMessage)}`);
-      assert.equal(container.querySelector('.chat-message')?.classList.contains('grouped'),
-        prevMessage?.type === 'assistant', 'timestamp visibility must preserve grouping');
-    }
-    const withSummary = document.createElement('div');
-    withSummary.innerHTML = renderToStaticMarkup(
-      <MessageComponent message={message} prevMessage={null} turnSummary={{ durationMs: 72_000, outputTokens: 1_234 }}
+    const midTurn = document.createElement('div');
+    midTurn.innerHTML = renderToStaticMarkup(
+      <MessageComponent message={message} prevMessage={null} createDiff={() => []} showThinking={false} />,
+    );
+    assert.ok(!midTurn.textContent?.includes(expectedTime), 'a reply mid-turn has no footer');
+    assert.equal(midTurn.querySelectorAll('button').length, 0, 'nor a copy or speaker button');
+    const footerOnly = document.createElement('div');
+    footerOnly.innerHTML = renderToStaticMarkup(
+      <MessageComponent message={message} prevMessage={null} turnSummary={{ replyText: 'First\n\nA later reply' }}
         createDiff={() => []} showThinking={false} />,
     );
-    const timeLine = [...withSummary.querySelectorAll('div')].find((node) =>
-      node.firstElementChild?.tagName === 'SPAN' && node.firstElementChild.textContent === expectedTime);
+    assert.ok(footerOnly.textContent?.includes(expectedTime));
+    assert.ok(!footerOnly.textContent?.includes('tokens'), 'no metrics row without metrics');
+    const withSummary = document.createElement('div');
+    withSummary.innerHTML = renderToStaticMarkup(
+      <MessageComponent message={message} prevMessage={null} turnSummary={{ replyText: 'A later reply', durationMs: 72_000, outputTokens: 1_234 }}
+        createDiff={() => []} showThinking={false} />,
+    );
+    const timeLine = [...withSummary.querySelectorAll('span')].find((node) => node.textContent === expectedTime)?.parentElement;
     assert.equal(timeLine?.parentElement?.nextElementSibling?.textContent, '1m 12s · 1,234 tokens',
       `the turn summary is its own row under the reply footer: ${withSummary.innerHTML}`);
     assert.equal(renderToStaticMarkup(
@@ -850,7 +843,7 @@ describe('chatSubcomponents', () => {
       const messageSource = readFileSync(new URL('./MessageComponent.tsx', import.meta.url), 'utf8');
       const copyControlSource = readFileSync(new URL('./MessageCopyControl.tsx', import.meta.url), 'utf8');
       const speakControlSource = readFileSync(new URL('./MessageSpeakControl.tsx', import.meta.url), 'utf8');
-      const copyMarkup = messageSource.lastIndexOf('<MessageCopyControl content={assistantCopyContent}');
+      const copyMarkup = messageSource.lastIndexOf('<MessageCopyControl content={turnSummary.replyText}');
       const speakerMarkup = messageSource.lastIndexOf('<MessageSpeakControl');
 
       assert.ok(copyMarkup > 0);

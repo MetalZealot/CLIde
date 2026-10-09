@@ -16,6 +16,7 @@ export default function TurnSummaryRow({ summary }: { summary: TurnSummary }) {
       })
       : '',
   ].filter(Boolean).join(' · ');
+  if (!metrics) return null;
 
   return (
     <div className="mt-1 flex min-h-6 min-w-0 select-none items-center gap-2 text-chat-activity text-muted-foreground sm:min-h-7">

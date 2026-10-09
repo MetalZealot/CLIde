@@ -1,5 +1,7 @@
 import type { ChatMessage } from '../types/types';
 
+import { formatReplyCopyText } from './chatFormatting';
+
 const isTurnStart = (message: ChatMessage): boolean =>
   (message.type === 'user' && !message.isCompactSummary && !message.isLocalCommandStdout)
   || Boolean(message.isTaskNotification);
@@ -16,13 +18,15 @@ const isReplyText = (message: ChatMessage): boolean =>
 const readTime = (timestamp: ChatMessage['timestamp']): number => new Date(timestamp).getTime();
 
 export type TurnSummary = {
+  /** Every reply in the turn, for its single Copy and Speak. */
+  replyText: string;
   durationMs?: number;
   /** Absent when the provider records none or the turn's prompt is not loaded. */
   outputTokens?: number;
 };
 
 /**
- * Each finished turn's duration and output tokens, keyed by its last reply.
+ * Each finished turn's reply text, duration and output tokens, keyed by its last reply.
  * Duration is wall-clock from the prompt: Claude does not persist a timer, and this ran
  * under 3s short of Claude's and Codex's recorded durations (measured 2026-09-14).
  */
@@ -39,16 +43,15 @@ export function computeTurnSummaries(
   let countsTokens = turnStart !== null && leadingTurnOutputTokens !== null;
   let outputTokens = leadingTurnOutputTokens ?? 0;
   let lastReply: ChatMessage | null = null;
+  let replyTexts: string[] = [];
 
   const closeTurn = () => {
-    if (turnStart === null || !lastReply) return;
-    const durationMs = readTime(lastReply.timestamp) - turnStart;
-    const summary: TurnSummary = {};
+    if (!lastReply) return;
+    const summary: TurnSummary = { replyText: replyTexts.filter(Boolean).join('\n\n') };
+    const durationMs = turnStart === null ? NaN : readTime(lastReply.timestamp) - turnStart;
     if (Number.isFinite(durationMs) && durationMs >= 1000) summary.durationMs = durationMs;
     if (countsTokens && outputTokens > 0) summary.outputTokens = outputTokens;
-    if (summary.durationMs !== undefined || summary.outputTokens !== undefined) {
-      summaries.set(lastReply, summary);
-    }
+    summaries.set(lastReply, summary);
   };
 
   for (const message of messages) {
@@ -58,8 +61,10 @@ export function computeTurnSummaries(
       countsTokens = true;
       outputTokens = 0;
       lastReply = null;
+      replyTexts = [];
     } else if (isReplyText(message)) {
       lastReply = message;
+      replyTexts.push(formatReplyCopyText(String(message.content || ''), message.followUpQuestions));
     }
     outputTokens += message.outputTokens ?? 0;
   }
