@@ -1,7 +1,7 @@
 # 0073 — Attach photos clicks a hidden input outside the + menu
 
 - Date: 2026-10-07
-- Status: Accepted
+- Status: Superseded by 0074
 
 ## Decision
 

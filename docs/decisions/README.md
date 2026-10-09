@@ -110,4 +110,5 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0070 — Attach files uses `showOpenFilePicker`; photos get their own image-only input](0070-attach-files-uses-showopenfilepicker.md) *(Attach photos superseded by 0072)*
 - [0071 — The sidebar is a rail of views over one project-scoped list](0071-sidebar-is-a-rail-of-views-over-one-scoped-list.md)
 - [0072 — The composer has one attach row; no image-only input](0072-composer-has-one-attach-row.md) *(superseded by 0073)*
-- [0073 — Attach photos clicks a hidden input outside the + menu](0073-attach-photos-uses-a-hidden-input-outside-the-menu.md)
+- [0073 — Attach photos clicks a hidden input outside the + menu](0073-attach-photos-uses-a-hidden-input-outside-the-menu.md) *(superseded by 0074)*
+- [0074 — No photo grid in the composer until Chrome can read its files](0074-no-photo-grid-in-the-composer.md)

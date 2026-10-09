@@ -126,7 +126,7 @@ new work.
 - [ ] **Scheduled tasks** — saved prompts that run on a repeat, into one chat or a new chat each run, with approvals that wait and push to the phone. Builds on scheduled messages. [Plan](plans/scheduled-tasks.md). **L**
 - [~] **Markdown-native cross-project dashboard and Kanban board.** A possible built-in or extension surface over authoritative project docs, with deterministic partial adoption, optional agent-assisted setup, and later constrained source edits—no task database or orchestration layer. [Plan](plans/markdown-project-board.md). **L — observe dashboard V1 first**
 - [ ] **CLIde harness.** Every agent session is told its CLIde ids, serving port and starting plan through one per-provider context block; live state through tools; procedures stay skills. [Plan](plans/clide-harness.md). **M**
-- [ ] **Register CLIde as a Web Share Target** — share files from other Android apps straight into a chat. The + menu's pickers already open the file browser and photo grid directly (ADR 0070). **M**
+- [ ] **Register CLIde as a Web Share Target** — share files from other Android apps straight into a chat. The + menu opens the file browser directly (ADR 0070); the photo grid is out (ADR 0074). **M**
 - [~] **Claude Code settings are almost entirely unreachable from CLIde** — all 172 cascade keys are classified and drift-tested, and settable from Agents › Claude's categories and Advanced. [Plan](plans/claude-settings-surface.md). **L**
 - [ ] **Environments**: a second machine in the same app. [Plan](plans/environments.md). **L**
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
