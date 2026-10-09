@@ -1,7 +1,7 @@
 # 0074 — No photo grid in the composer until Chrome can read its files
 
 - Date: 2026-10-08
-- Status: Accepted
+- Status: Superseded by 0075
 
 ## Decision
 

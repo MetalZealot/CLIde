@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, type ChangeEvent, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { CameraIcon, PaperclipIcon, PlusIcon, TimerIcon } from 'lucide-react';
+import { CameraIcon, ImageIcon, PaperclipIcon, PlusIcon, TimerIcon } from 'lucide-react';
 
 import { buttonVariants } from '../../../../shared/view/ui';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
@@ -45,19 +45,18 @@ function OverlayInputRow({ icon, label, children }: { icon: ReactNode; label: st
 }
 
 /**
- * The composer's + menu: take a photo, attach files, or schedule a message.
+ * The composer's + menu: take a photo, pick photos, attach files, or schedule a message.
  *
- * Camera clicks a hidden `capture` input outside the menu, which opens the camera app
- * directly; it is offered only on touch screens, where desktop would get a file dialog.
+ * Camera and Photos click hidden inputs outside the menu: `capture` opens the camera
+ * app, and an image-only `accept` opens Android's photo grid, whose files read only if
+ * nothing asks their size first (ADR 0075). Camera is offered only on touch screens,
+ * where desktop would get a file dialog.
  *
  * Attach files uses `showOpenFilePicker` where it exists: on Android it opens the
  * file browser with every type selectable, where a file input with any `accept`
- * that admits images detours through a camera chooser. There is deliberately no
- * image-only row: that opens Android's Photo Picker, and Chrome cannot read some
- * of its files (ADR 0074). Elsewhere a real file input is stretched over the row
- * so it owns the tap — Android standalone PWAs drop the result of a JS
- * `input.click()`. The surface stays mounted while closed so that input outlives
- * the picker it opened.
+ * that admits images detours through a camera chooser. Elsewhere a real file input
+ * is stretched over the row so it owns the tap, and the surface stays mounted while
+ * closed so that input outlives the picker it opened.
  */
 export default function ComposerAddMenu({
   getInputProps,
@@ -74,8 +73,10 @@ export default function ComposerAddMenu({
   const scheduleLabel = t('input.schedule.menuItem', { defaultValue: 'Scheduled Message' });
   const cameraLabel = t('input.camera', { defaultValue: 'Camera' });
   const hasCamera = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+  const photosLabel = t('input.photos', { defaultValue: 'Photos' });
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const handleCameraPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+  const photosInputRef = useRef<HTMLInputElement>(null);
+  const handlePicked = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (files.length > 0) onAttachFiles(files);
     event.target.value = '';
@@ -142,9 +143,18 @@ export default function ComposerAddMenu({
           capture="environment"
           aria-label={cameraLabel}
           className="hidden"
-          onChange={handleCameraPhoto}
+          onChange={handlePicked}
         />
       )}
+      <input
+        ref={photosInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        aria-label={photosLabel}
+        className="hidden"
+        onChange={handlePicked}
+      />
 
       {typeof document !== 'undefined' && createPortal(
         <ComposerMenuSurface
@@ -165,6 +175,16 @@ export default function ComposerAddMenu({
               }}
             />
           )}
+          <ComposerMenuItem
+            role="menuitem"
+            isSelected={false}
+            icon={<ImageIcon className="h-4 w-4 text-muted-foreground" />}
+            label={photosLabel}
+            onSelect={() => {
+              close();
+              photosInputRef.current?.click();
+            }}
+          />
           {showOpenFilePicker ? (
             <ComposerMenuItem
               role="menuitem"

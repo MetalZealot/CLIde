@@ -311,22 +311,30 @@ export const describeDropRejections = (
 /**
  * Reads each file into memory when it is attached, so a file the browser cannot read
  * is reported at once instead of becoming a broken preview and a failed send.
+ *
+ * Every read starts before anything asks a file for its size or date: asking first
+ * makes Chrome refuse many files from Android's photo grid (ADR 0075). The size cap
+ * is therefore checked on the copy.
  */
 export const copyAttachmentsToMemory = async (
   files: readonly File[],
-): Promise<{ copies: File[]; unreadable: string[] }> => {
+  maxSize = Number.POSITIVE_INFINITY,
+): Promise<{ copies: File[]; unreadable: string[]; tooLarge: string[] }> => {
   const results = await Promise.allSettled(files.map((file) => file.arrayBuffer()));
   const copies: File[] = [];
   const unreadable: string[] = [];
+  const tooLarge: string[] = [];
   results.forEach((result, index) => {
     const file = files[index];
-    if (result.status === 'fulfilled') {
-      copies.push(new File([result.value], file.name, { type: file.type, lastModified: file.lastModified }));
-    } else {
+    if (result.status === 'rejected') {
       unreadable.push(file.name || 'Unknown file');
+    } else if (result.value.byteLength > maxSize) {
+      tooLarge.push(file.name || 'Unknown file');
+    } else {
+      copies.push(new File([result.value], file.name, { type: file.type, lastModified: file.lastModified }));
     }
   });
-  return { copies, unreadable };
+  return { copies, unreadable, tooLarge };
 };
 
 const MAX_ATTACHMENT_COUNT = 10;
@@ -984,34 +992,23 @@ export function useChatComposerState({
   }, []);
 
   const handleAttachmentFiles = useCallback((files: File[]) => {
-    const rejections: AttachmentRejection[] = [];
     const validFiles = files.filter((file) => {
-      try {
-        if (!file || typeof file !== 'object') {
-          console.warn('Invalid file object:', file);
-          return false;
-        }
-
-        if (file.size > MAX_ATTACHMENT_SIZE) {
-          const fileName = file.name || 'Unknown file';
-          setFileErrors((previous) => {
-            const next = new Map(previous);
-            next.set(fileName, 'File too large (max 10MB)');
-            return next;
-          });
-          rejections.push({ fileName, reason: 'too-large' });
-          return false;
-        }
-
-        return true;
-      } catch (error) {
-        console.error('Error validating file:', error, file);
-        rejections.push({ fileName: file?.name || 'Unknown file', reason: 'unreadable' });
-        return false;
-      }
+      if (file && typeof file === 'object') return true;
+      console.warn('Invalid file object:', file);
+      return false;
     });
 
-    void copyAttachmentsToMemory(validFiles).then(({ copies, unreadable }) => {
+    // Nothing may read a file's size before this copy does (see copyAttachmentsToMemory).
+    void copyAttachmentsToMemory(validFiles, MAX_ATTACHMENT_SIZE).then(({ copies, unreadable, tooLarge }) => {
+      const rejections: AttachmentRejection[] = [];
+      if (tooLarge.length > 0) {
+        setFileErrors((previous) => {
+          const next = new Map(previous);
+          tooLarge.forEach((fileName) => next.set(fileName, 'File too large (max 10MB)'));
+          return next;
+        });
+        tooLarge.forEach((fileName) => rejections.push({ fileName, reason: 'too-large' }));
+      }
       unreadable.forEach((fileName) => rejections.push({ fileName, reason: 'unreadable' }));
       if (copies.length > 0) {
         setAttachedFiles((previous) => {

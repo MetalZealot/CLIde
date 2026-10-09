@@ -272,8 +272,9 @@
     "placeholder": "Ask anything, @ to mention, / for actions",
     "placeholderDefault": "Type your message...",
     "disabled": "Input disabled",
-    "attachFiles": "Files & Photos",
+    "attachFiles": "Files",
     "camera": "Camera",
+    "photos": "Photos",
     "attachImages": "Attach images",
     "attachmentRejected": {
       "tooLarge": "{{fileName}} — too large (max 10MB)",

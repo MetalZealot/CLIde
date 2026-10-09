@@ -656,7 +656,7 @@ test('an unnamed rejected file still produces a message', () => {
   );
 });
 
-test('attachments are copied into memory, and an unreadable one is reported by name', async () => {
+test('attachments are read before their size is asked, and unreadable or oversized ones are reported by name', async () => {
   const photo = new File(['png bytes'], 'photo.png', { type: 'image/png', lastModified: 1234 });
   // A file the browser refuses to read, as Android's Photo Picker sometimes hands over.
   const lapsed = new File(['x'], 'lapsed.png', { type: 'image/png' });
@@ -666,11 +666,23 @@ test('attachments are copied into memory, and an unreadable one is reported by n
     return Promise.reject(new DOMException('The requested file could not be read', 'NotReadableError'));
   };
 
-  const pending = copyAttachmentsToMemory([photo, lapsed]);
-  assert.equal(lapsedReadStarted, true, 'every read starts before the first await');
-  const { copies, unreadable } = await pending;
+  // Asking a photo-grid file for its size before reading it makes Chrome refuse the read.
+  let sizeAskedBeforeRead = false;
+  for (const file of [photo, lapsed]) {
+    const read = file.arrayBuffer.bind(file);
+    let readStarted = false;
+    file.arrayBuffer = () => { readStarted = true; return read(); };
+    Object.defineProperty(file, 'size', { get: () => { if (!readStarted) sizeAskedBeforeRead = true; return 9; } });
+  }
+  const huge = new File(['x'.repeat(20)], 'huge.png', { type: 'image/png' });
 
+  const pending = copyAttachmentsToMemory([photo, lapsed, huge], 10);
+  assert.equal(lapsedReadStarted, true, 'every read starts before the first await');
+  const { copies, unreadable, tooLarge } = await pending;
+
+  assert.equal(sizeAskedBeforeRead, false);
   assert.deepEqual(unreadable, ['lapsed.png']);
+  assert.deepEqual(tooLarge, ['huge.png']);
   assert.equal(copies.length, 1);
   assert.notEqual(copies[0], photo);
   assert.deepEqual(

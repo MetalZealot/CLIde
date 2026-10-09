@@ -2784,7 +2784,7 @@ describe('chatSubcomponents', () => {
   });
 
   describe('ComposerAddMenu', () => {
-    test('keeps the real file input under the tap, opens the camera, and arms scheduling', async () => {
+    test('keeps the real file input under the tap, opens the camera and photos, and arms scheduling', async () => {
       let requestedProps: Record<string, unknown> | undefined;
       let scheduled = 0;
       const attached: File[][] = [];
@@ -2824,8 +2824,6 @@ describe('chatSubcomponents', () => {
         const surface = document.body.querySelector('[role="menu"]');
         assert.match(surface?.className ?? '', /\bhidden\b/);
 
-        // No photo-grid input: Android's Photo Picker hands Chrome files it can fail to read.
-        assert.equal(document.body.querySelector('input[accept="image/*"]:not([capture])'), null);
 
         const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
         assert.ok(trigger);
@@ -2849,6 +2847,19 @@ describe('chatSubcomponents', () => {
         Object.defineProperty(cameraInput, 'files', { configurable: true, value: [photo] });
         await React.act(async () => cameraInput.dispatchEvent(new Event('change', { bubbles: true })));
         assert.deepEqual(attached, [[photo]]);
+        await React.act(async () => trigger.click());
+
+        // The photo grid's input also sits outside the menu, below Camera.
+        const photosInput = document.body.querySelector<HTMLInputElement>('input[type="file"][aria-label="Photos"]');
+        assert.ok(photosInput);
+        assert.equal(photosInput.accept, 'image/*');
+        assert.equal(photosInput.multiple, true);
+        assert.equal(surface?.contains(photosInput), false);
+        let photosClicks = 0;
+        photosInput.click = () => { photosClicks += 1; };
+        assert.match(items()[1]?.textContent ?? '', /Photos/);
+        await React.act(async () => items()[1]?.click());
+        assert.equal(photosClicks, 1);
         await React.act(async () => trigger.click());
 
         const scheduleItem = () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
