@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Shimmer } from '../../../../shared/view/ui';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import type { TurnEnd } from '../../types/types';
+import { dotStateFor, endingFor, type Finish } from '../../utils/activityState';
 
-import ActivityDots, { type ActivityDotState } from './ActivityDots';
+import ActivityDots from './ActivityDots';
 
 type ActivityIndicatorProps = {
   activity: SessionActivity | null;
@@ -18,29 +19,6 @@ type ActivityIndicatorProps = {
 const EXIT_ANIMATION_MS = 220;
 // Long enough for the dots to settle into their ending.
 const FINISH_HOLD_MS = 1400;
-
-type Finish = 'done' | 'failed';
-
-const dotStateFor = (activity: SessionActivity, awaitingInput: boolean, finish: Finish | null): ActivityDotState => {
-  if (finish) return finish;
-  if (awaitingInput) return 'waiting';
-  switch (activity.stage?.name) {
-    case 'starting':
-    case 'sending':
-      return 'starting';
-    case 'thinking':
-    case 'retrying':
-    case 'compacting':
-      return activity.stage.name;
-    default:
-      return 'working';
-  }
-};
-
-// Only an ending reported after this turn began belongs to it; a stop has no ending.
-const endingFor = (activity: SessionActivity, turnEnd: TurnEnd | null): Finish | null => (
-  turnEnd && turnEnd.endedAt >= activity.startedAt && turnEnd.outcome !== 'stopped' ? turnEnd.outcome : null
-);
 
 /**
  * The running turn's status as the conversation's last row: elapsed time, output

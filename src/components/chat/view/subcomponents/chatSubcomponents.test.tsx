@@ -31,6 +31,7 @@ import PermissionRequestsBanner from './PermissionRequestsBanner';
 import { TextDisclosure } from './DisclosureRow';
 import MessageCopyControl from './MessageCopyControl';
 import ActivityIndicator from './ActivityIndicator';
+import ScrollToBottomButton from './ScrollToBottomButton';
 import { ChatExportOptions } from './ChatExportMenu';
 import ChatFindBar from './ChatFindBar';
 import ChatMessageFiles from './ChatMessageFiles';
@@ -726,6 +727,42 @@ describe('chatSubcomponents', () => {
       assert.equal(await endWith({ sessionId: 's', outcome: 'stopped', endedAt: Date.now() }), 'working');
       assert.ok(container.querySelector('.chat-activity-exit'));
       assert.equal(await endWith({ sessionId: 's', outcome: 'done', endedAt: startedAt - 1 }), 'working');
+    });
+
+    test('the jump-to-bottom button carries the turn\'s dots and keeps its ending until it unmounts', async () => {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+      const startedAt = Date.now() - 4_500;
+      const working = { statusText: null, canInterrupt: true, startedAt };
+      const render = (props: Partial<React.ComponentProps<typeof ScrollToBottomButton>>) => React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <ScrollToBottomButton activity={null} awaitingInput={false} turnEnd={null} onClick={() => {}} {...props} />
+        </I18nextProvider>,
+      ));
+      const state = () => container?.querySelector('button')?.getAttribute('data-activity') ?? null;
+
+      await render({});
+      assert.equal(state(), null);
+      assert.equal(container.querySelectorAll('svg').length, 1, 'idle is the chevron alone');
+      await render({ activity: working });
+      assert.equal(state(), 'working');
+      assert.equal(container.querySelector('[data-state]')?.getAttribute('data-state'), 'working');
+      await render({ activity: { ...working, stage: { name: 'thinking' } }, awaitingInput: true });
+      assert.equal(state(), 'waiting');
+
+      // Both endings hold, unlike the status row's finish; a stop or a stale ending drops back to the chevron.
+      await render({ activity: null, turnEnd: { sessionId: 's', outcome: 'done', endedAt: Date.now() } });
+      assert.equal(state(), 'done');
+      await render({ activity: working });
+      await render({ activity: null, turnEnd: { sessionId: 's', outcome: 'failed', endedAt: Date.now() } });
+      assert.equal(state(), 'failed');
+      await render({ activity: working });
+      await render({ activity: null, turnEnd: { sessionId: 's', outcome: 'stopped', endedAt: Date.now() } });
+      assert.equal(state(), null);
+      await render({ activity: working });
+      await render({ activity: null, turnEnd: { sessionId: 's', outcome: 'done', endedAt: startedAt - 1 } });
+      assert.equal(state(), null);
     });
 
     test('rows skip rendering off-screen only after a real layout', () => {

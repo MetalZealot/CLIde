@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownIcon } from 'lucide-react';
 
 import { ChatBrowserPreview, useChatBrowser } from '../../browser-use';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
@@ -32,6 +31,7 @@ import { useProviderUsage } from '../../provider-usage/hooks/useProviderUsage';
 import { formatUsageWindowLabel, pickExhaustedWindow } from '../../provider-usage/format';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
+import ScrollToBottomButton from './subcomponents/ScrollToBottomButton';
 import ChatComposer from './subcomponents/ChatComposer';
 import NewSessionLauncher from './subcomponents/NewSessionLauncher';
 import CommandResultModal from './subcomponents/CommandResultModal';
@@ -1099,15 +1099,12 @@ function ChatInterface({
 
           {!showConnectionLostBanner && isUserScrolledUp && chatMessages.length > 0 && (
             <div className="pointer-events-none absolute -top-11 left-0 right-0 z-20 flex justify-center">
-              <button
-                type="button"
+              <ScrollToBottomButton
+                activity={sessionActivity}
+                awaitingInput={hasPendingPermission}
+                turnEnd={viewedTurnEnd}
                 onClick={scrollToBottomAndReset}
-                aria-label={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
-                className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground"
-                title={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
-              >
-                <ArrowDownIcon className="h-4 w-4" aria-hidden />
-              </button>
+              />
             </div>
           )}
 
