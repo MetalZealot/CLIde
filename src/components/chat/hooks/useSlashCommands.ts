@@ -595,11 +595,10 @@ export function useSlashCommands({
 
       if (event.key === 'Tab' || event.key === 'Enter') {
         event.preventDefault();
-        if (selectedCommandIndex >= 0) {
-          selectCommand(filteredCommands[selectedCommandIndex]);
-        } else if (filteredCommands.length > 0) {
-          selectCommand(filteredCommands[0]);
-        }
+        const command = filteredCommands[Math.max(selectedCommandIndex, 0)];
+        // Tab completes, never runs: a built-in gets its arguments typed first.
+        if (event.key === 'Tab') insertCommandIntoInput(command);
+        else selectCommand(command);
         return true;
       }
 
@@ -611,7 +610,7 @@ export function useSlashCommands({
 
       return false;
     },
-    [showCommandMenu, filteredCommands, resetCommandMenuState, selectCommand, selectedCommandIndex],
+    [showCommandMenu, filteredCommands, insertCommandIntoInput, resetCommandMenuState, selectCommand, selectedCommandIndex],
   );
 
   useEffect(
