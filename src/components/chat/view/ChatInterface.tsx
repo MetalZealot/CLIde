@@ -21,10 +21,10 @@ import { useLiveLimitStop, useSessionAutoContinue } from '../hooks/useAutoContin
 import {
   useScheduledMessages,
   type ScheduledMessage,
-  type ScheduleMode,
   type ScheduledMessageTrigger,
 } from '../hooks/useScheduledMessages';
 import { useProviderCapabilities, type ChatControlChanges } from '../../../hooks/useProviderCapabilities';
+import { initialScheduleDraft, resolveScheduleDraft, type ScheduleDraft } from '../utils/scheduleDraft';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
@@ -632,10 +632,15 @@ function ChatInterface({
   const [usageSpentSend, setUsageSpentSend] = useState<{ windowLabel: string; resetsAt: string } | null>(null);
   const sendDespiteUsageRef = useRef(false);
   useEffect(() => { setUsageSpentSend(null); }, [scheduledSessionId]);
-  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>(null);
-  useEffect(() => { setScheduleMode(null); }, [scheduledSessionId]);
+  // Set in schedule mode; leaving it also drops the usage-spent notice it carried.
+  const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft | null>(null);
+  const changeScheduleDraft = useCallback((next: ScheduleDraft | null) => {
+    setScheduleDraft(next);
+    if (!next) setUsageSpentSend(null);
+  }, []);
+  useEffect(() => { setScheduleDraft(null); }, [scheduledSessionId]);
   // An edit keeps its own trigger, so opening one leaves schedule mode.
-  useEffect(() => { if (scheduledEdit) setScheduleMode(null); }, [scheduledEdit]);
+  useEffect(() => { if (scheduledEdit) changeScheduleDraft(null); }, [changeScheduleDraft, scheduledEdit]);
   const liveLimitStop = useLiveLimitStop(chatMessages, canScheduleOnUsageReset);
   const autoContinue = useSessionAutoContinue(selectedSession?.id, projects, selectedSession?.autoContinue);
   const setAutoContinueEnabled = autoContinue.setEnabled;
@@ -675,7 +680,7 @@ function ChatInterface({
   const handleScheduleMessage = useCallback(
     async (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => {
       const content = input.trim();
-      if (!content) return;
+      if (!content) return false;
 
       let attachments: unknown[] = [];
       if (attachedFiles.length > 0) {
@@ -683,7 +688,7 @@ function ChatInterface({
           attachments = await describeAttachments(attachedFiles);
         } catch (error) {
           console.error('Scheduled message file upload failed:', error);
-          return;
+          return false;
         }
       }
 
@@ -718,7 +723,7 @@ function ChatInterface({
       // A first message needs the session a send would have created, or the
       // row has nothing to fire into.
       const sessionId = scheduledSessionId ?? await ensureSessionId(content);
-      if (!sessionId) return;
+      if (!sessionId) return false;
 
       const options = { ...buildSendOptions(content), attachments } as Record<string, unknown>;
 
@@ -727,6 +732,7 @@ function ChatInterface({
         setInput('');
         setAttachedFiles([]);
       }
+      return Boolean(scheduled);
     },
     [
       addMessage,
@@ -761,24 +767,29 @@ function ChatInterface({
         return false;
       }
       const trimmed = text.trim();
-      // Schedule mode: a send with text opens the time sheet; nothing goes out now.
-      if (scheduleMode && !trimmed.startsWith('/')) {
-        if (trimmed) setScheduleMode('picking');
+      // Schedule mode: every send schedules for the banner's choice; nothing goes out now.
+      if (scheduleDraft && !trimmed.startsWith('/')) {
+        const resolved = trimmed ? resolveScheduleDraft(scheduleDraft) : null;
+        if (resolved) {
+          void handleScheduleMessage(resolved.trigger, resolved.scheduledFor).then((ok) => {
+            if (ok) changeScheduleDraft(null);
+          });
+        }
         return true;
       }
       if (!canScheduleOnUsageReset || isProcessing || !trimmed || trimmed.startsWith('/')) return false;
       const spent = pickExhaustedWindow(providerUsage?.windows);
       if (!spent?.resetsAt) return false;
       setUsageSpentSend({ windowLabel: formatUsageWindowLabel(spent, t), resetsAt: spent.resetsAt });
+      setScheduleDraft(initialScheduleDraft(true));
       return true;
     };
 
   const handleSendDespiteUsage = useCallback(() => {
-    setUsageSpentSend(null);
+    changeScheduleDraft(null);
     sendDespiteUsageRef.current = true;
     void handleSubmit({ preventDefault: () => {} } as React.FormEvent<HTMLFormElement>);
-  }, [handleSubmit]);
-  const dismissUsageSpentSend = useCallback(() => setUsageSpentSend(null), []);
+  }, [changeScheduleDraft, handleSubmit]);
 
   // Editing pauses the message: it cannot send until this edit is saved or
   // resumed, whatever happens to this device meanwhile. Its text and files come
@@ -1190,10 +1201,9 @@ function ChatInterface({
             onCancelScheduleEdit={handleCancelScheduleEdit}
             onScheduleMessage={handleComposerScheduleMessage}
             canScheduleOnUsageReset={canScheduleOnUsageReset}
-            scheduleMode={scheduleMode}
-            onScheduleModeChange={setScheduleMode}
+            scheduleDraft={scheduleDraft}
+            onScheduleDraftChange={changeScheduleDraft}
             usageSpentSend={usageSpentSend}
-            onDismissUsageSpentSend={dismissUsageSpentSend}
             onSendDespiteUsage={handleSendDespiteUsage}
             pendingRewind={pendingRewind}
             onCancelRewindEdit={cancelRewindEdit}

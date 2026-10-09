@@ -3,8 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../../utils/api';
 
 export type ScheduledMessageTrigger = 'time' | 'usage-reset';
-/** Composer schedule mode: armed swaps Send for a timer; picking has the time sheet open. */
-export type ScheduleMode = 'armed' | 'picking' | null;
 
 export type ScheduledMessage = {
   id: string;

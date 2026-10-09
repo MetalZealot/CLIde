@@ -43,7 +43,8 @@ import FollowUpQuestions from './FollowUpQuestions';
 import AsyncQuestionPanel from './AsyncQuestionPanel';
 import QueuedMessagesRow from './QueuedMessagesRow';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
-import ScheduleSendMenu from './ScheduleSendMenu';
+import ScheduleBanner from './ScheduleBanner';
+import { initialScheduleDraft, resolveScheduleDraft, type ScheduleDraft } from '../../utils/scheduleDraft';
 import ComposerAddMenu from './ComposerAddMenu';
 import TokenUsageSummary from './TokenUsageSummary';
 import ProviderUpdateNotice from './ProviderUpdateNotice';
@@ -88,41 +89,62 @@ describe('chatSubcomponents', () => {
       globalThis.fetch = originalFetch;
     }
   });
-  test('a send held back by spent usage leads with the reset and still offers to send now', async () => {
+  test('schedule banner edits one draft, names spent usage, and resolves at send time', async () => {
     const translations = i18next.createInstance();
     await translations.use(initReactI18next).init({ lng: 'en', resources: { en: { chat: {} } } });
     const host = document.createElement('div');
+    document.body.appendChild(host);
     const root = createRoot(host);
-    const scheduled: Array<[string, string | null]> = [];
+    let draft: ScheduleDraft = initialScheduleDraft();
+    let closed = 0;
     let sentNow = 0;
     const render = (usageSpent: { windowLabel: string; resetsAt: string } | null) => root.render(
       <I18nextProvider i18n={translations}>
-        <ScheduleSendMenu
+        <ScheduleBanner
+          draft={draft}
+          onChange={(next) => { draft = next; render(usageSpent); }}
+          onClose={() => { closed += 1; }}
           canWaitForUsageReset
           usageSpent={usageSpent}
           onSendNow={() => { sentNow += 1; }}
-          onDismiss={() => {}}
-          onSchedule={(trigger, at) => { scheduled.push([trigger, at]); }}
         />
       </I18nextProvider>,
     );
-    const buttonNamed = (name: string) => [...document.body.querySelectorAll('button')]
-      .find((button) => button.textContent?.trim() === name);
+    const buttonNamed = (name: string) => [...host.querySelectorAll('button')]
+      .find((button) => button.textContent?.trim() === name || button.getAttribute('aria-label') === name);
     try {
       await React.act(async () => render(null));
-      assert.equal(document.body.querySelector('[role="status"]'), null);
+      assert.equal(host.querySelector('[role="status"]'), null);
       assert.equal(buttonNamed('Send now anyway'), undefined);
+      assert.match(host.textContent ?? '', /at /);
+      const now = Date.parse('2026-10-08T12:00:00Z');
+      assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'time', scheduledFor: '2026-10-08T12:30:00.000Z' });
 
-      await React.act(async () => render({ windowLabel: '5-hour limit', resetsAt: new Date(Date.now() + 3_600_000).toISOString() }));
-      assert.match(document.body.querySelector('[role="status"]')?.textContent ?? '', /5-hour limit is used up until/);
-      assert.match(buttonNamed('When usage resets')?.className ?? '', /bg-primary/);
-      assert.doesNotMatch(buttonNamed('Schedule')?.className ?? '', /bg-primary/);
       await React.act(async () => buttonNamed('When usage resets')!.click());
+      assert.equal(buttonNamed('When usage resets')?.getAttribute('aria-pressed'), 'true');
+      assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'usage-reset', scheduledFor: null });
+
+      // Typing an amount is a time choice again.
+      const amount = host.querySelector<HTMLInputElement>('input[type="number"]')!;
+      await React.act(async () => {
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(amount), 'value')!.set!.call(amount, '2');
+        amount.dispatchEvent(new window.Event('input', { bubbles: true }));
+      });
+      assert.equal(draft.onUsageReset, false);
+      assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'time', scheduledFor: '2026-10-08T12:02:00.000Z' });
+      assert.equal(resolveScheduleDraft({ ...draft, amount: '0' }, now), null);
+
+      draft = initialScheduleDraft(true);
+      await React.act(async () => render({ windowLabel: '5-hour limit', resetsAt: new Date(now + 3_600_000).toISOString() }));
+      assert.match(host.querySelector('[role="status"]')?.textContent ?? '', /5-hour limit is used up until/);
+      assert.match(host.textContent ?? '', /when usage resets \(/);
       await React.act(async () => buttonNamed('Send now anyway')!.click());
-      assert.deepEqual(scheduled, [['usage-reset', null]]);
+      await React.act(async () => buttonNamed('Stop scheduling')!.click());
       assert.equal(sentNow, 1);
+      assert.equal(closed, 1);
     } finally {
       await React.act(async () => root.unmount());
+      host.remove();
     }
   });
   test('shows each assistant reply timestamp regardless of its preceding message', async () => {
