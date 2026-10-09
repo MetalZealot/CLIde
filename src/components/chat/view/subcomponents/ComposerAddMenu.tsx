@@ -1,7 +1,7 @@
-import { useCallback, useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ChangeEvent, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { PaperclipIcon, PlusIcon, TimerIcon } from 'lucide-react';
+import { CameraIcon, PaperclipIcon, PlusIcon, TimerIcon } from 'lucide-react';
 
 import { buttonVariants } from '../../../../shared/view/ui';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
@@ -45,7 +45,10 @@ function OverlayInputRow({ icon, label, children }: { icon: ReactNode; label: st
 }
 
 /**
- * The composer's + menu: attach files or schedule the typed message.
+ * The composer's + menu: take a photo, attach files, or schedule a message.
+ *
+ * Camera clicks a hidden `capture` input outside the menu, which opens the camera app
+ * directly; it is offered only on touch screens, where desktop would get a file dialog.
  *
  * Attach files uses `showOpenFilePicker` where it exists: on Android it opens the
  * file browser with every type selectable, where a file input with any `accept`
@@ -68,7 +71,15 @@ export default function ComposerAddMenu({
   const close = useCallback(() => setIsOpen(false), []);
   const { triggerRef, menuRef, anchor, updateAnchor } = useComposerMenuAnchor(isOpen, close, 14 * 16);
   const menuLabel = t('input.addMenu', { defaultValue: 'Add to message' });
-  const scheduleLabel = t('input.schedule.menuItem', { defaultValue: 'Schedule message' });
+  const scheduleLabel = t('input.schedule.menuItem', { defaultValue: 'Scheduled Message' });
+  const cameraLabel = t('input.camera', { defaultValue: 'Camera' });
+  const hasCamera = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const handleCameraPhoto = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length > 0) onAttachFiles(files);
+    event.target.value = '';
+  };
   const showOpenFilePicker = typeof window === 'undefined'
     ? undefined
     : (window as FilePickerWindow).showOpenFilePicker?.bind(window);
@@ -123,6 +134,17 @@ export default function ComposerAddMenu({
       >
         <PlusIcon aria-hidden="true" />
       </button>
+      {hasCamera && (
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          aria-label={cameraLabel}
+          className="hidden"
+          onChange={handleCameraPhoto}
+        />
+      )}
 
       {typeof document !== 'undefined' && createPortal(
         <ComposerMenuSurface
@@ -131,6 +153,18 @@ export default function ComposerAddMenu({
           ariaLabel={menuLabel}
           className={isShown ? undefined : 'hidden'}
         >
+          {hasCamera && (
+            <ComposerMenuItem
+              role="menuitem"
+              isSelected={false}
+              icon={<CameraIcon className="h-4 w-4 text-muted-foreground" />}
+              label={cameraLabel}
+              onSelect={() => {
+                close();
+                cameraInputRef.current?.click();
+              }}
+            />
+          )}
           {showOpenFilePicker ? (
             <ComposerMenuItem
               role="menuitem"

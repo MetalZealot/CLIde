@@ -2747,16 +2747,19 @@ describe('chatSubcomponents', () => {
   });
 
   describe('ComposerAddMenu', () => {
-    test('keeps the real file input under the tap and arms scheduling', async () => {
+    test('keeps the real file input under the tap, opens the camera, and arms scheduling', async () => {
       let requestedProps: Record<string, unknown> | undefined;
       let scheduled = 0;
+      const attached: File[][] = [];
+      const originalMatchMedia = window.matchMedia;
+      window.matchMedia = ((query: string) => ({ matches: query === '(pointer: coarse)' })) as typeof window.matchMedia;
       const container = document.createElement('div');
       document.body.appendChild(container);
       const root = createRoot(container);
       const render = (canSchedule: boolean) => root.render(
         React.createElement(ComposerAddMenu, {
           attachLabel: 'Attach files',
-          onAttachFiles: () => {},
+          onAttachFiles: (files: File[]) => { attached.push(files); },
           canSchedule,
           onSchedule: () => { scheduled += 1; },
           getInputProps: (props: unknown) => {
@@ -2784,8 +2787,8 @@ describe('chatSubcomponents', () => {
         const surface = document.body.querySelector('[role="menu"]');
         assert.match(surface?.className ?? '', /\bhidden\b/);
 
-        // No image-only input: on Android it opens the Photo Picker, whose files Chrome can fail to read.
-        assert.equal(document.body.querySelector('input[accept="image/*"]'), null);
+        // No photo-grid input: Android's Photo Picker hands Chrome files it can fail to read.
+        assert.equal(document.body.querySelector('input[accept="image/*"]:not([capture])'), null);
 
         const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
         assert.ok(trigger);
@@ -2793,8 +2796,26 @@ describe('chatSubcomponents', () => {
         await React.act(async () => trigger.click());
         assert.doesNotMatch(surface?.className ?? '', /\bhidden\b/);
 
+        // The camera input sits outside the menu and is clicked from its row.
+        const cameraInput = document.body.querySelector<HTMLInputElement>('input[type="file"][aria-label="Camera"]');
+        assert.ok(cameraInput);
+        assert.equal(cameraInput.getAttribute('capture'), 'environment');
+        assert.equal(surface?.contains(cameraInput), false);
+        let cameraClicks = 0;
+        cameraInput.click = () => { cameraClicks += 1; };
+        const items = () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+        assert.match(items()[0]?.textContent ?? '', /Camera/);
+        await React.act(async () => items()[0]?.click());
+        assert.equal(cameraClicks, 1);
+        assert.match(surface?.className ?? '', /\bhidden\b/);
+        const photo = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+        Object.defineProperty(cameraInput, 'files', { configurable: true, value: [photo] });
+        await React.act(async () => cameraInput.dispatchEvent(new Event('change', { bubbles: true })));
+        assert.deepEqual(attached, [[photo]]);
+        await React.act(async () => trigger.click());
+
         const scheduleItem = () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
-          .find((item) => /Schedule message/.test(item.textContent ?? ''));
+          .find((item) => /Scheduled Message/.test(item.textContent ?? ''));
         assert.equal(scheduleItem()?.disabled, true);
 
         await React.act(async () => render(true));
@@ -2804,6 +2825,7 @@ describe('chatSubcomponents', () => {
       } finally {
         await React.act(async () => root.unmount());
         container.remove();
+        window.matchMedia = originalMatchMedia;
       }
     });
 
