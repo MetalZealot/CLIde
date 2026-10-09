@@ -2747,7 +2747,7 @@ describe('chatSubcomponents', () => {
   });
 
   describe('ComposerAddMenu', () => {
-    test('keeps the real file input under the tap and schedules only typed text', async () => {
+    test('keeps the real file input under the tap and arms scheduling', async () => {
       let requestedProps: Record<string, unknown> | undefined;
       let scheduled = 0;
       const container = document.createElement('div');
@@ -2796,7 +2796,6 @@ describe('chatSubcomponents', () => {
         const scheduleItem = () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
           .find((item) => /Schedule message/.test(item.textContent ?? ''));
         assert.equal(scheduleItem()?.disabled, true);
-        assert.match(scheduleItem()?.textContent ?? '', /Type a message first/);
 
         await React.act(async () => render(true));
         await React.act(async () => scheduleItem()?.click());

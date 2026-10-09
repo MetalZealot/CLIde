@@ -1,7 +1,7 @@
 import { useCallback, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { ClockIcon, PaperclipIcon, PlusIcon } from 'lucide-react';
+import { PaperclipIcon, PlusIcon, TimerIcon } from 'lucide-react';
 
 import { buttonVariants } from '../../../../shared/view/ui';
 import { useComposerMenuAnchor } from '../../hooks/useComposerMenuAnchor';
@@ -151,11 +151,8 @@ export default function ComposerAddMenu({
             role="menuitem"
             isSelected={false}
             disabled={!canSchedule}
-            icon={<ClockIcon className="h-4 w-4 text-muted-foreground" />}
+            icon={<TimerIcon className="h-4 w-4 text-muted-foreground" />}
             label={scheduleLabel}
-            description={canSchedule
-              ? undefined
-              : t('input.schedule.needsText', { defaultValue: 'Type a message first' })}
             className="disabled:cursor-default"
             onSelect={() => {
               close();

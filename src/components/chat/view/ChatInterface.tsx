@@ -21,6 +21,7 @@ import { useLiveLimitStop, useSessionAutoContinue } from '../hooks/useAutoContin
 import {
   useScheduledMessages,
   type ScheduledMessage,
+  type ScheduleMode,
   type ScheduledMessageTrigger,
 } from '../hooks/useScheduledMessages';
 import { useProviderCapabilities, type ChatControlChanges } from '../../../hooks/useProviderCapabilities';
@@ -631,6 +632,10 @@ function ChatInterface({
   const [usageSpentSend, setUsageSpentSend] = useState<{ windowLabel: string; resetsAt: string } | null>(null);
   const sendDespiteUsageRef = useRef(false);
   useEffect(() => { setUsageSpentSend(null); }, [scheduledSessionId]);
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>(null);
+  useEffect(() => { setScheduleMode(null); }, [scheduledSessionId]);
+  // An edit keeps its own trigger, so opening one leaves schedule mode.
+  useEffect(() => { if (scheduledEdit) setScheduleMode(null); }, [scheduledEdit]);
   const liveLimitStop = useLiveLimitStop(chatMessages, canScheduleOnUsageReset);
   const autoContinue = useSessionAutoContinue(selectedSession?.id, projects, selectedSession?.autoContinue);
   const setAutoContinueEnabled = autoContinue.setEnabled;
@@ -756,6 +761,11 @@ function ChatInterface({
         return false;
       }
       const trimmed = text.trim();
+      // Schedule mode: a send with text opens the time sheet; nothing goes out now.
+      if (scheduleMode && !trimmed.startsWith('/')) {
+        if (trimmed) setScheduleMode('picking');
+        return true;
+      }
       if (!canScheduleOnUsageReset || isProcessing || !trimmed || trimmed.startsWith('/')) return false;
       const spent = pickExhaustedWindow(providerUsage?.windows);
       if (!spent?.resetsAt) return false;
@@ -1180,6 +1190,8 @@ function ChatInterface({
             onCancelScheduleEdit={handleCancelScheduleEdit}
             onScheduleMessage={handleComposerScheduleMessage}
             canScheduleOnUsageReset={canScheduleOnUsageReset}
+            scheduleMode={scheduleMode}
+            onScheduleModeChange={setScheduleMode}
             usageSpentSend={usageSpentSend}
             onDismissUsageSpentSend={dismissUsageSpentSend}
             onSendDespiteUsage={handleSendDespiteUsage}

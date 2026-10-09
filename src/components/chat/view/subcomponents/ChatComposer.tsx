@@ -11,12 +11,12 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { XIcon, ArrowUpIcon, SquareIcon } from 'lucide-react';
+import { XIcon, ArrowUpIcon, SquareIcon, TimerIcon } from 'lucide-react';
 
 import { useLongPress } from '../../../../hooks/useLongPress';
 import { useHeaderAccessorySlot } from '../../../../contexts/HeaderMenuContext';
 import { formatClockTimeWithDay, useClockFormat } from '../../../../utils/formatTime';
-import type { ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
+import type { ScheduleMode, ScheduledMessageTrigger } from '../../hooks/useScheduledMessages';
 import type { QueuedAsyncAnswer } from '../../utils/asyncQuestionState';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useSttAvailable } from '../../hooks/useVoiceAvailable';
@@ -144,6 +144,9 @@ interface ChatComposerProps {
   onScheduleMessage: (trigger: ScheduledMessageTrigger, scheduledFor: string | null) => void;
   /** False on providers with no usage reset to wait on, which omits that item. */
   canScheduleOnUsageReset: boolean;
+  /** Armed: Send is a timer that opens the time sheet. Picking: the sheet is open. */
+  scheduleMode: ScheduleMode;
+  onScheduleModeChange: (mode: ScheduleMode) => void;
   /** Set when Send was held back because usage is spent; opens the schedule sheet. */
   usageSpentSend?: { windowLabel: string; resetsAt: string } | null;
   onDismissUsageSpentSend?: () => void;
@@ -245,6 +248,8 @@ function ChatComposer({
   onCancelScheduleEdit,
   onScheduleMessage,
   canScheduleOnUsageReset,
+  scheduleMode,
+  onScheduleModeChange,
   usageSpentSend = null,
   onDismissUsageSpentSend,
   onSendDespiteUsage,
@@ -355,27 +360,27 @@ function ChatComposer({
 
   const headerSlot = useHeaderAccessorySlot();
 
-  // Long-press (touch) and right-click (pointer) open the same "send later" sheet.
-  const [isScheduleMenuOpen, setIsScheduleMenuOpen] = useState(false);
-  const canScheduleCurrentInput = Boolean(sessionKey || canStartSession) && Boolean(input.trim());
+  // Long-press (touch), right-click (pointer) and the + menu all arm schedule mode.
+  // An open edit keeps its own trigger, so it cannot be rescheduled from here.
+  const canSchedule = Boolean(sessionKey || canStartSession) && !editingSchedule;
+  const armSchedule = useCallback(() => onScheduleModeChange('armed'), [onScheduleModeChange]);
   const { handlers: scheduleLongPress } = useLongPress(
-    () => setIsScheduleMenuOpen(true),
-    { disabled: !canScheduleCurrentInput },
+    armSchedule,
+    { disabled: !canSchedule || !input.trim() },
   );
-
-  // The sheet belongs to one conversation; switching away must not leave it
-  // covering the next one's composer.
-  useEffect(() => { setIsScheduleMenuOpen(false); }, [sessionKey]);
 
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim() || attachedFiles.length > 0);
   // Mid-turn the send button is Stop while the input is empty and Queue once it isn't.
+  const showTimer = Boolean(scheduleMode) && !isRecording;
   const showStop = isLoading && !canQueueDraft && !editingSchedule && !isRecording
     && Boolean(activity?.canInterrupt);
   const submitAriaLabel = disabled
     ? t('input.selectProjectToSend', { defaultValue: 'Select a project to send' })
     : editingSchedule
       ? t('input.schedule.reschedule', { defaultValue: 'Save and keep it scheduled' })
+      : showTimer && !showStop
+      ? t('input.schedule.pickTime', { defaultValue: 'Pick when to send' })
       : showStop
       ? isStopArmed
         ? t('claudeStatus.stopConfirm', { defaultValue: 'Press again to stop' })
@@ -433,21 +438,39 @@ function ChatComposer({
         onRemoveAnswer={onRemoveQueuedAnswer}
       />
 
-      {(isScheduleMenuOpen || usageSpentSend) && (
+      {(scheduleMode === 'picking' || usageSpentSend) && (
         <ScheduleSendMenu
           canWaitForUsageReset={canScheduleOnUsageReset}
           usageSpent={usageSpentSend}
           onSendNow={onSendDespiteUsage}
           onDismiss={() => {
-            setIsScheduleMenuOpen(false);
+            if (scheduleMode) onScheduleModeChange('armed');
             onDismissUsageSpentSend?.();
           }}
           onSchedule={(trigger, scheduledFor) => {
-            setIsScheduleMenuOpen(false);
+            onScheduleModeChange(null);
             onDismissUsageSpentSend?.();
             onScheduleMessage(trigger, scheduledFor);
           }}
         />
+      )}
+
+      {scheduleMode && (
+        <div className="settings-content-enter mx-auto mb-2 flex max-w-[54.25rem] items-center gap-2 rounded-xl border border-dashed border-primary/25 bg-primary/[0.04] px-3 py-2 text-xs">
+          <TimerIcon className="h-3.5 w-3.5 flex-shrink-0 text-primary" aria-hidden="true" />
+          <span className="flex-1 text-muted-foreground">
+            {t('input.schedule.armed', { defaultValue: 'Scheduling — tap the timer to pick when it sends' })}
+          </span>
+          <button
+            type="button"
+            onClick={() => onScheduleModeChange(null)}
+            aria-label={t('input.schedule.disarm', { defaultValue: 'Stop scheduling' })}
+            title={t('input.schedule.disarm', { defaultValue: 'Stop scheduling' })}
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <XIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
 
       {editingSchedule && (
@@ -656,8 +679,8 @@ function ChatComposer({
               getInputProps={getInputProps}
               attachLabel={t('input.attachFiles')}
               onAttachFiles={onAttachFiles}
-              canSchedule={canScheduleCurrentInput}
-              onSchedule={() => setIsScheduleMenuOpen(true)}
+              canSchedule={canSchedule}
+              onSchedule={armSchedule}
             />
 
             <ComposerModelMenu
@@ -727,6 +750,8 @@ function ChatComposer({
               disabled={
                 disabled
                   ? true
+                  : showTimer && !showStop
+                    ? !input.trim()
                   : isLoading
                     ? !canQueueDraft && !showStop
                     : isStartingRecording
@@ -747,7 +772,7 @@ function ChatComposer({
               // so right-click has to open ours here or desktop gets nothing.
               onContextMenu={(event: MouseEvent<HTMLButtonElement>) => {
                 event.preventDefault();
-                if (canScheduleCurrentInput) setIsScheduleMenuOpen(true);
+                if (canSchedule) armSchedule();
               }}
             >
               {showStop ? (
@@ -766,7 +791,7 @@ function ChatComposer({
                   </span>
                   <SquareIcon className="!h-3.5 !w-3.5 fill-current" />
                 </span>
-              ) : <ArrowUpIcon className="h-5 w-5" />}
+              ) : showTimer ? <TimerIcon className="h-5 w-5" /> : <ArrowUpIcon className="h-5 w-5" />}
             </PromptInputSubmit>
           </div>
         </PromptInputFooter>
