@@ -656,25 +656,37 @@ test('an unnamed rejected file still produces a message', () => {
   );
 });
 
-test('attachments are read before their size is asked, and unreadable or oversized ones are reported by name', async () => {
+test('attachments stream before their size is asked, and unreadable or oversized ones are reported by name', async () => {
   const photo = new File(['png bytes'], 'photo.png', { type: 'image/png', lastModified: 1234 });
   // A file the browser refuses to read, as Android's Photo Picker sometimes hands over.
   const lapsed = new File(['x'], 'lapsed.png', { type: 'image/png' });
   let lapsedReadStarted = false;
-  lapsed.arrayBuffer = () => {
+  lapsed.stream = () => {
     lapsedReadStarted = true;
-    return Promise.reject(new DOMException('The requested file could not be read', 'NotReadableError'));
+    return new ReadableStream({
+      pull: (controller) => {
+        controller.error(new DOMException('The requested file could not be read', 'NotReadableError'));
+      },
+    });
   };
 
   // Asking a photo-grid file for its size before reading it makes Chrome refuse the read.
   let sizeAskedBeforeRead = false;
   for (const file of [photo, lapsed]) {
-    const read = file.arrayBuffer.bind(file);
+    const stream = file.stream.bind(file);
     let readStarted = false;
-    file.arrayBuffer = () => { readStarted = true; return read(); };
+    file.stream = () => { readStarted = true; return stream(); };
     Object.defineProperty(file, 'size', { get: () => { if (!readStarted) sizeAskedBeforeRead = true; return 9; } });
   }
-  const huge = new File(['x'.repeat(20)], 'huge.png', { type: 'image/png' });
+  // An oversized file is dropped once the stream passes the cap, not read whole.
+  let hugeChunksPulled = 0;
+  const huge = new File(['x'], 'huge.png', { type: 'image/png' });
+  huge.stream = () => new ReadableStream({
+    pull: (controller) => {
+      hugeChunksPulled += 1;
+      controller.enqueue(new Uint8Array(6));
+    },
+  });
 
   const pending = copyAttachmentsToMemory([photo, lapsed, huge], 10);
   assert.equal(lapsedReadStarted, true, 'every read starts before the first await');
@@ -683,6 +695,7 @@ test('attachments are read before their size is asked, and unreadable or oversiz
   assert.equal(sizeAskedBeforeRead, false);
   assert.deepEqual(unreadable, ['lapsed.png']);
   assert.deepEqual(tooLarge, ['huge.png']);
+  assert.ok(hugeChunksPulled <= 3, `pulled ${hugeChunksPulled} chunks past a 10-byte cap`);
   assert.equal(copies.length, 1);
   assert.notEqual(copies[0], photo);
   assert.deepEqual(

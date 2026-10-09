@@ -313,14 +313,30 @@ export const describeDropRejections = (
  * is reported at once instead of becoming a broken preview and a failed send.
  *
  * Every read starts before anything asks a file for its size or date: asking first
- * makes Chrome refuse many files from Android's photo grid (ADR 0075). The size cap
- * is therefore checked on the copy.
+ * makes Chrome refuse many files from Android's photo grid (ADR 0075). The cap is
+ * counted while streaming instead, so an oversized file is dropped after `maxSize`
+ * bytes rather than read whole.
  */
 export const copyAttachmentsToMemory = async (
   files: readonly File[],
   maxSize = Number.POSITIVE_INFINITY,
 ): Promise<{ copies: File[]; unreadable: string[]; tooLarge: string[] }> => {
-  const results = await Promise.allSettled(files.map((file) => file.arrayBuffer()));
+  const readCapped = async (file: File): Promise<Uint8Array[] | null> => {
+    const reader = file.stream().getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return chunks;
+      total += value.byteLength;
+      if (total > maxSize) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  };
+  const results = await Promise.allSettled(files.map(readCapped));
   const copies: File[] = [];
   const unreadable: string[] = [];
   const tooLarge: string[] = [];
@@ -328,10 +344,10 @@ export const copyAttachmentsToMemory = async (
     const file = files[index];
     if (result.status === 'rejected') {
       unreadable.push(file.name || 'Unknown file');
-    } else if (result.value.byteLength > maxSize) {
+    } else if (result.value === null) {
       tooLarge.push(file.name || 'Unknown file');
     } else {
-      copies.push(new File([result.value], file.name, { type: file.type, lastModified: file.lastModified }));
+      copies.push(new File(result.value as BlobPart[], file.name, { type: file.type, lastModified: file.lastModified }));
     }
   });
   return { copies, unreadable, tooLarge };
