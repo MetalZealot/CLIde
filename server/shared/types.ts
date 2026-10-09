@@ -1228,6 +1228,8 @@ export type ProviderUsageWindow = {
   bucketId?: string;
   /** Window duration used to render known 5-hour/weekly labels without provider assumptions. */
   durationMinutes?: number;
+  /** Set when the bucket is a money credit (major units) rather than a plan limit. */
+  amount?: { used: number; limit: number; currency: string };
 };
 
 /**

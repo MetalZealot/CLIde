@@ -87,6 +87,7 @@ const labelWindow = (window: ProviderUsageWindow): string => {
   if (window.label) return window.label;
   if (window.id === 'five_hour' || window.durationMinutes === 300) return '5-hour limit';
   if (window.id === 'seven_day' || window.durationMinutes === 10_080) return 'Weekly limit';
+  if (window.id === 'iguana_necktie') return 'Cloud sessions';
   return window.id.replace(/[:_]/g, ' ').replace(/^\w/, (character) => character.toUpperCase());
 };
 
@@ -110,7 +111,7 @@ const collectUsageWindows = (usage: ProviderUsageStatus): ProviderUsageWindow[] 
  * after is cancelled rather than fired.
  */
 const isExhausted = (windows: ProviderUsageWindow[]): boolean => (
-  windows.some((window) => window.utilization >= EXHAUSTED_UTILIZATION)
+  windows.some((window) => !window.amount && window.utilization >= EXHAUSTED_UTILIZATION)
 );
 
 /**
@@ -119,7 +120,8 @@ const isExhausted = (windows: ProviderUsageWindow[]): boolean => (
  */
 const isOutlastedBySpentWindow = (windows: ProviderUsageWindow[], resetsAtMs: number): boolean => (
   windows.some((window) => (
-    window.utilization >= EXHAUSTED_UTILIZATION
+    !window.amount
+    && window.utilization >= EXHAUSTED_UTILIZATION
     && Math.floor(Date.parse(window.resetsAt ?? '') / 60_000) > Math.floor(resetsAtMs / 60_000)
   ))
 );

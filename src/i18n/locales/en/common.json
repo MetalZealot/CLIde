@@ -367,7 +367,10 @@
     "credits": "Usage credits",
     "creditsUsed": "{{used}} of {{limit}} used",
     "creditsLearnMore": "Learn more",
-    "creditsOff": "Credits are off — usage stops at your plan limit."
+    "creditsOff": "Credits are off — usage stops at your plan limit.",
+    "cloudSessions": "Cloud sessions",
+    "amountLeft": "{{amount}} left",
+    "resetUseBy": "Use by {{date}}"
   },
   "contextBreakdown": {
     "title": "Context breakdown",

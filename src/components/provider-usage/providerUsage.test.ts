@@ -6,7 +6,13 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { initReactI18next } from 'react-i18next';
 
-import { isUsageWindowResetPending, pickExhaustedWindow, pickUsageWarning, usageWarningKey } from './format';
+import {
+  formatUsageWindowLabel,
+  isUsageWindowResetPending,
+  pickExhaustedWindow,
+  pickUsageWarning,
+  usageWarningKey,
+} from './format';
 import { useProviderUsage } from './hooks/useProviderUsage';
 import UsageLimitNotice from './UsageLimitNotice';
 import { UsageResetCreditsRow } from './UsageWindowList';
@@ -68,11 +74,27 @@ describe('format', () => {
     assert.equal(pickExhaustedWindow([{ id: 'five_hour', utilization: 100, resetsAt: past }]), null);
     assert.equal(pickExhaustedWindow([{ id: 'five_hour', utilization: 100, resetsAt: null }]), null);
     assert.equal(pickExhaustedWindow(undefined), null);
+    const spentCredit = {
+      id: 'iguana_necktie',
+      utilization: 100,
+      resetsAt: inHours(600),
+      amount: { used: 100, limit: 100, currency: 'USD' },
+    };
+    assert.equal(pickExhaustedWindow([spentCredit]), null);
+    assert.equal(pickUsageWarning('claude', [spentCredit], () => false), null);
     assert.equal(pickExhaustedWindow([
       { id: 'five_hour', utilization: 100, resetsAt: inHours(2) },
       { id: 'seven_day', utilization: 100, resetsAt: inHours(30) },
       { id: 'seven_day_opus', utilization: 40, resetsAt: inHours(60) },
     ])?.id, 'seven_day');
+  });
+
+  test('credit buckets get a name: known codenames mapped, unknown ones marked as credit', () => {
+    const t = (_key: string, options: { defaultValue: string }) => options.defaultValue;
+    const amount = { used: 1, limit: 10, currency: 'USD' };
+    assert.equal(formatUsageWindowLabel({ id: 'iguana_necktie', utilization: 10, resetsAt: null, amount }, t), 'Cloud sessions');
+    assert.equal(formatUsageWindowLabel({ id: 'nimbus_quill', utilization: 10, resetsAt: null, amount }, t), 'Nimbus quill credit');
+    assert.equal(formatUsageWindowLabel({ id: 'nimbus_quill', utilization: 10, resetsAt: null }, t), 'Nimbus quill');
   });
 
   test('a warning key survives sub-second reset drift but changes with the next window', () => {

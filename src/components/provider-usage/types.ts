@@ -7,6 +7,7 @@ export type ProviderUsageWindow = {
   label?: string;
   bucketId?: string;
   durationMinutes?: number;
+  amount?: { used: number; limit: number; currency: string };
 };
 
 export type ProviderUsageSpendCredits = {

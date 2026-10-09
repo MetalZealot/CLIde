@@ -10,6 +10,8 @@ const KNOWN_WINDOW_LABELS: Record<string, { key: string; defaultValue: string }>
   seven_day: { key: 'planUsage.weekly', defaultValue: 'Weekly limit' },
   seven_day_opus: { key: 'planUsage.weeklyOpus', defaultValue: 'Weekly limit (Opus)' },
   seven_day_sonnet: { key: 'planUsage.weeklySonnet', defaultValue: 'Weekly limit (Sonnet)' },
+  // Anthropic's codename for the cloud-sessions credit; the response carries no name.
+  iguana_necktie: { key: 'planUsage.cloudSessions', defaultValue: 'Cloud sessions' },
 };
 
 /** Last resort for an unrecognized id: `seven_day_max` -> `Seven day max`. */
@@ -40,9 +42,20 @@ export const formatUsageWindowLabel = (window: ProviderUsageWindow, t: Translate
     ? t(known.key, { defaultValue: known.defaultValue })
     : window.durationMinutes
       ? durationLabel(window.durationMinutes, t)
-      : prettifyUsageId(window.id);
+      : window.amount
+        ? `${prettifyUsageId(window.id)} credit`
+        : prettifyUsageId(window.id);
 
   return window.label ? `${window.label} · ${base}` : base;
+};
+
+/** Money in the provider's currency, e.g. `US$51.17`; falls back to `51.17 USD`. */
+export const formatUsageMoney = (amount: number, currency: string): string => {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${currency}`;
+  }
 };
 
 export const formatResetsIn = (resetsAt: string | null): string | null => {
@@ -114,6 +127,7 @@ export const pickUsageWarning = (
 ): { window: ProviderUsageWindow; key: string } | null => {
   let picked: { window: ProviderUsageWindow; key: string } | null = null;
   for (const window of windows ?? []) {
+    if (window.amount) continue;
     if (window.utilization < USAGE_WARNING_PERCENT || isUsageWindowResetPending(window.resetsAt)) continue;
     const key = usageWarningKey(provider, window);
     if (isDismissed(key)) continue;
@@ -124,6 +138,7 @@ export const pickUsageWarning = (
 
 /**
  * The spent window that lifts last, or null while anything can still send.
+ * A money credit (cloud sessions) never blocks a local send.
  * The latest reset is the one that matters: sending waits for every spent window.
  */
 export const pickExhaustedWindow = (
@@ -131,7 +146,7 @@ export const pickExhaustedWindow = (
 ): ProviderUsageWindow | null => {
   let picked: ProviderUsageWindow | null = null;
   for (const window of windows ?? []) {
-    if (window.utilization < 100 || !window.resetsAt || isUsageWindowResetPending(window.resetsAt)) continue;
+    if (window.amount || window.utilization < 100 || !window.resetsAt || isUsageWindowResetPending(window.resetsAt)) continue;
     if (!picked || Date.parse(window.resetsAt) > Date.parse(picked.resetsAt ?? '')) picked = window;
   }
   return picked;

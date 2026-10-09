@@ -5,13 +5,18 @@ import {
 import type { IProviderUsage } from '@/shared/interfaces.js';
 import type {
   ProviderUsageCredits,
+  ProviderUsageResetCreditDetail,
+  ProviderUsageResetCredits,
   ProviderUsageStatus,
   ProviderUsageWindow,
 } from '@/shared/types.js';
 import { readObjectRecord } from '@/shared/utils.js';
 
-const CLAUDE_USAGE_ENDPOINT = 'https://api.anthropic.com/api/oauth/usage';
+// `cedar_ember=1` adds the weekly-reset status block; without it the field is null.
+const CLAUDE_USAGE_ENDPOINT = 'https://api.anthropic.com/api/oauth/usage?cedar_ember=1';
 const USAGE_FETCH_TIMEOUT_MS = 10_000;
+// The reset block reports `ineligible_reason: "surface"` unless the agent names the CLI entrypoint (measured 2026-10-08).
+const CLAUDE_USAGE_USER_AGENT = 'claude-cli/2.1.293 (external, cli)';
 
 const clampUtilization = (value: number): number => Math.min(100, Math.max(0, value));
 
@@ -67,7 +72,7 @@ export const normalizeClaudeRateLimitEvent = (value: unknown): ProviderUsageWind
  * a string value. Sibling objects like `extra_usage`/`spend` have no `resets_at`
  * key at all and are skipped.
  */
-const parseUsageWindows = (body: Record<string, unknown>): ProviderUsageWindow[] => {
+export const parseUsageWindows = (body: Record<string, unknown>): ProviderUsageWindow[] => {
   const windows: ProviderUsageWindow[] = [];
 
   for (const [key, value] of Object.entries(body)) {
@@ -82,11 +87,17 @@ const parseUsageWindows = (body: Record<string, unknown>): ProviderUsageWindow[]
     }
 
     const resetsAt = typeof record.resets_at === 'string' ? record.resets_at : null;
+    const limit = record.limit_dollars;
+    const used = record.used_dollars;
 
     windows.push({
       id: key,
       utilization: clampUtilization(utilization),
       resetsAt,
+      // `*_dollars` carries no currency code, so it is read as USD.
+      ...(typeof limit === 'number' && limit > 0 && typeof used === 'number'
+        ? { amount: { used, limit, currency: 'USD' } }
+        : {}),
     });
   }
 
@@ -189,6 +200,42 @@ const parseUsageCredits = (body: Record<string, unknown>): ProviderUsageCredits 
   return undefined;
 };
 
+/**
+ * Reads the weekly-reset grants from the `cedar_ember` status block (shape
+ * decoded from the CLI binary, 2026-10-08). Absent unless the account is
+ * eligible, so an ineligible account shows no reset row at all.
+ */
+export const parseResetCredits = (body: Record<string, unknown>): ProviderUsageResetCredits | undefined => {
+  const status = readObjectRecord(body.cedar_ember);
+  if (status?.eligible !== true || !Array.isArray(status.grants)) {
+    return undefined;
+  }
+
+  const details: ProviderUsageResetCreditDetail[] = [];
+  let availableCount = 0;
+  for (const value of status.grants) {
+    const grant = readObjectRecord(value);
+    if (!grant || typeof grant.id !== 'string' || typeof grant.resets_left !== 'number') {
+      continue;
+    }
+
+    const paused = grant.paused === true;
+    if (!paused) {
+      availableCount += Math.max(0, grant.resets_left);
+    }
+    details.push({
+      id: grant.id,
+      status: paused ? 'paused' : grant.resets_left > 0 ? 'available' : 'used',
+      grantedAt: typeof grant.starts_at === 'string' ? grant.starts_at : null,
+      expiresAt: typeof grant.ends_at === 'string' ? grant.ends_at : null,
+      title: typeof grant.label === 'string' ? grant.label : null,
+      description: null,
+    });
+  }
+
+  return { availableCount, details };
+};
+
 export class ClaudeProviderUsage implements IProviderUsage {
   /**
    * Fetches plan usage from the Claude OAuth usage endpoint.
@@ -230,6 +277,7 @@ export class ClaudeProviderUsage implements IProviderUsage {
           Authorization: `Bearer ${credentials.accessToken}`,
           'anthropic-beta': 'oauth-2025-04-20',
           'Content-Type': 'application/json',
+          'User-Agent': CLAUDE_USAGE_USER_AGENT,
         },
         signal: AbortSignal.timeout(USAGE_FETCH_TIMEOUT_MS),
       });
@@ -251,11 +299,13 @@ export class ClaudeProviderUsage implements IProviderUsage {
         };
       }
 
+      const resetCredits = parseResetCredits(body);
       return {
         provider: 'claude',
         supported: true,
         windows: parseUsageWindows(body),
         credits: parseUsageCredits(body),
+        ...(resetCredits ? { resetCredits } : {}),
         fetchedAt: new Date().toISOString(),
       };
     } catch {

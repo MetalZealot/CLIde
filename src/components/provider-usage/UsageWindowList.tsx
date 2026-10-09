@@ -9,6 +9,7 @@ import { useClockFormat } from '../../utils/formatTime';
 import {
   formatResetLocal,
   formatResetsIn,
+  formatUsageMoney,
   formatUsageWindowLabel,
   isUsageWindowResetPending,
   prettifyUsageId,
@@ -48,6 +49,18 @@ function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
   const exactReset = formatResetLocal(window.resetsAt);
   const resetPending = isUsageWindowResetPending(window.resetsAt);
   const clamped = resetPending ? 0 : Math.min(100, Math.max(0, window.utilization));
+  const amount = window.amount;
+  const usedValue = resetPending
+    ? t('planUsage.windowReset', { defaultValue: 'Reset' })
+    : amount
+      ? t('planUsage.amountLeft', {
+        defaultValue: '{{amount}} left',
+        amount: formatUsageMoney(Math.max(0, amount.limit - amount.used), amount.currency),
+      })
+      : t('planUsage.percentUsed', {
+        defaultValue: '{{percent}}% used',
+        percent: Math.round(clamped),
+      });
 
   return (
     <div className="space-y-1.5">
@@ -56,12 +69,7 @@ function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
           {displayLabel}
         </span>
         <span className="shrink-0 font-mono text-sm font-semibold text-foreground">
-          {resetPending
-            ? t('planUsage.windowReset', { defaultValue: 'Reset' })
-            : t('planUsage.percentUsed', {
-              defaultValue: '{{percent}}% used',
-              percent: Math.round(clamped),
-            })}
+          {usedValue}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -70,6 +78,15 @@ function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
           style={{ width: `${clamped}%` }}
         />
       </div>
+      {amount && !resetPending && (
+        <p className="text-xs text-muted-foreground">
+          {t('planUsage.creditsUsed', {
+            defaultValue: '{{used}} of {{limit}} used',
+            used: formatUsageMoney(amount.used, amount.currency),
+            limit: formatUsageMoney(amount.limit, amount.currency),
+          })}
+        </p>
+      )}
       {resetsIn && (
         <p className="text-xs text-muted-foreground">
           {t('planUsage.resetsIn', { defaultValue: 'Resets in {{time}}', time: resetsIn })}
@@ -79,14 +96,6 @@ function UsageWindowRow({ window }: { window: ProviderUsageWindow }) {
     </div>
   );
 }
-
-const formatCredits = (amount: number, currency: string): string => {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
-  } catch {
-    return `${amount.toFixed(2)} ${currency}`;
-  }
-};
 
 /**
  * Renders paid usage-credit spend (the amount covering you once plan windows
@@ -120,8 +129,8 @@ function UsageSpendCreditsRow({ credits }: { credits: ProviderUsageSpendCredits 
         <p className="text-xs text-muted-foreground">
           {t('planUsage.creditsUsed', {
             defaultValue: '{{used}} of {{limit}} used',
-            used: formatCredits(credits.usedAmount, credits.currency),
-            limit: formatCredits(credits.limitAmount, credits.currency),
+            used: formatUsageMoney(credits.usedAmount, credits.currency),
+            limit: formatUsageMoney(credits.limitAmount, credits.currency),
           })}
         </p>
         {credits.learnMoreUrl && (
@@ -334,6 +343,11 @@ export function UsageResetCreditsRow({
           <div className="text-sm font-medium text-foreground">
             {t('planUsage.usageLimitResets', { defaultValue: 'Usage limit resets' })}
           </div>
+          {expiry && resetCredits.availableCount > 0 && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t('planUsage.resetUseBy', { defaultValue: 'Use by {{date}}', date: expiry })}
+            </p>
+          )}
           {resultMessage && (
             <p className="mt-1 text-xs text-muted-foreground" aria-live="polite">
               {resultMessage}

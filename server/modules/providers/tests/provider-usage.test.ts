@@ -7,7 +7,11 @@ import test, { describe } from 'node:test';
 import Database from 'better-sqlite3';
 
 import type { ClaudeContextCeiling } from '@/modules/providers/list/claude/claude-context-usage.js';
-import { normalizeClaudeRateLimitEvent } from '@/modules/providers/list/claude/claude-usage.provider.js';
+import {
+  normalizeClaudeRateLimitEvent,
+  parseResetCredits,
+  parseUsageWindows,
+} from '@/modules/providers/list/claude/claude-usage.provider.js';
 import { createProviderTokenUsageService } from '@/modules/providers/services/provider-token-usage.service.js';
 import { createProviderUsageResetMonitor } from '@/modules/providers/services/provider-usage-reset-monitor.service.js';
 import { createProviderUsageService } from '@/modules/providers/services/provider-usage.service.js';
@@ -71,6 +75,46 @@ describe('provider-usage.service', () => {
       { id: 'five_hour', utilization: 41 },
       { id: 'seven_day', utilization: 49 },
     ]);
+  });
+
+  test('Claude OAuth usage reads dollar credits and only an eligible reset block', () => {
+    // Bucket shape from a live response, 2026-10-08.
+    const [credit] = parseUsageWindows({
+      iguana_necktie: {
+        utilization: 48.8,
+        resets_at: '2026-11-05T07:59:00+00:00',
+        limit_dollars: 100,
+        used_dollars: 48.8,
+      },
+      seven_day_opus: null,
+    });
+    assert.deepEqual(credit.amount, { used: 48.8, limit: 100, currency: 'USD' });
+
+    assert.equal(parseResetCredits({ cedar_ember: { eligible: false, grants: [] } }), undefined);
+    assert.equal(parseResetCredits({ cedar_ember: null }), undefined);
+    assert.deepEqual(parseResetCredits({
+      cedar_ember: {
+        eligible: true,
+        grants: [
+          { id: 'g1', label: 'Weekly reset', resets_total: 2, resets_left: 1, ends_at: '2026-11-01T00:00:00Z' },
+          { id: 'g2', resets_left: 3, paused: true },
+          { label: 'no id' },
+        ],
+      },
+    }), {
+      availableCount: 1,
+      details: [
+        {
+          id: 'g1',
+          status: 'available',
+          grantedAt: null,
+          expiresAt: '2026-11-01T00:00:00Z',
+          title: 'Weekly reset',
+          description: null,
+        },
+        { id: 'g2', status: 'paused', grantedAt: null, expiresAt: null, title: null, description: null },
+      ],
+    });
   });
 
   test('redemption forwards one logical attempt and refreshes past both cache timers', async () => {
@@ -504,6 +548,28 @@ describe('provider-usage-reset-monitor', () => {
     harness.setUsage(recovered);
     await harness.poll();
     assert.deepEqual(harness.autoContinued, ['claude']);
+  });
+
+  test('a spent money credit is not a spent plan limit', async () => {
+    const harness = createHarness({
+      pendingAutoContinue: true,
+      usage: {
+        ...recovered,
+        windows: [
+          ...(recovered.windows ?? []),
+          {
+            id: 'iguana_necktie',
+            utilization: 100,
+            resetsAt: '2026-11-05T07:59:00.000Z',
+            amount: { used: 100, limit: 100, currency: 'USD' },
+          },
+        ],
+      },
+    });
+    harness.monitor.reconcileUser(7);
+    await flushPromises();
+
+    assert.notEqual(harness.getState().exhausted?.claude, true);
   });
 
   test('usage that was never spent does not release a message waiting on the reset', async () => {
