@@ -196,6 +196,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                 </div>
                 {/* Copy + timestamp sit below the bubble, claude.ai-style */}
                 <div className="-mt-1 flex select-none items-center justify-end gap-1 px-1 text-chat-meta text-muted-foreground">
+                  <span>{formattedTime}</span>
                   {shouldShowUserEditControl && (
                     <button
                       type="button"
@@ -210,7 +211,6 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
                   {shouldShowUserCopyControl && (
                     <MessageCopyControl content={userCopyContent} messageType="user" />
                   )}
-                  <span>{formattedTime}</span>
                 </div>
               </>
             ) : (
@@ -538,13 +538,13 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
             {(shouldShowAssistantCopyControl || !isGrouped) && (
               <div className="mt-1 select-none text-chat-meta text-muted-foreground">
                 <div className="flex w-full items-center gap-2">
-                  <span>{formattedTime}</span>
                   {shouldShowAssistantCopyControl && (
                     <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                   )}
                   {shouldShowAssistantCopyControl && (
                     <MessageSpeakControl content={assistantCopyContent} />
                   )}
+                  <span>{formattedTime}</span>
                 </div>
               </div>
             )}
