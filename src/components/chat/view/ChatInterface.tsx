@@ -944,6 +944,8 @@ function ChatInterface({
       if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) {
         return;
       }
+      // An open overlay owns Escape; it must not arm Stop underneath.
+      if (document.querySelector('[data-escape-layer]')) return;
 
       event.preventDefault();
       requestAbortSession();
