@@ -1,5 +1,7 @@
 import type { ScheduledMessageTrigger } from '../hooks/useScheduledMessages';
 
+import { safeLocalStorage } from './chatStorage';
+
 export type ScheduleUnit = 'minutes' | 'hours' | 'days';
 
 /** The schedule banner's raw fields; resolved to an instant only at send time. */
@@ -17,8 +19,27 @@ const UNIT_MS: Record<ScheduleUnit, number> = {
   days: 86_400_000,
 };
 
+const LAST_RELATIVE_KEY = 'chat-schedule-last-relative';
+const UNITS: ScheduleUnit[] = ['minutes', 'hours', 'days'];
+
+/** Opens on the last relative amount used, so the usual wait needs no typing. */
 export function initialScheduleDraft(onUsageReset = false): ScheduleDraft {
-  return { amount: '30', unit: 'minutes', exact: null, onUsageReset };
+  let amount = '30';
+  let unit: ScheduleUnit = 'minutes';
+  try {
+    const saved = JSON.parse(safeLocalStorage.getItem(LAST_RELATIVE_KEY) ?? 'null') as Partial<ScheduleDraft> | null;
+    if (saved && /^\d{1,3}$/.test(saved.amount ?? '') && UNITS.includes(saved.unit as ScheduleUnit)) {
+      amount = saved.amount as string;
+      unit = saved.unit as ScheduleUnit;
+    }
+  } catch { /* unreadable: keep 30 minutes */ }
+  return { amount, unit, exact: null, onUsageReset };
+}
+
+/** Called once a message is scheduled; only a relative wait is worth reopening on. */
+export function rememberScheduleDraft(draft: ScheduleDraft): void {
+  if (draft.onUsageReset || draft.exact) return;
+  safeLocalStorage.setItem(LAST_RELATIVE_KEY, JSON.stringify({ amount: draft.amount, unit: draft.unit }));
 }
 
 /** The instant a time-based draft lands on, or null while its fields are invalid. */

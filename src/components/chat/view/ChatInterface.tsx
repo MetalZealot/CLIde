@@ -24,7 +24,7 @@ import {
   type ScheduledMessageTrigger,
 } from '../hooks/useScheduledMessages';
 import { useProviderCapabilities, type ChatControlChanges } from '../../../hooks/useProviderCapabilities';
-import { initialScheduleDraft, resolveScheduleDraft, type ScheduleDraft } from '../utils/scheduleDraft';
+import { initialScheduleDraft, rememberScheduleDraft, resolveScheduleDraft, type ScheduleDraft } from '../utils/scheduleDraft';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
@@ -771,8 +771,11 @@ function ChatInterface({
       if (scheduleDraft && !trimmed.startsWith('/')) {
         const resolved = trimmed ? resolveScheduleDraft(scheduleDraft) : null;
         if (resolved) {
+          const scheduled = scheduleDraft;
           void handleScheduleMessage(resolved.trigger, resolved.scheduledFor).then((ok) => {
-            if (ok) changeScheduleDraft(null);
+            if (!ok) return;
+            rememberScheduleDraft(scheduled);
+            changeScheduleDraft(null);
           });
         }
         return true;

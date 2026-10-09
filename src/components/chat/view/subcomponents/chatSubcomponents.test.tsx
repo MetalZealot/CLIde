@@ -44,7 +44,7 @@ import AsyncQuestionPanel from './AsyncQuestionPanel';
 import QueuedMessagesRow from './QueuedMessagesRow';
 import ScheduledMessageBubbles from './ScheduledMessageBubbles';
 import ScheduleBanner from './ScheduleBanner';
-import { initialScheduleDraft, resolveScheduleDraft, type ScheduleDraft } from '../../utils/scheduleDraft';
+import { initialScheduleDraft, rememberScheduleDraft, resolveScheduleDraft, type ScheduleDraft } from '../../utils/scheduleDraft';
 import ComposerAddMenu from './ComposerAddMenu';
 import TokenUsageSummary from './TokenUsageSummary';
 import ProviderUpdateNotice from './ProviderUpdateNotice';
@@ -110,34 +110,49 @@ describe('chatSubcomponents', () => {
         />
       </I18nextProvider>,
     );
-    const buttonNamed = (name: string) => [...host.querySelectorAll('button')]
+    const buttonNamed = (name: string) => [...document.body.querySelectorAll('button')]
       .find((button) => button.textContent?.trim() === name || button.getAttribute('aria-label') === name);
+    const menuToken = () => host.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')!;
+    const menuItem = (name: string) => [...document.body.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')]
+      .find((item) => item.textContent?.includes(name));
     try {
+      localStorage.removeItem('chat-schedule-last-relative');
+      draft = initialScheduleDraft();
       await React.act(async () => render(null));
       assert.equal(host.querySelector('[role="status"]'), null);
       assert.equal(buttonNamed('Send now anyway'), undefined);
-      assert.match(host.textContent ?? '', /at /);
+      assert.match(host.textContent ?? '', /^Send in.*minutes·/);
       const now = Date.parse('2026-10-08T12:00:00Z');
       assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'time', scheduledFor: '2026-10-08T12:30:00.000Z' });
 
-      await React.act(async () => buttonNamed('When usage resets')!.click());
-      assert.equal(buttonNamed('When usage resets')?.getAttribute('aria-pressed'), 'true');
+      // The unit word opens one menu holding units, an exact time, and the usage reset.
+      await React.act(async () => menuToken().click());
+      assert.ok(menuItem('hours') && menuItem('Exact time') && menuItem('When usage resets'));
+      await React.act(async () => menuItem('When usage resets')!.click());
+      assert.equal(menuItem('hours'), undefined);
       assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'usage-reset', scheduledFor: null });
+      assert.equal(host.querySelector('input[inputmode="numeric"]'), null);
 
-      // Typing an amount is a time choice again.
-      const amount = host.querySelector<HTMLInputElement>('input[type="number"]')!;
+      await React.act(async () => menuToken().click());
+      await React.act(async () => menuItem('hours')!.click());
+      const amount = host.querySelector<HTMLInputElement>('input[inputmode="numeric"]')!;
       await React.act(async () => {
-        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(amount), 'value')!.set!.call(amount, '2');
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(amount), 'value')!.set!.call(amount, '2x');
         amount.dispatchEvent(new window.Event('input', { bubbles: true }));
       });
-      assert.equal(draft.onUsageReset, false);
-      assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'time', scheduledFor: '2026-10-08T12:02:00.000Z' });
-      assert.equal(resolveScheduleDraft({ ...draft, amount: '0' }, now), null);
+      assert.equal(draft.amount, '2');
+      assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'time', scheduledFor: '2026-10-08T14:00:00.000Z' });
+      assert.equal(resolveScheduleDraft({ ...draft, amount: '' }, now), null);
+
+      // A scheduled relative wait is what the next schedule opens on.
+      rememberScheduleDraft(draft);
+      assert.deepEqual(initialScheduleDraft(), { amount: '2', unit: 'hours', exact: null, onUsageReset: false });
+      localStorage.removeItem('chat-schedule-last-relative');
 
       draft = initialScheduleDraft(true);
       await React.act(async () => render({ windowLabel: '5-hour limit', resetsAt: new Date(now + 3_600_000).toISOString() }));
       assert.match(host.querySelector('[role="status"]')?.textContent ?? '', /5-hour limit is used up until/);
-      assert.match(host.textContent ?? '', /when usage resets \(/);
+      assert.match(host.textContent ?? '', /Send\s*when usage resets·/);
       await React.act(async () => buttonNamed('Send now anyway')!.click());
       await React.act(async () => buttonNamed('Stop scheduling')!.click());
       assert.equal(sentNow, 1);
