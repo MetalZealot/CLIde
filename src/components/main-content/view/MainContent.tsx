@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import ChatInterface from '../../chat/view/ChatInterface';
@@ -125,6 +125,20 @@ function MainContent({
     handleRevealDirectory,
   );
 
+  // Open chat rows pin under the sticky top bar when the page itself scrolls.
+  const pageTopRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const top = pageTopRef.current;
+    if (!chatPageScroll || !top || typeof ResizeObserver === 'undefined') return undefined;
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => root.style.setProperty('--chat-pin-top', `${top.offsetHeight}px`));
+    observer.observe(top);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--chat-pin-top');
+    };
+  }, [chatPageScroll, isLoading, showUsage]);
+
   useEffect(() => {
     if (!fileOpenNotice) return;
     const timeout = window.setTimeout(() => setFileOpenNotice(null), 4000);
@@ -191,7 +205,7 @@ function MainContent({
 
   return (
     <div className={chatPageScroll ? 'flex min-h-dvh flex-col' : 'flex h-full flex-col'}>
-      <div data-chat-page-top className={chatPageScroll ? 'sticky top-0 z-30' : 'contents'}>
+      <div ref={pageTopRef} data-chat-page-top className={chatPageScroll ? 'sticky top-0 z-30' : 'contents'}>
       {selectedProject ? (
         <MainContentHeader
           activeTab={activeTab}

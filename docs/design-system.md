@@ -215,6 +215,11 @@ taste.
   and T3 Code, which follows it); a category icon on every row; a bordered list
   versus a flat indent when expanded; rewriting descriptions into past tense,
   which in Claude's app produced "Built and open…".
+- **House:** an open row pins while what it opened scrolls under it — an
+  activity under the top bar, its open call under the activity — the way
+  GitHub pins a diff's file header; tapping a pinned row closes it in place.
+  An open row stays one line when what it opens already repeats its label: an
+  activity's calls, an undescribed command's `$` line.
 - **Not seen:** a failed call while collapsed, or any phone. The running-label
   shimmer (Claude, T3 Code) is inferred from stills.
 

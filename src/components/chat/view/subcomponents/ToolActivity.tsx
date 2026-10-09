@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { ChatMessage } from '../../types/types';
@@ -16,7 +16,7 @@ import {
 import { formatDuration } from '../../utils/chatFormatting';
 import { Shimmer } from '../../../../shared/view/ui/Shimmer';
 
-import { DisclosureRow, StaticRow, rowLabelClass } from './DisclosureRow';
+import { DisclosureRow, INNER_ROW_PIN, INNER_ROW_PINNED, StaticRow, rowLabelClass, toggleInPlace } from './DisclosureRow';
 import OperationDetail from './OperationDetail';
 
 interface ToolActivityProps {
@@ -37,7 +37,8 @@ const firstLine = (text: unknown): string =>
 const plainFirstLine = (text: unknown): string => firstLine(text).replace(/^#+\s*/, '').replace(/\*\*|__/g, '');
 
 /** An operation line inside an open activity or agent. */
-export const operationRowClass = 'flex min-h-6 w-full min-w-0 items-center gap-2 text-left text-chat-activity text-muted-foreground transition-colors hover:text-foreground sm:min-h-7';
+export const operationRowClass = (isOpen: boolean): string =>
+  `flex min-h-6 w-full min-w-0 items-center gap-2 text-left text-chat-activity text-muted-foreground transition-colors hover:text-foreground sm:min-h-7 ${INNER_ROW_PIN} ${isOpen ? INNER_ROW_PINNED : ''}`;
 const shimmerClass = 'flex-1 motion-reduce:animate-none motion-reduce:bg-none motion-reduce:text-muted-foreground';
 
 interface OperationRowProps {
@@ -65,9 +66,11 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
     );
   }
 
+  const toggle = (event: MouseEvent<HTMLButtonElement>) => toggleInPlace(event.currentTarget, () => onToggle(messageKey));
+
   if (message.isThinking) {
     return (
-      <button type="button" className={operationRowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
+      <button type="button" className={operationRowClass(isOpen)} onClick={toggle} aria-expanded={isOpen}>
         {/* Stays one line when open: the panel below already holds the whole thought. */}
         <span className={`${rowLabelClass(false)} flex-1 italic`}>{t('activity.thought', { text: plainFirstLine(message.content) })}</span>
       </button>
@@ -81,12 +84,14 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
   const isRunning = isLive && operation.status === 'running';
   const hasCounts = !isDenied && showsLineCounts(operation.kind) && (operation.added > 0 || operation.removed > 0);
   const failure = operation.status === 'error' || operation.status === 'denied' ? operation.status : null;
+  // A command without a description is the label; the panel below already shows it whole.
+  const labelClass = rowLabelClass(isOpen && !(operation.kind === 'bash' && !operation.description));
 
   return (
-    <button type="button" className={operationRowClass} onClick={() => onToggle(messageKey)} aria-expanded={isOpen}>
+    <button type="button" className={operationRowClass(isOpen)} onClick={toggle} aria-expanded={isOpen}>
       {isRunning
-        ? <Shimmer className={`${rowLabelClass(isOpen)} ${shimmerClass}`}>{label}</Shimmer>
-        : <span className={`${rowLabelClass(isOpen)} flex-1`}>{label}</span>}
+        ? <Shimmer className={`${labelClass} ${shimmerClass}`}>{label}</Shimmer>
+        : <span className={`${labelClass} flex-1`}>{label}</span>}
       {hasCounts && <span className="flex-shrink-0 tabular-nums">{formatLineCounts(operation.added, operation.removed)}</span>}
       {failure && <span className="flex-shrink-0 text-red-600 dark:text-red-400">{t(`activity.status.${failure}`)}</span>}
       {operation.durationMs !== null && operation.durationMs >= 1000 && (
@@ -131,6 +136,7 @@ const ToolActivity = memo(function ToolActivity({
         isRunning={isRunning}
         isOpen={isExpanded}
         onToggle={() => setIsExpanded((current) => !current)}
+        wrapsOpen={false}
         trailing={waitingFor ? (
           <span className="flex-shrink-0">· {t('activity.waitingForApproval')}</span>
         ) : summary.failed > 0 && (

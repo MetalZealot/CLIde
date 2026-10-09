@@ -220,17 +220,18 @@ function ChatMessagesPane({
   return (
     <div
       ref={attachScrollHost}
-      className={`chat-messages-pane relative pb-3 pt-3 sm:pb-4 sm:pt-4 ${
+      className={`chat-messages-pane relative pb-3 sm:pb-4 ${
         pageScroll
           ? 'flex flex-1 flex-col overflow-x-clip'
           : 'min-h-0 flex-1 overflow-y-auto overflow-x-hidden'
       }`}
       style={{ overflowAnchor: 'none' }}
     >
-      {/* Gap, not space-y: a sibling selector restyles every row when older rows are prepended. */}
+      {/* Gap, not space-y: a sibling selector restyles every row when older rows are prepended.
+          Top padding sits here, not on the scroller, so an open row pins flush with the pane's edge. */}
       <div
         ref={messagesContentRef}
-        className={`chat-rows mx-auto flex w-full max-w-[54.25rem] flex-col gap-3 px-4 sm:gap-4 ${
+        className={`chat-rows mx-auto flex w-full max-w-[54.25rem] flex-col gap-3 px-4 pt-3 sm:gap-4 sm:pt-4 ${
           fillsPane ? (pageScroll ? 'flex-1' : 'h-full') : ''
         }`}
       >

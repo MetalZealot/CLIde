@@ -7,7 +7,7 @@ import { describeOperation, parseToolInput } from '../../utils/toolActivity';
 import { formatDuration } from '../../utils/chatFormatting';
 
 import { DetailPanel } from './DetailPanel';
-import { DISCLOSED_TEXT_CLASS, DisclosureRow, rowLabelClass } from './DisclosureRow';
+import { DISCLOSED_TEXT_CLASS, DisclosureRow, rowLabelClass, toggleInPlace } from './DisclosureRow';
 import { Markdown } from './Markdown';
 import OperationDetail from './OperationDetail';
 import { OperationRow, operationRowClass } from './ToolActivity';
@@ -63,8 +63,8 @@ function toChildMessage(child: SubagentChildTool): ChatMessage {
 
 function TextLine({ label, text, isOpen, onToggle }: { label: string; text: string; isOpen: boolean; onToggle: () => void }) {
   return (
-    <>
-      <button type="button" className={operationRowClass} onClick={onToggle} aria-expanded={isOpen}>
+    <div>
+      <button type="button" className={operationRowClass(isOpen)} onClick={(event) => toggleInPlace(event.currentTarget, onToggle)} aria-expanded={isOpen}>
         <span className={`${rowLabelClass(isOpen)} flex-1`}>{label}</span>
       </button>
       {isOpen && (
@@ -72,7 +72,7 @@ function TextLine({ label, text, isOpen, onToggle }: { label: string; text: stri
           <Markdown className={DISCLOSED_TEXT_CLASS}>{text}</Markdown>
         </DetailPanel>
       )}
-    </>
+    </div>
   );
 }
 

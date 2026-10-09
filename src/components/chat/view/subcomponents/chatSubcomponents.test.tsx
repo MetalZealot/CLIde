@@ -446,6 +446,27 @@ describe('chatSubcomponents', () => {
       await React.act(async () => lines[1].click());
       assert.deepEqual([...container.querySelectorAll('strong')].map((node) => node.textContent), ['Checking', 'Editing'], 'opened thoughts render Markdown');
       assert.equal(container.querySelectorAll('button[aria-expanded]').length, 4, 'the detail adds no disclosure of its own');
+      assert.match(activityRow.className, /\bsticky\b/, 'an open activity pins');
+      assert.match(lines[0].className, /\bsticky\b/, 'an open call pins under it');
+      assert.doesNotMatch(lines[2].className, /\bsticky\b/, 'a closed call does not');
+      assert.ok(activityRow.querySelector('.truncate'), 'the open activity stays one line: its calls repeat it');
+      assert.equal(lines[0].querySelector('.truncate'), null, 'an open described command wraps its description');
+
+      const bare: ChatMessage = {
+        id: 'b2', timestamp: '2026-09-21T00:00:00Z', type: 'assistant', content: '', isToolUse: true, toolName: 'Bash',
+        toolInput: JSON.stringify({ command: 'git log --oneline -20' }),
+        toolResult: { content: 'abc', isError: false, timestamp: '2026-09-21T00:00:01Z' },
+      };
+      await React.act(async () => root?.render(
+        <I18nextProvider i18n={i18next}>
+          <ToolActivity key="bare" activity={{ _isGroup: true, messages: [bare], timestamp: bare.timestamp }} getMessageKey={(message) => String(message.id)} />
+        </I18nextProvider>,
+      ));
+      await React.act(async () => (container!.querySelector('button[aria-expanded]') as HTMLButtonElement).click());
+      const bareRow = container.querySelectorAll('button[aria-expanded]')[1] as HTMLButtonElement;
+      await React.act(async () => bareRow.click());
+      assert.ok(bareRow.querySelector('.truncate'), 'an open bare command stays one line: the panel shows it whole');
+      assert.match(container.textContent || '', /\$ git log --oneline -20/);
     });
 
     test('a thinking row times from the row before it and mounts its text only once opened', async () => {
