@@ -1045,7 +1045,6 @@ function ChatInterface({
           chatMessages={chatMessages}
           selectedSession={selectedSession}
           currentSessionId={currentSessionId}
-          provider={provider}
           isLoadingMoreMessages={isLoadingMoreMessages}
           hasMoreMessages={hasMoreMessages}
           turnStartedAt={turnStartedAt}

@@ -185,23 +185,21 @@ describe('chatSubcomponents', () => {
       { ...earlier, type: 'assistant', isToolUse: true, toolName: 'Bash' },
     ];
     const expectedTime = formatMessageTimestamp(message.timestamp);
-    for (const provider of ['claude', 'codex', 'cursor', 'opencode']) {
-      for (const prevMessage of predecessors) {
-        const container = document.createElement('div');
-        container.innerHTML = renderToStaticMarkup(
-          <MessageComponent message={message} prevMessage={prevMessage} provider={provider}
-            createDiff={() => []} showThinking={false} />,
-        );
-        assert.ok(container.textContent?.includes(expectedTime),
-          `${provider} reply must show its own time after ${JSON.stringify(prevMessage)}`);
-        assert.equal(container.querySelector('.chat-message')?.classList.contains('grouped'),
-          prevMessage?.type === 'assistant', 'timestamp visibility must preserve grouping');
-      }
+    for (const prevMessage of predecessors) {
+      const container = document.createElement('div');
+      container.innerHTML = renderToStaticMarkup(
+        <MessageComponent message={message} prevMessage={prevMessage}
+          createDiff={() => []} showThinking={false} />,
+      );
+      assert.ok(container.textContent?.includes(expectedTime),
+        `reply must show its own time after ${JSON.stringify(prevMessage)}`);
+      assert.equal(container.querySelector('.chat-message')?.classList.contains('grouped'),
+        prevMessage?.type === 'assistant', 'timestamp visibility must preserve grouping');
     }
     const withSummary = document.createElement('div');
     withSummary.innerHTML = renderToStaticMarkup(
       <MessageComponent message={message} prevMessage={null} turnSummary={{ durationMs: 72_000, outputTokens: 1_234 }}
-        provider="claude" createDiff={() => []} showThinking={false} />,
+        createDiff={() => []} showThinking={false} />,
     );
     const timeLine = [...withSummary.querySelectorAll('div')].find((node) =>
       node.firstElementChild?.tagName === 'SPAN' && node.firstElementChild.textContent === expectedTime);
@@ -209,7 +207,7 @@ describe('chatSubcomponents', () => {
       `the turn summary is its own row under the reply footer: ${withSummary.innerHTML}`);
     assert.equal(renderToStaticMarkup(
       <MessageComponent message={{ ...message, isThinking: true }} prevMessage={null}
-        provider="codex" createDiff={() => []} showThinking={false} />,
+        createDiff={() => []} showThinking={false} />,
     ), '', 'hidden thinking must remain hidden');
   });
 
@@ -229,7 +227,7 @@ describe('chatSubcomponents', () => {
     const render = (props: Record<string, unknown>) => {
       const container = document.createElement('div');
       container.innerHTML = renderToStaticMarkup(
-        <MessageComponent message={notice} prevMessage={null} provider="claude"
+        <MessageComponent message={notice} prevMessage={null}
           createDiff={() => []} showThinking={false} {...props} />,
       );
       return container;
@@ -253,7 +251,7 @@ describe('chatSubcomponents', () => {
     const changes: boolean[] = [];
     try {
       await React.act(async () => root.render(
-        <MessageComponent message={notice} prevMessage={null} provider="claude"
+        <MessageComponent message={notice} prevMessage={null}
           createDiff={() => []} onSetAutoContinue={(next) => changes.push(next)} />,
       ));
       await React.act(async () => host.querySelector('button')!.click());
@@ -268,7 +266,7 @@ describe('chatSubcomponents', () => {
       container.innerHTML = renderToStaticMarkup(
         <MessageComponent
           message={{ type: 'error', content: "You've hit your usage limit.", timestamp: notice.timestamp, usageLimit }}
-          prevMessage={null} provider="codex" createDiff={() => []} showThinking={false}
+          prevMessage={null} createDiff={() => []} showThinking={false}
           onSetAutoContinue={() => {}} />,
       );
       return container;
@@ -1358,7 +1356,7 @@ describe('chatSubcomponents', () => {
       const settle = () => new Promise((resolve) => window.setTimeout(resolve, 0));
       try {
         await React.act(async () => {
-          root.render(<MessageComponent message={elidedBash} prevMessage={null} provider="claude" createDiff={() => []} />);
+          root.render(<MessageComponent message={elidedBash} prevMessage={null} createDiff={() => []} />);
         });
         assert.ok(container.textContent?.includes('5000 lines'), container.textContent ?? '');
         assert.deepEqual(requested, [], 'nothing loads until the row is opened');
@@ -3426,7 +3424,7 @@ test('unchanged message rows skip render work while changed content still update
   const appended: ChatMessage = { id: 'render-new', type: 'assistant', timestamp: '2026-09-19T00:00:01Z', content: 'New reply' };
   const createDiff = () => [];
   const render = (rows: ChatMessage[]) => rows.map((row, index) => <MessageComponent key={row.id}
-    message={row} prevMessage={rows[index - 1] ?? null} createDiff={createDiff} provider="claude" />);
+    message={row} prevMessage={rows[index - 1] ?? null} createDiff={createDiff} />);
   try {
     await React.act(async () => root.render(render([message])));
     const initialReads = reads;

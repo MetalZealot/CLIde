@@ -2,12 +2,10 @@ import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PencilIcon } from 'lucide-react';
 
-import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type {
   ChatMessage,
   ClaudePermissionSuggestion,
   PermissionGrantResult,
-  Provider,
 } from '../../types/types';
 import {
   formatDuration,
@@ -54,7 +52,6 @@ type MessageComponentProps = {
   showRawParameters?: boolean;
   showThinking?: boolean;
   selectedProject?: Project | null;
-  provider: Provider | string;
   /** Enters rewind-edit mode for this (user) message. */
   onEditMessage?: (message: ChatMessage) => void;
   /** Provider supports rewind and no turn is running. */
@@ -70,7 +67,7 @@ type MessageComponentProps = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, onEditMessage, canEditMessage = false, isRewindEditTarget = false, onSetAutoContinue, autoContinueEnabled = false, hasResetMessage = false }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -166,7 +163,7 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
     >
       {message.type === 'user' ? (
         /* User turn on the right: claude.ai-style attachment cards above the bubble */
-        <div className="flex w-full items-end space-x-0 sm:w-auto sm:max-w-[85%] sm:space-x-3 md:max-w-md lg:max-w-lg xl:max-w-xl">
+        <div className="flex w-full items-end sm:w-auto sm:max-w-[85%] md:max-w-md lg:max-w-lg xl:max-w-xl">
           <div className="flex min-w-0 flex-1 flex-col items-end gap-2 sm:flex-initial">
             {message.images && message.images.length > 0 && (
               <ChatMessageImages
@@ -223,11 +220,6 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
               </div>
             )}
           </div>
-          {!isGrouped && (
-            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm text-white sm:flex">
-              U
-            </div>
-          )}
         </div>
       ) : message.isTaskNotification ? (
         /* Compact task notification on the left */
@@ -261,33 +253,20 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
       ) : (
         /* Claude/Error/Tool messages on the left */
         <div className="w-full">
-          {!isGrouped && (
+          {/* Agent replies carry no speaker header: the chat header and composer already name the provider. */}
+          {!isGrouped && (message.type === 'error' || message.type === 'tool') && (
             <div className="mb-2 flex select-none items-center space-x-3">
               {message.type === 'error' ? (
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-600 text-sm text-white">
                   !
                 </div>
-              ) : message.type === 'tool' ? (
+              ) : (
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-sm text-white dark:bg-gray-700">
                   🔧
                 </div>
-              ) : (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-foreground">
-                  <SessionProviderLogo provider={provider} className="h-full w-full" />
-                </div>
               )}
               <div className="text-sm font-medium text-foreground">
-                {message.type === 'error'
-                  ? t('messageTypes.error')
-                  : message.type === 'tool'
-                    ? t('messageTypes.tool')
-                    : (provider === 'cursor'
-                        ? t('messageTypes.cursor')
-                        : provider === 'codex'
-                          ? t('messageTypes.codex')
-                          : provider === 'opencode'
-                              ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-                              : t('messageTypes.claude'))}
+                {message.type === 'error' ? t('messageTypes.error') : t('messageTypes.tool')}
               </div>
             </div>
           )}

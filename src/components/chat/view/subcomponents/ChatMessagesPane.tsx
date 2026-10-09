@@ -4,7 +4,7 @@ import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'reac
 
 import type { ScheduledMessage } from '../../hooks/useScheduledMessages';
 import type { ChatMessage, PendingPermissionRequest, TurnEnd } from '../../types/types';
-import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
+import type { Project, ProjectSession } from '../../../../types/app';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import type { FileOpenOptions } from '../../../code-editor/types/types';
 import { getIntrinsicMessageKey, getTranscriptMessageUuid } from '../../utils/messageKeys';
@@ -31,7 +31,6 @@ interface ChatMessagesPaneProps {
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
-  provider: LLMProvider;
   isLoadingMoreMessages: boolean;
   hasMoreMessages: boolean;
   /** Prompt time of the turn the oldest loaded message belongs to, when that prompt is not loaded. */
@@ -82,7 +81,6 @@ function ChatMessagesPane({
   chatMessages,
   selectedSession,
   currentSessionId,
-  provider,
   isLoadingMoreMessages,
   hasMoreMessages,
   turnStartedAt = null,
@@ -328,7 +326,6 @@ function ChatMessagesPane({
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
                   selectedProject={selectedProject as Project}
-                  provider={provider}
                   onEditMessage={onEditMessage}
                   canEditMessage={canEditMessage}
                   isRewindEditTarget={
