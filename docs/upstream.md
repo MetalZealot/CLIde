@@ -141,7 +141,7 @@ cleanly the fix stands alone.
 
 ### Fixed upstream (closed 2026-10-01)
 
-- [x] **`<synthetic>` model guard** — fixed by #1207 (and #1391). Our PR **#1056 is still open and now redundant**; branch `fix/synthetic-model-guard` exists locally and on origin.
+- [x] **`<synthetic>` model guard** — fixed by #1207 (and #1391). Our redundant PR #1056 is closed; branch `fix/synthetic-model-guard` can go.
 - [x] **AskUserQuestion comma-answer split** — #1249.
 - [x] **Claude "logged out" after an idle access token** — #1206 now accepts a valid refresh token.
 - [x] **Skill content rendered as user input** (#1009) — #1037 filters by content prefix; compact summaries by #1295. The fork's notice banner is fork UI.
