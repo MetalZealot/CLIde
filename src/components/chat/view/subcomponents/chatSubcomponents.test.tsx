@@ -3327,6 +3327,13 @@ describe('chat browser preview', () => {
       assert.match(button.getAttribute('aria-label')!, /Using browser: Example/);
       await React.act(async () => button.click());
       assert.equal(opened, 'browser-b');
+
+      await React.act(async () => root.render(<ChatBrowserPreview session={{ ...session, status: 'stopped' }} unavailable={false} compact onOpen={(id) => { opened = id; }} />));
+      opened = null;
+      await React.act(async () => container.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')!.click());
+      assert.equal(opened, null, 'the kebab does not open the browser');
+      const items = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+      assert.deepEqual(items.map((item) => [item.textContent, item.disabled]), [['Stop session', true], ['Delete session', false]]);
     } finally {
       await React.act(async () => root.unmount());
       container.remove();
