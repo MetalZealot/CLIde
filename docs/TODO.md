@@ -132,6 +132,7 @@ new work.
 - [~] **Claude Code settings are almost entirely unreachable from CLIde** — all 172 cascade keys are classified and drift-tested, and settable from Agents › Claude's categories and Advanced. [Plan](plans/claude-settings-surface.md). **L**
 - [ ] **Environments**: a second machine in the same app. [Plan](plans/environments.md). **L**
 - [ ] **True session syncing?** Using Claude Code directly doesn't list CLIde conversations. **? — needs investigation: where does each store sessions?**
+- [ ] **Task rows, agent rows and their reports bloat the chat.** The plan becomes a banner under the header, running agents a count on the Working line, an agent opens full screen, and sidebar rows show progress. [Plan](plans/plan-and-agents-out-of-chat.md), [ADR 0076](decisions/0076-plan-pins-under-header-agents-ride-working-line.md). **L**
 - [~] **Subagents are invisible while they run and unreadable after.** Phases 1–4 landed (3 merged, not yet live-verified); next, open an agent's whole transcript in place. Never re-index them as sessions. [Plan](plans/subagent-visibility.md). **M/L**
 - [ ] `!` shell mode in the conversation window. **M**
 - [ ] Conversation "map" sidebar: a minimap of user/assistant messages, tap to scroll. Depends on the direct-navigation foundation and stable rendering in the [history performance plan](plans/chat-history-performance.md); its visual design remains separate. **L**

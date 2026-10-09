@@ -39,8 +39,7 @@ set.
   narrower version of the same view.
 - A Pull request surface. How PRs belong in CLIde's Git control is not yet
   assessed.
-- An Agents tab, and the "agents working" strip that opened it. Each agent's
-  run already folds into its one row in the chat, which holds the activity a
-  tab was meant to contain.
-- A Tasks tab. At most 2 of 100 Codex chats called `update_plan`, and Claude
-  5.5 made one in 1 of 70 chats (counted 2026-10-01), so it would sit empty.
+- An Agents tab, and the "agents working" strip that opened it. Running agents
+  show on the Working line instead ([ADR 0076](../decisions/0076-plan-pins-under-header-agents-ride-working-line.md)).
+- A Tasks tab. The plan pins under the chat header instead
+  ([ADR 0076](../decisions/0076-plan-pins-under-header-agents-ride-working-line.md)).

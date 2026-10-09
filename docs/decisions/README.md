@@ -113,3 +113,4 @@ The reasoning, including evidence (commits, testing, measurements).
 - [0073 — Attach photos clicks a hidden input outside the + menu](0073-attach-photos-uses-a-hidden-input-outside-the-menu.md) *(superseded by 0074)*
 - [0074 — No photo grid in the composer until Chrome can read its files](0074-no-photo-grid-in-the-composer.md) *(superseded by 0075)*
 - [0075 — Photos is back; attachments are read before anything asks their size](0075-photos-reads-before-asking-size.md)
+- [0076 — The plan pins under the header; running agents ride the Working line](0076-plan-pins-under-header-agents-ride-working-line.md)

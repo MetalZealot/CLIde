@@ -1,7 +1,7 @@
 # Subagents are visible while they run and readable after they die
 
 - Status: 4/5
-- Next: Phase 5 — the row opens the agent's whole transcript; waits on [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 7
+- Next: Phase 5 — the row opens the agent's whole transcript full screen; waits on [the agent runtime rebuild](agent-runtime-rebuild.md)'s phase 7
 - Context: transcript shape and the id rules in
   [code anchors](../code-anchors.md); detail-surface rule in
   [ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md); this
@@ -44,9 +44,9 @@ constraint holds for every phase below.
   activity row's shape, no dot. Identical for inline `Task`, background, and
   forked-skill agents, and for Codex's `spawn_agent`. It updates live once
   phase 3 lands.
-- [ ] 5. **The row opens the agent's whole transcript.** It opens in place to the
-  prompt, the calls and the report
-  ([ADR 0060](../decisions/0060-a-calls-detail-opens-flat-in-place.md)); the
+- [ ] 5. **The row opens the agent's whole transcript.** It opens full screen to
+  the prompt, the calls and the report
+  ([ADR 0076](../decisions/0076-plan-pins-under-header-agents-ride-working-line.md)); the
   agent's own text between calls is still missing, because history attaches
   only its tools.
 
@@ -56,7 +56,7 @@ constraint holds for every phase below.
   still there, complete, after a reload.
 - Killing the server mid-agent leaves the row readable as failed, with the
   tools it completed.
-- Opening an agent on a phone shows its calls and report in place, wrapped.
+- Opening an agent on a phone shows its calls and report full screen, wrapped.
 - The sidebar session list is byte-identical before and after an agent runs.
 
 ## Not doing
@@ -65,5 +65,6 @@ constraint holds for every phase below.
   process does not.
 - Subagent token accounting. The context ring skips `isSidechain` rows by
   design — separate TODO item.
-- A sidebar entry, session row, or Agents tab. The row in the chat is the
-  only surface.
+- A sidebar entry or session row per agent, or an Agents tab. Besides the chat
+  row, running agents show only as a count on the Working line and on the
+  session's sidebar row ([plan](plan-and-agents-out-of-chat.md)).
