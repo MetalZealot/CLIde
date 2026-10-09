@@ -108,7 +108,7 @@ Queued work first. Below the rule is **someday**: real ideas, but nothing here i
 started, sliced, or blocking anything — skip it unless you are deliberately picking
 new work.
 
-- [~] **Schedule mode.** Holding Send or the + menu's *Schedule message* opens a banner with the time controls and swaps Send for a timer that schedules directly; spent usage opens the same banner. Built; awaiting a phone check. **S**
+- [~] **Schedule mode.** Holding Send or the + menu's *Schedule message* opens a one-row banner (amount, one menu for units and the usage reset, tappable landing time) and swaps Send for a timer that schedules directly; spent usage opens the same row. Built; awaiting a phone check. **S**
 - [~] **Send while usage is spent opens the schedule sheet.** It names the limit and its reset, leads with *When usage resets*, and keeps *Send now anyway*; Claude and Codex only, slash commands pass. Tested; awaiting a live check while limited. **S**
 - [~] **Generated HTML project dashboard.** V1 renders plans, backlog shape, reference docs and ADRs into one page; its HTML-preview prerequisite is live-accepted. Paused deliberately until the page has been used for real work. [Plan](plans/project-dashboard.md). **M**
 - [ ] **Opt-in diagnostics flight recorder** under Settings. [Plan](plans/diagnostics-flight-recorder.md). **M**
