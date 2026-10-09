@@ -89,7 +89,7 @@ describe('chatSubcomponents', () => {
       globalThis.fetch = originalFetch;
     }
   });
-  test('schedule banner keeps one row: units and the usage reset share a menu, and spent usage stays on it', async () => {
+  test('schedule banner edits one draft, names spent usage, and resolves at send time', async () => {
     const translations = i18next.createInstance();
     await translations.use(initReactI18next).init({ lng: 'en', resources: { en: { chat: {} } } });
     const host = document.createElement('div');
@@ -112,46 +112,33 @@ describe('chatSubcomponents', () => {
     );
     const buttonNamed = (name: string) => [...host.querySelectorAll('button')]
       .find((button) => button.textContent?.trim() === name || button.getAttribute('aria-label') === name);
-    const menu = () => host.querySelector<HTMLSelectElement>('select')!;
-    const amount = () => host.querySelector<HTMLInputElement>('input[type="number"]');
-    const setNative = async (element: HTMLInputElement | HTMLSelectElement, value: string, type: string) => {
-      await React.act(async () => {
-        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')!.set!.call(element, value);
-        element.dispatchEvent(new window.Event(type, { bubbles: true }));
-      });
-    };
     try {
       await React.act(async () => render(null));
       assert.equal(host.querySelector('[role="status"]'), null);
-      assert.equal(buttonNamed('Send now'), undefined);
-      assert.equal(menu().value, 'minutes');
-      assert.deepEqual([...menu().options].map((option) => option.value), ['minutes', 'hours', 'days', 'usage-reset']);
+      assert.equal(buttonNamed('Send now anyway'), undefined);
+      assert.match(host.textContent ?? '', /at /);
       const now = Date.parse('2026-10-08T12:00:00Z');
       assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'time', scheduledFor: '2026-10-08T12:30:00.000Z' });
 
-      await setNative(menu(), 'hours', 'change');
-      assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'time', scheduledFor: '2026-10-09T18:00:00.000Z' });
-
-      // The usage reset hides the amount; picking a unit brings it back.
-      await setNative(menu(), 'usage-reset', 'change');
-      assert.equal(amount(), null);
-      assert.match(host.textContent ?? '', /next reset/);
+      await React.act(async () => buttonNamed('When usage resets')!.click());
+      assert.equal(buttonNamed('When usage resets')?.getAttribute('aria-pressed'), 'true');
       assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'usage-reset', scheduledFor: null });
-      await setNative(menu(), 'minutes', 'change');
-      await setNative(amount()!, '2', 'input');
+
+      // Typing an amount is a time choice again.
+      const amount = host.querySelector<HTMLInputElement>('input[type="number"]')!;
+      await React.act(async () => {
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(amount), 'value')!.set!.call(amount, '2');
+        amount.dispatchEvent(new window.Event('input', { bubbles: true }));
+      });
+      assert.equal(draft.onUsageReset, false);
       assert.deepEqual(resolveScheduleDraft(draft, now), { trigger: 'time', scheduledFor: '2026-10-08T12:02:00.000Z' });
       assert.equal(resolveScheduleDraft({ ...draft, amount: '0' }, now), null);
-
-      // An exact time from the time text shows as its own menu choice.
-      await setNative(host.querySelector<HTMLInputElement>('input[type="datetime-local"]')!, '2026-10-10T09:00', 'input');
-      assert.equal(menu().value, 'exact');
-      assert.equal(amount(), null);
 
       draft = initialScheduleDraft(true);
       await React.act(async () => render({ windowLabel: '5-hour limit', resetsAt: new Date(now + 3_600_000).toISOString() }));
       assert.match(host.querySelector('[role="status"]')?.textContent ?? '', /5-hour limit is used up until/);
-      assert.equal(menu().selectedOptions[0]?.textContent, 'Usage reset');
-      await React.act(async () => buttonNamed('Send now')!.click());
+      assert.match(host.textContent ?? '', /when usage resets \(/);
+      await React.act(async () => buttonNamed('Send now anyway')!.click());
       await React.act(async () => buttonNamed('Stop scheduling')!.click());
       assert.equal(sentNow, 1);
       assert.equal(closed, 1);
