@@ -39,6 +39,13 @@ arrive with a working control without anyone building it.
 - [ ] 6. The two permission systems reconciled, behind an ADR written first.
   The skip toggle is already gone (ADR 0064). A setting that hides Bypass from
   the picker writes Claude Code's `permissions.disableBypassPermissionsMode`.
+  Naming `TodoWrite` in the SDK's `allowedTools` is today the only thing that
+  gives Opus 5.x the task checklist ([task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability));
+  replace it with an explicit checklist switch that sets
+  `CLAUDE_CODE_ENABLE_TODO_TOOLS` on the runtime, so moving the tool list
+  cannot silently drop it. The add-tool field autocompletes from the `tools`
+  array of the SDK's `system/init` message (names only, MCP included), cached
+  server-side because it exists only once a chat has started.
 
 ## Done when
 
@@ -48,6 +55,8 @@ arrive with a working control without anyone building it.
   terminal Shell agrees with the result.
 - A malformed or symlinked `settings.json` survives a CLIde write untouched or
   correctly updated, never truncated or replaced.
+- An Opus 5.x chat has `TaskCreate` when the checklist switch is on and lacks it
+  when off, whatever Allowed Tools holds.
 
 ## Not doing
 
