@@ -39,3 +39,28 @@
 #1157	declined	redraws #1041's rows
 #1153	declined	chat-view and bandwidth work too entangled with upstream's view to separate
 #1238	deferred	composer message recall
+#1328	refused	CLIde is English-only
+#1384	refused	CLIde is English-only
+#1509	refused	CLIde is English-only
+#1518	refused	CLIde is English-only
+#1323	refused	recommends a tab in CloudCLI's plugin system, which CLIde deleted
+#1474	refused	recommends a tab in CloudCLI's plugin system, which CLIde deleted
+#1166	refused	CLIde has no Running view; running state is a dot on each row
+#1371	refused	CLIde deleted the quick-settings panel; its options live in Settings › Chat
+#1421	refused	CLIde's transcript never unmounts rows (content-visibility plus measured heights), so the flicker loop cannot occur
+#1312	ours	sticky expanded project header since 84450243
+#1189	ours	resizable sidebar since bb54bb2f; the rail design keeps the handle
+#1393	ours	theme follows the OS since 05f77019, including the browser theme colour
+#1374	ours	Rename in the chat header menu since 4ed94b04; double-click has no touch equivalent
+#1295	ours	compaction is a divider with the summary folded behind a disclosure
+#1386	ours	tool groups cache against their first row and keep one key identity
+#1485	ours	chat shows a reconnecting pill and pings a silently dead socket
+#1411	ours	the @ list is fetched per query, so it cannot go stale
+#1408	ours	the auth startup check reads the stored token and does not depend on it or on t
+#1425	ours	ported in 9f6e87eb
+#1492	deferred	Claude settings plan phase 6 reconciles the two permission systems first; Advanced already shows the merged permissions key
+#1369	deferred	read-only Compare is step 0 of the Source Control plan's phase 3, after Phase 0 item 1 makes Git errors visible
+#1307	declined	no workspace image references in 100 recent Claude and Codex sessions; revisit if replies start embedding screenshots
+#1385	declined	no \( or \[ math in the same sample; $$ already renders
+#1332	declined	Safari-only IME defect; CLIde is used on Android Chrome and desktop, and shares the bug if that changes
+#1428	declined	terminal colours are dark-only; matters only in light mode

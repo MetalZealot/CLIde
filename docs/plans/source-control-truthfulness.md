@@ -74,6 +74,10 @@ layout, and standalone tab.
      (`worktree.service.test.ts`).
 
 - [ ] **3. Explicit integration.**
+  0. Read-only Compare (upstream `#1369`): pick a base ref, list the files that
+     differ from the merge base, load each file's diff on demand. Read-only, so
+     it may precede the rest of this phase, but not Phase 0 item 1: an unknown
+     ref or unrelated history must reach the screen.
   1. Choose and display source and target checkout/ref.
   2. Refresh and report merge base, unique commits, changed files,
      fast-forwardability, dirty/operation state, occupancy, and push state.
