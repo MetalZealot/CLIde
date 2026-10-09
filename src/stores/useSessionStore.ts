@@ -151,6 +151,8 @@ export interface NormalizedMessage {
   isSystemNotice?: boolean;
   /** Set when the provider stopped the turn on a usage limit — see server types. */
   usageLimit?: UsageLimitStop;
+  /** On an assistant reply, the model id that wrote it, where the provider records one. */
+  model?: string;
   /** Output tokens — see server types. */
   outputTokens?: number;
   /**

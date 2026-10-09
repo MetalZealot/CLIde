@@ -1323,6 +1323,10 @@ export class ClaudeSessionsProvider implements IProviderSessions {
       const isSyntheticNotice =
         raw.message?.model === '<synthetic>' || raw.isApiErrorMessage === true;
       const usageLimit = readClaudeUsageLimit(raw);
+      // The model that wrote this reply, for its footer; placeholders like `<synthetic>` are not models.
+      const model = typeof raw.message.model === 'string' && raw.message.model && !/^<.*>$/.test(raw.message.model)
+        ? raw.message.model
+        : undefined;
 
       if (Array.isArray(raw.message.content)) {
         let partIndex = 0;
@@ -1339,6 +1343,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
                 content: part.text,
                 isSystemNotice: isSyntheticNotice || undefined,
                 usageLimit,
+                model,
               }));
             }
           } else if (part.type === 'tool_use') {
@@ -1377,6 +1382,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
             content: raw.message.content,
             isSystemNotice: isSyntheticNotice || undefined,
             usageLimit,
+            model,
           }));
         }
       }

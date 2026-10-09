@@ -104,6 +104,8 @@ export interface ChatMessage {
   usageLimit?: UsageLimitStop;
   /** Output tokens the provider recorded for this row's model step; history rows only. */
   outputTokens?: number;
+  /** On an assistant reply, the model id that wrote it, where the provider records one. */
+  model?: string;
   /** Set when the history page omitted this tool's heavy payload; see useHistoryDetail. */
   elidedDetail?: { bytes: number; resultLines?: number };
   /** App session id the elided detail is fetched from. */

@@ -364,6 +364,18 @@ describe('provider-attachment-history', () => {
     assert.equal(messages[0].images, undefined);
   });
 
+  test('claude history: a reply carries the model that wrote it, a fabricated notice none', () => {
+    const provider = new ClaudeSessionsProvider();
+    const reply = (uuid: string, model: string, text: string) => ({
+      uuid,
+      timestamp: '2026-07-03T10:00:00.000Z',
+      message: { role: 'assistant', model, content: [{ type: 'text', text }] },
+    });
+
+    assert.equal(provider.normalizeMessage(reply('a1', 'claude-opus-5-5', 'Hi'), SESSION_ID)[0].model, 'claude-opus-5-5');
+    assert.equal(provider.normalizeMessage(reply('a2', '<synthetic>', 'API Error'), SESSION_ID)[0].model, undefined);
+  });
+
   test('claude history: file reference blocks restore non-image attachments', () => {
     const provider = new ClaudeSessionsProvider();
     const entry = {

@@ -666,6 +666,8 @@ export type NormalizedMessage = {
   };
   /** Codex turn that issued this tool call — the provider's own burst boundary. */
   turnId?: string;
+  /** On an assistant reply, the model id that wrote it, where the provider records one. */
+  model?: string;
   isError?: boolean;
   text?: string;
   tokens?: number;

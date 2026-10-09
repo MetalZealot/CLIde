@@ -8,6 +8,7 @@ import { buildRepositoryEntries } from '../../sidebar/utils/utils';
 import { normalizedToChatMessages } from '../hooks/useChatMessages';
 import type { ChatMessage } from '../types/types';
 
+import { formatModelLabel } from './modelLabel';
 import { buildOperationDetail } from './operationDetail';
 import { describeOperation, summarizeActivity } from './toolActivity';
 import { assignActivityKeys, groupToolActivities, isToolActivityItem, revealStartForBudget } from './toolGrouping';
@@ -751,4 +752,13 @@ test('streaming markdown splits only where a block is finished, and pieces only 
     const finished = splitMarkdownBlocks(reply.slice(0, end)).slice(0, -1);
     assert.deepEqual(finished, blocks.slice(0, finished.length), `pieces changed at ${end} characters`);
   }
+});
+
+test('a reply\'s model id reads as family and version', () => {
+  assert.equal(formatModelLabel('claude-opus-5-5'), 'Opus 5.5');
+  assert.equal(formatModelLabel('claude-sonnet-4-5-20250929'), 'Sonnet 4.5');
+  assert.equal(formatModelLabel('claude-opus-4-20250514'), 'Opus 4');
+  assert.equal(formatModelLabel('claude-3-5-sonnet-20241022'), 'Sonnet 3.5');
+  assert.equal(formatModelLabel('claude-opus-5-5[1m]'), 'Opus 5.5 1M');
+  assert.equal(formatModelLabel('gpt-6-sol'), 'gpt-6-sol');
 });

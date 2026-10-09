@@ -17,6 +17,7 @@ import {
   parseInteractivePrompt,
 } from '../../utils/chatFormatting';
 import { getTranscriptMessageUuid } from '../../utils/messageKeys';
+import { formatModelLabel } from '../../utils/modelLabel';
 import { isChatFindConversationMessage } from '../../hooks/useChatFind';
 import type { Project } from '../../../../types/app';
 import type { FileOpenOptions } from '../../../code-editor/types/types';
@@ -560,6 +561,12 @@ const MessageComponent = memo(({ message, prevMessage, turnSummary, createDiff, 
               <div className="mt-1 select-none text-chat-meta text-muted-foreground">
                 <div className="flex w-full items-center gap-2">
                   <span>{formattedTime}</span>
+                  {message.model && (
+                    <span title={message.model}>
+                      <span aria-hidden="true">· </span>
+                      {formatModelLabel(message.model)}
+                    </span>
+                  )}
                   {shouldShowAssistantCopyControl && (
                     <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
                   )}
