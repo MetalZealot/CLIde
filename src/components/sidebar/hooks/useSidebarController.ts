@@ -124,6 +124,10 @@ export const SESSION_PAGE_SIZE = 5;
 
 const SIDEBAR_BROWSE_MODE_STORAGE_KEY = 'sidebar-browse-mode';
 
+/** The server refuses to delete a session whose turn is still running. */
+const isRunningRefusal = (status: number, body: string): boolean =>
+  status === 409 && body.includes('SESSION_RUNNING');
+
 const readSidebarBrowseMode = (): SidebarBrowseMode => {
   try {
     return localStorage.getItem(SIDEBAR_BROWSE_MODE_STORAGE_KEY) === 'sessions'
@@ -851,7 +855,9 @@ export function useSidebarController({
           status: response.status,
           error: errorText,
         });
-        alert(t('messages.deleteSessionFailed'));
+        alert(isRunningRefusal(response.status, errorText)
+          ? t('messages.deleteRunningSession', { count: 1 })
+          : t('messages.deleteSessionFailed'));
       }
     } catch (error) {
       console.error('[Sidebar] Error deleting session:', error);
@@ -863,28 +869,30 @@ export function useSidebarController({
    * Removes one or many sessions in a single pass: `hardDelete` false archives,
    * true deletes. Every request is issued before anything is reported, so one
    * failure never leaves the rest unattempted, and the archive is refetched once.
+   * Resolves to the ids that were not removed.
    */
-  const removeSessions = useCallback(async (sessionIds: string[], hardDelete: boolean) => {
+  const removeSessions = useCallback(async (sessionIds: string[], hardDelete: boolean): Promise<string[]> => {
     if (sessionIds.length === 0) {
-      return;
+      return [];
     }
 
     const outcomes = await Promise.all(sessionIds.map(async (sessionId) => {
       try {
         const response = await api.deleteSession(sessionId, hardDelete);
         if (!response.ok) {
+          const errorText = await response.text();
           console.error('[Sidebar] Failed to remove session:', {
             sessionId,
             hardDelete,
             status: response.status,
-            error: await response.text(),
+            error: errorText,
           });
-          return { sessionId, ok: false, threw: false };
+          return { sessionId, ok: false, threw: false, running: isRunningRefusal(response.status, errorText) };
         }
-        return { sessionId, ok: true, threw: false };
+        return { sessionId, ok: true, threw: false, running: false };
       } catch (error) {
         console.error('[Sidebar] Error removing session:', sessionId, error);
-        return { sessionId, ok: false, threw: true };
+        return { sessionId, ok: false, threw: true, running: false };
       }
     }));
 
@@ -897,11 +905,15 @@ export function useSidebarController({
     await fetchArchivedSessions();
 
     const failures = outcomes.filter((outcome) => !outcome.ok);
-    if (failures.length > 0) {
+    const running = failures.filter((failure) => failure.running).length;
+    if (running > 0) {
+      alert(t('messages.deleteRunningSession', { count: running }));
+    } else if (failures.length > 0) {
       alert(failures.some((failure) => failure.threw)
         ? t('messages.deleteSessionError')
         : t('messages.deleteSessionFailed'));
     }
+    return failures.map((failure) => failure.sessionId);
   }, [fetchArchivedSessions, onSessionDelete, t]);
 
   // Archive skips the confirmation modal — it is recoverable from the Archive

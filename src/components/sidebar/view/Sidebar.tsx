@@ -239,10 +239,15 @@ function Sidebar({
   };
 
   // The list empties as the requests land, so read the selection before clearing.
+  // Whatever was refused comes back ticked, ready to retry.
   const runBatchRemoval = (hardDelete: boolean) => {
-    const sessionIds = sessionSelection ? [...sessionSelection.ids] : [];
+    if (!sessionSelection) return;
+    const { scope } = sessionSelection;
+    const sessionIds = [...sessionSelection.ids];
     exitSelection();
-    void removeSessions(sessionIds, hardDelete);
+    void removeSessions(sessionIds, hardDelete).then((failedIds) => {
+      if (failedIds.length > 0) setSessionSelection({ scope, ids: new Set(failedIds) });
+    });
   };
 
   // A collapsed row hides the very rows the selection refers to.

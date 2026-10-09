@@ -20,6 +20,7 @@ import {
 import { paginateHistory } from '@/modules/providers/services/history-pagination.service.js';
 import { measureHistoryMessage, slimHistoryMessage } from '@/modules/providers/services/history-payload.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { appendFilesInputTag, appendImagesInputTag } from '@/shared/image-attachments.js';
 import type { FetchHistoryResult, HistorySourceRevision, NormalizedMessage } from '@/shared/types.js';
 import { AppError, normalizeProjectPath, readLastJsonlTimestamp } from '@/shared/utils.js';
@@ -199,6 +200,25 @@ describe('provider-sessions', () => {
           () => sessionsService.getSessionDetailsById('does-not-exist'),
           (error: unknown) => error instanceof AppError && error.code === 'SESSION_NOT_FOUND',
         );
+      });
+    });
+
+    test('deleting a session refuses while its turn runs; archiving still works', async () => {
+      await withIsolatedDatabase(async () => {
+        const sessionId = sessionsDb.createAppSession('app-running-1', 'claude', '/home/user/running-project');
+        const connection = { readyState: 1, send: () => undefined };
+        assert.ok(chatRunRegistry.startRun({ appSessionId: sessionId, provider: 'claude', providerSessionId: null, connection, userId: 'u' }));
+        try {
+          await assert.rejects(
+            sessionsService.deleteOrArchiveSessionById(sessionId, { force: true }),
+            (error: unknown) => error instanceof AppError && error.code === 'SESSION_RUNNING' && error.statusCode === 409,
+          );
+          assert.ok(sessionsDb.getSessionById(sessionId), 'the row survives the refusal');
+          assert.equal((await sessionsService.deleteOrArchiveSessionById(sessionId)).action, 'archived');
+        } finally {
+          chatRunRegistry.completeRun(sessionId, { exitCode: 0 });
+        }
+        assert.equal((await sessionsService.deleteOrArchiveSessionById(sessionId, { force: true })).action, 'deleted');
       });
     });
   });

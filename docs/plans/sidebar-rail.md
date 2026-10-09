@@ -31,6 +31,8 @@ S20 against 3001.
     picker row and menu (projects, checkouts, No project, Manage projects).
   - Session rows with the second-line rules; Pinned and Recent headings; paging
     on scroll; the empty state names the scope; a failed page shows a retry row.
+  - Select mode works over the scoped list and gains Select all (upstream
+    `#1404`); refused rows stay ticked, as today.
   - Removed in the same change: the browse menu and its stored mode, repository
     rows and Show all, `SidebarSessionViewMenu`, the Archive mode and its list,
     the Project sort.

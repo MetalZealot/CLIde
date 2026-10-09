@@ -517,6 +517,13 @@ export const sessionsService = {
       };
     }
 
+    if (chatRunRegistry.isProcessing(sessionId)) {
+      throw new AppError('Stop this session before deleting it.', {
+        code: 'SESSION_RUNNING',
+        statusCode: 409,
+      });
+    }
+
     let removedFromDisk = false;
     if (options.deletedFromDisk && session.jsonl_path) {
       removedFromDisk = await removeFileIfExists(session.jsonl_path);
