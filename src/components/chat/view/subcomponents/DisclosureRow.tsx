@@ -12,9 +12,10 @@ export const DISCLOSED_TEXT_CLASS = 'prose prose-sm max-w-none font-prose text-c
 export const rowLabelClass = (isOpen: boolean): string => (isOpen ? 'min-w-0 [overflow-wrap:anywhere]' : 'min-w-0 truncate');
 
 // An open row pins while its content scrolls under it: an outer row under the page's top bar, an inner
-// row under its open outer row. z-[15] clears a panel's z-10 buttons and stays under the z-20 composer.
+// row under its open outer row, which an inner row leaving at its content's end slides beneath.
+// Both clear a panel's z-10 buttons and stay under the z-20 composer.
 export const OUTER_ROW_PIN = 'scroll-mt-[var(--chat-pin-top,0px)]';
-export const OUTER_ROW_PINNED = 'sticky top-[var(--chat-pin-top,0px)] z-[15] bg-background';
+export const OUTER_ROW_PINNED = 'sticky top-[var(--chat-pin-top,0px)] z-[16] bg-background';
 export const INNER_ROW_PIN = 'scroll-mt-[calc(var(--chat-pin-top,0px)_+_var(--pin-outer,0px))]';
 export const INNER_ROW_PINNED = 'sticky top-[calc(var(--chat-pin-top,0px)_+_var(--pin-outer,0px))] z-[15] bg-background';
 
