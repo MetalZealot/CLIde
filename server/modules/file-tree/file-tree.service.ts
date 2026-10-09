@@ -1280,17 +1280,15 @@ export function createFileTreeService(dependencies: FileTreeServiceDependencies)
           input.signal,
         );
         const stats = await runFileSystemOperation(() => fileSystem.stat(exactPath), input.signal);
-        if (!stats.isDirectory()) {
-          return {
-            status: 'resolved',
-            match: {
-              name: path.basename(exactPath),
-              path: exactPath,
-              relativePath: toProjectRelativePath(projectRoot, exactPath),
-              type: 'file',
-            },
-          };
-        }
+        return {
+          status: 'resolved',
+          match: {
+            name: path.basename(exactPath),
+            path: exactPath,
+            relativePath: toProjectRelativePath(projectRoot, exactPath),
+            type: stats.isDirectory() ? 'directory' : 'file',
+          },
+        };
       } catch (error) {
         if (isAbortError(error)) throw error;
         const isMissing = readErrorCode(error) === 'ENOENT'

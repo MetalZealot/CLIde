@@ -25,9 +25,23 @@ export const useEditorSidebar = ({
   const [isResizing, setIsResizing] = useState(false);
   const [hasManualWidth, setHasManualWidth] = useState(false);
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
+  const editorDirtyRef = useRef(false);
+
+  const handleEditorDirtyChange = useCallback((dirty: boolean) => {
+    editorDirtyRef.current = dirty;
+  }, []);
+
+  /** False when the open buffer has unsaved edits and the user keeps them. */
+  const confirmDiscardEdits = useCallback(
+    () => !editorDirtyRef.current || window.confirm('This file has unsaved changes. Discard them?'),
+    [],
+  );
 
   const handleFileOpen = useCallback(
     (filePath: string, diffInfo: CodeEditorDiffInfo | null = null, options: FileOpenOptions = {}) => {
+      if (!confirmDiscardEdits()) {
+        return;
+      }
       setEditingFile({
         name: options.name ?? fileNameFromPath(filePath),
         path: filePath,
@@ -36,12 +50,13 @@ export const useEditorSidebar = ({
         projectId: selectedProject?.projectId,
         diffInfo,
         readOnly: options.readOnly,
+        line: options.line,
         // A fresh id every open: this is a different document, so the editor
         // should load it. Moves and renames reuse the id (see below).
         documentId: mintDocumentId(),
       });
     },
-    [selectedProject?.projectId],
+    [confirmDiscardEdits, selectedProject?.projectId],
   );
 
   /**
@@ -73,9 +88,12 @@ export const useEditorSidebar = ({
   }, []);
 
   const handleCloseEditor = useCallback(() => {
+    if (!confirmDiscardEdits()) {
+      return;
+    }
     setEditingFile(null);
     setEditorExpanded(false);
-  }, []);
+  }, [confirmDiscardEdits]);
 
   const handleToggleEditorExpand = useCallback(() => {
     setEditorExpanded((previous) => !previous);
@@ -148,6 +166,7 @@ export const useEditorSidebar = ({
     handleFileOpen,
     handleFilePathsChanged,
     handleCloseEditor,
+    handleEditorDirtyChange,
     handleToggleEditorExpand,
     handleResizeStart,
   };

@@ -13,7 +13,8 @@ export const useEditorKeyboardShortcuts = ({
 }: UseEditorKeyboardShortcutsParams) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      // CodeMirror's own panels (search, autocomplete) claim Escape first.
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         event.preventDefault();
         onClose();
         return;

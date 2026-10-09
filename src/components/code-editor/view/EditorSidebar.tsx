@@ -12,6 +12,7 @@ type EditorSidebarProps = {
   resizeHandleRef: MutableRefObject<HTMLDivElement | null>;
   onResizeStart: (event: MouseEvent<HTMLDivElement>) => void;
   onCloseEditor: () => void;
+  onEditorDirtyChange?: (dirty: boolean) => void;
   onToggleEditorExpand: () => void;
   onFileOpen?: (filePath: string) => void;
   projectPath?: string;
@@ -32,6 +33,7 @@ export default function EditorSidebar({
   resizeHandleRef,
   onResizeStart,
   onCloseEditor,
+  onEditorDirtyChange,
   onToggleEditorExpand,
   onFileOpen,
   projectPath,
@@ -97,6 +99,7 @@ export default function EditorSidebar({
         projectPath={projectPath}
         isSidebar={false}
         onFileOpen={onFileOpen}
+        onDirtyChange={onEditorDirtyChange}
       />
     );
   }
@@ -130,6 +133,7 @@ export default function EditorSidebar({
           onToggleExpand={onToggleEditorExpand}
           onPopOut={() => setPoppedOut(true)}
           onFileOpen={onFileOpen}
+          onDirtyChange={onEditorDirtyChange}
         />
       </div>
     </div>

@@ -19,11 +19,14 @@ export type CodeEditorFile = {
   documentId?: string;
   // Outside the project root, where the server refuses writes.
   readOnly?: boolean;
+  // 1-based line to bring into view once the document loads.
+  line?: number;
   [key: string]: unknown;
 };
 
 export type FileOpenOptions = {
   readOnly?: boolean;
+  line?: number;
   // Display name when the on-disk name differs (e.g. a stored upload).
   name?: string;
 };

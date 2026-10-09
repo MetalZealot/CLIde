@@ -252,6 +252,27 @@ describe('file-tree.service', () => {
     );
   });
 
+  test('resolveProjectFile reports a directory reference as a directory, not a file to read', async () => {
+    const projectRoot = path.resolve('file-tree-test-project');
+    const fileSystem = createFakeFileSystem({
+      stat: async () => createStats(true, 0o755),
+    });
+    const service = createFileTreeService(createDependencies(fileSystem, projectRoot));
+
+    assert.deepEqual(
+      await service.resolveProjectFile({ projectId: 'project-1', fileReference: 'docs/' }),
+      {
+        status: 'resolved',
+        match: {
+          name: 'docs',
+          path: path.join(projectRoot, 'docs'),
+          relativePath: 'docs',
+          type: 'directory',
+        },
+      },
+    );
+  });
+
   test('createEntry performs filesystem mutation only through the injected adapter', async () => {
     const projectRoot = path.resolve('file-tree-test-project');
     const targetPath = path.join(projectRoot, 'notes.txt');

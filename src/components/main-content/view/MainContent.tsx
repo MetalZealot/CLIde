@@ -75,6 +75,7 @@ function MainContent({
 
   const [browserUseEnabled, setBrowserUseEnabled] = useState(false);
   const [fileOpenNotice, setFileOpenNotice] = useState<string | null>(null);
+  const [fileTreeReveal, setFileTreeReveal] = useState<{ path: string } | null>(null);
 
   const shouldShowBrowserTab = browserUseEnabled;
 
@@ -87,6 +88,7 @@ function MainContent({
     handleFileOpen,
     handleFilePathsChanged,
     handleCloseEditor,
+    handleEditorDirtyChange,
     handleToggleEditorExpand,
     handleResizeStart,
   } = useEditorSidebar({
@@ -109,10 +111,18 @@ function MainContent({
           { reference: issue.reference },
         ));
   }, [t]);
+  useEffect(() => {
+    if (activeTab !== 'files') setFileTreeReveal(null);
+  }, [activeTab]);
+  const handleRevealDirectory = useCallback((directoryPath: string) => {
+    setActiveTab('files');
+    setFileTreeReveal({ path: directoryPath });
+  }, [setActiveTab]);
   const resolvedFileOpen = useFileOpenResolver(
     selectedProject,
     handleFileOpen,
     handleFileResolutionIssue,
+    handleRevealDirectory,
   );
 
   useEffect(() => {
@@ -166,8 +176,8 @@ function MainContent({
       handleFileOpen(filePath);
     },
     // Opens the editor side panel in place, keeping the current tab (e.g. chat).
-    openFileInEditor: (filePath: string) => {
-      resolvedFileOpen(filePath);
+    openFileInEditor: (filePath: string, options?: { line?: number }) => {
+      resolvedFileOpen(filePath, undefined, options);
     },
   });
 
@@ -256,6 +266,7 @@ function MainContent({
                 // Keeps the open editor bound to a file the Files tab just
                 // moved or renamed, instead of saving back to the old path.
                 onFilePathsChange={handleFilePathsChanged}
+                revealRequest={fileTreeReveal}
               />
             </div>
           )}
@@ -301,6 +312,7 @@ function MainContent({
             resizeHandleRef={resizeHandleRef}
             onResizeStart={handleResizeStart}
             onCloseEditor={handleCloseEditor}
+            onEditorDirtyChange={handleEditorDirtyChange}
             onToggleEditorExpand={handleToggleEditorExpand}
             onFileOpen={handleFileOpen}
             projectPath={selectedProject.path}

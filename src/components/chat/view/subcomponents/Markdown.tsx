@@ -46,8 +46,13 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, remarkPlugins, rehypeP
 const isExternalHref = (href?: string): boolean =>
   !!href && (/^(https?:|mailto:|tel:|data:)/i.test(href) || href.startsWith('#'));
 
-// Strip a trailing `:line` / `:line:col` suffix (e.g. `src/foo.ts:130`).
-const stripLineSuffix = (value: string): string => value.replace(/:\d+(?::\d+)?$/, '');
+// A trailing `:line` / `:line:col` suffix (e.g. `src/foo.ts:130`).
+const LINE_SUFFIX = /:(\d+)(?::\d+)?$/;
+const stripLineSuffix = (value: string): string => value.replace(LINE_SUFFIX, '');
+const readLineSuffix = (value: string): number | undefined => {
+  const line = Number(LINE_SUFFIX.exec(value)?.[1]);
+  return line > 0 ? line : undefined;
+};
 
 // A usable file path contains a separator or a filename with an extension.
 const looksLikeFilePath = (value?: string): value is string => {
@@ -287,7 +292,7 @@ export const Markdown = memo(function Markdown({
               className="cursor-pointer text-blue-600 hover:underline dark:text-blue-400"
               onClick={(event) => {
                 event.preventDefault();
-                openFileInEditor(stripLineSuffix(fileRef));
+                openFileInEditor(stripLineSuffix(fileRef), { line: readLineSuffix(fileRef) });
               }}
             >
               {linkChildren}

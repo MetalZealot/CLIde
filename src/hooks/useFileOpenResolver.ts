@@ -12,7 +12,7 @@ export type FileOpenResolutionIssue = {
 };
 
 type FileResolution =
-  | { status: 'resolved'; match: { path: string } }
+  | { status: 'resolved'; match: { path: string; relativePath: string; type: 'file' | 'directory' } }
   | { status: 'not-found'; matches: [] }
   | { status: 'ambiguous'; matches: Array<{ relativePath: string }> };
 
@@ -25,6 +25,8 @@ export function useFileOpenResolver(
   selectedProject: Project | null | undefined,
   onFileOpen: OnFileOpen,
   onResolutionIssue?: (issue: FileOpenResolutionIssue) => void,
+  /** Receives a folder inside the project, which has no editor to open in. */
+  onDirectory?: (directoryPath: string) => void,
 ): OnFileOpen {
   const projectId = selectedProject?.projectId;
   const activeRequestRef = useRef<{
@@ -60,6 +62,12 @@ export function useFileOpenResolver(
         const resolution = await response.json() as FileResolution & { error?: string };
         if (controller.signal.aborted || activeRequestRef.current?.generation !== generation) return;
         if (!response.ok) throw new Error(resolution.error || 'Could not resolve file reference');
+        if (resolution.status === 'resolved' && resolution.match.type === 'directory') {
+          const insideProject = !resolution.match.relativePath.startsWith('/');
+          if (onDirectory && insideProject) onDirectory(resolution.match.path);
+          else onResolutionIssue?.({ kind: 'error', reference });
+          return;
+        }
         if (resolution.status === 'resolved') {
           onFileOpen(resolution.match.path, diffInfo, options);
           return;
@@ -82,5 +90,5 @@ export function useFileOpenResolver(
           activeRequestRef.current = null;
         }
       });
-  }, [onFileOpen, onResolutionIssue, projectId]);
+  }, [onDirectory, onFileOpen, onResolutionIssue, projectId]);
 }

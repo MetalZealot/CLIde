@@ -178,3 +178,46 @@ test('renders the preview inline with scripts omitted from the iframe sandbox', 
     URL.revokeObjectURL = originalRevokeObjectUrl;
   }
 });
+
+test('a slow read for a previous file never lands in the next, and a failed read cannot be saved', async () => {
+  const { api } = await import('../../utils/api');
+  const { useCodeEditorDocument } = await import('./hooks/useCodeEditorDocument');
+  const originalRead = api.readFile;
+  const originalSave = api.saveFile;
+  const pending = new Map<string, (response: Response) => void>();
+  const saves: string[] = [];
+  api.readFile = (_projectId: string, filePath: string) =>
+    new Promise<Response>((resolve) => pending.set(filePath, resolve));
+  api.saveFile = async (_projectId: string, filePath: string) => {
+    saves.push(filePath);
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  let latest: ReturnType<typeof useCodeEditorDocument> | null = null;
+  function Harness({ path }: { path: string }) {
+    latest = useCodeEditorDocument({ file: { name: path, path, projectId: 'p', documentId: path } });
+    return null;
+  }
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+
+  try {
+    await React.act(async () => root.render(<Harness path="a.ts" />));
+    await React.act(async () => root.render(<Harness path="b.ts" />));
+    await React.act(async () => pending.get('b.ts')?.(json({ content: 'B' })));
+    await React.act(async () => pending.get('a.ts')?.(json({ content: 'A' })));
+    assert.equal(latest!.content, 'B');
+    assert.equal(latest!.isDirty, false);
+
+    await React.act(async () => root.render(<Harness path="c.ts" />));
+    await React.act(async () => pending.get('c.ts')?.(new Response('', { status: 500 })));
+    assert.equal(latest!.loadFailed, true);
+    await React.act(async () => latest!.handleSave());
+    assert.deepEqual(saves, []);
+  } finally {
+    await React.act(async () => root.unmount());
+    api.readFile = originalRead;
+    api.saveFile = originalSave;
+  }
+});

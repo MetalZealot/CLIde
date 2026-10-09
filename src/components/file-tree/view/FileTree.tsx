@@ -34,11 +34,13 @@ type FileTreeProps = {
   onFileOpen?: (filePath: string) => void;
   /** Reports moves and renames so an open editor can rebind to the new path. */
   onFilePathsChange?: (changes: FilePathChange[]) => void;
+  /** A folder to expand down to and focus; a new object asks again for the same path. */
+  revealRequest?: { path: string } | null;
 };
 
 const parentDirOf = (absolutePath: string) => absolutePath.slice(0, absolutePath.lastIndexOf('/'));
 
-export default function FileTree({ selectedProject, onFileOpen, onFilePathsChange }: FileTreeProps) {
+export default function FileTree({ selectedProject, onFileOpen, onFilePathsChange, revealRequest }: FileTreeProps) {
   const { t } = useTranslation();
   const [selectedImage, setSelectedImage] = useState<FileTreeImageSelection | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -243,6 +245,19 @@ export default function FileTree({ selectedProject, onFileOpen, onFilePathsChang
       toggleDirectory,
     ],
   );
+
+  useEffect(() => {
+    if (!revealRequest) return;
+    setSearchQuery('');
+    void revealDirectory(revealRequest.path)
+      .then((paths) => {
+        expandDirectories(paths);
+        setFocusedPath(revealRequest.path);
+      })
+      .catch((error: unknown) => showToast((error as Error).message, 'error'));
+    // Only a new request reveals; the helpers changing identity must not repeat it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealRequest]);
 
   /**
    * The one place modifier meaning is decided. Plain clicks keep opening files

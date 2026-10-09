@@ -24,6 +24,10 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isBinary, setIsBinary] = useState(false);
+  // The buffer then holds an error notice, which must never be saved over the file.
+  const [loadFailed, setLoadFailed] = useState(false);
+  // What disk holds as far as this editor knows; `content` differing from it is unsaved work.
+  const [savedContent, setSavedContent] = useState('');
   // Some binaries (images, PDFs, audio, video) can be rendered natively, so the
   // editor shows an inline preview instead of the generic binary placeholder.
   const previewKind = getPreviewKind(file.name);
@@ -51,26 +55,34 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
   currentFileRef.current = { filePath, fileName };
 
   useEffect(() => {
+    // A slower read for the previous document must not land in this one's buffer.
+    let cancelled = false;
+    const showContent = (text: string) => {
+      setContent(text);
+      setSavedContent(text);
+    };
+
     const loadFileContent = async () => {
       const { filePath: currentPath, fileName: currentName } = currentFileRef.current;
 
       try {
         setLoading(true);
         setIsBinary(false);
+        setLoadFailed(false);
 
         // Natively previewable media (image/pdf/audio/video) is rendered by
         // CodeEditorMediaPreview, so there is nothing to read as text here.
         // Clear any buffer left over from a previously opened text file so a
         // stray save can't write stale content over the binary file.
         if (getPreviewKind(currentName)) {
-          setContent('');
+          showContent('');
           setLoading(false);
           return;
         }
 
         // Check if file is binary by extension
         if (isBinaryFile(currentName)) {
-          setContent('');
+          showContent('');
           setIsBinary(true);
           setLoading(false);
           return;
@@ -78,7 +90,7 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
 
         // Diff payload may already include full old/new snapshots, so avoid disk read.
         if (hasDiffInfo && fileDiffNewString !== undefined && fileDiffOldString !== undefined) {
-          setContent(fileDiffNewString);
+          showContent(fileDiffNewString);
           setLoading(false);
           return;
         }
@@ -93,23 +105,29 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
         }
 
         const data = await response.json();
-        setContent(data.content);
+        if (cancelled) return;
+        showContent(data.content);
       } catch (error) {
+        if (cancelled) return;
         const message = getErrorMessage(error);
         console.error('Error loading file:', error);
-        setContent(`// Error loading file: ${message}\n// File: ${currentName}\n// Path: ${currentPath}`);
+        setLoadFailed(true);
+        showContent(`// Error loading file: ${message}\n// File: ${currentName}\n// Path: ${currentPath}`);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadFileContent();
+    return () => {
+      cancelled = true;
+    };
   }, [documentKey, hasDiffInfo, fileDiffNewString, fileDiffOldString, fileProjectId]);
 
   const handleSave = useCallback(async () => {
     // Preview-only and binary files have no editable text buffer; never write
     // them back (e.g. via Cmd/Ctrl+S) or we'd corrupt the file on disk.
-    if (previewKind || isBinaryFile(fileName) || isReadOnly) {
+    if (previewKind || isBinaryFile(fileName) || isReadOnly || loadFailed) {
       return;
     }
 
@@ -137,6 +155,7 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
 
       await response.json();
 
+      setSavedContent(content);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error) {
@@ -146,7 +165,7 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
     } finally {
       setSaving(false);
     }
-  }, [content, filePath, fileProjectId, previewKind, fileName, isReadOnly]);
+  }, [content, filePath, fileProjectId, previewKind, fileName, isReadOnly, loadFailed]);
 
   const handleDownload = useCallback(() => {
     const blob = new Blob([content], { type: 'text/plain' });
@@ -171,6 +190,8 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
     saveSuccess,
     saveError,
     isBinary,
+    loadFailed,
+    isDirty: !loading && !loadFailed && content !== savedContent,
     previewKind,
     fileProjectId,
     handleSave,

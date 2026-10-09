@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { unifiedMergeView } from '@codemirror/merge';
 import { EditorState, type Extension } from '@codemirror/state';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
@@ -10,7 +10,12 @@ import { useCodeEditorDocument } from '../hooks/useCodeEditorDocument';
 import { useCodeEditorSettings } from '../hooks/useCodeEditorSettings';
 import { useEditorKeyboardShortcuts } from '../hooks/useEditorKeyboardShortcuts';
 import type { CodeEditorFile } from '../types/types';
-import { createMinimapExtension, createScrollToFirstChunkExtension, getLanguageExtensions } from '../utils/editorExtensions';
+import {
+  createMinimapExtension,
+  createScrollToFirstChunkExtension,
+  createScrollToLineExtension,
+  getLanguageExtensions,
+} from '../utils/editorExtensions';
 import { getEditorStyles } from '../utils/editorStyles';
 import { createEditorToolbarPanelExtension } from '../utils/editorToolbarPanel';
 import { PageScrollLock } from '../../../shared/view/ui';
@@ -32,6 +37,8 @@ type CodeEditorProps = {
   onToggleExpand?: (() => void) | null;
   onPopOut?: (() => void) | null;
   onFileOpen?: (filePath: string) => void;
+  /** Told whenever the buffer gains or loses unsaved edits, so the opener can ask before discarding them. */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 export default function CodeEditor({
@@ -43,6 +50,7 @@ export default function CodeEditor({
   onToggleExpand = null,
   onPopOut = null,
   onFileOpen,
+  onDirtyChange,
 }: CodeEditorProps) {
   const { t } = useTranslation('codeEditor');
   const paletteOps = usePaletteOps();
@@ -70,6 +78,8 @@ export default function CodeEditor({
     saveSuccess,
     saveError,
     isBinary,
+    loadFailed,
+    isDirty,
     previewKind,
     fileProjectId,
     handleSave,
@@ -106,6 +116,27 @@ export default function CodeEditor({
     [file, showDiff],
   );
 
+  const scrollToLineExtension = useMemo(
+    () => createScrollToLineExtension(file.line),
+    // Keyed on the document, not the line alone, so reopening the same line scrolls again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [file.documentId, file.line],
+  );
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [isDirty]);
+
   const toolbarPanelExtension = useMemo(
     () => (
       createEditorToolbarPanelExtension({
@@ -134,6 +165,7 @@ export default function CodeEditor({
     const allExtensions: Extension[] = [
       ...getLanguageExtensions(file.name),
       ...toolbarPanelExtension,
+      ...scrollToLineExtension,
     ];
 
     if (file.diffInfo && showDiff && file.diffInfo.old_string !== undefined) {
@@ -154,7 +186,7 @@ export default function CodeEditor({
       allExtensions.push(EditorView.lineWrapping);
     }
 
-    if (file.readOnly) {
+    if (file.readOnly || loadFailed) {
       allExtensions.push(EditorState.readOnly.of(true));
     }
 
@@ -163,8 +195,10 @@ export default function CodeEditor({
     file.diffInfo,
     file.name,
     file.readOnly,
+    loadFailed,
     minimapExtension,
     scrollToFirstChunkExtension,
+    scrollToLineExtension,
     showDiff,
     toolbarPanelExtension,
     wordWrap,
@@ -251,7 +285,7 @@ export default function CodeEditor({
     <>
       <style>{getEditorStyles(isDarkMode)}</style>
       {pageScrollLock}
-      <div className={outerContainerClassName}>
+      <div className={outerContainerClassName} data-escape-layer={isSidebar ? undefined : ''}>
         <div className={innerContainerClassName}>
           <CodeEditorHeader
             file={file}

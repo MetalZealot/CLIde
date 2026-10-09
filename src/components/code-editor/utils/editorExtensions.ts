@@ -110,6 +110,32 @@ export const createMinimapExtension = ({
   ];
 };
 
+/** Puts the cursor on `line` and centres it, once, when the view is created. */
+export const createScrollToLineExtension = (line: number | undefined) => {
+  if (!line || line < 1) {
+    return [];
+  }
+  const targetLine = line;
+
+  return [
+    ViewPlugin.fromClass(class {
+      constructor(view: EditorView) {
+        setTimeout(() => {
+          const target = view.state.doc.line(Math.min(targetLine, view.state.doc.lines));
+          view.dispatch({
+            selection: { anchor: target.from },
+            effects: EditorView.scrollIntoView(target.from, { y: 'center' }),
+          });
+        }, 0);
+      }
+
+      update() {}
+
+      destroy() {}
+    }),
+  ];
+};
+
 export const createScrollToFirstChunkExtension = ({
   file,
   showDiff,

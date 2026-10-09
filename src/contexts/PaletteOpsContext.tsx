@@ -5,7 +5,7 @@ export type PaletteOps = {
   openFile: (path: string) => void;
   // Opens a file in the editor side panel without changing the active tab
   // (used by in-chat file links so they behave like the inline edit view).
-  openFileInEditor: (path: string) => void;
+  openFileInEditor: (path: string, options?: { line?: number }) => void;
   openSettings: (tab?: string) => void;
   openUsage: () => void;
   refreshProjects: () => Promise<void> | void;
@@ -33,8 +33,8 @@ export function usePaletteOps(): PaletteOps {
   return useMemo<PaletteOps>(
     () => ({
       openFile: (path) => (ref?.current.openFile ?? defaultOps.openFile)(path),
-      openFileInEditor: (path) =>
-        (ref?.current.openFileInEditor ?? defaultOps.openFileInEditor)(path),
+      openFileInEditor: (path, options) =>
+        (ref?.current.openFileInEditor ?? defaultOps.openFileInEditor)(path, options),
       openSettings: (tab) => (ref?.current.openSettings ?? defaultOps.openSettings)(tab),
       openUsage: () => (ref?.current.openUsage ?? defaultOps.openUsage)(),
       refreshProjects: () => (ref?.current.refreshProjects ?? defaultOps.refreshProjects)(),
