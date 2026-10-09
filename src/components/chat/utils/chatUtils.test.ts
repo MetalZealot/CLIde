@@ -9,7 +9,7 @@ import { normalizedToChatMessages } from '../hooks/useChatMessages';
 import type { ChatMessage } from '../types/types';
 
 import { buildOperationDetail } from './operationDetail';
-import { summarizeActivity } from './toolActivity';
+import { describeOperation, summarizeActivity } from './toolActivity';
 import { assignActivityKeys, groupToolActivities, isToolActivityItem, revealStartForBudget } from './toolGrouping';
 import {
   extractInternalMemoryCitation,
@@ -606,6 +606,27 @@ describe('tool activity boundaries', () => {
       { type: 'lines', lines: [{ text: 'ok', tone: 'output' }, { text: '2 passed', tone: 'output' }] },
     ]);
     assert.equal(bash.copyText, 'npm test');
+
+    const bashEditDiff = {
+      files: [{ filePath: '/a/x.ts', hunks: [{ lines: [' ctx', '-old', '+new'] }, { lines: ['+more'] }] }],
+      changedFiles: ['/a/x.ts', '/a/y.md'],
+      moreFiles: 2,
+    };
+    const sed = call('d', {
+      toolInput: JSON.stringify({ command: "sed -i 's/old/new/' x.ts" }),
+      toolResult: { ...done('done'), toolUseResult: { stdout: '', bashEditDiff } },
+    });
+    assert.deepEqual(buildOperationDetail(sed).blocks, [
+      { type: 'lines', lines: [{ text: "sed -i 's/old/new/' x.ts", tone: 'command' }] },
+      {
+        type: 'lines',
+        heading: 'x.ts  +2 −1',
+        lines: [{ text: 'old', tone: 'removed' }, { text: 'new', tone: 'added' }, { text: '', tone: 'gap' }, { text: 'more', tone: 'added' }],
+      },
+      { type: 'lines', lines: [{ text: 'Also changed, not diffed: y.md and 1 more.', tone: 'output' }] },
+      { type: 'lines', lines: [{ text: 'done', tone: 'output' }] },
+    ]);
+    assert.deepEqual([describeOperation(sed).added, describeOperation(sed).removed], [2, 1]);
 
     const edit = buildOperationDetail(call('e', { toolName: 'Edit', toolInput: JSON.stringify({ file_path: '/a/x.ts', old_string: 'a\nb', new_string: 'a\nc' }), toolResult: done('') }));
     assert.deepEqual(edit.blocks, [{ type: 'lines', lines: [{ text: 'b', tone: 'removed' }, { text: 'c', tone: 'added' }] }]);

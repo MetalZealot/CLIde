@@ -7,6 +7,7 @@ import {
   describeActivity,
   describeOperation,
   formatLineCounts,
+  showsLineCounts,
   operationLabel,
   summarizeActivity,
   thinkingDurationMs,
@@ -78,7 +79,7 @@ export const OperationRow = memo(function OperationRow({ message, isOpen, isLive
   // A denied call never ran: name what it asked for, without its line counts.
   const label = isDenied ? waitingLabel(operation, t) : operationLabel(operation, t, true);
   const isRunning = isLive && operation.status === 'running';
-  const hasCounts = !isDenied && operation.kind === 'edit' && (operation.added > 0 || operation.removed > 0);
+  const hasCounts = !isDenied && showsLineCounts(operation.kind) && (operation.added > 0 || operation.removed > 0);
   const failure = operation.status === 'error' || operation.status === 'denied' ? operation.status : null;
 
   return (

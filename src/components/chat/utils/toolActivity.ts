@@ -3,6 +3,7 @@ import type { ToolStatus } from '../tools/components/ToolStatusBadge';
 import { isSubagentTool } from '../tools/subagentTools';
 import { deriveToolStatus } from '../tools/toolStatus';
 
+import { countBashEditDiff, readBashEditDiff } from './bashEditDiff';
 import { calculateDiff } from './messageTransforms';
 
 export type FacetKind = 'read' | 'search' | 'web' | 'bash' | 'poll' | 'edit' | 'other';
@@ -236,8 +237,10 @@ export function describeOperation(message: ChatMessage): ActivityOperation {
   const durationMs = toolResult?.timestamp !== undefined
     ? readTime(toolResult.timestamp) - readTime(message.timestamp)
     : NaN;
+  const input = describeInput(toolName, parseToolInput(message.toolInput));
   const operation: ActivityOperation = {
-    ...describeInput(toolName, parseToolInput(message.toolInput)),
+    ...input,
+    ...(input.kind === 'bash' ? countBashEditDiff(readBashEditDiff(toolResult?.toolUseResult)) : {}),
     message,
     status: deriveToolStatus(toolResult),
     durationMs: Number.isFinite(durationMs) && durationMs >= 0 ? durationMs : null,
@@ -292,6 +295,9 @@ const capitalize = (text: string): string => text.charAt(0).toUpperCase() + text
 
 const formatCounts = (added: number, removed: number): string => (added || removed ? ` ${formatLineCounts(added, removed)}` : '');
 
+/** Edits, and shell commands that edited files, carry `+N −M`. */
+export const showsLineCounts = (kind: OperationKind): boolean => kind === 'edit' || kind === 'bash';
+
 /** The call itself, past tense and without line counts: `Edited toolGrouping.ts`. */
 export function operationLabel(operation: ActivityOperation, t: Translate, preferDescription = false): string {
   if (preferDescription && operation.kind === 'bash' && operation.description) return operation.description;
@@ -322,13 +328,13 @@ export function describeActivity(summary: ActivitySummary, t: Translate, isLive:
 
   if (summary.operations.length === 1) {
     const [only] = summary.operations;
-    const counts = only.kind === 'edit' ? formatCounts(only.added, only.removed) : '';
+    const counts = showsLineCounts(only.kind) ? formatCounts(only.added, only.removed) : '';
     return { label: `${operationLabel(only, t)}${counts}`, isRunning: false };
   }
 
   const facets = summary.facets.map((facet) => {
     const text = t(`activity.facet.${facet.kind}`, { count: facet.count });
-    return facet.kind === 'edit' ? `${text}${formatCounts(facet.added, facet.removed)}` : text;
+    return showsLineCounts(facet.kind) ? `${text}${formatCounts(facet.added, facet.removed)}` : text;
   });
   return { label: capitalize(facets.join(', ')), isRunning: false };
 }

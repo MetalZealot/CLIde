@@ -1,8 +1,9 @@
 import type { ChatMessage } from '../types/types';
 import { parseSearchResult } from '../tools/configs/toolConfigs';
 
+import { countBashEditDiff, readBashEditDiff, type BashEditDiff } from './bashEditDiff';
 import { calculateDiff } from './messageTransforms';
-import { basename, describeOperation, parseToolInput, readApplyPatchText } from './toolActivity';
+import { basename, describeOperation, formatLineCounts, parseToolInput, readApplyPatchText } from './toolActivity';
 
 export type DetailTone = 'command' | 'output' | 'error' | 'added' | 'removed' | 'gap';
 
@@ -63,6 +64,35 @@ function diffBlocks(files: Array<{ path: string; lines: DetailLine[] }>): Detail
   }));
 }
 
+/** One block per file a shell command changed, then a line for what the CLI could not diff. */
+function bashEditBlocks(diff: BashEditDiff | null): DetailBlock[] {
+  if (!diff) return [];
+  const blocks: DetailBlock[] = diff.files.map((file) => {
+    const counts = countBashEditDiff({ ...diff, files: [file] });
+    const state = file.created ? ' (new)' : file.deleted ? ' (deleted)' : '';
+    const lines: DetailLine[] = [];
+    for (const line of file.lines) {
+      if (line === null) {
+        if (lines.length > 0 && lines[lines.length - 1].tone !== 'gap') lines.push({ text: '', tone: 'gap' });
+      } else if (line.startsWith('+')) lines.push({ text: line.slice(1), tone: 'added' });
+      else if (line.startsWith('-')) lines.push({ text: line.slice(1), tone: 'removed' });
+    }
+    while (lines.length > 0 && lines[lines.length - 1].tone === 'gap') lines.pop();
+    return { type: 'lines', lines, heading: `${basename(file.path)}${state}  ${formatLineCounts(counts.added, counts.removed)}` };
+  });
+
+  const notes: string[] = [];
+  if (diff.skipped) notes.push('Not diffed: git commands that rewrite the working tree are skipped.');
+  if (diff.unavailable) notes.push(diff.files.length > 0 ? 'Part of the diff is unavailable.' : 'File diff unavailable for this command.');
+  if (diff.undiffedPaths.length > 0 || diff.unnamedCount > 0) {
+    const more = diff.unnamedCount > 0 ? ` and ${diff.unnamedCount} more` : '';
+    notes.push(`Also changed, not diffed: ${diff.undiffedPaths.map(basename).join(', ') || 'files'}${more}.`);
+  }
+  if (diff.shared) notes.push('Another command changed files at the same time, so some of these may be its.');
+  if (notes.length > 0) blocks.push({ type: 'lines', lines: notes.map((text) => ({ text, tone: 'output' })) });
+  return blocks;
+}
+
 function editBlocks(toolName: string, input: any): DetailBlock[] {
   switch (toolName) {
     case 'Write':
@@ -116,7 +146,11 @@ export function buildOperationDetail(message: ChatMessage): OperationDetail {
     case 'bash': {
       const command = splitLines(input?.command).join('\n');
       return {
-        blocks: nonEmpty([{ type: 'lines', lines: toLines(command, 'command') }, { type: 'lines', lines: output }]),
+        blocks: nonEmpty([
+          { type: 'lines', lines: toLines(command, 'command') },
+          ...bashEditBlocks(readBashEditDiff(result?.toolUseResult)),
+          { type: 'lines', lines: output },
+        ]),
         copyText: command,
       };
     }
